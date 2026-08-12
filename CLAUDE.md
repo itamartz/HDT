@@ -12,6 +12,7 @@ VBScript/WSH.
 | `docs/DESIGN.md` | Full technical design, 15 sections. Authoritative. |
 | `docs/ROADMAP.md` | Milestones M0–M8, each with a "Tests first" list and exit criteria |
 | `.planning/PROJECT.md` | Settled decisions, environment, lab safety rules, staged media, ADK paths |
+| `.planning/SPIKES.md` | **Verified-by-execution environment findings.** Read before writing anything that touches WinPE, oscdimg, Pester imports, or Hyper-V — it records traps already hit and the working fixes |
 
 These already settle nearly every design question. **Do not re-derive or
 contradict them.** If you believe one is wrong, say so and update the document —
