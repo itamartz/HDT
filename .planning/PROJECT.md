@@ -176,6 +176,57 @@ of relying on every future agent remembering it.
   on the function and add the file to `NOTICE.md` at the repo root (create it if
   absent, reproducing the MIT notice from `C:\HDTLab\reference\PSD\LICENSE`).
 
+## ⚠ Hyper-V lab safety rules — READ BEFORE TOUCHING ANY VM
+
+This machine hosts the user's **existing, live lab**. Damaging it is worse than
+failing a test.
+
+**PROTECTED — never stop, modify, delete, checkpoint-revert, reconfigure, or
+change the networking of these VMs:**
+
+| VM | What it is | Notes |
+|---|---|---|
+| `CM01` | Configuration Manager server, 16 GB, 192.168.25.214 | **Almost certainly runs a PXE responder / WDS** |
+| `DC01` | Domain controller, 192.168.25.200 | The lab's AD |
+
+Both sit on the **`Default Switch`** (192.168.25.0/24).
+
+### Rules
+
+1. **HDT test VMs are named `HDT-*`.** Only ever act on VMs matching that
+   prefix. Before any destructive Hyper-V call, filter explicitly — never
+   `Get-VM | Remove-VM` or any unfiltered pipeline.
+2. **HDT test VMs attach ONLY to the `HDT Lab` switch** (internal, already
+   created). Never `Default Switch`.
+3. **PXE/WDS testing happens ONLY on the `HDT Lab` switch.** This is the
+   critical one: standing up a WDS or DHCP/PXE responder on `Default Switch`
+   would collide with CM01's PXE — either breaking the user's SCCM lab or
+   having SCCM answer our test VMs and silently invalidate the test. An
+   isolated switch prevents both.
+4. **Memory budget: keep all HDT VMs under 12 GB combined.** Host has 63.7 GB
+   with ~22 GB free; CM01 uses dynamic memory and may grow. Use 4 GB per test
+   VM and shut them down when a test finishes.
+5. **VM files go to `C:\HDTLab\vms\`**, not the host default `C:\HyperVVMs`
+   where the user's VMs live.
+6. Test VMs are **Generation 2** (UEFI + Secure Boot) — that is what HDT
+   targets, and it is required to exercise the UEFI disk layout and the
+   `-NoPromptForKey` UEFI ISO path.
+
+### Consequence: domain join has no live DC to test against
+
+The `HDT Lab` switch is isolated, so HDT test VMs cannot reach DC01 — and they
+must not be moved to reach it. Therefore:
+
+- `JoinDomain` is verified **against a fake** at the unit level (its command
+  construction, error handling, OU targeting, retry).
+- Real domain-join E2E is **out of scope** unless the user later asks for it,
+  in which case the answer is a throwaway `HDT-DC01` on the isolated switch —
+  never their DC01.
+- Sample sequences default to workgroup join so they run end-to-end in the lab.
+
+State this gap plainly in phase verification rather than implying JoinDomain was
+proven end-to-end.
+
 ## Scratch areas (never commit these)
 
 - `C:\HDTLab\` — deployment share under test, VHDXs, VM files, mounted WIMs
