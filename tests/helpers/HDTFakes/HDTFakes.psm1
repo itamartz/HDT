@@ -410,8 +410,16 @@ function New-HDTFakeCimProvider {
         .PARAMETER FixturePath
             A directory of captured *.json files. Each file seeds root/cimv2 under
             its own base name, so tests/fixtures/cim/Win32_BIOS.json becomes
-            Win32_BIOS. See tests/fixtures/README.md for the capture and
-            sanitisation rules.
+            Win32_BIOS. Subdirectories are ignored - a second namespace is a
+            second directory named by -NamespaceFixturePath, not a nested folder.
+            See tests/fixtures/README.md for the capture and sanitisation rules.
+
+        .PARAMETER NamespaceFixturePath
+            Additional fixture directories, keyed by the namespace they seed.
+            Each directory is loaded exactly as -FixturePath is, but into that
+            namespace, so tests/fixtures/cim-microsofttpm/Win32_Tpm.json becomes
+            Win32_Tpm in root/cimv2/security/microsofttpm. A missing directory
+            throws, naming it.
 
         .OUTPUTS
             HDTFakeCimProvider. Never write the class name as a type literal in a
@@ -429,6 +437,14 @@ function New-HDTFakeCimProvider {
             $cim.AddInstance('root/cimv2/security/microsofttpm', 'Win32_Tpm', @([pscustomobject] @{ IsEnabled_InitialValue = $true }))
 
             Seeds the TPM namespace DESIGN 3.2.1 gathers from.
+
+        .EXAMPLE
+            $cim = New-HDTFakeCimProvider -FixturePath ./tests/fixtures/cim `
+                -NamespaceFixturePath @{ 'root/cimv2/security/microsofttpm' = './tests/fixtures/cim-microsofttpm' }
+            $cim.GetInstance('root/cimv2/security/microsofttpm', 'Win32_Tpm')[0].SpecVersion
+
+            Seeds both namespaces Get-HDTMachineFact queries, from captured
+            fixtures, with no machine attached.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory test double; it changes no state.')]
@@ -443,23 +459,41 @@ function New-HDTFakeCimProvider {
         [string] $Namespace = 'root/cimv2',
 
         [Parameter()]
-        [string] $FixturePath
+        [string] $FixturePath,
+
+        [Parameter()]
+        [hashtable] $NamespaceFixturePath
     )
 
-    $fake = [HDTFakeCimProvider]::new()
+    # One directory -> one namespace. Both -FixturePath and -NamespaceFixturePath
+    # go through this, so a namespace fixture and a root/cimv2 fixture can never
+    # drift apart in how they are loaded.
+    $loadFixtureDirectory = {
+        param($Fake, [string] $Directory, [string] $IntoNamespace)
 
-    if ($PSBoundParameters.ContainsKey('FixturePath')) {
-        if (-not (Test-Path -LiteralPath $FixturePath -PathType Container)) {
-            throw "FixturePath '$FixturePath' does not exist or is not a directory."
+        if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
+            throw "FixturePath '$Directory' does not exist or is not a directory."
         }
 
-        foreach ($file in @(Get-ChildItem -LiteralPath $FixturePath -Filter '*.json' -File)) {
+        foreach ($file in @(Get-ChildItem -LiteralPath $Directory -Filter '*.json' -File)) {
             $text = Get-Content -LiteralPath $file.FullName -Raw
 
             # Never -AsHashtable: it is PowerShell 6+ only and banned outright.
             $content = ConvertFrom-Json -InputObject $text
 
-            $fake.AddInstance('root/cimv2', $file.BaseName, [object[]] @($content))
+            $Fake.AddInstance($IntoNamespace, $file.BaseName, [object[]] @($content))
+        }
+    }
+
+    $fake = [HDTFakeCimProvider]::new()
+
+    if ($PSBoundParameters.ContainsKey('FixturePath')) {
+        & $loadFixtureDirectory $fake $FixturePath 'root/cimv2'
+    }
+
+    if ($PSBoundParameters.ContainsKey('NamespaceFixturePath')) {
+        foreach ($key in @($NamespaceFixturePath.Keys)) {
+            & $loadFixtureDirectory $fake ([string] $NamespaceFixturePath[$key]) ([string] $key)
         }
     }
 
