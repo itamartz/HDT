@@ -130,18 +130,10 @@ function Invoke-HDTLint {
 
     # Being listed by Get-Module -ListAvailable is not enough: on Windows
     # PowerShell 5.1 the analyzer can show up inside another module's
-    # RequiredModules tree yet still refuse to import. Both paths get the same
-    # actionable message rather than a raw Import-Module failure.
-    $analyzerAvailable = [bool] (Get-Module -ListAvailable -Name PSScriptAnalyzer)
-    if ($analyzerAvailable) {
-        try {
-            Import-Module -Name PSScriptAnalyzer -ErrorAction Stop
-        } catch {
-            $analyzerAvailable = $false
-        }
-    }
-
-    if (-not $analyzerAvailable) {
+    # RequiredModules tree yet still refuse to import. Test-HDTModuleAvailable
+    # holds that distinction so the lint task, the selfcheck task and the tests
+    # all agree on what "available" means.
+    if (-not (Test-HDTModuleAvailable -Name PSScriptAnalyzer)) {
         throw ("PSScriptAnalyzer is not available to this PowerShell edition (PowerShell {0}, {1}). Run: Install-Module PSScriptAnalyzer -Scope CurrentUser. The 'test' task does not require it." -f $PSVersionTable.PSVersion, $PSVersionTable.PSEdition)
     }
 
