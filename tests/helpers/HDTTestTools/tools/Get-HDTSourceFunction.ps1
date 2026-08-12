@@ -16,6 +16,12 @@ function Get-HDTSourceFunction {
             the naming contract pass vacuously - the exact failure mode these
             contracts exist to prevent.
 
+            Class members are not functions and are excluded. PowerShell wraps a
+            constructor, instance, hidden or static method in a FunctionMemberAst
+            whose child is a FunctionDefinitionAst, so a naive AST search reports
+            them as commands. DESIGN 15.1 names commands; a service contract fixes
+            its own method names (IFileSystem.TestPath).
+
             Type comparisons are made on GetType().Name rather than on type literals
             because AST type literals differ in availability between engines.
 
@@ -66,6 +72,15 @@ function Get-HDTSourceFunction {
 
             $definition = @($ast.FindAll({ $args[0].GetType().Name -eq 'FunctionDefinitionAst' }, $true))
             foreach ($item2 in $definition) {
+                # PowerShell wraps every class member - constructor, instance,
+                # hidden and static method alike - in a FunctionMemberAst whose
+                # child is a FunctionDefinitionAst. Those are not commands: a
+                # service contract fixes its own method names (IFileSystem.TestPath),
+                # so DESIGN 15.1 must not be applied to them.
+                if ($null -ne $item2.Parent -and $item2.Parent.GetType().Name -eq 'FunctionMemberAst') {
+                    continue
+                }
+
                 [void] $found.Add([pscustomobject] @{
                         Name = $item2.Name
                         Path = $fullPath
