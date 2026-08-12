@@ -13,9 +13,11 @@
     FunctionsToExport    = @(
         'Get-HDTFunctionNameViolation',
         'Get-HDTSourceFile',
+        'Get-HDTScriptCompatibilityViolation',
         'Get-HDTSourceFunction',
         'New-HDTPesterConfiguration',
-        'Test-HDTFunctionName'
+        'Test-HDTFunctionName',
+        'Test-HDTScriptCompatibility'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
