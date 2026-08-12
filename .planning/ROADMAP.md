@@ -26,7 +26,7 @@ Pester 5 harness, PSSA, CI, fakes, and the `Verb-HDTNoun` naming contract test.
 
 **Plans:** 4 plans, executed in order (each depends on the one before it).
 
-- [ ] `01-01-PLAN.md` — module skeleton + loader, `HDTTestTools` helper module,
+- [x] `01-01-PLAN.md` — module skeleton + loader, `HDTTestTools` helper module,
       `build.ps1` (build/test/lint/ci), Pester 5 configuration, `PSScriptAnalyzerSettings.psd1`
 - [ ] `01-02-PLAN.md` — the three enforcement contract tests (`Verb-HDTNoun`
       naming, PowerShell 5.1 syntax, no-MDT-dependency) and the AST tooling they rest on
