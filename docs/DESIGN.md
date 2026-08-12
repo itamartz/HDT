@@ -43,6 +43,14 @@ engine on PowerShell instead of VBScript/WSH.
   already sync. HDT targets **bare-metal and wipe-and-load only.**
 - **Configuration Manager integration.** HDT is standalone, not an MECM
   companion. No CM task sequence import.
+- **Any dependency on MDT itself.** MDT is deprecated; a replacement that still
+  requires it installed is not a replacement. HDT ships no MDT component and
+  imports none — no `MicrosoftDeploymentToolkit` module or `MDTProvider` drive,
+  no `Microsoft.BDD.*` assemblies, no `ZTI*`/`LTI*` scripts, no `ts.xml` or MDT
+  `Control\` layout, no MDT database schema. Enforced by a contract test that
+  scans `src/` for those identifiers. HDT's only external Microsoft dependencies
+  are the **Windows ADK** (DISM, oscdimg, WinPE) and, optionally, the **WDS**
+  server role — both supported products independent of MDT.
 - **Ongoing patch management.** HDT runs Windows Update *during* a deployment
   (§10.1) so a machine leaves the bench current. It does not manage patching
   after that, and it does not maintain a servicing pipeline for images — that
@@ -435,9 +443,14 @@ the wrong device.
 
 Mechanism — `oscdimg` with a `-bootdata` entry per firmware target:
 
-- **UEFI:** use `efisys_noprompt.bin` in place of `efisys.bin`. Both ship in the
-  ADK under `…\Windows Preinstallation Environment\amd64\Media\Efi\Microsoft\Boot\`.
-  This is the supported way to get a no-prompt UEFI ISO.
+- **UEFI:** use `efisys_noprompt.bin` in place of `efisys.bin`. **Verified
+  location on ADK 10.1.26100.2454 (24H2):**
+  `…\Assessment and Deployment Kit\Deployment Tools\<arch>\Oscdimg\`, alongside
+  `oscdimg.exe` and `etfsboot.com` — *not* under the WinPE add-on's `Media\EFI\`
+  tree, which holds the bootloader files but not the El Torito boot images. The
+  folder also ships `efisys_EX.bin` / `efisys_noprompt_EX.bin` variants for
+  oversized boot images. `Get-HDTAdkPath` resolves these rather than hardcoding,
+  since the layout has moved between ADK releases.
 - **BIOS:** `etfsboot.com` has the prompt in its boot sector code and Microsoft
   ships no no-prompt variant. **A BIOS-bootable ISO will still prompt.** HDT
   states this rather than pretending otherwise; `-NoPromptForKey` with
