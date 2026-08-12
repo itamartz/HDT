@@ -1223,7 +1223,12 @@ of the toolkit.
 
 Enforcement is a **contract test**, not a review convention: the suite
 enumerates every function the module defines and fails on any name not matching
-`^[A-Z][a-z]+-HDT[A-Z]`, and on any verb outside `Get-Verb`.
+`^[A-Z][a-zA-Z]*-HDT[A-Z]`, matched case-sensitively, and on any verb outside
+`Get-Verb`. The verb allows interior capitals because the approved two-word verbs
+(`ConvertTo`, `ConvertFrom`, `WaitFor`) contain one — `^[A-Z][a-z]+` would reject
+`ConvertTo-HDTReport`, which this section blesses three lines above — so the real
+constraint on the verb is membership of `Get-Verb`, checked with exact case,
+rather than the character class alone.
 
 The manifest's `DefaultCommandPrefix` is deliberately **not** used to achieve
 this — it only applies on import, so the prefix would vanish when the engine
