@@ -566,15 +566,24 @@ These are the reasons to reimplement rather than copy:
   the mechanism Sysinternals' `Autologon.exe` uses. Same behavior, no plaintext
   string sitting in a registry hive that any local read can lift, and no
   plaintext in a registry backup or a captured image.
+
+  **Verified (SPIKES.md S7).** Windows itself does exactly this: a machine
+  deployed with an unattend `<AutoLogon>` block autologs on with
+  `AutoAdminLogon=1`, `DefaultUserName=Administrator` and `AutoLogonCount=3` in
+  the registry while **`DefaultPassword` is absent** from it. LSA-secret storage
+  and `AutoLogonCount` coexist natively — this is the supported path, not a
+  workaround, and no registry-storage fallback is required.
 - **`AutoLogonCount` bounds it.** The engine sets the count to exactly the
   number of legs remaining. Windows decrements it per autologon and tears down
   `AutoAdminLogon` when it reaches zero — so an abandoned or failed deployment
-  stops autologging-on by itself rather than staying open forever. *(Behavior
-  note: `AutoLogonCount` interacts with where `DefaultPassword` lives. M2
-  verifies the LSA-secret + count combination empirically on each supported
-  Windows build before it is relied on; if the combination does not hold, the
-  fallback is registry storage plus explicit teardown, and this document is
-  updated with the finding.)*
+  stops autologging-on by itself rather than staying open forever.
+
+  *Not yet observed:* the decrement to zero. S7 captured only the first leg
+  (it drove itself from `FirstLogonCommands`, which runs once by design), where
+  the count still read its initial value. Phase 03 confirms the decrement using
+  a `RunOnce` entry re-registered per leg, and records the result here. This is
+  the **third** backstop behind `finally` teardown and the boot-time reconcile,
+  so it is not load-bearing on its own.
 - **Teardown is a failsafe, not a step.** MDT's cleanup is a task sequence step,
   so a failure before it leaves autologon armed. In HDT teardown runs from
   `finally` around the sequence, *and* `Start-HDTResume.ps1` reconciles on every

@@ -201,6 +201,59 @@ performance concern at this scale.
   enabled. A scoped rule (TCP 445 from the lab subnet only) was required. Any
   "cannot reach the share" report should check the firewall before the network.
 
+## S7 — Autologon: LSA secret and AutoLogonCount coexist ✅ (partially)
+
+Answers the question DESIGN §4.5.2 flagged as unverified. Deployed Windows 11
+LTSC with an unattend containing `<AutoLogon><LogonCount>3</LogonCount>`, and
+read the Winlogon state at first logon:
+
+```
+Logged on as      : Administrator
+ComputerName      : HDT-TEST-01
+AutoAdminLogon    : 1
+DefaultUserName   : Administrator
+DefaultDomainName :
+AutoLogonCount    : 3
+DefaultPassword   : absent          <- NOT in the registry
+Leg number        : 1
+```
+
+### What this proves
+
+- **Windows stores the autologon password as an LSA secret, not registry
+  cleartext, when autologon comes from unattend `<AutoLogon>`.** `DefaultPassword`
+  is absent from
+  `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon` while autologon
+  is demonstrably working.
+- **`AutoLogonCount` lives in the registry at the same time.** So the
+  LSA-secret + count combination that DESIGN §4.5.2 worried might be mutually
+  exclusive is exactly what Windows Setup does natively. HDT's design is the
+  supported path, not a workaround — no fallback to registry storage is needed.
+- The unattend also proved out: `ComputerName` applied from the `specialize`
+  pass, OOBE fully skipped, built-in Administrator enabled, and
+  `FirstLogonCommands` executed. That is phase 04's `ApplyUnattend` step
+  validated.
+
+### What this does NOT prove — do not claim it does
+
+**The decrement-to-zero teardown was not observed.** The spike drove itself from
+`FirstLogonCommands`, which by design runs **once**, at first logon only — so
+legs 2 and 3 never executed and the count was never seen going 3 → 2 → 1 → gone.
+At leg 1 it still read `3`.
+
+Two consequences:
+
+1. **Method note for phase 03:** to observe or drive behaviour across multiple
+   logons, use a `RunOnce` entry or a scheduled task re-registered each leg.
+   `FirstLogonCommands` cannot do it. This is also why HDT's own resume uses
+   `RunOnce` re-registered per leg (DESIGN §4.5.1) rather than unattend.
+2. **Risk is contained regardless.** `AutoLogonCount` is the *third* backstop in
+   DESIGN §4.5.2, behind teardown in `finally` and the boot-time reconcile in
+   `Start-HDTResume.ps1`. Even if Windows did not decrement it, an abandoned
+   deployment is still disarmed by the reconcile on next boot. Phase 03 should
+   confirm the decrement empirically and record the result, but it is not
+   load-bearing on its own.
+
 ## Reusable spike artifacts
 
 | Artifact | Path |
