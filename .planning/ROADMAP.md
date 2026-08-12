@@ -28,12 +28,19 @@ Pester 5 harness, PSSA, CI, fakes, and the `Verb-HDTNoun` naming contract test.
 
 - [x] `01-01-PLAN.md` — module skeleton + loader, `HDTTestTools` helper module,
       `build.ps1` (build/test/lint/ci), Pester 5 configuration, `PSScriptAnalyzerSettings.psd1`
-- [ ] `01-02-PLAN.md` — the three enforcement contract tests (`Verb-HDTNoun`
+- [x] `01-02-PLAN.md` — the three enforcement contract tests (`Verb-HDTNoun`
       naming, PowerShell 5.1 syntax, no-MDT-dependency) and the AST tooling they rest on
-- [ ] `01-03-PLAN.md` — first hand-written fakes (`FakeFileSystem`, `FakeCimProvider`),
+- [x] `01-03-PLAN.md` — first hand-written fakes (`FakeFileSystem`, `FakeCimProvider`),
       their service contract tests, captured CIM fixtures, and the fake conventions
-- [ ] `01-04-PLAN.md` — harness self-proof (a deliberately failing test fails),
+- [x] `01-04-PLAN.md` — harness self-proof (a deliberately failing test fails),
       GitHub Actions CI on a Windows runner for both engines, clean-clone exit verification
+
+Phase 01 is **complete**. `./build.ps1 -Task test` exits 0 from a `git clone --local`
+of the committed state under pwsh 7 and Windows PowerShell 5.1. The one documented
+exception is `-Task ci` under 5.1 *on the development machine*, where the `lint`
+step fails because PSScriptAnalyzer is not importable by that edition; CI installs
+it for both editions. GitHub-side CI has not been observed green because the
+repository has no remote yet — see the `user_setup` block in `01-04-PLAN.md`.
 
 **02 — Rules.** Replace `CustomSettings.ini` + `ZTIGather`. Fact gathering behind
 `ICimProvider`, `rules.yaml`, five-source precedence, `%Var%` expansion, and

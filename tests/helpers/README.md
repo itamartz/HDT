@@ -162,7 +162,36 @@ Seed data is captured from real machines and sanitised, never invented
 sanitisation table. A fake may ship a convenient default shape, but the moment a
 test asserts on a property value, that value comes from a fixture.
 
-## 9. Mock is reserved for the adapter boundary
+## 9. The self-check fixtures are deliberately red
+
+`tests/selfcheck/` holds two files that exist to be *observed*, not to pass:
+
+| File | Behaviour | Why |
+|---|---|---|
+| `DeliberateFailure.Tests.ps1` | one `It` that always fails | proves the harness catches a failing test |
+| `DeliberatePass.Tests.ps1` | one `It` that always passes | proves the harness does not simply report failure for everything |
+| `tests/fixtures/analyzer/AnalyzerBait.ps1` | four PSScriptAnalyzer violations | proves analyzer violations are detected, and that `PSUseCompatibleSyntax` is really targeting 5.1 |
+
+**Do not "fix" any of them.** `build.ps1 -Task selfcheck` fails if the failing
+one stops failing.
+
+Two exclusions keep them harmless, and both must stay true:
+
+- `tests/selfcheck` is **never in `Run.Path`** for `build.ps1 -Task test`. The
+  self-check runs those files itself, once in-process and once in a child
+  process with `Run.Exit` set, so the real exit-code path CI depends on is
+  observed rather than assumed.
+- `tests/fixtures/**` is excluded from `Get-HDTSourceFile`, so the bait is never
+  linted, never name-checked and never parsed. That last one is load-bearing:
+  the bait contains `??`, which is a **parse error** under Windows PowerShell
+  5.1. Nothing may dot-source or `ParseFile` it — only `Invoke-ScriptAnalyzer`
+  under pwsh 7 ever reads it.
+
+`tests/unit/HarnessSelfCheck.Tests.ps1` asserts both exclusions, so a future
+change that widens `Run.Path` or `Get-HDTSourceFile` turns the suite red instead
+of quietly poisoning it.
+
+## 10. Mock is reserved for the adapter boundary
 
 Services get hand-written fakes; `Mock` is only for adapters — `Invoke-HDTDism`
 and friends (DESIGN 12.2.3). Adapters stay branch-free precisely because they
