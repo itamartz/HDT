@@ -138,6 +138,69 @@ Also: **PSScriptAnalyzer is not importable under 5.1** on this box. Therefore
 
 ---
 
+## S6 — The full network deployment flow, verified end to end ✅
+
+**This is phase 04's exit criterion, achieved by hand.** The code must now
+reproduce it. Sequence proven:
+
+> boot WinPE ISO → DHCP lease → map the deployment share → select and partition
+> the machine's own disk → **apply the WIM over SMB** → bcdboot → reboot →
+> **Windows 11 reaches OOBE**
+
+Actual log from inside WinPE:
+
+```
+00:09:15  PS 5.1.26100.1  Share: True
+00:09:17  Disk candidates: 1
+00:09:17      disk 0 64GB bus=SAS style=RAW
+00:09:26  Partitions:  #1 S 260MB   #2 W 64250MB   #3 1024MB
+00:09:26  Applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\
+00:11:01  Apply completed in 95s
+00:11:02  bcdboot exit: 0
+00:11:02  ntoskrnl: True     bootmgfw: True
+00:11:02  === HDT-DEPLOY-OK ===
+```
+
+**Apply of a 4 GB WIM over SMB took 95 s** (over Wi-Fi). Network apply is not a
+performance concern at this scale.
+
+### Findings that phase 04 must encode
+
+- **`Initialize-Disk -PartitionStyle GPT` silently creates its own MSR.** An
+  earlier host-side spike created a second one explicitly and ended up with a
+  duplicate 16 MB partition. The working recipe is
+  `Clear-Disk -RemoveData -RemoveOEM` then `Initialize-Disk`, and **do not**
+  create an MSR by hand. Verified: the clean run produced exactly
+  ESP / Windows / Recovery.
+- **Disk selection**: in a Gen2 VM the virtual disk reports `BusType = SAS`,
+  not `SCSI` or `Virtual`. Do not filter on bus type expecting a VM-specific
+  value. Filter on "not USB, over minimum size" and then **assert exactly one
+  candidate**, refusing to proceed otherwise (DESIGN §9.1).
+- **Log encoding**: `Tee-Object` defaults to UTF-16 on 5.1, producing logs that
+  are unreadable in half the tooling. The log writer must set UTF-8 explicitly
+  (DESIGN §4.4.2).
+- **Boot order**: after apply, the DVD must be removed or demoted or the machine
+  simply boots WinPE again. `ConfigureBoot` owns this.
+- The deployment account (`svc-hdt-deploy`) was **read-only on the share with
+  write only to `Logs\`**, and the whole flow worked — confirming the
+  least-privilege model in DESIGN §6.3 is practical, not just aspirational.
+
+### Networking reality in this lab
+
+- The **host's Hyper-V "Default Switch"** carries a `192.168.25.0/24` lab
+  network (CM01, DC01) but the host's own vNIC there is `172.24.144.1/20` —
+  **no route between VM and host**. A VM on Default Switch cannot reach a share
+  on the host.
+- Working arrangement: an **External** switch (`HDT External`) bound to Wi-Fi.
+  The VM then gets a lease from the real LAN DHCP (`192.168.2.0/24`) and reaches
+  the host share at `192.168.2.108`.
+- The host's internet egress is **Ethernet (192.168.1.219)**, so binding an
+  External switch to Wi-Fi does not interrupt host connectivity. Check this
+  before creating an External switch on any adapter.
+- Inbound SMB was **blocked by default** — zero File and Printer Sharing rules
+  enabled. A scoped rule (TCP 445 from the lab subnet only) was required. Any
+  "cannot reach the share" report should check the firewall before the network.
+
 ## Reusable spike artifacts
 
 | Artifact | Path |
