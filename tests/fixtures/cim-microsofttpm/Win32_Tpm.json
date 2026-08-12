@@ -1,0 +1,14 @@
+[
+  {
+    "IsActivated_InitialValue": true,
+    "IsEnabled_InitialValue": true,
+    "IsOwned_InitialValue": true,
+    "ManufacturerId": 1229870147,
+    "ManufacturerIdTxt": "INTC",
+    "ManufacturerVersion": "600.18.0.0",
+    "ManufacturerVersionFull20": "600.18.0.0",
+    "ManufacturerVersionInfo": "ADL             ",
+    "PhysicalPresenceVersionInfo": "1.3",
+    "SpecVersion": "2.0, 0, 1.38"
+  }
+]

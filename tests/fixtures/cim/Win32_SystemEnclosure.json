@@ -1,0 +1,45 @@
+[
+  {
+    "Tag": "System Enclosure 0",
+    "Status": null,
+    "Name": "System Enclosure",
+    "SecurityStatus": 3,
+    "Caption": "System Enclosure",
+    "Description": "System Enclosure",
+    "InstallDate": null,
+    "CreationClassName": "Win32_SystemEnclosure",
+    "Manufacturer": "LENOVO",
+    "Model": null,
+    "OtherIdentifyingInfo": null,
+    "PartNumber": null,
+    "PoweredOn": null,
+    "SerialNumber": "FIXTURE-SERIAL-0001",
+    "SKU": null,
+    "Version": "Legion 5 Pro 16IAH7H",
+    "Depth": null,
+    "Height": null,
+    "HotSwappable": null,
+    "Removable": null,
+    "Replaceable": null,
+    "Weight": null,
+    "Width": null,
+    "AudibleAlarm": null,
+    "BreachDescription": null,
+    "CableManagementStrategy": null,
+    "LockPresent": false,
+    "SecurityBreach": null,
+    "ServiceDescriptions": null,
+    "ServicePhilosophy": null,
+    "VisibleAlarm": null,
+    "ChassisTypes": [
+      10
+    ],
+    "CurrentRequiredOrProduced": null,
+    "HeatGeneration": null,
+    "NumberOfPowerCords": null,
+    "TypeDescriptions": null,
+    "SMBIOSAssetTag": "FIXTURE-ASSET-0001"
+  }
+]
+
+

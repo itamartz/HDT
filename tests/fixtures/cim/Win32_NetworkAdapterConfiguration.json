@@ -1,0 +1,504 @@
+[
+  {
+    "Index": 0,
+    "InterfaceIndex": 5,
+    "Description": "Microsoft Kernel Debug Network Adapter",
+    "ServiceName": "kdnic",
+    "SettingID": "{00000000-0000-0000-0000-000000000000}",
+    "IPEnabled": false,
+    "DHCPEnabled": true,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 1,
+    "InterfaceIndex": 3,
+    "Description": "VMware Virtual Ethernet Adapter for VMnet1",
+    "ServiceName": "VMnetAdapter",
+    "SettingID": "{00000000-0000-0000-0000-000000000001}",
+    "IPEnabled": true,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:01",
+    "IPAddress": [
+      "10.20.30.101",
+      "fe80::01"
+    ],
+    "IPSubnet": [
+      "255.255.255.0",
+      "64"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 2,
+    "InterfaceIndex": 25,
+    "Description": "VMware Virtual Ethernet Adapter for VMnet2",
+    "ServiceName": "VMnetAdapter",
+    "SettingID": "{00000000-0000-0000-0000-000000000002}",
+    "IPEnabled": true,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:02",
+    "IPAddress": [
+      "10.20.30.102",
+      "fe80::02"
+    ],
+    "IPSubnet": [
+      "255.255.255.0",
+      "64"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 3,
+    "InterfaceIndex": 14,
+    "Description": "VMware Virtual Ethernet Adapter for VMnet8",
+    "ServiceName": "VMnetAdapter",
+    "SettingID": "{00000000-0000-0000-0000-000000000003}",
+    "IPEnabled": true,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:03",
+    "IPAddress": [
+      "10.20.30.103",
+      "fe80::03"
+    ],
+    "IPSubnet": [
+      "255.255.255.0",
+      "64"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 4,
+    "InterfaceIndex": 13,
+    "Description": "Intel(R) Wi-Fi 6E AX211 160MHz",
+    "ServiceName": "Netwtw14.",
+    "SettingID": "{00000000-0000-0000-0000-000000000004}",
+    "IPEnabled": false,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:04",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 5,
+    "InterfaceIndex": 6,
+    "Description": "Realtek PCIe GbE Family Controller",
+    "ServiceName": "rt68cx21",
+    "SettingID": "{00000000-0000-0000-0000-000000000005}",
+    "IPEnabled": true,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:05",
+    "IPAddress": [
+      "10.20.30.105",
+      "fe80::05",
+      "fe80::1:05",
+      "fe80::2:05",
+      "fe80::3:05",
+      "fe80::4:05",
+      "fe80::5:05",
+      "fe80::6:05",
+      "fe80::7:05",
+      "fe80::8:05"
+    ],
+    "IPSubnet": [
+      "255.255.255.0",
+      "64",
+      "128",
+      "128",
+      "128",
+      "128",
+      "128",
+      "128",
+      "128",
+      "64"
+    ],
+    "DefaultIPGateway": [
+      "10.20.30.1"
+    ],
+    "DNSDomain": null,
+    "DNSServerSearchOrder": [
+      "10.20.30.2"
+    ]
+  },
+  {
+    "Index": 6,
+    "InterfaceIndex": 10,
+    "Description": "Microsoft Wi-Fi Direct Virtual Adapter",
+    "ServiceName": "vwifimp",
+    "SettingID": "{00000000-0000-0000-0000-000000000006}",
+    "IPEnabled": false,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:06",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 7,
+    "InterfaceIndex": 23,
+    "Description": "Bluetooth Device (Personal Area Network)",
+    "ServiceName": "BthPan",
+    "SettingID": "{00000000-0000-0000-0000-000000000007}",
+    "IPEnabled": false,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:07",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 8,
+    "InterfaceIndex": 2,
+    "Description": "Microsoft Wi-Fi Direct Virtual Adapter",
+    "ServiceName": "vwifimp",
+    "SettingID": "{00000000-0000-0000-0000-000000000008}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:08",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 9,
+    "InterfaceIndex": 12,
+    "Description": "WAN Miniport (SSTP)",
+    "ServiceName": "RasSstp",
+    "SettingID": "{00000000-0000-0000-0000-000000000009}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 10,
+    "InterfaceIndex": 18,
+    "Description": "WAN Miniport (IKEv2)",
+    "ServiceName": "RasAgileVpn",
+    "SettingID": "{00000000-0000-0000-0000-00000000000A}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 11,
+    "InterfaceIndex": 16,
+    "Description": "WAN Miniport (L2TP)",
+    "ServiceName": "Rasl2tp",
+    "SettingID": "{00000000-0000-0000-0000-00000000000B}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 12,
+    "InterfaceIndex": 17,
+    "Description": "WAN Miniport (PPTP)",
+    "ServiceName": "PptpMiniport",
+    "SettingID": "{00000000-0000-0000-0000-00000000000C}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 13,
+    "InterfaceIndex": 22,
+    "Description": "WAN Miniport (PPPOE)",
+    "ServiceName": "RasPppoe",
+    "SettingID": "{00000000-0000-0000-0000-00000000000D}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 14,
+    "InterfaceIndex": 7,
+    "Description": "WAN Miniport (IP)",
+    "ServiceName": "NdisWan",
+    "SettingID": "{00000000-0000-0000-0000-00000000000E}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:0E",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 15,
+    "InterfaceIndex": 15,
+    "Description": "WAN Miniport (IPv6)",
+    "ServiceName": "NdisWan",
+    "SettingID": "{00000000-0000-0000-0000-00000000000F}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:0F",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 16,
+    "InterfaceIndex": 21,
+    "Description": "WAN Miniport (Network Monitor)",
+    "ServiceName": "NdisWan",
+    "SettingID": "{00000000-0000-0000-0000-000000000010}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:10",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 17,
+    "InterfaceIndex": 41,
+    "Description": "Tailscale Tunnel",
+    "ServiceName": "wintun",
+    "SettingID": "{00000000-0000-0000-0000-000000000011}",
+    "IPEnabled": true,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": [
+      "10.20.30.117",
+      "fe80::11",
+      "fe80::1:11"
+    ],
+    "IPSubnet": [
+      "255.255.255.255",
+      "64",
+      "128"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": [
+      "10.20.30.2"
+    ]
+  },
+  {
+    "Index": 18,
+    "InterfaceIndex": 26,
+    "Description": "Hyper-V Virtual Switch Extension Adapter",
+    "ServiceName": "VMSMP",
+    "SettingID": "{00000000-0000-0000-0000-000000000012}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 19,
+    "InterfaceIndex": 20,
+    "Description": "RAS Async Adapter",
+    "ServiceName": "AsyncMac",
+    "SettingID": "{00000000-0000-0000-0000-000000000013}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 20,
+    "InterfaceIndex": 11,
+    "Description": "VMware Virtual Ethernet Adapter for VMnet3",
+    "ServiceName": "VMnetAdapter",
+    "SettingID": "{00000000-0000-0000-0000-000000000014}",
+    "IPEnabled": true,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:14",
+    "IPAddress": [
+      "10.20.30.120",
+      "fe80::14"
+    ],
+    "IPSubnet": [
+      "255.255.0.0",
+      "64"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 21,
+    "InterfaceIndex": 54,
+    "Description": "Hyper-V Virtual Switch Extension Adapter",
+    "ServiceName": "VMSMP",
+    "SettingID": "{00000000-0000-0000-0000-000000000015}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 22,
+    "InterfaceIndex": 62,
+    "Description": "Hyper-V Virtual Switch Extension Adapter",
+    "ServiceName": "VMSMP",
+    "SettingID": "{00000000-0000-0000-0000-000000000016}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 23,
+    "InterfaceIndex": 8,
+    "Description": "VMware Virtual Ethernet Adapter for VMnet4",
+    "ServiceName": "VMnetAdapter",
+    "SettingID": "{00000000-0000-0000-0000-000000000017}",
+    "IPEnabled": true,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:17",
+    "IPAddress": [
+      "10.20.30.123",
+      "fe80::17"
+    ],
+    "IPSubnet": [
+      "255.255.0.0",
+      "64"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 24,
+    "InterfaceIndex": 64,
+    "Description": "Hyper-V Virtual Ethernet Adapter #2",
+    "ServiceName": "VMSNPXYMP",
+    "SettingID": "{00000000-0000-0000-0000-000000000018}",
+    "IPEnabled": true,
+    "DHCPEnabled": false,
+    "MACAddress": "00:15:5D:0A:00:18",
+    "IPAddress": [
+      "10.20.30.124",
+      "fe80::18"
+    ],
+    "IPSubnet": [
+      "255.255.255.0",
+      "64"
+    ],
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 25,
+    "InterfaceIndex": 68,
+    "Description": "Hyper-V Virtual Switch Extension Adapter",
+    "ServiceName": "VMSMP",
+    "SettingID": "{00000000-0000-0000-0000-000000000019}",
+    "IPEnabled": false,
+    "DHCPEnabled": false,
+    "MACAddress": null,
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 26,
+    "InterfaceIndex": 38,
+    "Description": "Microsoft Network Adapter Multiplexor Driver",
+    "ServiceName": "NdisImPlatformMp",
+    "SettingID": "{00000000-0000-0000-0000-00000000001A}",
+    "IPEnabled": false,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:1A",
+    "IPAddress": null,
+    "IPSubnet": null,
+    "DefaultIPGateway": null,
+    "DNSDomain": null,
+    "DNSServerSearchOrder": null
+  },
+  {
+    "Index": 27,
+    "InterfaceIndex": 72,
+    "Description": "Hyper-V Virtual Ethernet Adapter #3",
+    "ServiceName": "VMSNPXYMP",
+    "SettingID": "{00000000-0000-0000-0000-00000000001B}",
+    "IPEnabled": true,
+    "DHCPEnabled": true,
+    "MACAddress": "00:15:5D:0A:00:1B",
+    "IPAddress": [
+      "10.20.30.127",
+      "fe80::1B"
+    ],
+    "IPSubnet": [
+      "255.255.255.0",
+      "64"
+    ],
+    "DefaultIPGateway": [
+      "10.20.30.254"
+    ],
+    "DNSDomain": null,
+    "DNSServerSearchOrder": [
+      "10.20.30.2"
+    ]
+  }
+]

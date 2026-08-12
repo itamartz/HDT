@@ -1,0 +1,12 @@
+[
+  {
+    "Name": "82RF",
+    "Version": "Hyper-V UEFI Release v4.1",
+    "Caption": "Computer System Product",
+    "Description": "Computer System Product",
+    "IdentifyingNumber": "FIXTURE-SERIAL-0001",
+    "SKUNumber": null,
+    "Vendor": "Microsoft Corporation",
+    "UUID": "4C4C4544-0031-3610-8052-B7C04F515A31"
+  }
+]
