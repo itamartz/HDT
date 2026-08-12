@@ -50,7 +50,7 @@ and explains every value.
 
 **Plans:** 3 plans, executed in order (each depends on the one before it).
 
-- [ ] `02-01-PLAN.md` — CIM/registry/environment/script services (fakes, contracts,
+- [x] `02-01-PLAN.md` — CIM/registry/environment/script services (fakes, contracts,
       real adapters), the remaining captured CIM fixtures, and `Get-HDTMachineFact`
 - [ ] `02-02-PLAN.md` — `Get-HDTVariableMap`, pointed configuration errors, the YAML
       adapter, `schemas/rules.schema.json` + `machine.schema.json`, and
