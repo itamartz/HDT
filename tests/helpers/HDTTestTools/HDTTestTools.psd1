@@ -10,7 +10,13 @@
     PowerShellVersion    = '5.1'
     CompatiblePSEditions = @('Desktop', 'Core')
 
-    FunctionsToExport    = @('Get-HDTSourceFile', 'New-HDTPesterConfiguration')
+    FunctionsToExport    = @(
+        'Get-HDTFunctionNameViolation',
+        'Get-HDTSourceFile',
+        'Get-HDTSourceFunction',
+        'New-HDTPesterConfiguration',
+        'Test-HDTFunctionName'
+    )
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()
