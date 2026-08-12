@@ -48,6 +48,17 @@ provenance for every resolved variable.
 *Exit:* given fixture facts + rules, the engine produces the expected variables
 and explains every value.
 
+**Plans:** 3 plans, executed in order (each depends on the one before it).
+
+- [ ] `02-01-PLAN.md` — CIM/registry/environment/script services (fakes, contracts,
+      real adapters), the remaining captured CIM fixtures, and `Get-HDTMachineFact`
+- [ ] `02-02-PLAN.md` — `Get-HDTVariableMap`, pointed configuration errors, the YAML
+      adapter, `schemas/rules.schema.json` + `machine.schema.json`, and
+      `Import-HDTRuleDocument` with thirteen fixture documents
+- [ ] `02-03-PLAN.md` — the resolution engine: five-source precedence, wildcard and
+      multi-key `when`, `%Var%` expansion with cycle detection, `setFrom:` rules,
+      provenance, the sample workspace, and the M1 exit demonstration
+
 **03 — Sequence engine.** Sequencing, conditions, retry, reboot-resume, and the
 autologon lifecycle — all against fakes, touching nothing real. Includes the
 `SetVariable` / `PowerShell` / `CommandLine` / `Restart` steps and JSONL logging.
