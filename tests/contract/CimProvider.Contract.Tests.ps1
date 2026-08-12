@@ -67,6 +67,28 @@ Describe 'ICimProvider contract: <Name>' -ForEach $script:HDTImplementation {
         $instance.UUID | Should -Not -BeNullOrEmpty
     }
 
+    It 'returns a Win32_SystemEnclosure instance with ChassisTypes' {
+        # DESIGN 3.2 derives HDTIsDesktop/HDTIsLaptop/HDTIsServer from
+        # ChassisTypes[0]. Every physical and virtual Windows machine reports an
+        # enclosure, so this is safe to assert of any implementation.
+        $instance = @($script:cim.GetInstance('Win32_SystemEnclosure'))[0]
+
+        @($instance.PSObject.Properties.Name) | Should -Contain 'ChassisTypes'
+        @($instance.ChassisTypes).Count | Should -BeGreaterThan 0
+    }
+
+    It 'returns Win32_NetworkAdapterConfiguration instances, including adapters that are not IP enabled' {
+        # DESIGN 3.2.1: network facts come from this class, not Get-NetIPAddress,
+        # because WinPE has no NetTCPIP module. The ICimProvider contract has no
+        # -Filter, so every implementation returns the unfiltered set and the fact
+        # gatherer does the IPEnabled filtering itself.
+        $instance = @($script:cim.GetInstance('Win32_NetworkAdapterConfiguration'))
+
+        $instance.Count | Should -BeGreaterThan 0
+        @($instance | Where-Object { -not $_.IPEnabled }).Count |
+            Should -BeGreaterThan 0 -Because 'the unfiltered set must include adapters the gatherer has to drop'
+    }
+
     It 'returns an array even for a single instance' {
         # Win32_BaseBoard is single-instance on real hardware, and a fact gatherer
         # that indexes [0] must not have to care.
