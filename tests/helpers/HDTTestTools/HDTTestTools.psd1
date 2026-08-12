@@ -12,6 +12,7 @@
 
     FunctionsToExport    = @(
         'Get-HDTFunctionNameViolation',
+        'Get-HDTMdtDependency',
         'Get-HDTSourceFile',
         'Get-HDTScriptCompatibilityViolation',
         'Get-HDTSourceFunction',

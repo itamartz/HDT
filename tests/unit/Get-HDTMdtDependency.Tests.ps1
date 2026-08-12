@@ -26,11 +26,11 @@ Describe 'Get-HDTMdtDependency' {
         @($script:baitViolation | ForEach-Object { $_.Term }) | Should -Contain 'MdtDrive'
     }
 
-    It 'flags a Microsoft.BDD type reference' {
+    It 'flags an MDT assembly type reference' {
         @($script:baitViolation | ForEach-Object { $_.Term }) | Should -Contain 'BddAssembly'
     }
 
-    It 'flags a ZTI script invocation' {
+    It 'flags a zero-touch script invocation' {
         @($script:baitViolation | ForEach-Object { $_.Term }) | Should -Contain $script:termZti
     }
 
@@ -42,8 +42,8 @@ Describe 'Get-HDTMdtDependency' {
         @($script:baitViolation | ForEach-Object { $_.Term }) | Should -Contain 'TaskSequenceXml'
     }
 
-    It 'knows about the LTI script family as well' {
-        $path = Join-Path -Path $TestDrive -ChildPath 'LtiBait.ps1'
+    It 'knows about the LiteTouch script family as well' {
+        $path = Join-Path -Path $TestDrive -ChildPath 'LegacyScriptBait.ps1'
         Set-Content -Path $path -Value ('& ".\LT' + 'ISuspend.wsf"') -Encoding ASCII
         @(Get-HDTMdtDependency -Path $path | ForEach-Object { $_.Term }) | Should -Contain $script:termLti
     }
