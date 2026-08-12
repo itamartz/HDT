@@ -1,7 +1,7 @@
 BeforeAll {
-    $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $manifestPath = Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1'
-    Import-Module -Name $manifestPath -Force -ErrorAction Stop
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $script:manifestPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1'
+    Import-Module -Name $script:manifestPath -Force -ErrorAction Stop
 }
 
 Describe 'Test-HDTSchemaVersion' {
@@ -52,8 +52,8 @@ Describe 'Test-HDTSchemaVersion' {
 
     It 'returns a plain boolean, not a truthy object' {
         InModuleScope -ModuleName Hephaestus {
-            $result = Test-HDTSchemaVersion -SchemaVersion 1 -Supported 1
-            $result -is [bool]
+            $actual = Test-HDTSchemaVersion -SchemaVersion 1 -Supported 1
+            $actual -is [bool]
         } | Should -BeTrue
     }
 }

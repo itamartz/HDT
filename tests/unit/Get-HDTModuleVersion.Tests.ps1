@@ -1,7 +1,7 @@
 BeforeAll {
-    $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $manifestPath = Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1'
-    Import-Module -Name $manifestPath -Force -ErrorAction Stop
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $script:manifestPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1'
+    Import-Module -Name $script:manifestPath -Force -ErrorAction Stop
 }
 
 Describe 'Get-HDTModuleVersion' {
@@ -11,7 +11,7 @@ Describe 'Get-HDTModuleVersion' {
     }
 
     It 'returns the version declared in the manifest' {
-        $declared = (Import-PowerShellDataFile -Path $manifestPath).ModuleVersion
+        $declared = (Import-PowerShellDataFile -Path $script:manifestPath).ModuleVersion
         Get-HDTModuleVersion | Should -Be ([version] $declared)
     }
 

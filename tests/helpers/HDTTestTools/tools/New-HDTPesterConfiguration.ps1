@@ -36,7 +36,7 @@ function New-HDTPesterConfiguration {
 
             Runs the unit suite and writes an NUnitXml result file.
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingVerbs', '',
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory configuration object; it changes no state.')]
     [CmdletBinding()]
     [OutputType('PesterConfiguration')]
