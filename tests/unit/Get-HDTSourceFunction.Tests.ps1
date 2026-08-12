@@ -8,6 +8,7 @@ BeforeAll {
     $script:badName = Join-Path -Path $script:fixtureRoot -ChildPath 'BadName.ps1'
     $script:sampleModule = Join-Path -Path $script:fixtureRoot -ChildPath 'SampleModule.psm1'
     $script:noFunction = Join-Path -Path $script:fixtureRoot -ChildPath 'NoFunction.ps1'
+    $script:classMember = Join-Path -Path $script:fixtureRoot -ChildPath 'ClassMember.psm1'
 }
 
 Describe 'Get-HDTSourceFunction' {
@@ -61,6 +62,34 @@ Describe 'Get-HDTSourceFunction' {
 
     It 'finds every deliberately misnamed function in the bad fixture' {
         @(Get-HDTSourceFunction -Path $script:badName).Count | Should -Be 7
+    }
+
+    It 'reports only the functions in a file that also defines a class' {
+        # PowerShell wraps every class member in a FunctionMemberAst that itself
+        # contains a FunctionDefinitionAst, so a naive AST search reports the
+        # constructor and every method as if they were commands. DESIGN 15.1 is a
+        # command-naming rule; a service contract fixes its own method names
+        # (IFileSystem.TestPath), so class members must never reach the naming
+        # contract.
+        @(Get-HDTSourceFunction -Path $script:classMember | ForEach-Object { $_.Name }) |
+            Should -Be @('New-HDTFixtureService', 'Get-HDTFixtureNested')
+    }
+
+    It 'ignores class constructors, instance, hidden and static methods' {
+        $name = @(Get-HDTSourceFunction -Path $script:classMember | ForEach-Object { $_.Name })
+
+        foreach ($member in @('HDTFixtureService', 'TestPath', 'RecordSomething', 'Describe')) {
+            $name | Should -Not -Contain $member -Because "$member is a class member, not a command"
+        }
+    }
+
+    It 'reports the line number of a function declared after a class' {
+        # ClassMember.psm1 is pinned: do not reflow the fixture.
+        $line = @{}
+        foreach ($item in @(Get-HDTSourceFunction -Path $script:classMember)) { $line[$item.Name] = $item.Line }
+
+        $line['New-HDTFixtureService'] | Should -Be 31
+        $line['Get-HDTFixtureNested'] | Should -Be 35
     }
 
     It 'throws when a path does not exist' {
