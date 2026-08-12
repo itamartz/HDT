@@ -15,6 +15,16 @@ works if every fake records the same way.
 | `tests/helpers/HDTFakes/` | Hand-written service doubles — one class per service, all inline in `HDTFakes.psm1` |
 | `tests/fixtures/` | Captured data the fakes are seeded from, and deliberately invalid source the scanners are pointed at. See `tests/fixtures/README.md` |
 
+The fakes that exist, and the real adapter each is the double for:
+
+| Fake | Interface | Real adapter | Seeded with |
+|---|---|---|---|
+| `New-HDTFakeFileSystem` | `IFileSystem` | phase 04 | `-File`, `-Directory` |
+| `New-HDTFakeCimProvider` | `ICimProvider` | `New-HDTCimProvider` | `-Instance`, `-FixturePath`, `-NamespaceFixturePath` |
+| `New-HDTFakeRegistryService` | `IRegistryService` (read subset; phase 03 adds the writes) | `New-HDTRegistryService` | `-Value` |
+| `New-HDTFakeEnvironmentProvider` | `IEnvironmentProvider` | `New-HDTEnvironmentProvider` | `-Variable` |
+| `New-HDTFakeScriptInvoker` | `IScriptInvoker` | `New-HDTScriptInvoker -Root` | `-Result` |
+
 Both helper modules are ordinary modules with a manifest, an explicit
 `FunctionsToExport`, `PowerShellVersion = '5.1'` and
 `CompatiblePSEditions = @('Desktop', 'Core')`.
@@ -94,21 +104,45 @@ It 'returns operation names in order from GetOperationName' {
 ## 5. Error parity
 
 A fake throws the **same exception type** the real adapter throws, and the
-contract test asserts the type, not the message:
+contract test asserts that type **after unwrapping to the innermost exception**:
 
 ```powershell
-{ $fs.ReadAllText($missing) } | Should -Throw -ExceptionType ([System.IO.FileNotFoundException])
+$record = $null
+try { $script:invoker.Invoke($missing, @{}) } catch { $record = $_ }
+
+$record | Should -Not -BeNullOrEmpty
+$inner = $record.Exception
+while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+$inner | Should -BeOfType ([System.IO.FileNotFoundException])
 ```
 
+**Why the loop, and not `Should -Throw -ExceptionType`.** Where an exception is
+thrown from decides how the caller sees it, and the two implementations of a
+contract throw from different places:
+
+| Thrower | What the caller catches |
+|---|---|
+| PowerShell class method (every fake) | the original type, e.g. `System.IO.FileNotFoundException` |
+| `ScriptMethod` on a `pscustomobject` (every real adapter — section 11) | `System.Management.Automation.MethodInvocationException`, whose `InnerException` is `System.Management.Automation.RuntimeException`, whose `InnerException` is the original |
+
+So `-ExceptionType` passes against a fake and **fails against a real adapter**,
+which is exactly the boundary a contract has to survive. The loop is a no-op for
+the fake and unwraps twice for the adapter, so one assertion serves both rows.
+Verified on pwsh 7.5.8 and Windows PowerShell 5.1.26100.8655.
+
+Assertions about a *message* need no unwrapping: `MethodInvocationException.Message`
+embeds the inner message, so `Should -Throw -ExpectedMessage '*...*'` works
+against both. A fake's own unit test, which only ever faces the class, may keep
+using `-ExceptionType`.
+
 `FakeFileSystem` throws `FileNotFoundException`, `DirectoryNotFoundException`,
-`UnauthorizedAccessException` and `IOException` exactly where
-`System.IO` would. Verified on both engines: an exception thrown inside a
-PowerShell class method reaches the caller unwrapped, so `-ExceptionType` works
-under 5.1 and 7 alike.
+`UnauthorizedAccessException` and `IOException` exactly where `System.IO` would;
+`FakeScriptInvoker` throws `FileNotFoundException` where the real invoker finds
+no script.
 
 Messages are free to differ, and should still be useful — `FakeCimProvider`
-names the missing class the way `Get-CimInstance` does, because a vaguer message
-would hide a typo in a fact gatherer.
+names the missing class the way `Get-CimInstance` does **not**, because a vaguer
+message would hide a typo in a fact gatherer. See F7 in section 11.
 
 ## 6. Contract first
 
@@ -198,3 +232,95 @@ and friends (DESIGN 12.2.3). Adapters stay branch-free precisely because they
 are not unit tested, so mocking them is bounded and visible. Mocking a *service*
 instead of faking it produces unreadable failures and couples the test to the
 call shape rather than to the behaviour.
+
+## 11. Real adapters are pscustomobjects, not classes
+
+The first four real adapters landed in plan 02-01 (`New-HDTCimProvider`,
+`New-HDTRegistryService`, `New-HDTEnvironmentProvider`, `New-HDTScriptInvoker`).
+Everything below was probed on this machine under **both** pwsh 7.5.8 and
+Windows PowerShell 5.1.26100.8655. They are facts. Do not re-derive them, and do
+not "tidy" the code shapes they justify.
+
+**F1. A real adapter is a `[pscustomobject]` with `ScriptMethod` members, not a
+PowerShell class.** Classes dot-sourced from `Public/*.ps1` or `Private/*.ps1`
+into `Hephaestus.psm1` are the known-flaky path across `-Force` re-imports (see
+`01-03-SUMMARY.md`). A `pscustomobject` carrying `ScriptMethod` members
+duck-types to the same contract, reloads cleanly, and behaves identically on both
+engines. The **fakes stay classes** — they are never dot-sourced, they are
+defined inline in `HDTFakes.psm1` (section 2).
+
+**F2. `Get-Member -MemberType Method` does NOT list a `ScriptMethod`.** Every
+"exposes every method the contract requires" assertion therefore uses:
+
+```powershell
+$method = @($service | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
+```
+
+All five contract files carry that, each with a comment. Removing `ScriptMethod`
+turns every real row red.
+
+**F3. A `ScriptMethod` returning an array collapses a single-element array to a
+scalar.** `return [object[]] @($x)` gives `-is [System.Array]` = `$false`;
+`return , ([object[]] @($x))` gives `$true` for 0, 1 and 28 elements. **The unary
+comma is mandatory in every array-returning `ScriptMethod`.** The `ICimProvider`
+assertion *returns an array even for a single instance* exists to catch its
+absence.
+
+**F4. A `ScriptMethod` cannot be overloaded, and binds optional arguments
+positionally.** One `GetInstance` with `param([string] $First, [string] $Second)`
+serves both `ICimProvider` overloads: an empty `$Second` means the caller used
+the one-argument form, so `$First` is the class and the namespace is `root/cimv2`.
+
+**F7. `Get-CimInstance` does not name the class in its "invalid class" message.**
+The message is exactly `Invalid class ` on both engines. The `ICimProvider`
+contract requires the name — a vaguer message hides a typo in a fact gatherer,
+and 01-03 proved that assertion goes red when the name is removed — so
+`New-HDTCimProvider` catches and rethrows with the class and namespace attached.
+That is a rethrow with the argument added, not a branch on data, so the adapter
+is still dumb.
+
+**F8. An exception thrown inside a `ScriptMethod` reaches the caller wrapped
+twice.** See section 5, which is the rule this changed.
+
+**F9. `Describe '<Name>' -ForEach $registry -Skip:$Skip` does NOT skip.** Verified
+against Pester 5.7.1: `-Skip` is bound where `Describe` is *called*, before
+`-ForEach` binds the row's keys, so `$Skip` is unset there and every row runs. A
+row marked `Skip = $true` ran anyway — and silently, which is the whole danger.
+Put the skip on a `Context` **inside** the block, where the row's keys are in
+scope:
+
+```powershell
+Describe 'IRegistryService contract: <Name>' -ForEach $script:HDTImplementation {
+    BeforeAll { ... }
+
+    Context 'implementation' -Skip:$Skip {
+        BeforeEach { $script:registry = & $Factory $script:repoRoot }
+        It '...' { }
+    }
+}
+```
+
+All five contract files use that shape, including the two whose rows never skip
+today, so there is one shape to copy and no second, broken one to copy by
+mistake. `-Skip:` on a `Describe` with **no** `-ForEach` is fine: the variable is
+then a file-scope one evaluated at discovery.
+
+`$IsWindows` does not exist under Windows PowerShell 5.1. Use
+`[System.Environment]::OSVersion.Platform -eq 'Win32NT'`.
+
+**F10. PSScriptAnalyzer fails every `New-HDT*` function without a suppression.**
+`PSUseShouldProcessForStateChangingFunctions` is a Warning, and
+`PSScriptAnalyzerSettings.psd1` sets `Severity = @('Error', 'Warning')` with
+`ExcludeRules = @()`, so it breaks `build.ps1 -Task lint` and therefore `-Task ci`.
+Every factory — fake and real adapter alike — carries:
+
+```powershell
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+    Justification = 'Builds a stateless service adapter object; it changes no state.')]
+```
+
+**Recording applies to real adapters too.** `New-HDTRegistryService`,
+`New-HDTEnvironmentProvider` and `New-HDTScriptInvoker` each expose `$Operations`
+and `GetOperationName()` and record before the call can throw, exactly as
+section 4 requires of the fakes, so a provenance or query-order assertion in a
+contract file holds against either implementation.

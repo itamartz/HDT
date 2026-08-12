@@ -12,7 +12,13 @@
     CompatiblePSEditions = @('Desktop', 'Core')
 
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
-    FunctionsToExport    = @('Get-HDTModuleVersion')
+    FunctionsToExport    = @(
+        'Get-HDTModuleVersion',
+        'New-HDTCimProvider',
+        'New-HDTEnvironmentProvider',
+        'New-HDTRegistryService',
+        'New-HDTScriptInvoker'
+    )
     CmdletsToExport      = @()
     VariablesToExport    = @()
     AliasesToExport      = @()
