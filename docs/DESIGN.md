@@ -150,21 +150,65 @@ This replaces `ZTIGather.wsf` + `CustomSettings.ini` + the MDT database.
 
 Higher entries win. Every variable resolution records *which* source set it,
 and that provenance is written to the log — the single biggest debugging pain in
-MDT is not knowing why `OSDComputerName` ended up as it did.
+MDT is not knowing why `HDTComputerName` ended up as it did.
 
-### 3.2 Gathered facts
+### 3.2 Naming: HDT takes MDT's variable set, under its own prefix
 
-Collected once at engine start in WinPE, refreshed after OS apply. Named to
-match MDT where the meaning is identical, so existing runbooks translate:
+HDT provides **the same variables MDT does, meaning for meaning**, so an admin's
+existing knowledge and runbooks carry over. But every one is **prefixed `HDT`**:
 
-`Make`, `Model`, `SerialNumber`, `UUID`, `Product`, `SystemSKU`,
-`IsDesktop`/`IsLaptop`/`IsVM`, `Architecture`, `IsUEFI`, `SecureBootEnabled`,
-`TPMVersion`, `Memory`, `MacAddress`, `IPAddress`, `DefaultGateway`,
-`DeployRoot`, `BootMode` (`PXE` | `Media`).
+| Prefix | Meaning | Writable? |
+|---|---|---|
+| `_HDT*` | Set by the engine | **No** — assigning one is a validation error |
+| `HDT*` | Deployment variables: rules, sequences, wizard, per-machine overrides | Yes |
 
-Source: CIM (`Win32_ComputerSystem`, `Win32_ComputerSystemProduct`,
-`Win32_BaseBoard`, `Win32_BIOS`, `Win32_Tpm`), plus firmware detection from
-`$env:firmware_type` / the `SecureBoot` registry path.
+**Why prefix rather than reuse MDT's exact names.** HDT depends on no MDT
+component (§1). A variable called `HDTComputerName` that looks like MDT's but is
+resolved by a different engine, with different precedence and different
+edge-case behaviour, is a trap — it invites an admin to assume semantics that
+do not hold. A distinct namespace makes the boundary explicit, keeps HDT
+variables from colliding with anything MDT or ConfigMgr leaves in the
+environment, and makes `HDT*` greppable in a mixed estate mid-migration.
+
+**Translation table** — the mapping is mechanical, so an MDT runbook converts by
+search-and-replace:
+
+| MDT | HDT | MDT | HDT |
+|---|---|---|---|
+| `HDTComputerName` | `HDTComputerName` | `Make` | `HDTMake` |
+| `TaskSequenceID` | `HDTTaskSequenceID` | `Model` | `HDTModel` |
+| `JoinDomain` | `HDTJoinDomain` | `SerialNumber` | `HDTSerialNumber` |
+| `DomainAdmin`/`DomainAdminPassword` | `HDTDomainAdmin`/`HDTDomainAdminPassword` | `UUID` | `HDTUUID` |
+| `MachineObjectOU` | `HDTMachineObjectOU` | `Product` | `HDTProduct` |
+| `JoinWorkgroup` | `HDTJoinWorkgroup` | `SystemSKU` | `HDTSystemSKU` |
+| `AdminPassword` | `HDTAdminPassword` | `IsDesktop`/`IsLaptop`/`IsServer` | `HDTIsDesktop`/`HDTIsLaptop`/`HDTIsServer` |
+| `Applications` | `HDTApplications` | `IsVM` | `HDTIsVM` |
+| `SkipWizard` and `Skip*` | `HDTSkipWizard`, `HDTSkip*` | `Architecture` | `HDTArchitecture` |
+| `DeployRoot` | `_HDTDeployRoot` | `IsUEFI` | `HDTIsUEFI` |
+| `WSUSServer` | `HDTWSUSServer` | `Memory` | `HDTMemory` |
+| `DriverGroup` | `HDTDriverGroup` | `MacAddress`/`IPAddress`/`DefaultGateway` | `HDTMacAddress`/`HDTIPAddress`/`HDTDefaultGateway` |
+| `_SMSTSLogPath` | `_HDTLogPath` | `TimeZoneName` | `HDTTimeZoneName` |
+
+HDT-specific additions with no MDT equivalent: `HDTSecureBootEnabled`,
+`HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`.
+
+`Get-HDTVariableMap` prints this table at runtime, and a contract test asserts
+every documented MDT name has exactly one HDT counterpart, so the mapping cannot
+silently drift.
+
+### 3.2.1 Gathered facts
+
+Collected once at engine start in WinPE, refreshed after OS apply.
+
+Source: CIM — `Win32_ComputerSystem`, `Win32_ComputerSystemProduct`,
+`Win32_BaseBoard`, `Win32_BIOS`, `Win32_Tpm` — plus firmware detection from
+`$env:firmware_type` and the `SecureBoot` registry path.
+
+**Network facts come from `Win32_NetworkAdapterConfiguration`, not
+`Get-NetIPAddress`.** WinPE has no `NetTCPIP`/`NetAdapter` module (§5.1,
+verified in SPIKES.md S1), so `HDTMacAddress`, `HDTIPAddress` and
+`HDTDefaultGateway` are gathered via CIM and configured via `netsh`. This is the
+same reason `PSDGather.ps1` uses WMI.
 
 ### 3.3 rules.yaml
 
@@ -172,22 +216,22 @@ Source: CIM (`Win32_ComputerSystem`, `Win32_ComputerSystemProduct`,
 schemaVersion: 1
 rules:
   - name: Lab subnet
-    when: { DefaultGateway: "10.20.30.1" }
+    when: { HDTDefaultGateway: "10.20.30.1" }
     set:
-      OSDDomain: lab.contoso.com
-      TaskSequenceID: LAB-CLIENT
-      SkipWizard: true
+      HDTJoinDomain: lab.contoso.com
+      HDTTaskSequenceID: LAB-CLIENT
+      HDTSkipWizard: true
 
   - name: Latitude naming
-    when: { Model: "Latitude*", IsLaptop: true }   # wildcards allowed
+    when: { HDTModel: "Latitude*", HDTIsLaptop: true }   # wildcards allowed
     set:
-      OSDComputerName: "LT-%SerialNumber%"
-      DriverGroup: "Dell\\%Model%"
+      HDTComputerName: "LT-%HDTSerialNumber%"
+      HDTDriverGroup: "Dell\\%HDTModel%"
 
   - name: Fallback
     set:
-      OSDComputerName: "PC-%SerialNumber%"
-      JoinWorkgroup: WORKGROUP
+      HDTComputerName: "PC-%HDTSerialNumber%"
+      HDTJoinWorkgroup: WORKGROUP
 ```
 
 Evaluation: rules are walked top to bottom; a rule applies if every `when` key
@@ -235,7 +279,7 @@ steps:
         target: primary
       - name: Inject Drivers
         type: ApplyDrivers
-        group: "%DriverGroup%"
+        group: "%HDTDriverGroup%"
         fallback: match-pnp        # index lookup if no group matches
       - name: Apply Unattend
         type: ApplyUnattend
@@ -244,16 +288,16 @@ steps:
         type: ConfigureBoot
 
   - group: State Restore
-    condition: "%Phase%" == "OS"
+    condition: "%_HDTPhase%" == "OS"
     steps:
       - name: Join Domain
         type: JoinDomain
-        domain: "%OSDDomain%"
-        ou: "%MachineObjectOU%"
+        domain: "%HDTJoinDomain%"
+        ou: "%HDTMachineObjectOU%"
         continueOnError: false
       - name: Install Applications
         type: InstallApplications
-        selection: "%Applications%"
+        selection: "%HDTApplications%"
       - name: Windows Update
         type: WindowsUpdate
         continueOnError: true
@@ -301,15 +345,179 @@ one where the OS changes out from under you.
 
 ### 4.4 Logging
 
-One structured log per run, JSON Lines, written locally and copied to
-`Logs\<ComputerName>-<RunId>\` on the share at the end of each phase and on
-failure. Records: timestamp, phase, step name, step type, status, duration,
-message, and variable provenance events. A `ConvertTo-HDTReport` cmdlet renders
-it to HTML — replacing the "open BDD.log in CMTrace and squint" workflow.
+Logging is a first-class feature, not a side effect. MDT's logging is the part
+admins actually live in during a failed deployment, and HDT must be at least as
+good — detailed, per-step, and extensible by whoever writes a custom step.
 
-Live monitoring: the engine writes a small `status.json` heartbeat to
-`Logs\_active\<RunId>.json` every step. The console tails that directory. No
-web service, no SQL, no MDT Monitoring dependency.
+#### 4.4.1 `_HDTLogPath` and the engine variables
+
+**`_HDTLogPath` is the single canonical log directory**, set by the engine and
+available to every step, every condition, and every user script. Nothing writes
+a log anywhere else.
+
+The leading underscore follows MDT's convention (`_SMSTSLogPath`): variables
+prefixed `_` are **set by the engine and read-only** — a sequence or rule that
+tries to assign one is a validation error, not a silent override. The full set:
+
+| Variable | Meaning |
+|---|---|
+| `_HDTLogPath` | Current log directory (moves with the phase, see below) |
+| `_HDTRunId` | Unique id for this deployment run |
+| `_HDTPhase` | `WinPE` or `FullOS` |
+| `_HDTStepName` / `_HDTStepType` | The executing step |
+| `_HDTDeployRoot` | Resolved workspace root |
+| `_HDTVersion` | Engine version |
+
+`_HDTLogPath` follows the deployment rather than staying put:
+
+| Phase | Value |
+|---|---|
+| WinPE, before a disk exists | `X:\HDT\Logs` |
+| WinPE, after the target volume is formatted | `<target>\HDT\Logs` (mirrored, so the WinPE→OS transition keeps history) |
+| Full OS | `C:\HDT\Logs` |
+| On phase end and on failure | copied to `<share>\Logs\<ComputerName>-<RunId>\` |
+
+Copy-back happens **on failure too** — a deployment that dies is exactly when
+the logs matter, and MDT's habit of stranding them on a wiped machine is a real
+operational problem.
+
+#### 4.4.2 Two formats, one write
+
+Every log call emits both, from a single `Write-HDTLog` invocation:
+
+- **`HDT.log` — CMTrace format.** MDT admins have CMTrace/OneTrace open already
+  and know how to read it. Emitting the same format means their existing
+  workflow, filtering and error-highlighting work on day one. Deliberately not
+  a new thing to learn.
+- **`HDT.jsonl` — JSON Lines.** The structured source of truth: timestamp,
+  run id, phase, step name and type, status, duration, severity, message,
+  component, thread, and variable-provenance events (§3.1). This is what
+  `ConvertTo-HDTReport` renders to HTML and what the console's monitoring view
+  consumes.
+
+Both are **UTF-8**. (A spike wrote UTF-16 by accident via `Tee-Object`'s default
+encoding and the result was unreadable in half the tooling — the log writer sets
+encoding explicitly.)
+
+**Directory structure.** Fixed and predictable, so a human and a parser can both
+find things without searching:
+
+```
+<_HDTLogPath>\
+  HDT.log                     master, CMTrace format
+  HDT.jsonl                   master, structured
+  status.json                 current step heartbeat
+  state.json                  the run state document (4.3)
+  Steps\
+    001-Validate.log          per step, numbered in execution order
+    002-DiskPartition.log
+    003-ApplyImage.log
+    003-ApplyImage.dism.log   native tool output, kept beside its step
+    ...
+  Gather\
+    facts.json                resolved facts (3.2)
+    provenance.json           every variable + which source set it (3.1)
+  Native\
+    dism-<timestamp>.log      raw tool logs, unparsed
+    setupact.log              collected from the target where relevant
+```
+
+Step files are **numbered in execution order**, so the directory listing itself
+tells you the sequence and where it stopped — the thing you want first when a
+deployment fails.
+
+**JSONL record schema.** Every line is one object, same shape throughout:
+
+```json
+{
+  "ts":        "2026-08-13T00:11:02.481Z",
+  "runId":     "8f3c1a90-...",
+  "seq":       417,
+  "level":     "Info",
+  "phase":     "WinPE",
+  "stepIndex": 3,
+  "stepName":  "Apply OS",
+  "stepType":  "ApplyImage",
+  "component": "ImageService",
+  "event":     "step.complete",
+  "message":   "Applied index 1 to W:\\ in 95s",
+  "durationMs": 95120,
+  "data":      { "index": 1, "target": "W:\\", "wim": "...\\install.wim" }
+}
+```
+
+`event` is a controlled vocabulary — `run.start`, `run.end`, `phase.change`,
+`step.start`, `step.complete`, `step.fail`, `step.skip`, `var.resolve`,
+`native.exec`, `reboot.arm`, `reboot.resume` — so the report renderer and the
+console filter on a known set rather than regexing prose. `data` carries
+step-specific detail without polluting the top level.
+
+`seq` is a monotonic counter that **survives reboots**, so the ordering of a
+multi-leg deployment is unambiguous even when timestamps skew across a clock
+change during specialize.
+
+**CMTrace line format**, for the same entry:
+
+```
+<![LOG[Applied index 1 to W:\ in 95s]LOG]!><time="00:11:02.481+000" date="08-13-2026"
+  component="ApplyImage" context="" type="1" thread="4820" file="Invoke-HDTApplyImage.ps1:142">
+```
+
+`type` maps `1`=Info, `2`=Warning, `3`=Error, giving CMTrace its colour coding
+for free.
+
+#### 4.4.3 Per-step logs, like MDT's ZTI\*.log
+
+Beyond the master log, **each step gets its own file**: `<step-name>.log` in
+`_HDTLogPath`, mirroring how MDT splits `ZTIApplications.log`,
+`ZTIDrivers.log` and so on out of `BDD.log`. A failing driver injection should
+be readable without scrolling past an OS apply.
+
+Native tool output (DISM, bcdboot, `Install-WindowsFeature`, WUA) is captured
+into the step's own log rather than being interleaved into the master, with only
+its summary and exit code promoted upward.
+
+#### 4.4.4 Custom steps can log — the extensibility point
+
+Any `PowerShell` step or user script called from `Scripts\` gets
+`Write-HDTLog` in scope, writing into the same stream with the same structure:
+
+```powershell
+Write-HDTLog "Checking vendor BIOS level"                 # Info by default
+Write-HDTLog "BIOS below baseline, updating" -Severity Warning
+Write-HDTLog "Vendor tool failed: $err" -Severity Error -Component 'BiosUpdate'
+```
+
+Entries carry the step name automatically, so a custom step's output is
+attributable without the author doing anything. `-Component` subdivides further
+for a step that does several things.
+
+Additionally, a step may declare its own log file:
+
+```yaml
+- name: Vendor BIOS Update
+  type: PowerShell
+  script: Scripts\Update-VendorBios.ps1
+  log: BiosUpdate.log        # own file in _HDTLogPath, in addition to the master
+```
+
+Anything a user script writes to the standard streams is captured too, so an
+existing script that only uses `Write-Host` still lands in the log without
+modification — a hard requirement, since real fleets carry years of such scripts.
+
+#### 4.4.5 Verbosity
+
+`LogLevel` (`Error` | `Warning` | `Info` | `Debug`) is settable in
+`workspace.yaml`, per sequence, and per step; the most specific wins. `Debug`
+adds every variable resolution with its provenance and every native command
+line executed in full — the two things most often needed to explain a
+deployment that went wrong, and the two things MDT makes hardest to get.
+
+#### 4.4.6 Live monitoring
+
+The engine writes a small `status.json` heartbeat to `<share>\Logs\_active\<RunId>.json`
+each step. The console tails that directory. No web service, no SQL, no MDT
+Monitoring dependency.
 
 ### 4.5 The deployment account and autologon
 
@@ -409,10 +617,61 @@ which is the entire point of having it.
 
 ### 5.1 Contents
 
-Optional components, in dependency order:
-`WinPE-WMI` → `WinPE-NetFX` → `WinPE-Scripting` → `WinPE-PowerShell` →
-`WinPE-StorageWMI` → `WinPE-DismCmdlets` → `WinPE-SecureStartup` (BitLocker) →
-`WinPE-FMAPI` (optional). Language packs matching each component.
+**The optional-component list is configuration, not a constant.** MDT lets an
+admin pick Windows PE features per boot image, and HDT must too — a fleet with
+an unusual NIC, a WinRE workflow, or a scripting dependency will need components
+this project never anticipated. `workspace.yaml` declares them:
+
+```yaml
+bootImage:
+  optionalComponents:            # merged with the required set below, order preserved
+    - WinPE-EnhancedStorage
+    - WinPE-WDS-Tools
+  extraContent:                  # arbitrary files copied into the image
+    - source: Modules\MyVendorTools
+      destination: \HDT\Modules\MyVendorTools
+  drivers: boot-critical         # driver group injected into the boot image
+```
+
+`Update-HDTBootImage -OptionalComponent` overrides per invocation.
+
+**Required set, in dependency order — verified working (SPIKES.md S1):**
+
+```
+WinPE-WMI -> WinPE-NetFx -> WinPE-Scripting -> WinPE-PowerShell
+  -> WinPE-StorageWMI -> WinPE-DismCmdlets
+```
+
+Plus, by default: `WinPE-SecureStartup` (BitLocker), `WinPE-EnhancedStorage`,
+`WinPE-WDS-Tools`. Each component's matching `en-us` pack is applied
+immediately after it, where one exists — some components (e.g. `WinPE-FMAPI`)
+have none, so the builder must probe rather than assume.
+
+Note the cab is `WinPE-NetFx.cab` — lowercase `x`. An earlier draft of this
+document said `WinPE-NetFX` and listed `WinPE-FMAPI` in the default set; neither
+matched what was actually built and verified. The list above is the one that
+booted.
+
+**What this set does and does not give you.** Verified by inspection inside a
+running WinPE (SPIKES.md S1):
+
+| Available | Not available |
+|---|---|
+| `Storage` (Get-Disk, New-Partition, Format-Volume) | `NetTCPIP` (New-NetIPAddress, Get-NetIPAddress) |
+| `SmbShare`, `Dism`, `CimCmdlets`, `BitsTransfer` | `NetAdapter` (Get-NetAdapter) |
+| `Microsoft.PowerShell.*`, `PSReadLine` | `DnsClient` (Resolve-DnsName) |
+
+**There is no optional component that adds the `Net*` modules.** Consequently
+the engine configures and inspects networking through `netsh` and
+`Win32_NetworkAdapterConfiguration` (CIM), never through `Get-NetAdapter` /
+`New-NetIPAddress`. This is also what `PSDGather.ps1` does, for the same reason.
+The `Storage` module *is* present, so §9 disk work uses the storage cmdlets
+normally.
+
+Injecting the `NetTCPIP` module by hand via `extraContent` is possible but
+unsupported: those modules depend on CIM providers and MOF registrations absent
+from WinPE, and the arrangement breaks across ADK releases. `extraContent`
+exists for self-contained payloads, not for reconstructing Windows components.
 
 Also injected: network and storage drivers (from a designated boot driver group
 — boot images should never get the whole driver store), the HDT engine module
@@ -585,7 +844,7 @@ build going offsite. It is available, not the default.
 
 ## 7. Driver management
 
-MDT's "Total Control" method — a folder per `%Make%\%Model%`, selected by a rule
+MDT's "Total Control" method — a folder per `%Make%\%HDTModel%`, selected by a rule
 — works, and HDT keeps it as the primary path. What it adds is a fallback so an
 unrecognized model still gets a usable machine.
 
@@ -684,7 +943,7 @@ owning a servicing pipeline.
 ```yaml
 - name: Windows Update
   type: WindowsUpdate
-  server: "%WSUSServer%"        # optional; omit for Windows Update / policy default
+  server: "%HDTWSUSServer%"        # optional; omit for Windows Update / policy default
   categories: [SecurityUpdates, CriticalUpdates, UpdateRollups]
   exclude: ["*Preview*", "KB5001234"]
   maxPasses: 3
@@ -823,7 +1082,7 @@ to be zero.
 red → green → refactor, at the granularity of one behavior:
 
 1. Write a `Describe`/`It` that states the behavior in domain language
-   ("resolves `OSDComputerName` from the per-machine override in preference to a
+   ("resolves `HDTComputerName` from the per-machine override in preference to a
    matching rule"). Run it. Watch it fail for the right reason.
 2. Write the smallest implementation that passes.
 3. Refactor with the suite green.
