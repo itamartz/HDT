@@ -18,6 +18,7 @@
         'Get-HDTSourceFunction',
         'New-HDTPesterConfiguration',
         'Test-HDTFunctionName',
+        'Test-HDTModuleAvailable',
         'Test-HDTScriptCompatibility'
     )
     CmdletsToExport      = @()
