@@ -11,6 +11,8 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:fixturePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/cim'
+    $script:tpmFixturePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/cim-microsofttpm'
+    $script:vmFixturePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/cim-vm'
     $script:tpmNamespace = 'root/cimv2/security/microsofttpm'
 }
 
@@ -153,5 +155,63 @@ Describe 'New-HDTFakeCimProvider' {
 
         { $second.GetInstance('Win32_BIOS') } | Should -Throw
         @($first.GetInstance('Win32_BIOS')).Count | Should -Be 1
+    }
+
+    Context 'namespace fixtures' {
+        # -FixturePath seeds root/cimv2 only and ignores subdirectories, so
+        # Win32_Tpm - which lives in root/cimv2/security/microsofttpm - needs its
+        # own directory and its own parameter rather than a nested folder.
+
+        It 'seeds a namespace directory from -NamespaceFixturePath' {
+            $cim = New-HDTFakeCimProvider -NamespaceFixturePath @{ $script:tpmNamespace = $script:tpmFixturePath }
+
+            @($cim.GetInstance($script:tpmNamespace, 'Win32_Tpm')).Count | Should -Be 1
+        }
+
+        It 'uses the file base name as the class name for a namespace fixture' {
+            $cim = New-HDTFakeCimProvider -NamespaceFixturePath @{ $script:tpmNamespace = $script:tpmFixturePath }
+
+            @($cim.GetInstance($script:tpmNamespace, 'Win32_Tpm'))[0].SpecVersion | Should -BeExactly '2.0, 0, 1.38'
+        }
+
+        It 'seeds root/cimv2 and a second namespace in one call' {
+            $cim = New-HDTFakeCimProvider `
+                -FixturePath $script:fixturePath `
+                -NamespaceFixturePath @{ $script:tpmNamespace = $script:tpmFixturePath }
+
+            @($cim.GetInstance('Win32_BIOS')).Count | Should -Be 1
+            @($cim.GetInstance($script:tpmNamespace, 'Win32_Tpm')).Count | Should -Be 1
+        }
+
+        It 'does not seed a namespace fixture into root/cimv2' {
+            $cim = New-HDTFakeCimProvider -NamespaceFixturePath @{ $script:tpmNamespace = $script:tpmFixturePath }
+
+            { $cim.GetInstance('Win32_Tpm') } | Should -Throw -ExpectedMessage '*Win32_Tpm*'
+        }
+
+        It 'accepts more than one namespace' {
+            $cim = New-HDTFakeCimProvider -NamespaceFixturePath @{
+                $script:tpmNamespace = $script:tpmFixturePath
+                'root/hdtvm'         = $script:vmFixturePath
+            }
+
+            @($cim.GetInstance($script:tpmNamespace, 'Win32_Tpm')).Count | Should -Be 1
+            @($cim.GetInstance('root/hdtvm', 'Win32_ComputerSystem'))[0].Model | Should -BeExactly 'Virtual Machine'
+        }
+
+        It 'throws naming the directory when a -NamespaceFixturePath directory is missing' {
+            $missing = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/cim-no-such-directory'
+
+            { New-HDTFakeCimProvider -NamespaceFixturePath @{ $script:tpmNamespace = $missing } } |
+                Should -Throw -ExpectedMessage '*cim-no-such-directory*'
+        }
+
+        It 'does not record seeding from -NamespaceFixturePath as an operation' {
+            $cim = New-HDTFakeCimProvider `
+                -FixturePath $script:fixturePath `
+                -NamespaceFixturePath @{ $script:tpmNamespace = $script:tpmFixturePath }
+
+            @($cim.Operations).Count | Should -Be 0
+        }
     }
 }
