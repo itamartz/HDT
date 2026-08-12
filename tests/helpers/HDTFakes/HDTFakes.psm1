@@ -299,4 +299,177 @@ function New-HDTFakeFileSystem {
     return $fake
 }
 
-Export-ModuleMember -Function @('New-HDTFakeFileSystem')
+class HDTFakeCimProvider {
+
+    # "namespace|class", lower case, separators normalised -> object[] of instances.
+    [hashtable] $Instance
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    HDTFakeCimProvider() {
+        $this.Instance = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- key handling ------------------------------------------------------
+
+    hidden [string] NormalizeNamespace([string] $Namespace) {
+        if ([string]::IsNullOrWhiteSpace($Namespace)) {
+            throw [System.ArgumentException]::new('Namespace must not be empty.', 'Namespace')
+        }
+
+        # root\cimv2 and root/cimv2 name the same namespace.
+        return $Namespace.Replace('\', '/').Trim('/').ToLowerInvariant()
+    }
+
+    hidden [string] Key([string] $Namespace, [string] $ClassName) {
+        if ([string]::IsNullOrWhiteSpace($ClassName)) {
+            throw [System.ArgumentException]::new('ClassName must not be empty.', 'ClassName')
+        }
+
+        return ('{0}|{1}' -f $this.NormalizeNamespace($Namespace), $ClassName.ToLowerInvariant())
+    }
+
+    # -- ICimProvider ------------------------------------------------------
+
+    [object[]] GetInstance([string] $ClassName) {
+        return $this.GetInstance('root/cimv2', $ClassName)
+    }
+
+    [object[]] GetInstance([string] $Namespace, [string] $ClassName) {
+        $this.Record('GetInstance', @($Namespace, $ClassName))
+        $key = $this.Key($Namespace, $ClassName)
+
+        if (-not $this.Instance.ContainsKey($key)) {
+            # Get-CimInstance names the invalid class; a vaguer message would hide
+            # a typo in a fact gatherer. A class seeded with an empty array is a
+            # different fact - "class exists, no instances" - and returns @().
+            throw [System.ArgumentException]::new(
+                "Invalid class '$ClassName' in namespace '$Namespace': it was never seeded on this fake.")
+        }
+
+        return [object[]] @($this.Instance[$key])
+    }
+
+    [void] AddInstance([string] $Namespace, [string] $ClassName, [object[]] $Instance) {
+        $this.Instance[$this.Key($Namespace, $ClassName)] = [object[]] @($Instance)
+    }
+}
+
+function New-HDTFakeCimProvider {
+    <#
+        .SYNOPSIS
+            Creates an ICimProvider seeded from captured fixture data, with no
+            machine attached.
+
+        .DESCRIPTION
+            The hand-written double behind every fact-gathering test (DESIGN 3.2.1
+            gathers Win32_ComputerSystem, Win32_ComputerSystemProduct,
+            Win32_BaseBoard, Win32_BIOS and Win32_Tpm; DESIGN 12.2.1 requires that
+            to be testable with no machine attached).
+
+            It implements GetInstance in both its one-argument form - defaulting to
+            root/cimv2 - and its two-argument form, which fact gathering needs for
+            root/cimv2/security/microsofttpm. AddInstance is fake-only seeding.
+
+            A class that was never seeded throws, naming the class, the way
+            Get-CimInstance does for an invalid class. A class seeded with an empty
+            array returns an empty array: "the class exists but this machine has no
+            instances" is a different fact and a fact gatherer must tell them apart.
+
+            Namespaces are compared case-insensitively with separators normalised,
+            so root\cimv2 and root/cimv2 are the same namespace.
+
+            Every query appends a record to $Operations - Sequence (1-based),
+            Operation, Arguments as (namespace, class) - including a query that went
+            on to throw, because query order is evidence about what the code under
+            test tried. Seeding is deliberately not recorded.
+
+        .PARAMETER Instance
+            Seed instances. Keys are class names in -Namespace, values are the
+            instance arrays.
+
+        .PARAMETER Namespace
+            The namespace -Instance seeds into. Defaults to root/cimv2.
+
+        .PARAMETER FixturePath
+            A directory of captured *.json files. Each file seeds root/cimv2 under
+            its own base name, so tests/fixtures/cim/Win32_BIOS.json becomes
+            Win32_BIOS. See tests/fixtures/README.md for the capture and
+            sanitisation rules.
+
+        .OUTPUTS
+            HDTFakeCimProvider. Never write the class name as a type literal in a
+            test: it binds to whichever dynamic assembly loaded first and breaks
+            across a module reload. Use this factory.
+
+        .EXAMPLE
+            $cim = New-HDTFakeCimProvider -FixturePath ./tests/fixtures/cim
+            $cim.GetInstance('Win32_BIOS')[0].SerialNumber
+
+            Reads real-shaped, sanitised BIOS data without touching WMI.
+
+        .EXAMPLE
+            $cim = New-HDTFakeCimProvider
+            $cim.AddInstance('root/cimv2/security/microsofttpm', 'Win32_Tpm', @([pscustomobject] @{ IsEnabled_InitialValue = $true }))
+
+            Seeds the TPM namespace DESIGN 3.2.1 gathers from.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Instance,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $Namespace = 'root/cimv2',
+
+        [Parameter()]
+        [string] $FixturePath
+    )
+
+    $fake = [HDTFakeCimProvider]::new()
+
+    if ($PSBoundParameters.ContainsKey('FixturePath')) {
+        if (-not (Test-Path -LiteralPath $FixturePath -PathType Container)) {
+            throw "FixturePath '$FixturePath' does not exist or is not a directory."
+        }
+
+        foreach ($file in @(Get-ChildItem -LiteralPath $FixturePath -Filter '*.json' -File)) {
+            $text = Get-Content -LiteralPath $file.FullName -Raw
+
+            # Never -AsHashtable: it is PowerShell 6+ only and banned outright.
+            $content = ConvertFrom-Json -InputObject $text
+
+            $fake.AddInstance('root/cimv2', $file.BaseName, [object[]] @($content))
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Instance')) {
+        foreach ($key in @($Instance.Keys)) {
+            $fake.AddInstance($Namespace, [string] $key, [object[]] @($Instance[$key]))
+        }
+    }
+
+    return $fake
+}
+
+Export-ModuleMember -Function @('New-HDTFakeCimProvider', 'New-HDTFakeFileSystem')

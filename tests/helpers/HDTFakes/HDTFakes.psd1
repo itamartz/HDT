@@ -11,6 +11,7 @@
     CompatiblePSEditions = @('Desktop', 'Core')
 
     FunctionsToExport    = @(
+        'New-HDTFakeCimProvider',
         'New-HDTFakeFileSystem'
     )
     CmdletsToExport      = @()

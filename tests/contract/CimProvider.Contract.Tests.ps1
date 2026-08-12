@@ -8,9 +8,10 @@
 # The registry is built at discovery time, not in BeforeAll: Pester 5 expands
 # -ForEach while discovering, so a BeforeAll would produce zero test cases.
 
-# Each Factory is invoked at run time as & $Factory $repositoryRoot. It takes the
-# repository root as its one argument because a discovery-phase variable does not
-# survive into the run phase, so a factory may not close over one.
+# Each Factory is invoked at run time as & $Factory $repositoryRoot. It is passed
+# the repository root because a discovery-phase variable does not survive into
+# Pester's run phase, so a factory may not close over one; declare the parameter
+# only if the factory uses it.
 $script:HDTImplementation = @(
     @{ Name = 'FakeCimProvider'; Factory = { param($RepositoryRoot) New-HDTFakeCimProvider -FixturePath (Join-Path -Path $RepositoryRoot -ChildPath 'tests/fixtures/cim') } }
     # Phase 02 appends the real Get-CimInstance adapter, tagged so it can be
