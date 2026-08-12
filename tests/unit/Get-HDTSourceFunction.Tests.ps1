@@ -64,8 +64,11 @@ Describe 'Get-HDTSourceFunction' {
     }
 
     It 'throws when a path does not exist' {
+        # The message must name the missing file: a bare -Throw would also be
+        # satisfied by a CommandNotFoundException, so it would pass before the
+        # function existed.
         $missing = Join-Path -Path $TestDrive -ChildPath 'no-such-file.ps1'
-        { Get-HDTSourceFunction -Path $missing } | Should -Throw
+        { Get-HDTSourceFunction -Path $missing } | Should -Throw -ExpectedMessage '*no-such-file.ps1*'
     }
 
     It 'surfaces a parse error as a terminating error naming the file' -Skip:($PSVersionTable.PSVersion.Major -ge 6) {
