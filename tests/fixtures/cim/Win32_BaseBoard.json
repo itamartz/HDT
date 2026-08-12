@@ -1,0 +1,37 @@
+[
+  {
+    "Status": "OK",
+    "Name": "Base Board",
+    "PoweredOn": true,
+    "Caption": "Base Board",
+    "Description": "Base Board",
+    "InstallDate": null,
+    "CreationClassName": "Win32_BaseBoard",
+    "Manufacturer": "LENOVO",
+    "Model": null,
+    "OtherIdentifyingInfo": null,
+    "PartNumber": null,
+    "SerialNumber": "FIXTURE-SERIAL-0001",
+    "SKU": null,
+    "Tag": "Base Board",
+    "Version": "SDK0T76461 WIN",
+    "Depth": null,
+    "Height": null,
+    "HotSwappable": false,
+    "Removable": false,
+    "Replaceable": true,
+    "Weight": null,
+    "Width": null,
+    "HostingBoard": true,
+    "RequirementsDescription": null,
+    "RequiresDaughterBoard": false,
+    "SlotLayout": null,
+    "SpecialRequirements": null,
+    "ConfigOptions": [
+      "ConfigOptions1",
+      "ConfigOptions2",
+      "ConfigOptions3"
+    ],
+    "Product": "LNVNB161216"
+  }
+]
