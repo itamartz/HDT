@@ -47,7 +47,7 @@ function New-HDTScriptInvoker {
 
         .EXAMPLE
             $invoker = New-HDTScriptInvoker -Root 'C:\HDTLab\Share'
-            $invoker.Invoke('Scripts\Get-ComputerName.ps1', @{ HDTSerialNumber = 'PF3EKMR0' })
+            $invoker.Invoke('Scripts\Get-ComputerName.ps1', @{ HDTSerialNumber = 'FIXTURE-SERIAL-0001' })
 
             Runs a setFrom: script against the variables resolved so far and
             returns the object it emitted.
