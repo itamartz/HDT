@@ -3,18 +3,18 @@
         Task runner for the Hephaestus Deployment Toolkit.
 
     .DESCRIPTION
-        Runs the clean / build / lint / test tasks, and ci as the composition of
-        all four. Every function here obeys the Verb-HDTNoun rule (DESIGN 15.1),
-        which applies to build functions as much as to the engine.
+        Runs the clean / build / lint / test / selfcheck tasks, and ci as the
+        composition of all five. Every function here obeys the Verb-HDTNoun rule
+        (DESIGN 15.1), which applies to build functions as much as to the engine.
 
         The script must work under both pwsh 7 and Windows PowerShell 5.1, because
         the engine ships into WinPE where only 5.1 exists. PSScriptAnalyzer is not
         importable under 5.1 on every machine, so 'test' never depends on 'lint'.
 
     .PARAMETER Task
-        One or more of clean, build, lint, test, ci. Defaults to test. Tasks always
-        run in the canonical order clean -> build -> lint -> test regardless of the
-        order given.
+        One or more of clean, build, lint, test, selfcheck, ci. Defaults to test.
+        Tasks always run in the canonical order clean -> build -> lint -> test ->
+        selfcheck regardless of the order given.
 
     .PARAMETER Verbosity
         Pester output verbosity for the test task.
@@ -27,7 +27,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('clean', 'build', 'lint', 'test', 'ci')]
+    [ValidateSet('clean', 'build', 'lint', 'test', 'selfcheck', 'ci')]
     [string[]] $Task = @('test'),
 
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
@@ -196,7 +196,111 @@ function Invoke-HDTTest {
     }
 }
 
-$canonicalOrder = @('clean', 'build', 'lint', 'test')
+function Invoke-HDTSelfCheck {
+    <#
+        .SYNOPSIS
+            Proves the test harness itself works, by watching it catch a
+            deliberately failing test.
+
+        .DESCRIPTION
+            ROADMAP M0 requires that a deliberately failing test fails CI, a
+            passing one passes, and analyzer violations block. A suite nobody has
+            watched go red is not a suite, so this task observes all three
+            against the fixtures in tests/selfcheck and tests/fixtures/analyzer.
+
+            Those fixtures are deliberately red and deliberately dirty. They are
+            outside Invoke-HDTTest's Run.Path and outside Get-HDTSourceFile, so
+            they can never turn the real suite or the lint task red.
+
+            Four checks, each reported PASS or FAIL on its own line:
+
+              1. The failure fixture produces FailedCount >= 1 in-process.
+              2. The pass fixture produces PassedCount >= 1 and FailedCount = 0.
+              3. A CHILD process running the failure fixture with Run.Exit set
+                 exits non-zero. This is the exit-code path CI depends on, and
+                 it cannot be observed from inside the run it is testing.
+              4. PSScriptAnalyzer reports diagnostics for the bait fixture,
+                 including PSUseCompatibleSyntax - which also proves the 5.1
+                 target version in PSScriptAnalyzerSettings.psd1 is in force.
+
+            Check 4 is skipped with a warning where PSScriptAnalyzer cannot be
+            imported, which is the normal case for Windows PowerShell 5.1 on a
+            developer machine. CI installs the analyzer for both editions, so
+            both legs run it there.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param()
+
+    $failureFixture = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/selfcheck/DeliberateFailure.Tests.ps1'
+    $passFixture = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/selfcheck/DeliberatePass.Tests.ps1'
+    $baitFixture = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/fixtures/analyzer/AnalyzerBait.ps1'
+
+    foreach ($required in @($failureFixture, $passFixture, $baitFixture)) {
+        if (-not (Test-Path -Path $required -PathType Leaf)) {
+            throw ("selfcheck: the fixture '{0}' is missing. The harness cannot prove itself without it." -f $required)
+        }
+    }
+
+    # Check 1 - a failing test fails.
+    $failureResult = Invoke-Pester -Configuration (New-HDTPesterConfiguration -Path $failureFixture -Verbosity None)
+    if ($failureResult.FailedCount -lt 1) {
+        Write-Information 'selfcheck 1 FAIL: a deliberately failing test was not detected'
+        throw 'selfcheck check 1 failed: the harness did not detect a deliberately failing test. The harness cannot be trusted.'
+    }
+    Write-Information ("selfcheck 1 PASS: the deliberately failing test was detected ({0} failed)" -f $failureResult.FailedCount)
+
+    # Check 2 - a passing test passes.
+    $passResult = Invoke-Pester -Configuration (New-HDTPesterConfiguration -Path $passFixture -Verbosity None)
+    if ($passResult.PassedCount -lt 1 -or $passResult.FailedCount -ne 0) {
+        Write-Information 'selfcheck 2 FAIL: a deliberately passing test did not pass'
+        throw ("selfcheck check 2 failed: the deliberately passing test reported {0} passed and {1} failed." -f $passResult.PassedCount, $passResult.FailedCount)
+    }
+    Write-Information ("selfcheck 2 PASS: the deliberately passing test passed ({0} passed)" -f $passResult.PassedCount)
+
+    # Check 3 - failure reaches the process exit code. Spawned in the same
+    # PowerShell edition this build is running under, so the 5.1 leg proves 5.1.
+    $hostPath = (Get-Process -Id $PID).Path
+    $childCommand = "Import-Module Pester -MinimumVersion 5.0.0 -MaximumVersion 5.99.99 -Force; " +
+    "`$c = New-PesterConfiguration; " +
+    "`$c.Run.Path = '$failureFixture'; " +
+    "`$c.Run.Exit = `$true; " +
+    "`$c.Output.Verbosity = 'None'; " +
+    "Invoke-Pester -Configuration `$c"
+
+    & $hostPath -NoProfile -Command $childCommand 2>&1 | Out-Null
+    $childExitCode = $LASTEXITCODE
+
+    if ($childExitCode -eq 0) {
+        Write-Information 'selfcheck 3 FAIL: a red run exited zero'
+        throw 'selfcheck check 3 failed: the harness does not propagate failure to the process exit code, so CI would report green on a red suite.'
+    }
+    Write-Information ("selfcheck 3 PASS: a red run exits non-zero (exit code {0})" -f $childExitCode)
+
+    # Check 4 - analyzer violations are detected.
+    if (-not (Test-HDTModuleAvailable -Name PSScriptAnalyzer)) {
+        Write-Warning ("selfcheck 4 SKIP: PSScriptAnalyzer cannot be imported by this edition (PowerShell {0}, {1}), so the analyzer leg was not proven here. CI installs it for both editions." -f $PSVersionTable.PSVersion, $PSVersionTable.PSEdition)
+        Write-Information 'selfcheck: 3 of 4 checks passed, analyzer check skipped for this edition'
+        return
+    }
+
+    $diagnostic = @(Invoke-ScriptAnalyzer -Path $baitFixture -Settings $script:HDTAnalyzerSettings)
+    if ($diagnostic.Count -lt 1) {
+        Write-Information 'selfcheck 4 FAIL: no analyzer diagnostics for the bait fixture'
+        throw 'selfcheck check 4 failed: PSScriptAnalyzer reported nothing for a deliberately dirty file, so analyzer violations would not block.'
+    }
+
+    $compatibility = @($diagnostic | Where-Object { $_.RuleName -eq 'PSUseCompatibleSyntax' })
+    if ($compatibility.Count -lt 1) {
+        Write-Information 'selfcheck 4 FAIL: no PSUseCompatibleSyntax diagnostic for the bait fixture'
+        throw ("selfcheck check 4 failed: the bait fixture contains PowerShell 7 only syntax but PSUseCompatibleSyntax did not fire. Check the TargetVersions in {0}." -f $script:HDTAnalyzerSettings)
+    }
+
+    Write-Information ("selfcheck 4 PASS: analyzer reported {0} diagnostic(s) for the bait fixture, including PSUseCompatibleSyntax" -f $diagnostic.Count)
+    Write-Information 'selfcheck: 4 of 4 checks passed'
+}
+
+$canonicalOrder = @('clean', 'build', 'lint', 'test', 'selfcheck')
 $requested = @($Task)
 if ($requested -contains 'ci') {
     $requested = $canonicalOrder
@@ -212,6 +316,7 @@ try {
             'build' { Invoke-HDTBuild }
             'lint' { Invoke-HDTLint }
             'test' { Invoke-HDTTest -OutputVerbosity $Verbosity }
+            'selfcheck' { Invoke-HDTSelfCheck }
         }
     }
 } catch {
