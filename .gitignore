@@ -1,0 +1,30 @@
+# Build output
+/out/
+/artifacts/
+*.wim
+*.iso
+*.vhdx
+*.esd
+
+# Lab / scratch
+/lab/
+C:/HDTLab/
+
+# Test results
+/tests/**/TestResults/
+*.trx
+coverage*.xml
+testResults*.xml
+
+# .NET
+bin/
+obj/
+*.user
+
+# PowerShell
+*.psd1.bak
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
