@@ -24,6 +24,17 @@ Milestone → phase directory mapping:
 Pester 5 harness, PSSA, CI, fakes, and the `Verb-HDTNoun` naming contract test.
 *Exit:* `./build.ps1 test` green on a clean clone, under pwsh 7 **and** PS 5.1.
 
+**Plans:** 4 plans, executed in order (each depends on the one before it).
+
+- [ ] `01-01-PLAN.md` — module skeleton + loader, `HDTTestTools` helper module,
+      `build.ps1` (build/test/lint/ci), Pester 5 configuration, `PSScriptAnalyzerSettings.psd1`
+- [ ] `01-02-PLAN.md` — `Verb-HDTNoun` naming contract test and the PowerShell 5.1
+      syntax contract test, plus the AST tooling both rest on
+- [ ] `01-03-PLAN.md` — first hand-written fakes (`FakeFileSystem`, `FakeCimProvider`),
+      their service contract tests, captured CIM fixtures, and the fake conventions
+- [ ] `01-04-PLAN.md` — harness self-proof (a deliberately failing test fails),
+      GitHub Actions CI on a Windows runner for both engines, clean-clone exit verification
+
 **02 — Rules.** Replace `CustomSettings.ini` + `ZTIGather`. Fact gathering behind
 `ICimProvider`, `rules.yaml`, five-source precedence, `%Var%` expansion, and
 provenance for every resolved variable.
