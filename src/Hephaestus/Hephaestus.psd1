@@ -13,6 +13,7 @@
 
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
+        'Get-HDTMachineFact',
         'Get-HDTModuleVersion',
         'New-HDTCimProvider',
         'New-HDTEnvironmentProvider',

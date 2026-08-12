@@ -27,7 +27,7 @@ BeforeAll {
                 Reads one captured CIM fixture back as an instance array.
         #>
         [CmdletBinding()]
-        [OutputType([object[]])]
+        [OutputType([object])]
         param(
             [Parameter(Mandatory = $true)]
             [string] $Directory,
@@ -36,8 +36,16 @@ BeforeAll {
             [string] $ClassName
         )
 
+        # The parse result is returned RAW - no unary comma, and no [object[]]
+        # cast either. Both of those stop the array enumerating on the way out,
+        # and the comma does it on pwsh 7 while the cast does it on Windows
+        # PowerShell 5.1. The caller then gets a one-element array holding a
+        # 28-element array, Where-Object member-enumerates instead of filtering,
+        # and "9 IP enabled adapters" silently becomes "all 28" while every
+        # single-instance assertion goes on passing by accident. Every caller
+        # wraps this in @() and indexes from there.
         $path = Join-Path -Path $Directory -ChildPath ("{0}.json" -f $ClassName)
-        return , ([object[]] @(Get-Content -LiteralPath $path -Raw | ConvertFrom-Json))
+        return (Get-Content -LiteralPath $path -Raw | ConvertFrom-Json)
     }
 
     function New-HDTFactCimProvider {
@@ -123,37 +131,37 @@ Describe 'Get-HDTMachineFact' {
         }
 
         It 'resolves HDTMake from Win32_ComputerSystem.Manufacturer' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].Manufacturer
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].Manufacturer
 
             $script:fact['HDTMake'] | Should -BeExactly $expected
         }
 
         It 'resolves HDTModel from Win32_ComputerSystem.Model' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].Model
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].Model
 
             $script:fact['HDTModel'] | Should -BeExactly $expected
         }
 
         It 'resolves HDTProduct from Win32_BaseBoard.Product' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BaseBoard')[0].Product
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BaseBoard')[0].Product
 
             $script:fact['HDTProduct'] | Should -BeExactly $expected
         }
 
         It 'resolves HDTSerialNumber from Win32_BIOS' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BIOS')[0].SerialNumber
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BIOS')[0].SerialNumber
 
             $script:fact['HDTSerialNumber'] | Should -BeExactly $expected
         }
 
         It 'resolves HDTUUID from Win32_ComputerSystemProduct' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystemProduct')[0].UUID
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystemProduct')[0].UUID
 
             $script:fact['HDTUUID'] | Should -BeExactly $expected.ToUpperInvariant()
         }
 
         It 'resolves HDTSystemSKU from Win32_ComputerSystem.SystemSKUNumber' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].SystemSKUNumber
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].SystemSKUNumber
 
             $script:fact['HDTSystemSKU'] | Should -BeExactly $expected
         }
@@ -161,7 +169,7 @@ Describe 'Get-HDTMachineFact' {
         It 'reports HDTMemory in whole megabytes, rounded down' {
             # Floor, never a cast: [int] on a double rounds to even, so the number
             # would depend on which machine the fixture came from.
-            $bytes = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].TotalPhysicalMemory
+            $bytes = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_ComputerSystem')[0].TotalPhysicalMemory
             $expected = [int] [math]::Floor($bytes / 1MB)
 
             $script:fact['HDTMemory'] | Should -Be $expected
@@ -188,7 +196,7 @@ Describe 'Get-HDTMachineFact' {
     Context 'make and model fallbacks' {
 
         It 'falls back to Win32_BaseBoard.Manufacturer when Manufacturer is empty' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BaseBoard')[0].Manufacturer
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BaseBoard')[0].Manufacturer
             $cim = New-HDTFactCimProvider -Override @{
                 Win32_ComputerSystem = @([pscustomobject] @{
                         Manufacturer        = ''
@@ -204,7 +212,7 @@ Describe 'Get-HDTMachineFact' {
         }
 
         It 'falls back to Win32_BaseBoard.Product when Model is empty' {
-            $expected = (Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BaseBoard')[0].Product
+            $expected = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_BaseBoard')[0].Product
             $cim = New-HDTFactCimProvider -Override @{
                 Win32_ComputerSystem = @([pscustomobject] @{
                         Manufacturer        = 'LENOVO'
@@ -406,42 +414,60 @@ Describe 'Get-HDTMachineFact' {
 
     Context 'network' {
 
-        BeforeEach {
-            $script:adapter = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_NetworkAdapterConfiguration')
-            $script:enabled = @($script:adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
-            $script:fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
-        }
+        # The fixture is re-read inside each It rather than cached in a
+        # $script: variable by a BeforeEach. Cross-block $script: state is
+        # exactly the kind of shared mutable setup that made two of these
+        # assertions disagree about the same fixture during development, and a
+        # test that lies about its own expectation is worse than no test.
 
         It 'collects HDTMacAddress from IP enabled adapters only' {
-            $expected = @($script:enabled | ForEach-Object { $_.MACAddress } | Where-Object { $null -ne $_ })
+            $adapter = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_NetworkAdapterConfiguration')
+            $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
+            $expected = @($enabled | ForEach-Object { $_.MACAddress } | Where-Object { $null -ne $_ })
 
-            @($script:fact['HDTMacAddress']).Count | Should -Be $expected.Count
-            @($script:fact['HDTMacAddress']).Count | Should -BeLessThan @($script:adapter).Count
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            @($fact['HDTMacAddress']).Count | Should -Be $expected.Count
+            @($fact['HDTMacAddress']).Count | Should -BeLessThan $adapter.Count
         }
 
         It 'collects every address of every IP enabled adapter into HDTIPAddress' {
-            $expected = @($script:enabled | ForEach-Object { $_.IPAddress } | Where-Object { $null -ne $_ })
+            $adapter = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_NetworkAdapterConfiguration')
+            $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
+            $expected = @($enabled | ForEach-Object { $_.IPAddress } | Where-Object { $null -ne $_ })
 
-            @($script:fact['HDTIPAddress']).Count | Should -Be $expected.Count
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            @($fact['HDTIPAddress']).Count | Should -Be $expected.Count
         }
 
         It 'collects HDTDefaultGateway, skipping adapters that have none' {
-            $expected = @($script:enabled | ForEach-Object { $_.DefaultIPGateway } | Where-Object { $null -ne $_ })
+            $adapter = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_NetworkAdapterConfiguration')
+            $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
+            $expected = @($enabled | ForEach-Object { $_.DefaultIPGateway } | Where-Object { $null -ne $_ })
 
-            @($script:fact['HDTDefaultGateway']).Count | Should -Be $expected.Count
-            @($script:fact['HDTDefaultGateway']).Count | Should -BeLessThan @($script:enabled).Count
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            @($fact['HDTDefaultGateway']).Count | Should -Be $expected.Count
+            @($fact['HDTDefaultGateway']).Count | Should -BeLessThan $enabled.Count
         }
 
         It 'includes 10.20.30.1 in HDTDefaultGateway' {
             # The value DESIGN 3.3's 'Lab subnet' rule matches. Plan 02-03's
             # end-to-end demonstration depends on it.
-            @($script:fact['HDTDefaultGateway']) | Should -Contain '10.20.30.1'
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            @($fact['HDTDefaultGateway']) | Should -Contain '10.20.30.1'
         }
 
         It 'keeps adapters in Index order' {
-            $expected = @($script:enabled | ForEach-Object { $_.MACAddress } | Where-Object { $null -ne $_ })
+            $adapter = @(Get-HDTFactFixture -Directory $script:cimFixturePath -ClassName 'Win32_NetworkAdapterConfiguration')
+            $enabled = @($adapter | Where-Object { $_.IPEnabled } | Sort-Object -Property Index)
+            $expected = @($enabled | ForEach-Object { $_.MACAddress } | Where-Object { $null -ne $_ })
 
-            @($script:fact['HDTMacAddress']) | Should -Be $expected
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            @($fact['HDTMacAddress']) | Should -Be $expected
         }
 
         It 'returns empty arrays when no adapter is IP enabled' {
@@ -604,3 +630,4 @@ Describe 'Get-HDTMachineFact' {
         }
     }
 }
+
