@@ -8,12 +8,12 @@
 # The registry is built at discovery time, not in BeforeAll: Pester 5 expands
 # -ForEach while discovering, so a BeforeAll would produce zero test cases.
 
-$script:HDTContractRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$script:HDTFakeManifest = Join-Path -Path $script:HDTContractRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1'
-
+# Each Factory is invoked at run time as & $Factory $repositoryRoot. It takes the
+# repository root as its one argument because a discovery-phase variable does not
+# survive into the run phase, so a factory may not close over one.
 $script:HDTImplementation = @(
-    @{ Name = 'FakeFileSystem'; Factory = { New-HDTFakeFileSystem } }
-    # Phase 04 appends: @{ Name = 'RealFileSystem'; Factory = { New-HDTFileSystem } }
+    @{ Name = 'FakeFileSystem'; Factory = { param($RepositoryRoot) New-HDTFakeFileSystem } }
+    # Phase 04 appends: @{ Name = 'RealFileSystem'; Factory = { param($RepositoryRoot) New-HDTFileSystem } }
 )
 
 Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
@@ -27,7 +27,7 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
         # $TestDrive is a real, empty directory, so a real adapter added to the
         # registry later passes this file without touching anything else.
         $script:root = Join-Path -Path $TestDrive -ChildPath 'contract'
-        $script:fs = & $Factory
+        $script:fs = & $Factory $script:repoRoot
     }
 
     It 'exposes every method the contract requires' {
