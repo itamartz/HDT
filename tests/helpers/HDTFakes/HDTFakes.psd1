@@ -12,7 +12,10 @@
 
     FunctionsToExport    = @(
         'New-HDTFakeCimProvider',
-        'New-HDTFakeFileSystem'
+        'New-HDTFakeEnvironmentProvider',
+        'New-HDTFakeFileSystem',
+        'New-HDTFakeRegistryService',
+        'New-HDTFakeScriptInvoker'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()

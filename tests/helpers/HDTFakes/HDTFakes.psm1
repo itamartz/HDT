@@ -506,4 +506,430 @@ function New-HDTFakeCimProvider {
     return $fake
 }
 
-Export-ModuleMember -Function @('New-HDTFakeCimProvider', 'New-HDTFakeFileSystem')
+class HDTFakeRegistryService {
+
+    # Normalised key path -> hashtable of value name -> value. Both levels are
+    # case-insensitive, matching registry semantics.
+    [hashtable] $Key
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    HDTFakeRegistryService() {
+        $this.Key = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- path handling -----------------------------------------------------
+
+    hidden [string] Normalize([string] $Path) {
+        if ([string]::IsNullOrWhiteSpace($Path)) {
+            throw [System.ArgumentException]::new('Path must not be empty.', 'Path')
+        }
+
+        # HKEY_LOCAL_MACHINE\... and HKLM:\... name the same key. So do the other
+        # long-form hive names a rules file or a runbook might use.
+        $normalized = $Path
+        $normalized = $normalized -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM:\'
+        $normalized = $normalized -replace '^HKEY_CURRENT_USER\\', 'HKCU:\'
+        $normalized = $normalized -replace '^HKEY_CLASSES_ROOT\\', 'HKCR:\'
+        $normalized = $normalized -replace '^HKEY_USERS\\', 'HKU:\'
+
+        return $normalized.TrimEnd('\')
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SetValue([string] $Path, [string] $Name, [object] $Value) {
+        $full = $this.Normalize($Path)
+
+        if (-not $this.Key.ContainsKey($full)) {
+            $this.Key[$full] = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        }
+
+        $this.Key[$full][$Name] = $Value
+    }
+
+    [void] AddKey([string] $Path) {
+        $full = $this.Normalize($Path)
+
+        if (-not $this.Key.ContainsKey($full)) {
+            $this.Key[$full] = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        }
+    }
+
+    # -- IRegistryService, read subset -------------------------------------
+
+    [bool] TestPath([string] $Path) {
+        $this.Record('TestPath', @($Path))
+        return $this.Key.ContainsKey($this.Normalize($Path))
+    }
+
+    [object] GetValue([string] $Path, [string] $Name) {
+        $this.Record('GetValue', @($Path, $Name))
+        $full = $this.Normalize($Path)
+
+        # Absence is normal, not exceptional: a BIOS machine has no
+        # SecureBoot\State key at all, and a fact gatherer that had to catch
+        # would swallow real errors too.
+        if (-not $this.Key.ContainsKey($full)) {
+            return $null
+        }
+        if (-not $this.Key[$full].ContainsKey($Name)) {
+            return $null
+        }
+
+        return $this.Key[$full][$Name]
+    }
+}
+
+function New-HDTFakeRegistryService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IRegistryService that records every read
+            performed against it.
+
+        .DESCRIPTION
+            The hand-written double behind every registry-dependent test
+            (DESIGN 12.2.1: engine logic receives injected services; DESIGN
+            12.2.3: fake, don't mock).
+
+            It implements the read subset the fact gatherer needs - TestPath and
+            GetValue - which today is the SecureBoot state key of DESIGN 3.2.1.
+            Phase 03 extends the same interface with the write half for the
+            autologon lifecycle in DESIGN 4.5.
+
+            GetValue returns $null for a missing key and for a missing value
+            name, and never throws: on a BIOS machine
+            HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State genuinely
+            does not exist, so absence is a fact rather than a failure.
+
+            Paths are compared case-insensitively with a trailing backslash
+            trimmed, and HKEY_LOCAL_MACHINE\ is accepted as a synonym for HKLM:\
+            (likewise HKCU, HKCR and HKU). Nothing in this fake ever reaches the
+            real registry.
+
+            Every call appends a record to $Operations - Sequence (1-based),
+            Operation, Arguments - including calls that returned $null, because
+            provenance needs the attempt and not only the successes. Seeding,
+            whether by this factory or by SetValue, is deliberately not recorded.
+
+        .PARAMETER Value
+            Seed keys and values. Keys are registry paths, values are hashtables
+            of value name to value. An empty hashtable seeds a key that exists
+            and holds nothing, which is a different fact from a key that does not
+            exist.
+
+        .OUTPUTS
+            HDTFakeRegistryService. Never write the class name as a type literal
+            in a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $registry = New-HDTFakeRegistryService -Value @{
+                'HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State' = @{ UEFISecureBootEnabled = 1 }
+            }
+            $registry.GetValue('HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State', 'UEFISecureBootEnabled')
+
+            Seeds a Secure Boot enabled machine and reads it back without
+            touching the real registry.
+
+        .EXAMPLE
+            $registry = New-HDTFakeRegistryService
+            Get-HDTMachineFact -RegistryService $registry -CimProvider $cim -EnvironmentProvider $environment
+
+            The BIOS machine case: no SecureBoot key at all, and
+            HDTSecureBootEnabled resolves to $false instead of throwing.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Value
+    )
+
+    $fake = [HDTFakeRegistryService]::new()
+
+    if ($PSBoundParameters.ContainsKey('Value')) {
+        foreach ($path in @($Value.Keys)) {
+            $fake.AddKey([string] $path)
+
+            $entry = $Value[$path]
+            foreach ($name in @($entry.Keys)) {
+                $fake.SetValue([string] $path, [string] $name, $entry[$name])
+            }
+        }
+    }
+
+    return $fake
+}
+
+class HDTFakeEnvironmentProvider {
+
+    # Variable name -> value. Case-insensitive, matching Windows semantics.
+    [hashtable] $Variable
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    HDTFakeEnvironmentProvider() {
+        $this.Variable = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SetVariable([string] $Name, [string] $Value) {
+        if ([string]::IsNullOrWhiteSpace($Name)) {
+            throw [System.ArgumentException]::new('Name must not be empty.', 'Name')
+        }
+
+        $this.Variable[$Name] = $Value
+    }
+
+    # -- IEnvironmentProvider ----------------------------------------------
+
+    [string] GetVariable([string] $Name) {
+        $this.Record('GetVariable', @($Name))
+
+        if (-not $this.Variable.ContainsKey($Name)) {
+            return $null
+        }
+
+        return $this.Variable[$Name]
+    }
+}
+
+function New-HDTFakeEnvironmentProvider {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IEnvironmentProvider that records every lookup
+            performed against it.
+
+        .DESCRIPTION
+            The hand-written double behind every test that depends on the process
+            environment (DESIGN 3.2.1 reads firmware_type and
+            PROCESSOR_ARCHITECTURE; PROJECT constraint 4 forbids engine logic
+            from touching $env: directly).
+
+            It implements the single method GetVariable, which returns $null for
+            a variable that is not set and compares names case-insensitively, the
+            way Windows does - DESIGN 3.2.1 reads firmware_type in lower case and
+            everything else in upper.
+
+            Seeding it rather than setting real environment variables is what
+            lets a BIOS machine, an ARM machine and a machine with neither
+            variable set all be proven from one desk with none of them. Nothing
+            in this fake ever reads the real environment.
+
+            Every lookup appends a record to $Operations - Sequence (1-based),
+            Operation, Arguments. Seeding is deliberately not recorded.
+
+        .PARAMETER Variable
+            Seed environment variables. Keys are names, values are values.
+
+        .OUTPUTS
+            HDTFakeEnvironmentProvider. Never write the class name as a type
+            literal in a test: it binds to whichever dynamic assembly loaded
+            first and breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $environment = New-HDTFakeEnvironmentProvider -Variable @{
+                firmware_type = 'UEFI'; PROCESSOR_ARCHITECTURE = 'AMD64'
+            }
+            $environment.GetVariable('FIRMWARE_TYPE')
+
+            A UEFI x64 machine, with no such machine required.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Variable
+    )
+
+    $fake = [HDTFakeEnvironmentProvider]::new()
+
+    if ($PSBoundParameters.ContainsKey('Variable')) {
+        foreach ($name in @($Variable.Keys)) {
+            $fake.SetVariable([string] $name, [string] $Variable[$name])
+        }
+    }
+
+    return $fake
+}
+
+class HDTFakeScriptInvoker {
+
+    # Normalised script path -> the object Invoke returns. A path present with a
+    # $null value means "the script ran and emitted nothing".
+    [hashtable] $Result
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    HDTFakeScriptInvoker() {
+        $this.Result = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- path handling -----------------------------------------------------
+
+    hidden [string] Normalize([string] $Path) {
+        if ([string]::IsNullOrWhiteSpace($Path)) {
+            throw [System.ArgumentException]::new('Path must not be empty.', 'Path')
+        }
+
+        # rules.yaml writes 'Scripts\Get-ComputerName.ps1'; a test that seeded the
+        # forward-slash form must still match, or every setFrom: test becomes a
+        # test of which separator the author happened to type.
+        $normalized = $Path.Replace('\', '/')
+        while ($normalized.StartsWith('./')) {
+            $normalized = $normalized.Substring(2)
+        }
+
+        return $normalized
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SetResult([string] $Path, [object] $Value) {
+        $this.Result[$this.Normalize($Path)] = $Value
+    }
+
+    # -- IScriptInvoker ----------------------------------------------------
+
+    [object] Invoke([string] $Path, [System.Collections.IDictionary] $Variable) {
+        $this.Record('Invoke', @($Path, $Variable))
+        $full = $this.Normalize($Path)
+
+        # A path that was never seeded is a script that does not exist, and the
+        # real adapter throws exactly this for it.
+        if (-not $this.Result.ContainsKey($full)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find script '$Path'.", $Path)
+        }
+
+        return $this.Result[$full]
+    }
+}
+
+function New-HDTFakeScriptInvoker {
+    <#
+        .SYNOPSIS
+            Creates an IScriptInvoker that returns seeded results and never
+            executes anything.
+
+        .DESCRIPTION
+            The hand-written double behind every test of a setFrom: rule
+            (DESIGN 3.3: when a rule needs real logic it calls a script whose
+            output object becomes the variable set).
+
+            It implements the single method Invoke, which returns the object
+            seeded for that path, throws System.IO.FileNotFoundException naming
+            the script for a path that was not seeded - exactly as the real
+            adapter does for a script that is not on disk - and returns $null for
+            a path seeded with $null, because "the script ran and emitted
+            nothing" is a different fact from "no such script".
+
+            Paths are matched case-insensitively with backslashes normalised to
+            forward slashes and a leading ./ trimmed, so the
+            'Scripts\Get-ComputerName.ps1' a rules file writes matches the
+            'Scripts/Get-ComputerName.ps1' a test seeds.
+
+            Every invocation appends a record to $Operations - Sequence
+            (1-based), Operation, Arguments as (path, variables) - including one
+            that went on to throw, and including the variable dictionary, so a
+            test can assert what the engine actually handed the script. Seeding
+            is deliberately not recorded.
+
+        .PARAMETER Result
+            Seed results. Keys are script paths, values are the object Invoke
+            returns for that path. Seed $null for a script that emits nothing.
+
+        .OUTPUTS
+            HDTFakeScriptInvoker. Never write the class name as a type literal in
+            a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $invoker = New-HDTFakeScriptInvoker -Result @{
+                'Scripts/Get-ComputerName.ps1' = [pscustomobject] @{ HDTComputerName = 'PC-FIXTURE-SERIAL-0001' }
+            }
+            $invoker.Invoke('Scripts\Get-ComputerName.ps1', @{ HDTSerialNumber = 'FIXTURE-SERIAL-0001' })
+
+            A setFrom: rule proven without running a script, and with the
+            separator the rules file actually uses.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Result
+    )
+
+    $fake = [HDTFakeScriptInvoker]::new()
+
+    if ($PSBoundParameters.ContainsKey('Result')) {
+        foreach ($path in @($Result.Keys)) {
+            $fake.SetResult([string] $path, $Result[$path])
+        }
+    }
+
+    return $fake
+}
+
+Export-ModuleMember -Function @(
+    'New-HDTFakeCimProvider',
+    'New-HDTFakeEnvironmentProvider',
+    'New-HDTFakeFileSystem',
+    'New-HDTFakeRegistryService',
+    'New-HDTFakeScriptInvoker'
+)
