@@ -67,13 +67,41 @@ implementing anything. Do not re-derive decisions they already settle.**
 | Admin rights | Yes |
 | Free space | ~423 GB on C: |
 
-## Test media available
+## Test media — ALREADY STAGED LOCALLY, use these paths
 
-| Purpose | Path |
+Do not mount the Dropbox ISOs; the source trees are already extracted to fast
+local disk. Use these:
+
+| Purpose | Staged path | Contents |
+|---|---|---|
+| Windows 11 client | `C:\HDTLab\media\Win11-LTSC-2024\` | Full source tree. `sources\install.wim` (4.02 GB). **Index 1 = Windows 11 Enterprise LTSC**, index 2 = Enterprise N LTSC |
+| Windows Server 2025 | `C:\HDTLab\media\WS2025-Std\` | Full source tree. Index 1 = Standard (Core), **index 2 = Standard Desktop Experience**, 3 = Datacenter Core, 4 = Datacenter Desktop |
+
+Original ISOs, if a fresh extract is ever needed:
+`C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\HydrationKitWS2025\ISO\`
+
+### ADK — installed and verified
+
+ADK **10.1.26100.2454 (24H2)**, Deployment Tools + WinPE add-on, both installed.
+Verified paths (resolve these at runtime via `Get-HDTAdkPath`, do not hardcode —
+the layout has moved between ADK releases):
+
+| Asset | Path |
 |---|---|
-| Windows 11 client | `C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\HydrationKitWS2025\ISO\Windows 11 Enterprise LTSC 2024\SW_DVD9_WIN_ENT_LTSC_2024_64-bit_English_MLF_X23-70046.ISO` |
-| Windows Server 2025 | `C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\HydrationKitWS2025\ISO\Windows Server 2025 Standard\SW_DVD9_Win_Server_STD_CORE_2025_24H2_64Bit_English_DC_STD_MLF_X23-*.ISO` |
-| ADK offline installers | `C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\Downloads\ADK` and `...\ADKWinPE` |
+| ADK root | `C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit` |
+| `oscdimg.exe` | `…\Deployment Tools\amd64\Oscdimg\oscdimg.exe` |
+| `etfsboot.com` (BIOS, prompts) | `…\Deployment Tools\amd64\Oscdimg\etfsboot.com` |
+| `efisys.bin` (UEFI, prompts) | `…\Deployment Tools\amd64\Oscdimg\efisys.bin` |
+| **`efisys_noprompt.bin`** (UEFI, no keypress) | `…\Deployment Tools\amd64\Oscdimg\efisys_noprompt.bin` |
+| `winpe.wim` | `…\Windows Preinstallation Environment\amd64\en-us\winpe.wim` |
+| WinPE media template | `…\Windows Preinstallation Environment\amd64\Media\` |
+
+**Note:** the `efisys*.bin` El Torito images live under **Oscdimg**, NOT under the
+WinPE add-on's `Media\EFI\` tree (which holds bootloaders only). `_EX` variants
+exist for oversized boot images. `docs/DESIGN.md` §5.2 has been corrected to match.
+
+Offline ADK installers, if a reinstall is needed:
+`C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\Downloads\ADK` and `...\ADKWinPE`
 
 ## Reference implementation: PSD (friendsOfMDT)
 
