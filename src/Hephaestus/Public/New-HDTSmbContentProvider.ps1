@@ -230,6 +230,13 @@ function New-HDTSmbContentProvider {
         return $part[0]
     }
 
+    $service | Add-Member -MemberType ScriptMethod -Name GetShareName -Value {
+        $part = @($this.Root.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
+        if ($part.Count -lt 2) { return '' }
+
+        return $part[1]
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name TestGuestIdentity -Value {
         param([string] $UserName)
 
@@ -352,7 +359,19 @@ function New-HDTSmbContentProvider {
                     "HDTEnvironmentError: the mapping to '$($this.Root)' did not take - no SMB connection to '$server' came back. HDT will not read content from a path it cannot prove it is connected to."))
         }
 
+        # Get-SmbConnection returns a row per share and IPC$ is always one of
+        # them, so the row for the share that was actually mapped is the one
+        # judged. Judging whichever came back first would make the refusal
+        # depend on enumeration order.
         $row = $connection[0]
+        $share = $this.GetShareName()
+
+        foreach ($candidate in $connection) {
+            if ([string] $candidate.ShareName -eq $share) {
+                $row = $candidate
+                break
+            }
+        }
 
         if ($this.TestGuestIdentity([string] $row.UserName)) {
             $this.SafeRemoveMapping()

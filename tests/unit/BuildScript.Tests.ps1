@@ -209,6 +209,27 @@ Describe 'build.ps1' {
             $body | Should -BeLike '*elevated*'
         }
 
+        It 'warns rather than refusing when the staged media is absent' {
+            # THE MEDIA IS A PRECONDITION OF SOME INTEGRATION FILES, NOT OF THE
+            # TASK. 05-02 added tests/integration/SmbContentProvider.Integration.Tests.ps1,
+            # which needs a folder and a share and no Windows image at all; a
+            # hard throw here meant the whole task refused to start on a machine
+            # with no staged media, and every file in it - including the ones
+            # that skip themselves correctly - went unrun. Each slow file
+            # recomputes its own skip condition (SPIKES S9.15), so the task
+            # names what is missing and lets them.
+            $body = & $script:functionBody 'Invoke-HDTIntegrationTest'
+
+            $body | Should -BeLike '*install.wim*'
+            $body | Should -Match '(?s)install\.wim[^}]*Write-Warning'
+        }
+
+        It 'still refuses the integration task without elevation' {
+            $body = & $script:functionBody 'Invoke-HDTIntegrationTest'
+
+            $body | Should -Match '(?s)Test-HDTElevation[^}]*throw'
+        }
+
         It 'requires elevation for the e2e task' {
             $body = & $script:functionBody 'Invoke-HDTEndToEndTest'
 

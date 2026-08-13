@@ -210,6 +210,21 @@ Describe 'New-HDTSmbContentProvider' {
             $record.Exception.Message | Should -BeLike '*hdtserver*'
         }
 
+        It 'judges the connection row for the share it mapped' {
+            # Get-SmbConnection returns a row per share, and IPC$ is always one
+            # of them - probed on this host, a loopback mapping produced two
+            # rows. Judging whichever happened to be first would make the
+            # refusal depend on enumeration order.
+            $smb = New-HDTFakeSmbService -Connection @(
+                [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'IPC$'; UserName = 'HDTSERVER\Guest'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true },
+                (& $script:row 'CONTOSO\svc-hdt-deploy' '3.1.1' $true))
+
+            $provider = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `
+                -SmbService $smb -FileSystem $script:fileSystem
+
+            $provider.Connect() | Should -BeExactly $script:root
+        }
+
         It 'refuses one that came back as ANONYMOUS LOGON' {
             $smb = New-HDTFakeSmbService -Connection @(& $script:row 'NT AUTHORITY\ANONYMOUS LOGON' '3.1.1' $true)
             $provider = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `

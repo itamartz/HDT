@@ -21,6 +21,16 @@ BeforeDiscovery {
     $script:driveLetterInUse = @(@('S', 'W', 'R') | Where-Object { Test-Path -LiteralPath ('{0}:\' -f $_) })
     $script:mediaPath = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
     $script:skipSlow = ($script:driveLetterInUse.Count -gt 0) -or (-not (Test-Path -LiteralPath $script:mediaPath -PathType Leaf))
+
+    # READING the media needs only the media - no free drive letters, no VHDX.
+    # It was unconditional until 05-02, when a run on a machine whose staged
+    # media had gone reported two failures for an absent 4 GB file rather than
+    # skipping and saying so. CI has no media either.
+    $script:skipMedia = -not (Test-Path -LiteralPath $script:mediaPath -PathType Leaf)
+
+    if ($script:skipMedia) {
+        Write-Warning ("ImageService.Integration.Tests.ps1: the staged media at '{0}' is not on this machine, so the two tests that read a real WIM are skipped. PROJECT.md lists it under 'Test media - already staged locally'." -f $script:mediaPath)
+    }
 }
 
 BeforeAll {
@@ -109,7 +119,7 @@ AfterAll {
     }
 }
 
-Describe 'IImageService reading the real media' {
+Describe 'IImageService reading the real media' -Skip:$skipMedia {
 
     It 'reports index 1 as Windows 11 Enterprise LTSC' {
         $info = @($script:image.GetImageInfo($script:wimPath))

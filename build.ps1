@@ -261,9 +261,16 @@ function Invoke-HDTIntegrationTest {
         throw "The 'integration' task needs the Hyper-V PowerShell module for New-VHD, which is how it creates the scratch VHDX it writes to. Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell."
     }
 
+    # THE STAGED MEDIA IS A PRECONDITION OF SOME FILES IN THIS SUITE, NOT OF THE
+    # TASK. It was a throw until 05-02, which added an SMB provider file needing
+    # a folder and a share and no Windows image at all - and on a machine with no
+    # staged media the throw meant the whole task refused to start, so the files
+    # that skip themselves correctly never ran either. Every slow file
+    # recomputes its own skip condition inside BeforeAll (SPIKES S9.15), so this
+    # names what is missing and lets them decide.
     $media = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
     if (-not (Test-Path -LiteralPath $media -PathType Leaf)) {
-        throw ("The 'integration' task needs the staged Windows 11 media at '{0}' (PROJECT.md, 'Test media - already staged locally')." -f $media)
+        Write-Warning ("The staged Windows 11 media is not at '{0}' (PROJECT.md, 'Test media - already staged locally'), so the files that apply an image will skip themselves. The rest of tests/integration still runs." -f $media)
     }
 
     $path = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/integration'
