@@ -47,6 +47,30 @@ Describe 'New-HDTServiceCatalog' {
         $catalog.Image | Should -BeNullOrEmpty
     }
 
+    It 'exposes Content even when it was not supplied' {
+        # The twelfth service (DESIGN 6). Defined even when null, because engine
+        # code runs under Set-StrictMode -Version Latest and ApplyImage asks
+        # whether the catalog carries one before it uses it.
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        @($catalog.PSObject.Properties.Name) | Should -Contain 'Content'
+        $catalog.Content | Should -BeNullOrEmpty
+    }
+
+    It 'returns the content provider GetRequired was asked for' {
+        $content = New-HDTFakeContentProvider -Root 'Z:\Deploy'
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Content $content
+
+        [object]::ReferenceEquals($catalog.GetRequired('Content', 'ApplyImage'), $content) | Should -BeTrue
+    }
+
+    It 'names the step in the error when the Content service is missing' {
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        { $catalog.GetRequired('Content', 'ApplyImage') } | Should -Throw -ExpectedMessage '*Content*'
+        { $catalog.GetRequired('Content', 'ApplyImage') } | Should -Throw -ExpectedMessage '*ApplyImage*'
+    }
+
     It 'returns the disk service GetRequired was asked for' {
         $disk = New-HDTFakeDiskService
         $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Disk $disk

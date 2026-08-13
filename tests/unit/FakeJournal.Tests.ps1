@@ -100,6 +100,14 @@ $script:HDTJournalledFake = @(
         Argument  = @()
     }
     @{
+        Name      = 'ContentProvider'
+        Service   = 'ContentProvider'
+        Factory   = { param($Journal) New-HDTFakeContentProvider -Root 'Z:\Deploy' -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.TestContent('OperatingSystems\Win11-LTSC-2024\os.yaml') }
+        Operation = 'TestContent'
+        Argument  = @('OperatingSystems\Win11-LTSC-2024\os.yaml')
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }
