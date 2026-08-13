@@ -660,7 +660,7 @@ class HDTFakeRegistryService {
 
     # -- seeding (never recorded) ------------------------------------------
 
-    [void] SetValue([string] $Path, [string] $Name, [object] $Value) {
+    [void] SeedValue([string] $Path, [string] $Name, [object] $Value) {
         $full = $this.Normalize($Path)
 
         if (-not $this.Key.ContainsKey($full)) {
@@ -670,7 +670,7 @@ class HDTFakeRegistryService {
         $this.Key[$full][$Name] = $Value
     }
 
-    [void] AddKey([string] $Path) {
+    [void] SeedKey([string] $Path) {
         $full = $this.Normalize($Path)
 
         if (-not $this.Key.ContainsKey($full)) {
@@ -732,7 +732,9 @@ function New-HDTFakeRegistryService {
             Every call appends a record to $Operations - Sequence (1-based),
             Operation, Arguments - including calls that returned $null, because
             provenance needs the attempt and not only the successes. Seeding,
-            whether by this factory or by SetValue, is deliberately not recorded.
+            whether by this factory or by SeedValue/SeedKey, is deliberately not
+            recorded - which is why those two are named Seed* and the recorded
+            interface method is SetValue.
 
         .PARAMETER Value
             Seed keys and values. Keys are registry paths, values are hashtables
@@ -784,11 +786,11 @@ function New-HDTFakeRegistryService {
 
     if ($PSBoundParameters.ContainsKey('Value')) {
         foreach ($path in @($Value.Keys)) {
-            $fake.AddKey([string] $path)
+            $fake.SeedKey([string] $path)
 
             $entry = $Value[$path]
             foreach ($name in @($entry.Keys)) {
-                $fake.SetValue([string] $path, [string] $name, $entry[$name])
+                $fake.SeedValue([string] $path, [string] $name, $entry[$name])
             }
         }
     }

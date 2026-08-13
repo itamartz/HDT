@@ -189,7 +189,7 @@ Describe 'the shared fake journal' {
             $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $journal
             $clock.Advance(1000)
             $fs.SeedFile('C:\ws\sequence.yaml', 'steps: []')
-            $registry.SetValue('HKLM:\SOFTWARE\HDT', 'Leg', 2)
+            $registry.SeedValue('HKLM:\SOFTWARE\HDT', 'Leg', 2)
 
             @($journal).Count | Should -Be 0
         }

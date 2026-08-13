@@ -41,9 +41,9 @@ Describe 'New-HDTFakeRegistryService' {
         $registry.GetValue($script:secureBootPath, 'UEFISecureBootEnabled') | Should -BeNullOrEmpty
     }
 
-    It 'accepts SetValue after construction' {
+    It 'accepts SeedValue after construction' {
         $registry = New-HDTFakeRegistryService
-        $registry.SetValue($script:secureBootPath, 'UEFISecureBootEnabled', 0)
+        $registry.SeedValue($script:secureBootPath, 'UEFISecureBootEnabled', 0)
 
         $registry.TestPath($script:secureBootPath) | Should -BeTrue
         $registry.GetValue($script:secureBootPath, 'UEFISecureBootEnabled') | Should -Be 0
@@ -68,7 +68,7 @@ Describe 'New-HDTFakeRegistryService' {
 
     It 'does not record seeding as an operation' {
         $registry = New-HDTFakeRegistryService -Value @{ $script:secureBootPath = @{ UEFISecureBootEnabled = 1 } }
-        $registry.SetValue($script:secureBootPath, 'Other', 2)
+        $registry.SeedValue($script:secureBootPath, 'Other', 2)
 
         @($registry.Operations).Count | Should -Be 0
     }
