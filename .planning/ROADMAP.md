@@ -14,10 +14,39 @@ Milestone → phase directory mapping:
 | 04 | M3 — Imaging | `.planning/phases/04-imaging/` | 03 |
 | 05 | M4 — Boot image, ISO, PXE | `.planning/phases/05-bootimage/` | 03, 04 |
 | 05.5 | **M4.5 — Technician UI (WinPE wizard + progress)** | `.planning/phases/05.5-technician-ui/` | 04, 05 |
-| 06 | M5 — Drivers | `.planning/phases/06-drivers/` | 04 |
+| ~~06~~ | ~~M5 — Drivers~~ **DEFERRED TO v2** | `.planning/phases/06-drivers/` | 04 |
 | 07 | M6 — Applications and full-OS steps | `.planning/phases/07-apps-fullos/` | 03, 04 |
-| 08 | M7 — Capture and standalone media | `.planning/phases/08-capture-media/` | 04, 05, 07 |
-| 09 | M8 — Admin console (WPF) | `.planning/phases/09-console/` | 02–08 |
+| ~~08~~ | ~~M7 — Capture and standalone media~~ **DEFERRED TO v2** | `.planning/phases/08-capture-media/` | 04, 05, 07 |
+| 09 | M8 — Admin console (WPF) | `.planning/phases/09-console/` | 02–05, 05.5, 07 |
+
+## v1 scope
+
+**v1 ships:** 01 harness, 02 rules, 03 sequence engine, 04 imaging, 05 boot image
+and the zero-keystroke boot path, 05.5 technician UI, 07 applications and full-OS
+steps, 09 admin console.
+
+**v2:** 06 drivers and 08 capture + standalone media. Both keep their full design
+and roadmap entries below — they are scheduled out, not cut, and nothing in v1
+was built in a way that assumes they are absent.
+
+What deferring them actually costs, stated so it is not discovered later:
+
+- **No out-of-box driver injection.** v1 deploys with whatever drivers are inbox
+  in the applied image. That is fine for VMs and for hardware Windows already
+  supports; a machine needing an OEM storage or network driver will deploy and
+  then be missing that device. Boot-critical driver injection into the WinPE
+  image is **not** affected — it belongs to `Update-HDTBootImage` in phase 05 and
+  stays in v1, so a machine that needs a NIC driver to reach the share still gets
+  one.
+- **No reference-image capture.** v1 applies images; it does not sysprep and
+  capture its own. Images come from Microsoft media or an existing pipeline.
+- **No standalone offline media.** v1 deploys from a share, over PXE or from the
+  boot ISO. `New-HDTBootIso` (phase 05) still produces a bootable WinPE ISO —
+  what moves to v2 is `New-HDTMedia`, the full content projection that puts the
+  OS, applications and sequences on a USB stick for a site with no server.
+- **The console (09) will show Drivers and Captures nodes with nothing behind
+  them** unless it hides them; it should read the workspace and omit what is not
+  present rather than showing empty branches.
 
 ## Phase goals (one line each — full detail in `docs/ROADMAP.md`)
 

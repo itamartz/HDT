@@ -241,7 +241,12 @@ virtual machine PXE-boots the same image from WDS and deploys.
 
 ---
 
-## M5 — Drivers
+## M5 — Drivers  ·  **DEFERRED TO v2**
+
+> **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
+> kept here in full so v2 starts from a written plan rather than a memory. See
+> `.planning/ROADMAP.md` "v1 scope" for what deferring it costs.
+
 
 - `Import-HDTDriver`: `.inf` parsing → `driver-index.json`.
 - `ApplyDrivers` step: group match primary, PnP match fallback, ranking by
@@ -306,7 +311,12 @@ code classification.
 
 ---
 
-## M7 — Capture and standalone media
+## M7 — Capture and standalone media  ·  **DEFERRED TO v2**
+
+> **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
+> kept here in full so v2 starts from a written plan rather than a memory. See
+> `.planning/ROADMAP.md` "v1 scope" for what deferring it costs.
+
 
 - `Sysprep` and `CaptureImage` steps; `Captures\` output; promotion into the OS
   catalog.

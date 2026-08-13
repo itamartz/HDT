@@ -31,6 +31,21 @@ engine on PowerShell instead of VBScript/WSH.
   matching, step sequencing, disk layout planning) to be pure and injectable
   rather than reaching for hardware and UNC paths mid-function. See §13.2.
 
+### Deferred to v2 (designed, scheduled out)
+
+These are **fully designed below and not cut** — v2 starts from a written plan.
+They are simply not in v1:
+
+- **§7 Driver management.** No out-of-box driver store, no `ApplyDrivers` step.
+  v1 deploys with the drivers inbox in the applied image. Boot-critical driver
+  injection into the WinPE image is **not** affected — it belongs to
+  `Update-HDTBootImage` (§5.1) and stays in v1, so a machine needing a NIC
+  driver to reach the share still gets one.
+- **§9.3 Capture** and **§6.2 standalone media.** v1 applies images; it does not
+  sysprep and capture its own, and it does not project a workspace onto a USB
+  stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
+  same thing as offline media carrying the OS and applications.
+
 ### Non-goals (v1)
 
 - **User state migration (USMT).** Not deferred — **out of scope permanently.**
