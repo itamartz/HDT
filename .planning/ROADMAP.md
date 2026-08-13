@@ -13,6 +13,7 @@ Milestone → phase directory mapping:
 | 03 | M2 — Task sequence engine | `.planning/phases/03-sequence-engine/` | 01, 02 |
 | 04 | M3 — Imaging | `.planning/phases/04-imaging/` | 03 |
 | 05 | M4 — Boot image, ISO, PXE | `.planning/phases/05-bootimage/` | 03, 04 |
+| 05.5 | **M4.5 — Technician UI (WinPE wizard + progress)** | `.planning/phases/05.5-technician-ui/` | 04, 05 |
 | 06 | M5 — Drivers | `.planning/phases/06-drivers/` | 04 |
 | 07 | M6 — Applications and full-OS steps | `.planning/phases/07-apps-fullos/` | 03, 04 |
 | 08 | M7 — Capture and standalone media | `.planning/phases/08-capture-media/` | 04, 05, 07 |
@@ -163,6 +164,13 @@ real is touched).
 **05 — Boot image / ISO / PXE.** `Update-HDTBootImage`, `New-HDTBootIso` with
 `-NoPromptForKey`, build manifest, WDS import, SMB content provider.
 *Exit:* a VM boots the ISO with no keypress; a VM PXE-boots the same image.
+
+**05.5 — Technician UI.** Two WPF surfaces inside WinPE (DESIGN 11): the
+full-screen progress window driven by the JSONL event stream, and the wizard
+whose every page is individually skippable via `HDTSkip*` in MDT's model. Must
+degrade to styled console when XAML is unavailable.
+*Exit:* a deployment with a fully populated `rules.yaml` shows no wizard at all
+and a live progress window; removing one value surfaces exactly that page.
 
 **06 — Drivers.** `.inf` parsing into an index, group match primary, PnP fallback
 ranked by specificity → version → date, coverage reporting.

@@ -29,7 +29,7 @@ engine on PowerShell instead of VBScript/WSH.
   the code that satisfies it, every time. This is a design constraint, not just
   a process one — it forces the engine's decision logic (rule evaluation, driver
   matching, step sequencing, disk layout planning) to be pure and injectable
-  rather than reaching for hardware and UNC paths mid-function. See §12.2.
+  rather than reaching for hardware and UNC paths mid-function. See §13.2.
 
 ### Non-goals (v1)
 
@@ -1029,11 +1029,32 @@ HDT carries the 16 MB as an **allowance** (`ReservedSizeByte`), subtracts it fro
 the space Windows can have, and creates no partition for it. This section
 previously listed `MSR 16 MB` among the partitions to create; that was the bug.
 
+**It creates that MSR on the host and not inside WinPE** (SPIKES S9.10, measured
+both ways). On the host it is 16 759 808 bytes at offset 17 408 — which together
+are *exactly* the 16 777 216 the allowance carries, so the number is right to the
+byte. Inside WinPE the deployed disk ends up with ESP / Windows / Recovery and
+nothing else, exactly as S6's own hand-run log recorded. Nothing about the design
+turns on which happens: HDT never creates an MSR either way, the allowance is
+subtracted either way, and the recovery partition carries `UseMaximumSize` so an
+unused allowance lands there rather than being left unallocated.
+
+**The disk is only cleared when there is something to clear.** `Clear-Disk`
+reports *"The disk has not been initialized."* on a RAW disk (SPIKES S9.3), and a
+machine that has never been deployed has exactly that — so `DiskPartition` skips
+the clear when the target's partition style is `RAW` and records that it did.
+S6's "the working recipe is `Clear-Disk -RemoveData -RemoveOEM` then
+`Initialize-Disk`" holds for a disk that already carries a partition table.
+
 **The ESP is created as basic data and retyped after formatting.** A partition
 created directly as an EFI System partition cannot readily be given a drive
 letter to format through, so a layout carries both `CreateGptType` (basic data)
 and `GptType` (the ESP type), and `DiskPartition` creates, letters, formats, then
-retypes.
+retypes. **Verified against a real disk in 04-04**, where it had been recorded as
+a field recipe rather than a tested one.
+
+**A FAT32 volume label comes back uppercased.** The layout asks for `System` on
+the ESP and `Get-Volume` reports `SYSTEM`; NTFS preserves the case it was given.
+Nothing downstream may match a volume label case-sensitively.
 
 **Layouts live in `Get-HDTDiskLayout`'s built-ins until `workspace.yaml` exists**
 (M4 introduces that document for the boot image). `Get-HDTDiskLayout -Definition`
@@ -1131,6 +1152,26 @@ Post-apply, in this order:
    otherwise a WinPE-half sequence with no `Restart` deploys a machine whose
    Administrator password is the literal token. Neither the document nor the
    password is written to any log at any level.
+
+   **The computer name is validated here, and the run stops rather than the
+   name being quietly changed.** A `ComputerName` over 15 characters — the
+   NetBIOS limit — or holding anything but letters, digits and hyphens is
+   refused with `HDTConfigurationError`. SPIKES S9.11: the first real deployment
+   reported `Succeeded` on all five steps and produced a machine called
+   `WIN-N91191NN153`, because `rules.yaml`'s `PC-%HDTSerialNumber%` fallback
+   resolved to 35 characters on a VM and **Windows Setup discarded it without
+   complaint**. HDT does not truncate: a silently shortened name is the same
+   failure with a different spelling. Where one machine needs a name the rules
+   would not give it, that is what the per-machine override of §3.1 is for.
+
+5. **Recovery registration is not what makes WinRE work.** `SetRecoveryImage`
+   runs the applied image's own `Reagentc.exe /setreimage` against an offline
+   target, and SPIKES S9.7 found that it **exits 0, prints "Operation
+   Successful" and registers nothing** — `/info` on the same target still reports
+   `Windows RE status: Disabled`. It does not refuse; it reports success. WinRE
+   on the deployed machine is enabled by Setup during specialize/oobe from the
+   `Winre.wim` the apply leaves in `Windows\System32\Recovery`. This is why the
+   step warns and continues rather than treating the call as load-bearing.
 
 ### 9.3 Capture
 
@@ -1252,7 +1293,88 @@ of the benefit for none of the complexity.
 
 ---
 
-## 11. Admin console (WPF)
+## 11. Technician UI, in WinPE
+
+Two surfaces, both WPF running inside WinPE, both shipping in the boot image:
+the **wizard** that collects what the deployment still needs, and the
+**progress window** the technician watches while it runs. PSD demonstrates that
+WPF works in WinPE, so this is a known-feasible path rather than a research
+project — it needs `WinPE-NetFx`, which HDT already injects (§5.1).
+
+Neither is optional decoration. A bare `X:\Windows\system32>` prompt is what
+HDT showed before this section existed, and it tells a technician standing at a
+bench nothing at all: not which machine, not which sequence, not whether it is
+working or hung.
+
+### 11.1 The progress window
+
+Full-screen, borderless, shown from the moment the engine starts until it hands
+over to the full OS. It displays: computer name, task sequence name, the current
+step and its group, **step N of M**, a progress bar, elapsed time, and the
+current phase (WinPE or Full OS).
+
+**It is driven by the JSONL event stream, not by a parallel progress API.**
+The engine already emits `step.start`, `step.complete`, `step.fail`, `step.skip`
+and `phase.change` with a controlled vocabulary (§4.4.2). The UI subscribes to
+that stream and renders it. There is exactly one source of truth for what the
+deployment is doing, so the screen and the log can never disagree — and a step
+author gets progress for free without calling a UI function.
+
+The UI runs in its **own runspace**. The engine must never block on rendering,
+and a UI fault must not take the deployment with it.
+
+**It must degrade to the console.** If XAML fails to load — a boot image built
+without the right components, an exotic display, a serial console — the engine
+logs the reason and writes styled console lines instead, then carries on. A
+deployment that refuses to run because it cannot draw a progress bar would be a
+worse toolkit than one with no progress bar at all. A contract test asserts the
+fallback path is taken when WPF is unavailable, because the fallback is exactly
+the path nobody exercises until the night it matters.
+
+`HDTSkipProgress` suppresses the window entirely for unattended runs.
+
+### 11.2 The wizard, and skipping every page of it
+
+The wizard collects what the rules could not supply. It follows MDT's model
+exactly, because it is the model admins already know: **every page is
+individually skippable, and a page whose values are all supplied never appears.**
+Populate everything in `rules.yaml` (or a per-machine
+`Control\machines\<UUID>.yaml`) and the technician sees no wizard at all — the
+deployment goes straight to the progress window.
+
+| Page | Collects | Skip variable | MDT |
+|---|---|---|---|
+| Task sequence | Which sequence to run | `HDTSkipTaskSequence` | `SkipTaskSequence` |
+| Computer name | `HDTComputerName` | `HDTSkipComputerName` | `SkipComputerName` |
+| Domain / workgroup | `HDTJoinDomain`, `HDTMachineObjectOU`, or `HDTJoinWorkgroup` | `HDTSkipDomainMembership` | `SkipDomainMembership` |
+| Credentials | Share credentials, when not embedded (§6.3) | `HDTSkipCredentials` | `SkipBDDWelcome` in part |
+| Applications | Which apps to install | `HDTSkipApplications` | `SkipApplications` |
+| Locale and time | `HDTTimeZoneName`, locale | `HDTSkipTimeZone`, `HDTSkipLocaleSelection` | same names |
+| Admin password | The local Administrator password policy (§10.3, §4.5.3) | `HDTSkipAdminPassword` | `SkipAdminPassword` |
+| Summary | Confirm before anything destructive | `HDTSkipSummary` | `SkipSummary` |
+
+`HDTSkipWizard: true` skips all pages at once — the unattended case.
+
+**A skipped page whose values are still missing is an error, not a prompt.**
+If `HDTSkipComputerName` is set and no rule supplies `HDTComputerName`, the
+deployment fails at validation with a message naming the variable and the file
+that should have set it. Silently inventing a value, or quietly showing the page
+anyway, both produce deployments nobody can reproduce.
+
+Every value the wizard collects enters the variable engine as the
+**command-line/wizard source** — the highest precedence in §3.1 — and is
+recorded in provenance like any other, so the report can say a name was typed
+rather than derived.
+
+### 11.3 What this is not
+
+It is not the admin console (§12). That is a WPF app on an administrator's
+workstation for authoring the workspace. This is two screens inside WinPE on the
+machine being deployed. They share only XAML skills.
+
+---
+
+## 12. Admin console (WPF)
 
 The console is a **thin client over the module**. Rule: the console may not do
 anything the cmdlets can't. Every action it performs maps to a cmdlet
@@ -1278,9 +1400,9 @@ module is fully usable without it, including on a headless server.
 
 ---
 
-## 12. Cross-cutting concerns
+## 13. Cross-cutting concerns
 
-### 12.1 Error handling
+### 13.1 Error handling
 
 Engine code sets `$ErrorActionPreference = 'Stop'` and wraps each step in a
 single try/catch that classifies failures as `Transient` (retry per the step's
@@ -1289,7 +1411,7 @@ and line), or `Environment` (hardware/network — fail with diagnostics attached
 Native tool exit codes are checked explicitly; `$LASTEXITCODE` is never assumed
 to be zero.
 
-### 12.2 Test-driven development
+### 13.2 Test-driven development
 
 **HDT is written test-first.** Pester 5 is the framework. The working loop is
 red → green → refactor, at the granularity of one behavior:
@@ -1301,10 +1423,10 @@ red → green → refactor, at the granularity of one behavior:
 3. Refactor with the suite green.
 
 **No production function is written before a failing test exists for it.** The
-exception is thin adapters around external tools (§12.2.3), which are kept small
+exception is thin adapters around external tools (§13.2.3), which are kept small
 precisely because they can't be unit tested.
 
-#### 12.2.1 The testability rule this imposes
+#### 13.2.1 The testability rule this imposes
 
 A step implementation may not call DISM, CIM, the filesystem, or the network
 directly. It receives those through injected service objects
@@ -1319,7 +1441,7 @@ sequence end-to-end in a Pester run** against fake services, asserting the
 ordered list of operations it *would* have performed. That test is the safety
 net for every refactor after it.
 
-#### 12.2.2 The testing pyramid
+#### 13.2.2 The testing pyramid
 
 | Layer | What it covers | Runs |
 |---|---|---|
@@ -1332,7 +1454,7 @@ The E2E layer is slow and is not where correctness is established — it exists 
 catch the integration seams that fakes hide. When an E2E test finds a bug, the
 fix starts by reproducing it at the unit layer.
 
-#### 12.2.3 Test doubles and boundaries
+#### 13.2.3 Test doubles and boundaries
 
 - **Fake, don't mock, the services.** Hand-written fakes (an in-memory
   filesystem, a fake disk service that records operations) produce readable
@@ -1345,7 +1467,7 @@ fix starts by reproducing it at the unit layer.
   Facts are captured from real machines rather than invented, so the fakes stay
   honest.
 
-#### 12.2.4 Definition of done
+#### 13.2.4 Definition of done
 
 A change is done when: a test existed before the code; the full unit + contract
 suite is green; new public cmdlets have comment-based help and at least one test
@@ -1354,13 +1476,13 @@ decision logic has not regressed. Coverage is a signal, not a target — an
 untested `if` in the rule engine matters, an untested line in a DISM adapter
 does not.
 
-#### 12.2.5 CI
+#### 13.2.5 CI
 
 Unit + contract + PSScriptAnalyzer on every push (Windows runner). Integration
 on every push to `main` and on PRs touching imaging or driver code. E2E nightly.
 A red suite blocks merge.
 
-### 12.3 Versioning and compatibility
+### 13.3 Versioning and compatibility
 
 Workspace content carries `schemaVersion`. The module refuses to operate on a
 workspace newer than it understands and offers `Update-HDTWorkspace` for older
@@ -1370,7 +1492,7 @@ cause of confusing failures.
 
 ---
 
-## 13. What HDT deliberately does differently from MDT
+## 14. What HDT deliberately does differently from MDT
 
 | MDT | HDT | Why |
 |---|---|---|
@@ -1386,7 +1508,7 @@ cause of confusing failures.
 
 ---
 
-## 14. Open questions
+## 15. Open questions
 
 All resolved except one.
 
@@ -1412,9 +1534,9 @@ All resolved except one.
 
 ---
 
-## 15. Naming and repo conventions
+## 16. Naming and repo conventions
 
-### 15.1 Command naming — mandatory
+### 16.1 Command naming — mandatory
 
 **Every PowerShell command in HDT is named `Verb-HDTNoun`.** No exceptions:
 public cmdlets, private helpers, adapters, test helpers, and build functions all
@@ -1448,7 +1570,7 @@ this — it only applies on import, so the prefix would vanish when the engine
 dot-sources its own files in WinPE. The prefix is written into every function
 name at the source.
 
-### 15.2 Other conventions
+### 16.2 Other conventions
 
 - Module: `Hephaestus`.
 - Repo layout: `src/Hephaestus/` (module), `src/HDT.Console/` (WPF),
