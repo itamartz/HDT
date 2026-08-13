@@ -176,6 +176,30 @@ of relying on every future agent remembering it.
   on the function and add the file to `NOTICE.md` at the repo root (create it if
   absent, reproducing the MIT notice from `C:\HDTLab\reference\PSD\LICENSE`).
 
+## ⚠ Paths that must never be deleted
+
+**`C:\Users\Itamartz\Documents\GithubRepos\HDT` — the repository root — is never
+a delete target.** Not by a test, not by a cleanup block, not by a build task,
+not with `-Recurse`. Nor is any parent of it.
+
+Also never: `C:\HDTLab` itself, `C:\HDTLab\media` (staged Windows sources, ~11 GB,
+slow to rebuild), `C:\HDTLab\Share`, `C:\HDTLab\reference`, or anything under
+`C:\Users\Itamartz\` outside `C:\HDTLab`.
+
+**Permitted deletes, and only these:** `out/` via `build.ps1 -Task clean`; a temp
+or staging directory this process created in this run; a scratch VHDX or VM
+folder this test created under `C:\HDTLab\scratch\` or `C:\HDTLab\vms\` matching
+`HDT-*`.
+
+Delete by explicit `-LiteralPath` to a specific thing you created. Never build a
+delete target by enumerating a parent, and never pass a variable to
+`Remove-Item -Recurse` without first asserting it is one of the permitted
+locations.
+
+Enforced by `tests/contract/ProtectedPath.Contract.Tests.ps1`, which scans every
+`.ps1`/`.psm1`/`.psd1` outside fixtures, ignores comments so the rule can be
+discussed in prose, and is itself proven to bite on a deliberate violation.
+
 ## ⚠ Hyper-V lab safety rules — READ BEFORE TOUCHING ANY VM
 
 This machine hosts the user's **existing, live lab**. Damaging it is worse than
