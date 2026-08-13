@@ -36,6 +36,15 @@ BeforeAll {
         Write-Warning ("ImageService.Integration.Tests.ps1 skipped: the uefi-standard layout needs S:, W: and R: free on this host and {0}: is in use." -f ($script:inUse -join ':, '))
     }
 
+    # BeforeDiscovery and BeforeAll run in DIFFERENT script scopes in Pester 5,
+    # so the $script:skipSlow set at discovery time is NOT visible here - reading
+    # it threw "cannot be retrieved because it has not been set" and took the
+    # whole file, and its 18 tests, down with it. Recompute from the same two
+    # conditions rather than reaching across the phase boundary. Discovery still
+    # needs its own copy for -Skip: on the Describe, which is evaluated there.
+    $script:skipSlow = ($script:inUse.Count -gt 0) -or
+        (-not (Test-Path -LiteralPath $script:wimPath -PathType Leaf))
+
     $script:image = New-HDTImageService
 
     $script:scratchRoot = 'C:\HDTLab\scratch\integration'

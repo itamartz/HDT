@@ -328,6 +328,38 @@ variables:
 
         Write-Information ("RESULT.json status: {0}" -f $(if ($null -ne $script:result) { [string] $script:result.status } else { '<absent>' })) -InformationAction Continue
 
+        # PERSIST THE EVIDENCE THE ASSERTIONS ARE MADE FROM. Everything above was
+        # read into memory off a content disk that the AfterAll destroys, so a
+        # claim like 'reported Succeeded on all five steps' could only ever be
+        # re-checked by re-running the whole deployment. Screenshots were being
+        # kept and the four files the assertions actually rest on were not.
+        if (-not (Test-Path -LiteralPath $script:artifactRoot -PathType Container)) {
+            New-Item -Path $script:artifactRoot -ItemType Directory -Force | Out-Null
+        }
+
+        if ($null -ne $script:result) {
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:artifactRoot -ChildPath 'RESULT.json'),
+                ($script:result | ConvertTo-Json -Depth 12))
+        }
+        if ($null -ne $script:state) {
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:artifactRoot -ChildPath 'state.json'),
+                ($script:state | ConvertTo-Json -Depth 12))
+        }
+        if (-not [string]::IsNullOrWhiteSpace($script:rawJsonl)) {
+            # Verbatim, not re-serialised: the seq continuity and the record
+            # shape are the things a later reader needs to check.
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:artifactRoot -ChildPath 'HDT.jsonl'),
+                $script:rawJsonl)
+        }
+        if (-not [string]::IsNullOrWhiteSpace($script:launcherLog)) {
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:artifactRoot -ChildPath 'LAUNCHER.log'),
+                $script:launcherLog)
+        }
+
         # THE CAPTURE THAT CLOSES tests/fixtures/disk/gen2-vm-raw-disk.json's
         # DEBT: a Generation 2 VM's virgin 64 GB disk, read through IDiskService
         # a moment before the deployment repartitioned it. Saved outside the VM,
