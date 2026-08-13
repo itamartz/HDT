@@ -211,6 +211,62 @@ Describe 'Invoke-HDTApplyUnattendStep' {
             $written | Should -BeLike '*<ComputerName>HDT-M3-01</ComputerName>*'
         }
 
+        It 'refuses a computer name longer than 15 characters' {
+            # FOUND BY DEPLOYING A REAL MACHINE (04-04). The sample rules.yaml's
+            # fallback sets HDTComputerName to 'PC-%HDTSerialNumber%', and a
+            # Hyper-V VM's serial is 32 characters - so the unattend carried a
+            # 35-character ComputerName. WINDOWS SETUP SILENTLY IGNORED IT and
+            # named the machine WIN-N91191NN153.
+            #
+            # That is the worst shape a defect can take: the deployment
+            # succeeded, every step reported Completed, and the machine came up
+            # with a name nobody chose and no log mentioned. A 15-character
+            # NetBIOS limit is not an edge case - it is every machine whose name
+            # comes from a serial number.
+            $context = & $script:newContextFor ([ordered] @{ HDTComputerName = 'PC-1884-9397-3639-6194-7223-8141-25' }) $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+            [string] $result.Data['errorId'] | Should -BeExactly 'HDTConfigurationError'
+            $result.Message | Should -BeLike '*PC-1884-9397-3639-6194-7223-8141-25*'
+            $result.Message | Should -BeLike '*15*'
+        }
+
+        It 'writes nothing when it refuses the name' {
+            $context = & $script:newContextFor ([ordered] @{ HDTComputerName = 'PC-1884-9397-3639-6194-7223-8141-25' }) $script:state
+
+            Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
+
+            $script:fileSystem.TestPath($script:pantherPath) | Should -BeFalse
+        }
+
+        It 'refuses a computer name with a character Windows will not take' {
+            foreach ($name in @('HDT M3 01', 'HDT_M3*01', 'HDT.M3.01')) {
+                $context = & $script:newContextFor ([ordered] @{ HDTComputerName = $name }) $script:state
+
+                $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+                $result.Status | Should -BeExactly 'Failed' -Because ("'{0}' is not a legal computer name" -f $name)
+            }
+        }
+
+        It 'accepts a legal 15 character name' {
+            $context = & $script:newContextFor ([ordered] @{ HDTComputerName = 'HDT-M3-01-12345' }) $script:state
+
+            (Invoke-HDTApplyUnattendStep -Step $script:step -Context $context).Status | Should -BeExactly 'Completed'
+        }
+
+        It 'says nothing about a computer name the document never asked for' {
+            # A template with no %HDTComputerName% token is not the place to
+            # enforce a naming rule.
+            $script:fileSystem.SeedFile($script:templatePath, '<?xml version="1.0"?><unattend />')
+
+            $context = & $script:newContextFor ([ordered] @{ HDTComputerName = 'PC-1884-9397-3639-6194-7223-8141-25' }) $script:state
+
+            (Invoke-HDTApplyUnattendStep -Step $script:step -Context $context).Status | Should -BeExactly 'Completed'
+        }
+
         It 'expands several tokens' {
             $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = 'Passw0rd-fixture!' }) $script:state
 

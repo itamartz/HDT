@@ -312,6 +312,18 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
     Context 'the machine it would have left behind' {
 
         It 'left exactly four partitions on the target disk' {
+            # FOUR HERE, THREE ON THE REAL LAB VM, and the divergence is
+            # deliberate (SPIKES S9.10). On the HOST, Initialize-Disk with GPT
+            # creates a Microsoft Reserved partition of its own; INSIDE WinPE it
+            # does not, so the deployed machine carries ESP / Windows / Recovery
+            # and nothing else. The fake models the HOST behaviour on purpose:
+            # it exists to make the duplicate-MSR bug visible, and it can only
+            # do that if there is an MSR there to duplicate.
+            #
+            # Nothing about correctness turns on it. HDT never creates an MSR
+            # either way, the 16 MB ReservedSizeByte is an allowance rather than
+            # a partition, and the recovery row carries UseMaximumSize so an
+            # unused allowance lands in recovery.
             @($script:leg.Disk.Partition | Where-Object { $_.DiskNumber -eq 0 }).Count | Should -Be 4
         }
 

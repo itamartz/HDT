@@ -124,13 +124,81 @@ BeforeAll {
 
         Remove-HDTLabVirtualMachine -Name $script:vmName -Confirm:$false
 
+        # -- the 64 GB target and the VM, BEFORE the content disk -----------
+        #
+        # THE ORDER MATTERS, and the reason is DESIGN 3.1's second variable
+        # source. rules.yaml's fallback sets HDTComputerName from the serial
+        # number - and rules outrank a sequence's own defaults - so on a Hyper-V
+        # VM whose serial is 32 characters, DEMO-M3's 'HDT-M3-01' loses to a
+        # 35-character name that Windows Setup silently discards (04-04, first
+        # deployment run: the machine came up as WIN-N91191NN153).
+        #
+        # The right answer is not to edit the sample rules: it is the mechanism
+        # HDT already has for making one machine an exception. A per-machine
+        # override is keyed on the machine's UUID, so the VM has to exist before
+        # the content disk that carries the override can be written.
+
+        if (Test-Path -LiteralPath $script:osDiskPath) {
+            Remove-Item -LiteralPath $script:osDiskPath -Force
+        }
+
+        Hyper-V\New-VHD -Path $script:osDiskPath -SizeBytes 68719476736 -Dynamic | Out-Null
+
+        # Disk 0 is the target. The content disk is attached after it is built,
+        # so the target is certainly disk 0 - and DEMO-M3's minDiskGB: 60
+        # excludes the 8 GB content disk by size, while DiskPartition ALSO
+        # protects it by drive letter. Two independent rules stand between the
+        # engine and the workspace it is reading.
+        New-HDTLabVirtualMachine -Name $script:vmName -MemoryByte 4294967296 -ProcessorCount 2 `
+            -SwitchName 'HDT Lab' -VhdPath @($script:osDiskPath) `
+            -IsoPath $script:isoPath -Confirm:$false | Out-Null
+
+        # The UUID the guest will report as HDTUUID. Hyper-V holds it as the
+        # firmware BIOS GUID, in braces.
+        $vmSetting = @(Get-CimInstance -Namespace 'root\virtualization\v2' -ClassName 'Msvm_VirtualSystemSettingData' |
+                Where-Object { $_.ConfigurationID -eq [string] (Hyper-V\Get-VM -Name $script:vmName).Id })
+
+        $script:vmUuid = ''
+        if ($vmSetting.Count -ge 1 -and $null -ne $vmSetting[0].BIOSGUID) {
+            $script:vmUuid = ([string] $vmSetting[0].BIOSGUID).Trim('{', '}').ToUpperInvariant()
+        }
+
+        if ([string]::IsNullOrWhiteSpace($script:vmUuid)) {
+            # Not a Should: this is a BeforeAll, and a failed assertion here
+            # would report as a mystery in every test below it.
+            throw "could not read the BIOS GUID of '$script:vmName'; the per-machine override is keyed on it."
+        }
+
+        Write-Information ("VM UUID: {0}" -f $script:vmUuid) -InformationAction Continue
+
+        # The override itself, written to a scratch file the content disk copies.
+        $overrideStaging = Join-Path -Path $script:artifactRoot -ChildPath 'machines'
+        if (-not (Test-Path -LiteralPath $overrideStaging -PathType Container)) {
+            New-Item -Path $overrideStaging -ItemType Directory -Force | Out-Null
+        }
+
+        $script:overrideFile = Join-Path -Path $overrideStaging -ChildPath ('{0}.yaml' -f $script:vmUuid)
+
+        [System.IO.File]::WriteAllText($script:overrideFile, @"
+# Written by tests/e2e/Deployment.E2E.Tests.ps1 for this run's VM.
+#
+# DESIGN 3.1 source 2. rules.yaml's fallback would name this machine
+# PC-<32 character VM serial>, which is over the 15 character NetBIOS limit and
+# which Windows Setup silently discards. An override is how one machine is made
+# an exception without editing rules.yaml, and it beats every rule below it.
+schemaVersion: 1
+variables:
+  HDTComputerName: HDT-M3-01
+"@)
+
         $yamlModule = @(Get-Module -Name 'powershell-yaml' -ListAvailable | Sort-Object Version -Descending)[0]
 
-        Write-Information ("staging content: powershell-yaml {0}, and a 4 GB install.wim - this takes a couple of minutes" -f $yamlModule.Version) -InformationAction Continue
+        Write-Information ("staging content: powershell-yaml {0}, and a 4 GB install.wim" -f $yamlModule.Version) -InformationAction Continue
 
         $contentStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
         New-HDTLabContentDisk -Path $script:contentPath -SizeByte 8589934592 -Confirm:$false -Source @{
+            ('Share\Control\machines\{0}.yaml' -f $script:vmUuid)         = $script:overrideFile
             'HDT\Modules\Hephaestus'                                     = (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus')
             'HDT\Modules\powershell-yaml'                                = [string] $yamlModule.ModuleBase
             'HDT\Start-HDTLabDeployment.ps1'                             = (Join-Path -Path $script:repoRoot -ChildPath 'tests/e2e/payload/Start-HDTLabDeployment.ps1')
@@ -147,23 +215,8 @@ BeforeAll {
         $contentStopwatch.Stop()
         Write-Information ("content disk staged in {0}s" -f [int] $contentStopwatch.Elapsed.TotalSeconds) -InformationAction Continue
 
-        # -- the 64 GB target, and the VM -----------------------------------
-
-        if (Test-Path -LiteralPath $script:osDiskPath) {
-            Remove-Item -LiteralPath $script:osDiskPath -Force
-        }
-
-        Hyper-V\New-VHD -Path $script:osDiskPath -SizeBytes 68719476736 -Dynamic | Out-Null
-
-        # Disk 0 is the target, disk 1 the content. DEMO-M3 declares
-        # minDiskGB: 60, so the 8 GB content disk is excluded by size and the
-        # target is unambiguous - the automatic selection path, not the
-        # diskNumber override. DiskPartition ALSO protects the content disk by
-        # drive letter, so two independent rules stand between the engine and
-        # the workspace it is reading.
-        New-HDTLabVirtualMachine -Name $script:vmName -MemoryByte 4294967296 -ProcessorCount 2 `
-            -SwitchName 'HDT Lab' -VhdPath @($script:osDiskPath, $script:contentPath) `
-            -IsoPath $script:isoPath -Confirm:$false | Out-Null
+        # Attached second, so the target is certainly disk 0.
+        Hyper-V\Add-VMHardDiskDrive -VMName $script:vmName -Path $script:contentPath
 
         # -- boot WinPE and start the launcher ------------------------------
 
@@ -271,23 +324,45 @@ BeforeAll {
 
         # -- read the machine it built, off the target VHDX -----------------
 
+        # MOUNTED READ-WRITE, AND ONLY FOR ONE REASON: Windows does not give an
+        # EFI System partition a drive letter, so bootmgfw.efi cannot be read
+        # off a read-only mount at all - the first run of this file reported it
+        # missing on a machine that had demonstrably booted from it. The ESP is
+        # given a temporary letter, read, and the letter removed again. Nothing
+        # on the disk is modified; this is our own throwaway VHDX.
+        $espLetter = 'Q'
+
         try {
-            Mount-DiskImage -ImagePath $script:osDiskPath -StorageType VHDX -Access ReadOnly | Out-Null
+            Mount-DiskImage -ImagePath $script:osDiskPath -StorageType VHDX -Access ReadWrite | Out-Null
 
             $number = [int] (Get-DiskImage -ImagePath $script:osDiskPath).Number
             $script:targetPartition = @(Get-Partition -DiskNumber $number -ErrorAction SilentlyContinue |
                     Select-Object PartitionNumber, Size, Type, GptType, DriveLetter, Offset)
 
-            foreach ($partition in $script:targetPartition) {
-                if (-not $partition.DriveLetter) { continue }
+            $esp = @($script:targetPartition |
+                    Where-Object { $_.GptType -eq '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}' -and -not $_.DriveLetter })
 
-                $drive = '{0}:' -f $partition.DriveLetter
+            $espLettered = $false
+            if ($esp.Count -eq 1 -and -not (Test-Path -LiteralPath ('{0}:\' -f $espLetter))) {
+                try {
+                    Set-Partition -DiskNumber $number -PartitionNumber ([int] $esp[0].PartitionNumber) `
+                        -NewDriveLetter $espLetter -ErrorAction Stop
+                    $espLettered = $true
+                } catch {
+                    Write-Warning ("could not letter the ESP for inspection: {0}" -f $_.Exception.Message)
+                }
+            }
 
+            $drive = @(Get-Partition -DiskNumber $number -ErrorAction SilentlyContinue |
+                    Where-Object { $_.DriveLetter } | ForEach-Object { '{0}:' -f $_.DriveLetter })
+
+            foreach ($letter in $drive) {
                 foreach ($relative in @('Windows\System32\ntoskrnl.exe',
                         'EFI\Microsoft\Boot\bootmgfw.efi',
+                        'EFI\Microsoft\Boot\BCD',
                         'Windows\Panther\unattend.xml')) {
 
-                    $path = Join-Path -Path $drive -ChildPath $relative
+                    $path = Join-Path -Path $letter -ChildPath $relative
                     if (Test-Path -LiteralPath $path) {
                         $script:targetFile[$relative] = $true
 
@@ -297,6 +372,21 @@ BeforeAll {
                     }
                 }
             }
+
+            if ($espLettered) {
+                Remove-PartitionAccessPath -DiskNumber $number -PartitionNumber ([int] $esp[0].PartitionNumber) `
+                    -AccessPath ('{0}:\' -f $espLetter) -ErrorAction SilentlyContinue
+            }
+
+            # Saved outside the VM: the AfterAll destroys this disk, and the
+            # partition table is the evidence for everything below.
+            if (-not (Test-Path -LiteralPath $script:artifactRoot -PathType Container)) {
+                New-Item -Path $script:artifactRoot -ItemType Directory -Force | Out-Null
+            }
+
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:artifactRoot -ChildPath 'TARGET-PARTITION.json'),
+                (ConvertTo-Json -InputObject @($script:targetPartition) -Depth 4))
         } finally {
             Dismount-DiskImage -ImagePath $script:osDiskPath -ErrorAction SilentlyContinue | Out-Null
         }
@@ -509,17 +599,41 @@ Describe 'the engine ran the deployment' -Tag 'E2E' -Skip:$skipDeployment {
 
 Describe 'the machine it built' -Tag 'E2E' -Skip:$skipDeployment {
 
-    It 'has four partitions' {
-        # ESP, MSR, Windows, Recovery.
-        @($script:targetPartition).Count | Should -Be 4
+    It 'has three partitions' {
+        # THREE, NOT FOUR - AND THAT IS A FINDING (04-04, SPIKES S9.10).
+        #
+        # On the HOST, Initialize-Disk -PartitionStyle GPT creates a Microsoft
+        # Reserved partition of its own; the integration suite observes it, at
+        # 16759808 bytes and offset 17408. INSIDE WinPE IT DOES NOT. The
+        # deployed disk carries ESP, Windows and Recovery and nothing else.
+        #
+        # SPIKES S6's own hand-run log said so all along and nobody noticed:
+        #
+        #     00:09:26  Partitions:  #1 S 260MB   #2 W 64250MB   #3 1024MB
+        #
+        # It changes nothing about correctness. HDT never creates an MSR, the
+        # 16 MB ReservedSizeByte allowance is subtracted whether or not one
+        # appears, and the recovery partition carries UseMaximumSize so the
+        # unused allowance lands there rather than being left unallocated.
+        @($script:targetPartition).Count | Should -Be 3
     }
 
-    It 'has exactly one reserved partition' {
-        # SPIKES S6's duplicate-MSR trap, on a real deployment. PSD's
-        # PSDPartition.ps1 initialises GPT and then creates an MSR by hand;
-        # HDT's layouts declare no Reserved role at all.
+    It 'has no duplicate reserved partition' {
+        # SPIKES S6's trap, on a real deployment. PSD's PSDPartition.ps1
+        # initialises GPT and then creates an MSR by hand; HDT's layouts declare
+        # no Reserved role at all, and the one door that could let one back in -
+        # a -Definition override - refuses the role by name.
         @($script:targetPartition | Where-Object { $_.GptType -eq '{e3c9e316-0b5c-4db8-817d-f92df00215ae}' }).Count |
-            Should -Be 1
+            Should -BeLessOrEqual 1
+    }
+
+    It 'has the three roles the layout declares, and only those' {
+        $type = @($script:targetPartition | Sort-Object PartitionNumber | ForEach-Object { [string] $_.GptType })
+
+        $type | Should -Be @(
+            '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'   # EFI System
+            '{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'   # Basic data - Windows
+            '{de94bba4-06d1-4d40-a16a-bfd50179d6ac}')  # Windows Recovery
     }
 
     It 'has a 260MB FAT32 system partition' {
@@ -539,7 +653,15 @@ Describe 'the machine it built' -Tag 'E2E' -Skip:$skipDeployment {
     }
 
     It 'has bootmgfw.efi on the system partition' {
+        # Read by giving the ESP a temporary drive letter: Windows does not
+        # letter an EFI System partition, so a read-only mount cannot see inside
+        # it at all. The first run of this file reported the file missing on a
+        # machine that had demonstrably booted from it.
         $script:targetFile['EFI\Microsoft\Boot\bootmgfw.efi'] | Should -BeTrue
+    }
+
+    It 'has a BCD store beside it' {
+        $script:targetFile['EFI\Microsoft\Boot\BCD'] | Should -BeTrue
     }
 
     It 'has the unattend staged at Windows\Panther\unattend.xml' {
@@ -548,7 +670,22 @@ Describe 'the machine it built' -Tag 'E2E' -Skip:$skipDeployment {
     }
 
     It 'expanded the computer name into the staged unattend' {
+        # HDT-M3-01 comes from the PER-MACHINE OVERRIDE this run staged, not
+        # from DEMO-M3's own variables block. rules.yaml's fallback sets
+        # HDTComputerName from the serial number and rules outrank a sequence's
+        # defaults, so on this VM the sequence's name loses - and the resulting
+        # 35-character name is one Windows Setup silently discards. The override
+        # is DESIGN 3.1's answer, and the first run of this file is what made
+        # anyone look.
         [string] $script:targetFile['unattendText'] | Should -BeLike '*<ComputerName>HDT-M3-01</ComputerName>*'
+    }
+
+    It 'resolved that name through the machine override' {
+        # DESIGN 3.1 source 2, exercised end to end for the first time. The
+        # launcher logs which override file it found, keyed on the UUID the
+        # guest reported - so this asserts that the file was located by UUID
+        # rather than that a name happened to come out right.
+        $script:launcherLog | Should -BeLike ('*{0}.yaml*' -f $script:vmUuid)
     }
 }
 

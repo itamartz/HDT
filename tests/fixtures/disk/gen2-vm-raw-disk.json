@@ -2,7 +2,7 @@
   {
     "Number": 0,
     "FriendlyName": "Msft Virtual Disk",
-    "SerialNumber": "FIXTURE-SERIAL-0001",
+    "SerialNumber": "",
     "SizeBytes": 68719476736,
     "BusType": "SAS",
     "PartitionStyle": "RAW",

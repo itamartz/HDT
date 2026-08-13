@@ -147,6 +147,69 @@ against hand-written fakes: the ordered operation list is what HDT *would* do to
 a machine, asserted in a Pester run that touches nothing. The lab run is what
 turns it into what HDT *does*.
 
+**✅ Met.** `tests/e2e/Deployment.E2E.Tests.ps1` builds `HDT-M3-Deploy` —
+Generation 2, Secure Boot on, 4 GB, 2 vCPU, on the isolated `HDT Lab` switch —
+boots it from the WinPE ISO, types one line at the prompt, and lets
+`Invoke-HDTTaskSequence` run `samples/workspace/TaskSequences/DEMO-M3` against
+the **real** disk and image services: Validate, DiskPartition, ApplyImage,
+ApplyUnattend, ConfigureBoot. It then starts the VM again **with the WinPE ISO
+still in the DVD drive and the firmware boot order untouched**, and the machine
+reaches full Windows 11.
+
+| Leg | Time |
+|---|---|
+| Content disk staged (engine, `powershell-yaml`, workspace, 4 GB WIM) | 12–14 s |
+| WinPE boot → all five steps → shutdown | 273 s wall, of which the engine reported **100 s** |
+| Apply of Windows 11 index 1 alone (integration suite, local disk) | **132–134 s** (SPIKES S6 measured 95 s over SMB) |
+| First Windows boot to a settled integration-services heartbeat | 265 s |
+
+**What it proves.** That the machine reached Windows is asserted from the
+integration-services heartbeat — WinPE never reports one and full Windows always
+does — not from a screenshot. And because the media was still attached, it also
+proves `ConfigureBoot`'s `SetBootOrderFirst` works: SPIKES S6's fourth finding
+was that a machine whose firmware still prefers the boot media simply reboots
+into WinPE and the deployment appears to loop. That call had never run anywhere
+before, because it edits the firmware boot order of the machine it runs on.
+
+**Six things the lab run corrected**, each of which the fakes had been green
+about (SPIKES S9):
+
+1. `Clear-Disk` **throws on a RAW disk**, and every factory-fresh machine disk is
+   RAW. `DiskPartition` called it unconditionally and could not have partitioned
+   a new machine.
+2. **Windows Setup silently discards a `ComputerName` over 15 characters.** The
+   first run reported `Succeeded` on every step and produced a machine called
+   `WIN-N91191NN153`. `ApplyUnattend` now refuses the name instead.
+3. `Initialize-Disk` creates a Microsoft Reserved partition **on the host and not
+   inside WinPE** — S6's own log said so and nobody had noticed.
+4. `reagentc /setreimage` against an offline image **exits 0, prints "Operation
+   Successful" and registers nothing.** WinRE on the deployed machine is Setup's
+   doing, not `ConfigureBoot`'s.
+5. The MSR is 16 759 808 bytes at offset 17 408 — which together are exactly the
+   16 MB the layouts carry as `ReservedSizeByte`.
+6. FAT32 uppercases a volume label; nothing may match one case-sensitively.
+
+**What M3 ships without, stated plainly:**
+
+- **No reboot into the full OS driven by the engine.** `DEMO-M3` has no `Restart`
+  step, deliberately: the WinPE→full-OS handoff arms autologon through the
+  registry and an LSA secret, and in WinPE those are the RAM disk's. That belongs
+  to M4's `Start-HDTDeployment`.
+- **No autologon resume**, for the same reason. The first logon of the machine
+  being built is configured by the unattend, which is what `ApplyUnattend` stages.
+- **No drivers** (M5) and **no applications, updates or roles** (M6).
+- **No share.** The workspace is a locally attached content disk, because
+  PROJECT.md requires the isolated `HDT Lab` switch and SPIKES S6 records that a
+  VM there cannot reach a share on the host. The `Smb` provider is M4's.
+- **No boot image built by HDT.** The ISO is SPIKES S1/S3's hand-built artifact;
+  `Update-HDTBootImage` and `New-HDTBootIso` are M4's, and until they exist the
+  harness types one line at the WinPE prompt instead of `startnet.cmd` doing it.
+- **No PXE.** M4.
+- **WinRE is not configured by HDT** — see finding 4 above.
+- **Domain join is unproven end to end.** The `HDT Lab` switch is isolated by
+  design, so a test VM cannot reach `DC01` and must not be moved to. `JoinDomain`
+  is verified against a fake only (PROJECT.md says so explicitly).
+
 ---
 
 ## M4 — Boot image, ISO, and PXE

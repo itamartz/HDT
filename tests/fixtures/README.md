@@ -15,7 +15,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `cim/` | Captured `Get-CimInstance` output for the `root/cimv2` classes fact gathering uses (DESIGN 3.2.1), one JSON file per class | captured |
 | `cim-microsofttpm/` | Captured `Win32_Tpm`, which lives in `root/cimv2/security/microsofttpm` — a **separate directory because it is a separate namespace**, not a subdirectory of `cim/` | captured |
 | `cim-vm/` | A Hyper-V guest's `Win32_ComputerSystem` and `Win32_ComputerSystemProduct`, so `HDTIsVM` can be proven | **derived** — see below |
-| `disk/` | Captured `Get-Disk`, `Get-Partition` and `Get-Volume` projections, plus one **derived** Gen2 VM disk row | captured, one derived — see below |
+| `disk/` | Captured `Get-Disk`, `Get-Partition` and `Get-Volume` projections | captured |
 | `image/` | Captured `Get-WindowsImage` output for both staged media trees, one file per WIM | captured |
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
 | `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
@@ -144,7 +144,7 @@ file:
 |---|---|---|
 | `host-nvme-disk.json` | this machine's own disk — `NVMe`, `GPT`, **`IsBoot` and `IsSystem` both true** | captured |
 | `host-vhdx-disk.json` | `C:\HDTLab\scratch\imgtest-a.vhdx` mounted read-only — `BusType` `File Backed Virtual` | captured |
-| `gen2-vm-raw-disk.json` | a Gen2 Hyper-V VM's system disk — `SAS`, `RAW`, 64 GB | **derived** |
+| `gen2-vm-raw-disk.json` | `HDT-M3-Deploy`'s virgin target disk — `SAS`, `RAW`, 64 GB, no serial | captured |
 | `host-partition.json` | this machine's four partitions: ESP, MSR, Windows, Recovery | captured |
 | `host-volume.json` | this machine's lettered volumes | captured |
 
@@ -180,20 +180,33 @@ as the CIM fixtures do. `FriendlyName`, `BusType`, `SizeBytes`,
 `PartitionStyle`, the GPT type GUIDs and the volume labels are hardware facts
 and are kept — the GUIDs in particular are what 04-02 and 04-03 assert against.
 
-### `gen2-vm-raw-disk.json` is derived, and only until 04-04
+### `gen2-vm-raw-disk.json` — the debt 04-04 paid
 
-The property **shape** is this host's real `Get-Disk` projection. The **values**
-are SPIKES.md S6's recorded observation from inside a Gen2 VM — `Number 0`,
-`BusType SAS` (not `SCSI` and not `Virtual`; do not filter on a VM-specific bus
-type), `PartitionStyle RAW`, `SizeBytes 68719476736`, every flag false.
-`FriendlyName` is `Msft Virtual Disk`, which is what the mounted VHDX capture
-above reports for a Microsoft virtual disk; `SerialNumber` is the placeholder,
-because S6 did not record one.
+This file used to be **derived**: the property shape was this host's real
+`Get-Disk` projection, but the values came from SPIKES S6's notes, because there
+was no HDT test VM to capture from.
 
-There is no HDT test VM yet, so there is no honest capture available today.
-**04-04 replaces this file with a true capture from the E2E VM and asserts that
-the derived row matched.** The derivation is a debt with a named closing date,
-not a permanent invention. Delete this section when 04-04 closes it.
+**It is now a true capture.** `tests/e2e/Deployment.E2E.Tests.ps1` reads the
+target disk of `HDT-M3-Deploy` through `IDiskService` — the same eleven-property
+projection — from inside WinPE, a moment before the deployment repartitions it,
+and writes it to `C:\HDTLab\scratch\e2e\DISK-BEFORE.json`. That run also asserts
+the row against this file, so the fixture cannot drift from the machine.
+
+The derivation was accurate on every property but one:
+
+| Property | Derived | Captured |
+|---|---|---|
+| `BusType` | `SAS` | `SAS` ✅ (not `SCSI`, not `Virtual` — never filter on a VM-specific bus type) |
+| `PartitionStyle` | `RAW` | `RAW` ✅ |
+| `SizeBytes` | 68719476736 | 68719476736 ✅ |
+| `FriendlyName` | `Msft Virtual Disk` | `Msft Virtual Disk` ✅ |
+| every flag | false | false ✅ |
+| **`SerialNumber`** | `FIXTURE-SERIAL-0001` (placeholder) | **empty string** |
+
+**A Generation 2 VM's virtual disk reports no serial number at all.** That is
+the honest value and it is kept unredacted, because there is nothing to redact.
+Nothing in disk selection may key on a serial: on the machines HDT is tested
+against there is not one.
 
 ## Image fixtures
 

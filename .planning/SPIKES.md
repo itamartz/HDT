@@ -521,6 +521,101 @@ not treat SMB as the thing to optimise.
   instead: every Hyper-V command is module-qualified, and `Assert-HDTLabVmName`
   is called before the first one.
 
+### S9.10 — `Initialize-Disk` creates no MSR **inside WinPE** ⚠
+
+The deployed machine's disk carries **three** partitions, not four:
+
+```
+GptType                                  what
+{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}   EFI System, 260 MB FAT32
+{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}   Windows
+{de94bba4-06d1-4d40-a16a-bfd50179d6ac}   Windows Recovery
+```
+
+There is **no Microsoft Reserved partition**. On the *host*, the same
+`Initialize-Disk -PartitionStyle GPT` call demonstrably creates one — S9.4
+measures it at 16 759 808 bytes and offset 17 408. Inside WinPE it does not.
+
+**S6's own hand-run log said so and nobody noticed:**
+
+```
+00:09:26  Partitions:  #1 S 260MB   #2 W 64250MB   #3 1024MB
+```
+
+Three partitions. The "Initialize-Disk silently creates its own MSR" finding in
+S6 came from a *host-side* spike, and was generalised to WinPE without evidence.
+
+**It changes nothing about correctness**, and that is worth stating plainly:
+
+- HDT never creates an MSR, so there can be no duplicate either way.
+- `ReservedSizeByte` is an *allowance*, subtracted from what Windows may have.
+  When no MSR appears the 16 MB is simply not used.
+- The recovery partition carries `UseMaximumSize`, so the unused allowance lands
+  in recovery rather than being left unallocated at the end of the disk.
+
+`New-HDTFakeDiskService` continues to model the host behaviour — it creates the
+MSR on `InitializeDisk` — **deliberately**. The fake exists to make the
+duplicate-MSR bug visible, and it can only do that if an MSR is there to
+duplicate. The divergence is noted in `tests/unit/Imaging.EndToEnd.Tests.ps1`.
+
+### S9.11 — Windows Setup silently discards a ComputerName over 15 characters ⚠
+
+**The most dangerous finding of the phase, because the deployment succeeded.**
+
+The first full deployment run reported `Succeeded`, completed all five steps,
+wrote no `step.fail`, and produced a machine named **`WIN-N91191NN153`** —
+Setup's own generated name. Nothing in any log mentioned it.
+
+The chain:
+
+1. `samples/workspace/rules.yaml`'s fallback rule sets
+   `HDTComputerName: "PC-%HDTSerialNumber%"`.
+2. DESIGN 3.1's precedence puts **rules above a sequence's own defaults**, so
+   `DEMO-M3`'s `HDTComputerName: HDT-M3-01` loses. That is correct behaviour.
+3. A Hyper-V VM's serial number is 32 characters
+   (`1884-9397-3639-6194-7223-8141-25`), so the resolved name was 35 characters.
+4. `ApplyUnattend` staged an unattend carrying it, `<ComputerName>` and all.
+5. **Setup ignored it without complaint** and named the machine itself.
+
+Two changes, and both were needed:
+
+- **`Invoke-HDTApplyUnattendStep` now refuses** a `%HDTComputerName%` over 15
+  characters (the NetBIOS limit) or holding anything but letters, digits and
+  hyphens. It does **not truncate** — a silently shortened name is the same
+  failure with a different spelling. The run stops with
+  `HDTConfigurationError` naming the offending value.
+- **The E2E stages a per-machine override**, DESIGN 3.1's second source, keyed
+  on the VM's UUID: `Share\Control\machines\<UUID>.yaml` setting
+  `HDTComputerName: HDT-M3-01`. That is the mechanism HDT already has for making
+  one machine an exception without editing rules, and this is the first time it
+  has been exercised end to end.
+
+**The sample `rules.yaml` was left alone.** It is DESIGN 3.3's documented
+example and its behaviour is correct; `PC-<serial>` is a perfectly good name on
+hardware whose serial is seven characters, which is most of it. What was missing
+was HDT noticing when it is not.
+
+### S9.12 — the machine booted into Windows with the media still attached ✅
+
+**ROADMAP M3's exit criterion.** After the WinPE leg the VM was started again
+with the WinPE ISO still in its DVD drive and the firmware boot order
+**untouched**, and it reached full Windows: a settled integration-services
+heartbeat, which WinPE never reports.
+
+So `ConfigureBoot`'s `SetBootOrderFirst` —
+`bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`, S6's fourth finding
+as an API — **works**, and it had never run anywhere before this: it edits the
+firmware boot order of the machine it runs on, so it cannot be tested on the
+developer's.
+
+Timings for the whole demonstration:
+
+| Leg | Time |
+|---|---|
+| Content disk staged (module, parser, workspace, 4 GB WIM) | 12 s |
+| WinPE boot + the engine's whole five-step run + shutdown | 273 s wall, of which the engine reported **100 s** |
+| First Windows boot to a settled heartbeat (specialize + oobe) | 265 s |
+
 ### Lab safety
 
 Every Hyper-V call name-filtered and module-qualified. `CM01` and `DC01` were

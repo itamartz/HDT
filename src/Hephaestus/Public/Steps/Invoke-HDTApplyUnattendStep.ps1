@@ -161,6 +161,39 @@ function Invoke-HDTApplyUnattendStep {
         return (& $fail ("the unattend template '{0}' could not be read: {1}" -f $templatePath, [string] $_.Exception.Message) '')
     }
 
+    # -- the one value Windows will silently discard ----------------------
+    #
+    # FOUND BY DEPLOYING A REAL MACHINE (04-04). The sample rules.yaml sets
+    # HDTComputerName to 'PC-%HDTSerialNumber%', and a Hyper-V VM's serial is 32
+    # characters - so HDT wrote a 35-character ComputerName into the unattend.
+    # WINDOWS SETUP IGNORED IT WITHOUT COMPLAINT and named the machine
+    # WIN-N91191NN153.
+    #
+    # That is the worst shape a defect can take. Every step reported Completed,
+    # the deployment succeeded, no log said anything, and the machine came up
+    # with a name nobody chose. So the limit is enforced HERE, where the value
+    # is about to become a machine's identity, and the run stops instead.
+    #
+    # 15 characters is the NetBIOS limit. The illegal characters are the ones
+    # Windows itself rejects; a name is otherwise left exactly as authored -
+    # HDT does not truncate, because a silently shortened name is the same
+    # failure with a different spelling.
+    if ($text -match '%HDTComputerName%') {
+        $computerName = [string] $Context.Variable['HDTComputerName']
+
+        if (-not [string]::IsNullOrWhiteSpace($computerName)) {
+            if ($computerName.Length -gt 15) {
+                return (& $fail ("the computer name '{0}' is {1} characters. Windows Setup silently ignores a ComputerName over 15 and names the machine itself, so the deployment would appear to succeed and produce a machine nobody named. Shorten HDTComputerName - a rule that builds it from a serial number is the usual cause." -f
+                        $computerName, $computerName.Length) 'HDTConfigurationError')
+            }
+
+            if ($computerName -notmatch '^[A-Za-z0-9\-]+$') {
+                return (& $fail ("the computer name '{0}' contains a character Windows will not accept. A computer name may hold letters, digits and hyphens." -f
+                        $computerName) 'HDTConfigurationError')
+            }
+        }
+    }
+
     $document = $text
 
     if ($expand) {

@@ -212,8 +212,38 @@ try {
         $sequenceDefault[[string] $name] = $sequence.Variable[$name]
     }
 
-    $resolved = Resolve-HDTVariable -RuleDocument $ruleDocument -Fact $fact `
-        -SequenceDefault $sequenceDefault -ScriptInvoker $scriptInvoker
+    # THE PER-MACHINE OVERRIDE, DESIGN 3.1's SECOND SOURCE, and the reason this
+    # deployment gets the name it was meant to have. rules.yaml's fallback sets
+    # HDTComputerName from the serial number, and rules outrank a sequence's own
+    # defaults - so without an override this machine would be named
+    # 'PC-<32-character VM serial>', which Windows Setup silently discards
+    # (04-04). An override is how one machine is made an exception without
+    # editing rules.yaml, and it beats every rule below it.
+    $override = Get-HDTMachineOverride -WorkspaceRoot $workspaceRoot `
+        -Uuid ([string] $fact['HDTUUID']) -FileSystem $fileSystem
+
+    $overrideVariable = $null
+    $overridePath = ''
+    if ($null -ne $override) {
+        $overrideVariable = $override.Variable
+        $overridePath = [string] $override.Path
+        & $say ("machine override: {0}" -f $overridePath)
+    } else {
+        & $say ("no machine override for UUID {0}" -f [string] $fact['HDTUUID'])
+    }
+
+    $resolveArgument = @{
+        RuleDocument    = $ruleDocument
+        Fact            = $fact
+        SequenceDefault = $sequenceDefault
+        ScriptInvoker   = $scriptInvoker
+    }
+    if ($null -ne $overrideVariable) {
+        $resolveArgument['MachineOverride'] = $overrideVariable
+        $resolveArgument['MachineOverridePath'] = $overridePath
+    }
+
+    $resolved = Resolve-HDTVariable @resolveArgument
 
     $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($name in @($resolved.Variable.Keys)) {

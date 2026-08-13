@@ -13,7 +13,16 @@ export const meta = {
 // ---------------------------------------------------------------------------
 // args: { id, dir, title, goal, planDetail, withChecker=true, e2e=false }
 // ---------------------------------------------------------------------------
-const a = args || {}
+// args may arrive as an object or as a JSON string depending on how the caller
+// serialises it; accept both rather than failing on the shape.
+let a = args || {}
+if (typeof a === 'string') {
+  try {
+    a = JSON.parse(a)
+  } catch (e) {
+    throw new Error('hdt-phase received args as a string that is not JSON: ' + a.slice(0, 200))
+  }
+}
 if (!a.id || !a.dir || !a.goal) {
   throw new Error('hdt-phase requires args {id, dir, goal}; got: ' + JSON.stringify(a))
 }
