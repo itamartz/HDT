@@ -28,10 +28,19 @@ class HDTFakeFileSystem {
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
     HDTFakeFileSystem() {
         $this.File = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Directory = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'FileSystem'
     }
 
     # -- recording ---------------------------------------------------------
@@ -42,6 +51,18 @@ class HDTFakeFileSystem {
                 Operation = $Operation
                 Arguments = $Argument
             })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list. The per-fake
+        # Operations numbering above stays independent of it.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
     }
 
     [string[]] GetOperationName() {
@@ -145,6 +166,25 @@ class HDTFakeFileSystem {
         $this.AddFile($full, $Content)
     }
 
+    [void] AppendAllText([string] $Path, [string] $Content) {
+        $this.Record('AppendAllText', @($Path, $Content))
+        $full = $this.Normalize($Path)
+
+        if ($this.Directory.ContainsKey($full)) {
+            throw [System.UnauthorizedAccessException]::new("Access to the path '$full' is denied: it is a directory.")
+        }
+
+        # [System.IO.File]::AppendAllText creates a missing file, so this does
+        # too; AddFile creates the parent directories the real call would need
+        # created first.
+        $existing = ''
+        if ($this.File.ContainsKey($full)) {
+            $existing = [string] $this.File[$full]
+        }
+
+        $this.AddFile($full, ($existing + $Content))
+    }
+
     [void] CreateDirectory([string] $Path) {
         $this.Record('CreateDirectory', @($Path))
         $this.AddDirectory($this.Normalize($Path))
@@ -230,10 +270,14 @@ function New-HDTFakeFileSystem {
             (DESIGN 12.2.1: engine logic receives injected services so it can run
             with no machine attached; DESIGN 12.2.3: fake, don't mock).
 
-            It implements the eight IFileSystem methods - TestPath, ReadAllText,
-            WriteAllText, CreateDirectory, RemoveItem, CopyItem, GetChildItem,
-            GetLength - and throws the same exception types a real adapter throws,
-            so tests assert on the type rather than on a message.
+            It implements the nine IFileSystem methods - TestPath, ReadAllText,
+            WriteAllText, AppendAllText, CreateDirectory, RemoveItem, CopyItem,
+            GetChildItem, GetLength - and throws the same exception types the real
+            adapter throws, so tests assert on the type rather than on a message.
+
+            AppendAllText creates a missing file and the parent directories of a
+            missing one, matching [System.IO.File]::AppendAllText, which creates
+            the file but throws when the directory is absent.
 
             Paths are normalised with [System.IO.Path]::GetFullPath, stripped of a
             trailing separator and compared case-insensitively, matching Windows
@@ -250,6 +294,11 @@ function New-HDTFakeFileSystem {
 
         .PARAMETER Directory
             Seed directories, including their intermediate parents.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
 
         .OUTPUTS
             HDTFakeFileSystem. Never write the class name as a type literal in a
@@ -279,10 +328,15 @@ function New-HDTFakeFileSystem {
         [hashtable] $File,
 
         [Parameter()]
-        [string[]] $Directory
+        [string[]] $Directory,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeFileSystem]::new()
+    $fake.Journal = $Journal
 
     if ($PSBoundParameters.ContainsKey('Directory')) {
         foreach ($item in @($Directory)) {
@@ -307,9 +361,18 @@ class HDTFakeCimProvider {
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
     HDTFakeCimProvider() {
         $this.Instance = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'CimProvider'
     }
 
     # -- recording ---------------------------------------------------------
@@ -320,6 +383,18 @@ class HDTFakeCimProvider {
                 Operation = $Operation
                 Arguments = $Argument
             })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list. The per-fake
+        # Operations numbering above stays independent of it.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
     }
 
     [string[]] GetOperationName() {
@@ -421,6 +496,11 @@ function New-HDTFakeCimProvider {
             Win32_Tpm in root/cimv2/security/microsofttpm. A missing directory
             throws, naming it.
 
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
         .OUTPUTS
             HDTFakeCimProvider. Never write the class name as a type literal in a
             test: it binds to whichever dynamic assembly loaded first and breaks
@@ -462,7 +542,11 @@ function New-HDTFakeCimProvider {
         [string] $FixturePath,
 
         [Parameter()]
-        [hashtable] $NamespaceFixturePath
+        [hashtable] $NamespaceFixturePath,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
     )
 
     # One directory -> one namespace. Both -FixturePath and -NamespaceFixturePath
@@ -486,6 +570,7 @@ function New-HDTFakeCimProvider {
     }
 
     $fake = [HDTFakeCimProvider]::new()
+    $fake.Journal = $Journal
 
     if ($PSBoundParameters.ContainsKey('FixturePath')) {
         & $loadFixtureDirectory $fake $FixturePath 'root/cimv2'
@@ -515,9 +600,18 @@ class HDTFakeRegistryService {
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
     HDTFakeRegistryService() {
         $this.Key = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'RegistryService'
     }
 
     # -- recording ---------------------------------------------------------
@@ -528,6 +622,18 @@ class HDTFakeRegistryService {
                 Operation = $Operation
                 Arguments = $Argument
             })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list. The per-fake
+        # Operations numbering above stays independent of it.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
     }
 
     [string[]] GetOperationName() {
@@ -634,6 +740,11 @@ function New-HDTFakeRegistryService {
             and holds nothing, which is a different fact from a key that does not
             exist.
 
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
         .OUTPUTS
             HDTFakeRegistryService. Never write the class name as a type literal
             in a test: it binds to whichever dynamic assembly loaded first and
@@ -661,10 +772,15 @@ function New-HDTFakeRegistryService {
     [OutputType([object])]
     param(
         [Parameter()]
-        [hashtable] $Value
+        [hashtable] $Value,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeRegistryService]::new()
+    $fake.Journal = $Journal
 
     if ($PSBoundParameters.ContainsKey('Value')) {
         foreach ($path in @($Value.Keys)) {
@@ -688,9 +804,18 @@ class HDTFakeEnvironmentProvider {
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
     HDTFakeEnvironmentProvider() {
         $this.Variable = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'EnvironmentProvider'
     }
 
     # -- recording ---------------------------------------------------------
@@ -701,6 +826,18 @@ class HDTFakeEnvironmentProvider {
                 Operation = $Operation
                 Arguments = $Argument
             })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list. The per-fake
+        # Operations numbering above stays independent of it.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
     }
 
     [string[]] GetOperationName() {
@@ -758,6 +895,11 @@ function New-HDTFakeEnvironmentProvider {
         .PARAMETER Variable
             Seed environment variables. Keys are names, values are values.
 
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
         .OUTPUTS
             HDTFakeEnvironmentProvider. Never write the class name as a type
             literal in a test: it binds to whichever dynamic assembly loaded
@@ -777,10 +919,15 @@ function New-HDTFakeEnvironmentProvider {
     [OutputType([object])]
     param(
         [Parameter()]
-        [hashtable] $Variable
+        [hashtable] $Variable,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeEnvironmentProvider]::new()
+    $fake.Journal = $Journal
 
     if ($PSBoundParameters.ContainsKey('Variable')) {
         foreach ($name in @($Variable.Keys)) {
@@ -800,9 +947,18 @@ class HDTFakeScriptInvoker {
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
     HDTFakeScriptInvoker() {
         $this.Result = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'ScriptInvoker'
     }
 
     # -- recording ---------------------------------------------------------
@@ -813,6 +969,18 @@ class HDTFakeScriptInvoker {
                 Operation = $Operation
                 Arguments = $Argument
             })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list. The per-fake
+        # Operations numbering above stays independent of it.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
     }
 
     [string[]] GetOperationName() {
@@ -892,6 +1060,11 @@ function New-HDTFakeScriptInvoker {
             Seed results. Keys are script paths, values are the object Invoke
             returns for that path. Seed $null for a script that emits nothing.
 
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
         .OUTPUTS
             HDTFakeScriptInvoker. Never write the class name as a type literal in
             a test: it binds to whichever dynamic assembly loaded first and
@@ -912,10 +1085,15 @@ function New-HDTFakeScriptInvoker {
     [OutputType([object])]
     param(
         [Parameter()]
-        [hashtable] $Result
+        [hashtable] $Result,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeScriptInvoker]::new()
+    $fake.Journal = $Journal
 
     if ($PSBoundParameters.ContainsKey('Result')) {
         foreach ($path in @($Result.Keys)) {
@@ -926,8 +1104,180 @@ function New-HDTFakeScriptInvoker {
     return $fake
 }
 
+class HDTFakeClock {
+
+    # The current fake instant. Always Kind = Utc: a clock whose answers depend
+    # on the time zone of the machine running the suite is the one thing a fake
+    # exists to prevent.
+    [datetime] $UtcNow
+
+    # How far GetUtcNow advances the clock after answering. 0 freezes it.
+    [int] $TickMillisecond
+
+    # Every millisecond Sleep was asked for, so a backoff test can assert the
+    # total wait without waiting.
+    [long] $TotalSleepMillisecond
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeClock() {
+        $this.UtcNow = [datetime]::SpecifyKind([datetime]::new(1, 1, 1), 'Utc')
+        $this.TickMillisecond = 0
+        $this.TotalSleepMillisecond = 0
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'Clock'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SetUtcNow([datetime] $Value) {
+        # Unspecified is taken as already UTC; anything else is converted. The
+        # literal every test reaches for - [datetime]'2026-08-13T00:00:00Z' -
+        # parses to Kind = Local, so storing it verbatim would shift the instant
+        # by the developer's offset.
+        if ($Value.Kind -eq [System.DateTimeKind]::Unspecified) {
+            $this.UtcNow = [datetime]::SpecifyKind($Value, [System.DateTimeKind]::Utc)
+        } else {
+            $this.UtcNow = $Value.ToUniversalTime()
+        }
+    }
+
+    [void] Advance([int] $Millisecond) {
+        $this.UtcNow = $this.UtcNow.AddMilliseconds($Millisecond)
+    }
+
+    # -- IClock ------------------------------------------------------------
+
+    [datetime] GetUtcNow() {
+        $this.Record('GetUtcNow', @())
+        $answer = $this.UtcNow
+        $this.Advance($this.TickMillisecond)
+        return $answer
+    }
+
+    [void] Sleep([int] $Millisecond) {
+        $this.Record('Sleep', @($Millisecond))
+        $this.TotalSleepMillisecond = $this.TotalSleepMillisecond + $Millisecond
+        $this.Advance($Millisecond)
+    }
+}
+
+function New-HDTFakeClock {
+    <#
+        .SYNOPSIS
+            Creates an IClock that answers from a seeded instant and never waits.
+
+        .DESCRIPTION
+            The hand-written double behind every test that reads the time or
+            waits (DESIGN 12.2.1: engine logic receives injected services;
+            DESIGN 12.2.3: fake, don't mock).
+
+            It implements the two IClock methods - GetUtcNow and Sleep. Sleep is
+            on the interface so retry backoff is provable without a test that
+            actually waits: this fake advances its own clock by the requested
+            number of milliseconds and returns immediately, and the engine never
+            learns the difference.
+
+            -UtcNow IS NORMALISED TO UTC BEFORE IT IS STORED, and that is not
+            optional. [datetime]'2026-08-13T00:00:00Z' - the literal a test
+            reaches for - parses to Kind = Local on both engines, so a fake that
+            stored it verbatim would answer with a non-UTC kind AND an instant
+            shifted by the developer's time zone. Kind = Unspecified is taken as
+            already UTC; any other kind goes through ToUniversalTime.
+
+            GetUtcNow returns the current fake instant and then advances it by
+            -TickMillisecond, which defaults to 0, so a clock is frozen unless a
+            test asks for movement. Advance is seeding and is not recorded;
+            GetUtcNow and Sleep are, like every other fake's operations.
+
+        .PARAMETER UtcNow
+            The instant the clock starts at.
+
+        .PARAMETER TickMillisecond
+            How far the clock moves after each GetUtcNow. Defaults to 0.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeClock. Never write the class name as a type literal in a
+            test: it binds to whichever dynamic assembly loaded first and breaks
+            across a module reload. Use this factory.
+
+        .EXAMPLE
+            $clock = New-HDTFakeClock -UtcNow ([datetime]'2026-08-13T00:00:00Z')
+            $clock.GetUtcNow()
+
+            A frozen clock, identical on a machine in any time zone.
+
+        .EXAMPLE
+            $clock = New-HDTFakeClock -UtcNow ([datetime]'2026-08-13T00:00:00Z')
+            $clock.Sleep(30000)
+            $clock.TotalSleepMillisecond
+
+            A retry backoff proven in microseconds rather than in half a minute.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [datetime] $UtcNow,
+
+        [Parameter()]
+        [int] $TickMillisecond = 0,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeClock]::new()
+    $fake.Journal = $Journal
+    $fake.TickMillisecond = $TickMillisecond
+    $fake.SetUtcNow($UtcNow)
+
+    return $fake
+}
+
 Export-ModuleMember -Function @(
     'New-HDTFakeCimProvider',
+    'New-HDTFakeClock',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',
     'New-HDTFakeRegistryService',

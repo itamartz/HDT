@@ -12,6 +12,7 @@
 
     FunctionsToExport    = @(
         'New-HDTFakeCimProvider',
+        'New-HDTFakeClock',
         'New-HDTFakeEnvironmentProvider',
         'New-HDTFakeFileSystem',
         'New-HDTFakeRegistryService',

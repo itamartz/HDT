@@ -19,11 +19,18 @@ The fakes that exist, and the real adapter each is the double for:
 
 | Fake | Interface | Real adapter | Seeded with |
 |---|---|---|---|
-| `New-HDTFakeFileSystem` | `IFileSystem` | phase 04 | `-File`, `-Directory` |
+| `New-HDTFakeFileSystem` | `IFileSystem` | `New-HDTFileSystem` | `-File`, `-Directory` |
+| `New-HDTFakeClock` | `IClock` | `New-HDTClock` | `-UtcNow`, `-TickMillisecond` |
 | `New-HDTFakeCimProvider` | `ICimProvider` | `New-HDTCimProvider` | `-Instance`, `-FixturePath`, `-NamespaceFixturePath` |
 | `New-HDTFakeRegistryService` | `IRegistryService` (read subset; phase 03 adds the writes) | `New-HDTRegistryService` | `-Value` |
 | `New-HDTFakeEnvironmentProvider` | `IEnvironmentProvider` | `New-HDTEnvironmentProvider` | `-Variable` |
 | `New-HDTFakeScriptInvoker` | `IScriptInvoker` | `New-HDTScriptInvoker -Root` | `-Result` |
+
+`IFileSystem` is nine methods: `TestPath`, `ReadAllText`, `WriteAllText`,
+`AppendAllText`, `CreateDirectory`, `RemoveItem`, `CopyItem`, `GetChildItem`,
+`GetLength`. `IClock` is two: `GetUtcNow`, `Sleep`. `Sleep` is on the interface
+so retry backoff is provable without a test that waits — the fake advances its
+own clock and returns immediately.
 
 Both helper modules are ordinary modules with a manifest, an explicit
 `FunctionsToExport`, `PowerShellVersion = '5.1'` and
@@ -84,6 +91,44 @@ Rules:
 - **Seeding is not an operation.** Anything the factory or an `Add*`/`Seed*`
   method does is invisible to `$Operations`, so the first recorded call is the
   first thing the code under test did.
+
+### The shared journal
+
+`$Operations` answers "what was *this* service asked to do". DESIGN 12.2.1's
+headline assertion asks a different question — "in what order did the engine
+touch the services" — and no per-fake list can answer it. So every
+`New-HDTFake*` factory, and every real adapter, takes:
+
+```
+-Journal [System.Collections.ArrayList]
+```
+
+When supplied, `Record()` appends to it **in addition to** `$Operations`:
+
+| Property | Meaning |
+|---|---|
+| `Sequence` | 1-based position in the journal, across every service |
+| `Service` | the fake's `ServiceName` — `FileSystem`, `Clock`, `CimProvider`, `RegistryService`, `EnvironmentProvider`, `ScriptInvoker` |
+| `Operation` | the method name |
+| `Arguments` | `object[]`, in declaration order |
+
+Rules that must hold, and that `tests/unit/FakeJournal.Tests.ps1` asserts over a
+`-ForEach` list of **every** factory, so a fake added later that forgets
+`-Journal` turns the suite red:
+
+- Seeding is never recorded, in either sink.
+- `$Operations` keeps its own independent 1-based `Sequence`. The journal's
+  numbering is global; the per-fake numbering is not.
+- A fake created without `-Journal`, or with `$null`, behaves exactly as before.
+- Every fake and every real adapter exposes `[string] $ServiceName`, so the
+  journal entry and a test can both name it without a type literal.
+
+The canonical cross-service assertion:
+
+```powershell
+$journal | ForEach-Object { '{0}.{1}' -f $_.Service, $_.Operation } |
+    Should -Be @('FileSystem.ReadAllText', 'Clock.GetUtcNow', 'FileSystem.AppendAllText')
+```
 
 The canonical ordered-operations assertion, copied from
 `tests/unit/New-HDTFakeFileSystem.Tests.ps1` — this is the DESIGN 12.2.1 shape
@@ -318,6 +363,20 @@ Every factory — fake and real adapter alike — carries:
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
     Justification = 'Builds a stateless service adapter object; it changes no state.')]
 ```
+
+**F11. `Set-Content -Encoding UTF8` writes a BOM under 5.1 and none under
+pwsh 7.** Verified: `239,187,191` under Windows PowerShell 5.1.26100.8655,
+`120,...` under pwsh 7.5.8. The engine writes its logs under 5.1 in WinPE and
+its tests under 7 on a desk, so a BOM would land in exactly the files a parser
+reads. `[System.IO.File]::WriteAllText` and `::AppendAllText` with
+`New-Object System.Text.UTF8Encoding($false)` are BOM-free on both, and that is
+what `New-HDTFileSystem` uses. **`Set-Content`, `Add-Content`, `Out-File` and
+`Tee-Object` are banned in the filesystem adapter and in every log writer.**
+This is SPIKES.md S6's UTF-16 `Tee-Object` trap in a different disguise, and the
+IFileSystem contract asserts the first three bytes are not the BOM.
+
+`::AppendAllText` also **creates a missing file** but **throws** for a missing
+parent directory, so both the adapter and the fake create the parent first.
 
 **Recording applies to real adapters too.** `New-HDTRegistryService`,
 `New-HDTEnvironmentProvider` and `New-HDTScriptInvoker` each expose `$Operations`

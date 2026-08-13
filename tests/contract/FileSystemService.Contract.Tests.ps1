@@ -169,6 +169,10 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
         }
 
         It 'throws FileNotFoundException for a missing file' {
+            # The directory has to exist, or System.IO reports the missing
+            # DIRECTORY - a different and equally correct answer that says
+            # nothing about the file.
+            $script:fs.CreateDirectory($script:root)
             $path = Join-Path -Path $script:root -ChildPath 'missing.txt'
 
             $record = $null

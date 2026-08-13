@@ -21,7 +21,9 @@
         'Get-HDTVariableProvenance',
         'Import-HDTRuleDocument',
         'New-HDTCimProvider',
+        'New-HDTClock',
         'New-HDTEnvironmentProvider',
+        'New-HDTFileSystem',
         'New-HDTRegistryService',
         'New-HDTScriptInvoker',
         'Resolve-HDTVariable'
