@@ -18,8 +18,27 @@ function Get-HDTFailureClass {
               FullyQualifiedErrorId starting HDTConfigurationError  Configuration
               one of the DESIGN 9.1 refusal ids                     Configuration
               System.IO.*, Win32Exception, TimeoutException         Environment
+              a result whose Data carries one of those ids          Configuration
               anything else, including a Failed result with an
               exit code and no exception at all                     Transient
+
+            THE RESULT-DATA LEG EXISTS BECAUSE A STEP NEVER THROWS A REFUSAL.
+            The step contract (03-02) invokes every discovered type with an
+            empty property bag and requires a result whose Status is in the
+            closed set, so a step that let its refusal escape as a terminating
+            error would turn that contract red. Every phase 04 step therefore
+            catches its own refusal and returns
+
+              New-HDTStepResult -Status Failed -Data @{ errorId = 'HDT...Error' }
+
+            which means the id reaches this classifier through the RESULT rather
+            than through an ErrorRecord. Without this leg, 04-02's "a refusal is
+            never retried" would quietly stop being true the moment the refusal
+            became a result, and a step declaring retry: 2 would refuse to wipe
+            the same disk three times over.
+
+            THE THROWN ERROR OUTRANKS THE RESULT DATA. An exception says what
+            actually went wrong; the data says what the step believed.
 
             THE REFUSAL IDS ARE A NAMED LIST, NOT A WILDCARD. DESIGN 9.1's
             refusal to guess which disk to wipe, and 9.2's refusal to guess
@@ -52,6 +71,11 @@ function Get-HDTFailureClass {
             reported a failure without an exception, and an exit code is the
             classic retryable case.
 
+        .PARAMETER ResultData
+            The Data of a Failed step result. An errorId in the configuration
+            list classifies as Configuration. Anything that is not a dictionary
+            or an object carrying an errorId is ignored.
+
         .PARAMETER TimedOut
             The step overran its timeoutMinutes. Environment, whatever else the
             record says.
@@ -73,6 +97,10 @@ function Get-HDTFailureClass {
         [object] $ErrorRecord,
 
         [Parameter()]
+        [AllowNull()]
+        [object] $ResultData,
+
+        [Parameter()]
         [switch] $TimedOut
     )
 
@@ -83,10 +111,6 @@ function Get-HDTFailureClass {
         return 'Environment'
     }
 
-    if ($null -eq $ErrorRecord) {
-        return 'Transient'
-    }
-
     # DESIGN 9.1 and 9.2's refusals. Named, never a wildcard.
     $configurationErrorId = @(
         'HDTConfigurationError',
@@ -95,6 +119,28 @@ function Get-HDTFailureClass {
         'HDTNoTargetDiskError',
         'HDTAmbiguousImageError'
     )
+
+    if ($null -eq $ErrorRecord) {
+        # The refusal a step returned rather than threw.
+        $resultErrorId = ''
+
+        if ($null -ne $ResultData) {
+            if ($ResultData -is [System.Collections.IDictionary]) {
+                foreach ($key in @($ResultData.Keys)) {
+                    if ([string] $key -eq 'errorId') { $resultErrorId = [string] $ResultData[$key] }
+                }
+            } elseif (-not ($ResultData -is [System.Collections.IList]) -and -not ($ResultData -is [string])) {
+                $member = $ResultData.PSObject.Properties['errorId']
+                if ($null -ne $member) { $resultErrorId = [string] $member.Value }
+            }
+        }
+
+        if ($configurationErrorId -contains $resultErrorId) {
+            return 'Configuration'
+        }
+
+        return 'Transient'
+    }
 
     $exception = $ErrorRecord
     if ($ErrorRecord -is [System.Management.Automation.ErrorRecord]) {

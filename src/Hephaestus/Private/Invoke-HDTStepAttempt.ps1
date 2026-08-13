@@ -23,7 +23,11 @@ function Invoke-HDTStepAttempt {
 
             A CONFIGURATION FAILURE IS NEVER RETRIED. Retrying bad authoring
             spends a deployment's time three times over and buries the message
-            that would have fixed it under two more copies of itself.
+            that would have fixed it under two more copies of itself. The class
+            is read from the thrown error AND from the result's Data, because a
+            step that refused to wipe an ambiguous disk returns that refusal as
+            a Failed result carrying an errorId rather than throwing it - the
+            step contract requires a result, not an exception.
 
             AN EXCEPTION IS CAUGHT HERE, not by Invoke-HDTStep. The dispatcher
             deliberately does not catch, because classifying, retrying and
@@ -151,7 +155,13 @@ function Invoke-HDTStepAttempt {
 
         $failureClass = $null
         if ([string] $result.Status -eq 'Failed') {
-            $failureClass = Get-HDTFailureClass -ErrorRecord $thrown -TimedOut:$timedOut
+            # THE RESULT'S DATA IS READ AS WELL AS THE EXCEPTION. A phase 04 step
+            # never lets a refusal escape as a terminating error - the step
+            # contract requires a result whose Status is in the closed set - so
+            # 'HDTAmbiguousTargetError' arrives here in $result.Data, and without
+            # this argument a refusal to wipe a disk would be Transient and would
+            # be retried by a step declaring retry:.
+            $failureClass = Get-HDTFailureClass -ErrorRecord $thrown -ResultData $result.Data -TimedOut:$timedOut
         }
 
         $outcome = [pscustomobject] ([ordered] @{
