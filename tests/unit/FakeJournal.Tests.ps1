@@ -92,6 +92,14 @@ $script:HDTJournalledFake = @(
         Argument  = @()
     }
     @{
+        Name      = 'ImageService'
+        Service   = 'ImageService'
+        Factory   = { param($Journal) New-HDTFakeImageService -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.SetBootOrderFirst() }
+        Operation = 'SetBootOrderFirst'
+        Argument  = @()
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }

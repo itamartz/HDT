@@ -1,0 +1,38 @@
+[
+  {
+    "Index": 1,
+    "Name": "Windows Server 2025 Standard",
+    "Description": "(Recommended) This option omits most of the Windows graphical environment. Manage with a command prompt and PowerShell, or remotely with Windows Admin Center or other tools.",
+    "Edition": "ServerStandard",
+    "SizeBytes": 9583475313,
+    "Architecture": "9",
+    "Version": "10.0.26100.1742"
+  },
+  {
+    "Index": 2,
+    "Name": "Windows Server 2025 Standard (Desktop Experience)",
+    "Description": "This option installs the full Windows graphical environment, consuming extra drive space. It can be useful if you want to use the Windows desktop or have an app that requires it.",
+    "Edition": "ServerStandard",
+    "SizeBytes": 19974858094,
+    "Architecture": "9",
+    "Version": "10.0.26100.1742"
+  },
+  {
+    "Index": 3,
+    "Name": "Windows Server 2025 Datacenter",
+    "Description": "(Recommended) This option omits most of the Windows graphical environment. Manage with a command prompt and PowerShell, or remotely with Windows Admin Center or other tools.",
+    "Edition": "ServerDatacenter",
+    "SizeBytes": 9583643554,
+    "Architecture": "9",
+    "Version": "10.0.26100.1742"
+  },
+  {
+    "Index": 4,
+    "Name": "Windows Server 2025 Datacenter (Desktop Experience)",
+    "Description": "This option installs the full Windows graphical environment, consuming extra drive space. It can be useful if you want to use the Windows desktop or have an app that requires it.",
+    "Edition": "ServerDatacenter",
+    "SizeBytes": 19964856665,
+    "Architecture": "9",
+    "Version": "10.0.26100.1742"
+  }
+]

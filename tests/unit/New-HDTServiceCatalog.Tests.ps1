@@ -36,6 +36,46 @@ Describe 'New-HDTServiceCatalog' {
         $catalog.Registry | Should -BeNullOrEmpty
     }
 
+    It 'exposes Disk and Image even when they were not supplied' {
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        $name = @($catalog.PSObject.Properties.Name)
+        $name | Should -Contain 'Disk'
+        $name | Should -Contain 'Image'
+
+        $catalog.Disk | Should -BeNullOrEmpty
+        $catalog.Image | Should -BeNullOrEmpty
+    }
+
+    It 'returns the disk service GetRequired was asked for' {
+        $disk = New-HDTFakeDiskService
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Disk $disk
+
+        [object]::ReferenceEquals($catalog.GetRequired('Disk', 'DiskPartition'), $disk) | Should -BeTrue
+    }
+
+    It 'returns the image service GetRequired was asked for' {
+        $image = New-HDTFakeImageService
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Image $image
+
+        [object]::ReferenceEquals($catalog.GetRequired('Image', 'ApplyImage'), $image) | Should -BeTrue
+    }
+
+    It 'names the step in the error when the Disk service is missing' {
+        # The sentence an administrator reads when a run was started without the
+        # one service the step it is running needs.
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+
+        { $catalog.GetRequired('Disk', 'DiskPartition') } | Should -Throw -ExpectedMessage '*Disk*'
+        { $catalog.GetRequired('Disk', 'DiskPartition') } | Should -Throw -ExpectedMessage '*DiskPartition*'
+    }
+
+    It 'still requires only a filesystem and a clock' {
+        # A NoOp sequence must run on two services and no more, however many the
+        # catalog grows to carry.
+        { New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock } | Should -Not -Throw
+    }
+
     It 'requires a filesystem' {
         $record = $null
         try { New-HDTServiceCatalog -Clock $script:clock } catch { $record = $_ }
