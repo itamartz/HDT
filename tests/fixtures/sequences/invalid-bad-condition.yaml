@@ -1,0 +1,14 @@
+# Valid YAML carrying an INVALID condition: the whole condition sits inside one
+# pair of double quotes, so the parser is happy and =~ is not an operator HDT's
+# closed grammar has. That is what makes this a test of the condition grammar
+# rather than of the YAML parser - the job unparseable-indentation.yaml has.
+#
+# It is the second schema blind spot: JSON Schema draft-07 cannot parse a
+# condition, so the schema sees only a string.
+schemaVersion: 1
+id: BAD-CONDITION
+name: Bad condition
+steps:
+  - name: First
+    type: NoOp
+    condition: "%A% =~ 1"

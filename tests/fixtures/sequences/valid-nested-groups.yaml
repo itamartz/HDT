@@ -1,0 +1,39 @@
+# A group inside a group inside a group, plus a root-level step and a sibling
+# group, which together exercise every flattening rule:
+#
+#   Root Step       root level          GroupPath @()          RunIn Any
+#   Outer Step      inside Outer        GroupPath Outer        RunIn FullOS (inherited)
+#   Inner Step      three deep          two ancestor conditions, outermost first
+#   Inner Override  three deep          runIn: WinPE overrides the inherited FullOS
+#   Sibling Step    a different branch  carries Sibling's condition and NOT Middle's
+schemaVersion: 1
+id: NESTED
+name: Nested groups
+description: Three levels of grouping, a root-level step and a sibling group.
+steps:
+  - name: Root Step
+    type: NoOp
+
+  - group: Outer
+    runIn: FullOS
+    steps:
+      - name: Outer Step
+        type: NoOp
+
+      - group: Middle
+        condition: '"%HDTSite%" == "HQ"'
+        steps:
+          - group: Inner
+            condition: '"%HDTIsLaptop%" == "True"'
+            steps:
+              - name: Inner Step
+                type: NoOp
+              - name: Inner Override
+                type: NoOp
+                runIn: WinPE
+
+  - group: Sibling
+    condition: '"%HDTSite%" == "Branch"'
+    steps:
+      - name: Sibling Step
+        type: NoOp

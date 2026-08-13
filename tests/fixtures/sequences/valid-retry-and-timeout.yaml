@@ -1,0 +1,22 @@
+# Every common property present with a NON-DEFAULT value, so a defaulting bug is
+# visible as a wrong value rather than hidden behind a coincidence.
+schemaVersion: 1
+id: RETRY-AND-TIMEOUT
+name: Every common property
+description: One step carrying every common property, none of them at its default.
+variables:
+  HDTFlakyTarget: primary
+steps:
+  - name: Flaky Thing
+    type: NoOp
+    condition: '"%_HDTPhase%" == "FullOS"'
+    continueOnError: true
+    timeoutMinutes: 45
+    runIn: FullOS
+    resumable: true
+    log: FlakyThing.log
+    retry:
+      count: 3
+      delaySeconds: 15
+      backoff: exponential
+    message: still a NoOp, but a thoroughly decorated one

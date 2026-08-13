@@ -1,0 +1,72 @@
+# DESIGN 4.1's own sequence.yaml, with the three corrections 03-02 found while
+# making it import. 03-05's documentation task carries all three back into
+# docs/DESIGN.md; they are listed here so the difference is never mistaken for
+# drift.
+#
+#   1. condition VALUE. The design prints == "OS", but DESIGN 4.4.1 defines
+#      _HDTPhase as WinPE or FullOS, so "OS" never matched anything.
+#   2. condition QUOTING. `condition: "%_HDTPhase%" == "OS"` is not valid YAML:
+#      the double-quoted scalar closes after %_HDTPhase% and the rest of the line
+#      is trailing content. A condition carries double quotes as part of its own
+#      grammar, so the whole condition must be a SINGLE-quoted YAML scalar.
+#   3. variable NAMES. The design writes OSImage and DiskLayout, but DESIGN 3.2
+#      requires every deployment variable to be prefixed HDT, and
+#      Assert-HDTSequenceDocument enforces it.
+#
+# Everything else is verbatim, including ApplyDrivers' own `group:` property -
+# which is why a group node is recognised by its `steps` key rather than by
+# `group`. See 03-02-SUMMARY.md.
+schemaVersion: 1
+id: STD-CLIENT
+name: Standard Windows 11 Client
+description: Bare-metal client build
+variables:
+  HDTOSImage: Win11-24H2-Ent
+  HDTDiskLayout: uefi-standard
+steps:
+  - group: Preinstall
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 4096
+        minDiskGB: 60
+      - name: Format and Partition
+        type: DiskPartition
+        layout: uefi-standard
+        wipe: true
+
+  - group: Install
+    steps:
+      - name: Apply OS
+        type: ApplyImage
+        os: Win11-24H2-Ent
+        index: 3
+        target: primary
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: "%HDTDriverGroup%"
+        fallback: match-pnp        # index lookup if no group matches
+      - name: Apply Unattend
+        type: ApplyUnattend
+        template: unattend.xml
+      - name: Prepare Boot
+        type: ConfigureBoot
+
+  - group: State Restore
+    condition: '"%_HDTPhase%" == "FullOS"'
+    steps:
+      - name: Join Domain
+        type: JoinDomain
+        domain: "%HDTJoinDomain%"
+        ou: "%HDTMachineObjectOU%"
+        continueOnError: false
+      - name: Install Applications
+        type: InstallApplications
+        selection: "%HDTApplications%"
+      - name: Windows Update
+        type: WindowsUpdate
+        continueOnError: true
+      - name: Custom
+        type: PowerShell
+        script: Scripts\Set-CorpBaseline.ps1
+        runIn: FullOS

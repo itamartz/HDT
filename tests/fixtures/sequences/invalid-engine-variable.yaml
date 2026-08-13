@@ -1,0 +1,10 @@
+# _HDTLogPath is engine-owned and read-only (DESIGN 3.2). A sequence that
+# assigned one would move the log directory out from under the engine.
+schemaVersion: 1
+id: ENGINE-VARIABLE
+name: Assigns an engine variable
+variables:
+  _HDTLogPath: C:\Somewhere\Else
+steps:
+  - name: First
+    type: NoOp

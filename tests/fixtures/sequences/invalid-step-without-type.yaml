@@ -1,0 +1,10 @@
+# A step with no type. Without one there is no Invoke-HDT<Type>Step to dispatch
+# to, and the failure would surface halfway through a deployment.
+schemaVersion: 1
+id: STEP-WITHOUT-TYPE
+name: Step without a type
+steps:
+  - name: First
+    type: NoOp
+  - name: Nameless Type
+    message: no type here

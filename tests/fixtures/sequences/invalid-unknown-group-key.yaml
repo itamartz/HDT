@@ -1,0 +1,12 @@
+# 'priority' is not a key a group may declare. An unknown key is refused rather
+# than ignored: the INI dialect HDT replaces let a typo look meaningful while
+# doing nothing.
+schemaVersion: 1
+id: UNKNOWN-GROUP-KEY
+name: Unknown group key
+steps:
+  - group: Preinstall
+    priority: 1
+    steps:
+      - name: First
+        type: NoOp

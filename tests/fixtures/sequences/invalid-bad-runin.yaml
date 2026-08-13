@@ -1,0 +1,9 @@
+# runIn is WinPE, FullOS or Any. 'Windows' is the kind of near-miss that would
+# silently never match a phase.
+schemaVersion: 1
+id: BAD-RUNIN
+name: Bad runIn
+steps:
+  - name: First
+    type: NoOp
+    runIn: Windows

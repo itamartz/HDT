@@ -1,0 +1,6 @@
+# No schemaVersion. Every HDT document declares one (DESIGN 2.2).
+id: NO-SCHEMA-VERSION
+name: Missing schemaVersion
+steps:
+  - name: First
+    type: NoOp

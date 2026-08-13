@@ -1,0 +1,8 @@
+# A group that contains nothing. A group is a naming and condition device; an
+# empty one applies its condition to no step at all.
+schemaVersion: 1
+id: GROUP-WITHOUT-STEPS
+name: Group without steps
+steps:
+  - group: Preinstall
+    condition: '"%_HDTPhase%" == "WinPE"'

@@ -1,0 +1,14 @@
+# A node that is both a group and a step: it declares steps (which makes it a
+# group) and type (which makes it a step). This is one of the two schema blind
+# spots - draft-07's oneOf accepts it because the step branch tolerates extra
+# properties - so only Assert-HDTSequenceDocument rejects it.
+schemaVersion: 1
+id: GROUP-AND-STEP
+name: Both a group and a step
+steps:
+  - group: Preinstall
+    name: Also a step
+    type: PowerShell
+    steps:
+      - name: First
+        type: NoOp

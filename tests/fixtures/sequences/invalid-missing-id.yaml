@@ -1,0 +1,7 @@
+# No id. The id is what state.json records, so a run cannot be attributed
+# without it.
+schemaVersion: 1
+name: Missing id
+steps:
+  - name: First
+    type: NoOp

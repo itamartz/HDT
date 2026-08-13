@@ -1,0 +1,9 @@
+# Broken indentation: the parser itself refuses this, so the failure is reported
+# with a LINE number by ConvertFrom-HDTYaml rather than by the validator.
+schemaVersion: 1
+id: UNPARSEABLE
+name: Unparseable
+steps:
+  - name: First
+    type: NoOp
+   message: dedented by one space

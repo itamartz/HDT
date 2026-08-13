@@ -1,0 +1,6 @@
+# An empty steps list. A sequence that runs nothing is an authoring mistake, not
+# a valid no-op deployment.
+schemaVersion: 1
+id: EMPTY-STEPS
+name: Empty steps
+steps: []

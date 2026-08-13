@@ -1,0 +1,17 @@
+# The simplest sequence that does anything: three steps, no groups. Every step
+# here lands at the root, so GroupPath is empty and every common property takes
+# its default.
+schemaVersion: 1
+id: FLAT
+name: Flat sequence
+description: Three steps and no groups at all.
+steps:
+  - name: First
+    type: NoOp
+    message: the first thing
+  - name: Second
+    type: SetVariable
+    variable: HDTStage
+    value: second
+  - name: Third
+    type: NoOp
