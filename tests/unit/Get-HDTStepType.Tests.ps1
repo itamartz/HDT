@@ -32,22 +32,36 @@ Describe 'Get-HDTStepType' {
             New-Module -Name HDTThirdParty -ScriptBlock {
                 function Invoke-HDTContosoBeepStep {
                     param($Step, $Context)
+                    # The step contract requires both parameters; this double reads
+                    # neither, and saying so keeps the analyzer honest about the rest.
+                    $null = $Step, $Context
                     [pscustomobject] @{ Status = 'Completed'; ExitCode = 0; Message = 'beeped'; Data = $null }
                 }
                 function Test-HDTContosoBeepStepApplicable {
                     param($Step, $Context)
+                    # The step contract requires both parameters; this double reads
+                    # neither, and saying so keeps the analyzer honest about the rest.
+                    $null = $Step, $Context
                     $true
                 }
                 function Get-HDTContosoBeepStepDescription {
                     param($Step)
+                    # The step contract requires -Step; this double does not read it.
+                    $null = $Step
                     'Beep once'
                 }
                 function Invoke-HDTContosoQuietStep {
                     param($Step, $Context)
+                    # The step contract requires both parameters; this double reads
+                    # neither, and saying so keeps the analyzer honest about the rest.
+                    $null = $Step, $Context
                     [pscustomobject] @{ Status = 'Completed'; ExitCode = 0; Message = ''; Data = $null }
                 }
                 function Invoke-HDTContosoNotAType {
                     param($Step, $Context)
+                    # The step contract requires both parameters; this double reads
+                    # neither, and saying so keeps the analyzer honest about the rest.
+                    $null = $Step, $Context
                     'this is not a step'
                 }
                 Export-ModuleMember -Function 'Invoke-HDTContosoBeepStep', 'Test-HDTContosoBeepStepApplicable',
@@ -136,12 +150,24 @@ Describe 'Get-HDTStepType' {
             # A third party silently shadowing ApplyImage is exactly the failure
             # that must not be quiet.
             New-Module -Name HDTVendorOne -ScriptBlock {
-                function Invoke-HDTDuplicateStep { param($Step, $Context) 'one' }
+                function Invoke-HDTDuplicateStep {
+                    param($Step, $Context)
+                    # The step contract requires both parameters; this double reads
+                    # neither, and saying so keeps the analyzer honest about the rest.
+                    $null = $Step, $Context
+                    'one'
+                }
                 Export-ModuleMember -Function Invoke-HDTDuplicateStep
             } | Import-Module -Force
 
             New-Module -Name HDTVendorTwo -ScriptBlock {
-                function Invoke-HDTDuplicateStep { param($Step, $Context) 'two' }
+                function Invoke-HDTDuplicateStep {
+                    param($Step, $Context)
+                    # The step contract requires both parameters; this double reads
+                    # neither, and saying so keeps the analyzer honest about the rest.
+                    $null = $Step, $Context
+                    'two'
+                }
                 Export-ModuleMember -Function Invoke-HDTDuplicateStep
             } | Import-Module -Force
 
@@ -158,7 +184,7 @@ Describe 'Get-HDTStepType' {
 
     Context "this module's own types" {
 
-        It 'discovers every Invoke-HDT<Type>Step file under Public/Steps' {
+        It 'discovers every step file under Public/Steps' {
             $onDisk = @(Get-ChildItem -LiteralPath $script:stepFileRoot -Filter 'Invoke-HDT*Step.ps1' -File -ErrorAction SilentlyContinue |
                     ForEach-Object { $_.BaseName -replace '^Invoke-HDT(.+)Step$', '$1' }) | Sort-Object
 

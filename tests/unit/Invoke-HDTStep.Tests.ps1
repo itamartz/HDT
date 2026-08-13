@@ -44,6 +44,8 @@ Describe 'the step dispatchers' {
             }
             function Test-HDTContosoBeepStepApplicable {
                 param($Step, $Context)
+                # The step contract requires -Context; this double does not read it.
+                $null = $Context
                 $Step.Applicable
             }
             function Get-HDTContosoBeepStepDescription {
@@ -52,10 +54,16 @@ Describe 'the step dispatchers' {
             }
             function Invoke-HDTContosoQuietStep {
                 param($Step, $Context)
+                # The step contract requires both parameters; this double reads
+                # neither.
+                $null = $Step, $Context
                 [pscustomobject] @{ Status = 'Completed'; ExitCode = 0; Message = ''; Data = $null }
             }
             function Invoke-HDTContosoAngryStep {
                 param($Step, $Context)
+                # The step contract requires both parameters; this double reads
+                # neither.
+                $null = $Step, $Context
                 throw 'the vendor tool exploded'
             }
             Export-ModuleMember -Function 'Invoke-HDTContosoBeepStep', 'Test-HDTContosoBeepStepApplicable',
@@ -63,7 +71,7 @@ Describe 'the step dispatchers' {
         } | Import-Module -Force
 
         $script:fileSystem = New-HDTFakeFileSystem
-        $script:clock = New-HDTFakeClock
+        $script:clock = New-HDTFakeClock -UtcNow ([datetime]::Parse('2026-08-13T00:11:02.481Z').ToUniversalTime())
         $script:catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
         $script:log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
             -FileSystem $script:fileSystem -Clock $script:clock

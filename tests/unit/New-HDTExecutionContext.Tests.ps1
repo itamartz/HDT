@@ -23,7 +23,7 @@ Describe 'New-HDTExecutionContext' {
     BeforeEach {
         $script:journal = New-Object -TypeName System.Collections.ArrayList
         $script:fileSystem = New-HDTFakeFileSystem -Journal $script:journal
-        $script:clock = New-HDTFakeClock -Journal $script:journal
+        $script:clock = New-HDTFakeClock -UtcNow ([datetime]::Parse('2026-08-13T00:11:02.481Z').ToUniversalTime()) -Journal $script:journal
         $script:catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
 
         $script:log = New-HDTLogContext -RunId '11111111-2222-3333-4444-555555555555' -Phase WinPE `

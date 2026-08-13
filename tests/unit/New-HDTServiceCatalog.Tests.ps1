@@ -21,7 +21,7 @@ Describe 'New-HDTServiceCatalog' {
 
     BeforeEach {
         $script:fileSystem = New-HDTFakeFileSystem
-        $script:clock = New-HDTFakeClock
+        $script:clock = New-HDTFakeClock -UtcNow ([datetime]::Parse('2026-08-13T00:11:02.481Z').ToUniversalTime())
     }
 
     It 'exposes every service property even when it was not supplied' {
@@ -41,7 +41,7 @@ Describe 'New-HDTServiceCatalog' {
         try { New-HDTServiceCatalog -Clock $script:clock } catch { $record = $_ }
 
         $record | Should -Not -BeNullOrEmpty
-        $record.FullyQualifiedErrorId | Should -BeLike '*ParameterBindingException*'
+        $record.FullyQualifiedErrorId | Should -BeLike 'MissingMandatoryParameter*'
     }
 
     It 'requires a clock' {
@@ -49,7 +49,7 @@ Describe 'New-HDTServiceCatalog' {
         try { New-HDTServiceCatalog -FileSystem $script:fileSystem } catch { $record = $_ }
 
         $record | Should -Not -BeNullOrEmpty
-        $record.FullyQualifiedErrorId | Should -BeLike '*ParameterBindingException*'
+        $record.FullyQualifiedErrorId | Should -BeLike 'MissingMandatoryParameter*'
     }
 
     It 'returns the service GetRequired was asked for' {
