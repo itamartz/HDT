@@ -1,0 +1,54 @@
+[
+  {
+    "DiskNumber": 0,
+    "PartitionNumber": 1,
+    "DriveLetter": "",
+    "SizeBytes": 272629760,
+    "OffsetBytes": 1048576,
+    "Type": "System",
+    "GptType": "{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}",
+    "IsActive": false,
+    "IsHidden": true,
+    "IsBoot": false,
+    "IsSystem": true
+  },
+  {
+    "DiskNumber": 0,
+    "PartitionNumber": 2,
+    "DriveLetter": "",
+    "SizeBytes": 16777216,
+    "OffsetBytes": 273678336,
+    "Type": "Reserved",
+    "GptType": "{e3c9e316-0b5c-4db8-817d-f92df00215ae}",
+    "IsActive": false,
+    "IsHidden": true,
+    "IsBoot": false,
+    "IsSystem": false
+  },
+  {
+    "DiskNumber": 0,
+    "PartitionNumber": 3,
+    "DriveLetter": "C",
+    "SizeBytes": 1021820002304,
+    "OffsetBytes": 290455552,
+    "Type": "Basic",
+    "GptType": "{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}",
+    "IsActive": false,
+    "IsHidden": false,
+    "IsBoot": true,
+    "IsSystem": false
+  },
+  {
+    "DiskNumber": 0,
+    "PartitionNumber": 4,
+    "DriveLetter": "",
+    "SizeBytes": 2097152000,
+    "OffsetBytes": 1022112038912,
+    "Type": "Recovery",
+    "GptType": "{de94bba4-06d1-4d40-a16a-bfd50179d6ac}",
+    "IsActive": false,
+    "IsHidden": true,
+    "IsBoot": false,
+    "IsSystem": false
+  }
+]

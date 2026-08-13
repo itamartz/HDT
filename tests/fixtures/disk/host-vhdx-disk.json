@@ -1,0 +1,15 @@
+[
+  {
+    "Number": 1,
+    "FriendlyName": "Msft Virtual Disk",
+    "SerialNumber": "FIXTURE-SERIAL-0001",
+    "SizeBytes": 68719476736,
+    "BusType": "File Backed Virtual",
+    "PartitionStyle": "GPT",
+    "IsBoot": false,
+    "IsSystem": false,
+    "IsReadOnly": true,
+    "IsOffline": false,
+    "OperationalStatus": "Online"
+  }
+]

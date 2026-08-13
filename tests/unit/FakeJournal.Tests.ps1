@@ -84,6 +84,14 @@ $script:HDTJournalledFake = @(
         Argument  = @(1)
     }
     @{
+        Name      = 'DiskService'
+        Service   = 'DiskService'
+        Factory   = { param($Journal) New-HDTFakeDiskService -Disk @([pscustomobject] @{ Number = 0; PartitionStyle = 'RAW' }) -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.GetDisk() }
+        Operation = 'GetDisk'
+        Argument  = @()
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }

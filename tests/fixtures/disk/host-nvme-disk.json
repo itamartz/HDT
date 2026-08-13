@@ -1,0 +1,15 @@
+[
+  {
+    "Number": 0,
+    "FriendlyName": "SAMSUNG MZVL21T0HCLR-00BL2",
+    "SerialNumber": "FIXTURE-SERIAL-0001",
+    "SizeBytes": 1024209543168,
+    "BusType": "NVMe",
+    "PartitionStyle": "GPT",
+    "IsBoot": true,
+    "IsSystem": true,
+    "IsReadOnly": false,
+    "IsOffline": false,
+    "OperationalStatus": "Online"
+  }
+]
