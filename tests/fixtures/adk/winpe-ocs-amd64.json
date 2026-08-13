@@ -1,0 +1,167 @@
+[
+  {
+    "Name": "WinPE-DismCmdlets",
+    "SizeBytes": 63014,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-Dot3Svc",
+    "SizeBytes": 1353029,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-EnhancedStorage",
+    "SizeBytes": 118299,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-FMAPI",
+    "SizeBytes": 49047,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-Fonts-Legacy",
+    "SizeBytes": 3422510,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-FontSupport-JA-JP",
+    "SizeBytes": 21064966,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-FontSupport-KO-KR",
+    "SizeBytes": 10416931,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-FontSupport-WinRE",
+    "SizeBytes": 3620794,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-FontSupport-ZH-CN",
+    "SizeBytes": 35764298,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-FontSupport-ZH-HK",
+    "SizeBytes": 30809917,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-FontSupport-ZH-TW",
+    "SizeBytes": 30810171,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-GamingPeripherals",
+    "SizeBytes": 407652,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-HSP-Driver",
+    "SizeBytes": 237612,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-HTA",
+    "SizeBytes": 37460623,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-LegacySetup",
+    "SizeBytes": 10323912,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-MDAC",
+    "SizeBytes": 7152209,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-NetFx",
+    "SizeBytes": 95327346,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-PlatformId",
+    "SizeBytes": 1707917,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-PmemCmdlets",
+    "SizeBytes": 150029,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-PowerShell",
+    "SizeBytes": 3363546,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-PPPoE",
+    "SizeBytes": 406679,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-RNDIS",
+    "SizeBytes": 50372,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-Scripting",
+    "SizeBytes": 17117978,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-SecureBootCmdlets",
+    "SizeBytes": 24471,
+    "HasEnUs": false
+  },
+  {
+    "Name": "WinPE-SecureStartup",
+    "SizeBytes": 897767,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-Setup",
+    "SizeBytes": 14084782,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-Setup-ASZ",
+    "SizeBytes": 172474,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-Setup-Client",
+    "SizeBytes": 168837,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-Setup-Server",
+    "SizeBytes": 171353,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-StorageWMI",
+    "SizeBytes": 948238,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-WDS-Tools",
+    "SizeBytes": 946785,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-WinReCfg",
+    "SizeBytes": 150753,
+    "HasEnUs": true
+  },
+  {
+    "Name": "WinPE-WMI",
+    "SizeBytes": 6492661,
+    "HasEnUs": true
+  }
+]
