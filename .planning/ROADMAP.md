@@ -55,9 +55,19 @@ and explains every value.
 - [x] `02-02-PLAN.md` — `Get-HDTVariableMap`, pointed configuration errors, the YAML
       adapter, `schemas/rules.schema.json` + `machine.schema.json`, and
       `Import-HDTRuleDocument` with thirteen fixture documents
-- [ ] `02-03-PLAN.md` — the resolution engine: five-source precedence, wildcard and
+- [x] `02-03-PLAN.md` — the resolution engine: five-source precedence, wildcard and
       multi-key `when`, `%Var%` expansion with cycle detection, `setFrom:` rules,
       provenance, the sample workspace, and the M1 exit demonstration
+
+Phase 02 is **complete**. The M1 exit criterion is met and demonstrated twice: by
+`tests/unit/GatherAndResolve.EndToEnd.Tests.ps1` over the captured CIM fixtures
+and the sample workspace, and by a live run against this machine's real facts in
+which `HDTComputerName` resolves to `PC-<serial>` with `Source = Rule`,
+`Rule = Fallback`. Final counts: 863 passed / 0 failed / 9 skipped under pwsh
+7.5.8 with lint clean across 79 files and selfcheck 4/4; 831 passed / 0 failed /
+41 skipped under Windows PowerShell 5.1. What DESIGN 4.4's `Gather\` still owes —
+`facts.json` and the `var.resolve` JSONL events — belongs to phase 03 and is
+recorded in `02-03-SUMMARY.md`.
 
 **03 — Sequence engine.** Sequencing, conditions, retry, reboot-resume, and the
 autologon lifecycle — all against fakes, touching nothing real. Includes the
