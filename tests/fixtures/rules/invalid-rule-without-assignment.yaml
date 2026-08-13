@@ -1,0 +1,4 @@
+schemaVersion: 1
+rules:
+  - name: Lab subnet
+    when: { HDTDefaultGateway: "10.20.30.1" }

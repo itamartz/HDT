@@ -1,0 +1,5 @@
+schemaVersion: 1
+rules:
+  - name: Redirect the log
+    set:
+      _HDTLogPath: X:\Logs

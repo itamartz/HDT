@@ -1,0 +1,7 @@
+schemaVersion: 1
+rules:
+  - name: Lab subnet
+    priority: 10
+    when: { HDTDefaultGateway: "10.20.30.1" }
+    set:
+      HDTTaskSequenceID: LAB-CLIENT

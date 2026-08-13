@@ -1,0 +1,19 @@
+schemaVersion: 1
+rules:
+  - name: Lab subnet
+    when: { HDTDefaultGateway: "10.20.30.1" }
+    set:
+      HDTJoinDomain: lab.contoso.com
+      HDTTaskSequenceID: LAB-CLIENT
+      HDTSkipWizard: true
+
+  - name: Latitude naming
+    when: { HDTModel: "Latitude*", HDTIsLaptop: true }   # wildcards allowed
+    set:
+      HDTComputerName: "LT-%HDTSerialNumber%"
+      HDTDriverGroup: "Dell\\%HDTModel%"
+
+  - name: Fallback
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"
+      HDTJoinWorkgroup: WORKGROUP

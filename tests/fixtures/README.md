@@ -16,6 +16,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `cim-microsofttpm/` | Captured `Win32_Tpm`, which lives in `root/cimv2/security/microsofttpm` — a **separate directory because it is a separate namespace**, not a subdirectory of `cim/` | captured |
 | `cim-vm/` | A Hyper-V guest's `Win32_ComputerSystem` and `Win32_ComputerSystemProduct`, so `HDTIsVM` can be proven | **derived** — see below |
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
+| `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
 | `naming/` | Source that breaks — and source that keeps — the `Verb-HDTNoun` rule (DESIGN 15.1), plus a class fixture proving class members are not commands | deliberately invalid |
 | `compat/` | One file per PowerShell 7-only construct the 5.1 compatibility scanner must reject, plus a clean 5.1 control | deliberately invalid |
 | `mdt/` | Source carrying banned MDT dependencies, plus an MDT-free control | deliberately invalid |
@@ -127,6 +128,53 @@ Manufacturer, model, SKU, family, firmware version, `Description`,
 and `Version` are **kept**: they are hardware facts, not personal ones, and
 rule-matching tests need a realistic `Model` and a realistic chassis type to
 match on.
+
+## Rules fixtures
+
+`rules/` is the test data for the whole authoring half of the rule engine:
+`ConvertFrom-HDTYaml`, `Assert-HDTRuleDocument`, `Import-HDTRuleDocument` and
+`tests/contract/RulesSchema.Contract.Tests.ps1` all read from it. Unlike the CIM
+fixtures these are **authored, not captured** — a rules document is something an
+administrator writes, so there is no machine to capture one from. The one that
+matters most is copied verbatim from a document rather than invented:
+`valid-design-example.yaml` **is** DESIGN 3.3's worked example, character for
+character, and plan 02-03's precedence tests run against it. Do not "improve" it.
+
+The prefix is a contract, and the schema contract test depends on it:
+
+| Prefix | Meaning |
+|---|---|
+| `valid-` | parses, passes `schemas/rules.schema.json`, passes `Assert-HDTRuleDocument` |
+| `invalid-` | parses, **fails** `Assert-HDTRuleDocument` — and fails the schema too, except where noted below |
+| `unparseable-` | does not parse at all: `ConvertFrom-HDTYaml` throws |
+
+Every file under `rules/` is UTF-8 and is stored in git with LF line endings. A
+working copy may show CRLF where `core.autocrlf` converts on checkout, so no test
+may depend on the line ending — the one test that depends on a *line number*
+(`unparseable-indentation.yaml`, error on **line 4**) is unaffected by it.
+
+Each `invalid-` file isolates exactly one authoring mistake, so a rejection
+message can be asserted without ambiguity:
+
+| File | The one mistake |
+|---|---|
+| `invalid-missing-schemaversion.yaml` | no `schemaVersion` |
+| `invalid-newer-schemaversion.yaml` | `schemaVersion: 99`, newer than the engine (DESIGN 12.3) |
+| `invalid-rule-without-name.yaml` | a rule with no `name` |
+| `invalid-rule-without-assignment.yaml` | neither `set` nor `setFrom` |
+| `invalid-rule-with-both-assignments.yaml` | both `set` and `setFrom` |
+| `invalid-unknown-rule-key.yaml` | `priority: 10`, the INI habit HDT deliberately does not have |
+| `invalid-engine-variable.yaml` | assigns `_HDTLogPath`, which is engine-owned (DESIGN 3.2) |
+| `invalid-duplicate-rule-name.yaml` | two rules named `Fallback`, which makes provenance ambiguous |
+| `unparseable-indentation.yaml` | `set:` mis-indented under `name:` — parser error on line 4 |
+| `unparseable-duplicate-key.yaml` | `schemaVersion` twice — YamlDotNet reports `Duplicate key` |
+
+**One schema blind spot, stated rather than hidden.** JSON Schema draft-07 cannot
+express "no two rules share a `name`", so `invalid-duplicate-rule-name.yaml` is
+the single `invalid-` file the schema *accepts*. The engine rejects it. The
+contract test carries it in an explicit blind-spot list and asserts both halves,
+so if the schema ever gains the ability the test goes red and the file must be
+moved out of the list rather than quietly forgotten.
 
 ## Derived fixtures
 

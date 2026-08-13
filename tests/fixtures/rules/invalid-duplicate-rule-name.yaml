@@ -1,0 +1,8 @@
+schemaVersion: 1
+rules:
+  - name: Fallback
+    set:
+      HDTJoinWorkgroup: WORKGROUP
+  - name: Fallback
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"

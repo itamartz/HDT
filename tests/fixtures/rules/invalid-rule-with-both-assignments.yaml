@@ -1,0 +1,6 @@
+schemaVersion: 1
+rules:
+  - name: Scripted name
+    setFrom: Scripts\Get-ComputerName.ps1
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"

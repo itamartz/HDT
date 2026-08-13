@@ -1,0 +1,8 @@
+schemaVersion: 1
+rules:
+  - name: Scripted name
+    when: { HDTIsLaptop: true }
+    setFrom: Scripts\Get-ComputerName.ps1
+  - name: Fallback
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"
