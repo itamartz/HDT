@@ -186,6 +186,55 @@ Describe 'New-HDTFakeFileSystem' {
         { $fs.ReadAllText($PSCommandPath) } | Should -Throw -ExceptionType ([System.IO.FileNotFoundException])
     }
 
+    Context 'a write that fails' {
+
+        # DESIGN 4.5.2's teardown runs from a finally block, so it has to survive
+        # the checkpoint that block just tried and could not make. Proving that
+        # needs a filesystem where one path - and only one - refuses to be
+        # written.
+
+        It 'throws for a path seeded to fail' {
+            $fs = New-HDTFakeFileSystem -WriteFailure @{ 'X:\HDT\Logs\state.json' = 'the disk is full' }
+
+            { $fs.WriteAllText('X:\HDT\Logs\state.json', '{}') } | Should -Throw -ExceptionType ([System.IO.IOException])
+        }
+
+        It 'names the seeded message' {
+            $fs = New-HDTFakeFileSystem -WriteFailure @{ 'X:\HDT\Logs\state.json' = 'the disk is full' }
+
+            { $fs.WriteAllText('X:\HDT\Logs\state.json', '{}') } | Should -Throw -ExpectedMessage '*the disk is full*'
+        }
+
+        It 'records the attempt before it throws' {
+            $fs = New-HDTFakeFileSystem -WriteFailure @{ 'X:\HDT\Logs\state.json' = 'the disk is full' }
+
+            try { $fs.WriteAllText('X:\HDT\Logs\state.json', '{}') } catch { $null = $_ }
+
+            $fs.GetOperationName() | Should -Be @('WriteAllText')
+        }
+
+        It 'fails an append to the same path' {
+            $fs = New-HDTFakeFileSystem -WriteFailure @{ 'X:\HDT\Logs\HDT.jsonl' = 'the share went away' }
+
+            { $fs.AppendAllText('X:\HDT\Logs\HDT.jsonl', 'line') } | Should -Throw -ExceptionType ([System.IO.IOException])
+        }
+
+        It 'leaves every other path writable' {
+            $fs = New-HDTFakeFileSystem -WriteFailure @{ 'X:\HDT\Logs\state.json' = 'the disk is full' }
+            $fs.WriteAllText('X:\HDT\Logs\status.json', '{}')
+
+            $fs.ReadAllText('X:\HDT\Logs\status.json') | Should -BeExactly '{}'
+        }
+
+        It 'does not write the file it refused' {
+            $fs = New-HDTFakeFileSystem -WriteFailure @{ 'X:\HDT\Logs\state.json' = 'the disk is full' }
+
+            try { $fs.WriteAllText('X:\HDT\Logs\state.json', '{}') } catch { $null = $_ }
+
+            $fs.TestPath('X:\HDT\Logs\state.json') | Should -BeFalse
+        }
+    }
+
     It 'is independent between instances' {
         $first = New-HDTFakeFileSystem -File @{ 'C:\ws\a.txt' = 'first' }
         $second = New-HDTFakeFileSystem

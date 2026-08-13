@@ -1,0 +1,51 @@
+# Three legs and two reboots - the shape ROADMAP M2 exits on: "a multi-group
+# sequence with reboots runs to completion in a Pester run, having touched
+# nothing real".
+#
+# Leg 1 runs in WinPE and ends at a Restart.
+# Leg 2 runs in the full OS and ends at a second Restart.
+# Leg 3 finishes, with one FullOS-only step that runs and one WinPE-only step
+#       that must be skipped - because nothing in HDT boots back into WinPE, and
+#       the loop has to say so rather than run it against the wrong phase.
+#
+# The SetVariable step in leg 1 is what proves a variable survives a reboot: the
+# condition on 'Confirm the first leg' reads it two legs later, and it can only
+# be there if the state document carried it.
+schemaVersion: 1
+id: REBOOT-LEGS
+name: Three legs with two restarts
+description: A multi-group sequence with reboots, for the resume tests.
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Prepare the disk
+        type: NoOp
+        message: pretending to partition
+      - name: Remember the first leg
+        type: SetVariable
+        variable: HDTFirstLeg
+        value: done
+      - name: Restart into the full OS
+        type: Restart
+        delaySeconds: 30
+
+  - group: Configure
+    steps:
+      - name: Confirm the first leg
+        type: NoOp
+        condition: '"%HDTFirstLeg%" == "done"'
+      - name: Restart again
+        type: Restart
+        delaySeconds: 5
+
+  - group: State Restore
+    steps:
+      - name: Full OS only
+        type: NoOp
+        runIn: FullOS
+      - name: WinPE only
+        type: NoOp
+        runIn: WinPE
+      - name: Finish
+        type: NoOp

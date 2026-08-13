@@ -163,6 +163,49 @@ Describe 'New-HDTSequenceTestHarness' {
         }
     }
 
+    Context 'a second leg' {
+
+        It 'imports a state document from its saved text' {
+            $first = New-HDTSequenceTestHarness -Yaml $script:yaml
+            $first.State.stepIndex = 2
+            Save-HDTRunState -State $first.State -Path $first.StatePath -FileSystem $first.FileSystem -Clock $first.Clock
+
+            $text = $first.FileSystem.ReadAllText($first.StatePath)
+            $second = New-HDTSequenceTestHarness -Yaml $script:yaml -StateJson $text
+
+            $second.State.stepIndex | Should -Be 2
+            $second.State.runId | Should -BeExactly $first.State.runId
+        }
+
+        It 'seeds the log seq from the imported state' {
+            $first = New-HDTSequenceTestHarness -Yaml $script:yaml
+            $first.State.seq = 17
+            Save-HDTRunState -State $first.State -Path $first.StatePath -FileSystem $first.FileSystem -Clock $first.Clock
+
+            $second = New-HDTSequenceTestHarness -Yaml $script:yaml -StateJson ($first.FileSystem.ReadAllText($first.StatePath))
+
+            $second.Log.NextSeq() | Should -Be 18
+        }
+
+        It 'reuses a filesystem it was given, so one log stream spans the legs' {
+            $first = New-HDTSequenceTestHarness -Yaml $script:yaml
+            Write-HDTLog -Context $first.Log -Message 'leg one' -Event run.start
+
+            $second = New-HDTSequenceTestHarness -Yaml $script:yaml -FileSystem $first.FileSystem
+            Write-HDTLog -Context $second.Log -Message 'leg two' -Event run.start
+
+            $second.FileSystem | Should -Be $first.FileSystem
+            @(Get-HDTLogRecord -FileSystem $first.FileSystem -Path $first.Log.JsonlPath | ForEach-Object { $_.message }) |
+                Should -Be @('leg one', 'leg two')
+        }
+
+        It 'takes a filesystem whose writes fail' {
+            $harness = New-HDTSequenceTestHarness -Yaml $script:yaml -WriteFailure @{ 'X:\HDT\Logs\state.json' = 'the disk is full' }
+
+            { $harness.FileSystem.WriteAllText($harness.StatePath, '{}') } | Should -Throw -ExceptionType ([System.IO.IOException])
+        }
+    }
+
     Context 'the sequence file' {
 
         It 'seeds the sequence into the fake filesystem' {
