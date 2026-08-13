@@ -63,13 +63,13 @@ not on the lab subnet — that prints:
 ```
 Order Name                 Value                                           Source       Rule
 ----- ----                 -----                                           ------       ----
-    1 HDTComputerName      PC-PF3EKMR0                                     Rule         Fallback
+    1 HDTComputerName      PC-1ABC234                                     Rule         Fallback
     2 HDTJoinWorkgroup     WORKGROUP                                       Rule         Fallback
     3 HDTMake              LENOVO                                          GatheredFact
     4 HDTModel             82RF                                            GatheredFact
     5 HDTProduct           LNVNB161216                                     GatheredFact
-    6 HDTSerialNumber      PF3EKMR0                                        GatheredFact
-    7 HDTUUID              0099F690-8984-11EC-80F1-88A4C2A2001F            GatheredFact
+    6 HDTSerialNumber      1ABC234                                        GatheredFact
+    7 HDTUUID              4C4C4544-0042-3910-8051-B7C04F503332            GatheredFact
     8 HDTSystemSKU         LENOVO_MT_82RF_BU_idea_FM_Legion 5 Pro 16IAH7H  GatheredFact
     9 HDTMemory            65260                                           GatheredFact
    10 HDTArchitecture      x64                                             GatheredFact

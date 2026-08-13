@@ -115,7 +115,7 @@ Get-HDTVariableProvenance -Resolution $r | Format-Table Order, Name, Value, Sour
 ```
 Order Name              Value            Source       Rule
 ----- ----              -----            ------       ----
-    1 HDTComputerName   PC-PF3EKMR0      Rule         Fallback
+    1 HDTComputerName   PC-1ABC234      Rule         Fallback
     2 HDTJoinWorkgroup  WORKGROUP        Rule         Fallback
     3 HDTMake           LENOVO           GatheredFact
 ```

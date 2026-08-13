@@ -142,11 +142,11 @@ adapters, with the sample `rules.yaml`:
 ```
 Order Name                 Value                                Source       Rule
 ----- ----                 -----                                ------       ----
-    1 HDTComputerName      PC-PF3EKMR0                          Rule         Fallback
+    1 HDTComputerName      PC-1ABC234                          Rule         Fallback
     2 HDTJoinWorkgroup     WORKGROUP                            Rule         Fallback
     3 HDTMake              LENOVO                               GatheredFact
     4 HDTModel             82RF                                 GatheredFact
-    6 HDTSerialNumber      PF3EKMR0                             GatheredFact
+    6 HDTSerialNumber      1ABC234                             GatheredFact
    15 HDTIsLaptop          True                                 GatheredFact
    ...
 ```

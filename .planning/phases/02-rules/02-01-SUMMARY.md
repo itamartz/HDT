@@ -287,7 +287,7 @@ in a corrected **section 5**, so a later phase does not pay for them again.
 
 **1. [Rule 1 - Bug] `New-HDTScriptInvoker` help leaked this machine's real BIOS serial**
 - **Found during:** Task 3 verification, step 5 (`git log --all -S`)
-- **Issue:** the `.EXAMPLE` block carried `PF3EKMR0`, copied verbatim from the
+- **Issue:** the `.EXAMPLE` block carried `1ABC234`, copied verbatim from the
   plan document's `verified_facts` table. The 01-03 rule is that this machine's
   identifiers never enter git history.
 - **Fix:** replaced with `FIXTURE-SERIAL-0001`, the sanitised value every other
