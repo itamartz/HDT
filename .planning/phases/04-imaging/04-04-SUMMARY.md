@@ -216,7 +216,12 @@ the user's live lab held `0` against `0`.** Found only when the suite was finall
 run through `./build.ps1 -Task e2e`, which sets `Set-StrictMode -Version Latest`;
 every earlier run had been a bare `Invoke-Pester`.
 
-**7. [Rule 1 — Bug] A `BeforeDiscovery` variable is not readable from
+**7. [Rule 1 — Bug] No angle brackets in an `It` name.** Pester expands
+`<something>` in a test name as a data-driven placeholder, so
+`'deletes only <vmRoot>\<Name>'` became an attempt to read `$vmRoot` — which
+throws under StrictMode and nowhere else.
+
+**8. [Rule 1 — Bug] A `BeforeDiscovery` variable is not readable from
 `BeforeAll`.** `$script:skipDeployment` threw under StrictMode — and without it
 evaluated to `$null`, so `if (-not $null)` was **true** and the expensive body
 ran on a machine that was supposed to skip it. Both files now recompute the
@@ -291,8 +296,8 @@ failing first.
 
 | Run | Result |
 |---|---|
-| `pwsh ./build.ps1 -Task ci` | **green** — 3 803 passed, 0 failed, 42 skipped; ran neither integration nor e2e |
-| `powershell.exe ./build.ps1 -Task test` (5.1) | **green** — 3 689 passed, 0 failed, 156 skipped |
+| `pwsh ./build.ps1 -Task ci` | **green**, exit 0 — 3 812 passed, 0 failed, 42 skipped; ran neither integration nor e2e |
+| `powershell.exe ./build.ps1 -Task test` (5.1) | **green**, exit 0 — 3 698 passed, 0 failed, 156 skipped |
 | `./build.ps1 -Task lint` | **green** — 0 diagnostics across 271 files |
 | `./build.ps1 -Task integration` (elevated) | **green** — 43 + 18 passed |
 | `./build.ps1 -Task e2e` (elevated) | **green** — 52 passed, 0 failed (18 smoke + 34 deployment) |

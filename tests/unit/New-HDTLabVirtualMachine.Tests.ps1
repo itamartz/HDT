@@ -279,7 +279,11 @@ Describe 'Remove-HDTLabVirtualMachine' {
         # not narrow enough to make the accident impossible, and these
         # assertions close that.
 
-        It 'deletes only <vmRoot>\<Name>, never the VM root itself' {
+        # NO ANGLE BRACKETS IN A TEST NAME. Pester expands <something> in an It
+        # name as a variable placeholder for data-driven tests, so
+        # 'deletes only <vmRoot>\<Name>' becomes an attempt to read $vmRoot -
+        # which throws under the StrictMode build.ps1 sets, and only there.
+        It 'deletes only the VM own folder, never the VM root itself' {
             $path = Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/tools/Remove-HDTLabVirtualMachine.ps1'
             $text = Get-Content -LiteralPath $path -Raw
 
