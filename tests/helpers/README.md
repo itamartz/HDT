@@ -19,7 +19,7 @@ The fakes that exist, and the real adapter each is the double for:
 
 | Fake | Interface | Real adapter | Seeded with |
 |---|---|---|---|
-| `New-HDTFakeFileSystem` | `IFileSystem` | `New-HDTFileSystem` | `-File`, `-Directory` |
+| `New-HDTFakeFileSystem` | `IFileSystem` | `New-HDTFileSystem` | `-File`, `-Directory`, `-WriteFailure`, `-Hash` |
 | `New-HDTFakeClock` | `IClock` | `New-HDTClock` | `-UtcNow`, `-TickMillisecond` |
 | `New-HDTFakeCimProvider` | `ICimProvider` | `New-HDTCimProvider` | `-Instance`, `-FixturePath`, `-NamespaceFixturePath` |
 | `New-HDTFakeRegistryService` | `IRegistryService` | `New-HDTRegistryService` | `-Value` |
@@ -32,6 +32,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeContentProvider` | `IContentProvider` | `New-HDTLocalContentProvider`, `New-HDTSmbContentProvider` | `-Root`, `-Content`, `-Failure` |
 | `New-HDTFakeSmbService` | `ISmbService` | `New-HDTSmbService` | `-Connection`, `-ClientConfiguration`, `-Failure` |
+| `New-HDTFakeWdsService` | `IWdsService` | `New-HDTWdsService` — **never executed anywhere** | `-Image`, `-Failure` |
 | `New-HDTFakeBootImageService` | `IBootImageService` | `New-HDTBootImageService` | `-FileSystem`, `-Image`, `-Package`, `-Driver`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
@@ -493,6 +494,55 @@ Adding a real adapter later is one row, not a new test file:
 
 If the real adapter cannot pass a contract test, the contract was wrong — fix
 the contract and the fake together, never fork the test.
+
+### `New-HDTFakeWdsService` — the fake with no real counterpart to check against
+
+Every other fake in the table has a **contract row** that runs the same
+assertions against the real adapter, which is how the two are kept honest
+(section 6). `IWdsService` has none, `tests/contract/` carries no file for it,
+and that is a deliberate refusal rather than an omission:
+
+- **This host has no WDS.** It is Windows 11 Pro; the WDS PowerShell module and
+  `wdsutil.exe` ship with a Windows **Server** role. `Get-Module -ListAvailable
+  WDS` returns nothing, asserted in
+  `tests/integration/PxePayload.Integration.Tests.ps1`.
+- **Standing one up is forbidden.** `PROJECT.md` rule 3 confines PXE/WDS testing
+  to the isolated `HDT Lab` switch, because `CM01` already runs a PXE responder
+  on `Default Switch`. A second responder there would either break the user's
+  SCCM lab or answer our test VMs and silently invalidate the test.
+
+So **no WDS import has ever executed**, anywhere in this repository. The one
+thing this machine can prove is asserted against the **real**
+`New-HDTWdsService` in `tests/unit/Import-HDTBootImageToWds.Tests.ps1`: on a host
+with no WDS module the constructor refuses with a named `HDTDependencyError`
+naming the module and the role. Everything else about the WDS path — and in
+particular the replace-in-place ordering ROADMAP M4 names — is asserted against
+this fake alone, and `05-05-SUMMARY.md` and `ROADMAP.md` M4 say so in plain
+sentences.
+
+**The fake is a store, not a recorder, and it does not de-duplicate.**
+`ImportBootImage` adds a row `GetBootImage` then answers with, so "importing the
+same boot image twice leaves **one** image" is an assertion about the command.
+A fake that quietly replaced would report green for a command that never called
+`RemoveBootImage` — which is the exact defect the test exists to catch.
+
+### `SeedHash` — the corrupt copy nothing else can stage
+
+`FakeFileSystem.CopyItem` copies content exactly, as the real one does when it
+works. So "the destination does not hash equal to the source" cannot be arranged
+by seeding content: it has to be **stated**.
+
+```powershell
+$fs = New-HDTFakeFileSystem -File @{ 'C:\adk\boot.sdi' = 'bytes' }
+$fs.SeedHash('D:\tftproot\Boot\x64\boot.sdi', 'DEADBEEF')
+```
+
+The path still holds whatever content it holds and every other method behaves
+normally; only `GetHash` disagrees — which is what a truncated or bit-rotted file
+looks like to code that verifies by hash. `New-HDTPxePayload` verifies every copy
+because **a truncated `boot.sdi` on a TFTP server is a machine that hangs at boot
+with no message on the screen and no line in any log**, and this is what makes
+"fails rather than warns on a hash mismatch" provable.
 
 ## 7. Fakes never do real I/O
 

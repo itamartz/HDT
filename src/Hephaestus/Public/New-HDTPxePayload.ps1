@@ -34,12 +34,15 @@ function New-HDTPxePayload {
             file will not make the larger claim. The BCD staged here is the ADK
             media template, which describes booting sources\boot.wim from
             removable media; a TFTP/HTTP stack generally needs its own BCD store
-            and its own device element. Nothing in this repository has ever
-            network-booted this payload - there is no WDS on this host and
-            PROJECT.md forbids standing one up beside CM01's PXE responder - so
-            claiming staging completeness is honest and claiming bootability
-            would not be. ROADMAP M4 and 05-05-SUMMARY.md say the same thing in
-            the same words.
+            and its own device element.
+
+            THIS PAYLOAD HAS NEVER BEEN NETWORK-BOOTED by anything in this
+            repository - there is no WDS on this host and PROJECT.md forbids
+            standing one up beside CM01's PXE responder - so claiming staging
+            completeness is honest and claiming bootability would not be.
+            ROADMAP M4 and 05-05-SUMMARY.md say the same thing in the same
+            words, and tests/integration/PxePayload.Integration.Tests.ps1
+            asserts that this sentence is still here.
 
             EVERY COPY IS VERIFIED BY HASH AND A MISMATCH IS A FAILURE, NOT A
             WARNING. A truncated boot.sdi on a TFTP server is a machine that
