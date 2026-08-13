@@ -377,6 +377,139 @@ Describe 'Invoke-HDTApplyImageStep' {
             $result.Message | Should -Not -BeNullOrEmpty
         }
     }
+
+    Context 'the content provider seam' {
+
+        It 'runs unchanged when the catalog has no content provider' {
+            # The compatibility half: everything above this Context runs without
+            # one, and this says so on purpose.
+            $step = & $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; index = 1 })
+
+            $result = Invoke-HDTApplyImageStep -Step $step -Context $script:context
+
+            $result.Status | Should -BeExactly 'Completed'
+            [string] @($script:image.Operations | Where-Object { $_.Operation -eq 'ApplyImage' })[0].Arguments[0] |
+                Should -BeExactly $script:wimPath
+        }
+
+        It 'passes the catalog content provider when the catalog carries one' {
+            $content = New-HDTFakeContentProvider -Root $script:workspaceRoot
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
+                -Image $script:image -Content $content
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+            $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $variable['HDTOSVolume'] = 'W'
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:workspaceRoot `
+                -Variable $variable -Service $catalog -Log $log
+
+            Invoke-HDTApplyImageStep -Step (& $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; index = 1 })) -Context $context | Out-Null
+
+            @($content.GetOperationName()) | Should -Be @('ResolveContent')
+        }
+
+        It 'applies the path the provider returned' {
+            $content = New-HDTFakeContentProvider -Root $script:workspaceRoot -Content @{
+                'OperatingSystems\Win11-LTSC-2024\sources\install.wim' = 'E:\HDTMedia\OperatingSystems\Win11-LTSC-2024\sources\install.wim'
+            }
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
+                -Image $script:image -Content $content
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+            $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $variable['HDTOSVolume'] = 'W'
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:workspaceRoot `
+                -Variable $variable -Service $catalog -Log $log
+
+            Invoke-HDTApplyImageStep -Step (& $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; index = 1 })) -Context $context | Out-Null
+
+            [string] @($script:image.Operations | Where-Object { $_.Operation -eq 'ApplyImage' })[0].Arguments[0] |
+                Should -BeExactly 'E:\HDTMedia\OperatingSystems\Win11-LTSC-2024\sources\install.wim'
+        }
+
+        It 'does not ask the provider when the step names an image path directly' {
+            # image: on the step is an explicit path for media too large to bring
+            # into the share, and a provider must not second-guess it.
+            $image = New-HDTFakeImageService -Image @{
+                'D:\Captures\surface.ffu' = @([pscustomobject] @{ Index = 1; Name = 'Surface capture'; Edition = 'EnterpriseS'; SizeBytes = 1; Version = '10.0.26100.1742' })
+            }
+            $content = New-HDTFakeContentProvider -Root $script:workspaceRoot
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Image $image -Content $content
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+            $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $variable['HDTOSVolume'] = 'W'
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:workspaceRoot `
+                -Variable $variable -Service $catalog -Log $log
+
+            $result = Invoke-HDTApplyImageStep -Step (& $script:newStep ([ordered] @{ image = 'D:\Captures\surface.ffu'; index = 1 })) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            @($content.Operations).Count | Should -Be 0
+        }
+
+        It 'produces an identical operation list under Local and under Smb' {
+            # DESIGN 6.2's CENTRAL CLAIM, AS AN ASSERTION: "media generation is a
+            # content projection plus a provider swap, not a parallel code path."
+            # The same step, the same os.yaml and the same fake image service run
+            # twice - once over a Local provider rooted at C:\Share, once over an
+            # Smb provider rooted at \\server\Share - and the ordered list of
+            # every service call is compared. The ARGUMENTS differ, because one
+            # path is a UNC; the OPERATIONS must not, because a step that could
+            # tell its transport apart would be the second code path.
+            $run = {
+                param([string] $Root, [object] $Provider)
+
+                $journal = [System.Collections.ArrayList]::new()
+
+                $fileSystem = New-HDTFakeFileSystem -File @{ ($Root + '\OperatingSystems\Win11-LTSC-2024\os.yaml') = $script:catalogYaml } -Journal $journal
+                $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 9, 26, [System.DateTimeKind]::Utc)) -TickMillisecond 500 -Journal $journal
+                $image = New-HDTFakeImageService -Journal $journal
+
+                $content = & $Provider $Root $fileSystem $journal
+
+                $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Image $image -Content $content
+                $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                    -FileSystem $fileSystem -Clock $clock -Level Debug
+
+                $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                $variable['HDTOSVolume'] = 'W'
+
+                $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $Root `
+                    -Variable $variable -Service $catalog -Log $log
+
+                $result = Invoke-HDTApplyImageStep -Step (& $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; index = 1 })) -Context $context
+
+                return [pscustomobject] @{
+                    Status    = $result.Status
+                    Operation = @($journal | ForEach-Object { '{0}.{1}' -f $_.Service, $_.Operation })
+                    Applied   = [string] @($image.Operations | Where-Object { $_.Operation -eq 'ApplyImage' })[0].Arguments[0]
+                }
+            }
+
+            $local = & $run 'C:\Share' {
+                param($Root, $FileSystem, $Journal)
+                New-HDTLocalContentProvider -Root $Root -FileSystem $FileSystem -Journal $Journal
+            }
+
+            $smb = & $run '\\server\Share' {
+                param($Root, $FileSystem, $Journal)
+                New-HDTSmbContentProvider -Root $Root -AllowAnonymous -FileSystem $FileSystem `
+                    -SmbService (New-HDTFakeSmbService) -Journal $Journal
+            }
+
+            $local.Status | Should -BeExactly 'Completed'
+            $smb.Status | Should -BeExactly 'Completed'
+
+            # The operations, in order, across every service.
+            $smb.Operation | Should -Be $local.Operation
+            @($local.Operation) | Should -Contain 'ContentProvider.ResolveContent'
+
+            # And the arguments, which are the half that is allowed to differ.
+            $local.Applied | Should -BeExactly 'C:\Share\OperatingSystems\Win11-LTSC-2024\sources\install.wim'
+            $smb.Applied | Should -BeExactly '\\server\Share\OperatingSystems\Win11-LTSC-2024\sources\install.wim'
+        }
+    }
 }
 
 Describe 'Get-HDTApplyImageStepDescription' {
