@@ -162,8 +162,42 @@ real is touched).
       switch deployed by a sequence run through the engine, booting into Windows 11
 
 **05 — Boot image / ISO / PXE.** `Update-HDTBootImage`, `New-HDTBootIso` with
-`-NoPromptForKey`, build manifest, WDS import, SMB content provider.
-*Exit:* a VM boots the ISO with no keypress; a VM PXE-boots the same image.
+`-NoPromptForKey`, build manifest, WDS import, SMB content provider — **and the
+boot path itself**: `startnet.cmd` plus `Start-HDTDeployment.ps1`, so a machine
+deploys with nobody at the keyboard.
+*Exit:* a VM boots the ISO **HDT built** and deploys Windows 11 with **zero
+keystrokes**; the same image PXE-boots from WDS. (There is no WDS on this host,
+and PROJECT.md forbids standing one up beside `CM01`'s PXE responder — so the WDS
+import is proven against a fake and `New-HDTPxePayload`'s staging completeness is
+demonstrated instead. That gap is stated, not worked around.)
+
+**Plans:** 5 plans in 5 waves (each depends on the ones before it — the pure
+logic before the providers, the providers before the entry point, the entry point
+before the image that carries it, the image before the machine that boots it).
+
+- [ ] `05-01-PLAN.md` — the foundations, none of which mounts anything:
+      `Get-HDTAdkPath` (runtime resolution, refused by name when absent),
+      `workspace.yaml` with its schema and sample, and `Get-HDTBootImageComponent`
+      — SPIKES S1's verified order merged with what the admin declared,
+      dependency-validated, language packs probed rather than assumed
+- [ ] `05-02-PLAN.md` — DESIGN 6's content provider: `Local`, `Smb`, one contract
+      all three implementations satisfy, the refusal to fall back to guest auth,
+      `Set-HDTShareCredential` / `Test-HDTShareAcl`, and **closing the seam 04-02
+      marked at the resolved image path**
+- [ ] `05-03-PLAN.md` — `Start-HDTDeployment.ps1`, **the WinPE entry point**,
+      proven by AST to do nothing a step would do; `bootstrap.json`; and DESIGN
+      4.4.1's `_HDTLogPath` relocation, which phase 04 deferred and which is why
+      WinPE-phase logs currently do not survive the reboot
+- [ ] `05-04-PLAN.md` — `Update-HDTBootImage` and `New-HDTBootIso`: the
+      `IBootImageService` adapter and its fake, the seventeen-step build asserted
+      from a journal, the manifest, SPIKES S2's space-free `-bootdata` staging —
+      then the real ADK run proving **WIM/ISO equivalence by hash** and reading
+      `startnet.cmd` back out of a mounted image
+- [ ] `05-05-PLAN.md` — `Import-HDTBootImageToWds` (replace-in-place),
+      `New-HDTPxePayload`, `DEMO-M4`, and **the exit criterion**: a VM boots HDT's
+      own ISO and deploys with zero keystrokes, proven three ways — the test sends
+      nothing (asserted by parsing it), the guest reports `launchedBy startnet`,
+      and a run that did not start itself would time out rather than pass
 
 **05.5 — Technician UI.** Two WPF surfaces inside WinPE (DESIGN 11): the
 full-screen progress window driven by the JSONL event stream, and the wizard
