@@ -375,8 +375,10 @@ Describe 'ConvertTo-HDTReport' {
         }
 
         It 'writes UTF-8 with no byte order mark' {
-            # Through the REAL adapter, and asserted on the BYTES: a report a
-            # browser renders as 'ï»¿<!DOCTYPE' is a report nobody trusts.
+            # Through the REAL adapter, and asserted on the BYTES: a report whose
+            # first three bytes are 239 187 191 renders in a browser with three
+            # mojibake characters ahead of the doctype, and is a report nobody
+            # trusts.
             $directory = Join-Path -Path $TestDrive -ChildPath 'report'
             $jsonlPath = Join-Path -Path $directory -ChildPath 'HDT.jsonl'
             $htmlPath = Join-Path -Path $directory -ChildPath 'report.html'
