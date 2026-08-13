@@ -31,6 +31,15 @@ class HDTFakeFileSystem {
     # refuses to be written.
     [hashtable] $WriteFailure
 
+    # Path -> the hash GetHash answers with, whatever the content says. THE ONE
+    # FILESYSTEM CONDITION NO AMOUNT OF SEEDED CONTENT CAN EXPRESS: a copy that
+    # landed corrupt. CopyItem copies content exactly - as the real one does when
+    # it works - so "the destination does not hash equal to the source" has to be
+    # stated rather than arranged. New-HDTPxePayload verifies every copy by hash
+    # because a truncated boot.sdi on a TFTP server is a machine that hangs at
+    # boot with no message, and this is what makes that check provable.
+    [hashtable] $HashOverride
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -46,6 +55,7 @@ class HDTFakeFileSystem {
         $this.File = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Directory = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.WriteFailure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.HashOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'FileSystem'
     }
@@ -142,6 +152,14 @@ class HDTFakeFileSystem {
 
     [void] SeedWriteFailure([string] $Path, [string] $Message) {
         $this.WriteFailure[$this.Normalize($Path)] = $Message
+    }
+
+    # THE CORRUPT COPY. See $HashOverride above: the path still holds whatever
+    # content it holds, so every other method behaves normally and only GetHash
+    # disagrees - which is exactly what a truncated or bit-rotted file looks like
+    # to code that verifies by hash.
+    [void] SeedHash([string] $Path, [string] $Hash) {
+        $this.HashOverride[$this.Normalize($Path)] = $Hash
     }
 
     # Checked by WriteAllText and AppendAllText AFTER they record, because the
@@ -302,6 +320,12 @@ class HDTFakeFileSystem {
             throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.", $full)
         }
 
+        # Checked AFTER the existence check: a hash override describes a file
+        # that is there and wrong, not one that is absent.
+        if ($this.HashOverride.ContainsKey($full)) {
+            return [string] $this.HashOverride[$full]
+        }
+
         # Declared before the try: a PowerShell class method refuses to compile a
         # variable it cannot see assigned on every path ("Variable is not
         # assigned in the method"), and an assignment inside a try is not one.
@@ -362,6 +386,15 @@ function New-HDTFakeFileSystem {
             AppendAllText and a CopyItem that names it as the DESTINATION - a
             copy is a write, and DESIGN 4.4.1's log mirror is made of copies.
 
+        .PARAMETER Hash
+            Paths whose GetHash answers with a stated value rather than with the
+            hash of their content. THE CORRUPT COPY, which no amount of seeded
+            content can express: CopyItem copies exactly, so a destination that
+            does not hash equal to its source has to be declared. It is what
+            makes New-HDTPxePayload's "fails rather than warns on a hash
+            mismatch" provable - and a truncated boot.sdi on a TFTP server is a
+            machine that hangs at boot with no message.
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -401,12 +434,21 @@ function New-HDTFakeFileSystem {
         [hashtable] $WriteFailure,
 
         [Parameter()]
+        [hashtable] $Hash,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeFileSystem]::new()
     $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Hash')) {
+        foreach ($key in @($Hash.Keys)) {
+            $fake.SeedHash([string] $key, [string] $Hash[$key])
+        }
+    }
 
     if ($PSBoundParameters.ContainsKey('WriteFailure')) {
         foreach ($key in @($WriteFailure.Keys)) {
@@ -3489,6 +3531,235 @@ function New-HDTFakeSmbService {
     return $fake
 }
 
+class HDTFakeWdsService {
+
+    # The images the server holds. A LIST, NOT A RECORDING - see the factory's
+    # help: "one image, not two" cannot be asserted against a double that only
+    # remembers which calls were made.
+    [System.Collections.ArrayList] $Image
+
+    # Method name -> the message that method throws.
+    [hashtable] $Failure
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeWdsService() {
+        $this.Image = [System.Collections.ArrayList]::new()
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'WdsService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    hidden [void] AssertNoFailure([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SeedImage([object] $Row) {
+        [void] $this.Image.Add([pscustomobject] @{
+                ImageName    = [string] $Row.ImageName
+                Architecture = [string] $Row.Architecture
+                FileName     = [string] $Row.FileName
+                Version      = [string] $Row.Version
+            })
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    # -- IWdsService -------------------------------------------------------
+
+    [object[]] GetBootImage([string] $Architecture) {
+        $this.Record('GetBootImage', @($Architecture))
+        $this.AssertNoFailure('GetBootImage')
+
+        $wanted = $Architecture
+
+        return [object[]] @($this.Image | Where-Object {
+                [string] $_.Architecture -eq $wanted
+            })
+    }
+
+    [void] ImportBootImage([string] $Path, [string] $ImageName, [string] $Architecture) {
+        $this.Record('ImportBootImage', @($Path, $ImageName, $Architecture))
+        $this.AssertNoFailure('ImportBootImage')
+
+        # NO DE-DUPLICATION HERE, DELIBERATELY. Import-WdsBootImage accumulates,
+        # and a fake that quietly replaced would let a command that never called
+        # RemoveBootImage pass the one test ROADMAP M4 names.
+        [void] $this.Image.Add([pscustomobject] @{
+                ImageName    = $ImageName
+                Architecture = $Architecture
+                FileName     = [System.IO.Path]::GetFileName($Path)
+
+                # EMPTY, AND HONESTLY SO: the real Import-WdsBootImage reads the
+                # version out of the WIM's own metadata, and this fake has no WIM
+                # to read. A test that needs a version seeds one.
+                Version      = ''
+            })
+    }
+
+    [void] RemoveBootImage([string] $ImageName, [string] $Architecture) {
+        $this.Record('RemoveBootImage', @($ImageName, $Architecture))
+        $this.AssertNoFailure('RemoveBootImage')
+
+        $wantedName = $ImageName
+        $wantedArchitecture = $Architecture
+
+        $match = @($this.Image | Where-Object {
+                [string] $_.ImageName -eq $wantedName -and [string] $_.Architecture -eq $wantedArchitecture
+            })
+
+        # Remove-WdsBootImage refuses a name that is not there. A fake that
+        # shrugged would let a caller that removed the wrong thing pass.
+        if ($match.Count -eq 0) {
+            throw [System.InvalidOperationException]::new(
+                ("There is no boot image named '{0}' for architecture '{1}' on this server." -f $ImageName, $Architecture))
+        }
+
+        foreach ($row in $match) {
+            $this.Image.Remove($row)
+        }
+    }
+}
+
+function New-HDTFakeWdsService {
+    <#
+        .SYNOPSIS
+            Creates an IWdsService that holds boot images in memory and reaches
+            no server.
+
+        .DESCRIPTION
+            The hand-written double behind Import-HDTBootImageToWds
+            (DESIGN 6.1, DESIGN 12.2.1, DESIGN 12.2.3), and THE ONLY WAY ANYTHING
+            ABOUT WDS IS PROVABLE ON THIS MACHINE.
+
+            There is no WDS on this host - it is Windows 11 Pro, and WDS is a
+            Windows Server role - and standing one up is refused by PROJECT.md's
+            lab safety rules, because CM01 already runs a PXE responder on
+            'Default Switch' and a second one would either break the user's SCCM
+            lab or answer our test VMs and silently invalidate the test. So the
+            real New-HDTWdsService gets no contract row, and this is where
+            replace-in-place is asserted.
+
+            Three methods:
+
+              GetBootImage(architecture)  -> object[] { ImageName, Architecture,
+                                             FileName, Version }
+              ImportBootImage(path, imageName, architecture)
+              RemoveBootImage(imageName, architecture)
+
+            IT IS A STORE, NOT A RECORDER. ImportBootImage adds a row that
+            GetBootImage then answers with, and it does NOT de-duplicate - so
+            "importing the same boot image twice leaves ONE image" is a real
+            assertion about the command rather than about this file. A fake that
+            replaced silently would report green for a command that never removed
+            anything.
+
+            RemoveBootImage THROWS for a name it does not hold, matching
+            Remove-WdsBootImage, and it matches the name case-insensitively as
+            WDS does.
+
+            An imported image's Version is EMPTY: the real cmdlet reads it out of
+            the WIM's own metadata and this fake has no WIM to read. A test that
+            needs a previous version seeds one.
+
+        .PARAMETER Image
+            Boot images the server already holds. Each carries ImageName,
+            Architecture, FileName and Version.
+
+        .PARAMETER Failure
+            Methods that fail. Keys are method names, values are the message the
+            System.InvalidOperationException carries.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeWdsService. Never write the class name as a type literal in a
+            test: it binds to whichever dynamic assembly loaded first and breaks
+            across a module reload. Use this factory.
+
+        .EXAMPLE
+            $wds = New-HDTFakeWdsService -Image @(
+                [pscustomobject] @{ ImageName = 'HDTPE_x64'; Architecture = 'x64'
+                                    FileName = 'HDTPE_x64.wim'; Version = '10.0.26100.1' })
+
+            The server that already has the image, which is the case
+            Import-HDTBootImageToWds has to replace rather than duplicate.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [object[]] $Image,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeWdsService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Image')) {
+        foreach ($row in @($Image)) {
+            $fake.SeedImage($row)
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($operation in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    return $fake
+}
+
 class HDTFakeBootImageService {
 
     # The injected IFileSystem the mount is modelled in. It is a fake talking to
@@ -3914,5 +4185,6 @@ Export-ModuleMember -Function @(
     'New-HDTFakeRandomNumberGenerator',
     'New-HDTFakeRegistryService',
     'New-HDTFakeScriptInvoker',
-    'New-HDTFakeSmbService'
+    'New-HDTFakeSmbService',
+    'New-HDTFakeWdsService'
 )

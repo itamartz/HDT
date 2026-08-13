@@ -25,7 +25,8 @@
         'New-HDTFakeRandomNumberGenerator',
         'New-HDTFakeRegistryService',
         'New-HDTFakeScriptInvoker',
-        'New-HDTFakeSmbService'
+        'New-HDTFakeSmbService',
+        'New-HDTFakeWdsService'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
