@@ -268,6 +268,56 @@ Describe 'Remove-HDTLabVirtualMachine' {
             (Get-Command -Name 'Remove-HDTLabVirtualMachine').Parameters.ContainsKey('WhatIf') | Should -BeTrue
         }
     }
+
+    Context 'what it is allowed to delete' {
+
+        # DURING 04-04 THE CONTENTS OF C:\HDTLab\vms WERE LOST - including
+        # HDT-PE-Test and the SPIKES S7/S8 disk that sat loose at the ROOT of
+        # that folder. The cause was never established: no helper names anything
+        # but the exact VM it was given, and the user was working in the same
+        # lab at the time. What IS established is that the helper's delete was
+        # not narrow enough to make the accident impossible, and these
+        # assertions close that.
+
+        It 'deletes only <vmRoot>\<Name>, never the VM root itself' {
+            $path = Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/tools/Remove-HDTLabVirtualMachine.ps1'
+            $text = Get-Content -LiteralPath $path -Raw
+
+            # A guard on the folder about to be removed, naming the root it may
+            # not be. Without it an empty or odd $Name makes Join-Path yield the
+            # root and Remove-Item -Recurse empties the whole lab.
+            $text | Should -Match 'Assert-HDTLabVmPath'
+        }
+
+        It 'refuses a path that is the VM root' {
+            { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms' -Name 'HDT-M3-Smoke' } | Should -Throw '*C:\HDTLab\vms*'
+        }
+
+        It 'refuses a path outside the VM root' {
+            { Assert-HDTLabVmPath -Path 'C:\HyperVVMs\Something' -Name 'HDT-M3-Smoke' } | Should -Throw '*C:\HDTLab\vms*'
+        }
+
+        It 'refuses a file that sits loose in the VM root rather than in a VM folder' {
+            # HDT-PE-Test-osdisk.vhdx lived exactly there. A disk at the root of
+            # the lab belongs to no HDT-M3 VM and no helper may remove it.
+            { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms\HDT-PE-Test-osdisk.vhdx' -Name 'HDT-M3-Smoke' } |
+                Should -Throw '*HDT-M3-Smoke*'
+        }
+
+        It 'refuses another VM folder' {
+            { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms\HDT-PE-Test' -Name 'HDT-M3-Smoke' } |
+                Should -Throw '*HDT-M3-Smoke*'
+        }
+
+        It 'accepts this VM own folder and the files inside it' {
+            { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms\HDT-M3-Smoke' -Name 'HDT-M3-Smoke' } | Should -Not -Throw
+            { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms\HDT-M3-Smoke\os.vhdx' -Name 'HDT-M3-Smoke' } | Should -Not -Throw
+        }
+
+        It 'names the lab safety rule it is enforcing' {
+            { Assert-HDTLabVmPath -Path 'C:\HDTLab\vms' -Name 'HDT-M3-Smoke' } | Should -Throw '*PROJECT.md*'
+        }
+    }
 }
 
 Describe 'every lab helper' {

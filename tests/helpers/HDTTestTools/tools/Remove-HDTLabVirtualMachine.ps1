@@ -72,7 +72,18 @@ function Remove-HDTLabVirtualMachine {
 
         if (-not $KeepFile) {
             foreach ($path in $attached) {
-                if ($path -like ('{0}\*' -f $vmRoot) -and (Test-Path -LiteralPath $path -PathType Leaf)) {
+                # Assert-HDTLabVmPath, not a -like: a VHDX sitting loose at the
+                # root of C:\HDTLab\vms matches 'C:\HDTLab\vms\*' and belongs to
+                # nobody this helper knows about. SPIKES S7's disk lived exactly
+                # there.
+                try {
+                    Assert-HDTLabVmPath -Path $path -Name $Name
+                } catch {
+                    Write-Warning ("refusing to delete '{0}': {1}" -f $path, $_.Exception.Message)
+                    continue
+                }
+
+                if (Test-Path -LiteralPath $path -PathType Leaf) {
                     Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
                 }
             }
@@ -81,6 +92,14 @@ function Remove-HDTLabVirtualMachine {
 
     if (-not $KeepFile) {
         $vmPath = Join-Path -Path $vmRoot -ChildPath $Name
+
+        # THE GUARD ON THE RECURSIVE DELETE. An empty or odd $Name makes
+        # Join-Path yield the root, and Remove-Item -Recurse -Force on the root
+        # empties the whole lab. During 04-04 the contents of C:\HDTLab\vms were
+        # lost and the cause was never established; this makes that class of
+        # accident impossible from here whatever else is true.
+        Assert-HDTLabVmPath -Path $vmPath -Name $Name
+
         if (Test-Path -LiteralPath $vmPath -PathType Container) {
             Remove-Item -LiteralPath $vmPath -Recurse -Force -ErrorAction SilentlyContinue
         }

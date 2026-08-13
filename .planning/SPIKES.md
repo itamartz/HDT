@@ -616,11 +616,46 @@ Timings for the whole demonstration:
 | WinPE boot + the engine's whole five-step run + shutdown | 273 s wall, of which the engine reported **100 s** |
 | First Windows boot to a settled heartbeat (specialize + oobe) | 265 s |
 
+### S9.13 — the lab damage, reported rather than tidied away ⚠
+
+**`C:\HDTLab\vms` was emptied during 04-04.** Lost: the `HDT-PE-Test` VM,
+`HDT-PE-Test-osdisk.vhdx` (the Windows 11 disk S7 deployed and S8 ran its
+autologon legs against, ~12.6 GB, which sat **loose at the root** of that
+folder), and the leftover `HDT-AutoLogon-Spike` folder.
+
+**`CM01` and `DC01` were never at risk and are untouched.** They are refused by
+name by `Assert-HDTLabVmName`, they are not under `C:\HDTLab\vms`, and both were
+`Off` before and after every run — asserted in `AfterAll` blocks that run on
+failure too. The WinPE media and ISO under `C:\HDTLab\scratch\pe\` survive, so
+the boot vehicle S1/S3 built is intact; what is gone is S7's deployed disk.
+
+**The cause was never established, and it is not honest to claim one.** The
+Hyper-V VMMS log puts the `HDT-PE-Test` deletion at 17:24:06, alongside a
+`build.ps1 -Task e2e` run that failed instantly with every test reporting
+"a setup in some parent block failed" — an error that was not captured before
+the evidence was gone. No lab helper names anything but the exact VM it is
+given; the developer was also working in the same lab in that window.
+
+**What was fixed regardless.** The delete was not narrow enough to make the
+accident *impossible*, and that is a defect in the one piece of code whose whole
+job is to make it impossible. `Assert-HDTLabVmPath` now stands in front of every
+delete a lab helper performs and refuses:
+
+- the VM root itself — `Join-Path 'C:\HDTLab\vms' ''` yields the root, and
+  `Remove-Item -Recurse -Force` on it empties the lab;
+- anything outside the VM root;
+- anything **inside** it that is not this VM's own folder — another VM's folder,
+  or a file sitting loose beside them. `HDT-PE-Test-osdisk.vhdx` was exactly
+  that, and it matched the old `-like 'C:\HDTLab\vms\*'` test.
+
+Seven unit tests, written failing first. A lab that has already lost something
+is the wrong time to argue about whether a guard was necessary.
+
 ### Lab safety
 
 Every Hyper-V call name-filtered and module-qualified. `CM01` and `DC01` were
 recorded before each run and asserted identical after, in `AfterAll` blocks that
 run on failure too — both `Off` and untouched throughout. `HDT-PE-Test` was never
-started. This host's disk 0 was GPT / `IsBoot` True / `IsSystem` True with the
+started - and it was LOST, which S9.13 records rather than tidies away. This host's disk 0 was GPT / `IsBoot` True / `IsSystem` True with the
 same partitions before and after every run; every destructive call in the
 integration suite was asserted to name the scratch disk number and no other.

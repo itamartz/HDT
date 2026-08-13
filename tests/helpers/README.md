@@ -612,6 +612,7 @@ than failing a test.
 | Helper | Does |
 |---|---|
 | `Assert-HDTLabVmName` | the name guard: refuses a wildcard, `CM01`, `DC01`, and anything not `HDT-*` |
+| `Assert-HDTLabVmPath` | the **delete** guard: refuses the VM root itself, anything outside it, and anything in it that is not this VM's own folder |
 | `Assert-HDTLabScratchDisk` | the disk guard: refuses a row that is `IsBoot` or `IsSystem` |
 | `New-HDTLabScratchDisk` / `Remove-HDTLabScratchDisk` | a VHDX under `C:\HDTLab`, created, mounted and destroyed by the test that uses it |
 | `New-HDTLabVirtualMachine` / `Remove-HDTLabVirtualMachine` | a Generation 2 VM on `HDT Lab`, files under `C:\HDTLab\vms` |
@@ -637,6 +638,20 @@ than failing a test.
    remove every test VM at once.
 5. **`HDT Lab` switch only, Generation 2 only, files under `C:\HDTLab\vms`
    only, 8 GB per VM and 12 GB across every running `HDT-*` VM.**
+6. **A delete may only touch `<vmRoot>\<Name>` and what is inside it.**
+   `Assert-HDTLabVmPath` refuses the VM root itself, anything outside it, and
+   anything in it belonging to another VM — including a VHDX sitting loose
+   beside the VM folders, which is exactly where `HDT-PE-Test-osdisk.vhdx`
+   lived.
+
+   **Why it exists.** During 04-04 the contents of `C:\HDTLab\vms` were lost:
+   `HDT-PE-Test`, its SPIKES S7/S8 deployed disk, and a leftover spike folder.
+   The cause was never established — no helper names anything but the exact VM
+   it is given, and the developer was working in the same lab at the time — but
+   the delete was not narrow enough to make the accident *impossible*, and that
+   is a defect in the one piece of code whose whole job is to make it
+   impossible. `CM01` and `DC01` were never at risk: they are refused by name,
+   and they do not live under `C:\HDTLab\vms` at all.
 
 ### Why the guard tests use no `Mock`
 

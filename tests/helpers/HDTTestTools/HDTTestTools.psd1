@@ -13,6 +13,7 @@
     FunctionsToExport    = @(
         'Assert-HDTLabScratchDisk',
         'Assert-HDTLabVmName',
+        'Assert-HDTLabVmPath',
         'Get-HDTAutoLogonArtifact',
         'Get-HDTFunctionNameViolation',
         'Get-HDTLabOfflineComputerName',
