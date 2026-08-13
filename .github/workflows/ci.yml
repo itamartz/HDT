@@ -38,11 +38,21 @@ jobs:
       - name: Install build dependencies
         run: |
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+
+          # Install-PackageProvider -Name NuGet is a Windows PowerShell 5.1
+          # bootstrap. On pwsh 7 (Server 2025 runner) it fails outright with
+          # "No match was found ... for the provider 'NuGet'" -- PowerShell 7
+          # ships PowerShellGet and does not need it. Guard by edition.
+          if ($PSVersionTable.PSEdition -eq 'Desktop') {
+              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+          }
+
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
           Install-Module PSScriptAnalyzer  -RequiredVersion 1.25.0 -Scope CurrentUser -Force
           Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
 
       - name: Build, lint, test, self-check
         run: ./build.ps1 -Task ci
