@@ -1,44 +1,70 @@
 # The IFileSystem contract (PROJECT constraint 4, DESIGN 12.2.1).
 #
-# Every implementation of IFileSystem - the hand-written fake today, a real
-# adapter in a later phase - must pass this file unchanged. Adding an
-# implementation is a one-row change to $script:HDTImplementation below, not a
-# new test file.
+# Every implementation of IFileSystem - the hand-written fake and the real
+# adapter - must pass this file unchanged. Adding an implementation is a one-row
+# change to $script:HDTImplementation below, not a new test file.
 #
 # The registry is built at discovery time, not in BeforeAll: Pester 5 expands
 # -ForEach while discovering, so a BeforeAll would produce zero test cases.
-
+#
 # Each Factory is invoked at run time as & $Factory $repositoryRoot. It is passed
 # the repository root because a discovery-phase variable does not survive into
 # Pester's run phase, so a factory may not close over one; a factory that does not
-# need the root just ignores the argument, as this one does.
+# need the root just ignores the argument, as both of these do.
 #
 # The Skip key and the Context that consumes it are here even though every row
-# runs today, so all five contract files share one shape. The skip goes on a
+# runs today, so all contract files share one shape. The skip goes on a
 # Context INSIDE the Describe, never on the Describe itself: verified against
 # Pester 5.7.1, -Skip: on a -ForEach Describe is bound where Describe is called,
 # before -ForEach binds the row's keys, so $Skip is unset there and every row
 # runs regardless.
+#
+# EXCEPTION ASSERTIONS UNWRAP. Should -Throw -ExceptionType passes against a
+# class-based fake and FAILS against a ScriptMethod-based real adapter, whose
+# exception reaches the caller wrapped in MethodInvocationException. The
+# innermost-exception loop below is a no-op for the fake and unwraps twice for
+# the adapter, so one assertion serves both rows (tests/helpers/README.md 5).
 $script:HDTImplementation = @(
-    @{ Name = 'FakeFileSystem'; Factory = { New-HDTFakeFileSystem }; Skip = $false }
-    # Phase 04 appends:
-    # @{ Name = 'RealFileSystem'; Factory = { New-HDTFileSystem }
-    #    Skip = -not ([System.Environment]::OSVersion.Platform -eq 'Win32NT') }
+    @{
+        Name           = 'FakeFileSystem'
+        Skip           = $false
+        Factory        = { New-HDTFakeFileSystem }
+        JournalFactory = { param($Journal) New-HDTFakeFileSystem -Journal $Journal }
+        OnDisk         = $false
+    }
+    @{
+        Name           = 'FileSystem'
+        Skip           = $false
+        Factory        = { New-HDTFileSystem }
+        JournalFactory = { param($Journal) New-HDTFileSystem -Journal $Journal }
+        OnDisk         = $true
+    }
 )
 
 Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
 
     BeforeAll {
         $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+
+        # A real, empty directory outside the repository. The fake never reaches
+        # it; the real adapter does, and AfterAll takes it away again.
+        $script:contractRoot = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('HDT-fs-contract-' + [guid]::NewGuid().ToString())
+    }
+
+    AfterAll {
+        if (Test-Path -LiteralPath $script:contractRoot) {
+            Remove-Item -LiteralPath $script:contractRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 
     Context 'implementation' -Skip:$Skip {
 
         BeforeEach {
-            # $TestDrive is a real, empty directory, so a real adapter added to the
-            # registry later passes this file without touching anything else.
-            $script:root = Join-Path -Path $TestDrive -ChildPath 'contract'
+            # One fresh directory per test, so a real adapter never sees what a
+            # previous test left behind.
+            $script:root = Join-Path -Path $script:contractRoot -ChildPath ([guid]::NewGuid().ToString())
             $script:fs = & $Factory $script:repoRoot
         }
 
@@ -48,8 +74,8 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             # ScriptMethod members. Do not "tidy" ScriptMethod away.
             $method = @($script:fs | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
-            foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'CreateDirectory',
-                    'RemoveItem', 'CopyItem', 'GetChildItem', 'GetLength')) {
+            foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
+                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetLength')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -88,17 +114,83 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $script:fs.TestPath((Join-Path -Path $script:root -ChildPath 'deep/deeper')) | Should -BeTrue
         }
 
-        It 'throws FileNotFoundException when reading a missing file' {
+        It 'appends to a file that does not exist' {
+            $path = Join-Path -Path $script:root -ChildPath 'appended.jsonl'
+            $script:fs.AppendAllText($path, '{"seq":1}')
+
+            $script:fs.ReadAllText($path) | Should -BeExactly '{"seq":1}'
+        }
+
+        It 'appends to an existing file without truncating it' {
+            $path = Join-Path -Path $script:root -ChildPath 'grows.jsonl'
+            $script:fs.WriteAllText($path, "{`"seq`":1}`n")
+            $script:fs.AppendAllText($path, "{`"seq`":2}`n")
+            $script:fs.AppendAllText($path, "{`"seq`":3}`n")
+
+            $script:fs.ReadAllText($path) | Should -BeExactly "{`"seq`":1}`n{`"seq`":2}`n{`"seq`":3}`n"
+        }
+
+        It 'creates parent directories when appending' {
+            $path = Join-Path -Path $script:root -ChildPath 'Logs/Steps/003-ApplyImage.log'
+            $script:fs.AppendAllText($path, 'x')
+
+            $script:fs.TestPath((Join-Path -Path $script:root -ChildPath 'Logs/Steps')) | Should -BeTrue
+            $script:fs.ReadAllText($path) | Should -BeExactly 'x'
+        }
+
+        It 'writes UTF-8 with no byte order mark' {
+            # Set-Content -Encoding UTF8 emits 239 187 191 under Windows PowerShell
+            # 5.1 and nothing under pwsh 7, so the adapter uses System.IO.File with
+            # an explicit UTF8Encoding($false) instead. An implementation that
+            # really wrote to disk is checked byte for byte; the in-memory fake has
+            # no bytes, so it is checked through its own reader.
+            $path = Join-Path -Path $script:root -ChildPath 'bom.jsonl'
+            $script:fs.WriteAllText($path, '{"a":1}')
+            $script:fs.AppendAllText($path, "`n" + '{"a":2}')
+
+            if ($OnDisk) {
+                Test-Path -LiteralPath $path -PathType Leaf | Should -BeTrue
+                $byte = [System.IO.File]::ReadAllBytes($path)
+            } else {
+                Test-Path -LiteralPath $path | Should -BeFalse
+                $byte = [System.Text.Encoding]::UTF8.GetBytes($script:fs.ReadAllText($path))
+            }
+
+            ($byte[0] -eq 239 -and $byte[1] -eq 187 -and $byte[2] -eq 191) | Should -BeFalse
+            $script:fs.ReadAllText($path) | Should -BeExactly ('{"a":1}' + "`n" + '{"a":2}')
+        }
+
+        It 'round-trips a non-ASCII character' {
+            $path = Join-Path -Path $script:root -ChildPath 'unicode.txt'
+            $text = [string]::Concat('na', [char] 0x00EF, 've ', [char] 0x2014, ' ', [char] 0x2713)
+            $script:fs.WriteAllText($path, $text)
+
+            $script:fs.ReadAllText($path) | Should -BeExactly $text
+        }
+
+        It 'throws FileNotFoundException for a missing file' {
             $path = Join-Path -Path $script:root -ChildPath 'missing.txt'
 
-            { $script:fs.ReadAllText($path) } | Should -Throw -ExceptionType ([System.IO.FileNotFoundException])
+            $record = $null
+            try { $script:fs.ReadAllText($path) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.FileNotFoundException])
         }
 
         It 'throws UnauthorizedAccessException when reading a directory' {
             $path = Join-Path -Path $script:root -ChildPath 'adirectory'
             $script:fs.CreateDirectory($path)
 
-            { $script:fs.ReadAllText($path) } | Should -Throw -ExceptionType ([System.UnauthorizedAccessException])
+            $record = $null
+            try { $script:fs.ReadAllText($path) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.UnauthorizedAccessException])
         }
 
         It 'creates a directory' {
@@ -154,7 +246,13 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
         It 'throws DirectoryNotFoundException when listing a missing directory' {
             $path = Join-Path -Path $script:root -ChildPath 'no-such-directory'
 
-            { $script:fs.GetChildItem($path) } | Should -Throw -ExceptionType ([System.IO.DirectoryNotFoundException])
+            $record = $null
+            try { $script:fs.GetChildItem($path) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.DirectoryNotFoundException])
         }
 
         It 'returns an empty array for an empty directory' {
@@ -162,6 +260,15 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $script:fs.CreateDirectory($path)
 
             @($script:fs.GetChildItem($path)).Count | Should -Be 0
+        }
+
+        It 'returns an array even for a single child' {
+            # A ScriptMethod collapses a single-element array to a scalar unless
+            # the implementation returns it with the unary comma.
+            $path = Join-Path -Path $script:root -ChildPath 'onechild'
+            $script:fs.WriteAllText((Join-Path -Path $path -ChildPath 'only.txt'), 'x')
+
+            $script:fs.GetChildItem($path) -is [System.Array] | Should -BeTrue
         }
 
         It 'copies a file' {
@@ -179,7 +286,13 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $source = Join-Path -Path $script:root -ChildPath 'absent.txt'
             $destination = Join-Path -Path $script:root -ChildPath 'copied.txt'
 
-            { $script:fs.CopyItem($source, $destination) } | Should -Throw -ExceptionType ([System.IO.FileNotFoundException])
+            $record = $null
+            try { $script:fs.CopyItem($source, $destination) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.FileNotFoundException])
         }
 
         It 'removes a file' {
@@ -201,7 +314,13 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $path = Join-Path -Path $script:root -ChildPath 'populated'
             $script:fs.WriteAllText((Join-Path -Path $path -ChildPath 'child.txt'), 'x')
 
-            { $script:fs.RemoveItem($path, $false) } | Should -Throw -ExceptionType ([System.IO.IOException])
+            $record = $null
+            try { $script:fs.RemoveItem($path, $false) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.IOException])
         }
 
         It 'removes a non-empty directory with Recurse' {
@@ -238,5 +357,34 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             @($script:fs.GetChildItem(($path + [System.IO.Path]::DirectorySeparatorChar))).Count | Should -Be 0
         }
 
+        It 'records every operation including reads' {
+            $path = Join-Path -Path $script:root -ChildPath 'recorded.txt'
+            $script:fs.CreateDirectory($script:root)
+            $script:fs.WriteAllText($path, 'x')
+            $script:fs.AppendAllText($path, 'y')
+            $script:fs.TestPath($path) | Out-Null
+            $script:fs.ReadAllText($path) | Out-Null
+            $script:fs.GetLength($path) | Out-Null
+
+            $script:fs.GetOperationName() |
+                Should -Be @('CreateDirectory', 'WriteAllText', 'AppendAllText', 'TestPath', 'ReadAllText', 'GetLength')
+        }
+
+        It 'honours -Journal' {
+            $journal = [System.Collections.ArrayList]::new()
+            $journalled = & $JournalFactory $journal
+            $path = Join-Path -Path $script:root -ChildPath 'journalled.jsonl'
+
+            $journalled.WriteAllText($path, 'x')
+            $journalled.AppendAllText($path, 'y')
+
+            @($journal | ForEach-Object { '{0}.{1}' -f $_.Service, $_.Operation }) |
+                Should -Be @('FileSystem.WriteAllText', 'FileSystem.AppendAllText')
+            @($journal | ForEach-Object { $_.Sequence }) | Should -Be @(1, 2)
+        }
+
+        It 'names itself FileSystem' {
+            $script:fs.ServiceName | Should -BeExactly 'FileSystem'
+        }
     }
 }

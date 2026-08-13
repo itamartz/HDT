@@ -79,6 +79,70 @@ Describe 'New-HDTFakeFileSystem' {
         @($fs.Operations[1].Arguments) | Should -Be @('C:\ws\a.txt', $true)
     }
 
+    Context 'AppendAllText' {
+
+        # Write-HDTLog appends one JSONL record and one CMTrace line per call, so
+        # this is the method the whole of DESIGN 4.4 is written through.
+
+        It 'appends to an existing file' {
+            $fs = New-HDTFakeFileSystem -File @{ 'C:\HDT\Logs\HDT.log' = 'first' }
+            $fs.AppendAllText('C:\HDT\Logs\HDT.log', 'second')
+
+            $fs.ReadAllText('C:\HDT\Logs\HDT.log') | Should -BeExactly 'firstsecond'
+        }
+
+        It 'creates the file when it does not exist' {
+            $fs = New-HDTFakeFileSystem -Directory @('C:\HDT\Logs')
+            $fs.AppendAllText('C:\HDT\Logs\HDT.jsonl', '{"seq":1}')
+
+            $fs.TestPath('C:\HDT\Logs\HDT.jsonl') | Should -BeTrue
+            $fs.ReadAllText('C:\HDT\Logs\HDT.jsonl') | Should -BeExactly '{"seq":1}'
+        }
+
+        It 'creates parent directories' {
+            # [System.IO.File]::AppendAllText creates a missing file but throws for
+            # a missing directory, so the real adapter creates the parent first and
+            # the fake must match it.
+            $fs = New-HDTFakeFileSystem
+            $fs.AppendAllText('C:\HDT\Logs\Steps\003-ApplyImage.log', 'x')
+
+            $fs.TestPath('C:\HDT\Logs') | Should -BeTrue
+            $fs.TestPath('C:\HDT\Logs\Steps') | Should -BeTrue
+        }
+
+        It 'records AppendAllText with the path and content' {
+            $fs = New-HDTFakeFileSystem
+            $fs.AppendAllText('C:\HDT\Logs\HDT.log', 'line')
+
+            $fs.GetOperationName() | Should -Be @('AppendAllText')
+            @($fs.Operations[0].Arguments) | Should -Be @('C:\HDT\Logs\HDT.log', 'line')
+        }
+
+        It 'appends in call order' {
+            $fs = New-HDTFakeFileSystem
+            $fs.AppendAllText('C:\HDT\Logs\HDT.jsonl', "one`n")
+            $fs.AppendAllText('C:\HDT\Logs\HDT.jsonl', "two`n")
+            $fs.AppendAllText('C:\HDT\Logs\HDT.jsonl', "three`n")
+
+            $fs.ReadAllText('C:\HDT\Logs\HDT.jsonl') | Should -BeExactly "one`ntwo`nthree`n"
+        }
+
+        It 'throws UnauthorizedAccessException when the path is a directory' {
+            $fs = New-HDTFakeFileSystem -Directory @('C:\HDT\Logs')
+
+            { $fs.AppendAllText('C:\HDT\Logs', 'x') } | Should -Throw -ExceptionType ([System.UnauthorizedAccessException])
+        }
+
+        It 'never touches the real filesystem' {
+            $fs = New-HDTFakeFileSystem
+            $fs.AppendAllText('C:\HDTLab\does-not-exist\x.jsonl', 'this must stay in memory')
+
+            $fs.TestPath('C:\HDTLab\does-not-exist\x.jsonl') | Should -BeTrue
+            Test-Path -LiteralPath 'C:\HDTLab\does-not-exist\x.jsonl' | Should -BeFalse
+            Test-Path -LiteralPath 'C:\HDTLab\does-not-exist' | Should -BeFalse
+        }
+    }
+
     It 'returns operation names in order from GetOperationName' {
         # DESIGN 12.2.1: "assert the ordered list of operations it would have
         # performed". This is that assertion in miniature, and the template every
