@@ -1,0 +1,7 @@
+schemaVersion: 1
+id: HDT-LAB
+name: HDT lab deployment share
+deployRoot: \HDT-HOST\HdtShare
+bootImage:
+  extraContent:
+    - source: Modules\MyVendorTools

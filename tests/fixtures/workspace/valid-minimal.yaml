@@ -1,0 +1,6 @@
+# The least a workspace can say and still be one: who it is, and where a booted
+# client reaches it. Everything else has a default (DESIGN 2.1).
+schemaVersion: 1
+id: HDT-LAB
+name: HDT lab deployment share
+deployRoot: \HDT-HOST\HdtShare

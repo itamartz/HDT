@@ -1,0 +1,24 @@
+# DESIGN 5.1's bootImage block and DESIGN 6.3's deployRoot/credential pair, in
+# one document. Do not "improve" it: the optional-component list and the
+# extraContent entry are the design's own worked example, and the unit tests
+# read this file to prove the projection carries them through in order.
+schemaVersion: 1
+id: HDT-LAB
+name: HDT lab deployment share
+deployRoot: \HDT-HOST\HdtShare
+logLevel: Info
+credential:
+  username: CONTOSO\svc-hdt-deploy
+bootImage:
+  name: HDTPE_x64
+  architecture: amd64
+  language: en-us
+  scratchSpaceMB: 512
+  optionalComponents:
+    - WinPE-SecureStartup
+    - WinPE-EnhancedStorage
+    - WinPE-WDS-Tools
+  extraContent:
+    - source: Modules\MyVendorTools
+      destination: \HDT\Modules\MyVendorTools
+  drivers: boot-critical

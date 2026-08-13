@@ -1,0 +1,9 @@
+# The third legal deployRoot form, and the only one a Local boot image may
+# carry: the volume is discovered at boot, because WinPE does not guarantee a
+# drive letter (SPIKES S9.1 - the content disk came up C: while the RAM disk
+# was X:). Resolve-HDTDeployRoot (05-03) resolves it inside WinPE; nothing at
+# build time does.
+schemaVersion: 1
+id: HDT-MEDIA
+name: HDT standalone media
+deployRoot: \Share
