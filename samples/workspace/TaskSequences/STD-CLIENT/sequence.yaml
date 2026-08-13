@@ -1,13 +1,15 @@
 # DESIGN 4.1's sequence, as an administrator would actually write it.
 #
-# MOST OF THESE STEP TYPES DO NOT EXIST YET. Validate, DiskPartition, ApplyImage,
-# ApplyDrivers, ApplyUnattend and ConfigureBoot arrive in phase 04; JoinDomain,
-# InstallApplications and WindowsUpdate in phase 07. That is deliberate: this
-# file imports and schema-validates TODAY, and `Test-HDTTaskSequence` reports
-# each missing type as an Error finding - which is the authoring lint doing
-# exactly what it exists to do. Only Restart, PowerShell, CommandLine,
-# SetVariable and NoOp are runnable in M2; see TaskSequences/DEMO-M2 for a
-# sequence that runs end to end today.
+# THREE OF THESE STEP TYPES STILL DO NOT EXIST. ApplyDrivers arrives in M5;
+# InstallApplications and WindowsUpdate in M6; JoinDomain with them. That is
+# deliberate: this file imports and schema-validates TODAY, and
+# `Test-HDTTaskSequence` reports each missing type as an Error finding - which is
+# the authoring lint doing exactly what it exists to do.
+#
+# Validate, DiskPartition, ApplyImage, ApplyUnattend and ConfigureBoot ARE now
+# runnable, alongside Restart, PowerShell, CommandLine, SetVariable and NoOp.
+# See TaskSequences/DEMO-M3 for the WinPE half of a real deployment that runs end
+# to end against fakes, and DEMO-M2 for the sequencing, retry and reboot half.
 #
 # Three corrections against DESIGN 4.1 as printed:
 #

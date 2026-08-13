@@ -10,9 +10,12 @@ parts M1 covers filled in.
 workspace/
   rules.yaml                                                   the rules
   Control/machines/4C4C4544-0031-3610-8052-B7C04F515A31.yaml   a per-machine override
+  OperatingSystems/Win11-LTSC-2024/os.yaml                     the OS catalog entry
   Scripts/Get-ComputerName.ps1                                 a setFrom: extension script
   Scripts/Set-CorpBaseline.ps1                                 a PowerShell step script
-  TaskSequences/DEMO-M2/sequence.yaml                          the runnable demonstration sequence
+  TaskSequences/DEMO-M2/sequence.yaml                          sequencing, retry and reboots
+  TaskSequences/DEMO-M3/sequence.yaml                          the WinPE half of a real deployment
+  TaskSequences/DEMO-M3/unattend.xml                           the unattend it stages
   TaskSequences/STD-CLIENT/sequence.yaml                       the realistic client build
 ```
 
@@ -114,7 +117,7 @@ one entry per variable carrying its source, rule, file, raw value and order.
 
 ## `workspace/TaskSequences/` — the sequence samples
 
-Two sequences, for two different jobs.
+Three sequences, for three different jobs.
 
 ### `DEMO-M2` — the one that runs today
 
@@ -161,6 +164,48 @@ Nothing there touches a machine: the process, power, registry and LSA services
 are all doubles, and the only file that leaves the fake filesystem is the report
 you asked for.
 
+### `DEMO-M3` — the WinPE half of a real deployment
+
+The five imaging step types, in the order SPIKES S6 proved by hand:
+
+```
+Validate -> DiskPartition -> ApplyImage -> ApplyUnattend -> ConfigureBoot
+```
+
+It is the sequence `tests/unit/Imaging.EndToEnd.Tests.ps1` runs, seeded from
+**this file's text**, and it is the same file the lab deploys a VM with — so the
+benchmark, the sample and the real run cannot drift apart.
+
+**There is deliberately no `Restart` step.** The reboot ceremony arms autologon
+through the registry and an LSA secret, and in WinPE those belong to the RAM
+disk, not to the machine being built. The first logon of the deployed machine is
+configured by the unattend (DESIGN §4.5.1), which `ApplyUnattend` stages at
+`W:\Windows\Panther\unattend.xml` — the location SPIKES S7 verified Setup
+consumes. The WinPE → full OS handoff belongs to M4's `Start-HDTDeployment`.
+
+Three details worth copying correctly:
+
+- `minRamMB: 2048`, not 4096. A 4 GB VM reports slightly *under* 4096 MB,
+  because the firmware keeps some of it.
+- `minDiskGB: 60` is what excludes a small content disk from the choice, and
+  therefore what makes the target unambiguous on a two-disk machine. Without it
+  HDT refuses to guess, which is the correct behaviour and not what you wanted.
+- `wipe: true` is the sequence declaring the target's contents expendable.
+  Naming a disk with `diskNumber:` is **not** the same statement, and does not
+  substitute for it.
+
+`%HDTAdminPassword%` in `unattend.xml` is substituted with this run's deployment
+password — minted by the step itself if nothing else made one, so the deployed
+machine never ends up with the literal token as its Administrator password. It
+appears in no log, at any level.
+
+```powershell
+Invoke-Pester ./tests/unit/Imaging.EndToEnd.Tests.ps1 -Output Detailed
+```
+
+That runs the whole leg against doubles in about three seconds and prints the
+exact ordered list of operations it would have performed on a machine.
+
 ### `STD-CLIENT` — the realistic one
 
 DESIGN 4.1's client build, as an administrator would actually write it:
@@ -168,10 +213,11 @@ DESIGN 4.1's client build, as an administrator would actually write it:
 `ConfigureBoot`, `Restart`, then applications, Windows Update and a `PowerShell`
 step.
 
-**Most of those step types do not exist yet** — they arrive in phases 04 to 07 —
-and that is the point of shipping it now: it imports and schema-validates today,
-and `Test-HDTTaskSequence` reports each missing type as an `Error` finding, which
-is the authoring lint doing its job.
+**Three of those step types still do not exist** — `ApplyDrivers` in M5,
+`InstallApplications` and `WindowsUpdate` in M6 — and that is the point of
+shipping it now: it imports and schema-validates today, and
+`Test-HDTTaskSequence` reports each missing type as an `Error` finding, which is
+the authoring lint doing its job.
 
 ```powershell
 $fs = New-HDTFakeFileSystem -File @{

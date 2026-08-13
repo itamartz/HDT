@@ -190,7 +190,21 @@ search-and-replace:
 | `_SMSTSLogPath` | `_HDTLogPath` | `TimeZoneName` | `HDTTimeZoneName` |
 
 HDT-specific additions with no MDT equivalent: `HDTSecureBootEnabled`,
-`HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`.
+`HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`,
+`HDTImageIndex`, `HDTUnattendPath`.
+
+**Published by an imaging step**, rather than gathered or authored — nothing can
+know `HDTOSVolume` before the disk has been partitioned. They are ordinary
+writable `HDT*` names, so a later step or a condition composes on them normally:
+
+| Variable | Set by | Meaning | MDT |
+|---|---|---|---|
+| `HDTTargetDisk` | `DiskPartition` | the disk number that was partitioned | `OSDDiskIndex` |
+| `HDTSystemVolume` | `DiskPartition` | the ESP / System Reserved drive letter | `BootVolume` |
+| `HDTOSVolume` | `DiskPartition` | the Windows drive letter | `OSVolume` |
+| `HDTRecoveryVolume` | `DiskPartition` | the recovery drive letter, or empty | `RecoveryVolume` |
+| `HDTImageIndex` | `ApplyImage` | the index that was applied | — |
+| `HDTUnattendPath` | `ApplyUnattend` | where the unattend was staged | — |
 
 `Get-HDTVariableMap` prints this table at runtime, and a contract test asserts
 every documented MDT name has exactly one HDT counterpart, so the mapping cannot
@@ -1001,23 +1015,122 @@ runIn: FullOS
 
 ### 9.1 Disk layout
 
-Named layouts in `workspace.yaml`, not hardcoded:
+Two named layouts:
 
-- `uefi-standard` — GPT: EFI System 260 MB FAT32, MSR 16 MB, Windows
-  (remainder minus recovery), WinRE recovery 1 GB at the end.
+- `uefi-standard` — GPT: EFI System 260 MB FAT32, Windows (remainder minus
+  recovery), WinRE recovery 1 GB at the end.
 - `bios-standard` — MBR: System Reserved 500 MB active NTFS, Windows remainder.
 
-The engine selects a layout by firmware unless the sequence pins one, and
-**refuses to guess** when the disk is unexpected (multiple disks, existing data
-volumes, USB source disk in range). `DiskPartition` requires either an
-unambiguous target or an explicit `diskNumber`. Wiping the wrong disk is the
-single most destructive failure mode in this class of tool.
+**Neither declares a Microsoft Reserved partition, and that is deliberate.**
+SPIKES S6: `Initialize-Disk -PartitionStyle GPT` creates the 16 MB MSR *itself*.
+PSD's `PSDPartition.ps1` initialises GPT and then creates an MSR by hand a few
+lines later, which is how the spike ended up with a duplicate 16 MB partition.
+HDT carries the 16 MB as an **allowance** (`ReservedSizeByte`), subtracts it from
+the space Windows can have, and creates no partition for it. This section
+previously listed `MSR 16 MB` among the partitions to create; that was the bug.
+
+**The ESP is created as basic data and retyped after formatting.** A partition
+created directly as an EFI System partition cannot readily be given a drive
+letter to format through, so a layout carries both `CreateGptType` (basic data)
+and `GptType` (the ESP type), and `DiskPartition` creates, letters, formats, then
+retypes.
+
+**Layouts live in `Get-HDTDiskLayout`'s built-ins until `workspace.yaml` exists**
+(M4 introduces that document for the boot image). `Get-HDTDiskLayout -Definition`
+is the hook a `diskLayouts:` block will arrive through: a supplied definition
+overrides a built-in of the same name and extends the set otherwise, so nothing
+has to be rewritten when M4 lands. A definition naming the role `Reserved` is
+refused **by name**, so the duplicate-MSR bug cannot re-enter through the one
+door it could.
+
+The engine selects a layout by firmware unless the sequence pins one — and a
+machine whose `HDTIsUEFI` was never gathered resolves to `bios-standard` **with a
+warning**, rather than assuming the modern answer: an MBR disk on UEFI hardware
+fails to boot loudly and immediately, while a GPT disk on a BIOS machine fails
+after the image has been applied, which costs the whole deployment instead of the
+first minute of it.
+
+#### Refusing to guess which disk to wipe
+
+`Select-HDTTargetDisk` evaluates **seven exclusion rules for every disk** and
+records each reason, so a refusal prints the whole table rather than a verdict
+nobody can act on. Wiping the wrong disk is the single most destructive failure
+mode in this class of tool.
+
+| # | Rule | Excludes | Overridable by `diskNumber`? |
+|---|---|---|---|
+| 1 | `IsSystem` or `IsBoot` | the disk this machine runs from | **Never** |
+| 2 | holds a protected drive letter | the disk carrying the workspace or the log | **Never** |
+| 3 | `IsReadOnly` | a disk that cannot be written | **Never** |
+| 4 | `IsOffline` | a disk HDT cannot bring online | **Never** |
+| 5 | existing data | a disk carrying a formatted volume | No — `wipe: true` declares it instead |
+| 6 | `BusType` USB | the stick the technician booted from | Yes, with a warning |
+| 7 | under the minimum size | too small to hold Windows | Yes, with a warning |
+
+Rule 1 is absolute because the alternative — trusting the `diskNumber` an author
+typed — means one wrong number in a YAML file destroys the machine running the
+sequence. Rule 2 is rule 1 for the share: `DiskPartition` always passes the drive
+letters of the workspace root and the log path, unconditionally. Rule 5 is
+overridden by the *sequence* rather than by the number, because naming a disk
+explicitly is not the same statement as declaring its contents expendable.
+
+**No rule filters on bus type expecting a virtual value.** SPIKES S6: a
+Generation 2 VM's own system disk reports `BusType = SAS`, not `SCSI` and not
+`Virtual`. USB is the only bus type that excludes anything.
+
+The `Validate` step runs the same selection with the same arguments, so a
+deployment that is going to refuse refuses in the **first** step, while the
+machine is still intact.
 
 ### 9.2 Apply
 
-`Expand-WindowsImage` for WIM, `DISM /Apply-Ffu` for FFU. Index selectable by
-number, name, or edition. Post-apply: recovery partition setup
-(`reagentc /setosimage`), boot files (`bcdboot`), unattend placement.
+`Expand-WindowsImage` for WIM, `DISM /Apply-Ffu` for FFU.
+
+**Index selection, and its refusal.** Selectable by number, name or edition.
+Each criterion is matched **independently and the results intersected**, which is
+what makes `edition: ServerStandard` with `index: 2` resolve on the real Server
+2025 media where the edition alone is ambiguous. `-Name` is matched **exactly
+before wildcard**, because `Windows Server 2025 Standard` is both an exact name
+and a prefix of another. With nothing asked for: a single-image file resolves to
+that image, then a declared `defaultIndex`, and anything else is an
+`HDTAmbiguousImageError` listing every index and name. **Two images matching one
+request is a refusal, not a coin toss.**
+
+`target: primary` means the `HDTOSVolume` the partition step published. A target
+that resolves to nothing is a failure naming the variable and **never** a guess
+at `C:`.
+
+Post-apply, in this order:
+
+1. **Boot files** — `bcdboot <W>:\Windows /s <S>: /f UEFI|BIOS`. This one
+   failing fails the step: a machine with no boot files does not boot.
+2. **The recovery image** — create `<R>:\Recovery\WindowsRE`, copy
+   `<W>:\Windows\System32\Recovery\Winre.wim` into it, then
+   `<W>:\Windows\System32\Reagentc.exe /setreimage /path <R>:\Recovery\WindowsRE /target <W>:\Windows`.
+
+   **Not `reagentc /setosimage`, which this section used to say.** `reagentc /?`
+   on 24H2 has no `/setosimage` verb at all, and WinPE ships no `reagentc.exe` —
+   so the **applied image's own copy** is what runs (04-01's verified facts). The
+   design loses to the tool. Everything about the recovery image warns and
+   continues rather than failing the deployment: an image with no registered
+   WinRE still boots, and 04-04 is the first thing ever to run that binary
+   against an offline target from inside WinPE.
+3. **The firmware boot order** —
+   `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`. **SPIKES S6's
+   fourth finding, and a deployment is not finished without it:** a machine whose
+   firmware still lists the installation media first simply reboots into WinPE,
+   and the deployment appears to loop while every log says it succeeded. A
+   firmware that refuses warns and continues — the machine is deployed, and the
+   technician needs to be told to remove or demote the media rather than to lose
+   the build.
+4. **Unattend placement** — `<W>:\Windows\Panther\unattend.xml`. That is the
+   location SPIKES S7 verified Setup consumes, and nothing else is verified. Its
+   `oobeSystem` `AutoLogon` block configures the first logon of the deployed
+   machine (§4.5.1); the `%HDTAdminPassword%` token is substituted with the run's
+   deployment password, **minted at this step if nothing else made one** —
+   otherwise a WinPE-half sequence with no `Restart` deploys a machine whose
+   Administrator password is the literal token. Neither the document nor the
+   password is written to any log at any level.
 
 ### 9.3 Capture
 

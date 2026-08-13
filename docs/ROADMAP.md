@@ -130,7 +130,22 @@ volumes present, USB source disk in range) — this is the destructive failure
 mode from DESIGN §9.1 and gets the most tests; index resolution; unattend
 placement. Integration layer: real apply to a scratch VHDX.
 
-**Exit:** a VM boots into Windows from a sequence run end-to-end.
+Each of those bullets, against the file that proves it:
+
+| Tests first | Proven by |
+|---|---|
+| layout planning for UEFI and BIOS, with the recovery partition | `tests/unit/Get-HDTDiskLayout.Tests.ps1`, `tests/unit/New-HDTDiskLayoutPlan.Tests.ps1` — arithmetic asserted to the byte on 64 GiB, 128 GiB and an awkward 32 GB disk |
+| **target-disk ambiguity refusing to proceed** | `tests/unit/Select-HDTTargetDisk.Tests.ps1` (the seven rules, both classes), and `tests/unit/Invoke-HDTDiskPartitionStep.Tests.ps1` — where the assertion that matters is *"writes nothing when it refuses"* |
+| index resolution | `tests/unit/Resolve-HDTImageIndex.Tests.ps1`, `tests/unit/Invoke-HDTApplyImageStep.Tests.ps1` |
+| unattend placement | `tests/unit/Invoke-HDTApplyUnattendStep.Tests.ps1` — `Windows\Panther\unattend.xml` asserted exactly, because that is the path SPIKES S7 verified |
+| the whole WinPE leg, as one ordered operation list | `tests/unit/Imaging.EndToEnd.Tests.ps1` — DESIGN §12.2.1's benchmark for this milestone |
+| real apply to a scratch VHDX | `tests/integration` (04-04) |
+
+**Exit:** a VM boots into Windows from a sequence run end-to-end. **That is
+demonstrated in 04-04, not before it.** Everything above this line is proven
+against hand-written fakes: the ordered operation list is what HDT *would* do to
+a machine, asserted in a Pester run that touches nothing. The lab run is what
+turns it into what HDT *does*.
 
 ---
 
