@@ -3169,6 +3169,276 @@ function New-HDTFakeContentProvider {
     return $fake
 }
 
+class HDTFakeSmbService {
+
+    # Lower-case server name -> the rows GetConnection answers with once a
+    # mapping to that server exists.
+    [hashtable] $Active
+
+    # Lower-case server name -> what a mapping to that server WILL become. This
+    # is how the guest case is staged: seed a row whose UserName is Guest, and
+    # the provider must refuse the connection it just made.
+    [hashtable] $Seeded
+
+    # EnableInsecureGuestLogons, RequireSecuritySignature.
+    [pscustomobject] $ClientConfiguration
+
+    # Method name -> the message that method throws.
+    [hashtable] $Failure
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeSmbService() {
+        $this.Active = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Seeded = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'SmbService'
+        $this.ClientConfiguration = [pscustomobject] @{
+            EnableInsecureGuestLogons = $false
+            RequireSecuritySignature  = $false
+        }
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- path handling -----------------------------------------------------
+
+    hidden [string] ServerOf([string] $RemotePath) {
+        $part = @($RemotePath.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
+        if ($part.Count -eq 0) { return '' }
+
+        return $part[0]
+    }
+
+    hidden [string] ShareOf([string] $RemotePath) {
+        $part = @($RemotePath.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
+        if ($part.Count -lt 2) { return '' }
+
+        return $part[1]
+    }
+
+    hidden [void] AssertNoFailure([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SeedConnection([object] $Row) {
+        $server = [string] $Row.ServerName
+
+        if (-not $this.Seeded.ContainsKey($server)) {
+            $this.Seeded[$server] = [System.Collections.ArrayList]::new()
+        }
+
+        [void] $this.Seeded[$server].Add($Row)
+    }
+
+    [void] SeedClientConfiguration([bool] $EnableInsecureGuestLogons, [bool] $RequireSecuritySignature) {
+        $this.ClientConfiguration = [pscustomobject] @{
+            EnableInsecureGuestLogons = $EnableInsecureGuestLogons
+            RequireSecuritySignature  = $RequireSecuritySignature
+        }
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    # -- ISmbService -------------------------------------------------------
+
+    # THE PASSWORD IS REDACTED IN THE RECORDING, exactly as
+    # ILsaService.SetSecret redacts its value: $Operations is printed verbatim
+    # in a Pester failure message, and the deployment password does not belong
+    # in one.
+    [void] NewMapping([string] $RemotePath, [string] $UserName, [string] $Password) {
+        $this.Record('NewMapping', @($RemotePath, $UserName, '<redacted>'))
+        $this.AssertNoFailure('NewMapping')
+
+        $server = $this.ServerOf($RemotePath)
+
+        if ($this.Seeded.ContainsKey($server)) {
+            $this.Active[$server] = [object[]] @($this.Seeded[$server])
+            return
+        }
+
+        # What a mapping produces on a modern Windows server when nothing said
+        # otherwise: the identity that was asked for, SMB 3.1.1, encrypted.
+        $this.Active[$server] = [object[]] @([pscustomobject] @{
+                ServerName = $server
+                ShareName  = $this.ShareOf($RemotePath)
+                UserName   = $UserName
+                Dialect    = '3.1.1'
+                Encrypted  = $true
+                Signed     = $true
+            })
+    }
+
+    [void] RemoveMapping([string] $RemotePath) {
+        $this.Record('RemoveMapping', @($RemotePath))
+        $this.AssertNoFailure('RemoveMapping')
+
+        $this.Active.Remove($this.ServerOf($RemotePath))
+    }
+
+    [object[]] GetConnection([string] $ServerName) {
+        $this.Record('GetConnection', @($ServerName))
+        $this.AssertNoFailure('GetConnection')
+
+        if (-not $this.Active.ContainsKey($ServerName)) {
+            return [object[]] @()
+        }
+
+        return [object[]] @($this.Active[$ServerName])
+    }
+
+    [object] GetClientConfiguration() {
+        $this.Record('GetClientConfiguration', @())
+        $this.AssertNoFailure('GetClientConfiguration')
+
+        return $this.ClientConfiguration
+    }
+}
+
+function New-HDTFakeSmbService {
+    <#
+        .SYNOPSIS
+            Creates an ISmbService that maps nothing and reaches no share.
+
+        .DESCRIPTION
+            The hand-written double behind New-HDTSmbContentProvider's decisions
+            (DESIGN 6.3, DESIGN 12.2.1, DESIGN 12.2.3). It is what makes "the
+            engine refuses guest fallback" provable on a machine with no server,
+            no domain account and no second machine to authenticate to.
+
+            Four methods:
+
+              NewMapping(remotePath, userName, password)
+              RemoveMapping(remotePath)
+              GetConnection(serverName) -> ServerName, ShareName, UserName,
+                                           Dialect, Encrypted, Signed
+              GetClientConfiguration()  -> EnableInsecureGuestLogons,
+                                           RequireSecuritySignature
+
+            A MAPPING BECOMES A CONNECTION, which is the whole point: the
+            provider maps and then reads the established identity back, and this
+            fake is what that read-back answers. -Connection seeds what the
+            mapping will become; with nothing seeded a mapping produces the
+            identity it was asked for over SMB 3.1.1, encrypted, which is what a
+            modern Windows server does.
+
+            THE PASSWORD IS RECORDED AS '<redacted>' - see
+            tests/helpers/README.md section 4.
+
+        .PARAMETER Connection
+            Rows a mapping to their ServerName will produce. Each carries
+            ServerName, ShareName, UserName, Dialect, Encrypted and Signed.
+
+        .PARAMETER ClientConfiguration
+            EnableInsecureGuestLogons and RequireSecuritySignature. Both default
+            to $false.
+
+        .PARAMETER Failure
+            Methods that fail. Keys are method names, values are the message the
+            System.InvalidOperationException carries - the type the real adapter
+            throws when an SmbShare cmdlet fails.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeSmbService. Never write the class name as a type literal in a
+            test: it binds to whichever dynamic assembly loaded first and breaks
+            across a module reload. Use this factory.
+
+        .EXAMPLE
+            $smb = New-HDTFakeSmbService -Connection @(
+                [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'HdtShare'
+                                    UserName = 'hdtserver\Guest'; Dialect = '3.1.1'
+                                    Encrypted = $false; Signed = $true })
+
+            The guest connection DESIGN 6.3 says HDT must refuse.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [object[]] $Connection,
+
+        [Parameter()]
+        [hashtable] $ClientConfiguration,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeSmbService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Connection')) {
+        foreach ($row in @($Connection)) {
+            $fake.SeedConnection($row)
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('ClientConfiguration')) {
+        $guest = $false
+        $signature = $false
+        if ($ClientConfiguration.ContainsKey('EnableInsecureGuestLogons')) { $guest = [bool] $ClientConfiguration['EnableInsecureGuestLogons'] }
+        if ($ClientConfiguration.ContainsKey('RequireSecuritySignature')) { $signature = [bool] $ClientConfiguration['RequireSecuritySignature'] }
+
+        $fake.SeedClientConfiguration($guest, $signature)
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($operation in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    return $fake
+}
+
 Export-ModuleMember -Function @(
     'New-HDTFakeCimProvider',
     'New-HDTFakeClock',
@@ -3182,5 +3452,6 @@ Export-ModuleMember -Function @(
     'New-HDTFakeProcessService',
     'New-HDTFakeRandomNumberGenerator',
     'New-HDTFakeRegistryService',
-    'New-HDTFakeScriptInvoker'
+    'New-HDTFakeScriptInvoker',
+    'New-HDTFakeSmbService'
 )
