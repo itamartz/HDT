@@ -170,9 +170,14 @@ Describe 'IImageService applying Windows 11 for real' -Tag 'Slow' -Skip:$skipSlo
         }
 
         It 'used a realistic amount of the volume' {
+            # MEASURED, NOT GUESSED (04-04): Windows 11 Enterprise LTSC 2024
+            # index 1 expands to 10047967232 bytes - 9.36 GiB, under the 10 GiB
+            # the first draft of this assertion assumed. 8 GiB is the floor that
+            # says "an image was applied" without pretending to know the build's
+            # size to the byte.
             $volume = Get-Volume -DriveLetter 'W'
 
-            ($volume.Size - $volume.SizeRemaining) | Should -BeGreaterThan 10737418240
+            ($volume.Size - $volume.SizeRemaining) | Should -BeGreaterThan 8589934592
         }
     }
 
@@ -204,32 +209,77 @@ Describe 'IImageService applying Windows 11 for real' -Tag 'Slow' -Skip:$skipSlo
 
     Context 'the recovery image' {
 
-        It 'registers a recovery image' {
-            # Reagentc.exe comes from the APPLIED IMAGE, by full path: WinPE has
-            # none and there is no WinPE-Recovery optional component (04-01).
-            $recoveryDirectory = 'R:\Recovery\WindowsRE'
-            New-Item -Path $recoveryDirectory -ItemType Directory -Force | Out-Null
-            Copy-Item -LiteralPath 'W:\Windows\System32\Recovery\Winre.wim' -Destination $recoveryDirectory -Force
+        # THE FINDING THIS CONTEXT EXISTS TO RECORD (04-04, SPIKES S9).
+        #
+        # reagentc /setreimage against an OFFLINE applied image exits 0 and
+        # prints "Operation Successful", and then /info on the same target
+        # reports
+        #
+        #     Windows RE status:       Disabled
+        #     Recovery image location:
+        #     Custom image location:
+        #
+        # It does not refuse. It reports success and registers nothing
+        # observable. So SetRecoveryImage cannot be asserted by its exit code -
+        # an exit code is exactly what the adapter checks, and it is exactly
+        # what is misleading here.
+        #
+        # What this means for HDT: the recovery registration ConfigureBoot
+        # performs is NOT what makes WinRE work on the deployed machine. Windows
+        # Setup enables WinRE itself during specialize/oobe, from the
+        # Winre.wim the apply left in Windows\System32\Recovery. That is why
+        # 04-03 wrote ConfigureBoot's recovery leg to warn and continue, and it
+        # is why a green run of this file does not prove WinRE was configured.
+        #
+        # The assertion is therefore about what CAN be observed - the call is
+        # made, it does not throw, and the recovery partition holds the image -
+        # and the misleading part is written down rather than asserted away.
 
-            $record = $null
+        BeforeAll {
+            $script:recoveryDirectory = 'R:\Recovery\WindowsRE'
+            New-Item -Path $script:recoveryDirectory -ItemType Directory -Force | Out-Null
+            Copy-Item -LiteralPath 'W:\Windows\System32\Recovery\Winre.wim' `
+                -Destination $script:recoveryDirectory -Force
+
+            $script:recoveryError = $null
             try {
-                $script:image.SetRecoveryImage('W:\', $recoveryDirectory)
+                # Reagentc.exe comes from the APPLIED IMAGE, by full path: WinPE
+                # has none and there is no WinPE-Recovery optional component.
+                $script:image.SetRecoveryImage('W:\', $script:recoveryDirectory)
             } catch {
-                $record = $_
+                $script:recoveryError = $_
             }
 
-            if ($null -ne $record) {
-                # IF REAGENTC REFUSES AN OFFLINE TARGET FROM THIS HOST, THAT IS A
-                # FINDING, NOT A REASON TO DELETE THE ASSERTION. It goes into
-                # SPIKES.md and into the summary, and the warn-and-continue path
-                # 04-03 wrote in ConfigureBoot becomes the one that matters.
-                Set-ItResult -Skipped -Because ("reagentc refused the offline target: {0}" -f [string] $record.Exception.Message)
-                return
+            $script:recoveryInfo = ''
+            try {
+                $script:recoveryInfo = (@(& 'W:\Windows\System32\Reagentc.exe' '/info' '/target' 'W:\Windows' 2>&1) -join "`n")
+            } catch {
+                $script:recoveryInfo = [string] $_.Exception.Message
             }
 
-            $info = @(& 'W:\Windows\System32\Reagentc.exe' '/info' '/target' 'W:\Windows' 2>&1)
+            Write-Information ("reagentc /info after /setreimage:`n{0}" -f $script:recoveryInfo) -InformationAction Continue
+        }
 
-            ($info -join "`n") | Should -BeLike '*WindowsRE*'
+        It 'runs the applied image own reagentc without refusing the offline target' {
+            $script:recoveryError | Should -BeNullOrEmpty -Because (
+                'a refusal would be a finding for SPIKES.md, not a reason to delete this: ' +
+                [string] $script:recoveryError)
+        }
+
+        It 'reports Operation Successful' {
+            $script:recoveryInfo | Should -BeLike '*Operation Successful*'
+        }
+
+        It 'leaves the recovery image on the recovery partition' {
+            Test-Path -LiteralPath (Join-Path -Path $script:recoveryDirectory -ChildPath 'Winre.wim') |
+                Should -BeTrue
+        }
+
+        It 'does NOT actually enable WinRE on the offline image' {
+            # Recorded as an assertion so that the day this changes - a newer
+            # reagentc, a different image - somebody is told, rather than the
+            # phase quietly carrying a belief nobody has rechecked.
+            $script:recoveryInfo | Should -BeLike '*Windows RE status:*Disabled*'
         }
     }
 
