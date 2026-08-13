@@ -575,7 +575,7 @@ document and the engine disagree about is not controlled:
 | `native.exec` | an external command line was run |
 | `reboot.arm` | autologon was armed before a restart (§4.5) |
 | `reboot.resume` | the boot reconcile resumed a run |
-| `reboot.teardown` | the §4.5.3 teardown checklist ran |
+| `reboot.teardown` | the §4.5.4 teardown checklist ran |
 | `message` | the default: any `Write-HDTLog` call that names no event, which is every custom step's log line under §4.4.4 |
 
 `data` carries step-specific detail without polluting the top level.
@@ -709,7 +709,7 @@ The credential is the cheaper problem to solve.
    `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`.
 
    The engine arms this **when it needs a reboot**, not proactively. The
-   unattend's 999 covers everything until then, and teardown (§4.5.3) disarms
+   unattend's 999 covers everything until then, and teardown (§4.5.4) disarms
    the lot at the end.
 
    **Deliberately not doing more.** An earlier draft had the engine re-arm on
@@ -808,7 +808,56 @@ These are the reasons to reimplement rather than copy:
   clears autologon, the LSA secret, the `RunOnce` entry, and `C:\HDT\state.json`
   before doing anything else. `AutoLogonCount` is the third backstop behind both.
 
-#### 4.5.3 Teardown checklist
+#### 4.5.3 Autologon identity across a domain join
+
+A sequence that joins a domain raises a question the mechanism above does not
+answer on its own: after the join, **who does the machine log on as** for the
+remaining legs?
+
+**Default: the local Administrator, unchanged.** `DefaultDomainName` stays `.`
+— the local machine — exactly as MDT's unattend template does
+(`<AutoLogon><Domain>.</Domain>`). Domain credentials
+(`HDTDomainAdmin`, `HDTDomainAdminDomain`, `HDTDomainAdminPassword`) are used
+**for the join operation and nothing else**. They are never written to Winlogon
+and never stored as the autologon secret.
+
+That separation is the point. A domain account used for autologon has its
+password sitting in the LSA secret of every machine being built, on the bench,
+often on a VLAN with weak physical control — and if that account is the one with
+rights to join machines to the domain, recovering it is a privilege escalation
+across the whole estate. The join needs those rights for a few seconds; the
+autologon does not need them at all.
+
+**The option, for fleets that need it:**
+
+```yaml
+autoLogon:
+  account: local          # local (default) | domain
+  # when account: domain
+  domain: CONTOSO
+  user: svc-hdt-build     # NOT the domain-join account
+```
+
+When `account: domain`, the engine rewrites `DefaultDomainName` and
+`DefaultUserName` **after** the `JoinDomain` step succeeds and before the next
+`Restart` — the values are meaningless until the machine is actually a member,
+so writing them earlier would strand the deployment at a logon prompt it cannot
+satisfy. Validation refuses `account: domain` in a sequence with no `JoinDomain`
+step, for the same reason.
+
+If it is used, it should name a **dedicated low-privilege build account**, not
+the join account and not a domain admin. HDT warns when the autologon user and
+the domain-join user are the same.
+
+**A failure mode worth naming, because it is silent.** After a domain join,
+Group Policy may disable the built-in Administrator or deny it interactive
+logon. Autologon then fails and the machine sits at a logon screen with the
+sequence unfinished — no error, the same indefinite stall as an exhausted
+`LogonCount`. Fleets whose policy does that are the reason `account: domain`
+exists. HDT cannot detect the policy before it applies, so this is documented
+rather than guarded.
+
+#### 4.5.4 Teardown checklist
 
 At sequence end — success or failure — the engine clears: `AutoAdminLogon`,
 `DefaultUserName`, `DefaultDomainName`, `DefaultPassword` (registry *and* LSA
@@ -1482,7 +1531,7 @@ deployment goes straight to the progress window.
 | Credentials | Share credentials, when not embedded (§6.3) | `HDTSkipCredentials` | `SkipBDDWelcome` in part |
 | Applications | Which apps to install | `HDTSkipApplications` | `SkipApplications` |
 | Locale and time | `HDTTimeZoneName`, locale | `HDTSkipTimeZone`, `HDTSkipLocaleSelection` | same names |
-| Admin password | The local Administrator password policy (§10.3, §4.5.3) | `HDTSkipAdminPassword` | `SkipAdminPassword` |
+| Admin password | The local Administrator password policy (§10.3, §4.5.4) | `HDTSkipAdminPassword` | `SkipAdminPassword` |
 | Summary | Confirm before anything destructive | `HDTSkipSummary` | `SkipSummary` |
 
 `HDTSkipWizard: true` skips all pages at once — the unattended case.

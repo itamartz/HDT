@@ -118,7 +118,7 @@ later phase plugs into — so it is split by subsystem rather than compressed.
       `NoOp`, `SetVariable`, `PowerShell`, `CommandLine`, `Restart`
 - [x] `03-03-PLAN.md` — the autologon lifecycle: the `IRegistryService` write half,
       `ILsaService`, the per-deployment password, arming bounded by `AutoLogonCount`,
-      the DESIGN 4.5.3 teardown checklist, the boot-time reconcile, and the S8 spike
+      the DESIGN 4.5.4 teardown checklist, the boot-time reconcile, and the S8 spike
       settling the `AutoLogonCount` decrement
 - [x] `03-04-PLAN.md` — the execution loop: ordering, `runIn`, conditions,
       `continueOnError`, retry with backoff, timeout, checkpointing,
@@ -152,7 +152,7 @@ because a Restart step never logs a `step.complete`; and `-Timestamp` threw unde
 
 What M2 does **not** cover, recorded here so a later phase picks it up:
 
-- **The final Administrator password policy** (DESIGN 4.5.3's last item) is M6.
+- **The final Administrator password policy** (DESIGN 4.5.4's last item) is M6.
   A machine HDT builds is left holding the per-deployment secret, which is safe —
   the state document that knew it is gone — but not finished.
 - **`timeoutMinutes` is not pre-emptive** and **`PauseOnError` does not prompt**;
