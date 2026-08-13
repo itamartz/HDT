@@ -703,6 +703,37 @@ than no guard.
 Both E2E files now recompute the condition inside `BeforeAll`, which is the
 pattern the integration files already used for the drive-letter check.
 
+#### S9.15b — the same trap defeats an anti-vacuity guard, silently
+
+A third instance, in `tests/contract/ProtectedPath.Contract.Tests.ps1`: the file
+list was built in `BeforeDiscovery` and read from an `It` body. The file carried
+the standard anti-vacuity guard —
+
+```powershell
+@($script:scanFile).Count | Should -BeGreaterThan 0 -Because 'a contract that scans nothing proves nothing'
+```
+
+— and **it passed while scanning zero files**, because `@($null).Count` is `1`.
+So the guard written specifically to prove the contract was not decoration was
+itself satisfied by nothing at all, and the contract reported green having
+examined no files.
+
+Two lessons, and the second is the one that cost the time:
+
+1. `@($null).Count -gt 0` is **not** an emptiness check. Assert on something that
+   cannot be fabricated by coercion — a count against a known floor
+   (`-BeGreaterThan 200` for a repo-wide scan), or the presence of a file you
+   know is in the set.
+2. It was "verified" with a bare `Invoke-Pester`, which has no StrictMode, so
+   the throw never happened and 4/4 green looked like proof. **S9.14 already
+   said to run through `./build.ps1`.** Written down, then not applied — twice
+   now. If a test is a safety guard, the only run that counts is the one through
+   the real entry point, and the only proof that counts is watching it fail on a
+   planted violation.
+
+Corrected version: file list in `BeforeAll`, 287 files scanned, and a planted
+`Remove-Item -Path "C:\HDTLab\media" -Recurse` in `src/` turns it red.
+
 
 ### Lab safety
 
