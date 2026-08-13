@@ -383,6 +383,62 @@ Describe 'New-HDTFakeDiskService' {
         }
     }
 
+    Context 'seeded failures' {
+
+        # A step's failure path is only provable if the service it depends on
+        # can be told to fail, and this one cannot be made to fail by accident:
+        # ClearDisk leaves the disk RAW, so every later call finds exactly the
+        # state it wanted. The same -Failure shape New-HDTFakeImageService
+        # carries, for the same reason and with the same exception type - what
+        # the real adapter throws when a Storage cmdlet fails.
+
+        It 'throws the seeded failure from InitializeDisk' {
+            $service = New-HDTFakeDiskService -Disk @(& $script:NewRawDisk) `
+                -Failure @{ InitializeDisk = 'The device is not ready for use.' }
+
+            { $service.InitializeDisk(0, 'GPT') } | Should -Throw -ExpectedMessage '*not ready*'
+        }
+
+        It 'records the call before it throws' {
+            # The attempt is evidence about what the code under test tried.
+            $service = New-HDTFakeDiskService -Disk @(& $script:NewRawDisk) -Failure @{ ClearDisk = 'boom' }
+
+            try { $service.ClearDisk(0) } catch { $null = $_ }
+
+            @($service.GetOperationName()) | Should -Be @('ClearDisk')
+        }
+
+        It 'throws the seeded failure from <_>' -ForEach @(
+            'ClearDisk', 'NewPartition', 'SetPartitionDriveLetter', 'SetPartitionType', 'FormatVolume') {
+
+            $operation = $_
+            $service = New-HDTFakeDiskService -Disk @(& $script:NewRawDisk) -Failure @{ $operation = 'boom' }
+            $service.InitializeDisk(0, 'GPT')
+
+            $call = @{
+                ClearDisk               = { $service.ClearDisk(0) }
+                NewPartition            = { $service.NewPartition(0, 100, $false, '', $false) }
+                SetPartitionDriveLetter = { $service.SetPartitionDriveLetter(0, 1, 'S') }
+                SetPartitionType        = { $service.SetPartitionType(0, 1, '{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}') }
+                FormatVolume            = { $service.FormatVolume('S', 'FAT32', 'System') }
+            }
+
+            $call[$operation] | Should -Throw -ExpectedMessage '*boom*'
+        }
+
+        It 'leaves an unseeded method working' {
+            $service = New-HDTFakeDiskService -Disk @(& $script:NewRawDisk) -Failure @{ ClearDisk = 'boom' }
+
+            { $service.InitializeDisk(0, 'GPT') } | Should -Not -Throw
+        }
+
+        It 'leaves the read-only three working' {
+            $service = New-HDTFakeDiskService -Disk @(& $script:NewRawDisk) -Failure @{ ClearDisk = 'boom' }
+
+            @($service.GetDisk()).Count | Should -Be 1
+        }
+    }
+
     Context 'journal' {
 
         It 'records into a shared journal as DiskService' {
