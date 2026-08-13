@@ -83,13 +83,21 @@ Describe 'the step contract' {
             $fileSystem = New-HDTFakeFileSystem
             $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, [System.DateTimeKind]::Utc))
 
+            # AN EMPTY FAKE DISK SERVICE IS THE RIGHT THING TO HAND A MINIMAL
+            # STEP. A machine that reports no disk at all is a REFUSAL - a Failed
+            # result naming the missing storage driver - not an exception, so the
+            # imaging steps satisfy the closed-set contract on it. Handing them a
+            # catalog with no disk service would prove only that they cope with a
+            # misconfigured catalog, which is not the case the contract is about.
             $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
                 -Registry (New-HDTFakeRegistryService) `
                 -Process (New-HDTFakeProcessService) `
                 -Power (New-HDTFakePowerService) `
                 -ScriptInvoker (New-HDTFakeScriptInvoker) `
                 -Cim (New-HDTFakeCimProvider) `
-                -Environment (New-HDTFakeEnvironmentProvider)
+                -Environment (New-HDTFakeEnvironmentProvider) `
+                -Disk (New-HDTFakeDiskService) `
+                -Image (New-HDTFakeImageService)
 
             $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
                 -FileSystem $fileSystem -Clock $clock
@@ -192,7 +200,15 @@ Describe 'the step contract' {
 
     Context 'the registry itself' {
 
-        It 'discovered <_>' -ForEach @('NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart') {
+        # THE ONE ASSERTION IN THIS FILE THAT IS NOT AN ENUMERATION, and it is
+        # hand-maintained on purpose: everything above holds whatever
+        # Get-HDTStepType happens to return, so a type that quietly stopped being
+        # discovered would take its own tests with it and nothing would go red.
+        # This list is what notices.
+        It 'discovered <_>' -ForEach @(
+            'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
+            'Validate', 'DiskPartition') {
+
             @(Get-HDTStepType -Name $_).Count | Should -Be 1
         }
     }
