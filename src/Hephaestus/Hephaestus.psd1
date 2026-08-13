@@ -24,6 +24,7 @@
         'Get-HDTVariableProvenance',
         'Import-HDTRuleDocument',
         'Import-HDTRunState',
+        'Import-HDTSequenceDocument',
         'New-HDTCimProvider',
         'New-HDTClock',
         'New-HDTEnvironmentProvider',
