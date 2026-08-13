@@ -19,6 +19,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `image/` | Captured `Get-WindowsImage` output for both staged media trees, one file per WIM | captured |
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
 | `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
+| `os/` | `os.yaml` documents, three that must load and eleven that must be rejected (DESIGN 2.1, 9.2) | authored, see below |
 | `naming/` | Source that breaks — and source that keeps — the `Verb-HDTNoun` rule (DESIGN 15.1), plus a class fixture proving class members are not commands | deliberately invalid |
 | `compat/` | One file per PowerShell 7-only construct the 5.1 compatibility scanner must reject, plus a clean 5.1 control | deliberately invalid |
 | `mdt/` | Source carrying banned MDT dependencies, plus an MDT-free control | deliberately invalid |
@@ -281,6 +282,49 @@ the single `invalid-` file the schema *accepts*. The engine rejects it. The
 contract test carries it in an explicit blind-spot list and asserts both halves,
 so if the schema ever gains the ability the test goes red and the file must be
 moved out of the list rather than quietly forgotten.
+
+## Operating system fixtures
+
+`os/` is the test data for the operating system catalog: `os.yaml` documents read
+by `Assert-HDTOperatingSystemDocument`, `Get-HDTOperatingSystem` and
+`tests/contract/OsSchema.Contract.Tests.ps1`. Like `rules/` they are **authored,
+not captured** — an `os.yaml` is something `Import-HDTOperatingSystem` writes or
+an administrator edits — but the two indices in `valid-win11-ltsc.yaml` are
+copied from the real capture in `image/win11-ltsc-2024-install.json` rather than
+invented, so the fixture and the media agree.
+
+The prefix contract is the same as `rules/`: `valid-` parses and passes both
+validators, `invalid-` parses and fails the engine, `unparseable-` does not parse.
+
+| File | The one mistake |
+|---|---|
+| `invalid-missing-schemaversion.yaml` | no `schemaVersion` |
+| `invalid-missing-id.yaml` | no `id` |
+| `invalid-missing-name.yaml` | no `name` |
+| `invalid-bad-type.yaml` | `type: iso`, and there is no third apply path |
+| `invalid-bad-architecture.yaml` | `architecture: ia64` |
+| `invalid-empty-images.yaml` | `images: []` |
+| `invalid-bad-index.yaml` | `index: 0` — WIM indices are 1-based |
+| `invalid-unknown-key.yaml` | `priority: 1`, the same INI habit `rules/` rejects |
+| `invalid-duplicate-index.yaml` | two **identical** images at index 1 |
+| `invalid-duplicate-index-distinct.yaml` | two **differing** images at index 1 |
+| `invalid-default-index-absent.yaml` | `defaultIndex: 7`, which no image carries |
+| `unparseable-indentation.yaml` | `name:` over-indented under `- index:` |
+
+**Two schema blind spots, stated rather than hidden**, and both listed in
+`$script:HDTSchemaBlindSpot` in the contract file:
+
+- `invalid-default-index-absent.yaml` — draft-07 has no cross-field reference, so
+  it cannot check `defaultIndex` against the `images` array.
+- `invalid-duplicate-index-distinct.yaml` — `uniqueItems` compares **whole
+  items**, so it cannot express "no two images share an index" when the entries
+  differ elsewhere. `invalid-duplicate-index.yaml` exists alongside it precisely
+  to show where the schema *does* reach: its two entries are identical, so
+  `uniqueItems` catches them.
+
+The engine rejects all three. If a future schema gains either ability, the
+blind-spot test goes red and the file must be moved out of the list rather than
+quietly forgotten.
 
 ## Derived fixtures
 

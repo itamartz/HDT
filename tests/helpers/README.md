@@ -138,7 +138,18 @@ rejection window is discarded, not folded" testable at all.
 
 `IFileSystem` is nine methods: `TestPath`, `ReadAllText`, `WriteAllText`,
 `AppendAllText`, `CreateDirectory`, `RemoveItem`, `CopyItem`, `GetChildItem`,
-`GetLength`. `IClock` is two: `GetUtcNow`, `Sleep`. `Sleep` is on the interface
+`GetLength`.
+
+**There is no `TestDirectory`, and `GetLength` is how a directory is told from a
+file.** `TestPath` answers for both, and `GetChildItem` returns an empty array
+for an empty directory, so neither distinguishes one. Both implementations throw
+`System.IO.FileNotFoundException` for a path that is not a file — the real
+adapter because `[System.IO.File]::Exists` is false for a directory, the fake
+because its `File` dictionary has no such key — and that parity is what makes
+`Copy-HDTContentTree` (04-02) classify a child the same way against either
+implementation. Widening a nine-method interface in order to copy a tree would
+have been the larger change; if a later phase needs the distinction on its own,
+that is the moment to add the method, not before. `IClock` is two: `GetUtcNow`, `Sleep`. `Sleep` is on the interface
 so retry backoff is provable without a test that waits — the fake advances its
 own clock and returns immediately.
 

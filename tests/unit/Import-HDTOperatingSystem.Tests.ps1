@@ -94,7 +94,10 @@ Describe 'Import-HDTOperatingSystem' {
 
     Context 'writing the catalog' {
 
-        It 'writes os.yaml under OperatingSystems\<id>' {
+        # The name carries no angle brackets: Pester expands <name> in an It
+        # title as a data variable, and 'OperatingSystems\<id>' made the whole
+        # test fail with "the variable $id has not been set".
+        It 'writes os.yaml under the OperatingSystems folder for the id' {
             $null = Import-HDTOperatingSystem -WorkspaceRoot $script:workspaceRoot -Id 'Win11-LTSC-2024' `
                 -SourcePath $script:sourcePath -FileSystem $script:fileSystem `
                 -ImageService $script:imageService -Clock $script:clock
