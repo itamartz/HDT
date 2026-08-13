@@ -52,6 +52,7 @@
         'New-HDTEnvironmentProvider',
         'New-HDTExecutionContext',
         'New-HDTFileSystem',
+        'New-HDTImageService',
         'New-HDTLogContext',
         'New-HDTLsaService',
         'New-HDTPowerService',
