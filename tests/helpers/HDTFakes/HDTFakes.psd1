@@ -15,6 +15,8 @@
         'New-HDTFakeClock',
         'New-HDTFakeEnvironmentProvider',
         'New-HDTFakeFileSystem',
+        'New-HDTFakePowerService',
+        'New-HDTFakeProcessService',
         'New-HDTFakeRegistryService',
         'New-HDTFakeScriptInvoker'
     )

@@ -35,6 +35,8 @@
         'New-HDTExecutionContext',
         'New-HDTFileSystem',
         'New-HDTLogContext',
+        'New-HDTPowerService',
+        'New-HDTProcessService',
         'New-HDTRegistryService',
         'New-HDTRunState',
         'New-HDTScriptInvoker',

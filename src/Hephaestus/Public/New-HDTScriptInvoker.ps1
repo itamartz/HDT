@@ -11,11 +11,22 @@ function New-HDTScriptInvoker {
             the variable set. PROJECT constraint 4 keeps that behind an interface
             so the rule engine can be proven without executing anything.
 
-            The script is invoked as & $script -Variable $Variable and its LAST
-            output object is returned, so a script that traces to the output
-            stream by accident does not corrupt the variable set. A script that
-            emits nothing yields $null, which is a different fact from a script
-            that does not exist.
+            The script is invoked as & $script -Variable $Variable *>&1, and the
+            LAST item that is NOT a stream record is returned, so a script that
+            traces to the output stream by accident does not corrupt the variable
+            set. A script that emits nothing yields $null, which is a different
+            fact from a script that does not exist.
+
+            EVERYTHING IT WROTE IS KEPT, and GetTranscript() returns it - the
+            captured output of the LAST Invoke, replaced on the next one. That is
+            DESIGN 4.4.4's hard requirement: "an existing script that only uses
+            Write-Host still lands in the log without modification, since real
+            fleets carry years of such scripts". Telling a transcript line from a
+            result is a type test, not a guess: an InformationRecord, ErrorRecord,
+            WarningRecord, VerboseRecord or DebugRecord is transcript, anything
+            else is a candidate result. That is a branch inside an adapter, which
+            the "adapters stay dumb" rule tolerates only because the IScriptInvoker
+            contract proves it on BOTH implementations.
 
             A relative -Path is resolved against -Root, the workspace root, so
             the same 'Scripts\Get-ComputerName.ps1' written in rules.yaml works
@@ -63,8 +74,10 @@ function New-HDTScriptInvoker {
     )
 
     $invoker = [pscustomobject] @{
-        Root       = $Root
-        Operations = [System.Collections.ArrayList]::new()
+        ServiceName    = 'ScriptInvoker'
+        Root           = $Root
+        Operations     = [System.Collections.ArrayList]::new()
+        LastTranscript = [string[]] @()
     }
 
     $invoker | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -101,7 +114,38 @@ function New-HDTScriptInvoker {
             throw [System.IO.FileNotFoundException]::new("Could not find script '$resolved'.", $resolved)
         }
 
-        return (& $resolved -Variable $Variable | Select-Object -Last 1)
+        # The transcript belongs to the LAST invoke, so it is replaced rather
+        # than appended to.
+        $this.LastTranscript = [string[]] @()
+
+        $transcript = New-Object -TypeName System.Collections.ArrayList
+        $result = $null
+
+        foreach ($item in @(& $resolved -Variable $Variable *>&1)) {
+            if (($item -is [System.Management.Automation.InformationRecord]) -or
+                ($item -is [System.Management.Automation.ErrorRecord]) -or
+                ($item -is [System.Management.Automation.WarningRecord]) -or
+                ($item -is [System.Management.Automation.VerboseRecord]) -or
+                ($item -is [System.Management.Automation.DebugRecord])) {
+
+                [void] $transcript.Add([string] $item)
+                continue
+            }
+
+            [void] $transcript.Add(($item | Out-String).Trim())
+            $result = $item
+        }
+
+        $this.LastTranscript = [string[]] @($transcript)
+
+        return $result
+    }
+
+    $invoker | Add-Member -MemberType ScriptMethod -Name GetTranscript -Value {
+        # The unary comma is mandatory: a ScriptMethod returning an array
+        # collapses a single-element array to a scalar (README F3), and a
+        # one-line transcript is the common case.
+        return , ([string[]] @($this.LastTranscript))
     }
 
     return $invoker

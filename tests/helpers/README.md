@@ -24,13 +24,45 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeCimProvider` | `ICimProvider` | `New-HDTCimProvider` | `-Instance`, `-FixturePath`, `-NamespaceFixturePath` |
 | `New-HDTFakeRegistryService` | `IRegistryService` (read subset; phase 03 adds the writes) | `New-HDTRegistryService` | `-Value` |
 | `New-HDTFakeEnvironmentProvider` | `IEnvironmentProvider` | `New-HDTEnvironmentProvider` | `-Variable` |
-| `New-HDTFakeScriptInvoker` | `IScriptInvoker` | `New-HDTScriptInvoker -Root` | `-Result` |
+| `New-HDTFakeScriptInvoker` | `IScriptInvoker` | `New-HDTScriptInvoker -Root` | `-Result`, `-Transcript` |
+| `New-HDTFakeProcessService` | `IProcessService` | `New-HDTProcessService` | `-Result` |
+| `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Command` | nothing |
 
 `IFileSystem` is nine methods: `TestPath`, `ReadAllText`, `WriteAllText`,
 `AppendAllText`, `CreateDirectory`, `RemoveItem`, `CopyItem`, `GetChildItem`,
 `GetLength`. `IClock` is two: `GetUtcNow`, `Sleep`. `Sleep` is on the interface
 so retry backoff is provable without a test that waits — the fake advances its
 own clock and returns immediately.
+
+`IProcessService` is one method:
+
+```
+Start($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond)
+  -> ExitCode, StandardOutput, StandardError, TimedOut, DurationMs
+```
+
+`TimeoutMillisecond` 0 is unbounded; on timeout the process is killed, `TimedOut`
+is `$true` and `ExitCode` is `-1`. The fake is seeded by COMMAND LINE - the file
+and its arguments joined by one space - and an unseeded command throws
+`System.ComponentModel.Win32Exception`, which is what `Process.Start` throws for
+a missing executable (section 5). A fake that returned exit 0 for a command
+nobody seeded would make a typo in a step look like success.
+
+`IPowerService` is two: `Restart($DelaySecond)`, `Stop($DelaySecond)`. **The real
+row of its contract is skipped permanently and deliberately** - a contract test
+may not reboot the machine running it, and there is no dry-run form of
+`shutdown.exe` that exercises the same path. The reason is written into
+`PowerService.Contract.Tests.ps1` rather than left to be rediscovered.
+
+`IScriptInvoker` is two: `Invoke($Path, $Variable)` and `GetTranscript()`.
+`GetTranscript` returns the captured output of the **last** `Invoke`, replaced on
+the next one, and `@()` before any. It exists because DESIGN 4.4.4 requires that
+"an existing script that only uses `Write-Host` still lands in the log without
+modification". The fake is seeded with `-Transcript`, whose keys are normalised
+exactly as `-Result` keys are, so one key serves both hashtables. The real
+adapter captures `*>&1` and returns the last item that is not a stream record -
+a branch inside an adapter, which the "adapters stay dumb" rule tolerates only
+because the contract proves it on both implementations.
 
 Both helper modules are ordinary modules with a manifest, an explicit
 `FunctionsToExport`, `PowerShellVersion = '5.1'` and
@@ -108,7 +140,7 @@ When supplied, `Record()` appends to it **in addition to** `$Operations`:
 | Property | Meaning |
 |---|---|
 | `Sequence` | 1-based position in the journal, across every service |
-| `Service` | the fake's `ServiceName` — `FileSystem`, `Clock`, `CimProvider`, `RegistryService`, `EnvironmentProvider`, `ScriptInvoker` |
+| `Service` | the fake's `ServiceName` — `FileSystem`, `Clock`, `CimProvider`, `RegistryService`, `EnvironmentProvider`, `ScriptInvoker`, `ProcessService`, `PowerService` |
 | `Operation` | the method name |
 | `Arguments` | `object[]`, in declaration order |
 

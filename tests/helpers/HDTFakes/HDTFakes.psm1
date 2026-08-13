@@ -938,11 +938,282 @@ function New-HDTFakeEnvironmentProvider {
     return $fake
 }
 
+class HDTFakeProcessService {
+
+    # Normalised command line -> the result Start returns.
+    [hashtable] $Result
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeProcessService() {
+        $this.Result = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'ProcessService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- key handling ------------------------------------------------------
+
+    # The seed key is the command line a technician would read: the file and its
+    # arguments joined by one space, with no trailing space when there are none.
+    hidden [string] Normalize([string] $FilePath, [string] $Argument) {
+        return (('{0} {1}' -f $FilePath, $Argument).Trim())
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SetResult([string] $CommandLine, [System.Collections.IDictionary] $Value) {
+        $this.Result[$CommandLine.Trim()] = $Value
+    }
+
+    # -- IProcessService ---------------------------------------------------
+
+    [object] Start([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond) {
+        $this.Record('Start', @($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond))
+
+        $commandLine = $this.Normalize($FilePath, $Argument)
+
+        # A command nobody seeded is a command that does not exist, and
+        # Process.Start throws exactly this for a missing executable. Returning
+        # exit 0 instead would make a typo in a step look like success.
+        if (-not $this.Result.ContainsKey($commandLine)) {
+            throw [System.ComponentModel.Win32Exception]::new(
+                "The system cannot find the file specified: '$commandLine' was never seeded on this fake.")
+        }
+
+        $seed = $this.Result[$commandLine]
+
+        $exitCode = 0
+        if ($seed.Contains('ExitCode')) { $exitCode = [int] $seed['ExitCode'] }
+
+        $standardOutput = ''
+        if ($seed.Contains('StandardOutput')) { $standardOutput = [string] $seed['StandardOutput'] }
+
+        $standardError = ''
+        if ($seed.Contains('StandardError')) { $standardError = [string] $seed['StandardError'] }
+
+        $timedOut = $false
+        if ($seed.Contains('TimedOut')) { $timedOut = [bool] $seed['TimedOut'] }
+
+        $durationMs = 0
+        if ($seed.Contains('DurationMs')) { $durationMs = [long] $seed['DurationMs'] }
+
+        return [pscustomobject] @{
+            ExitCode       = $exitCode
+            StandardOutput = $standardOutput
+            StandardError  = $standardError
+            TimedOut       = $timedOut
+            DurationMs     = $durationMs
+        }
+    }
+}
+
+function New-HDTFakeProcessService {
+    <#
+        .SYNOPSIS
+            Creates an IProcessService that returns seeded results and never
+            starts a process.
+
+        .DESCRIPTION
+            The double behind every CommandLine step test. It implements the
+            single method Start, keyed by the COMMAND LINE - the file and its
+            arguments joined by one space - so a test reads the way the
+            sequence.yaml it stands for reads.
+
+            A command line that was never seeded throws
+            System.ComponentModel.Win32Exception naming it, which is what
+            Process.Start throws for a missing executable (the error-parity rule
+            in tests/helpers/README.md section 5). A fake that returned exit 0
+            for an unseeded command would make a typo in a step look like
+            success.
+
+            Every call appends to $Operations - before it can throw - as
+            (file, arguments, workingDirectory, timeoutMillisecond). Seeding is
+            deliberately not recorded.
+
+        .PARAMETER Result
+            Seed results. Keys are command lines; values are hashtables carrying
+            any of ExitCode, StandardOutput, StandardError, TimedOut and
+            DurationMs. Anything omitted takes its default.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeProcessService. Never write the class name as a type literal
+            in a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $process = New-HDTFakeProcessService -Result @{ 'cmd.exe /c exit 3010' = @{ ExitCode = 3010 } }
+            $process.Start('cmd.exe', '/c exit 3010', '', 0)
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Result,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeProcessService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Result')) {
+        foreach ($commandLine in @($Result.Keys)) {
+            $fake.SetResult([string] $commandLine, $Result[$commandLine])
+        }
+    }
+
+    return $fake
+}
+
+class HDTFakePowerService {
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakePowerService() {
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'PowerService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- IPowerService -----------------------------------------------------
+
+    [void] Restart([int] $DelaySecond) {
+        $this.Record('Restart', @($DelaySecond))
+    }
+
+    [void] Stop([int] $DelaySecond) {
+        $this.Record('Stop', @($DelaySecond))
+    }
+}
+
+function New-HDTFakePowerService {
+    <#
+        .SYNOPSIS
+            Creates an IPowerService that records a restart and performs none.
+
+        .DESCRIPTION
+            The reason the reboot ceremony (DESIGN 4.3, 4.5) can be asserted
+            without ending the test run. Restart and Stop record their delay and
+            return; there is nothing else to assert, and that is the point.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal.
+
+        .OUTPUTS
+            HDTFakePowerService. Never write the class name as a type literal in
+            a test. Use this factory.
+
+        .EXAMPLE
+            $power = New-HDTFakePowerService
+            $power.Restart(30)
+            $power.GetOperationName()
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state and restarts nothing.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakePowerService]::new()
+    $fake.Journal = $Journal
+
+    return $fake
+}
+
 class HDTFakeScriptInvoker {
 
     # Normalised script path -> the object Invoke returns. A path present with a
     # $null value means "the script ran and emitted nothing".
     [hashtable] $Result
+
+    # Normalised script path -> the lines GetTranscript returns after that path
+    # is invoked. DESIGN 4.4.4: a script that only writes to Write-Host must
+    # still land in the log.
+    [hashtable] $Transcript
+
+    # The transcript of the LAST Invoke. @() before the first one, and @() for a
+    # path seeded without a transcript - "the script wrote nothing" is a
+    # different fact from "no script has run yet" only to the caller, and both
+    # render the same.
+    [string[]] $LastTranscript
 
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
@@ -957,7 +1228,9 @@ class HDTFakeScriptInvoker {
 
     HDTFakeScriptInvoker() {
         $this.Result = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Transcript = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.LastTranscript = [string[]] @()
         $this.ServiceName = 'ScriptInvoker'
     }
 
@@ -1011,6 +1284,12 @@ class HDTFakeScriptInvoker {
         $this.Result[$this.Normalize($Path)] = $Value
     }
 
+    # Transcript seed keys are normalised exactly as -Result keys are, so one key
+    # serves both hashtables.
+    [void] SeedTranscript([string] $Path, [string[]] $Line) {
+        $this.Transcript[$this.Normalize($Path)] = [string[]] @($Line)
+    }
+
     # -- IScriptInvoker ----------------------------------------------------
 
     [object] Invoke([string] $Path, [System.Collections.IDictionary] $Variable) {
@@ -1023,7 +1302,19 @@ class HDTFakeScriptInvoker {
             throw [System.IO.FileNotFoundException]::new("Could not find script '$Path'.", $Path)
         }
 
+        # The transcript belongs to the LAST invoke, so it is replaced rather
+        # than appended to - which is what makes it usable as "what did THIS step
+        # print".
+        $this.LastTranscript = [string[]] @()
+        if ($this.Transcript.ContainsKey($full)) {
+            $this.LastTranscript = [string[]] @($this.Transcript[$full])
+        }
+
         return $this.Result[$full]
+    }
+
+    [string[]] GetTranscript() {
+        return $this.LastTranscript
     }
 }
 
@@ -1060,6 +1351,12 @@ function New-HDTFakeScriptInvoker {
             Seed results. Keys are script paths, values are the object Invoke
             returns for that path. Seed $null for a script that emits nothing.
 
+        .PARAMETER Transcript
+            Seed transcripts. Keys are script paths - normalised exactly as
+            -Result keys are, so one key serves both - and values are the lines
+            GetTranscript returns after that path is invoked. A path seeded
+            without one yields an empty transcript.
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -1088,6 +1385,9 @@ function New-HDTFakeScriptInvoker {
         [hashtable] $Result,
 
         [Parameter()]
+        [hashtable] $Transcript,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
@@ -1098,6 +1398,12 @@ function New-HDTFakeScriptInvoker {
     if ($PSBoundParameters.ContainsKey('Result')) {
         foreach ($path in @($Result.Keys)) {
             $fake.SetResult([string] $path, $Result[$path])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Transcript')) {
+        foreach ($path in @($Transcript.Keys)) {
+            $fake.SeedTranscript([string] $path, [string[]] @($Transcript[$path]))
         }
     }
 
@@ -1280,6 +1586,8 @@ Export-ModuleMember -Function @(
     'New-HDTFakeClock',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',
+    'New-HDTFakePowerService',
+    'New-HDTFakeProcessService',
     'New-HDTFakeRegistryService',
     'New-HDTFakeScriptInvoker'
 )
