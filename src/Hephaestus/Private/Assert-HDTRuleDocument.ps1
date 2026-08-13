@@ -57,7 +57,7 @@ function Assert-HDTRuleDocument {
 
         .NOTES
             The locator in a message is the RULE, not a line number:
-            "rule 2 ('Latitude naming'): ...". ConvertFrom-Yaml does not carry
+            "rule 2 ('Latitude naming'): ...". The YAML parser does not carry
             line information onto the object graph it returns, so after parsing
             there is no honest line to report. Only ConvertFrom-HDTYaml, which
             still holds the parser's own exception, can name a line.
