@@ -205,10 +205,26 @@ function Invoke-HDTDiskPartitionStep {
         if ($row.Role -eq 'Recovery') { $Context.Variable['HDTRecoveryVolume'] = $letter }
     }
 
+    # THERE IS NOTHING TO CLEAR ON A RAW DISK, AND Clear-Disk SAYS SO. Found by
+    # running the integration suite against a real VHDX (04-04):
+    #
+    #   Clear-Disk -Number N -RemoveData -RemoveOEM
+    #   -> The disk has not been initialized.
+    #
+    # A brand-new VHDX is RAW, and so is the disk in a machine that has never
+    # been deployed - which is every machine this step exists for. Calling
+    # ClearDisk unconditionally passed against a fake that shrugged at it and
+    # would have failed on the first bare-metal disk it met.
+    #
+    # This is a decision about WHAT TO DO to a disk, so it lives here rather
+    # than in the adapter, which stays branch-free by design.
+    $mustClear = ([string] $target.PartitionStyle -ne 'RAW')
+
     $data = [ordered] @{
         diskNumber     = $number
         layout         = $resolvedName
         partitionStyle = [string] $layout.PartitionStyle
+        cleared        = $mustClear
         plan           = [object[]] $plan
     }
 
@@ -225,8 +241,14 @@ function Invoke-HDTDiskPartitionStep {
     $stage = 'clearing'
 
     try {
-        # Clear-Disk -RemoveData -RemoveOEM, which is what leaves the disk RAW.
-        $diskService.ClearDisk($number)
+        if ($mustClear) {
+            # Clear-Disk -RemoveData -RemoveOEM, which is what leaves the disk RAW.
+            $diskService.ClearDisk($number)
+        } else {
+            Write-HDTLog -Context $Context.Log -Component 'DiskPartition' `
+                -Message ('disk {0} is RAW; there is nothing to clear.' -f $number) `
+                -Data ([ordered] @{ diskNumber = $number; cleared = $false })
+        }
 
         # THIS is what creates the Microsoft Reserved partition on GPT. Nothing
         # below creates one - SPIKES S6, PSDPartition.ps1 line 116.

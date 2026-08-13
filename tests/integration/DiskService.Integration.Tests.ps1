@@ -176,16 +176,15 @@ Describe 'IDiskService against a scratch VHDX' -Skip:$skipForDriveLetter {
 
     Context 'clear and initialise' {
 
-        It 'clears it' {
-            $script:disk.ClearDisk($script:scratchNumber)
-
-            @(& $script:onScratch 'Partition') | Should -BeNullOrEmpty
-        }
-
-        It 'leaves it RAW after clearing' {
-            # SPIKES S6: Clear-Disk -RemoveData -RemoveOEM is what leaves a disk
-            # Initialize-Disk will accept.
+        It 'refuses to clear a disk that has never been initialised' {
+            # FOUND HERE, AND IT WAS A REAL DEFECT (04-04). A brand-new VHDX is
+            # RAW - and so is the disk of a machine that has never been deployed,
+            # which is every machine DiskPartition exists for. Clear-Disk on it
+            # reports "The disk has not been initialized." The step used to call
+            # ClearDisk unconditionally.
             (& $script:onScratch 'Disk').PartitionStyle | Should -BeExactly 'RAW'
+
+            { $script:disk.ClearDisk($script:scratchNumber) } | Should -Throw '*not been initialized*'
         }
 
         It 'initialises it as GPT' {
@@ -203,11 +202,33 @@ Describe 'IDiskService against a scratch VHDX' -Skip:$skipForDriveLetter {
             $reserved = @(& $script:onScratch 'Partition' | Where-Object { $_.GptType -eq $script:msrType })
 
             $reserved.Count | Should -Be 1 -Because 'Initialize-Disk -PartitionStyle GPT creates its own MSR'
-            $reserved[0].SizeBytes | Should -Be 16777216
+
+            # NOT 16 MB EXACTLY. It is 16759808 bytes at offset 17408, and the
+            # two together are exactly the 16777216 the layout carries as
+            # ReservedSizeByte - so that allowance is right to the byte, which is
+            # worth knowing rather than being lucky about.
+            $reserved[0].SizeBytes | Should -Be 16759808
+            $reserved[0].OffsetBytes | Should -Be 17408
+            ($reserved[0].SizeBytes + $reserved[0].OffsetBytes) |
+                Should -Be ([long] (Get-HDTDiskLayout -Name 'uefi-standard').ReservedSizeByte)
         }
 
         It 'created nothing else' {
             @(& $script:onScratch 'Partition').Count | Should -Be 1
+        }
+
+        It 'clears an initialised disk, and leaves it RAW again' {
+            # The other half of the finding: once there IS a partition table,
+            # Clear-Disk -RemoveData -RemoveOEM works and leaves the disk RAW,
+            # which is what SPIKES S6 recorded and what a redeploy relies on.
+            $script:disk.ClearDisk($script:scratchNumber)
+
+            (& $script:onScratch 'Disk').PartitionStyle | Should -BeExactly 'RAW'
+            @(& $script:onScratch 'Partition') | Should -BeNullOrEmpty
+
+            # And back to GPT for the layout context that follows.
+            $script:disk.InitializeDisk($script:scratchNumber, 'GPT')
+            (& $script:onScratch 'Disk').PartitionStyle | Should -BeExactly 'GPT'
         }
     }
 
@@ -296,8 +317,25 @@ Describe 'IDiskService against a scratch VHDX' -Skip:$skipForDriveLetter {
 
                 $found.Count | Should -Be 1 -Because ("{0}: should have a volume" -f $row.DriveLetter)
                 $found[0].FileSystem | Should -BeExactly ([string] $row.FileSystem)
-                $found[0].FileSystemLabel | Should -BeExactly ([string] $row.Label)
+
+                # CASE-INSENSITIVELY, AND THAT IS A FINDING (04-04). See the
+                # test below: FAT32 has no lower case in a volume label.
+                ([string] $found[0].FileSystemLabel).ToUpperInvariant() |
+                    Should -BeExactly ([string] $row.Label).ToUpperInvariant()
             }
+        }
+
+        It 'uppercases the FAT32 label and preserves the NTFS one' {
+            # FAT32 HAS NO LOWER CASE IN A VOLUME LABEL (04-04). The layout asks
+            # for 'System' on the ESP and the volume reports 'SYSTEM'; the NTFS
+            # volumes keep the case they were given. Nothing downstream may
+            # match a volume label case-sensitively, and this is where that is
+            # written down rather than discovered again later.
+            $esp = @($script:volume | Where-Object { $_.DriveLetter -eq 'S' })[0]
+            $windows = @($script:volume | Where-Object { $_.DriveLetter -eq 'W' })[0]
+
+            $esp.FileSystemLabel | Should -BeExactly 'SYSTEM'
+            $windows.FileSystemLabel | Should -BeExactly 'Windows'
         }
 
         It 'assigns the planned drive letters' {
@@ -330,16 +368,31 @@ Describe 'IDiskService against a scratch VHDX' -Skip:$skipForDriveLetter {
 
     Context 'the existence guards' {
 
+        # A ScriptMethod wraps whatever it throws in a MethodInvocationException,
+        # and $ErrorActionPreference = 'Stop' inside the adapter wraps it AGAIN
+        # in a RuntimeException - so the chain is three deep and the identity of
+        # the failure is at the bottom of it (04-04, found by running it).
+        # GetBaseException() is what reaches it. Asserting the outer type would
+        # pass for any failure at all, which is helpers README 12's "it threw is
+        # not an assertion".
+
         It 'throws ArgumentOutOfRangeException for a disk that is not there' {
             # Both implementations of IDiskService must fail the same way for the
             # same mistake. Get-Disk -Number is a [uint32], so the adapter
-            # filters client-side rather than passing -Number (04-01, F-note).
-            { $script:disk.ClearDisk(9999) } | Should -Throw -ExceptionType ([System.ArgumentOutOfRangeException])
+            # filters client-side rather than passing -Number (04-01).
+            $record = $null
+            try { $script:disk.ClearDisk(9999) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.Exception.GetBaseException() | Should -BeOfType ([System.ArgumentOutOfRangeException])
         }
 
         It 'throws ArgumentOutOfRangeException for a partition that is not there' {
-            { $script:disk.SetPartitionType($script:scratchNumber, 99, $script:espType) } |
-                Should -Throw -ExceptionType ([System.ArgumentOutOfRangeException])
+            $record = $null
+            try { $script:disk.SetPartitionType($script:scratchNumber, 99, $script:espType) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.Exception.GetBaseException() | Should -BeOfType ([System.ArgumentOutOfRangeException])
         }
     }
 }

@@ -30,7 +30,17 @@ BeforeAll {
     $script:scratchRoot = 'C:\HDTLab\scratch\integration'
     $script:scratchPath = Join-Path -Path $script:scratchRoot -ChildPath 'diskpartition.vhdx'
     $script:logRoot = Join-Path -Path $script:scratchRoot -ChildPath 'logs'
-    $script:scratchSizeByte = 68719476736   # 64 GB, dynamic - so minDiskGB 60 is met
+    # 40 GB, DELIBERATELY UNDER THE 60 GB DEFAULT MINIMUM. That is what makes
+    # the refusal tests below honest: without a diskNumber the scratch disk is
+    # excluded by rule 7 (too small) and this host's disk 0 by rules 1 and 2, so
+    # there is no candidate at all and the correct answer is a refusal. A 64 GB
+    # scratch disk would have qualified, and 'refuses on this host' would have
+    # quietly partitioned it instead.
+    #
+    # Naming it explicitly still works, because rules 6 and 7 - unlike 1 to 5 -
+    # CAN be overridden by an explicit diskNumber (04-02). The 'for real'
+    # context is that override, exercised.
+    $script:scratchSizeByte = 42949672960
 
     $script:scratchNumber = -1
     if ($script:inUse.Count -eq 0) {
@@ -61,19 +71,21 @@ BeforeAll {
         return [pscustomobject] @{ Context = $context; Disk = $disk; Variable = $variable }
     }
 
+    # The flattened shape Import-HDTSequenceDocument produces: the authored keys
+    # live in a case-insensitive Property bag, which is where
+    # Get-HDTStepProperty reads them from.
     $script:newStep = {
         param([object] $DiskNumber)
 
-        $step = [ordered] @{
-            name  = 'Format and Partition'
-            type  = 'DiskPartition'
-            index = 1
-            wipe  = $true
+        $bag = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $bag['layout'] = 'uefi-standard'
+        $bag['wipe'] = $true
+        if ($null -ne $DiskNumber) { $bag['diskNumber'] = $DiskNumber }
+
+        return [pscustomobject] @{
+            Index = 1; Name = 'Format and Partition'; Type = 'DiskPartition'
+            TimeoutMinutes = 0; Log = $null; Property = $bag
         }
-
-        if ($null -ne $DiskNumber) { $step['diskNumber'] = $DiskNumber }
-
-        return [pscustomobject] $step
     }
 
     $script:partitionOn = {
@@ -95,19 +107,26 @@ AfterAll {
 Describe 'Invoke-HDTDiskPartitionStep against this host' {
 
     It 'refuses without an explicit disk number on this host' {
-        # Every disk that is not the scratch VHDX is the one this machine booted
-        # from, and rules 1 and 2 exclude it - IsBoot/IsSystem, and C: is the
-        # protected workspace letter. The scratch disk is excluded because it
-        # carries the letters of a previous run's volumes only after it has been
-        # partitioned; before that it is RAW and would qualify, so this
-        # assertion runs FIRST, before anything is created on it.
+        # Rules 1 and 2 exclude this machine's disk 0 - IsBoot/IsSystem, and C:
+        # is the protected workspace letter. Rule 7 excludes the 40 GB scratch
+        # VHDX. Nothing is left, and the only correct answer is no.
         $harness = & $script:newContext
         $step = & $script:newStep $null
 
         $result = Invoke-HDTDiskPartitionStep -Step $step -Context $harness.Context -Confirm:$false
 
         $result.Status | Should -BeExactly 'Failed'
-        [string] $result.Data['errorId'] | Should -BeLike 'HDT*TargetError'
+        [string] $result.Data['errorId'] | Should -BeExactly 'HDTNoTargetDiskError'
+    }
+
+    It 'names the rules that excluded each disk' {
+        $harness = & $script:newContext
+        $step = & $script:newStep $null
+
+        $result = Invoke-HDTDiskPartitionStep -Step $step -Context $harness.Context -Confirm:$false
+
+        # A refusal that does not say WHY is a refusal an operator argues with.
+        [string] $result.Message | Should -BeLike '*disk 0*'
     }
 
     It 'wrote nothing when it refused' {
@@ -125,7 +144,11 @@ Describe 'Invoke-HDTDiskPartitionStep against this host' {
 
         $result = Invoke-HDTDiskPartitionStep -Step $step -Context $harness.Context -Confirm:$false
 
-        Get-HDTFailureClass -ResultData $result.Data | Should -BeExactly 'Configuration'
+        # Get-HDTFailureClass is private, so it is called inside the module
+        # rather than exported for a test's convenience.
+        $class = & (Get-Module -Name 'Hephaestus') ([scriptblock]::Create('param($d) Get-HDTFailureClass -ResultData $d')) $result.Data
+
+        $class | Should -BeExactly 'Configuration'
     }
 
     It 'refuses an explicit disk number naming this machine disk 0' {
@@ -145,9 +168,9 @@ Describe 'Invoke-HDTDiskPartitionStep against a scratch VHDX' -Skip:$skipForDriv
 
         BeforeAll {
             # A freshly initialised disk, so "unchanged" is a shape that can be
-            # asserted rather than an absence.
+            # asserted rather than an absence. NO ClearDisk: the VHDX has just
+            # been created and is RAW, and Clear-Disk refuses a RAW disk.
             $service = New-HDTDiskService
-            $service.ClearDisk($script:scratchNumber)
             $service.InitializeDisk($script:scratchNumber, 'GPT')
 
             $script:beforeWhatIf = @(& $script:partitionOn)
@@ -197,8 +220,17 @@ Describe 'Invoke-HDTDiskPartitionStep against a scratch VHDX' -Skip:$skipForDriv
         }
 
         It 'partitions the scratch disk when it is named explicitly' {
+            # And this is the size-rule override: the disk is 40 GB against a 60
+            # GB default minimum, and naming it is what makes that acceptable.
+            # Rules 1 to 5 could not have been overridden this way.
             $script:realResult.Status | Should -BeExactly 'Completed'
             [int] $script:realResult.Data['diskNumber'] | Should -Be $script:scratchNumber
+        }
+
+        It 'cleared it, because it had been initialised' {
+            # The -WhatIf context left it GPT with the MSR on it, so there WAS
+            # something to clear this time.
+            $script:realResult.Data['cleared'] | Should -BeTrue
         }
 
         It 'leaves four partitions' {

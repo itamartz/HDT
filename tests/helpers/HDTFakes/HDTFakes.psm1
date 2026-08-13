@@ -2053,6 +2053,17 @@ class HDTFakeDiskService {
         $this.AssertNoFailure('ClearDisk')
         $target = $this.FindDisk($DiskNumber)
 
+        # PARITY WITH THE REAL CMDLET, FOUND BY RUNNING IT (04-04). Clear-Disk
+        # on a RAW disk reports "The disk has not been initialized." - there is
+        # nothing to clear. A brand-new VHDX is RAW, and so is the disk of a
+        # machine that has never been deployed, which is the normal case for
+        # bare metal. A fake that shrugged at this let DiskPartition pass every
+        # unit test while being unable to partition a factory-fresh disk.
+        if ($target.PartitionStyle -eq 'RAW') {
+            throw [System.InvalidOperationException]::new(
+                "Disk $DiskNumber has not been initialized: there is nothing to clear on a RAW disk.")
+        }
+
         $letter = @($this.Partition |
                 Where-Object { $_.DiskNumber -eq $DiskNumber -and -not [string]::IsNullOrEmpty($_.DriveLetter) } |
                 ForEach-Object { $_.DriveLetter })
@@ -2089,8 +2100,11 @@ class HDTFakeDiskService {
             $this.SeedPartition([pscustomobject] @{
                     DiskNumber      = $DiskNumber
                     PartitionNumber = 1
-                    SizeBytes       = [long] 16777216
-                    OffsetBytes     = [long] 1048576
+                    # CAPTURED FROM A REAL Initialize-Disk (04-04), not rounded:
+                    # 16759808 bytes at offset 17408, which together are exactly
+                    # the 16777216 the layouts carry as ReservedSizeByte.
+                    SizeBytes       = [long] 16759808
+                    OffsetBytes     = [long] 17408
                     Type            = 'Reserved'
                     GptType         = '{e3c9e316-0b5c-4db8-817d-f92df00215ae}'
                     IsHidden        = $true
