@@ -15,6 +15,7 @@
     FunctionsToExport    = @(
         'Get-HDTMachineFact',
         'Get-HDTModuleVersion',
+        'Get-HDTVariableMap',
         'New-HDTCimProvider',
         'New-HDTEnvironmentProvider',
         'New-HDTRegistryService',

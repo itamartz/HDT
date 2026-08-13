@@ -175,7 +175,7 @@ search-and-replace:
 
 | MDT | HDT | MDT | HDT |
 |---|---|---|---|
-| `HDTComputerName` | `HDTComputerName` | `Make` | `HDTMake` |
+| `OSDComputerName` | `HDTComputerName` | `Make` | `HDTMake` |
 | `TaskSequenceID` | `HDTTaskSequenceID` | `Model` | `HDTModel` |
 | `JoinDomain` | `HDTJoinDomain` | `SerialNumber` | `HDTSerialNumber` |
 | `DomainAdmin`/`DomainAdminPassword` | `HDTDomainAdmin`/`HDTDomainAdminPassword` | `UUID` | `HDTUUID` |
