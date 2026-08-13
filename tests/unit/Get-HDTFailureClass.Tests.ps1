@@ -202,4 +202,90 @@ Describe 'Get-HDTFailureClass' {
             }
         }
     }
+
+    Context 'a refusal that arrived as result data' {
+
+        # A step NEVER lets a refusal escape as a terminating error: the step
+        # contract requires a result whose Status is in the closed set, and a
+        # step that threw for a minimal step would turn that contract red. So
+        # DiskPartition catches its own refusal and returns
+        #
+        #   New-HDTStepResult -Status Failed -Data @{ errorId = 'HDT...Error' }
+        #
+        # which means the errorId reaches this classifier through the RESULT
+        # rather than through an ErrorRecord. Without this leg, 04-02's "a
+        # refusal is never retried" would silently stop being true the moment
+        # the refusal became a result - the step would be Transient and a
+        # sequence declaring retry: 2 would refuse to wipe the same disk three
+        # times.
+
+        It 'classifies a result carrying <_> as Configuration' -ForEach @(
+            'HDTConfigurationError',
+            'HDTAmbiguousTargetError',
+            'HDTUnsafeTargetError',
+            'HDTNoTargetDiskError',
+            'HDTAmbiguousImageError'
+        ) {
+            InModuleScope Hephaestus -Parameters @{ ErrorId = $_ } {
+                Get-HDTFailureClass -ResultData ([ordered] @{ errorId = $ErrorId }) |
+                    Should -BeExactly 'Configuration'
+            }
+        }
+
+        It 'reads the errorId case-insensitively' {
+            InModuleScope Hephaestus {
+                Get-HDTFailureClass -ResultData ([ordered] @{ ErrorId = 'HDTUnsafeTargetError' }) |
+                    Should -BeExactly 'Configuration'
+            }
+        }
+
+        It 'reads an errorId off a pscustomobject as well as a dictionary' {
+            InModuleScope Hephaestus {
+                Get-HDTFailureClass -ResultData ([pscustomobject] @{ errorId = 'HDTNoTargetDiskError' }) |
+                    Should -BeExactly 'Configuration'
+            }
+        }
+
+        It 'classifies a result with no errorId as Transient' {
+            InModuleScope Hephaestus {
+                Get-HDTFailureClass -ResultData ([ordered] @{ exitCode = 1 }) | Should -BeExactly 'Transient'
+            }
+        }
+
+        It 'classifies an errorId this list does not name as Transient' {
+            # The named list again: a later phase's id is not swallowed by a
+            # wildcard on HDT*Error.
+            InModuleScope Hephaestus {
+                Get-HDTFailureClass -ResultData ([ordered] @{ errorId = 'HDTDriverInjectionError' }) |
+                    Should -BeExactly 'Transient'
+            }
+        }
+
+        It 'tolerates result data that is not a dictionary' {
+            InModuleScope Hephaestus {
+                Get-HDTFailureClass -ResultData 'the apply failed' | Should -BeExactly 'Transient'
+                Get-HDTFailureClass -ResultData @(1, 2, 3) | Should -BeExactly 'Transient'
+                Get-HDTFailureClass -ResultData $null | Should -BeExactly 'Transient'
+            }
+        }
+
+        It 'prefers the thrown error over the result data' {
+            InModuleScope Hephaestus {
+                # The exception is the stronger evidence: it says what actually
+                # went wrong, where the data says what the step believed.
+                $record = $null
+                try { throw [System.IO.IOException]::new('the device is not ready') } catch { $record = $_ }
+
+                Get-HDTFailureClass -ErrorRecord $record -ResultData ([ordered] @{ errorId = 'HDTAmbiguousTargetError' }) |
+                    Should -BeExactly 'Environment'
+            }
+        }
+
+        It 'still puts a timeout above everything' {
+            InModuleScope Hephaestus {
+                Get-HDTFailureClass -ResultData ([ordered] @{ errorId = 'HDTAmbiguousTargetError' }) -TimedOut |
+                    Should -BeExactly 'Environment'
+            }
+        }
+    }
 }
