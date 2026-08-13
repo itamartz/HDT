@@ -71,6 +71,11 @@ Describe 'Get-HDTVariableMap' {
     It 'has comment-based help with a synopsis' {
         $help = Get-Help -Name Get-HDTVariableMap -ErrorAction Stop
 
+        # The Name assertion is not decoration. Get-Help falls back to a fuzzy
+        # search when no command matches exactly, so for a command that does not
+        # exist yet it happily returns ANOTHER command's help and a synopsis
+        # assertion passes against it. Observed while writing this plan.
+        $help.Name | Should -BeExactly 'Get-HDTVariableMap'
         $help.Synopsis | Should -Not -BeNullOrEmpty
         $help.Synopsis | Should -Not -Match 'Get-HDTVariableMap \['
     }
@@ -78,6 +83,7 @@ Describe 'Get-HDTVariableMap' {
     It 'has at least one example in its help' {
         $help = Get-Help -Name Get-HDTVariableMap -ErrorAction Stop
 
+        $help.Name | Should -BeExactly 'Get-HDTVariableMap'
         @($help.Examples.Example).Count | Should -BeGreaterThan 0
     }
 }

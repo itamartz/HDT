@@ -124,6 +124,10 @@ Describe 'New-HDTErrorRecord' {
         InModuleScope Hephaestus {
             $help = Get-Help -Name New-HDTErrorRecord -ErrorAction Stop
 
+            # Get-Help falls back to a fuzzy search when nothing matches exactly
+            # and will return another command's help, which passes a bare
+            # synopsis assertion. Assert the name first.
+            $help.Name | Should -BeExactly 'New-HDTErrorRecord'
             $help.Synopsis | Should -Not -BeNullOrEmpty
             $help.Synopsis | Should -Not -Match 'New-HDTErrorRecord \['
         }
