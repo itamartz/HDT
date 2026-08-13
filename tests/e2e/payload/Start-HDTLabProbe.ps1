@@ -52,6 +52,11 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
 
+# Visible at the WinPE console without Write-Host, which the analyzer refuses
+# and which is not needed: Write-Information renders to the host under 5.1 when
+# the preference says so, and the console is the only place anyone is watching.
+$InformationPreference = 'Continue'
+
 $probe = [ordered] @{
     psVersion       = [string] $PSVersionTable.PSVersion
     psEdition       = [string] $PSVersionTable.PSEdition
@@ -87,7 +92,7 @@ if ([string]::IsNullOrWhiteSpace($ContentRoot)) {
 }
 
 $probe['contentRoot'] = $ContentRoot
-Write-Host ("content root: {0}" -f $ContentRoot)
+Write-Information ("content root: {0}" -f $ContentRoot)
 
 if (-not [string]::IsNullOrWhiteSpace($ContentRoot)) {
     $env:PSModulePath = '{0};{1}' -f (Join-Path -Path $ContentRoot -ChildPath 'HDT\Modules'), $env:PSModulePath
@@ -105,7 +110,7 @@ try {
     $probe['yamlError'] = [string] $_.Exception.Message
 }
 
-Write-Host ("powershell-yaml loaded: {0} {1}" -f $probe['yamlLoaded'], $probe['yamlVersion'])
+Write-Information ("powershell-yaml loaded: {0} {1}" -f $probe['yamlLoaded'], $probe['yamlVersion'])
 
 try {
     Import-Module -Name 'Hephaestus' -Force -ErrorAction Stop
@@ -116,7 +121,7 @@ try {
     $probe['engineError'] = [string] $_.Exception.Message
 }
 
-Write-Host ("Hephaestus loaded: {0} {1}" -f $probe['engineLoaded'], $probe['engineVersion'])
+Write-Information ("Hephaestus loaded: {0} {1}" -f $probe['engineLoaded'], $probe['engineVersion'])
 
 # -- 3. phase 02's gatherer, in its actual home -------------------------------
 
@@ -140,7 +145,7 @@ if ($probe['engineLoaded']) {
     }
 }
 
-Write-Host ("facts: {0}" -f $probe['factCount'])
+Write-Information ("facts: {0}" -f $probe['factCount'])
 
 # -- 4. the disk row this repository has only ever derived --------------------
 
@@ -185,8 +190,8 @@ if ($probe['engineLoaded'] -and -not [string]::IsNullOrWhiteSpace($ContentRoot))
     }
 }
 
-Write-Host ("sequence: '{0}' with {1} step(s)" -f $probe['sequenceId'], $probe['sequenceStep'])
-Write-Host ("rules: {0}" -f $probe['ruleCount'])
+Write-Information ("sequence: '{0}' with {1} step(s)" -f $probe['sequenceId'], $probe['sequenceStep'])
+Write-Information ("rules: {0}" -f $probe['ruleCount'])
 
 # -- the answer, on the content disk ------------------------------------------
 
@@ -198,9 +203,9 @@ if (-not [string]::IsNullOrWhiteSpace($ContentRoot)) {
         $utf8 = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
         [System.IO.File]::WriteAllText($out, (ConvertTo-Json -InputObject $probe -Depth 6), $utf8)
 
-        Write-Host ("wrote {0}" -f $out)
+        Write-Information ("wrote {0}" -f $out)
     } catch {
-        Write-Host ("could not write PROBE.json: {0}" -f $_.Exception.Message)
+        Write-Information ("could not write PROBE.json: {0}" -f $_.Exception.Message)
     }
 }
 

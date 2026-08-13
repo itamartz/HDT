@@ -108,6 +108,19 @@ BeforeAll {
                 if (Test-Path -LiteralPath $probePath) {
                     $script:probeRaw = [System.IO.File]::ReadAllText($probePath)
                     $script:probe = ConvertFrom-Json $script:probeRaw
+
+                    # COPIED OFF THE DISK BEFORE THE VM IS DESTROYED. The
+                    # AfterAll removes the VM and its VHDXs, and the first run
+                    # of this file lost the capture that way - which was the
+                    # whole reason the probe was written. The artifact is what
+                    # tests/fixtures/disk/gen2-vm-raw-disk.json is regenerated
+                    # from, and what SPIKES S9 quotes.
+                    if (-not (Test-Path -LiteralPath $script:artifactRoot -PathType Container)) {
+                        New-Item -Path $script:artifactRoot -ItemType Directory -Force | Out-Null
+                    }
+
+                    [System.IO.File]::WriteAllText(
+                        (Join-Path -Path $script:artifactRoot -ChildPath 'PROBE.json'), $script:probeRaw)
                 }
             }
         } finally {
@@ -226,18 +239,37 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
             @($script:probe.disk)[0].BusType | Should -BeExactly 'SAS'
         }
 
-        It 'reports the derived fixture accurately' {
-            # THE DEBT gen2-vm-raw-disk.json WAS CARRYING, PAID. The fixture was
-            # derived from S6's notes; this is the capture that replaces it, and
-            # the assertion that the derivation was honest.
+        It 'agrees with the fixture on the properties this VM can show' {
+            # PARTLY. THE SMOKE VM'S ONLY DISK IS ITS OWN CONTENT DISK, which
+            # New-HDTLabContentDisk formatted - so it is GPT and 2 GB, not the
+            # virgin 64 GB RAW disk gen2-vm-raw-disk.json describes. That is
+            # deliberate: the smoke VM gets exactly one small disk so nothing
+            # attached to it could be mistaken for a deployment target.
+            #
+            # What this run CAN close is the bus type, which is the property
+            # SPIKES S6 warned about and the only one anybody would be tempted
+            # to filter on. The RAW 64 GB row is captured by
+            # Deployment.E2E.Tests.ps1, through IDiskService, a moment before
+            # the deployment repartitions it.
             $fixture = @(ConvertFrom-Json ([System.IO.File]::ReadAllText(
                         (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/disk/gen2-vm-raw-disk.json'))))[0]
 
             $captured = @($script:probe.disk)[0]
 
             $captured.BusType | Should -BeExactly ([string] $fixture.BusType)
+            $captured.FriendlyName | Should -BeExactly ([string] $fixture.FriendlyName)
             $captured.IsBoot | Should -Be ([bool] $fixture.IsBoot)
             $captured.IsSystem | Should -Be ([bool] $fixture.IsSystem)
+        }
+    }
+
+    Context 'the capture survives the VM' {
+
+        It 'saved PROBE.json under the e2e artifact root' {
+            # The AfterAll destroys the VM and its content disk. A capture that
+            # only existed there would be gone before anybody could look at it.
+            Test-Path -LiteralPath (Join-Path -Path $script:artifactRoot -ChildPath 'PROBE.json') |
+                Should -BeTrue
         }
     }
 

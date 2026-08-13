@@ -79,6 +79,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Visible at the WinPE console without Write-Host, which the analyzer refuses.
+# Write-Information renders to the host under 5.1 when the preference says so.
+$InformationPreference = 'Continue'
+
 $runId = 'run-{0:yyyyMMdd-HHmmss}' -f (Get-Date)
 $started = Get-Date
 $transcript = New-Object -TypeName System.Collections.ArrayList
@@ -88,7 +92,7 @@ $say = {
 
     $line = '{0:HH:mm:ss}  {1}' -f (Get-Date), $Message
     [void] $transcript.Add($line)
-    Write-Host $line
+    Write-Information $line
 }
 
 # -- 1. the content disk, and the two modules ---------------------------------
@@ -133,6 +137,7 @@ $result = [ordered] @{
     contentRoot  = $ContentRoot
     engineVersion = ''
     elapsedSecond = 0
+    diskBefore    = @()
 }
 
 try {
@@ -170,6 +175,19 @@ try {
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Process $processService -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
         -Environment $environment -Disk $diskService -Image $imageService
+
+    # THE DISKS AS THIS MACHINE HAD THEM BEFORE HDT TOUCHED ANYTHING, read
+    # through IDiskService - which is exactly the eleven-property projection
+    # tests/fixtures/disk/*.json use. This is the honest capture that replaces
+    # the derived gen2-vm-raw-disk.json: a Generation 2 VM's virgin 64 GB disk,
+    # taken by HDT's own adapter, a moment before the deployment repartitions
+    # it. It is a READ; the launcher still performs no deployment work.
+    $result['diskBefore'] = @($diskService.GetDisk())
+    foreach ($row in @($result['diskBefore'])) {
+        & $say ("  disk {0} {1} {2} bytes bus={3} style={4} boot={5} system={6}" -f
+            $row.Number, $row.FriendlyName, $row.SizeBytes, $row.BusType,
+            $row.PartitionStyle, $row.IsBoot, $row.IsSystem)
+    }
 
     # -- 3. facts, then rules -------------------------------------------------
 
@@ -221,12 +239,14 @@ try {
 
     # -- 5. ONE call to the engine -------------------------------------------
 
-    $logDestination = Join-Path -Path $shareLogRoot -ChildPath ('{0}-{1}' -f $env:COMPUTERNAME, $runId)
-
+    # -LogDestination IS THE LOG ROOT, NOT THE RUN FOLDER. Copy-HDTLog appends
+    # <ComputerName>-<RunId> itself, from HDTComputerName - so passing a folder
+    # that already carries it would nest one inside another, and the harness
+    # would go looking for HDT.jsonl in the wrong place.
     & $say 'running the task sequence'
     $run = Invoke-HDTTaskSequence -Sequence $sequence -Context $context -State $state `
         -StatePath (Join-Path -Path $LogRoot -ChildPath 'state.json') `
-        -LogDestination $logDestination
+        -LogDestination $shareLogRoot
 
     $result['status'] = [string] $run.Status
     & $say ("sequence finished: {0}" -f $run.Status)
@@ -251,7 +271,11 @@ try {
 $result['elapsedSecond'] = [int] ((Get-Date) - $started).TotalSeconds
 
 try {
-    $destination = Join-Path -Path $shareLogRoot -ChildPath ('{0}-{1}' -f $env:COMPUTERNAME, $runId)
+    # AT THE ROOT OF Logs\, one file, whatever happened. The engine's own log
+    # folder is named after a computer name this run may never have resolved -
+    # a run that died before Resolve-HDTVariable has no such name - and the
+    # harness must always know where to look.
+    $destination = $shareLogRoot
     if (-not (Test-Path -LiteralPath $destination -PathType Container)) {
         New-Item -Path $destination -ItemType Directory -Force | Out-Null
     }
@@ -266,7 +290,7 @@ try {
     [System.IO.File]::WriteAllLines((Join-Path -Path $destination -ChildPath 'LAUNCHER.log'),
         [string[]] @($transcript), $utf8)
 } catch {
-    Write-Host ("could not write RESULT.json: {0}" -f $_.Exception.Message)
+    Write-Information ("could not write RESULT.json: {0}" -f $_.Exception.Message)
 }
 
 Start-Sleep -Seconds 5

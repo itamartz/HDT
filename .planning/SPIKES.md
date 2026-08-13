@@ -352,3 +352,180 @@ unloaded. Total elapsed: 6.1 minutes.
 Phase 05 may use these to compare against, but must still build its own image
 through `Update-HDTBootImage` — the point of the phase is that the *code* does
 this, not that it was done once by hand.
+
+---
+
+## S9 — the engine inside WinPE, and what a real disk and a real apply exposed ✅⚠
+
+Date: 2026-08-13 · phase 04 plan 04. **This is the first time any of phase 04's
+code ran against real hardware.** Everything before it is asserted against
+hand-written fakes, which is what makes those suites take seconds; this is where
+the fakes were checked against the world, and four of them were wrong.
+
+### S9.1 — powershell-yaml loads in WinPE, first try ✅
+
+The plan called this "the single most likely way this plan discovers a problem",
+and wrote a three-rung fix ladder for it. **No rung was needed.**
+
+`tests/e2e/WinPeSmoke.E2E.Tests.ps1` builds a 2 GB content disk, boots
+`HDT-M3-Smoke` (Gen2, Secure Boot, 2 GB, isolated `HDT Lab` switch) from
+S1/S3's ISO, types one line at the prompt, and reads `PROBE.json` back off the
+disk. Verbatim:
+
+```json
+"psVersion":    "5.1.26100.1",     "psEdition":  "Desktop",
+"yamlLoaded":   true,              "yamlVersion": "0.4.12",
+"yamlBase":     "C:\\HDT\\Modules\\powershell-yaml",
+"engineLoaded": true,              "engineVersion": "0.1.0",
+"factCount":    18,
+"sequenceId":   "DEMO-M3",         "sequenceStep": 5,
+"ruleCount":    4,                 "osCatalogId": "Win11-LTSC-2024"
+```
+
+- **powershell-yaml 0.4.12 imports inside WinPE from a STAGED copy** on a plain
+  data disk — not installed, not on the standard module path — and its `net47`
+  flavour loads against `WinPE-NetFx`. `ConvertFrom-HDTYaml` goes through it, so
+  this is the dependency the whole engine rests on in WinPE.
+- **Importing it is not the same as parsing.** The probe therefore also imports
+  the real `DEMO-M3` sequence (5 steps), the real `rules.yaml` (4 rules) and the
+  real `os.yaml` — all three came back.
+- **WinPE assigned the content disk `C:`.** The RAM disk is `X:`. Nothing may
+  assume a letter; the launcher and the probe both scan `C D E F G H` for what
+  they need, and the harness types a `for %d in (...)` line for the same reason.
+
+### S9.2 — `Get-HDTMachineFact` in its actual home ✅
+
+Phase 02's gatherer, run for the first time where it will live. 18 facts, from
+the real CIM provider, registry and environment inside WinPE:
+
+```
+HDTMake  Microsoft Corporation      HDTModel  Virtual Machine
+HDTIsVM  True                       HDTIsUEFI True     HDTSecureBootEnabled True
+HDTArchitecture x64                 HDTMemory 2046     HDTIsDesktop True
+HDTUUID  78F6E5D7-...               HDTSerialNumber 1884-9397-...
+HDTMacAddress 00:15:5D:86:01:05     HDTIPAddress 169.254.165.242,fe80::...
+HDTSystemSKU None                   HDTTPMVersion <empty>   HDTDefaultGateway <empty>
+```
+
+Three things worth keeping:
+
+- **`HDTMemory` is 2046 on a 2 GB VM**, so `DEMO-M3`'s `minRamMB: 2048` against
+  a 4 GB machine is right to be 2048 and not 4096 — the firmware keeps some.
+- **`HDTTPMVersion` and `HDTSystemSKU` are empty / `None` on a VM**, which is the
+  PSD-derived warning phase 02 carried, confirmed rather than assumed.
+- **The isolated switch gives an APIPA address** (`169.254.*`). Nothing in the
+  WinPE leg needs the network, which is the point of the content-disk topology.
+
+### S9.3 — `Clear-Disk` refuses a RAW disk, and that was a real defect ⚠
+
+**The most valuable finding of the phase.** Verified twice, by isolated probe
+and by the integration suite:
+
+```
+Clear-Disk -Number N -RemoveData -RemoveOEM
+-> The disk has not been initialized.
+```
+
+A brand-new VHDX is RAW. **So is the disk in a machine that has never been
+deployed — which is every machine `DiskPartition` exists for.**
+`Invoke-HDTDiskPartitionStep` called `ClearDisk` unconditionally, and the fake
+shrugged at it, so the entire unit suite was green for code that could not
+partition a factory-fresh disk.
+
+S6's "the working recipe is `Clear-Disk -RemoveData -RemoveOEM` then
+`Initialize-Disk`" is correct **for a disk that has a partition table**. The
+full recipe is:
+
+```
+if (style -ne RAW) { Clear-Disk -RemoveData -RemoveOEM }   # nothing to clear otherwise
+Initialize-Disk -PartitionStyle GPT                        # this creates the MSR
+ESP / Windows / Recovery                                   # and no MSR by hand
+```
+
+Fixed in the step, which is where a decision belongs; the fake now refuses the
+same call for the same reason, so the two implementations fail alike.
+
+### S9.4 — the MSR is 16 759 808 bytes at offset 17 408 ✅
+
+Not a round 16 MB, and the two numbers together are **exactly** 16 777 216 —
+which is the `ReservedSizeByte` allowance `Get-HDTDiskLayout` carries. That
+allowance is right to the byte rather than lucky. Captured:
+
+```
+PartitionNumber     Size Type     GptType                                Offset
+              1 16759808 Reserved {e3c9e316-0b5c-4db8-817d-f92df00215ae}  17408
+```
+
+### S9.5 — `Set-Partition -GptType` after `Format-Volume` works ✅
+
+04-02 recorded the ESP recipe as **unverified**: create the ESP as *basic data*
+so it can take a drive letter to format through, format it FAT32, then retype it
+to the EFI System type. It works. The partition ends up
+`{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}`, 272 629 760 bytes, FAT32.
+
+### S9.6 — FAT32 has no lower case in a volume label ⚠
+
+The layout asks for `System` on the ESP; `Get-Volume` reports **`SYSTEM`**. NTFS
+preserves the case it was given (`Windows`, `Windows RE tools`). **Nothing
+downstream may match a volume label case-sensitively.**
+
+### S9.7 — `reagentc /setreimage` reports success and registers nothing ⚠
+
+Against an **offline** applied image, from an elevated host session:
+
+```
+REAGENTC.EXE: Operation Successful.        <- exit code 0
+
+reagentc /info /target W:\Windows
+    Windows RE status:         Disabled
+    Windows RE location:
+    Recovery image location:
+    Recovery image index:      0
+```
+
+It does **not refuse**. It exits 0, prints success, and `/info` on the same
+target shows nothing registered. So `SetRecoveryImage` cannot be judged by its
+exit code — and an exit code is exactly what the adapter checks.
+
+**What this means for HDT:** the recovery registration `ConfigureBoot` performs
+is *not* what makes WinRE work on the deployed machine. Windows Setup enables
+WinRE itself during specialize/oobe from the `Winre.wim` the apply leaves in
+`Windows\System32\Recovery`. That is why 04-03 wrote that leg to warn and
+continue, and it is why **a green integration run does not prove WinRE was
+configured**. Recorded as an assertion in
+`tests/integration/ImageService.Integration.Tests.ps1` so that the day this
+changes, somebody is told.
+
+### S9.8 — timings, beside S6's hand-run numbers
+
+| What | S6, by hand | S9, by code |
+|---|---|---|
+| Apply Windows 11 index 1 (4 GB WIM) | **95 s** over SMB, over Wi-Fi | **132–134 s** from a local disk into a dynamic VHDX |
+| Applied size on the Windows volume | not recorded | **10 047 967 232 bytes** (9.36 GiB) |
+
+**The network was never the slow part.** A local apply into a *dynamic* VHDX is
+slower than S6's network apply, because growing the VHDX is the cost. M4 should
+not treat SMB as the thing to optimise.
+
+### S9.9 — two traps in the test harness itself ⚠
+
+- **A `throw` inside a `ScriptMethod` is wrapped twice** —
+  `MethodInvocationException` over `RuntimeException` over the real exception,
+  because the adapter sets `$ErrorActionPreference = 'Stop'`. An assertion on
+  the exception type must use `GetBaseException()`; `.InnerException` reaches
+  only the middle one.
+- **`Mock` cannot intercept a module-qualified call.** `Hyper-V\New-VM` resolves
+  straight into the module and never consults the function table Pester injects
+  into, so a mock asserting "no Hyper-V command was called" would never be
+  consulted and would always pass. The lab helpers' guards are proven by AST
+  instead: every Hyper-V command is module-qualified, and `Assert-HDTLabVmName`
+  is called before the first one.
+
+### Lab safety
+
+Every Hyper-V call name-filtered and module-qualified. `CM01` and `DC01` were
+recorded before each run and asserted identical after, in `AfterAll` blocks that
+run on failure too — both `Off` and untouched throughout. `HDT-PE-Test` was never
+started. This host's disk 0 was GPT / `IsBoot` True / `IsSystem` True with the
+same partitions before and after every run; every destructive call in the
+integration suite was asserted to name the scratch disk number and no other.
