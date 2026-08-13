@@ -793,3 +793,153 @@ throws before a single test runs, so no test code executed either.
 it being proven to bite on a planted
 `Remove-Item -Path "C:\HDTLab\media" -Recurse`. It found nothing this time, which
 narrows the possibilities without closing them.
+
+---
+
+## S11 — HDT builds its own boot image, and four things the fakes had wrong ✅⚠
+
+Date: 2026-08-14 · phase 05 plan 04. **The first time any of phase 05's code
+touched DISM or oscdimg.** Everything before this ran against hand-written fakes;
+this is where they were checked against the world.
+
+Numbered S11 rather than S10: S10 is the media-loss entry 05-03 recorded, and
+renumbering a finding somebody may already have cited would be worse than a gap
+in the plan's wording.
+
+### S11.1 — the build worked first try, and it is not slow ✅
+
+`Update-HDTBootImage -WorkspaceRoot <scratch>\Share` against the real ADK
+10.1.26100.2454, nine optional components, on this host:
+
+| | Value |
+|---|---|
+| `Boot\HDTPE_x64.wim` | **495 340 358 bytes** |
+| `Boot\HDTPE_x64.iso` | **550 916 096 bytes** |
+| WIM SHA256 | `30FF0972FE4E8D416EE150FFD6A4EEE48F93599B9CF6245AE76F20DFEE5A90E5` |
+| Full build (WIM + ISO) | **123 s** |
+| Same build with `-SkipIso` | **120 s** |
+| Whole integration file, both builds + a read-only re-mount, 24 tests | **291 s** |
+
+**The plan budgeted 15–25 minutes. It took two.** Nothing in the mount / apply /
+export cycle is slow on an NVMe host, and the numbers above are the ones to plan
+against.
+
+**`oscdimg` is NOT the slow half, and DESIGN 5.1 said it was.** 123 s against
+120 s: writing a 550 MB ISO from an already-staged media tree costs about **two
+seconds**. DESIGN 5.1 has been corrected. `-SkipIso` is worth having for the
+artifact it does not produce, not for time it does not save, and nothing should
+be optimised on the assumption that the ISO is expensive.
+
+**SPIKES S2's staging worked exactly as recorded.** The boot bits are copied out
+of `C:\Program Files (x86)\...\Oscdimg` into `<scratch>\bootbits` and
+`-bootdata:1#pEF,e,b<bits>\efisys_noprompt.bin` is passed unquoted. No Error 123,
+first try. The refusals that keep it that way — a boot-bit path with a space, a
+scratch path with a space — are asserted in the unit suite.
+
+### S11.2 — DESIGN 6.1.1 holds, and it holds three ways ✅
+
+**ROADMAP M4 names this test explicitly.** The WIM inside the ISO and the
+standalone WIM:
+
+```
+WIM on disk          30FF0972FE4E8D416EE150FFD6A4EEE48F93599B9CF6245AE76F20DFEE5A90E5
+sources\boot.wim
+  inside the ISO     30FF0972FE4E8D416EE150FFD6A4EEE48F93599B9CF6245AE76F20DFEE5A90E5
+manifest
+  isoBootWimSha256   30FF0972FE4E8D416EE150FFD6A4EEE48F93599B9CF6245AE76F20DFEE5A90E5
+```
+
+Three ways on purpose: a manifest that agreed with itself but not with the disk
+would be worse than none, because an operator would trust it. The mechanism is
+that the exported WIM is **copied** into the media tree — one file, two homes —
+rather than exported twice.
+
+### S11.3 — `startnet.cmd`, read back out of a mounted image ✅
+
+`Mount-WindowsImage -ReadOnly` on the WIM the build produced, verbatim:
+
+```
+@echo off
+rem Written by Update-HDTBootImage. Do not edit inside the image; edit HDT.
+set HDT_LAUNCHED_BY=startnet
+wpeinit
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTDeployment.ps1
+```
+
+First byte `0x40` (`@`), not `0xEF` — no BOM, which `cmd.exe` would read as a
+command and fail on with no useful message. `X:\HDT\` carries `bootstrap.json`,
+`Start-HDTDeployment.ps1`, `Start-HDTResume.ps1` and `Modules\`. The
+`WinPE-PowerShell` cab put `powershell.exe` where that last line expects it.
+
+**05-05 can now boot an image this repository built**, and assert
+`HDT_LAUNCHED_BY=startnet` in `RESULT.json` to prove nobody typed the command.
+
+### S11.4 — it is NOT byte-comparable to SPIKES S1's hand-built image, and could not be ⚠
+
+Worth stating because the question is obvious and the answer is easy to get
+wrong:
+
+| | S1, by hand | S11, by code |
+|---|---|---|
+| `boot.wim` | 503 853 178 B, `2C70D1A2…` | 495 340 358 B, `30FF0972…` |
+| UEFI no-prompt ISO | 559 429 632 B | 550 916 096 B |
+
+**Different bytes, and that is correct.** HDT's image carries things S1's does
+not — the engine module, `powershell-yaml`, both payload scripts,
+`bootstrap.json`, and a `startnet.cmd` that launches the engine instead of
+dropping to a prompt. It is *smaller* despite carrying more, because
+`Export-WindowsImage -CompressionType Max` is doing work the hand build's export
+did not. A byte-identical result would have meant the engine was not in there.
+
+### S11.5 — four things the fakes or the plan had wrong ⚠
+
+**1. `Get-WindowsImage`'s `ImageSize` is the UNCOMPRESSED size, not the file
+size.** 05-04's `<verified_facts>` records `winpe.wim` as 340 134 390 bytes, and
+that is the **file on disk**. DISM reports **2 009 251 937**. The contract test
+asserted the file size against the DISM number and went red on the real row,
+which is what the real row is for. Both numbers are now pinned, each labelled.
+`IImageService.SizeBytes` has always been `ImageSize` too, so this is a
+repository-wide clarification, not a boot-image one.
+
+**2. `powershell-yaml` ships `lib\net47`, not `net47` at the module root.**
+0.4.12 lays out `lib\net47\` and `lib\netstandard2.1\`. SPIKES S9.1 recorded
+"its net47 flavour loads against WinPE-NetFx" and an assertion written from that
+sentence looked in the wrong place. It was the one test the first real run of the
+integration file turned red. The staging itself was correct — the whole tree is
+copied — so this was a defect in the test, not in the build.
+
+**3. Windows PowerShell 5.1's `ConvertTo-Json` puts TWO spaces after a colon;
+pwsh 7 puts one.** `"builtUtc":  "..."` against `"builtUtc": "..."`. Both are
+valid JSON and no consumer cares, but an assertion that pinned the formatting is
+green on one engine and red on the other — which is what it was, first run. Use
+`-Match '"key":\s*"value"'`, never `-BeLike '*"key": "value"*'`.
+
+**4. A PowerShell class method refuses to compile a variable assigned only
+inside a `try`.** `ParserError: Variable is not assigned in the method` — the
+parser cannot see an assignment on every path and will not take the risk.
+Declare it before the `try`. This bites in `HDTFakes.psm1` and nowhere else,
+because the fakes are the only classes in the repository.
+
+### S11.6 — the ACL check ran for real, and warned ✅
+
+The scratch workspace's ACL does not mention `HDTLAB\svc-hdt-deploy`, so
+`Test-HDTShareAcl` reported `Critical: cannot read the workspace root` and
+`Update-HDTBootImage` **warned and built anyway**. DESIGN 6.3's "warn loudly, do
+not refuse" is therefore exercised end to end rather than only against
+hand-written rows: an administrator whose build died on an ACL check is an
+administrator who turns the check off.
+
+### Lab safety
+
+**No Hyper-V call of any kind.** This plan creates no VM, and `CM01` and `DC01`
+were never touched. Everything written lives under
+`C:\HDTLab\scratch\bootimage\`, created by the test that uses it and removed by
+the same code; the artifacts are left in place for inspection. This host's disk 0
+was snapshotted before and asserted identical after (`GPT|True|True`), and
+`git status --porcelain` is compared before and after so a build that scattered a
+mount folder into the working tree would be caught. After the run
+`Get-WindowsImage -Mounted` is empty and the ISO is not attached, checked by hand
+as well as by the suite.
+
+`C:\HDTLab\media` is **still missing** — S10 stands, and `-Task e2e` still cannot
+run. It is not a precondition of anything in this plan.

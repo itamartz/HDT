@@ -1005,8 +1005,18 @@ repository. A build that writes into the share it is reading is how a deployment
 share ends up with a `mount` folder in it forever.
 
 `Update-HDTBootImage -SkipIso` omits ISO generation, matching MDT's per-platform
-ISO checkbox. Generating the ISO is the slow half of the build, and during
-iteration on a WDS-based lab you often don't need it.
+ISO checkbox. During iteration on a WDS-based lab you often don't need it.
+
+**Corrected in 05-04 by measurement: generating the ISO is _not_ the slow half.**
+An earlier draft of this paragraph said it was. On this host a full build takes
+**123 s** and the same build with `-SkipIso` takes **120 s** — `oscdimg` writes a
+550 MB ISO from an already-staged media tree in about **two seconds**. The
+fifteen-minute figure this plan budgeted for never appeared either. What the
+build actually spends its time on is mounting the WIM, applying eighteen cabs
+(nine components and nine language packs), and `Export-WindowsImage
+-CompressionType Max`. So `-SkipIso` is worth having for the artifact it does not
+produce, not for the time it saves, and **nothing should be optimised on the
+assumption that the ISO is expensive.**
 
 ### 5.2 The ISO, and `-NoPromptForKey`
 

@@ -92,9 +92,13 @@ Measured on this host (ADK 10.1.26100.2454, nine optional components):
 
 | | Time | Result |
 |---|---|---|
-| Full build (WIM + ISO) | ~3 min | `HDTPE_x64.wim` **495 340 358 B**, `HDTPE_x64.iso` **550 916 096 B** |
-| `-SkipIso` build | ~2 min | WIM only, manifest records `iso.skipped: true` |
+| Full build (WIM + ISO) | **123 s** | `HDTPE_x64.wim` **495 340 358 B**, `HDTPE_x64.iso` **550 916 096 B** |
+| `-SkipIso` build | **120 s** | WIM only, manifest records `iso.skipped: true` |
 | **Whole file, both builds plus the read-only re-mount** | **291 s** | 24 tests |
+
+**The ISO leg costs about two seconds**, not the "slow half of the build" DESIGN
+5.1 used to claim — corrected there in 05-04. The time goes on the mount, the
+eighteen cabs and `Export-WindowsImage -CompressionType Max`.
 
 The second build is a **full second build**, not a reuse of the first: the
 implementation exports from its own scratch WIM, and pretending otherwise would
