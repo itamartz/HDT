@@ -29,6 +29,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Command` | nothing |
 | `New-HDTFakeLsaService` | `ILsaService` | `New-HDTLsaService` | `-Secret` |
 | `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath` |
+| `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
 `IRegistryService` is six methods. `TestPath` and `GetValue` are the read subset
@@ -101,6 +102,31 @@ elevated **and** `$env:HDT_ALLOW_DISK_TEST -eq '1'`, and even then calls only
 `tests/integration` (04-04) against a mounted scratch VHDX, never against
 whatever disk the developer happens to have — which on this machine is a single
 NVMe disk with `IsBoot` and `IsSystem` both true.
+
+`IImageService` is five methods: `GetImageInfo(imagePath)`,
+`ApplyImage(imagePath, index, applyPath)`,
+`InstallBootFile(osRoot, systemVolume, firmware)`,
+`SetRecoveryImage(osRoot, recoveryPath)` and `SetBootOrderFirst()`. An image row
+carries `Index`, `Name`, `Description`, `Edition`, `SizeBytes`, `Architecture`
+and `Version`. **`SetBootOrderFirst` is SPIKES.md S6's fourth finding as an
+API**: after apply, a machine that still has the boot media first in the
+firmware order simply reboots into WinPE.
+
+The fake's `-Failure` seeds a method with the message it throws, as a
+`System.InvalidOperationException` — the type the real adapter throws when a
+native tool exits non-zero — so a step's failure path is provable. An image path
+that was never seeded throws `FileNotFoundException` naming it: a fake that
+returned an empty list for a typo'd WIM would make a missing image look like an
+image with no indices. Image paths are normalised exactly as
+`New-HDTFakeScriptInvoker` normalises script paths, so one key serves both.
+
+**The real row of `ImageService.Contract.Tests.ps1` calls `GetImageInfo` only**,
+and is skipped with a printed warning where the staged media is absent — CI has
+none. Applying an image, writing boot files, registering a recovery image and
+reordering the firmware entries are proven in `tests/integration` (04-04); until
+then `Expand-WindowsImage`, `bcdboot`, `bcdedit` and `reagentc` have **never
+been executed by this repository**, and the summary says so rather than implying
+otherwise.
 
 `New-HDTFakeRandomNumberGenerator` doubles a .NET type rather than an HDT
 service, so it has no real adapter row — but it follows every other convention

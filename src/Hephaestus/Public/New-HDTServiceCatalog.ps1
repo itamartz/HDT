@@ -20,6 +20,8 @@ function New-HDTServiceCatalog {
               ScriptInvoker  IScriptInvoker
               Cim            ICimProvider
               Environment    IEnvironmentProvider
+              Disk           IDiskService
+              Image          IImageService
 
             EVERY PROPERTY IS DEFINED EVEN WHERE IT IS $null. Engine code runs
             under Set-StrictMode -Version Latest, where reading a property that
@@ -69,8 +71,15 @@ function New-HDTServiceCatalog {
         .PARAMETER Environment
             An IEnvironmentProvider, or nothing.
 
+        .PARAMETER Disk
+            An IDiskService, or nothing. DiskPartition asks for it by name.
+
+        .PARAMETER Image
+            An IImageService, or nothing. ApplyImage and ConfigureBoot ask for
+            it by name.
+
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the nine service
+            System.Management.Automation.PSCustomObject with the eleven service
             properties and a GetRequired ScriptMethod.
 
         .EXAMPLE
@@ -121,7 +130,15 @@ function New-HDTServiceCatalog {
 
         [Parameter()]
         [AllowNull()]
-        [object] $Environment = $null
+        [object] $Environment = $null,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Disk = $null,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Image = $null
     )
 
     Set-StrictMode -Version Latest
@@ -137,6 +154,8 @@ function New-HDTServiceCatalog {
         ScriptInvoker = $ScriptInvoker
         Cim           = $Cim
         Environment   = $Environment
+        Disk          = $Disk
+        Image         = $Image
     }
 
     $catalog | Add-Member -MemberType ScriptMethod -Name GetRequired -Value {

@@ -2351,6 +2351,298 @@ function New-HDTFakeDiskService {
     return $fake
 }
 
+class HDTFakeImageService {
+
+    # Normalised image path -> object[] of image rows.
+    [hashtable] $Image
+
+    # Method name -> the message that method throws. A step's failure path is
+    # only provable if the service it depends on can be told to fail.
+    [hashtable] $Failure
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeImageService() {
+        $this.Image = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'ImageService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- key handling ------------------------------------------------------
+
+    # The same normalisation New-HDTFakeScriptInvoker uses, so one key serves
+    # both: a sequence writes 'Z:\OperatingSystems\Win11\sources\install.wim'
+    # and a test that seeded the forward-slash form still matches.
+    hidden [string] Normalize([string] $Path) {
+        if ([string]::IsNullOrWhiteSpace($Path)) {
+            throw [System.ArgumentException]::new('ImagePath must not be empty.', 'ImagePath')
+        }
+
+        return $Path.Replace('\', '/')
+    }
+
+    # Checked AFTER the method records, because the attempt is evidence about
+    # what the code under test tried. The type matches what the real adapter
+    # throws when a native tool exits non-zero.
+    hidden [void] AssertNoFailure([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    # Reads a property off a seeded row, whether it arrived as a pscustomobject
+    # (a fixture, deserialised) or as a hashtable (a test, typed by hand), and
+    # falls back to the documented default when it is absent or null. Engine
+    # code runs under Set-StrictMode -Version Latest, where reading a property
+    # that is not there throws rather than returning nothing.
+    hidden [object] Property([object] $Row, [string] $Name, [object] $Default) {
+        if ($null -eq $Row) {
+            return $Default
+        }
+
+        if ($Row -is [System.Collections.IDictionary]) {
+            if (-not $Row.Contains($Name)) {
+                return $Default
+            }
+            if ($null -eq $Row[$Name]) {
+                return $Default
+            }
+            return $Row[$Name]
+        }
+
+        $member = $Row.PSObject.Properties[$Name]
+        if ($null -eq $member) {
+            return $Default
+        }
+        if ($null -eq $member.Value) {
+            return $Default
+        }
+
+        return $member.Value
+    }
+
+    [void] SeedImage([string] $ImagePath, [object[]] $Row) {
+        $normalized = @()
+        foreach ($item in @($Row)) {
+            $normalized += [pscustomobject] @{
+                Index        = [int] $this.Property($item, 'Index', 0)
+                Name         = [string] $this.Property($item, 'Name', '')
+                Description  = [string] $this.Property($item, 'Description', '')
+                Edition      = [string] $this.Property($item, 'Edition', '')
+                SizeBytes    = [long] $this.Property($item, 'SizeBytes', [long] 0)
+                Architecture = [string] $this.Property($item, 'Architecture', '')
+                Version      = [string] $this.Property($item, 'Version', '')
+            }
+        }
+
+        $this.Image[$this.Normalize($ImagePath)] = [object[]] $normalized
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    # -- IImageService -----------------------------------------------------
+
+    [object[]] GetImageInfo([string] $ImagePath) {
+        $this.Record('GetImageInfo', @($ImagePath))
+        $this.AssertNoFailure('GetImageInfo')
+
+        # A path that was never seeded is a WIM that is not there, and the real
+        # adapter throws exactly this for it. A fake that returned an empty list
+        # would make a typo'd image path look like an image with no indices.
+        $key = $this.Normalize($ImagePath)
+        if (-not $this.Image.ContainsKey($key)) {
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not find image '$ImagePath': it was never seeded on this fake.", $ImagePath)
+        }
+
+        return [object[]] @($this.Image[$key])
+    }
+
+    [void] ApplyImage([string] $ImagePath, [int] $Index, [string] $ApplyPath) {
+        $this.Record('ApplyImage', @($ImagePath, $Index, $ApplyPath))
+        $this.AssertNoFailure('ApplyImage')
+    }
+
+    [void] InstallBootFile([string] $OsRoot, [string] $SystemVolume, [string] $Firmware) {
+        $this.Record('InstallBootFile', @($OsRoot, $SystemVolume, $Firmware))
+        $this.AssertNoFailure('InstallBootFile')
+    }
+
+    [void] SetRecoveryImage([string] $OsRoot, [string] $RecoveryPath) {
+        $this.Record('SetRecoveryImage', @($OsRoot, $RecoveryPath))
+        $this.AssertNoFailure('SetRecoveryImage')
+    }
+
+    [void] SetBootOrderFirst() {
+        $this.Record('SetBootOrderFirst', @())
+        $this.AssertNoFailure('SetBootOrderFirst')
+    }
+}
+
+function New-HDTFakeImageService {
+    <#
+        .SYNOPSIS
+            Creates an IImageService that returns seeded image information,
+            applies nothing and runs no native tool.
+
+        .DESCRIPTION
+            The hand-written double behind every imaging test (DESIGN 9.2;
+            DESIGN 12.2.1: engine logic receives injected services; DESIGN
+            12.2.3: fake, don't mock). It is what makes ApplyImage,
+            ConfigureBoot and their failure paths provable in seconds, against
+            no media and with nothing written to a disk.
+
+            Five methods:
+
+              GetImageInfo(imagePath) -> Index, Name, Description, Edition,
+                                         SizeBytes, Architecture, Version
+              ApplyImage(imagePath, index, applyPath)
+              InstallBootFile(osRoot, systemVolume, firmware)
+              SetRecoveryImage(osRoot, recoveryPath)
+              SetBootOrderFirst()
+
+            SetBootOrderFirst is SPIKES.md S6's fourth finding as an API: after
+            apply, a machine that still has the boot media first in the firmware
+            order simply reboots into WinPE.
+
+            An image path that was never seeded throws
+            System.IO.FileNotFoundException naming it, as the real adapter does
+            for a WIM that is not on disk (the error-parity rule in
+            tests/helpers/README.md section 5).
+
+            Image paths are matched case-insensitively with backslashes
+            normalised to forward slashes, exactly as New-HDTFakeScriptInvoker
+            normalises script paths, so one key serves both.
+
+            Every call appends a record to $Operations - before it can throw -
+            so the ordered ceremony a step performed can be asserted whole.
+            Seeding is deliberately not recorded.
+
+        .PARAMETER Image
+            Seed image information. Keys are image paths, values are the rows
+            GetImageInfo returns for that path.
+
+        .PARAMETER FixturePath
+            A directory of captured *.json files. Each file seeds under its own
+            base name, so tests/fixtures/image/ws2025-std-install.json becomes
+            the key 'ws2025-std-install'. Seed a real WIM path with -Image when
+            a test needs the path an administrator would type.
+
+        .PARAMETER Failure
+            Methods that fail. Keys are method names, values are the message the
+            System.InvalidOperationException carries - the type the real adapter
+            throws when a native tool exits non-zero.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeImageService. Never write the class name as a type literal in
+            a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $row = ConvertFrom-Json ([System.IO.File]::ReadAllText('./tests/fixtures/image/win11-ltsc-2024-install.json'))
+            $image = New-HDTFakeImageService -Image @{ 'Z:\OperatingSystems\Win11\sources\install.wim' = @($row) }
+            $image.GetImageInfo('Z:\OperatingSystems\Win11\sources\install.wim')[0].Name
+
+            Real captured Get-WindowsImage output, with no media mounted.
+
+        .EXAMPLE
+            $image = New-HDTFakeImageService -Failure @{ ApplyImage = 'Error: 0x80070002' }
+
+            The apply that fails, so a step's failure path is provable.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Image,
+
+        [Parameter()]
+        [string] $FixturePath,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeImageService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('FixturePath')) {
+        if (-not (Test-Path -LiteralPath $FixturePath -PathType Container)) {
+            throw "FixturePath '$FixturePath' does not exist or is not a directory."
+        }
+
+        foreach ($file in @(Get-ChildItem -LiteralPath $FixturePath -Filter '*.json' -File)) {
+            # Assigned first, wrapped second: under Windows PowerShell 5.1
+            # ConvertFrom-Json writes a top-level array WITHOUT enumerating it,
+            # so @(ConvertFrom-Json ...) would be one element - the whole array.
+            $content = ConvertFrom-Json -InputObject (Get-Content -LiteralPath $file.FullName -Raw)
+            $fake.SeedImage($file.BaseName, [object[]] @($content))
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Image')) {
+        foreach ($path in @($Image.Keys)) {
+            $fake.SeedImage([string] $path, [object[]] @($Image[$path]))
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($operation in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    return $fake
+}
+
 class HDTFakeClock {
 
     # The current fake instant. Always Kind = Utc: a clock whose answers depend
@@ -2528,6 +2820,7 @@ Export-ModuleMember -Function @(
     'New-HDTFakeDiskService',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',
+    'New-HDTFakeImageService',
     'New-HDTFakeLsaService',
     'New-HDTFakePowerService',
     'New-HDTFakeProcessService',
