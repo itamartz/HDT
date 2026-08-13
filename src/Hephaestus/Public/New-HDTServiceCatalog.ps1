@@ -22,6 +22,7 @@ function New-HDTServiceCatalog {
               Environment    IEnvironmentProvider
               Disk           IDiskService
               Image          IImageService
+              Content        IContentProvider
 
             EVERY PROPERTY IS DEFINED EVEN WHERE IT IS $null. Engine code runs
             under Set-StrictMode -Version Latest, where reading a property that
@@ -78,8 +79,15 @@ function New-HDTServiceCatalog {
             An IImageService, or nothing. ApplyImage and ConfigureBoot ask for
             it by name.
 
+        .PARAMETER Content
+            An IContentProvider, or nothing - New-HDTLocalContentProvider or
+            New-HDTSmbContentProvider (DESIGN 6). ApplyImage resolves the
+            catalog's image through it when the run was started with one, which
+            is the whole of DESIGN 6.2's "a provider swap, not a parallel code
+            path" as far as a step is concerned.
+
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the eleven service
+            System.Management.Automation.PSCustomObject with the twelve service
             properties and a GetRequired ScriptMethod.
 
         .EXAMPLE
@@ -138,7 +146,11 @@ function New-HDTServiceCatalog {
 
         [Parameter()]
         [AllowNull()]
-        [object] $Image = $null
+        [object] $Image = $null,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Content = $null
     )
 
     Set-StrictMode -Version Latest
@@ -156,6 +168,7 @@ function New-HDTServiceCatalog {
         Environment   = $Environment
         Disk          = $Disk
         Image         = $Image
+        Content       = $Content
     }
 
     $catalog | Add-Member -MemberType ScriptMethod -Name GetRequired -Value {

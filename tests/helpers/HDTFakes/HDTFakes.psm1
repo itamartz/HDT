@@ -2871,9 +2871,308 @@ function New-HDTFakeClock {
     return $fake
 }
 
+class HDTFakeContentProvider {
+
+    # The root every relative path is resolved against - a workspace root, a UNC
+    # share, or the root of a piece of standalone media.
+    [string] $Root
+
+    # Normalised relative path -> the absolute path ResolveContent answers with,
+    # and the set TestContent answers from. Seeded content is content that is
+    # THERE; anything else resolves to a path under the root and is absent.
+    [hashtable] $Content
+
+    # Method name -> the message that method throws. A provider that cannot fail
+    # cannot prove a step's failure path.
+    [hashtable] $Failure
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    # Whether Connect has been called. Local and Smb both track it - Smb to map
+    # once when Connect is called twice, this fake so a test can see the same.
+    [bool] $IsConnected
+
+    HDTFakeContentProvider() {
+        $this.Root = 'Z:\Deploy'
+        $this.Content = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'ContentProvider'
+        $this.IsConnected = $false
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- path handling -----------------------------------------------------
+
+    # One key for both separators, so a test that seeded the forward-slash form
+    # still matches the backslash a sequence writes.
+    hidden [string] Key([string] $Path) {
+        return $Path.Replace('\', '/')
+    }
+
+    # THE RESOLUTION RULES, WRITTEN THE SAME WAY IN ALL THREE IMPLEMENTATIONS.
+    # Segments are collapsed here rather than by [IO.Path]::GetFullPath, which
+    # consults the current directory for a volume-relative root and silently
+    # clamps '..' at the root of a UNC share instead of reporting the escape.
+    hidden [string] NormalizeRelative([string] $Path) {
+        $segment = [System.Collections.ArrayList]::new()
+
+        foreach ($part in ($Path -split '[\\/]+')) {
+            if (($part -eq '') -or ($part -eq '.')) { continue }
+
+            if ($part -eq '..') {
+                if ($segment.Count -eq 0) {
+                    throw [System.ArgumentException]::new(
+                        ("HDTConfigurationError: the content path '{0}' escapes the content root '{1}'. A step asking for content outside the workspace is a defect, not a path to follow." -f $Path, $this.Root))
+                }
+                $segment.RemoveAt($segment.Count - 1)
+                continue
+            }
+
+            [void] $segment.Add($part)
+        }
+
+        return ($segment -join '\')
+    }
+
+    hidden [void] AssertUsablePath([string] $Path) {
+        if ([string]::IsNullOrWhiteSpace($Path)) {
+            throw [System.ArgumentException]::new(
+                ("HDTConfigurationError: a content path must not be empty. The provider was asked to resolve nothing against the content root '{0}'." -f $this.Root))
+        }
+    }
+
+    hidden [string] Combine([string] $RelativePath) {
+        $tail = $this.NormalizeRelative($RelativePath)
+        if ($tail.Length -eq 0) { return $this.Root }
+
+        return ($this.Root.TrimEnd('\', '/') + '\' + $tail)
+    }
+
+    # Checked AFTER the method records, because the attempt is evidence about
+    # what the code under test tried. The type matches what a real provider
+    # throws when the transport underneath it fails.
+    hidden [void] AssertNoFailure([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SeedContent([string] $RelativePath, [string] $ResolvedPath) {
+        $this.Content[$this.Key($RelativePath)] = $ResolvedPath
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    # -- IContentProvider --------------------------------------------------
+
+    [string] ResolveContent([string] $RelativePath) {
+        $this.Record('ResolveContent', @($RelativePath))
+        $this.AssertNoFailure('ResolveContent')
+        $this.AssertUsablePath($RelativePath)
+
+        # DESIGN 9.3: media too large to bring into the share is registered where
+        # it stands, and a provider must not re-root it.
+        if ([System.IO.Path]::IsPathRooted($RelativePath)) {
+            return $RelativePath
+        }
+
+        $combined = $this.Combine($RelativePath)
+
+        $key = $this.Key($RelativePath)
+        if ($this.Content.ContainsKey($key)) {
+            return [string] $this.Content[$key]
+        }
+
+        return $combined
+    }
+
+    [bool] TestContent([string] $RelativePath) {
+        $this.Record('TestContent', @($RelativePath))
+        $this.AssertNoFailure('TestContent')
+        $this.AssertUsablePath($RelativePath)
+
+        if (-not [System.IO.Path]::IsPathRooted($RelativePath)) {
+            [void] $this.Combine($RelativePath)
+        }
+
+        return $this.Content.ContainsKey($this.Key($RelativePath))
+    }
+
+    [string] CopyContent([string] $RelativePath, [string] $Destination) {
+        $this.Record('CopyContent', @($RelativePath, $Destination))
+        $this.AssertNoFailure('CopyContent')
+        $this.AssertUsablePath($RelativePath)
+
+        if (-not [System.IO.Path]::IsPathRooted($RelativePath)) {
+            [void] $this.Combine($RelativePath)
+        }
+
+        if (-not $this.Content.ContainsKey($this.Key($RelativePath))) {
+            throw [System.IO.FileNotFoundException]::new(
+                ("Could not find content '{0}' under '{1}': it was never seeded on this fake." -f $RelativePath, $this.Root), $RelativePath)
+        }
+
+        # Nothing is written anywhere: the destination is reported, not created.
+        return $Destination
+    }
+
+    [string] Connect() {
+        $this.Record('Connect', @())
+        $this.AssertNoFailure('Connect')
+        $this.IsConnected = $true
+
+        return $this.Root
+    }
+
+    # No failure seam, deliberately: Disconnect runs in a finally on every
+    # implementation and a teardown that throws is a teardown that does not
+    # finish.
+    [void] Disconnect() {
+        $this.Record('Disconnect', @())
+        $this.IsConnected = $false
+    }
+}
+
+function New-HDTFakeContentProvider {
+    <#
+        .SYNOPSIS
+            Creates an IContentProvider that resolves seeded content and reaches
+            no share, no media and no disk.
+
+        .DESCRIPTION
+            The hand-written double behind DESIGN 6's provider interface
+            (DESIGN 12.2.1: engine logic receives injected services; DESIGN
+            12.2.3: fake, don't mock).
+
+            Five methods:
+
+              ResolveContent(relativePath) -> an absolute path a step can use
+              TestContent(relativePath)    -> [bool]
+              CopyContent(relativePath, destination) -> the destination
+              Connect()                    -> the root that is now reachable
+              Disconnect()
+
+            The resolution rules are the ones every implementation shares: a
+            relative path is combined with Root, a ROOTED path is returned
+            unchanged (DESIGN 9.3 - media registered where it stands), a '..'
+            that escapes Root is refused, and an empty path is refused. Both
+            refusals are System.ArgumentException carrying HDTConfigurationError
+            in the sentence, because a ScriptMethod - which is what every real
+            adapter is - cannot carry an ErrorRecord's error id to its caller.
+
+            ResolveContent does not check existence. TestContent is that
+            question, and it answers from what was seeded.
+
+        .PARAMETER Root
+            The content root. Defaults to Z:\Deploy.
+
+        .PARAMETER Content
+            Seed content that is present. Keys are relative paths, values are the
+            absolute path ResolveContent answers with - which is how a test
+            stages media registered outside the share.
+
+        .PARAMETER Failure
+            Methods that fail. Keys are method names, values are the message the
+            System.InvalidOperationException carries.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeContentProvider. Never write the class name as a type literal
+            in a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $content = New-HDTFakeContentProvider -Root 'Z:\Deploy'
+            $content.ResolveContent('OperatingSystems\Win11-LTSC-2024\sources\install.wim')
+
+        .EXAMPLE
+            $content = New-HDTFakeContentProvider -Failure @{ Connect = 'the network is not up' }
+
+            The connect that fails, so a launcher's failure path is provable.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $Root = 'Z:\Deploy',
+
+        [Parameter()]
+        [hashtable] $Content,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeContentProvider]::new()
+    $fake.Journal = $Journal
+    $fake.Root = $Root
+
+    if ($PSBoundParameters.ContainsKey('Content')) {
+        foreach ($key in @($Content.Keys)) {
+            $fake.SeedContent([string] $key, [string] $Content[$key])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($operation in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    return $fake
+}
+
 Export-ModuleMember -Function @(
     'New-HDTFakeCimProvider',
     'New-HDTFakeClock',
+    'New-HDTFakeContentProvider',
     'New-HDTFakeDiskService',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',

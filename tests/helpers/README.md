@@ -11,7 +11,7 @@ works if every fake records the same way.
 
 | Path | Holds |
 |---|---|
-| `tests/helpers/HDTTestTools/` | Analysis helpers used by `build.ps1` and the contract tests: source discovery, name validation, the 5.1 compatibility scanner, the MDT scanner, the Pester configuration |
+| `tests/helpers/HDTTestTools/` | Analysis helpers used by `build.ps1` and the contract tests: source discovery, name validation, the 5.1 compatibility scanner, the MDT scanner, the slow-suite skip scanner, the Pester configuration |
 | `tests/helpers/HDTFakes/` | Hand-written service doubles — one class per service, all inline in `HDTFakes.psm1` |
 | `tests/fixtures/` | Captured data the fakes are seeded from, and deliberately invalid source the scanners are pointed at. See `tests/fixtures/README.md` |
 
@@ -30,6 +30,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeLsaService` | `ILsaService` | `New-HDTLsaService` | `-Secret` |
 | `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
+| `New-HDTFakeContentProvider` | `IContentProvider` | `New-HDTLocalContentProvider`, `New-HDTSmbContentProvider` | `-Root`, `-Content`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
 `IRegistryService` is six methods. `TestPath` and `GetValue` are the read subset
@@ -135,6 +136,35 @@ reordering the firmware entries are proven in `tests/integration` (04-04); until
 then `Expand-WindowsImage`, `bcdboot`, `bcdedit` and `reagentc` have **never
 been executed by this repository**, and the summary says so rather than implying
 otherwise.
+
+`IContentProvider` is five methods: `ResolveContent(relativePath)`,
+`TestContent(relativePath)`, `CopyContent(relativePath, destination)`,
+`Connect()` and `Disconnect()`. **`Connect` and `Disconnect` are on the interface
+even where they do nothing**, because DESIGN 6.2's claim is that media
+generation is "a content projection plus a provider swap, not a parallel code
+path" — and a provider where one implementation carries two extra methods is a
+provider a step has to branch on. `Local` therefore has both, and `Connect` earns
+its place by verifying the root: a USB stick that was never inserted fails there,
+naming the root, rather than in the middle of an apply.
+
+The resolution rules are identical in all three implementations: a relative path
+is combined with `Root`, a **rooted** path is returned unchanged (DESIGN 9.3 —
+media too large to bring into the share is registered where it stands), a `..`
+that escapes `Root` is refused, and an empty path is refused. Segments are
+collapsed by hand rather than by `[IO.Path]::GetFullPath`, which consults the
+current directory for a volume-relative root and **silently clamps `..` at the
+root of a UNC share** instead of reporting the escape —
+`GetFullPath('\\server\Share\..\..\Windows')` is `\\server\Share\Windows` on both
+engines.
+
+**The error id travels in the message, not in an `ErrorRecord`.** A refusal
+raised inside a PowerShell class method keeps its `FullyQualifiedErrorId`; the
+same refusal raised inside a `ScriptMethod` — which is what every real adapter is
+(F1) — arrives as `ScriptMethodRuntimeException` and loses it. Verified on both
+engines. So `HDTConfigurationError` and `HDTSecurityError` are written into the
+sentence, where the fake's class method and the adapter's `ScriptMethod` can both
+carry them, and the contract asserts the exception *type* after unwrapping
+(section 5).
 
 `New-HDTFakeRandomNumberGenerator` doubles a .NET type rather than an HDT
 service, so it has no real adapter row — but it follows every other convention
@@ -434,6 +464,27 @@ Two exclusions keep them harmless, and both must stay true:
 `tests/unit/HarnessSelfCheck.Tests.ps1` asserts both exclusions, so a future
 change that widens `Run.Path` or `Get-HDTSourceFile` turns the suite red instead
 of quietly poisoning it.
+
+### `Get-HDTSlowSuiteSkipViolation` — the S9.15 guard
+
+`tests/contract/SlowSuiteSkip.Contract.Tests.ps1` runs it over every file in
+`tests/integration` and `tests/e2e`, in the **normal** suite, because the files it
+judges are the ones nobody runs on an ordinary day.
+
+What it refuses: a `$script:` variable **assigned in `BeforeDiscovery` and read
+inside `BeforeAll`** without being reassigned there first. Pester's discovery and
+run phases do not share a scope. Under `./build.ps1`, which sets
+`Set-StrictMode -Version Latest`, that read throws inside `BeforeAll` and takes
+the whole container down; without StrictMode it is `$null`, `if (-not $null)` is
+TRUE, and the expensive body runs on a machine that was supposed to be skipping
+it (SPIKES S9.15). The fix, and the shape the scanner treats as correct, is to
+recompute the condition inside `BeforeAll`.
+
+It is AST-based, because the assignment and the read are the same token and a
+text scan cannot tell them apart; a file that does not parse falls back to a line
+scan and says so in the message, so a syntax error cannot hide a violation.
+`tests/fixtures/slowskip/` holds one file per case, including a deliberately
+unparseable one.
 
 ## 10. Mock is reserved for the adapter boundary
 

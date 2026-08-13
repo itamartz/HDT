@@ -19,6 +19,7 @@
         'Get-HDTLabOfflineComputerName',
         'Get-HDTLogRecord',
         'Get-HDTMdtDependency',
+        'Get-HDTSlowSuiteSkipViolation',
         'Get-HDTSourceFile',
         'Get-HDTScriptCompatibilityViolation',
         'Get-HDTSourceFunction',

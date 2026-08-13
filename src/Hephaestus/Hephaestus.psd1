@@ -70,6 +70,7 @@
         'New-HDTExecutionContext',
         'New-HDTFileSystem',
         'New-HDTImageService',
+        'New-HDTLocalContentProvider',
         'New-HDTLogContext',
         'New-HDTLsaService',
         'New-HDTPowerService',

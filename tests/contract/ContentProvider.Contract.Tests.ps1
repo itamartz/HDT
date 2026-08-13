@@ -30,13 +30,13 @@
 $script:HDTImplementation = @(
     @{
         Name           = 'FakeContentProvider'
-        Factory        = { param($RepositoryRoot, $LocalRoot) New-HDTFakeContentProvider -Root 'Z:\Deploy' }
-        JournalFactory = { param($Journal, $LocalRoot) New-HDTFakeContentProvider -Root 'Z:\Deploy' -Journal $Journal }
+        Factory        = { New-HDTFakeContentProvider -Root 'Z:\Deploy' }
+        JournalFactory = { param($Journal) New-HDTFakeContentProvider -Root 'Z:\Deploy' -Journal $Journal }
         Skip           = $false
     }
     @{
         Name           = 'LocalContentProvider'
-        Factory        = { param($RepositoryRoot, $LocalRoot) New-HDTLocalContentProvider -Root $LocalRoot -FileSystem (New-HDTFileSystem) }
+        Factory        = { param($LocalRoot) New-HDTLocalContentProvider -Root $LocalRoot -FileSystem (New-HDTFileSystem) }
         JournalFactory = { param($Journal, $LocalRoot) New-HDTLocalContentProvider -Root $LocalRoot -FileSystem (New-HDTFileSystem) -Journal $Journal }
         Skip           = $false
     }
@@ -69,7 +69,11 @@ Describe 'IContentProvider contract: <Name>' -ForEach $script:HDTImplementation 
     Context 'implementation' -Skip:$Skip {
 
         BeforeEach {
-            $script:content = & $Factory $script:repoRoot $script:localRoot
+            # The factory is PASSED the temp tree rather than closing over it: a
+            # variable set in BeforeAll is not visible where the row was declared
+            # at discovery. This contract's rows need the tree, not the
+            # repository root, so that is the argument they get.
+            $script:content = & $Factory $script:localRoot
         }
 
         It 'exposes every method the contract requires' {
