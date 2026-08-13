@@ -40,6 +40,7 @@
         'Invoke-HDTPowerShellStep',
         'Invoke-HDTCommandLineStep',
         'Invoke-HDTRestartStep',
+        'Invoke-HDTBootReconciliation',
         'Invoke-HDTStep',
         'New-HDTCimProvider',
         'New-HDTClock',

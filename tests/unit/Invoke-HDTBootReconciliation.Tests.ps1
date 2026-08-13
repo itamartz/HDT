@@ -169,7 +169,7 @@ Describe 'Invoke-HDTBootReconciliation' {
                     Where-Object { $_.level -eq 'Warning' })
 
             $record | Should -Not -BeNullOrEmpty
-            ($record | ForEach-Object { $_.msg }) -join ' ' | Should -Not -BeNullOrEmpty
+            ($record | ForEach-Object { $_.message }) -join ' ' | Should -Match 'not valid JSON'
         }
 
         It 'removes the corrupt state file' {
