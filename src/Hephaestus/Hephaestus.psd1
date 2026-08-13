@@ -66,6 +66,7 @@
         'Invoke-HDTTaskSequence',
         'New-HDTBootImageService',
         'New-HDTCimProvider',
+        'New-HDTBootIso',
         'New-HDTClock',
         'New-HDTContentProvider',
         'New-HDTDeploymentPassword',
