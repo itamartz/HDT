@@ -94,6 +94,40 @@ both editions always report. Module versions are pinned, and the workflow runs
 `./build.ps1 -Task ci`, the same entry point developers use; CI never grows its
 own build logic (DESIGN §12.2.5).
 
+## Variables and rules
+
+HDT replaces `CustomSettings.ini` + `ZTIGather` with `rules.yaml` and a
+five-source resolution engine — and, unlike MDT, it tells you *why* every
+variable ended up as it did.
+
+```powershell
+Import-Module ./src/Hephaestus/Hephaestus.psd1
+
+$fact  = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                            -RegistryService (New-HDTRegistryService) `
+                            -EnvironmentProvider (New-HDTEnvironmentProvider)
+$rules = Import-HDTRuleDocument -Path 'X:\Deploy\rules.yaml' -FileSystem (New-HDTFileSystem)
+$r     = Resolve-HDTVariable -RuleDocument $rules -Fact $fact -ScriptInvoker (New-HDTScriptInvoker)
+
+Get-HDTVariableProvenance -Resolution $r | Format-Table Order, Name, Value, Source, Rule -AutoSize
+```
+
+```
+Order Name              Value            Source       Rule
+----- ----              -----            ------       ----
+    1 HDTComputerName   PC-PF3EKMR0      Rule         Fallback
+    2 HDTJoinWorkgroup  WORKGROUP        Rule         Fallback
+    3 HDTMake           LENOVO           GatheredFact
+```
+
+Sources, highest precedence first: `CommandLine`, `MachineOverride`, `Rule` /
+`RuleScript`, `GatheredFact`, `SequenceDefault`. Nothing overwrites a variable an
+earlier source resolved, so a later rule can only act as a fallback. The same
+records go to `<_HDTLogPath>\Gather\provenance.json` via
+`Export-HDTVariableProvenance`.
+
+See [samples/README.md](samples/README.md) for a workspace to copy.
+
 ## Status
 
 **Phase 01 (M0 — skeleton and harness) is complete.** The module skeleton, the
@@ -101,6 +135,13 @@ own build logic (DESIGN §12.2.5).
 PowerShell 5.1 / no-MDT contract tests, the first service fakes and their
 contracts, the harness self-proof and CI are all in place. `./build.ps1 -Task
 test` is green on a clean clone under both engines.
+
+**Phase 02 (M1 — variables and rules) is complete.** Fact gathering behind
+`ICimProvider`, the `rules.yaml` parser and schema, the five-source resolution
+engine with `%Var%` expansion and `setFrom:` script rules, and provenance —
+queryable with `Get-HDTVariableProvenance` and written to `provenance.json`. The
+M1 exit criterion is demonstrated end to end in
+`tests/unit/GatherAndResolve.EndToEnd.Tests.ps1`, over fixtures and fakes only.
 
 ## Test-driven, without exception
 
