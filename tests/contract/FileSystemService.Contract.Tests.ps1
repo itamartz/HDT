@@ -75,7 +75,8 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $method = @($script:fs | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
-                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetLength')) {
+                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetLength',
+                    'GetHash')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -343,6 +344,73 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $script:fs.WriteAllText($path, 'hello')
 
             $script:fs.GetLength($path) | Should -Be 5
+        }
+
+        # -- GetHash, the tenth method (05-04) ------------------------------
+        #
+        # DESIGN 6.1.1's whole debugging story is "the WIM inside the ISO hashes
+        # identical to the standalone WIM", and Update-HDTBootImage has to write
+        # that hash into the manifest so an operator can check it without this
+        # suite. Hashing a 500 MB ISO cannot go through ReadAllText, so the
+        # interface grew a tenth method rather than the builder growing a
+        # Get-FileHash call that no fake could answer.
+
+        It 'returns a 64 character uppercase hex SHA256 from GetHash' {
+            $path = Join-Path -Path $script:root -ChildPath 'hash.txt'
+            $script:fs.WriteAllText($path, 'hello')
+
+            $hash = $script:fs.GetHash($path)
+
+            $hash | Should -Match '^[0-9A-F]{64}$'
+        }
+
+        It 'hashes the known SHA256 of hello' {
+            # Not a fixture and not an invention: the SHA256 of the five ASCII
+            # bytes 'hello'. Asserting the VALUE is what makes the fake's hash
+            # and the real adapter's hash the same number rather than merely the
+            # same shape - Update-HDTBootImage compares hashes computed on two
+            # different files and a fake with its own hashing scheme would let a
+            # builder that compared nothing pass.
+            $path = Join-Path -Path $script:root -ChildPath 'hello.txt'
+            $script:fs.WriteAllText($path, 'hello')
+
+            $script:fs.GetHash($path) |
+                Should -BeExactly '2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824'
+        }
+
+        It 'gives two files with identical content the same hash' {
+            $first = Join-Path -Path $script:root -ChildPath 'first.wim'
+            $second = Join-Path -Path $script:root -ChildPath 'sources/boot.wim'
+            $script:fs.WriteAllText($first, 'the same bytes')
+            $script:fs.CopyItem($first, $second)
+
+            $script:fs.GetHash($second) | Should -BeExactly $script:fs.GetHash($first)
+        }
+
+        It 'gives two files with different content different hashes' {
+            $first = Join-Path -Path $script:root -ChildPath 'a.wim'
+            $second = Join-Path -Path $script:root -ChildPath 'b.wim'
+            $script:fs.WriteAllText($first, 'one')
+            $script:fs.WriteAllText($second, 'two')
+
+            $script:fs.GetHash($second) | Should -Not -BeExactly $script:fs.GetHash($first)
+        }
+
+        It 'throws FileNotFoundException from GetHash for a path that is not a file' {
+            $record = $null
+            try { $script:fs.GetHash((Join-Path -Path $script:root -ChildPath 'absent.wim')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.FileNotFoundException])
+        }
+
+        It 'records GetHash before it can throw' {
+            try { $script:fs.GetHash((Join-Path -Path $script:root -ChildPath 'absent.wim')) } catch { $null = $_ }
+
+            $script:fs.GetOperationName() | Should -Be @('GetHash')
         }
 
         It 'treats paths case-insensitively' {
