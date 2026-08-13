@@ -29,10 +29,13 @@ to that list turns a two-second suite into a twenty-minute one.
 
 | Needed | Why | What happens without it |
 |---|---|---|
-| An **elevated** session | mounting VHDXs, clearing and partitioning disks | `build.ps1` throws a sentence naming it |
+| An **elevated** session | mounting VHDXs and WIMs, clearing and partitioning disks | `build.ps1` throws a sentence naming it |
 | The **Hyper-V PowerShell module** | `New-VHD` creates the scratch VHDX | `build.ps1` throws a sentence naming it |
-| `C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim` | the real image the apply tests apply | `build.ps1` throws a sentence naming it |
+| `C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim` | the real image the apply tests apply | `build.ps1` **warns**; the files that apply an image skip themselves |
+| The **Windows ADK** (Deployment Tools + WinPE add-on) | the real boot image build | `build.ps1` **warns**; `BootImage.Integration.Tests.ps1` skips itself |
+| **`powershell-yaml`** installed | it is staged into the boot image | `BootImage.Integration.Tests.ps1` skips itself |
 | About **25 GB free** on `C:` | a 40 GB dynamic VHDX with Windows 11 expanded into it | the apply fails partway |
+| About **8 GB free** on `C:` | the boot image build's own scratch | `BootImage.Integration.Tests.ps1` skips itself |
 | The drive letters **`S:`, `W:` and `R:` free** | see below | the file **skips itself** with a warning naming the letter that is in use |
 
 ### The fixed drive letters are a real constraint
@@ -74,6 +77,44 @@ because the assertion is that nothing happens.
 | `DiskService.Integration.Tests.ps1` | the destructive half of `IDiskService` against a scratch VHDX — including `Initialize-Disk` creating the MSR nobody asked for (SPIKES S6) |
 | `DiskPartition.Integration.Tests.ps1` | `Invoke-HDTDiskPartitionStep` end to end with real services, and that `-WhatIf` writes nothing |
 | `ImageService.Integration.Tests.ps1` | a real Windows 11 apply, `bcdboot`, `reagentc`, and the unattend Setup will read. Tagged `Slow` — the apply alone takes minutes |
+| `SmbContentProvider.Integration.Tests.ps1` | a real SMB mapping over loopback, and the identity the provider reads back off it |
+| `BootImage.Integration.Tests.ps1` | a real boot image: nine cabs into a real WIM, a real `oscdimg` ISO, and the DESIGN 6.1.1 equivalence hash |
+
+## The boot image build, and what it costs
+
+`BootImage.Integration.Tests.ps1` is the only file here that needs the **ADK**
+rather than a disk. It builds **twice** into two scratch workspaces under
+`C:\HDTLab\scratch\bootimage\` — once fully, once with `-SkipIso` — then
+**re-mounts the WIM it produced, read-only**, and asserts from the files inside
+it rather than from the build's own claims.
+
+Measured on this host (ADK 10.1.26100.2454, nine optional components):
+
+| | Time | Result |
+|---|---|---|
+| Full build (WIM + ISO) | ~3 min | `HDTPE_x64.wim` **495 340 358 B**, `HDTPE_x64.iso` **550 916 096 B** |
+| `-SkipIso` build | ~2 min | WIM only, manifest records `iso.skipped: true` |
+| **Whole file, both builds plus the read-only re-mount** | **291 s** | 24 tests |
+
+The second build is a **full second build**, not a reuse of the first: the
+implementation exports from its own scratch WIM, and pretending otherwise would
+mean asserting that `-SkipIso` skipped work it never did. Two minutes is the
+honest price of proving `-SkipIso` skips exactly one thing.
+
+The two central assertions are worth naming, because they are what the file
+exists for:
+
+- **`startnet.cmd` is read back out of the mounted image** and compared, line by
+  line, with `Get-HDTStartnetScript`'s output. The unit suite asserts what the
+  builder *wrote*; this asserts what is *in the image*.
+- **The WIM inside the ISO hashes identical to the standalone WIM** (DESIGN
+  6.1.1, named explicitly in ROADMAP M4). Asserted three ways — the file on
+  disk, `sources\boot.wim` inside the mounted ISO, and the manifest's
+  `isoBootWimSha256` — because a manifest that agreed with itself but not with
+  the disk would be worse than none.
+
+Set `HDT_KEEP_BOOT_IMAGE=1` to keep the scratch mount and work directories for
+inspection; the artifacts under `…\Share\Boot\` are left in place either way.
 
 ## What is deliberately not here
 
