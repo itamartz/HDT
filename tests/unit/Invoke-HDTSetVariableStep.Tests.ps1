@@ -203,9 +203,14 @@ Describe 'Invoke-HDTSetVariableStep' {
             # not the process: the loop decides what a failed step means.
             $step = & $script:newStep 'Set nothing' $null
 
+            # Not `{ $result = ... } | Should -Not -Throw`: that scriptblock runs
+            # in a child scope, so the assignment would never reach the assertion
+            # and the test would pass for the wrong reason.
             $result = $null
-            { $result = Invoke-HDTSetVariableStep -Step $step -Context $script:context } | Should -Not -Throw
+            $record = $null
+            try { $result = Invoke-HDTSetVariableStep -Step $step -Context $script:context } catch { $record = $_ }
 
+            $record | Should -BeNullOrEmpty
             $result.Status | Should -BeExactly 'Failed'
             $result.Message | Should -BeLike '*Set nothing*'
         }
