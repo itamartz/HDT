@@ -48,6 +48,7 @@
         'New-HDTCimProvider',
         'New-HDTClock',
         'New-HDTDeploymentPassword',
+        'New-HDTDiskService',
         'New-HDTEnvironmentProvider',
         'New-HDTExecutionContext',
         'New-HDTFileSystem',

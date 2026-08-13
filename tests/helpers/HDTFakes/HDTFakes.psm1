@@ -2299,15 +2299,23 @@ function New-HDTFakeDiskService {
         $text = Get-Content -LiteralPath $File.FullName -Raw
 
         # Never -AsHashtable: it is PowerShell 6+ only and banned outright.
-        $content = @(ConvertFrom-Json -InputObject $text)
+        #
+        # ASSIGNED FIRST, WRAPPED SECOND, AND THAT ORDER IS LOAD-BEARING. Under
+        # Windows PowerShell 5.1 ConvertFrom-Json writes a top-level JSON array
+        # to the pipeline WITHOUT enumerating it, so @(ConvertFrom-Json ...)
+        # yields ONE element - the whole array - and every row after the first is
+        # silently lost. Through a variable it is the array itself on both
+        # engines. Observed: four captured partitions arriving as one nonsense
+        # row under 5.1 while pwsh 7 was green.
+        $content = ConvertFrom-Json -InputObject $text
 
         $name = $File.BaseName
         if ($name -like '*-disk') {
-            foreach ($row in $content) { $Fake.SeedDisk($row) }
+            foreach ($row in @($content)) { $Fake.SeedDisk($row) }
         } elseif ($name -like '*-partition') {
-            foreach ($row in $content) { $Fake.SeedPartition($row) }
+            foreach ($row in @($content)) { $Fake.SeedPartition($row) }
         } elseif ($name -like '*-volume') {
-            foreach ($row in $content) { $Fake.SeedVolume($row) }
+            foreach ($row in @($content)) { $Fake.SeedVolume($row) }
         } else {
             throw ("Disk fixture '{0}' does not say which listing it seeds. Name it *-disk.json, *-partition.json or *-volume.json." -f $File.FullName)
         }

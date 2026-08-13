@@ -129,7 +129,13 @@ Describe 'New-HDTFakeDiskService' {
 
         BeforeEach {
             $script:service = New-HDTFakeDiskService -FixturePath (Join-Path -Path $script:diskFixture -ChildPath 'host-nvme-disk.json')
-            foreach ($row in @(ConvertFrom-Json ([System.IO.File]::ReadAllText((Join-Path -Path $script:diskFixture -ChildPath 'host-partition.json'))))) {
+
+            # Assigned first, wrapped second: under Windows PowerShell 5.1
+            # ConvertFrom-Json writes a top-level array without enumerating it,
+            # so @(ConvertFrom-Json ...) is ONE element - the whole array - and
+            # three of these four partitions would vanish (F12).
+            $captured = ConvertFrom-Json ([System.IO.File]::ReadAllText((Join-Path -Path $script:diskFixture -ChildPath 'host-partition.json')))
+            foreach ($row in @($captured)) {
                 $script:service.SeedPartition($row)
             }
         }

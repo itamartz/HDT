@@ -498,6 +498,24 @@ IFileSystem contract asserts the first three bytes are not the BOM.
 `::AppendAllText` also **creates a missing file** but **throws** for a missing
 parent directory, so both the adapter and the fake create the parent first.
 
+**F12. Under Windows PowerShell 5.1 `ConvertFrom-Json` writes a top-level JSON
+array to the pipeline WITHOUT enumerating it.** So `@(ConvertFrom-Json $text)`
+is **one** element — the whole array — while pwsh 7 gives one element per row.
+Through a variable it is the array itself on both engines:
+
+```powershell
+$content = ConvertFrom-Json -InputObject $text     # correct
+foreach ($row in @($content)) { ... }
+
+$content = @(ConvertFrom-Json -InputObject $text)  # WRONG: 1 element under 5.1
+```
+
+Observed in 04-01: a four-partition fixture arrived as a single nonsense row
+under 5.1 while the pwsh 7 leg was green, and the fake happily reported one
+partition where the machine has four. `New-HDTFakeCimProvider` was already
+written the correct way, which is why this had not bitten before. Every fixture
+loader assigns first and wraps second.
+
 **Recording applies to real adapters too.** `New-HDTRegistryService`,
 `New-HDTEnvironmentProvider` and `New-HDTScriptInvoker` each expose `$Operations`
 and `GetOperationName()` and record before the call can throw, exactly as
