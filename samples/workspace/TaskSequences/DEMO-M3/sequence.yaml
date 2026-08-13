@@ -1,0 +1,75 @@
+# The WinPE half of a real Windows 11 deployment - the five step types M3 ships,
+# in the order SPIKES S6 proved by hand:
+#
+#   validate -> partition -> apply the WIM -> stage the unattend -> make it boot
+#
+# THIS IS THE FILE tests/unit/Imaging.EndToEnd.Tests.ps1 RUNS, read off disk and
+# seeded into the fake filesystem as text, and it is the same file 04-04 deploys
+# a VM with. So the benchmark, the sample and the lab run cannot drift apart.
+#
+# THERE IS DELIBERATELY NO Restart STEP, and that is a statement rather than an
+# omission. The reboot ceremony arms autologon through the registry and an LSA
+# secret - and in WinPE those are the RAM disk's, not the deployed machine's.
+# The first logon of the machine being built is configured by the unattend
+# (DESIGN 4.5.1), which is what the ApplyUnattend step stages. The WinPE -> full
+# OS handoff belongs to phase 05's Start-HDTDeployment; pretending otherwise here
+# would put an unproven mechanism inside this phase's exit criterion.
+
+schemaVersion: 1
+id: DEMO-M3
+name: Windows 11 bare metal (WinPE half)
+description: >
+  Validate, partition, apply, unattend and boot - the five imaging step types,
+  against the two-disk topology a lab VM actually has.
+variables:
+  HDTOSImage: Win11-LTSC-2024
+  HDTDiskLayout: uefi-standard
+  HDTComputerName: HDT-M3-01
+
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      # minRamMB is 2048 rather than 4096 ON PURPOSE: a 4 GB VM reports slightly
+      # under 4096 MB, because the firmware keeps some of it.
+      #
+      # minDiskGB is what excludes the 8 GB content disk from the choice, which
+      # is what makes the target unambiguous on a two-disk machine.
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+
+      # wipe: true is the sequence declaring that the target's contents are
+      # expendable. Without it a disk carrying any formatted volume is refused -
+      # naming the disk explicitly is NOT the same statement (DESIGN 9.1).
+      - name: Format and Partition
+        type: DiskPartition
+        layout: "%HDTDiskLayout%"
+        wipe: true
+
+  - group: Install
+    runIn: WinPE
+    steps:
+      # target: primary means %HDTOSVolume%, which the partition step published.
+      # It is never a guess at C:.
+      - name: Apply OS
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: 1
+        target: primary
+        timeoutMinutes: 60
+
+      # Staged at W:\Windows\Panther\unattend.xml - the location SPIKES S7
+      # proved Setup consumes. %HDTAdminPassword% in the template is substituted
+      # with this run's deployment password, minted here if nothing else made
+      # one, and it appears in no log.
+      - name: Apply Unattend
+        type: ApplyUnattend
+        template: unattend.xml
+
+      # bcdboot, the recovery image, and then the FIRMWARE BOOT ORDER. Without
+      # that last part the machine reboots into the installation media and the
+      # deployment appears to loop (SPIKES S6).
+      - name: Prepare Boot
+        type: ConfigureBoot

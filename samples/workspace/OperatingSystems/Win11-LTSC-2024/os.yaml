@@ -1,0 +1,37 @@
+# A catalog entry, as Import-HDTOperatingSystem writes one (DESIGN 9.3).
+#
+# THE INDICES ARE REAL. They are the captured Get-WindowsImage output of the
+# staged Windows 11 Enterprise LTSC 2024 media
+# (tests/fixtures/image/win11-ltsc-2024-install.json), not an invented shape:
+# index 1 is the LTSC edition and index 2 is the N edition, which is the pair
+# that makes exact-before-wildcard name matching matter.
+#
+# THERE IS NO PAYLOAD BESIDE THIS FILE. A real workspace has the source tree
+# under this folder, with sources\install.wim where sourcePath points; the
+# sample carries the catalog only, because a 4 GB WIM does not belong in a
+# repository. Point sourcePath at the media where it stands - a rooted
+# sourcePath is kept as it is, precisely so media too large to bring into the
+# share can be registered where it is.
+
+schemaVersion: 1
+id: Win11-LTSC-2024
+name: Windows 11 Enterprise LTSC 2024
+description: Staged from the volume licence media
+type: wim
+architecture: x64
+sourcePath: sources\install.wim
+importedUtc: '2026-08-13T09:14:22.0000000Z'
+defaultIndex: 1
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC
+    description: Windows 11 Enterprise LTSC
+    edition: EnterpriseS
+    sizeBytes: 18356832906
+    version: 10.0.26100.1742
+  - index: 2
+    name: Windows 11 Enterprise N LTSC
+    description: Windows 11 Enterprise N LTSC
+    edition: EnterpriseSN
+    sizeBytes: 17928774068
+    version: 10.0.26100.1742
