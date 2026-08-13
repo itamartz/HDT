@@ -233,6 +233,39 @@ Describe 'New-HDTFakeFileSystem' {
 
             $fs.TestPath('X:\HDT\Logs\state.json') | Should -BeFalse
         }
+
+        It 'fails a copy INTO the same path' {
+            # A COPY IS A WRITE. Set-HDTLogPath (05-03) mirrors the whole log
+            # tree onto the target volume with CopyItem, and DESIGN 4.4.1
+            # requires that a relocation onto a volume that cannot be written
+            # keeps logging to X: rather than throwing. Without this, the fake
+            # would accept a copy onto a full disk and that whole failure path
+            # would be unprovable.
+            $fs = New-HDTFakeFileSystem -File @{ 'X:\HDT\Logs\HDT.jsonl' = 'line' } `
+                -WriteFailure @{ 'W:\HDT\Logs\HDT.jsonl' = 'There is not enough space on the disk.' }
+
+            { $fs.CopyItem('X:\HDT\Logs\HDT.jsonl', 'W:\HDT\Logs\HDT.jsonl') } |
+                Should -Throw -ExceptionType ([System.IO.IOException])
+        }
+
+        It 'records the copy it refused, before it throws' {
+            $fs = New-HDTFakeFileSystem -File @{ 'X:\HDT\Logs\HDT.jsonl' = 'line' } `
+                -WriteFailure @{ 'W:\HDT\Logs\HDT.jsonl' = 'There is not enough space on the disk.' }
+
+            try { $fs.CopyItem('X:\HDT\Logs\HDT.jsonl', 'W:\HDT\Logs\HDT.jsonl') } catch { $null = $_ }
+
+            $fs.GetOperationName() | Should -Be @('CopyItem')
+            $fs.TestPath('W:\HDT\Logs\HDT.jsonl') | Should -BeFalse
+        }
+
+        It 'leaves a copy to any other destination alone' {
+            $fs = New-HDTFakeFileSystem -File @{ 'X:\HDT\Logs\HDT.jsonl' = 'line' } `
+                -WriteFailure @{ 'W:\HDT\Logs\HDT.jsonl' = 'There is not enough space on the disk.' }
+
+            $fs.CopyItem('X:\HDT\Logs\HDT.jsonl', 'W:\HDT\Logs\HDT.log')
+
+            $fs.ReadAllText('W:\HDT\Logs\HDT.log') | Should -BeExactly 'line'
+        }
     }
 
     It 'is independent between instances' {

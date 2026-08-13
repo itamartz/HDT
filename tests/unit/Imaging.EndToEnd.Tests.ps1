@@ -52,9 +52,23 @@ BeforeAll {
     $script:logPath = 'X:\HDT\Logs'
     $script:jsonlPath = 'X:\HDT\Logs\HDT.jsonl'
 
+    # WHERE THE WHOLE RUN'S LOG ENDS UP. DESIGN 4.4.1's relocation mirrors the
+    # RAM-disk log onto the target volume as soon as step 2 formats one, so the
+    # file that carries every record of this leg - the ones written before the
+    # move as well as the ones after it - is this one. Reading the assertions off
+    # X: would read half a run.
+    $script:relocatedJsonlPath = 'W:\HDT\Logs\HDT.jsonl'
+
     # The services whose calls are side effects on a machine.
     $script:machineService = @('DiskService', 'ImageService')
     $script:machineFileOperation = @('CreateDirectory', 'WriteAllText', 'CopyItem')
+
+    # THE LOG TREE IS EXCLUDED WHEREVER IT IS. It used to be excluded by naming
+    # X:\HDT\Logs, which stopped being the whole of it in 05-03: DESIGN 4.4.1's
+    # relocation mirrors the tree onto the target volume the moment one is
+    # formatted, so the log now also lives at W:\HDT\Logs. Both are log writes,
+    # and log writes are what this list is filtered to keep out.
+    $script:logTree = '*\HDT\Logs*'
 
     # -- the topology 04-04's VM has ---------------------------------------
 
@@ -189,13 +203,14 @@ BeforeAll {
             Where-Object {
                 ($script:machineService -contains $_.Service) -or
                 ($_.Service -eq 'FileSystem' -and $script:machineFileOperation -contains $_.Operation -and
-                    ([string] $_.Arguments[0]) -notlike 'X:\HDT\Logs*')
+                    ([string] $_.Arguments[0]) -notlike $script:logTree -and
+                    ([string] $_.Arguments[-1]) -notlike $script:logTree)
             } |
             ForEach-Object { '{0}.{1}' -f $_.Service, $_.Operation })
 
     $script:finalState = $script:leg.Result.State
-    $script:record = @(Get-HDTLogRecord -FileSystem $script:leg.FileSystem -Path $script:jsonlPath)
-    $script:rawLog = [string] (Get-HDTLogRecord -FileSystem $script:leg.FileSystem -Path $script:jsonlPath -Raw)
+    $script:record = @(Get-HDTLogRecord -FileSystem $script:leg.FileSystem -Path $script:relocatedJsonlPath)
+    $script:rawLog = [string] (Get-HDTLogRecord -FileSystem $script:leg.FileSystem -Path $script:relocatedJsonlPath -Raw)
 
     # -- and the same topology, made ambiguous -----------------------------
     #
@@ -223,6 +238,16 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
         }
 
         It 'writes no step.fail record' {
+            # THE FLOOR FIRST. Get-HDTLogRecord returns nothing for a file that
+            # is not there, so every "no record of X" assertion in this file is
+            # satisfied by an empty log - which is exactly SPIKES S9.15b's
+            # "a guard that proves nothing". The log this file reads is the
+            # RELOCATED one, and a run whose relocation silently stopped
+            # happening would otherwise turn three assertions green by emptying
+            # them.
+            $script:record.Count | Should -BeGreaterThan 20 `
+                -Because 'a five-step leg writes far more than twenty records, and an empty log would satisfy every assertion below'
+
             @($script:record | Where-Object { $_.event -eq 'step.fail' }) | Should -BeNullOrEmpty
         }
 
@@ -368,6 +393,19 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
             @($script:leg.Disk.Partition | Where-Object { $_.DiskNumber -eq 1 }).Count | Should -Be 1
         }
 
+        It 'has moved the log to the target volume by the end of the WinPE leg' {
+            # DESIGN 4.4.1, and the reason it belongs in the benchmark: this file
+            # describes what HDT does to a machine, and from 05-03 onward one of
+            # the things it does is put its own log somewhere that still exists
+            # after the power goes off. X: is a RAM disk. The step that formats
+            # the volume publishes HDTOSVolume; the loop relocates.
+            $script:leg.Log.LogPath | Should -BeExactly 'W:\HDT\Logs'
+            $script:leg.FileSystem.TestPath('W:\HDT\Logs\HDT.jsonl') | Should -BeTrue
+
+            # A MIRROR, NOT A MOVE: the RAM disk copy is still there.
+            $script:leg.FileSystem.TestPath('X:\HDT\Logs\HDT.jsonl') | Should -BeTrue
+        }
+
         It 'staged the unattend at W:\Windows\Panther\unattend.xml' {
             $script:leg.FileSystem.TestPath($script:pantherPath) | Should -BeTrue
         }
@@ -443,6 +481,7 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
         It 'left the deployment password out of the log' {
             # The unattend carries it twice; the log carries it never.
             $script:deploymentPassword | Should -Not -BeNullOrEmpty
+            $script:rawLog | Should -Not -BeNullOrEmpty -Because 'an absent log would pass this assertion having read nothing'
             $script:rawLog | Should -Not -BeLike ('*{0}*' -f $script:deploymentPassword)
         }
 
