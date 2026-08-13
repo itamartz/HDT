@@ -42,13 +42,25 @@ BeforeAll {
         }
     }
 
+    # A disk that has been initialised before but carries no data - the redeploy
+    # case, and the one where there IS something to clear. It is GPT rather than
+    # RAW ON PURPOSE: 04-04 found that Clear-Disk throws "The disk has not been
+    # initialized" on a RAW disk, so a RAW fixture here would be asserting a
+    # ClearDisk that cannot happen on a real machine. The factory-fresh RAW case
+    # has its own Context below.
     $script:targetDisk = @{
         Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 68719476736
-        BusType = 'SAS'; PartitionStyle = 'RAW'
+        BusType = 'SAS'; PartitionStyle = 'GPT'
     }
 
     $script:secondDisk = @{
         Number = 1; FriendlyName = 'Virtual HD'; SizeBytes = 68719476736
+        BusType = 'SAS'; PartitionStyle = 'GPT'
+    }
+
+    # The disk a bare-metal machine actually has on its first deployment.
+    $script:virginDisk = @{
+        Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 68719476736
         BusType = 'SAS'; PartitionStyle = 'RAW'
     }
 }
@@ -212,6 +224,82 @@ Describe 'Invoke-HDTDiskPartitionStep' {
             $context = & $script:newContextFor $used $null
 
             (Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $context).Status | Should -BeExactly 'Completed'
+        }
+    }
+
+    Context 'a factory-fresh disk' {
+
+        # FOUND BY RUNNING IT AGAINST A REAL DISK (04-04, deviation Rule 1).
+        #
+        # Clear-Disk throws "The disk has not been initialized." on a RAW disk.
+        # A brand-new VHDX is RAW, and so is the disk in a machine that has
+        # never been deployed - which is EVERY machine this step exists for. The
+        # step used to call ClearDisk unconditionally, so it passed every unit
+        # test against a fake that shrugged, and would have failed on the first
+        # real bare-metal disk it met.
+        #
+        # There is nothing to clear on a RAW disk. The step skips it and says so
+        # in the log.
+
+        BeforeEach {
+            $script:virgin = New-HDTFakeDiskService -Disk @($script:virginDisk)
+            $script:virginContext = & $script:newContextFor $script:virgin $null
+        }
+
+        It 'partitions a RAW disk' {
+            $result = Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $script:virginContext
+
+            $result.Status | Should -BeExactly 'Completed'
+        }
+
+        It 'does not try to clear it' {
+            Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $script:virginContext | Out-Null
+
+            @($script:virgin.GetOperationName() | Where-Object { $_ -eq 'ClearDisk' }) |
+                Should -BeNullOrEmpty -Because 'Clear-Disk throws "The disk has not been initialized" on a RAW disk'
+        }
+
+        It 'initialises it and creates the layout anyway' {
+            Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $script:virginContext | Out-Null
+
+            @($script:virgin.GetOperationName()) | Should -Be @(
+                'GetDisk'
+                'GetPartition'
+                'GetVolume'
+                'InitializeDisk'            # no ClearDisk: there was nothing to clear
+                'NewPartition'
+                'SetPartitionDriveLetter'
+                'FormatVolume'
+                'SetPartitionType'
+                'NewPartition'
+                'SetPartitionDriveLetter'
+                'FormatVolume'
+                'NewPartition'
+                'SetPartitionDriveLetter'
+                'FormatVolume'
+                'SetPartitionType'
+            )
+        }
+
+        It 'still leaves exactly one reserved partition' {
+            Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $script:virginContext | Out-Null
+
+            @($script:virgin.Partition | Where-Object { $_.Type -eq 'Reserved' }).Count | Should -Be 1
+        }
+
+        It 'records in its data that there was nothing to clear' {
+            $result = Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $script:virginContext
+
+            # Contains first: Should -BeFalse is happy with $null, so without it
+            # this passes for a key that was never written (helpers README 12).
+            $result.Data.Contains('cleared') | Should -BeTrue
+            $result.Data['cleared'] | Should -BeFalse
+        }
+
+        It 'records in its data that an initialised disk WAS cleared' {
+            $result = Invoke-HDTDiskPartitionStep -Step $script:wipeStep -Context $script:context
+
+            $result.Data['cleared'] | Should -BeTrue
         }
     }
 

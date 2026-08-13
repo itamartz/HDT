@@ -262,7 +262,12 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
                 'DiskService.GetDisk'                   # the three listings again, for the real selection
                 'DiskService.GetPartition'
                 'DiskService.GetVolume'
-                'DiskService.ClearDisk'                 # SPIKES S6: -RemoveData -RemoveOEM, before Initialize
+                # NO ClearDisk. The lab VM's target disk is RAW - a brand-new
+                # VHDX, exactly as a factory-fresh machine's disk is - and 04-04
+                # found by running it that Clear-Disk throws "The disk has not
+                # been initialized" on a RAW disk. There is nothing to clear, so
+                # the step does not try. On a redeploy, where the disk carries a
+                # partition table, ClearDisk appears here.
                 'DiskService.InitializeDisk'            # GPT; THIS is what creates the MSR
                 'DiskService.NewPartition'              # ESP, created as basic data so it can take a letter
                 'DiskService.SetPartitionDriveLetter'   # S:

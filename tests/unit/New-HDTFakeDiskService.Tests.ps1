@@ -185,7 +185,13 @@ Describe 'New-HDTFakeDiskService' {
 
             $reserved = @($script:service.GetPartition() | Where-Object { $_.Type -eq 'Reserved' })
             $reserved.Count | Should -Be 1
-            $reserved[0].SizeBytes | Should -Be 16777216
+            # CAPTURED, NOT ROUNDED (04-04). Initialize-Disk lays the MSR down at
+            # offset 17408 and gives it 16759808 bytes; the two together are
+            # exactly the 16777216 the layout carries as ReservedSizeByte, which
+            # is why that allowance is right to the byte.
+            $reserved[0].SizeBytes | Should -Be 16759808
+            $reserved[0].OffsetBytes | Should -Be 17408
+            ($reserved[0].SizeBytes + $reserved[0].OffsetBytes) | Should -Be 16777216
             $reserved[0].GptType | Should -BeExactly '{e3c9e316-0b5c-4db8-817d-f92df00215ae}'
             $reserved[0].IsHidden | Should -BeTrue
         }
@@ -195,6 +201,31 @@ Describe 'New-HDTFakeDiskService' {
             $script:service.InitializeDisk(0, 'MBR')
 
             @($script:service.GetPartition()).Count | Should -Be 0
+        }
+
+        It 'refuses to clear a disk that is still RAW' {
+            # PARITY WITH THE REAL CMDLET, FOUND BY RUNNING IT (04-04). On a
+            # freshly created VHDX - and on a factory-fresh machine disk, which
+            # is the normal case for a bare-metal deployment - Clear-Disk throws
+            #
+            #   The disk has not been initialized.
+            #
+            # There is nothing to clear on a RAW disk, and Clear-Disk says so
+            # rather than shrugging. A fake that accepted it let
+            # Invoke-HDTDiskPartitionStep pass every unit test while being
+            # unable to partition a brand-new disk, which is the one disk every
+            # real deployment starts from.
+            $script:service.ClearDisk(0)
+
+            { $script:service.ClearDisk(0) } | Should -Throw -ExpectedMessage '*not been initialized*'
+        }
+
+        It 'records the refused clear before it throws' {
+            # Section 4: record first, so the journal shows what was attempted.
+            $script:service.ClearDisk(0)
+            try { $script:service.ClearDisk(0) } catch { $null = $_ }
+
+            @($script:service.GetOperationName()) | Should -Be @('ClearDisk', 'ClearDisk')
         }
 
         It 'refuses to initialise a disk that is not RAW' {
