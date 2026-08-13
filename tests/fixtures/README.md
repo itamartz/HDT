@@ -26,6 +26,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `compat/` | One file per PowerShell 7-only construct the 5.1 compatibility scanner must reject, plus a clean 5.1 control | deliberately invalid |
 | `mdt/` | Source carrying banned MDT dependencies, plus an MDT-free control | deliberately invalid |
 | `analyzer/` | Deliberate PSScriptAnalyzer bait (added in plan 01-04) | deliberately invalid |
+| `bootstrap/` | `bootstrap.json` documents — the file the boot image carries and `Get-HDTBootstrapConfiguration` reads (DESIGN 6.3) | authored, see below |
 
 ## Fixtures are not source
 
@@ -432,6 +433,35 @@ one password per token instead of one per run.
 
 `samples/workspace/TaskSequences/DEMO-M3/unattend.xml` is the same document.
 The sample is what 04-04 deploys; this copy is what the unit tests read.
+
+## Bootstrap fixtures
+
+`bootstrap/` is **authored, not captured**, and it is the one directory here
+where that is not a compromise: nothing has ever written a `bootstrap.json`,
+because **05-04's `Update-HDTBootImage` is what writes it** and 05-03 is what
+reads it. There is no machine in the world to capture one off yet.
+
+The naming follows `state/` exactly — `valid-*`, `invalid-*`, `unparseable-*` —
+and every file is read by `tests/unit/Get-HDTBootstrapConfiguration.Tests.ps1`.
+
+| File | What it proves |
+|---|---|
+| `valid-smb.json` | the full document: `Smb`, a UNC `deployRoot`, an embedded credential, an explicit `contentMarker` and `sequenceId` |
+| `valid-local.json` | `Local` with a **rooted** `deployRoot` — what a build host uses — and no credential block at all |
+| `valid-local-volume-relative.json` | `Local` with a **volume-relative** `deployRoot` (`\Share`). **This is the form a boot image should carry** (SPIKES S9.1: WinPE gave the content disk `C:` and the RAM disk `X:`, so a letter written at build time is a guess about a machine that has not booted yet). `Resolve-HDTDeployRoot` turns it into a real path at boot |
+| `valid-prompt.json` | `promptForCredential: true` with no credential block — DESIGN 6.3's deliberately-not-unattended build |
+| `invalid-unknown-provider.json` | `provider: Ftp`; the reader names the file, the value and the two legal names |
+| `invalid-missing-deployroot.json` | an empty `deployRoot` |
+| `unparseable-truncated.json` | truncated mid-object. The reader must produce `HDTConfigurationError` naming the file, **not** a raw `ConvertFrom-Json` exception — this file is read on a machine with no operator and its failure is the last thing anyone will see |
+
+`valid-smb.json`'s `credential.protected` is a real
+`Protect-HDTShareSecret` blob over the string `Fixture-P@ssw0rd-01`, produced by
+the module's own AES-over-a-module-constant obfuscation (DESIGN 6.3 — it is
+obfuscation, not protection, and the deployment account is least-privileged for
+exactly that reason). It is a fixture password and it authenticates to nothing.
+
+**05-04 carries a test that the `bootstrap.json` it writes is accepted by this
+reader**, so these fixtures and the real writer cannot drift apart.
 
 ## Derived fixtures
 

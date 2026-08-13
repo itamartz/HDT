@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "HDT-LAB",
+  "provider": "Ftp",
+  "deployRoot": "\\\\HDTSRV01\\HdtShare",
+  "promptForCredential": true,
+  "buildId": "1d2c3b4a-5e6f-4708-9182-a3b4c5d6e7f8",
+  "builtUtc": "2026-08-13T09:16:55Z"
+}

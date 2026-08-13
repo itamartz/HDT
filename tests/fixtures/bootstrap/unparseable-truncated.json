@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "HDT-LAB",
+  "provider": "Smb",
+  "deployRoot": "\\\\HDTSRV01\\HdtShare",
+  "credential": {
+    "username": "CONTOSO\\svc-hdt-deploy",

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "HDT-LAB",
+  "provider": "Smb",
+  "deployRoot": "\\\\HDTSRV01\\HdtShare",
+  "sequenceId": "",
+  "promptForCredential": true,
+  "buildId": "9a1e5f33-7c02-4b88-a6d5-1e4f8b2c60d9",
+  "builtUtc": "2026-08-13T09:16:10Z"
+}

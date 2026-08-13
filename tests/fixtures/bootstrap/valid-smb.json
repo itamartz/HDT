@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "HDT-LAB",
+  "provider": "Smb",
+  "deployRoot": "\\\\HDTSRV01\\HdtShare",
+  "contentMarker": "rules.yaml",
+  "sequenceId": "STD-CLIENT",
+  "credential": {
+    "username": "CONTOSO\\svc-hdt-deploy",
+    "protected": "JMuHPVvrPBjfPgboyM1UjETROKiE1tnYozPAtYSsozJPsnalvz9Yulkm7aJtG/GC"
+  },
+  "promptForCredential": false,
+  "logLevel": "Info",
+  "buildId": "b3f1c0a2-8d64-4f11-9c2e-0a5d7e1f4b90",
+  "builtUtc": "2026-08-13T09:14:22Z"
+}

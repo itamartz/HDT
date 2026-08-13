@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "workspaceId": "HDT-LAB",
+  "provider": "Local",
+  "deployRoot": "\\Share",
+  "contentMarker": "rules.yaml",
+  "sequenceId": "DEMO-M3",
+  "promptForCredential": false,
+  "logLevel": "Debug",
+  "buildId": "c4d8e6b0-2f79-4a53-8e11-9b0d3c7f5a24",
+  "builtUtc": "2026-08-13T09:15:44Z"
+}
