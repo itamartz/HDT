@@ -16,6 +16,7 @@
         'Get-HDTMachineFact',
         'Get-HDTModuleVersion',
         'Get-HDTVariableMap',
+        'Import-HDTRuleDocument',
         'New-HDTCimProvider',
         'New-HDTEnvironmentProvider',
         'New-HDTRegistryService',
