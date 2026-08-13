@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "runId": "8f3c1a90-0000-4000-8000-000000000001",
+  "sequenceId": "STD-CLIENT",
+  "status": "Succeeded",
+  "phase": "FullOS",
+  "leg": 3,
+  "seq": 902,
+  "startedUtc": "2026-08-13T00:00:00.0000000Z",
+  "updatedUtc": "2026-08-13T00:42:17.0090000Z",
+  "stepIndex": 4,
+  "pauseOnError": false,
+  "variable": {
+    "HDTTaskSequenceID": "STD-CLIENT",
+    "HDTComputerName": "PC-FIXTURE-0001",
+    "HDTDriverGroup": "Latitude 7450"
+  },
+  "step": [
+    {
+      "index": 1,
+      "name": "Validate",
+      "type": "Validate",
+      "group": [
+        "Preinstall"
+      ],
+      "status": "Completed",
+      "attempt": 1,
+      "resumable": false,
+      "startedUtc": "2026-08-13T00:00:00.0000000Z",
+      "endedUtc": "2026-08-13T00:00:05.0000000Z",
+      "durationMs": 5000,
+      "exitCode": 0,
+      "message": null
+    },
+    {
+      "index": 2,
+      "name": "Restart",
+      "type": "Restart",
+      "group": [
+        "Preinstall"
+      ],
+      "status": "Completed",
+      "attempt": 1,
+      "resumable": true,
+      "startedUtc": "2026-08-13T00:10:00.0000000Z",
+      "endedUtc": "2026-08-13T00:10:05.0000000Z",
+      "durationMs": 5000,
+      "exitCode": 0,
+      "message": null
+    },
+    {
+      "index": 3,
+      "name": "Apply OS",
+      "type": "ApplyImage",
+      "group": [
+        "Install"
+      ],
+      "status": "Completed",
+      "attempt": 1,
+      "resumable": false,
+      "startedUtc": "2026-08-13T00:20:00.0000000Z",
+      "endedUtc": "2026-08-13T00:20:05.0000000Z",
+      "durationMs": 5000,
+      "exitCode": 0,
+      "message": null
+    }
+  ],
+  "autoLogon": {
+    "armed": false,
+    "userName": null,
+    "domainName": null,
+    "countSet": 0,
+    "secretName": null,
+    "runOnceName": null
+  },
+  "deploymentPassword": null
+}
