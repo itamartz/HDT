@@ -1825,6 +1825,12 @@ class HDTFakeDiskService {
     # captured tests/fixtures/disk/host-partition.json.
     [hashtable] $GptTypeName
 
+    # Method name -> the message that method throws. A step's failure path is
+    # only provable if the service it depends on can be told to fail, and this
+    # one cannot be made to fail by accident: ClearDisk leaves the disk RAW, so
+    # every later call finds exactly the state it wanted.
+    [hashtable] $Failure
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -1842,6 +1848,7 @@ class HDTFakeDiskService {
         $this.Volume = [System.Collections.ArrayList]::new()
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'DiskService'
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
 
         $this.GptTypeName = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.GptTypeName['{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'] = 'System'
@@ -2005,6 +2012,20 @@ class HDTFakeDiskService {
         [void] $this.Volume.Add($this.NewVolumeRow($Row))
     }
 
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    # Checked AFTER the method records, because the attempt is evidence about
+    # what the code under test tried. The type matches what the real adapter
+    # throws when a Storage cmdlet fails, which is the error-parity rule in
+    # tests/helpers/README.md section 5.
+    hidden [void] AssertNoFailure([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
     # -- IDiskService, the read-only three ---------------------------------
     #
     # They record too: query order is evidence about what the code under test
@@ -2029,6 +2050,7 @@ class HDTFakeDiskService {
 
     [void] ClearDisk([int] $DiskNumber) {
         $this.Record('ClearDisk', @($DiskNumber))
+        $this.AssertNoFailure('ClearDisk')
         $target = $this.FindDisk($DiskNumber)
 
         $letter = @($this.Partition |
@@ -2046,6 +2068,7 @@ class HDTFakeDiskService {
 
     [void] InitializeDisk([int] $DiskNumber, [string] $PartitionStyle) {
         $this.Record('InitializeDisk', @($DiskNumber, $PartitionStyle))
+        $this.AssertNoFailure('InitializeDisk')
         $target = $this.FindDisk($DiskNumber)
 
         if ($target.PartitionStyle -ne 'RAW') {
@@ -2077,6 +2100,7 @@ class HDTFakeDiskService {
 
     [object] NewPartition([int] $DiskNumber, [long] $SizeByte, [bool] $UseMaximumSize, [string] $GptType, [bool] $IsActive) {
         $this.Record('NewPartition', @($DiskNumber, $SizeByte, $UseMaximumSize, $GptType, $IsActive))
+        $this.AssertNoFailure('NewPartition')
         $target = $this.FindDisk($DiskNumber)
 
         # New-Partition fails on a disk that was never initialised. A fake that
@@ -2124,6 +2148,7 @@ class HDTFakeDiskService {
 
     [void] SetPartitionDriveLetter([int] $DiskNumber, [int] $PartitionNumber, [string] $DriveLetter) {
         $this.Record('SetPartitionDriveLetter', @($DiskNumber, $PartitionNumber, $DriveLetter))
+        $this.AssertNoFailure('SetPartitionDriveLetter')
         $target = $this.FindPartition($DiskNumber, $PartitionNumber)
 
         $previous = [string] $target.DriveLetter
@@ -2144,6 +2169,7 @@ class HDTFakeDiskService {
 
     [void] SetPartitionType([int] $DiskNumber, [int] $PartitionNumber, [string] $GptType) {
         $this.Record('SetPartitionType', @($DiskNumber, $PartitionNumber, $GptType))
+        $this.AssertNoFailure('SetPartitionType')
         $target = $this.FindPartition($DiskNumber, $PartitionNumber)
 
         $typeName = $this.TypeNameFor($GptType)
@@ -2154,6 +2180,7 @@ class HDTFakeDiskService {
 
     [void] FormatVolume([string] $DriveLetter, [string] $FileSystem, [string] $Label) {
         $this.Record('FormatVolume', @($DriveLetter, $FileSystem, $Label))
+        $this.AssertNoFailure('FormatVolume')
 
         $target = @($this.Partition | Where-Object { $_.DriveLetter -eq $DriveLetter })
         if ($target.Count -eq 0) {
@@ -2243,6 +2270,13 @@ function New-HDTFakeDiskService {
             *-partition.json partitions and *-volume.json volumes. See
             tests/fixtures/README.md for the capture and sanitisation rules.
 
+        .PARAMETER Failure
+            Methods that fail. Keys are method names, values are the message the
+            System.InvalidOperationException carries - the type the real adapter
+            throws when a Storage cmdlet fails. Nothing else can make this fake
+            fail on a well-formed sequence of calls, and a step's failure path
+            is only provable if the service it depends on can be told to fail.
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -2284,6 +2318,9 @@ function New-HDTFakeDiskService {
 
         [Parameter()]
         [string] $FixturePath,
+
+        [Parameter()]
+        [hashtable] $Failure,
 
         [Parameter()]
         [AllowNull()]
@@ -2346,6 +2383,12 @@ function New-HDTFakeDiskService {
 
     if ($PSBoundParameters.ContainsKey('Volume')) {
         foreach ($row in @($Volume)) { $fake.SeedVolume($row) }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($operation in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
     }
 
     return $fake

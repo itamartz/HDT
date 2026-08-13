@@ -28,7 +28,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeProcessService` | `IProcessService` | `New-HDTProcessService` | `-Result` |
 | `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Command` | nothing |
 | `New-HDTFakeLsaService` | `ILsaService` | `New-HDTLsaService` | `-Secret` |
-| `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath` |
+| `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
@@ -87,6 +87,14 @@ adapter that filtered would be an adapter with a branch in it. The other six —
   pass against a naive fake and fail on metal.
 - **`NewPartition` refuses a disk that is still `RAW`,** as `New-Partition` does,
   so a step that forgot `InitializeDisk` cannot pass here and fail on metal.
+
+The fake's `-Failure` seeds a method with the message it throws, as a
+`System.InvalidOperationException` — the type the real adapter throws when a
+Storage cmdlet fails — exactly as `New-HDTFakeImageService` does. It is the only
+way to make this fake fail: `ClearDisk` leaves the disk `RAW`, so every later
+call finds precisely the state it wanted, and without the seam
+`Invoke-HDTDiskPartitionStep`'s failure path would be unprovable (added in
+04-03 for that reason).
 
 A disk number nothing seeded throws `ArgumentOutOfRangeException`. A disk number
 carried by **two** seeded rows throws `InvalidOperationException` naming the
