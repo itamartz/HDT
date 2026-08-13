@@ -10,6 +10,11 @@
 /lab/
 C:/HDTLab/
 
+# The deployment share secret (DESIGN 6.3). Set-HDTShareCredential writes it,
+# it is obfuscated rather than encrypted, and it never belongs in git.
+Control/share-credential.json
+**/Control/share-credential.json
+
 # Test results
 /tests/**/TestResults/
 *.trx
