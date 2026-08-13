@@ -41,11 +41,11 @@ function New-HDTImageService {
 
             SetRecoveryImage CALLS THE APPLIED IMAGE'S OWN Reagentc.exe, BY FULL
             PATH, AND USES /setreimage. Two reasons, both checked on this
-            machine rather than remembered. First, reagentc on Windows 11 24H2
-            has NO /setosimage verb at all - it lists /info, /setreimage,
-            /enable, /disable, /boottore, /setbootshelllink and the
-            quick-machine-recovery verbs - so the verb in DESIGN 9.2 is wrong
-            and 04-03 corrects the document. Second, THERE IS NO WinPE-Recovery
+            machine rather than remembered. First, THE VERB DESIGN 9.2 NAMES
+            DOES NOT EXIST: reagentc on Windows 11 24H2 lists /info,
+            /setreimage, /enable, /disable, /boottore, /setbootshelllink and the
+            quick-machine-recovery verbs, and nothing else. The tool wins and
+            04-03 corrects the document. Second, THERE IS NO WinPE-Recovery
             OPTIONAL COMPONENT: reagentc.exe is not in WinPE, and WinPE is the
             only environment this method is ever called from, so a bare
             'reagentc.exe' would be command-not-found. Microsoft's own offline
@@ -238,8 +238,8 @@ function New-HDTImageService {
         $windows = Join-Path -Path $OsRoot -ChildPath 'Windows'
         $reagentc = Join-Path -Path $windows -ChildPath 'System32\Reagentc.exe'
 
-        # /setreimage, NOT /setosimage: reagentc on Windows 11 24H2 has no such
-        # verb. DESIGN 9.2 is corrected in 04-03.
+        # /setreimage, NOT the verb DESIGN 9.2 names - reagentc on Windows 11
+        # 24H2 has no such verb at all. DESIGN 9.2 is corrected in 04-03.
         $output = @(& $reagentc '/setreimage' '/path' $RecoveryPath '/target' $windows 2>&1)
 
         $this.AssertExitCode($LASTEXITCODE, 'Reagentc.exe',

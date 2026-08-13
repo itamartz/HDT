@@ -16,6 +16,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `cim-microsofttpm/` | Captured `Win32_Tpm`, which lives in `root/cimv2/security/microsofttpm` — a **separate directory because it is a separate namespace**, not a subdirectory of `cim/` | captured |
 | `cim-vm/` | A Hyper-V guest's `Win32_ComputerSystem` and `Win32_ComputerSystemProduct`, so `HDTIsVM` can be proven | **derived** — see below |
 | `disk/` | Captured `Get-Disk`, `Get-Partition` and `Get-Volume` projections, plus one **derived** Gen2 VM disk row | captured, one derived — see below |
+| `image/` | Captured `Get-WindowsImage` output for both staged media trees, one file per WIM | captured |
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
 | `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
 | `naming/` | Source that breaks — and source that keeps — the `Verb-HDTNoun` rule (DESIGN 15.1), plus a class fixture proving class members are not commands | deliberately invalid |
@@ -191,6 +192,48 @@ There is no HDT test VM yet, so there is no honest capture available today.
 **04-04 replaces this file with a true capture from the E2E VM and asserts that
 the derived row matched.** The derivation is a debt with a named closing date,
 not a permanent invention. Delete this section when 04-04 closes it.
+
+## Image fixtures
+
+`image/` holds the index catalogue of each staged WIM, one file per medium.
+These are what 04-02's index resolution is proven against, so PROJECT.md's
+"index 1 = Windows 11 Enterprise LTSC" and "index 2 = Standard Desktop
+Experience" stop being documentation and become fixtures.
+
+| File | Medium | Indices |
+|---|---|---|
+| `win11-ltsc-2024-install.json` | `C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim` | 1 Enterprise LTSC (`EnterpriseS`), 2 Enterprise N LTSC |
+| `ws2025-std-install.json` | `C:\HDTLab\media\WS2025-Std\sources\install.wim` | 1 Standard, **2 Standard (Desktop Experience)**, 3 Datacenter, 4 Datacenter (Desktop Experience) |
+
+Captured with, and re-capturable by, the equivalent of:
+
+```powershell
+$summary = @(Get-WindowsImage -ImagePath $wim)
+$row = foreach ($image in $summary) {
+    # EditionId, Architecture and Version come only from the PER-INDEX form;
+    # the summary does not carry them.
+    $detail = Get-WindowsImage -ImagePath $wim -Index $image.ImageIndex
+    [pscustomobject] @{
+        Index = [int] $image.ImageIndex;      Name = [string] $image.ImageName
+        Description = [string] $image.ImageDescription
+        Edition = [string] $detail.EditionId; SizeBytes = [long] $image.ImageSize
+        Architecture = [string] $detail.Architecture; Version = [string] $detail.Version
+    }
+}
+ConvertTo-Json -InputObject @($row) -Depth 3
+```
+
+Nothing is sanitised: a WIM's index catalogue carries no machine identity.
+
+**`Architecture` is a numeric DISM code, not a string.** Both media report `9`,
+which is amd64. It is recorded as it arrives rather than prettified — a fixture
+that improved on the tool would be a fixture that lied about it, and 04-02 has
+to match on the value the tool actually returns.
+
+`tests/contract/ImageService.Contract.Tests.ps1` seeds its fake row from
+`win11-ltsc-2024-install.json` and points its real row at the WIM itself, and
+asserts the same things about both. So this fixture cannot drift from the media
+without the suite going red.
 
 ## Rules fixtures
 
