@@ -58,9 +58,11 @@ function New-HDTRunState {
 
         .PARAMETER Step
             One entry per flattened step, as a dictionary or an object with
-            Index, Name, Type, Group and Resumable. Both shapes are accepted
-            because 03-02's flattener emits objects and a test writes
-            dictionaries, and a state document must not care which.
+            Index, Name, Type, GroupPath (or Group) and Resumable. Both shapes
+            are accepted because 03-02's flattener emits objects and a test
+            writes dictionaries, and a state document must not care which -
+            and GroupPath is read in preference to Group, because GroupPath is
+            what the flattener actually emits.
 
         .PARAMETER PauseOnError
             DESIGN 4.3's LTISuspend equivalent: on failure, drop to a PowerShell
@@ -146,8 +148,15 @@ function New-HDTRunState {
             $index = [int] $source['Index']
         }
 
+        # GroupPath is what Import-HDTSequenceDocument's flattener emits, and it
+        # is the only thing that builds a step list in production. Group is what
+        # a hand-written test dictionary says. Reading only the latter left the
+        # state document's group array - and every report column rendered from
+        # it - empty on every real run.
         $group = [string[]] @()
-        if ($source.ContainsKey('Group') -and $null -ne $source['Group']) {
+        if ($source.ContainsKey('GroupPath') -and $null -ne $source['GroupPath']) {
+            $group = [string[]] @($source['GroupPath'])
+        } elseif ($source.ContainsKey('Group') -and $null -ne $source['Group']) {
             $group = [string[]] @($source['Group'])
         }
 

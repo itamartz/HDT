@@ -103,6 +103,33 @@ Describe 'New-HDTRunState' {
         @($script:state.step[2].group) | Should -Be @('Install', 'Imaging')
     }
 
+    It 'takes the group path off a REAL flattened step' {
+        # The dictionaries above say Group because a test wrote them.
+        # Import-HDTSequenceDocument says GroupPath, and it is the only thing
+        # that ever builds a step list in production - so a document built from
+        # one has to carry the group path too, or the state's group array (and
+        # every report column rendered from it) is empty on every real run.
+        $yaml = @'
+schemaVersion: 1
+id: GROUPED
+name: A grouped sequence
+steps:
+  - group: Install
+    steps:
+      - group: Imaging
+        steps:
+          - name: Apply OS
+            type: NoOp
+'@
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\sequence.yaml' = $yaml }
+        $sequence = Import-HDTSequenceDocument -Path 'C:\ws\sequence.yaml' -FileSystem $fs
+
+        $state = New-HDTRunState -SequenceId $sequence.Id -RunId 'r1' -Phase WinPE `
+            -Clock $script:clock -Step $sequence.Step -Variable ([ordered] @{})
+
+        @($state.step[0].group) | Should -Be @('Install', 'Imaging')
+    }
+
     It 'carries the resumable flag of every step' {
         @($script:state.step | ForEach-Object { $_.resumable }) | Should -Be @($false, $true, $false)
     }

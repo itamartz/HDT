@@ -55,6 +55,15 @@ function ConvertTo-HDTReport {
             leg and its step records are read, which is how a step that never
             reached the log at all still appears in the report as Pending.
 
+        .PARAMETER ComputerName
+            The machine this run built. Without it the name is taken from the
+            stream's own var.resolve record for HDTComputerName, which is where
+            a gathered run puts it - and a run whose gather phase is not in this
+            log has no other honest source. It is NOT read from -State: a
+            variable map may carry a join password or a share credential, and
+            the rule that the report reads only status, leg and the step records
+            from the state is what keeps that out of an emailed file.
+
         .PARAMETER Title
             The page title and heading.
 
@@ -94,6 +103,10 @@ function ConvertTo-HDTReport {
         [Parameter()]
         [AllowNull()]
         [object] $State,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $ComputerName,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -305,7 +318,14 @@ function ConvertTo-HDTReport {
             if ([string]::IsNullOrEmpty($entry.Type) -and $source.ContainsKey('type')) {
                 $entry.Type = [string] $source['type']
             }
-            if ($entry.Status -eq 'Pending' -and $source.ContainsKey('status')) {
+            # THE STATE WINS ON STATUS. A Restart step logs step.start and then
+            # the machine goes down - there is no step.complete in the stream,
+            # ever - so a status read from the log alone leaves every reboot
+            # step Running for good, and a finished deployment renders as one
+            # still in progress. The state document is the run's own record of
+            # what happened to each step; Pending is the one value that means
+            # "the document knows nothing", so the log keeps precedence there.
+            if ($source.ContainsKey('status') -and [string] $source['status'] -ne 'Pending') {
                 $entry.Status = [string] $source['status']
             }
             if ($entry.Attempt -eq 0 -and $source.ContainsKey('attempt') -and $null -ne $source['attempt']) {
@@ -335,7 +355,7 @@ function ConvertTo-HDTReport {
 
     $runId = ''
     $sequenceId = ''
-    $computerName = ''
+    $computerText = ''
     $outcome = 'Unknown'
     $phase = New-Object -TypeName System.Collections.ArrayList
     $legRecord = New-Object -TypeName System.Collections.ArrayList
@@ -371,7 +391,7 @@ function ConvertTo-HDTReport {
             if ($data.ContainsKey('name') -and [string] $data['name'] -eq 'HDTComputerName' -and
                 $data.ContainsKey('value')) {
 
-                $computerName = [string] $data['value']
+                $computerText = [string] $data['value']
             }
         }
 
@@ -384,8 +404,12 @@ function ConvertTo-HDTReport {
         $outcome = [string] $State.status
     }
 
-    if ([string]::IsNullOrEmpty($computerName)) {
-        $computerName = '(not resolved)'
+    if ($PSBoundParameters.ContainsKey('ComputerName')) {
+        $computerText = $ComputerName
+    }
+
+    if ([string]::IsNullOrEmpty($computerText)) {
+        $computerText = '(not resolved)'
     }
 
     $startText = ''
@@ -442,7 +466,7 @@ function ConvertTo-HDTReport {
     & $add '<table>'
     & $add ('<tr><th>Run id</th>{0}</tr>' -f (& $cell $runId))
     & $add ('<tr><th>Sequence</th>{0}</tr>' -f (& $cell $sequenceId))
-    & $add ('<tr><th>Computer</th>{0}</tr>' -f (& $cell $computerName))
+    & $add ('<tr><th>Computer</th>{0}</tr>' -f (& $cell $computerText))
     & $add ('<tr><th>Phases</th>{0}</tr>' -f (& $cell (@($phase) -join ', ')))
     & $add ('<tr><th>Started</th>{0}</tr>' -f (& $cell $startText))
     & $add ('<tr><th>Ended</th>{0}</tr>' -f (& $cell $endText))
@@ -581,9 +605,12 @@ function ConvertTo-HDTReport {
     & $add '</section>'
 
     $footer = 'Rendered by HDT from {0}' -f $JsonlPath
-    if ($null -ne $Timestamp) {
+    if ($PSBoundParameters.ContainsKey('Timestamp')) {
+        # $Timestamp, not $Timestamp.Value: the binder converts a bound
+        # [System.Nullable[datetime]] to a plain [datetime], so .Value is a
+        # property that does not exist - and under Set-StrictMode that throws.
         $footer = '{0} at {1}' -f $footer,
-        $Timestamp.Value.ToUniversalTime().ToString('u', [System.Globalization.CultureInfo]::InvariantCulture)
+        $Timestamp.ToUniversalTime().ToString('u', [System.Globalization.CultureInfo]::InvariantCulture)
     }
 
     & $add ('<p class="footer">{0}</p>' -f (& $escape $footer))

@@ -234,6 +234,20 @@ Describe 'ConvertTo-HDTReport' {
             $script:html | Should -Not -Match '<script'
         }
 
+        It 'stamps the report with the timestamp it was given' {
+            # The renderer has no clock of its own - the engine takes time from
+            # an injected IClock - so the caller passes the instant in.
+            $rendered = & $script:render $script:jsonl @{
+                Timestamp = ([datetime]::new(2026, 8, 13, 11, 22, 33, [System.DateTimeKind]::Utc))
+            }
+
+            $rendered.Html | Should -Match '2026-08-13 11:22:33Z'
+        }
+
+        It 'renders without a timestamp when none was given' {
+            $script:html | Should -Not -Match 'Rendered by HDT.* at '
+        }
+
         It 'includes the title it was given' {
             $rendered = & $script:render $script:jsonl @{ Title = 'DEMO-M2 deployment report' }
 
@@ -329,6 +343,58 @@ Describe 'ConvertTo-HDTReport' {
             $variables | Should -Match 'HDTComputerName'
             $variables | Should -Match 'PC-FIXTURE-SERIAL-0001'
             $variables | Should -Match 'Rule'
+        }
+
+        It 'takes the step status from the state when there is one' {
+            # A Restart step logs step.start and then the machine goes down:
+            # there is no step.complete in the stream, ever. Reading its status
+            # out of the log alone leaves it Running forever, which is a report
+            # that says a finished deployment is still going.
+            $state = [pscustomobject] ([ordered] @{
+                    status = 'Succeeded'
+                    step   = @(
+                        [pscustomobject] ([ordered] @{ index = 4; name = 'Reboot Into Install'; type = 'Restart'
+                                group = @('Preinstall'); status = 'Completed'; attempt = 1; leg = 1
+                            })
+                    )
+                })
+
+            $jsonl = & $script:line ([ordered] @{
+                    ts = '2026-08-13T09:00:20.0000000Z'; runId = 'run-0007'; seq = 20; level = 'Info'; phase = 'WinPE'
+                    stepIndex = 4; stepName = 'Reboot Into Install'; stepType = 'Restart'
+                    component = 'Engine'; event = 'step.start'; message = "step 4 'Reboot Into Install' (Restart) starting, attempt 1 of 1"
+                    data = [ordered] @{ index = 4; attempt = 1 }
+                })
+
+            $rendered = & $script:render ($jsonl + "`n") @{ State = $state }
+            $row = @((& $script:section $rendered.Html 'steps') -split '<tr' | Where-Object { $_ -match 'Reboot Into Install' })[0]
+
+            $row | Should -Match 'Completed'
+            $row | Should -Not -Match 'Running'
+        }
+
+        It 'shows the group path of every step' {
+            $state = [pscustomobject] ([ordered] @{
+                    status = 'Succeeded'
+                    step   = @(
+                        [pscustomobject] ([ordered] @{ index = 1; name = 'Announce'; type = 'NoOp'
+                                group = @('Install', 'Imaging'); status = 'Completed'; attempt = 1; leg = 1
+                            })
+                    )
+                })
+
+            $rendered = & $script:render $script:jsonl @{ State = $state }
+            $row = @((& $script:section $rendered.Html 'steps') -split '<tr' | Where-Object { $_ -match 'Announce' })[0]
+
+            $row | Should -Match 'Install / Imaging'
+        }
+
+        It 'names the computer it was told about' {
+            # A run whose gather phase logged no var.resolve - a resumed leg, a
+            # sequence run by hand - still has a computer name in its header.
+            $rendered = & $script:render $script:jsonl @{ ComputerName = 'PC-EXPLICIT-0001' }
+
+            (& $script:section $rendered.Html 'header') | Should -Match 'PC-EXPLICIT-0001'
         }
 
         It 'lists every log record' {

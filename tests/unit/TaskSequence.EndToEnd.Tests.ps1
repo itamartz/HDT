@@ -608,6 +608,14 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             }
         }
 
+        It 'shows the group each step belongs to' {
+            # End to end, this proves the state document carried the flattener's
+            # GroupPath: the report has no other source for it.
+            foreach ($group in @('Preinstall', 'Install', 'State Restore', 'Server Only')) {
+                $script:html | Should -BeLike ('*<td>{0}</td>*' -f $group) -Because "the report has to place a step in $group"
+            }
+        }
+
         It 'shows the run as succeeded' {
             $script:html | Should -Match 'Succeeded'
         }
