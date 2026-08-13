@@ -12,6 +12,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 
 | Directory | Holds | Kind |
 |---|---|---|
+| `adk/` | The Windows ADK's real layout and its real WinPE optional-component listing, taken off this host (DESIGN 5.1, SPIKES S1/S3) | captured |
 | `cim/` | Captured `Get-CimInstance` output for the `root/cimv2` classes fact gathering uses (DESIGN 3.2.1), one JSON file per class | captured |
 | `cim-microsofttpm/` | Captured `Win32_Tpm`, which lives in `root/cimv2/security/microsofttpm` — a **separate directory because it is a separate namespace**, not a subdirectory of `cim/` | captured |
 | `cim-vm/` | A Hyper-V guest's `Win32_ComputerSystem` and `Win32_ComputerSystemProduct`, so `HDTIsVM` can be proven | **derived** — see below |
@@ -36,6 +37,57 @@ without turning the build red.
 
 Consequence: a fixture is only ever *read* by a test. Never dot-source one into
 the engine and never import one as a module.
+
+## ADK fixtures
+
+`adk/` is **captured**, from **ADK 10.1.26100.2454** on this host, and its whole
+purpose is to keep the fake filesystem honest: `Get-HDTAdkPath` and
+`Get-HDTBootImageComponent` are proven on a machine with no ADK installed, so
+the tree their fake is seeded with has to be a tree that exists somewhere in the
+world rather than one a test author invented.
+
+| File | Holds |
+|---|---|
+| `adk-layout-10.1.26100.2454.json` | `KitsRoot10` as the registry reports it (**with its trailing separator**), the ADK root, and every file under `Oscdimg\` and the amd64 WinPE add-on — path relative to the ADK root, plus its size |
+| `winpe-ocs-amd64.json` | One row per `WinPE_OCs\*.cab`: `Name`, `SizeBytes`, and **`HasEnUs`** — whether `en-us\<name>_en-us.cab` is there |
+
+**`WinPE-FMAPI` is the row with `HasEnUs = false`, and it is the reason the
+builder probes rather than assumes.** DESIGN 5.1 says "some components have
+none, so the builder must probe"; this fixture is that sentence as data, and
+`tests/unit/Get-HDTBootImageComponent.Tests.ps1` asserts on that exact
+component by name.
+
+Nothing is sanitised: an ADK layout carries no machine identity. Recaptured
+with:
+
+```powershell
+# adk-layout-10.1.26100.2454.json
+$root = 'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit'
+[pscustomobject] @{
+    kitsRoot10 = (Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots').KitsRoot10
+    adkRoot    = $root
+    adkVersion = '10.1.26100.2454'
+    file       = @(Get-ChildItem -LiteralPath $root -Recurse -File -Depth 4 -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match 'Oscdimg|Windows Preinstallation Environment\\amd64\\(en-us|Media\\bootmgr|WinPE_OCs)' } |
+        ForEach-Object { [pscustomobject] @{ Path = $_.FullName.Substring($root.Length); SizeBytes = [long] $_.Length } })
+} | ConvertTo-Json -Depth 4
+
+# winpe-ocs-amd64.json - through the command, not through a literal path
+$oc = Get-HDTAdkPath -Asset WinPeOptionalComponent
+@(Get-ChildItem -LiteralPath $oc -Filter *.cab | ForEach-Object {
+    $n = [IO.Path]::GetFileNameWithoutExtension($_.Name)
+    [pscustomobject] @{
+        Name      = $n
+        SizeBytes = [long] $_.Length
+        HasEnUs   = Test-Path -LiteralPath (Join-Path $oc ('en-us\{0}_en-us.cab' -f $n))
+    }
+}) | Sort-Object Name | ConvertTo-Json -Depth 3
+```
+
+The layout capture is the **one** place in this repository, outside
+documentation, where an ADK path is written down literally. Everywhere else
+resolves it — that is what `Get-HDTAdkPath` is for, and PROJECT.md's "the layout
+has moved between ADK releases" is why.
 
 ## CIM fixtures
 

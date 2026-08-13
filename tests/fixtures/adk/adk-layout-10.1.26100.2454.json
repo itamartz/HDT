@@ -1,0 +1,3867 @@
+{
+  "kitsRoot10": "C:\\Program Files (x86)\\Windows Kits\\10\\",
+  "adkRoot": "C:\\Program Files (x86)\\Windows Kits\\10\\Assessment and Deployment Kit",
+  "adkVersion": "10.1.26100.2454",
+  "file": [
+    {
+      "Path": "\\Deployment Tools\\amd64\\Oscdimg\\efisys_EX.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\amd64\\Oscdimg\\efisys_noprompt_EX.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\amd64\\Oscdimg\\efisys_noprompt.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\amd64\\Oscdimg\\efisys.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\amd64\\Oscdimg\\etfsboot.com",
+      "SizeBytes": 4096
+    },
+    {
+      "Path": "\\Deployment Tools\\amd64\\Oscdimg\\oscdimg.exe",
+      "SizeBytes": 153168
+    },
+    {
+      "Path": "\\Deployment Tools\\arm64\\Oscdimg\\efisys_EX.bin",
+      "SizeBytes": 1720320
+    },
+    {
+      "Path": "\\Deployment Tools\\arm64\\Oscdimg\\efisys_noprompt_EX.bin",
+      "SizeBytes": 1720320
+    },
+    {
+      "Path": "\\Deployment Tools\\arm64\\Oscdimg\\efisys_noprompt.bin",
+      "SizeBytes": 1720320
+    },
+    {
+      "Path": "\\Deployment Tools\\arm64\\Oscdimg\\efisys.bin",
+      "SizeBytes": 1720320
+    },
+    {
+      "Path": "\\Deployment Tools\\arm64\\Oscdimg\\oscdimg.exe",
+      "SizeBytes": 138840
+    },
+    {
+      "Path": "\\Deployment Tools\\x86\\Oscdimg\\efisys_EX.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\x86\\Oscdimg\\efisys_noprompt_EX.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\x86\\Oscdimg\\efisys_noprompt.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\x86\\Oscdimg\\efisys.bin",
+      "SizeBytes": 1474560
+    },
+    {
+      "Path": "\\Deployment Tools\\x86\\Oscdimg\\etfsboot.com",
+      "SizeBytes": 4096
+    },
+    {
+      "Path": "\\Deployment Tools\\x86\\Oscdimg\\oscdimg.exe",
+      "SizeBytes": 119376
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\en-us\\winpe.wim",
+      "SizeBytes": 340134390
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\Media\\bootmgr",
+      "SizeBytes": 478366
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\Media\\bootmgr.efi",
+      "SizeBytes": 2755504
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-DismCmdlets.cab",
+      "SizeBytes": 63014
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Dot3Svc.cab",
+      "SizeBytes": 1353029
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-EnhancedStorage.cab",
+      "SizeBytes": 118299
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FMAPI.cab",
+      "SizeBytes": 49047
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Fonts-Legacy.cab",
+      "SizeBytes": 3422510
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FontSupport-JA-JP.cab",
+      "SizeBytes": 21064966
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FontSupport-KO-KR.cab",
+      "SizeBytes": 10416931
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FontSupport-WinRE.cab",
+      "SizeBytes": 3620794
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FontSupport-ZH-CN.cab",
+      "SizeBytes": 35764298
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FontSupport-ZH-HK.cab",
+      "SizeBytes": 30809917
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-FontSupport-ZH-TW.cab",
+      "SizeBytes": 30810171
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-GamingPeripherals.cab",
+      "SizeBytes": 407652
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-HSP-Driver.cab",
+      "SizeBytes": 237612
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-HTA.cab",
+      "SizeBytes": 37460623
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-LegacySetup.cab",
+      "SizeBytes": 10323912
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-MDAC.cab",
+      "SizeBytes": 7152209
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-NetFx.cab",
+      "SizeBytes": 95327346
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-PlatformId.cab",
+      "SizeBytes": 1707917
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-PmemCmdlets.cab",
+      "SizeBytes": 150029
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-PowerShell.cab",
+      "SizeBytes": 3363546
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-PPPoE.cab",
+      "SizeBytes": 406679
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-RNDIS.cab",
+      "SizeBytes": 50372
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Scripting.cab",
+      "SizeBytes": 17117978
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-SecureBootCmdlets.cab",
+      "SizeBytes": 24471
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-SecureStartup.cab",
+      "SizeBytes": 897767
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Setup-ASZ.cab",
+      "SizeBytes": 172474
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Setup-Client.cab",
+      "SizeBytes": 168837
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Setup-Server.cab",
+      "SizeBytes": 171353
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-Setup.cab",
+      "SizeBytes": 14084782
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-StorageWMI.cab",
+      "SizeBytes": 948238
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-WDS-Tools.cab",
+      "SizeBytes": 946785
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-WinReCfg.cab",
+      "SizeBytes": 150753
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\WinPE-WMI.cab",
+      "SizeBytes": 6492661
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\lp.cab",
+      "SizeBytes": 3668095
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-DismCmdlets_ar-sa.cab",
+      "SizeBytes": 12462
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Dot3Svc_ar-sa.cab",
+      "SizeBytes": 89244
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-EnhancedStorage_ar-sa.cab",
+      "SizeBytes": 12166
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-HTA_ar-sa.cab",
+      "SizeBytes": 519835
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-LegacySetup_ar-sa.cab",
+      "SizeBytes": 49696
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-MDAC_ar-sa.cab",
+      "SizeBytes": 428396
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-NetFx_ar-sa.cab",
+      "SizeBytes": 4045622
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-PmemCmdlets_ar-sa.cab",
+      "SizeBytes": 11127
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-PowerShell_ar-sa.cab",
+      "SizeBytes": 180114
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-PPPoE_ar-sa.cab",
+      "SizeBytes": 32360
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Rejuv_ar-sa.cab",
+      "SizeBytes": 17573
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-RNDIS_ar-sa.cab",
+      "SizeBytes": 9318
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Scripting_ar-sa.cab",
+      "SizeBytes": 33959
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-SecureStartup_ar-sa.cab",
+      "SizeBytes": 37902
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Setup_ar-sa.cab",
+      "SizeBytes": 121188
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Setup-ASZ_ar-sa.cab",
+      "SizeBytes": 47072
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Setup-Client_ar-sa.cab",
+      "SizeBytes": 48542
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-Setup-Server_ar-sa.cab",
+      "SizeBytes": 48302
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-SRT_ar-sa.cab",
+      "SizeBytes": 150958
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-StorageWMI_ar-sa.cab",
+      "SizeBytes": 125439
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-WDS-Tools_ar-sa.cab",
+      "SizeBytes": 31285
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-WinReCfg_ar-sa.cab",
+      "SizeBytes": 14955
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ar-sa\\WinPE-WMI_ar-sa.cab",
+      "SizeBytes": 495165
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\lp.cab",
+      "SizeBytes": 3698239
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-DismCmdlets_bg-bg.cab",
+      "SizeBytes": 12466
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Dot3Svc_bg-bg.cab",
+      "SizeBytes": 88318
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-EnhancedStorage_bg-bg.cab",
+      "SizeBytes": 12158
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-HTA_bg-bg.cab",
+      "SizeBytes": 510359
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-LegacySetup_bg-bg.cab",
+      "SizeBytes": 53754
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-MDAC_bg-bg.cab",
+      "SizeBytes": 431606
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-NetFx_bg-bg.cab",
+      "SizeBytes": 126590
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-PmemCmdlets_bg-bg.cab",
+      "SizeBytes": 10985
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-PowerShell_bg-bg.cab",
+      "SizeBytes": 180024
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-PPPoE_bg-bg.cab",
+      "SizeBytes": 32770
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Rejuv_bg-bg.cab",
+      "SizeBytes": 18645
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-RNDIS_bg-bg.cab",
+      "SizeBytes": 9188
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Scripting_bg-bg.cab",
+      "SizeBytes": 33105
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-SecureStartup_bg-bg.cab",
+      "SizeBytes": 38806
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Setup_bg-bg.cab",
+      "SizeBytes": 122584
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Setup-ASZ_bg-bg.cab",
+      "SizeBytes": 46910
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Setup-Client_bg-bg.cab",
+      "SizeBytes": 48230
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-Setup-Server_bg-bg.cab",
+      "SizeBytes": 47290
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-SRT_bg-bg.cab",
+      "SizeBytes": 155228
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-StorageWMI_bg-bg.cab",
+      "SizeBytes": 127249
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-WDS-Tools_bg-bg.cab",
+      "SizeBytes": 30667
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-WinReCfg_bg-bg.cab",
+      "SizeBytes": 15101
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\bg-bg\\WinPE-WMI_bg-bg.cab",
+      "SizeBytes": 497019
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\lp.cab",
+      "SizeBytes": 3645548
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-DismCmdlets_cs-cz.cab",
+      "SizeBytes": 12604
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Dot3Svc_cs-cz.cab",
+      "SizeBytes": 86382
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-EnhancedStorage_cs-cz.cab",
+      "SizeBytes": 12294
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-HTA_cs-cz.cab",
+      "SizeBytes": 512617
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-LegacySetup_cs-cz.cab",
+      "SizeBytes": 52454
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-MDAC_cs-cz.cab",
+      "SizeBytes": 428984
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-NetFx_cs-cz.cab",
+      "SizeBytes": 4064632
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-PmemCmdlets_cs-cz.cab",
+      "SizeBytes": 11139
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-PowerShell_cs-cz.cab",
+      "SizeBytes": 180590
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-PPPoE_cs-cz.cab",
+      "SizeBytes": 33238
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Rejuv_cs-cz.cab",
+      "SizeBytes": 17173
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-RNDIS_cs-cz.cab",
+      "SizeBytes": 9348
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Scripting_cs-cz.cab",
+      "SizeBytes": 34223
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-SecureStartup_cs-cz.cab",
+      "SizeBytes": 35634
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Setup_cs-cz.cab",
+      "SizeBytes": 106402
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Setup-ASZ_cs-cz.cab",
+      "SizeBytes": 48294
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Setup-Client_cs-cz.cab",
+      "SizeBytes": 48370
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-Setup-Server_cs-cz.cab",
+      "SizeBytes": 48408
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-SRT_cs-cz.cab",
+      "SizeBytes": 154082
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-StorageWMI_cs-cz.cab",
+      "SizeBytes": 125793
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-WDS-Tools_cs-cz.cab",
+      "SizeBytes": 29993
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-WinReCfg_cs-cz.cab",
+      "SizeBytes": 12391
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\cs-cz\\WinPE-WMI_cs-cz.cab",
+      "SizeBytes": 356363
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\lp.cab",
+      "SizeBytes": 3584864
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-DismCmdlets_da-dk.cab",
+      "SizeBytes": 12594
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Dot3Svc_da-dk.cab",
+      "SizeBytes": 83956
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-EnhancedStorage_da-dk.cab",
+      "SizeBytes": 12354
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-HTA_da-dk.cab",
+      "SizeBytes": 500451
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-LegacySetup_da-dk.cab",
+      "SizeBytes": 51050
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-MDAC_da-dk.cab",
+      "SizeBytes": 426770
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-NetFx_da-dk.cab",
+      "SizeBytes": 4014476
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-PmemCmdlets_da-dk.cab",
+      "SizeBytes": 11131
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-PowerShell_da-dk.cab",
+      "SizeBytes": 180408
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-PPPoE_da-dk.cab",
+      "SizeBytes": 30514
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Rejuv_da-dk.cab",
+      "SizeBytes": 18441
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-RNDIS_da-dk.cab",
+      "SizeBytes": 9218
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Scripting_da-dk.cab",
+      "SizeBytes": 33823
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-SecureStartup_da-dk.cab",
+      "SizeBytes": 35302
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Setup_da-dk.cab",
+      "SizeBytes": 104424
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Setup-ASZ_da-dk.cab",
+      "SizeBytes": 46918
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Setup-Client_da-dk.cab",
+      "SizeBytes": 48364
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-Setup-Server_da-dk.cab",
+      "SizeBytes": 48148
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-SRT_da-dk.cab",
+      "SizeBytes": 149684
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-StorageWMI_da-dk.cab",
+      "SizeBytes": 125549
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-WDS-Tools_da-dk.cab",
+      "SizeBytes": 28341
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-WinReCfg_da-dk.cab",
+      "SizeBytes": 12237
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\da-dk\\WinPE-WMI_da-dk.cab",
+      "SizeBytes": 354625
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\lp.cab",
+      "SizeBytes": 3653710
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-DismCmdlets_de-de.cab",
+      "SizeBytes": 12854
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Dot3Svc_de-de.cab",
+      "SizeBytes": 92566
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-EnhancedStorage_de-de.cab",
+      "SizeBytes": 12384
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-HTA_de-de.cab",
+      "SizeBytes": 507867
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-LegacySetup_de-de.cab",
+      "SizeBytes": 52788
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-MDAC_de-de.cab",
+      "SizeBytes": 431596
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-NetFx_de-de.cab",
+      "SizeBytes": 4086112
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-PmemCmdlets_de-de.cab",
+      "SizeBytes": 11503
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-PowerShell_de-de.cab",
+      "SizeBytes": 194692
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-PPPoE_de-de.cab",
+      "SizeBytes": 32456
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Rejuv_de-de.cab",
+      "SizeBytes": 16437
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-RNDIS_de-de.cab",
+      "SizeBytes": 9210
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Scripting_de-de.cab",
+      "SizeBytes": 34429
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-SecureStartup_de-de.cab",
+      "SizeBytes": 38324
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Setup_de-de.cab",
+      "SizeBytes": 108054
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Setup-ASZ_de-de.cab",
+      "SizeBytes": 49130
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Setup-Client_de-de.cab",
+      "SizeBytes": 48664
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-Setup-Server_de-de.cab",
+      "SizeBytes": 48526
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-SRT_de-de.cab",
+      "SizeBytes": 160448
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-StorageWMI_de-de.cab",
+      "SizeBytes": 125839
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-WDS-Tools_de-de.cab",
+      "SizeBytes": 30039
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-WinReCfg_de-de.cab",
+      "SizeBytes": 12883
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\de-de\\WinPE-WMI_de-de.cab",
+      "SizeBytes": 369125
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\lp.cab",
+      "SizeBytes": 4418599
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-DismCmdlets_el-gr.cab",
+      "SizeBytes": 12466
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Dot3Svc_el-gr.cab",
+      "SizeBytes": 93598
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-EnhancedStorage_el-gr.cab",
+      "SizeBytes": 12438
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-HTA_el-gr.cab",
+      "SizeBytes": 516945
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-LegacySetup_el-gr.cab",
+      "SizeBytes": 55038
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-MDAC_el-gr.cab",
+      "SizeBytes": 438634
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-NetFx_el-gr.cab",
+      "SizeBytes": 4243874
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-PmemCmdlets_el-gr.cab",
+      "SizeBytes": 11137
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-PowerShell_el-gr.cab",
+      "SizeBytes": 180730
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-PPPoE_el-gr.cab",
+      "SizeBytes": 33874
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Rejuv_el-gr.cab",
+      "SizeBytes": 17381
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-RNDIS_el-gr.cab",
+      "SizeBytes": 9376
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Scripting_el-gr.cab",
+      "SizeBytes": 35279
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-SecureStartup_el-gr.cab",
+      "SizeBytes": 36740
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Setup_el-gr.cab",
+      "SizeBytes": 127902
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Setup-ASZ_el-gr.cab",
+      "SizeBytes": 46902
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Setup-Client_el-gr.cab",
+      "SizeBytes": 49238
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-Setup-Server_el-gr.cab",
+      "SizeBytes": 48158
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-SRT_el-gr.cab",
+      "SizeBytes": 167041
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-StorageWMI_el-gr.cab",
+      "SizeBytes": 133861
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-WDS-Tools_el-gr.cab",
+      "SizeBytes": 32151
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-WinReCfg_el-gr.cab",
+      "SizeBytes": 15099
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\el-gr\\WinPE-WMI_el-gr.cab",
+      "SizeBytes": 505195
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\lp.cab",
+      "SizeBytes": 3440088
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-DismCmdlets_en-gb.cab",
+      "SizeBytes": 12582
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Dot3Svc_en-gb.cab",
+      "SizeBytes": 83096
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-EnhancedStorage_en-gb.cab",
+      "SizeBytes": 12298
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-HTA_en-gb.cab",
+      "SizeBytes": 497685
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-LegacySetup_en-gb.cab",
+      "SizeBytes": 48690
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-MDAC_en-gb.cab",
+      "SizeBytes": 421874
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-NetFx_en-gb.cab",
+      "SizeBytes": 126432
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-PmemCmdlets_en-gb.cab",
+      "SizeBytes": 11135
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-PowerShell_en-gb.cab",
+      "SizeBytes": 180086
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-PPPoE_en-gb.cab",
+      "SizeBytes": 31708
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Rejuv_en-gb.cab",
+      "SizeBytes": 17649
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-RNDIS_en-gb.cab",
+      "SizeBytes": 9200
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Scripting_en-gb.cab",
+      "SizeBytes": 33089
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-SecureStartup_en-gb.cab",
+      "SizeBytes": 33498
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Setup_en-gb.cab",
+      "SizeBytes": 99346
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Setup-ASZ_en-gb.cab",
+      "SizeBytes": 47892
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Setup-Client_en-gb.cab",
+      "SizeBytes": 47626
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-Setup-Server_en-gb.cab",
+      "SizeBytes": 48276
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-SRT_en-gb.cab",
+      "SizeBytes": 143916
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-StorageWMI_en-gb.cab",
+      "SizeBytes": 124371
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-WDS-Tools_en-gb.cab",
+      "SizeBytes": 27539
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-WinReCfg_en-gb.cab",
+      "SizeBytes": 12241
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-gb\\WinPE-WMI_en-gb.cab",
+      "SizeBytes": 349023
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\lp.cab",
+      "SizeBytes": 3189430
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-DismCmdlets_en-us.cab",
+      "SizeBytes": 12600
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Dot3Svc_en-us.cab",
+      "SizeBytes": 86232
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-EnhancedStorage_en-us.cab",
+      "SizeBytes": 12284
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-HTA_en-us.cab",
+      "SizeBytes": 494489
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-LegacySetup_en-us.cab",
+      "SizeBytes": 51870
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-MDAC_en-us.cab",
+      "SizeBytes": 423596
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-NetFx_en-us.cab",
+      "SizeBytes": 128100
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-PmemCmdlets_en-us.cab",
+      "SizeBytes": 11133
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-PowerShell_en-us.cab",
+      "SizeBytes": 180230
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-PPPoE_en-us.cab",
+      "SizeBytes": 31968
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Rejuv_en-us.cab",
+      "SizeBytes": 16207
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-RNDIS_en-us.cab",
+      "SizeBytes": 9328
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Scripting_en-us.cab",
+      "SizeBytes": 32799
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-SecureStartup_en-us.cab",
+      "SizeBytes": 34426
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Setup_en-us.cab",
+      "SizeBytes": 99032
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Setup-ASZ_en-us.cab",
+      "SizeBytes": 47070
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Setup-Client_en-us.cab",
+      "SizeBytes": 47116
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-Setup-Server_en-us.cab",
+      "SizeBytes": 47722
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-SRT_en-us.cab",
+      "SizeBytes": 144058
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-StorageWMI_en-us.cab",
+      "SizeBytes": 123875
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-WDS-Tools_en-us.cab",
+      "SizeBytes": 27755
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-WinReCfg_en-us.cab",
+      "SizeBytes": 12373
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\en-us\\WinPE-WMI_en-us.cab",
+      "SizeBytes": 349227
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\lp.cab",
+      "SizeBytes": 3604818
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-DismCmdlets_es-es.cab",
+      "SizeBytes": 12794
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Dot3Svc_es-es.cab",
+      "SizeBytes": 90224
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-EnhancedStorage_es-es.cab",
+      "SizeBytes": 12218
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-HTA_es-es.cab",
+      "SizeBytes": 505727
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-LegacySetup_es-es.cab",
+      "SizeBytes": 50420
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-MDAC_es-es.cab",
+      "SizeBytes": 432926
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-NetFx_es-es.cab",
+      "SizeBytes": 4007374
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-PmemCmdlets_es-es.cab",
+      "SizeBytes": 11187
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-PowerShell_es-es.cab",
+      "SizeBytes": 188084
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-PPPoE_es-es.cab",
+      "SizeBytes": 32352
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Rejuv_es-es.cab",
+      "SizeBytes": 18579
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-RNDIS_es-es.cab",
+      "SizeBytes": 9350
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Scripting_es-es.cab",
+      "SizeBytes": 33081
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-SecureStartup_es-es.cab",
+      "SizeBytes": 36906
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Setup_es-es.cab",
+      "SizeBytes": 105472
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Setup-ASZ_es-es.cab",
+      "SizeBytes": 48456
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Setup-Client_es-es.cab",
+      "SizeBytes": 48534
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-Setup-Server_es-es.cab",
+      "SizeBytes": 48502
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-SRT_es-es.cab",
+      "SizeBytes": 156420
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-StorageWMI_es-es.cab",
+      "SizeBytes": 126793
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-WDS-Tools_es-es.cab",
+      "SizeBytes": 29321
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-WinReCfg_es-es.cab",
+      "SizeBytes": 12777
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-es\\WinPE-WMI_es-es.cab",
+      "SizeBytes": 367477
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\lp.cab",
+      "SizeBytes": 3595542
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-DismCmdlets_es-mx.cab",
+      "SizeBytes": 12676
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Dot3Svc_es-mx.cab",
+      "SizeBytes": 87566
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-EnhancedStorage_es-mx.cab",
+      "SizeBytes": 12356
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-HTA_es-mx.cab",
+      "SizeBytes": 503205
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-LegacySetup_es-mx.cab",
+      "SizeBytes": 51946
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-MDAC_es-mx.cab",
+      "SizeBytes": 430702
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-NetFx_es-mx.cab",
+      "SizeBytes": 4004104
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-PmemCmdlets_es-mx.cab",
+      "SizeBytes": 11317
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-PowerShell_es-mx.cab",
+      "SizeBytes": 188364
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-PPPoE_es-mx.cab",
+      "SizeBytes": 32592
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Rejuv_es-mx.cab",
+      "SizeBytes": 17997
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-RNDIS_es-mx.cab",
+      "SizeBytes": 9348
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Scripting_es-mx.cab",
+      "SizeBytes": 37847
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-SecureStartup_es-mx.cab",
+      "SizeBytes": 36994
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Setup_es-mx.cab",
+      "SizeBytes": 106598
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Setup-ASZ_es-mx.cab",
+      "SizeBytes": 48270
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Setup-Client_es-mx.cab",
+      "SizeBytes": 48904
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-Setup-Server_es-mx.cab",
+      "SizeBytes": 48654
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-SRT_es-mx.cab",
+      "SizeBytes": 154746
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-StorageWMI_es-mx.cab",
+      "SizeBytes": 124747
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-WDS-Tools_es-mx.cab",
+      "SizeBytes": 29307
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-WinReCfg_es-mx.cab",
+      "SizeBytes": 12791
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\es-mx\\WinPE-WMI_es-mx.cab",
+      "SizeBytes": 359467
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\lp.cab",
+      "SizeBytes": 3505214
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-DismCmdlets_et-ee.cab",
+      "SizeBytes": 12596
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Dot3Svc_et-ee.cab",
+      "SizeBytes": 84776
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-EnhancedStorage_et-ee.cab",
+      "SizeBytes": 12152
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-HTA_et-ee.cab",
+      "SizeBytes": 507191
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-LegacySetup_et-ee.cab",
+      "SizeBytes": 51208
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-MDAC_et-ee.cab",
+      "SizeBytes": 424090
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-NetFx_et-ee.cab",
+      "SizeBytes": 128456
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-PmemCmdlets_et-ee.cab",
+      "SizeBytes": 10993
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-PowerShell_et-ee.cab",
+      "SizeBytes": 180038
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-PPPoE_et-ee.cab",
+      "SizeBytes": 32192
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Rejuv_et-ee.cab",
+      "SizeBytes": 16775
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-RNDIS_et-ee.cab",
+      "SizeBytes": 9198
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Scripting_et-ee.cab",
+      "SizeBytes": 33093
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-SecureStartup_et-ee.cab",
+      "SizeBytes": 34994
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Setup_et-ee.cab",
+      "SizeBytes": 102516
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Setup-ASZ_et-ee.cab",
+      "SizeBytes": 47086
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Setup-Client_et-ee.cab",
+      "SizeBytes": 48276
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-Setup-Server_et-ee.cab",
+      "SizeBytes": 48282
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-SRT_et-ee.cab",
+      "SizeBytes": 151312
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-StorageWMI_et-ee.cab",
+      "SizeBytes": 123767
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-WDS-Tools_et-ee.cab",
+      "SizeBytes": 27541
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-WinReCfg_et-ee.cab",
+      "SizeBytes": 12353
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\et-ee\\WinPE-WMI_et-ee.cab",
+      "SizeBytes": 349265
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\lp.cab",
+      "SizeBytes": 3605304
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-DismCmdlets_fi-fi.cab",
+      "SizeBytes": 12592
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Dot3Svc_fi-fi.cab",
+      "SizeBytes": 86862
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-EnhancedStorage_fi-fi.cab",
+      "SizeBytes": 12356
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-HTA_fi-fi.cab",
+      "SizeBytes": 505529
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-LegacySetup_fi-fi.cab",
+      "SizeBytes": 50090
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-MDAC_fi-fi.cab",
+      "SizeBytes": 433286
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-NetFx_fi-fi.cab",
+      "SizeBytes": 4052798
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-PmemCmdlets_fi-fi.cab",
+      "SizeBytes": 11005
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-PowerShell_fi-fi.cab",
+      "SizeBytes": 180524
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-PPPoE_fi-fi.cab",
+      "SizeBytes": 31978
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Rejuv_fi-fi.cab",
+      "SizeBytes": 18435
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-RNDIS_fi-fi.cab",
+      "SizeBytes": 9218
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Scripting_fi-fi.cab",
+      "SizeBytes": 33791
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-SecureStartup_fi-fi.cab",
+      "SizeBytes": 35710
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Setup_fi-fi.cab",
+      "SizeBytes": 104308
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Setup-ASZ_fi-fi.cab",
+      "SizeBytes": 48028
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Setup-Client_fi-fi.cab",
+      "SizeBytes": 47618
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-Setup-Server_fi-fi.cab",
+      "SizeBytes": 48276
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-SRT_fi-fi.cab",
+      "SizeBytes": 153688
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-StorageWMI_fi-fi.cab",
+      "SizeBytes": 125775
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-WDS-Tools_fi-fi.cab",
+      "SizeBytes": 26869
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-WinReCfg_fi-fi.cab",
+      "SizeBytes": 12233
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fi-fi\\WinPE-WMI_fi-fi.cab",
+      "SizeBytes": 356293
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\lp.cab",
+      "SizeBytes": 3655136
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-DismCmdlets_fr-ca.cab",
+      "SizeBytes": 12834
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Dot3Svc_fr-ca.cab",
+      "SizeBytes": 93338
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-EnhancedStorage_fr-ca.cab",
+      "SizeBytes": 12380
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-HTA_fr-ca.cab",
+      "SizeBytes": 506183
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-LegacySetup_fr-ca.cab",
+      "SizeBytes": 53882
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-MDAC_fr-ca.cab",
+      "SizeBytes": 432730
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-NetFx_fr-ca.cab",
+      "SizeBytes": 4037958
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-PmemCmdlets_fr-ca.cab",
+      "SizeBytes": 11457
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-PowerShell_fr-ca.cab",
+      "SizeBytes": 193550
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-PPPoE_fr-ca.cab",
+      "SizeBytes": 31904
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Rejuv_fr-ca.cab",
+      "SizeBytes": 17111
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-RNDIS_fr-ca.cab",
+      "SizeBytes": 9352
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Scripting_fr-ca.cab",
+      "SizeBytes": 37547
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-SecureStartup_fr-ca.cab",
+      "SizeBytes": 37996
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Setup_fr-ca.cab",
+      "SizeBytes": 105590
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Setup-ASZ_fr-ca.cab",
+      "SizeBytes": 48954
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Setup-Client_fr-ca.cab",
+      "SizeBytes": 48402
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-Setup-Server_fr-ca.cab",
+      "SizeBytes": 48520
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-SRT_fr-ca.cab",
+      "SizeBytes": 160336
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-StorageWMI_fr-ca.cab",
+      "SizeBytes": 124403
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-WDS-Tools_fr-ca.cab",
+      "SizeBytes": 29291
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-WinReCfg_fr-ca.cab",
+      "SizeBytes": 12899
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-ca\\WinPE-WMI_fr-ca.cab",
+      "SizeBytes": 356617
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\lp.cab",
+      "SizeBytes": 3655860
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-DismCmdlets_fr-fr.cab",
+      "SizeBytes": 12970
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Dot3Svc_fr-fr.cab",
+      "SizeBytes": 90808
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-EnhancedStorage_fr-fr.cab",
+      "SizeBytes": 12250
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-HTA_fr-fr.cab",
+      "SizeBytes": 509429
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-LegacySetup_fr-fr.cab",
+      "SizeBytes": 53806
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-MDAC_fr-fr.cab",
+      "SizeBytes": 432680
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-NetFx_fr-fr.cab",
+      "SizeBytes": 4033584
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-PmemCmdlets_fr-fr.cab",
+      "SizeBytes": 11443
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-PowerShell_fr-fr.cab",
+      "SizeBytes": 193710
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-PPPoE_fr-fr.cab",
+      "SizeBytes": 33466
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Rejuv_fr-fr.cab",
+      "SizeBytes": 18331
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-RNDIS_fr-fr.cab",
+      "SizeBytes": 9352
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Scripting_fr-fr.cab",
+      "SizeBytes": 32917
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-SecureStartup_fr-fr.cab",
+      "SizeBytes": 37520
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Setup_fr-fr.cab",
+      "SizeBytes": 104592
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Setup-ASZ_fr-fr.cab",
+      "SizeBytes": 48818
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Setup-Client_fr-fr.cab",
+      "SizeBytes": 48372
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-Setup-Server_fr-fr.cab",
+      "SizeBytes": 49078
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-SRT_fr-fr.cab",
+      "SizeBytes": 155954
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-StorageWMI_fr-fr.cab",
+      "SizeBytes": 125369
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-WDS-Tools_fr-fr.cab",
+      "SizeBytes": 29061
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-WinReCfg_fr-fr.cab",
+      "SizeBytes": 12895
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\fr-fr\\WinPE-WMI_fr-fr.cab",
+      "SizeBytes": 376459
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\lp.cab",
+      "SizeBytes": 3662117
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-DismCmdlets_he-il.cab",
+      "SizeBytes": 12466
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Dot3Svc_he-il.cab",
+      "SizeBytes": 89242
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-EnhancedStorage_he-il.cab",
+      "SizeBytes": 12158
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-HTA_he-il.cab",
+      "SizeBytes": 505089
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-LegacySetup_he-il.cab",
+      "SizeBytes": 51266
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-MDAC_he-il.cab",
+      "SizeBytes": 427062
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-NetFx_he-il.cab",
+      "SizeBytes": 4000738
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-PmemCmdlets_he-il.cab",
+      "SizeBytes": 11141
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-PowerShell_he-il.cab",
+      "SizeBytes": 180056
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-PPPoE_he-il.cab",
+      "SizeBytes": 30930
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Rejuv_he-il.cab",
+      "SizeBytes": 18415
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-RNDIS_he-il.cab",
+      "SizeBytes": 9330
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Scripting_he-il.cab",
+      "SizeBytes": 33545
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-SecureStartup_he-il.cab",
+      "SizeBytes": 38446
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Setup_he-il.cab",
+      "SizeBytes": 122022
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Setup-ASZ_he-il.cab",
+      "SizeBytes": 46906
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Setup-Client_he-il.cab",
+      "SizeBytes": 47172
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-Setup-Server_he-il.cab",
+      "SizeBytes": 47722
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-SRT_he-il.cab",
+      "SizeBytes": 154180
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-StorageWMI_he-il.cab",
+      "SizeBytes": 127165
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-WDS-Tools_he-il.cab",
+      "SizeBytes": 30995
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-WinReCfg_he-il.cab",
+      "SizeBytes": 14975
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\he-il\\WinPE-WMI_he-il.cab",
+      "SizeBytes": 493399
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\lp.cab",
+      "SizeBytes": 3519740
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-DismCmdlets_hr-hr.cab",
+      "SizeBytes": 12596
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Dot3Svc_hr-hr.cab",
+      "SizeBytes": 87360
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-EnhancedStorage_hr-hr.cab",
+      "SizeBytes": 12292
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-HTA_hr-hr.cab",
+      "SizeBytes": 506475
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-LegacySetup_hr-hr.cab",
+      "SizeBytes": 51936
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-MDAC_hr-hr.cab",
+      "SizeBytes": 425882
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-NetFx_hr-hr.cab",
+      "SizeBytes": 126586
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-PmemCmdlets_hr-hr.cab",
+      "SizeBytes": 11149
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-PowerShell_hr-hr.cab",
+      "SizeBytes": 180068
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-PPPoE_hr-hr.cab",
+      "SizeBytes": 33122
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Rejuv_hr-hr.cab",
+      "SizeBytes": 18269
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-RNDIS_hr-hr.cab",
+      "SizeBytes": 9306
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Scripting_hr-hr.cab",
+      "SizeBytes": 31595
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-SecureStartup_hr-hr.cab",
+      "SizeBytes": 35804
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Setup_hr-hr.cab",
+      "SizeBytes": 103870
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Setup-ASZ_hr-hr.cab",
+      "SizeBytes": 47060
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Setup-Client_hr-hr.cab",
+      "SizeBytes": 48922
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-Setup-Server_hr-hr.cab",
+      "SizeBytes": 47306
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-SRT_hr-hr.cab",
+      "SizeBytes": 150346
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-StorageWMI_hr-hr.cab",
+      "SizeBytes": 124359
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-WDS-Tools_hr-hr.cab",
+      "SizeBytes": 27799
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-WinReCfg_hr-hr.cab",
+      "SizeBytes": 12225
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hr-hr\\WinPE-WMI_hr-hr.cab",
+      "SizeBytes": 345017
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\lp.cab",
+      "SizeBytes": 3651396
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-DismCmdlets_hu-hu.cab",
+      "SizeBytes": 12460
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Dot3Svc_hu-hu.cab",
+      "SizeBytes": 87414
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-EnhancedStorage_hu-hu.cab",
+      "SizeBytes": 12394
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-HTA_hu-hu.cab",
+      "SizeBytes": 510699
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-LegacySetup_hu-hu.cab",
+      "SizeBytes": 51062
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-MDAC_hu-hu.cab",
+      "SizeBytes": 435626
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-NetFx_hu-hu.cab",
+      "SizeBytes": 4108876
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-PmemCmdlets_hu-hu.cab",
+      "SizeBytes": 11135
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-PowerShell_hu-hu.cab",
+      "SizeBytes": 180612
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-PPPoE_hu-hu.cab",
+      "SizeBytes": 32500
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Rejuv_hu-hu.cab",
+      "SizeBytes": 16925
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-RNDIS_hu-hu.cab",
+      "SizeBytes": 9360
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Scripting_hu-hu.cab",
+      "SizeBytes": 33957
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-SecureStartup_hu-hu.cab",
+      "SizeBytes": 35890
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Setup_hu-hu.cab",
+      "SizeBytes": 105706
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Setup-ASZ_hu-hu.cab",
+      "SizeBytes": 48604
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Setup-Client_hu-hu.cab",
+      "SizeBytes": 48778
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-Setup-Server_hu-hu.cab",
+      "SizeBytes": 48844
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-SRT_hu-hu.cab",
+      "SizeBytes": 158770
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-StorageWMI_hu-hu.cab",
+      "SizeBytes": 124787
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-WDS-Tools_hu-hu.cab",
+      "SizeBytes": 29429
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-WinReCfg_hu-hu.cab",
+      "SizeBytes": 12237
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\hu-hu\\WinPE-WMI_hu-hu.cab",
+      "SizeBytes": 357579
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\lp.cab",
+      "SizeBytes": 3575260
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-DismCmdlets_it-it.cab",
+      "SizeBytes": 12834
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Dot3Svc_it-it.cab",
+      "SizeBytes": 87848
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-EnhancedStorage_it-it.cab",
+      "SizeBytes": 12196
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-HTA_it-it.cab",
+      "SizeBytes": 505145
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-LegacySetup_it-it.cab",
+      "SizeBytes": 54102
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-MDAC_it-it.cab",
+      "SizeBytes": 430324
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-NetFx_it-it.cab",
+      "SizeBytes": 4009992
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-PmemCmdlets_it-it.cab",
+      "SizeBytes": 11209
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-PowerShell_it-it.cab",
+      "SizeBytes": 185696
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-PPPoE_it-it.cab",
+      "SizeBytes": 32878
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Rejuv_it-it.cab",
+      "SizeBytes": 18545
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-RNDIS_it-it.cab",
+      "SizeBytes": 9224
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Scripting_it-it.cab",
+      "SizeBytes": 32149
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-SecureStartup_it-it.cab",
+      "SizeBytes": 35154
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Setup_it-it.cab",
+      "SizeBytes": 103928
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Setup-ASZ_it-it.cab",
+      "SizeBytes": 48204
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Setup-Client_it-it.cab",
+      "SizeBytes": 47932
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-Setup-Server_it-it.cab",
+      "SizeBytes": 48426
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-SRT_it-it.cab",
+      "SizeBytes": 148578
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-StorageWMI_it-it.cab",
+      "SizeBytes": 126545
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-WDS-Tools_it-it.cab",
+      "SizeBytes": 28375
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-WinReCfg_it-it.cab",
+      "SizeBytes": 12611
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\it-it\\WinPE-WMI_it-it.cab",
+      "SizeBytes": 366525
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\lp.cab",
+      "SizeBytes": 4262934
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-DismCmdlets_ja-jp.cab",
+      "SizeBytes": 12830
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Dot3Svc_ja-jp.cab",
+      "SizeBytes": 121655
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-EnhancedStorage_ja-jp.cab",
+      "SizeBytes": 12356
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-HTA_ja-jp.cab",
+      "SizeBytes": 498295
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-LegacySetup_ja-jp.cab",
+      "SizeBytes": 49088
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-MDAC_ja-jp.cab",
+      "SizeBytes": 446688
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-NetFx_ja-jp.cab",
+      "SizeBytes": 3999970
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-PmemCmdlets_ja-jp.cab",
+      "SizeBytes": 11379
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-PowerShell_ja-jp.cab",
+      "SizeBytes": 186734
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-PPPoE_ja-jp.cab",
+      "SizeBytes": 30718
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Rejuv_ja-jp.cab",
+      "SizeBytes": 18285
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-RNDIS_ja-jp.cab",
+      "SizeBytes": 9190
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Scripting_ja-jp.cab",
+      "SizeBytes": 32397
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-SecureStartup_ja-jp.cab",
+      "SizeBytes": 51586
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Setup_ja-jp.cab",
+      "SizeBytes": 126638
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Setup-ASZ_ja-jp.cab",
+      "SizeBytes": 46612
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Setup-Client_ja-jp.cab",
+      "SizeBytes": 46774
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-Setup-Server_ja-jp.cab",
+      "SizeBytes": 47028
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-SRT_ja-jp.cab",
+      "SizeBytes": 174042
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-StorageWMI_ja-jp.cab",
+      "SizeBytes": 134845
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-WDS-Tools_ja-jp.cab",
+      "SizeBytes": 33749
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-WinReCfg_ja-jp.cab",
+      "SizeBytes": 17733
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ja-jp\\WinPE-WMI_ja-jp.cab",
+      "SizeBytes": 511381
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\lp.cab",
+      "SizeBytes": 4214192
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-DismCmdlets_ko-kr.cab",
+      "SizeBytes": 12692
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Dot3Svc_ko-kr.cab",
+      "SizeBytes": 125035
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-EnhancedStorage_ko-kr.cab",
+      "SizeBytes": 12388
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-HTA_ko-kr.cab",
+      "SizeBytes": 496033
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-LegacySetup_ko-kr.cab",
+      "SizeBytes": 50236
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-MDAC_ko-kr.cab",
+      "SizeBytes": 439674
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-NetFx_ko-kr.cab",
+      "SizeBytes": 3914934
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-PmemCmdlets_ko-kr.cab",
+      "SizeBytes": 11397
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-PowerShell_ko-kr.cab",
+      "SizeBytes": 182160
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-PPPoE_ko-kr.cab",
+      "SizeBytes": 29498
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Rejuv_ko-kr.cab",
+      "SizeBytes": 16733
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-RNDIS_ko-kr.cab",
+      "SizeBytes": 9184
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Scripting_ko-kr.cab",
+      "SizeBytes": 32881
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-SecureStartup_ko-kr.cab",
+      "SizeBytes": 51062
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Setup_ko-kr.cab",
+      "SizeBytes": 126072
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Setup-ASZ_ko-kr.cab",
+      "SizeBytes": 46254
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Setup-Client_ko-kr.cab",
+      "SizeBytes": 46314
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-Setup-Server_ko-kr.cab",
+      "SizeBytes": 46322
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-SRT_ko-kr.cab",
+      "SizeBytes": 172446
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-StorageWMI_ko-kr.cab",
+      "SizeBytes": 135039
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-WDS-Tools_ko-kr.cab",
+      "SizeBytes": 32867
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-WinReCfg_ko-kr.cab",
+      "SizeBytes": 17669
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ko-kr\\WinPE-WMI_ko-kr.cab",
+      "SizeBytes": 498063
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\lp.cab",
+      "SizeBytes": 3520418
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-DismCmdlets_lt-lt.cab",
+      "SizeBytes": 12472
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Dot3Svc_lt-lt.cab",
+      "SizeBytes": 86486
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-EnhancedStorage_lt-lt.cab",
+      "SizeBytes": 12150
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-HTA_lt-lt.cab",
+      "SizeBytes": 510205
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-LegacySetup_lt-lt.cab",
+      "SizeBytes": 51780
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-MDAC_lt-lt.cab",
+      "SizeBytes": 425980
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-NetFx_lt-lt.cab",
+      "SizeBytes": 126602
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-PmemCmdlets_lt-lt.cab",
+      "SizeBytes": 10995
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-PowerShell_lt-lt.cab",
+      "SizeBytes": 180216
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-PPPoE_lt-lt.cab",
+      "SizeBytes": 33376
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Rejuv_lt-lt.cab",
+      "SizeBytes": 18031
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-RNDIS_lt-lt.cab",
+      "SizeBytes": 9330
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Scripting_lt-lt.cab",
+      "SizeBytes": 33131
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-SecureStartup_lt-lt.cab",
+      "SizeBytes": 35800
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Setup_lt-lt.cab",
+      "SizeBytes": 106238
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Setup-ASZ_lt-lt.cab",
+      "SizeBytes": 46924
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Setup-Client_lt-lt.cab",
+      "SizeBytes": 48074
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-Setup-Server_lt-lt.cab",
+      "SizeBytes": 48284
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-SRT_lt-lt.cab",
+      "SizeBytes": 153708
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-StorageWMI_lt-lt.cab",
+      "SizeBytes": 124139
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-WDS-Tools_lt-lt.cab",
+      "SizeBytes": 27789
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-WinReCfg_lt-lt.cab",
+      "SizeBytes": 12367
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lt-lt\\WinPE-WMI_lt-lt.cab",
+      "SizeBytes": 353057
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\lp.cab",
+      "SizeBytes": 3507002
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-DismCmdlets_lv-lv.cab",
+      "SizeBytes": 12458
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Dot3Svc_lv-lv.cab",
+      "SizeBytes": 86530
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-EnhancedStorage_lv-lv.cab",
+      "SizeBytes": 12292
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-HTA_lv-lv.cab",
+      "SizeBytes": 506343
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-LegacySetup_lv-lv.cab",
+      "SizeBytes": 48788
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-MDAC_lv-lv.cab",
+      "SizeBytes": 428842
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-NetFx_lv-lv.cab",
+      "SizeBytes": 128022
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-PmemCmdlets_lv-lv.cab",
+      "SizeBytes": 10997
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-PowerShell_lv-lv.cab",
+      "SizeBytes": 179868
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-PPPoE_lv-lv.cab",
+      "SizeBytes": 32472
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Rejuv_lv-lv.cab",
+      "SizeBytes": 18685
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-RNDIS_lv-lv.cab",
+      "SizeBytes": 9334
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Scripting_lv-lv.cab",
+      "SizeBytes": 31587
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-SecureStartup_lv-lv.cab",
+      "SizeBytes": 35450
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Setup_lv-lv.cab",
+      "SizeBytes": 104560
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Setup-ASZ_lv-lv.cab",
+      "SizeBytes": 47922
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Setup-Client_lv-lv.cab",
+      "SizeBytes": 48674
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-Setup-Server_lv-lv.cab",
+      "SizeBytes": 48170
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-SRT_lv-lv.cab",
+      "SizeBytes": 151684
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-StorageWMI_lv-lv.cab",
+      "SizeBytes": 124321
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-WDS-Tools_lv-lv.cab",
+      "SizeBytes": 27579
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-WinReCfg_lv-lv.cab",
+      "SizeBytes": 12369
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\lv-lv\\WinPE-WMI_lv-lv.cab",
+      "SizeBytes": 350635
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\lp.cab",
+      "SizeBytes": 3565312
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-DismCmdlets_nb-no.cab",
+      "SizeBytes": 12586
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Dot3Svc_nb-no.cab",
+      "SizeBytes": 83518
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-EnhancedStorage_nb-no.cab",
+      "SizeBytes": 12190
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-HTA_nb-no.cab",
+      "SizeBytes": 501037
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-LegacySetup_nb-no.cab",
+      "SizeBytes": 50088
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-MDAC_nb-no.cab",
+      "SizeBytes": 427772
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-NetFx_nb-no.cab",
+      "SizeBytes": 3977302
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-PmemCmdlets_nb-no.cab",
+      "SizeBytes": 11143
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-PowerShell_nb-no.cab",
+      "SizeBytes": 180428
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-PPPoE_nb-no.cab",
+      "SizeBytes": 32312
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Rejuv_nb-no.cab",
+      "SizeBytes": 18309
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-RNDIS_nb-no.cab",
+      "SizeBytes": 9332
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Scripting_nb-no.cab",
+      "SizeBytes": 31599
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-SecureStartup_nb-no.cab",
+      "SizeBytes": 35574
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Setup_nb-no.cab",
+      "SizeBytes": 104352
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Setup-ASZ_nb-no.cab",
+      "SizeBytes": 47058
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Setup-Client_nb-no.cab",
+      "SizeBytes": 48514
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-Setup-Server_nb-no.cab",
+      "SizeBytes": 47684
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-SRT_nb-no.cab",
+      "SizeBytes": 148318
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-StorageWMI_nb-no.cab",
+      "SizeBytes": 124975
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-WDS-Tools_nb-no.cab",
+      "SizeBytes": 28951
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-WinReCfg_nb-no.cab",
+      "SizeBytes": 12229
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nb-no\\WinPE-WMI_nb-no.cab",
+      "SizeBytes": 350831
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\lp.cab",
+      "SizeBytes": 3627938
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-DismCmdlets_nl-nl.cab",
+      "SizeBytes": 12592
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Dot3Svc_nl-nl.cab",
+      "SizeBytes": 85476
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-EnhancedStorage_nl-nl.cab",
+      "SizeBytes": 12366
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-HTA_nl-nl.cab",
+      "SizeBytes": 505791
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-LegacySetup_nl-nl.cab",
+      "SizeBytes": 48318
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-MDAC_nl-nl.cab",
+      "SizeBytes": 432594
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-NetFx_nl-nl.cab",
+      "SizeBytes": 4039402
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-PmemCmdlets_nl-nl.cab",
+      "SizeBytes": 11007
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-PowerShell_nl-nl.cab",
+      "SizeBytes": 180514
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-PPPoE_nl-nl.cab",
+      "SizeBytes": 33240
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Rejuv_nl-nl.cab",
+      "SizeBytes": 18535
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-RNDIS_nl-nl.cab",
+      "SizeBytes": 9336
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Scripting_nl-nl.cab",
+      "SizeBytes": 33575
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-SecureStartup_nl-nl.cab",
+      "SizeBytes": 35026
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Setup_nl-nl.cab",
+      "SizeBytes": 103642
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Setup-ASZ_nl-nl.cab",
+      "SizeBytes": 48286
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Setup-Client_nl-nl.cab",
+      "SizeBytes": 47832
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-Setup-Server_nl-nl.cab",
+      "SizeBytes": 48710
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-SRT_nl-nl.cab",
+      "SizeBytes": 150098
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-StorageWMI_nl-nl.cab",
+      "SizeBytes": 125615
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-WDS-Tools_nl-nl.cab",
+      "SizeBytes": 29201
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-WinReCfg_nl-nl.cab",
+      "SizeBytes": 12221
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\nl-nl\\WinPE-WMI_nl-nl.cab",
+      "SizeBytes": 352141
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\lp.cab",
+      "SizeBytes": 3659416
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-DismCmdlets_pl-pl.cab",
+      "SizeBytes": 12610
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Dot3Svc_pl-pl.cab",
+      "SizeBytes": 88668
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-EnhancedStorage_pl-pl.cab",
+      "SizeBytes": 12252
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-HTA_pl-pl.cab",
+      "SizeBytes": 509599
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-LegacySetup_pl-pl.cab",
+      "SizeBytes": 52758
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-MDAC_pl-pl.cab",
+      "SizeBytes": 431272
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-NetFx_pl-pl.cab",
+      "SizeBytes": 4106562
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-PmemCmdlets_pl-pl.cab",
+      "SizeBytes": 11125
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-PowerShell_pl-pl.cab",
+      "SizeBytes": 180786
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-PPPoE_pl-pl.cab",
+      "SizeBytes": 32880
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Rejuv_pl-pl.cab",
+      "SizeBytes": 17239
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-RNDIS_pl-pl.cab",
+      "SizeBytes": 9372
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Scripting_pl-pl.cab",
+      "SizeBytes": 33089
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-SecureStartup_pl-pl.cab",
+      "SizeBytes": 35856
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Setup_pl-pl.cab",
+      "SizeBytes": 108762
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Setup-ASZ_pl-pl.cab",
+      "SizeBytes": 48382
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Setup-Client_pl-pl.cab",
+      "SizeBytes": 48492
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-Setup-Server_pl-pl.cab",
+      "SizeBytes": 48708
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-SRT_pl-pl.cab",
+      "SizeBytes": 155516
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-StorageWMI_pl-pl.cab",
+      "SizeBytes": 125881
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-WDS-Tools_pl-pl.cab",
+      "SizeBytes": 29969
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-WinReCfg_pl-pl.cab",
+      "SizeBytes": 12361
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pl-pl\\WinPE-WMI_pl-pl.cab",
+      "SizeBytes": 353361
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\lp.cab",
+      "SizeBytes": 3593236
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-DismCmdlets_pt-br.cab",
+      "SizeBytes": 12664
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Dot3Svc_pt-br.cab",
+      "SizeBytes": 89548
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-EnhancedStorage_pt-br.cab",
+      "SizeBytes": 12364
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-HTA_pt-br.cab",
+      "SizeBytes": 506845
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-LegacySetup_pt-br.cab",
+      "SizeBytes": 50430
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-MDAC_pt-br.cab",
+      "SizeBytes": 429140
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-NetFx_pt-br.cab",
+      "SizeBytes": 4016328
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-PmemCmdlets_pt-br.cab",
+      "SizeBytes": 11281
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-PowerShell_pt-br.cab",
+      "SizeBytes": 188410
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-PPPoE_pt-br.cab",
+      "SizeBytes": 30780
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Rejuv_pt-br.cab",
+      "SizeBytes": 18597
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-RNDIS_pt-br.cab",
+      "SizeBytes": 9230
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Scripting_pt-br.cab",
+      "SizeBytes": 33043
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-SecureStartup_pt-br.cab",
+      "SizeBytes": 37620
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Setup_pt-br.cab",
+      "SizeBytes": 104624
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Setup-ASZ_pt-br.cab",
+      "SizeBytes": 47780
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Setup-Client_pt-br.cab",
+      "SizeBytes": 48494
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-Setup-Server_pt-br.cab",
+      "SizeBytes": 47936
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-SRT_pt-br.cab",
+      "SizeBytes": 154380
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-StorageWMI_pt-br.cab",
+      "SizeBytes": 125199
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-WDS-Tools_pt-br.cab",
+      "SizeBytes": 28995
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-WinReCfg_pt-br.cab",
+      "SizeBytes": 12835
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-br\\WinPE-WMI_pt-br.cab",
+      "SizeBytes": 367245
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\lp.cab",
+      "SizeBytes": 3619440
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-DismCmdlets_pt-pt.cab",
+      "SizeBytes": 12600
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Dot3Svc_pt-pt.cab",
+      "SizeBytes": 85406
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-EnhancedStorage_pt-pt.cab",
+      "SizeBytes": 12378
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-HTA_pt-pt.cab",
+      "SizeBytes": 505627
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-LegacySetup_pt-pt.cab",
+      "SizeBytes": 52630
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-MDAC_pt-pt.cab",
+      "SizeBytes": 272416
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-NetFx_pt-pt.cab",
+      "SizeBytes": 4026496
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-PmemCmdlets_pt-pt.cab",
+      "SizeBytes": 11145
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-PowerShell_pt-pt.cab",
+      "SizeBytes": 180404
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-PPPoE_pt-pt.cab",
+      "SizeBytes": 30980
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Rejuv_pt-pt.cab",
+      "SizeBytes": 17077
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-RNDIS_pt-pt.cab",
+      "SizeBytes": 9350
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Scripting_pt-pt.cab",
+      "SizeBytes": 32087
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-SecureStartup_pt-pt.cab",
+      "SizeBytes": 35656
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Setup_pt-pt.cab",
+      "SizeBytes": 104826
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Setup-ASZ_pt-pt.cab",
+      "SizeBytes": 48648
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Setup-Client_pt-pt.cab",
+      "SizeBytes": 48490
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-Setup-Server_pt-pt.cab",
+      "SizeBytes": 48518
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-SRT_pt-pt.cab",
+      "SizeBytes": 152882
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-StorageWMI_pt-pt.cab",
+      "SizeBytes": 124823
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-WDS-Tools_pt-pt.cab",
+      "SizeBytes": 29307
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-WinReCfg_pt-pt.cab",
+      "SizeBytes": 12357
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\pt-pt\\WinPE-WMI_pt-pt.cab",
+      "SizeBytes": 356639
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\lp.cab",
+      "SizeBytes": 3510242
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-DismCmdlets_ro-ro.cab",
+      "SizeBytes": 12596
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Dot3Svc_ro-ro.cab",
+      "SizeBytes": 84530
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-EnhancedStorage_ro-ro.cab",
+      "SizeBytes": 12298
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-HTA_ro-ro.cab",
+      "SizeBytes": 509959
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-LegacySetup_ro-ro.cab",
+      "SizeBytes": 50974
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-MDAC_ro-ro.cab",
+      "SizeBytes": 426776
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-NetFx_ro-ro.cab",
+      "SizeBytes": 127830
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-PmemCmdlets_ro-ro.cab",
+      "SizeBytes": 10991
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-PowerShell_ro-ro.cab",
+      "SizeBytes": 180112
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-PPPoE_ro-ro.cab",
+      "SizeBytes": 33024
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Rejuv_ro-ro.cab",
+      "SizeBytes": 17847
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-RNDIS_ro-ro.cab",
+      "SizeBytes": 9206
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Scripting_ro-ro.cab",
+      "SizeBytes": 31399
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-SecureStartup_ro-ro.cab",
+      "SizeBytes": 33378
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Setup_ro-ro.cab",
+      "SizeBytes": 102708
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Setup-ASZ_ro-ro.cab",
+      "SizeBytes": 47594
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Setup-Client_ro-ro.cab",
+      "SizeBytes": 48540
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-Setup-Server_ro-ro.cab",
+      "SizeBytes": 48306
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-SRT_ro-ro.cab",
+      "SizeBytes": 151406
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-StorageWMI_ro-ro.cab",
+      "SizeBytes": 124481
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-WDS-Tools_ro-ro.cab",
+      "SizeBytes": 27569
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-WinReCfg_ro-ro.cab",
+      "SizeBytes": 12373
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ro-ro\\WinPE-WMI_ro-ro.cab",
+      "SizeBytes": 349191
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\lp.cab",
+      "SizeBytes": 4684555
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-DismCmdlets_ru-ru.cab",
+      "SizeBytes": 13198
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Dot3Svc_ru-ru.cab",
+      "SizeBytes": 132745
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-EnhancedStorage_ru-ru.cab",
+      "SizeBytes": 12332
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-HTA_ru-ru.cab",
+      "SizeBytes": 511323
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-LegacySetup_ru-ru.cab",
+      "SizeBytes": 54280
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-MDAC_ru-ru.cab",
+      "SizeBytes": 441682
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-NetFx_ru-ru.cab",
+      "SizeBytes": 4221750
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-PmemCmdlets_ru-ru.cab",
+      "SizeBytes": 11659
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-PowerShell_ru-ru.cab",
+      "SizeBytes": 200614
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-PPPoE_ru-ru.cab",
+      "SizeBytes": 32472
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Rejuv_ru-ru.cab",
+      "SizeBytes": 18813
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-RNDIS_ru-ru.cab",
+      "SizeBytes": 9370
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Scripting_ru-ru.cab",
+      "SizeBytes": 32527
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-SecureStartup_ru-ru.cab",
+      "SizeBytes": 55044
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Setup_ru-ru.cab",
+      "SizeBytes": 136544
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Setup-ASZ_ru-ru.cab",
+      "SizeBytes": 48526
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Setup-Client_ru-ru.cab",
+      "SizeBytes": 48806
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-Setup-Server_ru-ru.cab",
+      "SizeBytes": 48952
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-SRT_ru-ru.cab",
+      "SizeBytes": 195222
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-StorageWMI_ru-ru.cab",
+      "SizeBytes": 134599
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-WDS-Tools_ru-ru.cab",
+      "SizeBytes": 34467
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-WinReCfg_ru-ru.cab",
+      "SizeBytes": 18181
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\ru-ru\\WinPE-WMI_ru-ru.cab",
+      "SizeBytes": 563333
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\lp.cab",
+      "SizeBytes": 3525658
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-DismCmdlets_sk-sk.cab",
+      "SizeBytes": 12462
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Dot3Svc_sk-sk.cab",
+      "SizeBytes": 83804
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-EnhancedStorage_sk-sk.cab",
+      "SizeBytes": 12296
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-HTA_sk-sk.cab",
+      "SizeBytes": 509295
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-LegacySetup_sk-sk.cab",
+      "SizeBytes": 52044
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-MDAC_sk-sk.cab",
+      "SizeBytes": 425732
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-NetFx_sk-sk.cab",
+      "SizeBytes": 125910
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-PmemCmdlets_sk-sk.cab",
+      "SizeBytes": 11003
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-PowerShell_sk-sk.cab",
+      "SizeBytes": 179868
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-PPPoE_sk-sk.cab",
+      "SizeBytes": 33504
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Rejuv_sk-sk.cab",
+      "SizeBytes": 18081
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-RNDIS_sk-sk.cab",
+      "SizeBytes": 9202
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Scripting_sk-sk.cab",
+      "SizeBytes": 33811
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-SecureStartup_sk-sk.cab",
+      "SizeBytes": 34960
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Setup_sk-sk.cab",
+      "SizeBytes": 106408
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Setup-ASZ_sk-sk.cab",
+      "SizeBytes": 47070
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Setup-Client_sk-sk.cab",
+      "SizeBytes": 48500
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-Setup-Server_sk-sk.cab",
+      "SizeBytes": 47326
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-SRT_sk-sk.cab",
+      "SizeBytes": 151314
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-StorageWMI_sk-sk.cab",
+      "SizeBytes": 122819
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-WDS-Tools_sk-sk.cab",
+      "SizeBytes": 28423
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-WinReCfg_sk-sk.cab",
+      "SizeBytes": 12241
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sk-sk\\WinPE-WMI_sk-sk.cab",
+      "SizeBytes": 347709
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\lp.cab",
+      "SizeBytes": 3514470
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-DismCmdlets_sl-si.cab",
+      "SizeBytes": 12592
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Dot3Svc_sl-si.cab",
+      "SizeBytes": 87972
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-EnhancedStorage_sl-si.cab",
+      "SizeBytes": 12280
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-HTA_sl-si.cab",
+      "SizeBytes": 506987
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-LegacySetup_sl-si.cab",
+      "SizeBytes": 51170
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-MDAC_sl-si.cab",
+      "SizeBytes": 428360
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-NetFx_sl-si.cab",
+      "SizeBytes": 127630
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-PmemCmdlets_sl-si.cab",
+      "SizeBytes": 11131
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-PowerShell_sl-si.cab",
+      "SizeBytes": 180048
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-PPPoE_sl-si.cab",
+      "SizeBytes": 31662
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Rejuv_sl-si.cab",
+      "SizeBytes": 17685
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-RNDIS_sl-si.cab",
+      "SizeBytes": 9202
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Scripting_sl-si.cab",
+      "SizeBytes": 34067
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-SecureStartup_sl-si.cab",
+      "SizeBytes": 34854
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Setup_sl-si.cab",
+      "SizeBytes": 104850
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Setup-ASZ_sl-si.cab",
+      "SizeBytes": 48016
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Setup-Client_sl-si.cab",
+      "SizeBytes": 48600
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-Setup-Server_sl-si.cab",
+      "SizeBytes": 48180
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-SRT_sl-si.cab",
+      "SizeBytes": 150386
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-StorageWMI_sl-si.cab",
+      "SizeBytes": 124343
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-WDS-Tools_sl-si.cab",
+      "SizeBytes": 28393
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-WinReCfg_sl-si.cab",
+      "SizeBytes": 12365
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sl-si\\WinPE-WMI_sl-si.cab",
+      "SizeBytes": 351935
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\lp.cab",
+      "SizeBytes": 3522479
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-DismCmdlets_sr-latn-rs.cab",
+      "SizeBytes": 12603
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Dot3Svc_sr-latn-rs.cab",
+      "SizeBytes": 88182
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-EnhancedStorage_sr-latn-rs.cab",
+      "SizeBytes": 12161
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-HTA_sr-latn-rs.cab",
+      "SizeBytes": 503511
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-LegacySetup_sr-latn-rs.cab",
+      "SizeBytes": 48957
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-MDAC_sr-latn-rs.cab",
+      "SizeBytes": 429305
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-NetFx_sr-latn-rs.cab",
+      "SizeBytes": 128059
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-PmemCmdlets_sr-latn-rs.cab",
+      "SizeBytes": 11132
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-PowerShell_sr-latn-rs.cab",
+      "SizeBytes": 180064
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-PPPoE_sr-latn-rs.cab",
+      "SizeBytes": 33309
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Rejuv_sr-latn-rs.cab",
+      "SizeBytes": 18689
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-RNDIS_sr-latn-rs.cab",
+      "SizeBytes": 9338
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Scripting_sr-latn-rs.cab",
+      "SizeBytes": 32654
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-SecureStartup_sr-latn-rs.cab",
+      "SizeBytes": 33688
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Setup_sr-latn-rs.cab",
+      "SizeBytes": 107428
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Setup-ASZ_sr-latn-rs.cab",
+      "SizeBytes": 47197
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Setup-Client_sr-latn-rs.cab",
+      "SizeBytes": 48579
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-Setup-Server_sr-latn-rs.cab",
+      "SizeBytes": 48325
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-SRT_sr-latn-rs.cab",
+      "SizeBytes": 154474
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-StorageWMI_sr-latn-rs.cab",
+      "SizeBytes": 122416
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-WDS-Tools_sr-latn-rs.cab",
+      "SizeBytes": 28192
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-WinReCfg_sr-latn-rs.cab",
+      "SizeBytes": 12242
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sr-latn-rs\\WinPE-WMI_sr-latn-rs.cab",
+      "SizeBytes": 349424
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\lp.cab",
+      "SizeBytes": 3569032
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-DismCmdlets_sv-se.cab",
+      "SizeBytes": 12600
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Dot3Svc_sv-se.cab",
+      "SizeBytes": 86612
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-EnhancedStorage_sv-se.cab",
+      "SizeBytes": 12254
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-HTA_sv-se.cab",
+      "SizeBytes": 501821
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-LegacySetup_sv-se.cab",
+      "SizeBytes": 50382
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-MDAC_sv-se.cab",
+      "SizeBytes": 427292
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-NetFx_sv-se.cab",
+      "SizeBytes": 4000806
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-PmemCmdlets_sv-se.cab",
+      "SizeBytes": 10999
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-PowerShell_sv-se.cab",
+      "SizeBytes": 180340
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-PPPoE_sv-se.cab",
+      "SizeBytes": 32720
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Rejuv_sv-se.cab",
+      "SizeBytes": 18453
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-RNDIS_sv-se.cab",
+      "SizeBytes": 9310
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Scripting_sv-se.cab",
+      "SizeBytes": 31625
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-SecureStartup_sv-se.cab",
+      "SizeBytes": 33514
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Setup_sv-se.cab",
+      "SizeBytes": 104892
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Setup-ASZ_sv-se.cab",
+      "SizeBytes": 47348
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Setup-Client_sv-se.cab",
+      "SizeBytes": 47564
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-Setup-Server_sv-se.cab",
+      "SizeBytes": 48578
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-SRT_sv-se.cab",
+      "SizeBytes": 152392
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-StorageWMI_sv-se.cab",
+      "SizeBytes": 124113
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-WDS-Tools_sv-se.cab",
+      "SizeBytes": 28367
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-WinReCfg_sv-se.cab",
+      "SizeBytes": 12229
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\sv-se\\WinPE-WMI_sv-se.cab",
+      "SizeBytes": 357469
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\lp.cab",
+      "SizeBytes": 3657473
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-DismCmdlets_th-th.cab",
+      "SizeBytes": 12598
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Dot3Svc_th-th.cab",
+      "SizeBytes": 87848
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-EnhancedStorage_th-th.cab",
+      "SizeBytes": 12278
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-HTA_th-th.cab",
+      "SizeBytes": 504205
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-LegacySetup_th-th.cab",
+      "SizeBytes": 51532
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-MDAC_th-th.cab",
+      "SizeBytes": 434448
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-NetFx_th-th.cab",
+      "SizeBytes": 126594
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-PmemCmdlets_th-th.cab",
+      "SizeBytes": 10999
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-PowerShell_th-th.cab",
+      "SizeBytes": 180086
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-PPPoE_th-th.cab",
+      "SizeBytes": 32236
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Rejuv_th-th.cab",
+      "SizeBytes": 18035
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-RNDIS_th-th.cab",
+      "SizeBytes": 9328
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Scripting_th-th.cab",
+      "SizeBytes": 31651
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-SecureStartup_th-th.cab",
+      "SizeBytes": 38770
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Setup_th-th.cab",
+      "SizeBytes": 119316
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Setup-ASZ_th-th.cab",
+      "SizeBytes": 47578
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Setup-Client_th-th.cab",
+      "SizeBytes": 47756
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-Setup-Server_th-th.cab",
+      "SizeBytes": 47804
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-SRT_th-th.cab",
+      "SizeBytes": 151346
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-StorageWMI_th-th.cab",
+      "SizeBytes": 127237
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-WDS-Tools_th-th.cab",
+      "SizeBytes": 31243
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-WinReCfg_th-th.cab",
+      "SizeBytes": 14971
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\th-th\\WinPE-WMI_th-th.cab",
+      "SizeBytes": 492967
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\lp.cab",
+      "SizeBytes": 3589888
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-DismCmdlets_tr-tr.cab",
+      "SizeBytes": 12596
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Dot3Svc_tr-tr.cab",
+      "SizeBytes": 86876
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-EnhancedStorage_tr-tr.cab",
+      "SizeBytes": 12362
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-HTA_tr-tr.cab",
+      "SizeBytes": 507619
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-LegacySetup_tr-tr.cab",
+      "SizeBytes": 53048
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-MDAC_tr-tr.cab",
+      "SizeBytes": 427690
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-NetFx_tr-tr.cab",
+      "SizeBytes": 4010786
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-PmemCmdlets_tr-tr.cab",
+      "SizeBytes": 11003
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-PowerShell_tr-tr.cab",
+      "SizeBytes": 180546
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-PPPoE_tr-tr.cab",
+      "SizeBytes": 32038
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Rejuv_tr-tr.cab",
+      "SizeBytes": 17837
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-RNDIS_tr-tr.cab",
+      "SizeBytes": 9222
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Scripting_tr-tr.cab",
+      "SizeBytes": 33723
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-SecureStartup_tr-tr.cab",
+      "SizeBytes": 35730
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Setup_tr-tr.cab",
+      "SizeBytes": 106056
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Setup-ASZ_tr-tr.cab",
+      "SizeBytes": 48126
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Setup-Client_tr-tr.cab",
+      "SizeBytes": 48196
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-Setup-Server_tr-tr.cab",
+      "SizeBytes": 48306
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-SRT_tr-tr.cab",
+      "SizeBytes": 151664
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-StorageWMI_tr-tr.cab",
+      "SizeBytes": 125741
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-WDS-Tools_tr-tr.cab",
+      "SizeBytes": 28833
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-WinReCfg_tr-tr.cab",
+      "SizeBytes": 12351
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\tr-tr\\WinPE-WMI_tr-tr.cab",
+      "SizeBytes": 351979
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\lp.cab",
+      "SizeBytes": 3696899
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-DismCmdlets_uk-ua.cab",
+      "SizeBytes": 12594
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Dot3Svc_uk-ua.cab",
+      "SizeBytes": 91384
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-EnhancedStorage_uk-ua.cab",
+      "SizeBytes": 12296
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-HTA_uk-ua.cab",
+      "SizeBytes": 514041
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-LegacySetup_uk-ua.cab",
+      "SizeBytes": 50332
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-MDAC_uk-ua.cab",
+      "SizeBytes": 433424
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-NetFx_uk-ua.cab",
+      "SizeBytes": 127490
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-PmemCmdlets_uk-ua.cab",
+      "SizeBytes": 11135
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-PowerShell_uk-ua.cab",
+      "SizeBytes": 180260
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-PPPoE_uk-ua.cab",
+      "SizeBytes": 32860
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Rejuv_uk-ua.cab",
+      "SizeBytes": 17309
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-RNDIS_uk-ua.cab",
+      "SizeBytes": 9332
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Scripting_uk-ua.cab",
+      "SizeBytes": 33133
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-SecureStartup_uk-ua.cab",
+      "SizeBytes": 37906
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Setup_uk-ua.cab",
+      "SizeBytes": 126762
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Setup-ASZ_uk-ua.cab",
+      "SizeBytes": 47588
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Setup-Client_uk-ua.cab",
+      "SizeBytes": 48272
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-Setup-Server_uk-ua.cab",
+      "SizeBytes": 48162
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-SRT_uk-ua.cab",
+      "SizeBytes": 149784
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-StorageWMI_uk-ua.cab",
+      "SizeBytes": 126827
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-WDS-Tools_uk-ua.cab",
+      "SizeBytes": 31255
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-WinReCfg_uk-ua.cab",
+      "SizeBytes": 15103
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\uk-ua\\WinPE-WMI_uk-ua.cab",
+      "SizeBytes": 493529
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\lp.cab",
+      "SizeBytes": 4082100
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-DismCmdlets_zh-cn.cab",
+      "SizeBytes": 12716
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Dot3Svc_zh-cn.cab",
+      "SizeBytes": 120981
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-EnhancedStorage_zh-cn.cab",
+      "SizeBytes": 12318
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-HTA_zh-cn.cab",
+      "SizeBytes": 493627
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-LegacySetup_zh-cn.cab",
+      "SizeBytes": 48170
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-MDAC_zh-cn.cab",
+      "SizeBytes": 429564
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-NetFx_zh-cn.cab",
+      "SizeBytes": 3925626
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-PmemCmdlets_zh-cn.cab",
+      "SizeBytes": 11239
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-PowerShell_zh-cn.cab",
+      "SizeBytes": 180630
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-PPPoE_zh-cn.cab",
+      "SizeBytes": 31110
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Rejuv_zh-cn.cab",
+      "SizeBytes": 17311
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-RNDIS_zh-cn.cab",
+      "SizeBytes": 9324
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Scripting_zh-cn.cab",
+      "SizeBytes": 31431
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-SecureStartup_zh-cn.cab",
+      "SizeBytes": 50606
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Setup_zh-cn.cab",
+      "SizeBytes": 123838
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Setup-ASZ_zh-cn.cab",
+      "SizeBytes": 46332
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Setup-Client_zh-cn.cab",
+      "SizeBytes": 46108
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-Setup-Server_zh-cn.cab",
+      "SizeBytes": 46648
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-SRT_zh-cn.cab",
+      "SizeBytes": 172076
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-StorageWMI_zh-cn.cab",
+      "SizeBytes": 133217
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-WDS-Tools_zh-cn.cab",
+      "SizeBytes": 31495
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-WinReCfg_zh-cn.cab",
+      "SizeBytes": 17367
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-cn\\WinPE-WMI_zh-cn.cab",
+      "SizeBytes": 502053
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\lp.cab",
+      "SizeBytes": 4079444
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-DismCmdlets_zh-tw.cab",
+      "SizeBytes": 12716
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Dot3Svc_zh-tw.cab",
+      "SizeBytes": 122703
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-EnhancedStorage_zh-tw.cab",
+      "SizeBytes": 12354
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-HTA_zh-tw.cab",
+      "SizeBytes": 495627
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-LegacySetup_zh-tw.cab",
+      "SizeBytes": 48304
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-MDAC_zh-tw.cab",
+      "SizeBytes": 438290
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-NetFx_zh-tw.cab",
+      "SizeBytes": 3853148
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-PmemCmdlets_zh-tw.cab",
+      "SizeBytes": 11321
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-PowerShell_zh-tw.cab",
+      "SizeBytes": 182034
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-PPPoE_zh-tw.cab",
+      "SizeBytes": 31328
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Rejuv_zh-tw.cab",
+      "SizeBytes": 18063
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-RNDIS_zh-tw.cab",
+      "SizeBytes": 9182
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Scripting_zh-tw.cab",
+      "SizeBytes": 32767
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-SecureStartup_zh-tw.cab",
+      "SizeBytes": 50244
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Setup_zh-tw.cab",
+      "SizeBytes": 124094
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Setup-ASZ_zh-tw.cab",
+      "SizeBytes": 46038
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Setup-Client_zh-tw.cab",
+      "SizeBytes": 46136
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-Setup-Server_zh-tw.cab",
+      "SizeBytes": 46290
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-SRT_zh-tw.cab",
+      "SizeBytes": 171910
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-StorageWMI_zh-tw.cab",
+      "SizeBytes": 134085
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-WDS-Tools_zh-tw.cab",
+      "SizeBytes": 32919
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-WinReCfg_zh-tw.cab",
+      "SizeBytes": 17461
+    },
+    {
+      "Path": "\\Windows Preinstallation Environment\\amd64\\WinPE_OCs\\zh-tw\\WinPE-WMI_zh-tw.cab",
+      "SizeBytes": 506677
+    }
+  ]
+}
