@@ -25,6 +25,12 @@ class HDTFakeFileSystem {
     # Path -> $true. A set, held separately so an empty directory still exists.
     [hashtable] $Directory
 
+    # Path -> the message a write to it throws. DESIGN 4.5.3's teardown runs from
+    # a finally block, so it has to survive the checkpoint that block just tried
+    # and could not make - which needs a filesystem where one path, and only one,
+    # refuses to be written.
+    [hashtable] $WriteFailure
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -39,6 +45,7 @@ class HDTFakeFileSystem {
     HDTFakeFileSystem() {
         $this.File = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Directory = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.WriteFailure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'FileSystem'
     }
@@ -133,6 +140,18 @@ class HDTFakeFileSystem {
         $this.AddDirectory($this.Normalize($Path))
     }
 
+    [void] SeedWriteFailure([string] $Path, [string] $Message) {
+        $this.WriteFailure[$this.Normalize($Path)] = $Message
+    }
+
+    # Checked by WriteAllText and AppendAllText AFTER they record, because the
+    # attempt is evidence about what the code under test tried.
+    hidden [void] AssertWritable([string] $NormalizedPath) {
+        if ($this.WriteFailure.ContainsKey($NormalizedPath)) {
+            throw [System.IO.IOException]::new([string] $this.WriteFailure[$NormalizedPath])
+        }
+    }
+
     # -- IFileSystem -------------------------------------------------------
 
     [bool] TestPath([string] $Path) {
@@ -163,6 +182,8 @@ class HDTFakeFileSystem {
             throw [System.UnauthorizedAccessException]::new("Access to the path '$full' is denied: it is a directory.")
         }
 
+        $this.AssertWritable($full)
+
         $this.AddFile($full, $Content)
     }
 
@@ -173,6 +194,8 @@ class HDTFakeFileSystem {
         if ($this.Directory.ContainsKey($full)) {
             throw [System.UnauthorizedAccessException]::new("Access to the path '$full' is denied: it is a directory.")
         }
+
+        $this.AssertWritable($full)
 
         # [System.IO.File]::AppendAllText creates a missing file, so this does
         # too; AddFile creates the parent directories the real call would need
@@ -295,6 +318,12 @@ function New-HDTFakeFileSystem {
         .PARAMETER Directory
             Seed directories, including their intermediate parents.
 
+        .PARAMETER WriteFailure
+            Paths that refuse to be written. Keys are paths, values are the
+            message the System.IO.IOException carries. Every other path stays
+            writable, which is what makes "the checkpoint failed and the teardown
+            still ran" provable.
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -331,12 +360,21 @@ function New-HDTFakeFileSystem {
         [string[]] $Directory,
 
         [Parameter()]
+        [hashtable] $WriteFailure,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeFileSystem]::new()
     $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('WriteFailure')) {
+        foreach ($key in @($WriteFailure.Keys)) {
+            $fake.SeedWriteFailure([string] $key, [string] $WriteFailure[$key])
+        }
+    }
 
     if ($PSBoundParameters.ContainsKey('Directory')) {
         foreach ($item in @($Directory)) {

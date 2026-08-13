@@ -213,9 +213,8 @@ Describe 'Invoke-HDTTaskSequence' {
             $artifact | Should -BeNullOrEmpty
         }
 
-        It 'reports a teardown failure without hiding the run failure' {
+        It 'fails the run, because a run that cannot be checkpointed cannot survive a reboot' {
             $script:result.Status | Should -BeExactly 'Failed'
-            $script:result.FailedStep.Name | Should -BeExactly 'Fatal'
         }
 
         It 'says in the log that the state could not be checkpointed' {
@@ -228,6 +227,45 @@ Describe 'Invoke-HDTTaskSequence' {
         It 'still ends the run in the log' {
             @(Get-HDTLogRecord -FileSystem $script:harness.FileSystem -Path $script:harness.Log.JsonlPath -Event 'run.end').Count |
                 Should -Be 1
+        }
+    }
+
+    Context 'a teardown that could not finish' {
+
+        # Clear-HDTAutoLogon never throws: it attempts nine items independently
+        # and reports the ones that would not go. What the loop must do with that
+        # report is say so and change nothing else - the run's own status is what
+        # the caller acts on.
+
+        BeforeEach {
+            Mock -ModuleName Hephaestus -CommandName Clear-HDTAutoLogon -MockWith {
+                [pscustomobject] @{
+                    Cleared = [string[]] @('DefaultUserName')
+                    Failed  = [object[]] @([pscustomobject] @{ Item = 'AutoAdminLogon'; Message = 'Requested registry access is not allowed.' })
+                }
+            }
+
+            $script:harness = & $script:armedHarness $script:badYaml
+            $script:result = Invoke-HDTTaskSequence -Sequence $script:harness.Sequence -Context $script:harness.Context -State $script:harness.State
+        }
+
+        It 'reports a teardown failure without hiding the run failure' {
+            $script:result.Status | Should -BeExactly 'Failed'
+            $script:result.FailedStep.Name | Should -BeExactly 'Fatal'
+        }
+
+        It 'names the unfinished item in the log' {
+            $warning = @(Get-HDTLogRecord -FileSystem $script:harness.FileSystem -Path $script:harness.Log.JsonlPath -Severity Warning |
+                    Where-Object { $_.message -like '*AutoAdminLogon*' })
+
+            $warning.Count | Should -Be 1
+        }
+
+        It 'does not promote a teardown failure to the run status of a run that succeeded' {
+            $harness = & $script:armedHarness $script:goodYaml
+            $result = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State
+
+            $result.Status | Should -BeExactly 'Succeeded'
         }
     }
 

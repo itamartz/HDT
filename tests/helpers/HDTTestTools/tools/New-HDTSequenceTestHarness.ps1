@@ -51,6 +51,20 @@ function New-HDTSequenceTestHarness {
             An existing run state, which is what a resume is. Without one a fresh
             state is built from the imported sequence.
 
+        .PARAMETER StateJson
+            The TEXT of a state document a previous leg checkpointed. It is
+            seeded at -StatePath and read back through Import-HDTRunState, which
+            is what a real second leg does after the RAM disk it was written from
+            has gone. Passing the in-memory object between legs would prove
+            nothing about the document.
+
+        .PARAMETER FileSystem
+            An existing fake filesystem to reuse, so several legs share one log
+            stream and one state file the way one machine does.
+
+        .PARAMETER WriteFailure
+            Paths whose writes throw, passed through to the fake filesystem.
+
         .PARAMETER Seq
             The last JSONL seq already written, so a second leg continues the
             numbering rather than restarting it.
@@ -131,6 +145,18 @@ function New-HDTSequenceTestHarness {
         [object] $State,
 
         [Parameter()]
+        [AllowNull()]
+        [string] $StateJson,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem,
+
+        [Parameter()]
+        [AllowNull()]
+        [hashtable] $WriteFailure,
+
+        [Parameter()]
         [long] $Seq = 0,
 
         [Parameter()]
@@ -167,7 +193,21 @@ function New-HDTSequenceTestHarness {
 
     # No -Journal anywhere below: it is attached at the end, so the harness's own
     # reads never appear in it.
-    $fileSystem = New-HDTFakeFileSystem -File @{ $SequencePath = $Yaml }
+    $fileSystem = $FileSystem
+    if ($null -eq $fileSystem) {
+        $fileSystem = New-HDTFakeFileSystem
+    }
+
+    # Seeded rather than written: seeding is not an operation the code under test
+    # performed.
+    $fileSystem.SeedFile($SequencePath, $Yaml)
+
+    if ($PSBoundParameters.ContainsKey('WriteFailure') -and $null -ne $WriteFailure) {
+        foreach ($key in @($WriteFailure.Keys)) {
+            $fileSystem.SeedWriteFailure([string] $key, [string] $WriteFailure[$key])
+        }
+    }
+
     $clock = New-HDTFakeClock -UtcNow $UtcNow -TickMillisecond $TickMillisecond
 
     $registryArgument = @{}
@@ -215,10 +255,30 @@ function New-HDTSequenceTestHarness {
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim -Environment $environment
 
-    $log = New-HDTLogContext -RunId $RunId -Phase $Phase -LogPath $LogPath `
-        -FileSystem $fileSystem -Clock $clock -Level $Level -Seq $Seq -ThreadId 1
+    $trimmed = $LogPath.TrimEnd('\', '/')
+    $statePath = '{0}\state.json' -f $trimmed
 
+    # A resume, taken through the document rather than around it.
     $runState = $State
+    if ($null -eq $runState -and -not [string]::IsNullOrEmpty($StateJson)) {
+        $fileSystem.SeedFile($statePath, $StateJson)
+        $runState = Import-HDTRunState -Path $statePath -FileSystem $fileSystem
+
+        foreach ($name in @($runState.variable.Keys)) {
+            $live[[string] $name] = $runState.variable[$name]
+        }
+    }
+
+    $seqValue = $Seq
+    if (-not $PSBoundParameters.ContainsKey('Seq') -and $null -ne $runState) {
+        # DESIGN 4.4.2: seq survives reboots, so a second leg continues the
+        # numbering rather than restarting it.
+        $seqValue = [long] $runState.seq
+    }
+
+    $log = New-HDTLogContext -RunId $RunId -Phase $Phase -LogPath $LogPath `
+        -FileSystem $fileSystem -Clock $clock -Level $Level -Seq $seqValue -ThreadId 1
+
     if ($null -eq $runState) {
         $runState = New-HDTRunState -SequenceId $sequence.Id -RunId $RunId -Phase $Phase `
             -Clock $clock -Variable $live -Step $sequence.Step
@@ -231,8 +291,6 @@ function New-HDTSequenceTestHarness {
     foreach ($fake in @($fileSystem, $clock, $registry, $lsa, $process, $power, $scriptInvoker, $cim, $environment)) {
         $fake.Journal = $journal
     }
-
-    $trimmed = $LogPath.TrimEnd('\', '/')
 
     return [pscustomobject] ([ordered] @{
             Journal       = $journal
@@ -253,7 +311,7 @@ function New-HDTSequenceTestHarness {
             Variable      = $live
             LogPath       = $trimmed
             SequencePath  = $SequencePath
-            StatePath     = ('{0}\state.json' -f $trimmed)
+            StatePath     = $statePath
             StatusPath    = ('{0}\status.json' -f $trimmed)
         })
 }

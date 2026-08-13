@@ -34,10 +34,15 @@ BeforeAll {
             return @()
         }
 
+        # Copied into a local before the nested predicate closes over it:
+        # PSScriptAnalyzer cannot see a parameter used only inside a nested
+        # scriptblock and reports it unused.
+        $wanted = $Name
+
         return @($script:ast.FindAll({
                     param($node)
                     $node -is [System.Management.Automation.Language.CommandAst] -and
-                    $node.GetCommandName() -eq $Name
+                    $node.GetCommandName() -eq $wanted
                 }, $true))
     }
 }

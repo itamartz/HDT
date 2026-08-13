@@ -248,10 +248,17 @@ function Invoke-HDTTaskSequence {
     # The live dictionary is the truth while the run is executing and the state
     # document is the truth across a reboot, so every checkpoint copies one into
     # the other. Without this a variable set in WinPE is gone by the full OS.
+    #
+    # The log's seq goes with them, because DESIGN 4.4.2 requires the monotonic
+    # counter to survive a reboot: the next leg seeds its log context from this
+    # number, and a leg that restarted at 1 would make the ordering of a
+    # multi-leg deployment exactly as ambiguous as the counter exists to prevent.
     $saveState = {
         foreach ($name in @($Context.Variable.Keys)) {
             $state.variable[[string] $name] = $Context.Variable[$name]
         }
+
+        $state.seq = [long] $log.Seq
 
         Save-HDTRunState -State $state @saveArgument
     }
@@ -666,8 +673,10 @@ function Invoke-HDTTaskSequence {
         Write-HDTStatus -Context $log -Path $statusPathValue -Status $runStatus
 
         if ($PSBoundParameters.ContainsKey('LogDestination')) {
-            # DESIGN 4.4.1: copy-back happens on failure too. Copy-HDTLog never
-            # throws, so this is safe unguarded in a finally block.
+            # DESIGN 4.4.1: copy-back happens on failure too. Copy-HDTLog is
+            # documented never to throw and this catches anyway - nothing in a
+            # finally block may be allowed to replace the run's own outcome with
+            # its own failure.
             $copyArgument = @{ Context = $log; Destination = $LogDestination }
             if ($Context.Variable.Contains('HDTComputerName') -and
                 -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTComputerName'])) {
@@ -675,7 +684,24 @@ function Invoke-HDTTaskSequence {
                 $copyArgument['ComputerName'] = [string] $Context.Variable['HDTComputerName']
             }
 
-            Copy-HDTLog @copyArgument | Out-Null
+            try {
+                Copy-HDTLog @copyArgument | Out-Null
+            } catch {
+                Write-HDTLog -Context $log -Severity Warning -Component 'Logging' `
+                    -Message ("The deployment logs could not be copied to '{0}': {1}" -f $LogDestination, $_.Exception.Message)
+            }
+        }
+
+        if ($runStatus -eq 'RebootPending') {
+            # One last checkpoint, after the final log record, so the state
+            # carries the seq the log stream actually reached. The next leg seeds
+            # its counter from this number, and without it the first record after
+            # the reboot would reuse the number run.end just consumed.
+            try {
+                & $saveState
+            } catch {
+                $null = $_
+            }
         }
     }
 

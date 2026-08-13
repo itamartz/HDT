@@ -78,18 +78,6 @@ Describe 'Invoke-HDTTaskSequence' {
             $completed.Count | Should -Be 1
         }
 
-        It 'logs step.skip for steps completed on a previous leg' {
-            $skip = @($script:record | Where-Object { $_.event -eq 'step.skip' -and $_.stepName -eq 'Prepare the disk' })
-
-            $skip.Count | Should -BeGreaterOrEqual 1
-        }
-
-        It 'names the leg they completed on' {
-            $skip = @($script:record | Where-Object { $_.event -eq 'step.skip' -and $_.stepName -eq 'Prepare the disk' })[0]
-
-            $skip.message | Should -BeLike '*leg 1*'
-        }
-
         It 'increments the leg on each resume' {
             $script:leg1.Result.State.leg | Should -Be 1
             $script:leg2.Result.State.leg | Should -Be 2
@@ -105,10 +93,13 @@ Describe 'Invoke-HDTTaskSequence' {
         }
 
         It 'runs the whole sequence exactly once across three legs' {
-            # The property the whole state document exists for.
-            $completed = @($script:record | Where-Object { $_.event -eq 'step.complete' } | ForEach-Object { $_.stepName })
+            # The property the whole state document exists for. Every step that
+            # ran at all started exactly once, across all three legs, in
+            # execution order - and 'WinPE only' never started, because the
+            # phase filter reached it first.
+            $started = @($script:record | Where-Object { $_.event -eq 'step.start' } | ForEach-Object { $_.stepName })
 
-            $completed | Should -Be @(
+            $started | Should -Be @(
                 'Prepare the disk',
                 'Remember the first leg',
                 'Restart into the full OS',
@@ -117,7 +108,19 @@ Describe 'Invoke-HDTTaskSequence' {
                 'Full OS only',
                 'Finish')
 
-            @($completed | Select-Object -Unique).Count | Should -Be $completed.Count
+            @($started | Select-Object -Unique).Count | Should -Be $started.Count
+        }
+
+        It 'ends with every step accounted for exactly once in the state' {
+            $status = @($script:leg3.Result.State.step | ForEach-Object { [string] $_.status })
+
+            $status | Should -Be @('Completed', 'Completed', 'Completed', 'Completed', 'Completed', 'Completed', 'Skipped', 'Completed')
+        }
+
+        It 'records which leg ran each step' {
+            $leg = @($script:leg3.Result.State.step | ForEach-Object { [int] $_.leg })
+
+            $leg | Should -Be @(1, 1, 1, 2, 2, 3, 3, 3)
         }
 
         It 'continues the JSONL seq across legs' {
@@ -160,6 +163,53 @@ Describe 'Invoke-HDTTaskSequence' {
         It 'tears autologon down at the end of the last leg' {
             Get-HDTAutoLogonArtifact -Registry $script:leg3.Harness.Registry -Lsa $script:leg3.Harness.Lsa `
                 -FileSystem $script:fs -State $script:leg3.Result.State | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'a leg that died after the checkpoint' {
+
+        # The crash window the reboot ceremony's ordering is chosen for: the
+        # steps were recorded Completed and the save that advanced stepIndex past
+        # them did not land, so the next leg starts AT a step that already ran.
+        #
+        # Case 1 of the loop is what makes that recoverable: a step already
+        # Completed on an earlier leg is skipped, naming the leg it ran on,
+        # rather than run a second time.
+
+        BeforeAll {
+            $script:fsRecover = New-HDTFakeFileSystem
+
+            $first = & $script:runLeg $script:fsRecover '' 'WinPE'
+
+            $stale = $first.StateJson | ConvertFrom-Json
+            $stale.stepIndex = 1
+            $rewound = ConvertTo-Json -InputObject $stale -Depth 8
+
+            $script:second = & $script:runLeg $script:fsRecover $rewound 'FullOS'
+            $script:recoverRecord = @(Get-HDTLogRecord -FileSystem $script:fsRecover -Path 'X:\HDT\Logs\HDT.jsonl')
+        }
+
+        It 'logs step.skip for steps completed on a previous leg' {
+            $skip = @($script:recoverRecord | Where-Object { $_.event -eq 'step.skip' -and $_.stepName -eq 'Prepare the disk' })
+
+            $skip.Count | Should -Be 1
+        }
+
+        It 'names the leg they completed on' {
+            $skip = @($script:recoverRecord | Where-Object { $_.event -eq 'step.skip' -and $_.stepName -eq 'Prepare the disk' })[0]
+
+            $skip.message | Should -BeLike '*leg 1*'
+        }
+
+        It 'does not run them a second time' {
+            $started = @($script:recoverRecord | Where-Object { $_.event -eq 'step.start' -and $_.stepName -eq 'Prepare the disk' })
+
+            $started.Count | Should -Be 1
+        }
+
+        It 'carries on to the step that had not run' {
+            @($script:second.Result.Result | Where-Object { $_.Name -eq 'Confirm the first leg' })[0].Status |
+                Should -BeExactly 'Completed'
         }
     }
 
