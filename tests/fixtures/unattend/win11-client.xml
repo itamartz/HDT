@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE SPIKES S7 DOCUMENT, tokenised.
+
+  This is the unattend that was actually deployed to a Windows 11 Enterprise
+  LTSC VM in SPIKES.md S7 - captured from C:\HDTLab\Share\unattend-test.xml, not
+  written from memory. S7 observed, on the machine it built:
+
+    ComputerName applied from the specialize pass
+    OOBE fully skipped
+    the built-in Administrator enabled
+    FirstLogonCommands executed
+    AutoLogon armed, with the password stored as an LSA SECRET and
+      DefaultPassword absent from the registry
+
+  Two changes from what the spike deployed, and nothing else:
+
+    * the two literals became the HDTComputerName and HDTAdminPassword tokens,
+      which is what Invoke-HDTApplyUnattendStep expands. The password token
+      appears TWICE below - once under UserAccounts and once inside AutoLogon -
+      because Setup reads them separately, and that is the case 'mints one
+      password for a run, not one per token' exists to catch.
+
+      NOTE THAT THIS COMMENT NAMES THE TOKENS WITHOUT THEIR PER CENT SIGNS, on
+      purpose: expansion runs over the WHOLE document, comments included, so a
+      comment written with the token in it would put the machine's local
+      Administrator password into a comment in the deployed unattend. The
+      'mints one password for a run' assertion counts occurrences, and it is
+      what caught exactly that.
+    * the spike's own FirstLogonCommands instrumentation is gone. It wrote a
+      marker file and ran the spike's observer; neither is part of a deployment.
+
+  New-HDTDeploymentPassword's alphabet excludes < > & " ' and %, on purpose, so
+  a minted password substitutes into this document without escaping. The
+  'writes valid XML' assertion is the regression guard on that, not the
+  mechanism.
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <ComputerName>%HDTComputerName%</ComputerName>
+    </component>
+  </settings>
+
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <InputLocale>0409:00000409</InputLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <NetworkLocation>Work</NetworkLocation>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+
+      <UserAccounts>
+        <AdministratorPassword>
+          <Value>%HDTAdminPassword%</Value>
+          <PlainText>true</PlainText>
+        </AdministratorPassword>
+      </UserAccounts>
+
+      <!-- DESIGN 4.5.1: the oobeSystem AutoLogon block is what arms the FIRST
+           logon of the deployed machine. Every leg after that is armed by
+           Set-HDTAutoLogon against the machine's own registry and LSA store. -->
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <LogonCount>1</LogonCount>
+        <Username>Administrator</Username>
+        <Password>
+          <Value>%HDTAdminPassword%</Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+    </component>
+  </settings>
+</unattend>

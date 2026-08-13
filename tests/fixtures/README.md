@@ -20,6 +20,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
 | `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
 | `os/` | `os.yaml` documents, three that must load and eleven that must be rejected (DESIGN 2.1, 9.2) | authored, see below |
+| `unattend/` | The unattend SPIKES S7 actually deployed, tokenised | captured, see below |
 | `naming/` | Source that breaks — and source that keeps — the `Verb-HDTNoun` rule (DESIGN 15.1), plus a class fixture proving class members are not commands | deliberately invalid |
 | `compat/` | One file per PowerShell 7-only construct the 5.1 compatibility scanner must reject, plus a clean 5.1 control | deliberately invalid |
 | `mdt/` | Source carrying banned MDT dependencies, plus an MDT-free control | deliberately invalid |
@@ -325,6 +326,25 @@ validators, `invalid-` parses and fails the engine, `unparseable-` does not pars
 The engine rejects all three. If a future schema gains either ability, the
 blind-spot test goes red and the file must be moved out of the list rather than
 quietly forgotten.
+
+## Unattend fixtures
+
+`unattend/win11-client.xml` is the document SPIKES.md **S7** deployed to a real
+Windows 11 Enterprise LTSC machine, captured from
+`C:\HDTLab\Share\unattend-test.xml` rather than written from memory. S7 observed
+it applying `ComputerName` in the `specialize` pass, skipping OOBE, enabling the
+built-in Administrator, running `FirstLogonCommands` and arming autologon with
+the password held as an **LSA secret** rather than in the registry.
+
+Two changes, both stated in a comment at the top of the file: the two literals
+became `%HDTComputerName%` and `%HDTAdminPassword%`, and the spike's own
+`FirstLogonCommands` instrumentation was removed. `%HDTAdminPassword%` appears
+**twice** - once under `UserAccounts` and once inside `AutoLogon`, because Setup
+reads them separately - which is the case that catches an implementation minting
+one password per token instead of one per run.
+
+`samples/workspace/TaskSequences/DEMO-M3/unattend.xml` is the same document.
+The sample is what 04-04 deploys; this copy is what the unit tests read.
 
 ## Derived fixtures
 
