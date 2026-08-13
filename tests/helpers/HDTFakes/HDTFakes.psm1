@@ -3489,7 +3489,418 @@ function New-HDTFakeSmbService {
     return $fake
 }
 
+class HDTFakeBootImageService {
+
+    # The injected IFileSystem the mount is modelled in. It is a fake talking to
+    # a fake, and deliberately so: Update-HDTBootImage WRITES INTO the mount, and
+    # a double that recorded MountImage and nothing else could not tell a builder
+    # that wrote before mounting from one that wrote after.
+    [object] $FileSystem
+
+    # Normalised mount path -> the image path mounted there. A set of one, in
+    # practice, but DISM allows several and the integration suite re-mounts the
+    # image it just built to read startnet.cmd back out of it.
+    [hashtable] $Mounted
+
+    # Normalised mount path -> ArrayList of { Name, State } for the cabs
+    # AddPackage was given, so a test can assert "all nine went in" with no DISM.
+    [hashtable] $Applied
+
+    # Package rows seeded before anything was applied: Name -> State.
+    [hashtable] $SeededPackage
+
+    # Normalised image path -> object[] of { Index, Name, SizeBytes }.
+    [hashtable] $Image
+
+    # What AddDriver reports back. The manifest records it (DESIGN 5.1).
+    [object[]] $Driver
+
+    # Method name -> the message that method throws, as
+    # System.InvalidOperationException - the type the real adapter throws when a
+    # DISM cmdlet or oscdimg fails.
+    [hashtable] $Failure
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null.
+    [System.Collections.ArrayList] $Journal
+
+    [string] $ServiceName
+
+    HDTFakeBootImageService() {
+        $this.Mounted = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Applied = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.SeededPackage = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Image = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Driver = [object[]] @()
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'BootImageService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- path handling -----------------------------------------------------
+
+    hidden [string] Normalize([string] $Path) {
+        if ([string]::IsNullOrWhiteSpace($Path)) {
+            throw [System.ArgumentException]::new('Path must not be empty.', 'Path')
+        }
+
+        return $Path.Replace('/', '\').TrimEnd('\')
+    }
+
+    # Checked AFTER the method records, because the attempt is evidence about
+    # what the code under test tried.
+    hidden [void] AssertNoFailure([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
+    # DISM refuses a -Path that is not a mount, and so does this: a builder that
+    # packaged before it mounted would otherwise pass here and fail on metal
+    # fifteen minutes in.
+    hidden [void] AssertMounted([string] $MountPath) {
+        $key = $this.Normalize($MountPath)
+        if (-not $this.Mounted.ContainsKey($key)) {
+            throw [System.InvalidOperationException]::new(
+                "There is no image mounted at '$MountPath'.")
+        }
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    hidden [object] Property([object] $Row, [string] $Name, [object] $Default) {
+        if ($null -eq $Row) { return $Default }
+
+        if ($Row -is [System.Collections.IDictionary]) {
+            if (-not $Row.Contains($Name)) { return $Default }
+            if ($null -eq $Row[$Name]) { return $Default }
+            return $Row[$Name]
+        }
+
+        $member = $Row.PSObject.Properties[$Name]
+        if ($null -eq $member) { return $Default }
+        if ($null -eq $member.Value) { return $Default }
+
+        return $member.Value
+    }
+
+    [void] SeedImage([string] $ImagePath, [object[]] $Row) {
+        $normalized = @()
+        foreach ($item in @($Row)) {
+            $normalized += [pscustomobject] @{
+                Index     = [int] $this.Property($item, 'Index', 0)
+                Name      = [string] $this.Property($item, 'Name', '')
+                SizeBytes = [long] $this.Property($item, 'SizeBytes', [long] 0)
+            }
+        }
+
+        $this.Image[$this.Normalize($ImagePath)] = [object[]] $normalized
+    }
+
+    [void] SeedPackage([string] $Name, [string] $State) {
+        $this.SeededPackage[$Name] = $State
+    }
+
+    [void] SeedDriver([object[]] $Row) {
+        $this.Driver = [object[]] @($Row)
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    # -- IBootImageService -------------------------------------------------
+
+    [void] MountImage([string] $ImagePath, [int] $Index, [string] $MountPath) {
+        $this.Record('MountImage', @($ImagePath, $Index, $MountPath))
+        $this.AssertNoFailure('MountImage')
+
+        $key = $this.Normalize($MountPath)
+        if ($this.Mounted.ContainsKey($key)) {
+            throw [System.InvalidOperationException]::new(
+                "An image is already mounted at '$MountPath'.")
+        }
+
+        $this.Mounted[$key] = $ImagePath
+        $this.Applied[$key] = [System.Collections.ArrayList]::new()
+
+        # THE MOUNT, MODELLED. Seeded rather than written, because seeding is
+        # not an operation the code under test performed and would otherwise show
+        # up in the shared journal as a CreateDirectory nobody made.
+        $this.FileSystem.SeedDirectory([System.IO.Path]::Combine($key, 'Windows\System32'))
+    }
+
+    [void] DismountImage([string] $MountPath, [bool] $Save) {
+        $this.Record('DismountImage', @($MountPath, $Save))
+        $this.AssertNoFailure('DismountImage')
+        $this.AssertMounted($MountPath)
+
+        $key = $this.Normalize($MountPath)
+        [void] $this.Mounted.Remove($key)
+
+        if (-not $Save) {
+            # A DISCARD TAKES THE TREE WITH IT, as Dismount-WindowsImage -Discard
+            # does. This is what catches a builder that wrote into the mount
+            # after discarding it.
+            $this.FileSystem.RemoveItem($key, $true)
+        }
+    }
+
+    [void] AddPackage([string] $MountPath, [string] $PackagePath) {
+        $this.Record('AddPackage', @($MountPath, $PackagePath))
+        $this.AssertNoFailure('AddPackage')
+        $this.AssertMounted($MountPath)
+
+        $name = [System.IO.Path]::GetFileNameWithoutExtension($PackagePath)
+        [void] $this.Applied[$this.Normalize($MountPath)].Add([pscustomobject] @{
+                Name  = [string] $name
+                State = 'Installed'
+            })
+    }
+
+    [object[]] AddDriver([string] $MountPath, [string] $DriverPath, [bool] $Recurse) {
+        $this.Record('AddDriver', @($MountPath, $DriverPath, $Recurse))
+        $this.AssertNoFailure('AddDriver')
+        $this.AssertMounted($MountPath)
+
+        return [object[]] @($this.Driver)
+    }
+
+    [object[]] GetPackage([string] $MountPath) {
+        $this.Record('GetPackage', @($MountPath))
+        $this.AssertNoFailure('GetPackage')
+        $this.AssertMounted($MountPath)
+
+        $row = [System.Collections.ArrayList]::new()
+
+        foreach ($name in @($this.SeededPackage.Keys)) {
+            [void] $row.Add([pscustomobject] @{
+                    Name  = [string] $name
+                    State = [string] $this.SeededPackage[$name]
+                })
+        }
+
+        foreach ($item in @($this.Applied[$this.Normalize($MountPath)])) {
+            [void] $row.Add($item)
+        }
+
+        return [object[]] @($row)
+    }
+
+    [object[]] GetImageInfo([string] $ImagePath) {
+        $this.Record('GetImageInfo', @($ImagePath))
+        $this.AssertNoFailure('GetImageInfo')
+
+        $key = $this.Normalize($ImagePath)
+        if (-not $this.Image.ContainsKey($key)) {
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not find image '$ImagePath': it was never seeded on this fake.", $ImagePath)
+        }
+
+        return [object[]] @($this.Image[$key])
+    }
+
+    [void] ExportImage([string] $SourcePath, [int] $Index, [string] $DestinationPath) {
+        $this.Record('ExportImage', @($SourcePath, $Index, $DestinationPath))
+        $this.AssertNoFailure('ExportImage')
+
+        # THE EXPORT PRODUCES A FILE, because DESIGN 6.1.1's mechanism is that
+        # the exported WIM is then COPIED into the media tree - one file, two
+        # homes, same bytes. A fake whose export wrote nothing would make that
+        # copy, and therefore the equivalence hash, unprovable.
+        $this.FileSystem.SeedFile($this.Normalize($DestinationPath),
+            ("HDTFakeExportedImage|{0}|{1}" -f $this.Normalize($SourcePath), $Index))
+    }
+
+    [void] SetScratchSpace([string] $MountPath, [int] $Megabyte) {
+        $this.Record('SetScratchSpace', @($MountPath, $Megabyte))
+        $this.AssertNoFailure('SetScratchSpace')
+        $this.AssertMounted($MountPath)
+    }
+
+    [void] NewIso([string] $MediaRoot, [string] $IsoPath, [string[]] $Argument) {
+        $this.Record('NewIso', @($MediaRoot, $IsoPath, $Argument))
+        $this.AssertNoFailure('NewIso')
+
+        $this.FileSystem.SeedFile($this.Normalize($IsoPath),
+            ("HDTFakeIso|{0}|{1}" -f $this.Normalize($MediaRoot), (@($Argument) -join ' ')))
+    }
+}
+
+function New-HDTFakeBootImageService {
+    <#
+        .SYNOPSIS
+            Creates an IBootImageService that models a mount, applies nothing to
+            a real image and runs no oscdimg.
+
+        .DESCRIPTION
+            The hand-written double behind every boot image test (DESIGN 5.1;
+            DESIGN 12.2.1: engine logic receives injected services; DESIGN
+            12.2.3: fake, don't mock). It is what makes Update-HDTBootImage's
+            seventeen steps provable in seconds, on a machine with no ADK, no
+            elevation and nothing mounted.
+
+            Nine methods:
+
+              MountImage(imagePath, index, mountPath)
+              DismountImage(mountPath, save)
+              AddPackage(mountPath, packagePath)
+              AddDriver(mountPath, driverPath, recurse) -> the drivers added
+              GetPackage(mountPath)                     -> { Name, State }
+              GetImageInfo(imagePath)                   -> { Index, Name, SizeBytes }
+              ExportImage(sourcePath, index, destinationPath)
+              SetScratchSpace(mountPath, megabyte)
+              NewIso(mediaRoot, isoPath, argument)
+
+            IT MODELS THE MOUNT, AND THAT IS WHY IT EXISTS. Update-HDTBootImage
+            writes startnet.cmd and the engine INTO the mounted image, so
+            MountImage seeds <MountPath>\Windows\System32 into the injected
+            IFileSystem and DismountImage with Save $false takes the whole tree
+            away again. A builder that wrote after discarding is then caught by a
+            test rather than by a boot image with no launcher in it. Every other
+            fake here only answers questions; this one holds the small piece of
+            state the code under test writes into.
+
+            Seeding into the filesystem is deliberately done through the fake's
+            Seed* methods rather than through CreateDirectory or WriteAllText, so
+            nothing this service does by itself appears in the shared journal as
+            an operation the builder performed.
+
+            AddPackage, AddDriver, SetScratchSpace and DismountImage REFUSE A
+            PATH THAT IS NOT MOUNTED, as DISM does. A builder that packaged
+            before it mounted cannot pass here and fail on metal.
+
+        .PARAMETER FileSystem
+            The IFileSystem the mount is modelled in. Defaults to a fresh
+            New-HDTFakeFileSystem, which a test can read back through the
+            returned object's FileSystem property.
+
+        .PARAMETER Image
+            Seed GetImageInfo. Keys are image paths, values are rows of Index,
+            Name and SizeBytes.
+
+        .PARAMETER Package
+            Packages already in the image before the build starts. Keys are
+            component names, values are states.
+
+        .PARAMETER Driver
+            What AddDriver reports back - the rows the manifest records.
+
+        .PARAMETER Failure
+            Methods that fail. Keys are method names, values are the message the
+            System.InvalidOperationException carries - the type the real adapter
+            throws when a DISM cmdlet or oscdimg fails.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeBootImageService. Never write the class name as a type literal
+            in a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $fs = New-HDTFakeFileSystem
+            $boot = New-HDTFakeBootImageService -FileSystem $fs
+            $boot.MountImage('C:\scratch\HDTPE_x64.wim', 1, 'C:\scratch\mount')
+            $fs.ReadAllText('C:\scratch\mount\Windows\System32\startnet.cmd')
+
+            Read back exactly what the builder wrote into the image.
+
+        .EXAMPLE
+            $boot = New-HDTFakeBootImageService -Failure @{ AddPackage = 'Error: 0x800f081e' }
+
+            The package that fails, so the builder's discard-and-dismount path is
+            provable.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem,
+
+        [Parameter()]
+        [hashtable] $Image,
+
+        [Parameter()]
+        [hashtable] $Package,
+
+        [Parameter()]
+        [object[]] $Driver,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeBootImageService]::new()
+    $fake.Journal = $Journal
+
+    $fake.FileSystem = $FileSystem
+    if ($null -eq $fake.FileSystem) {
+        $fake.FileSystem = New-HDTFakeFileSystem
+    }
+
+    if ($PSBoundParameters.ContainsKey('Image')) {
+        foreach ($path in @($Image.Keys)) {
+            $fake.SeedImage([string] $path, [object[]] @($Image[$path]))
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Package')) {
+        foreach ($name in @($Package.Keys)) {
+            $fake.SeedPackage([string] $name, [string] $Package[$name])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Driver')) {
+        $fake.SeedDriver([object[]] @($Driver))
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($operation in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    return $fake
+}
+
 Export-ModuleMember -Function @(
+    'New-HDTFakeBootImageService',
     'New-HDTFakeCimProvider',
     'New-HDTFakeClock',
     'New-HDTFakeContentProvider',

@@ -28,10 +28,20 @@
 # itself: -Skip: there is bound before -ForEach binds the row's keys, so it does
 # not skip (tests/helpers/README.md F9).
 
-# winpe.wim on ADK 10.1.26100.2454 (24H2), measured on this machine and recorded
-# in 05-04's <verified_facts>. A build that produced a 340 MB WIM applied no
-# components at all, which is why the number is worth pinning here.
-$script:HDTWinPeWimSize = 340134390
+# TWO SIZES, AND THEY ARE NOT THE SAME NUMBER. 05-04's <verified_facts> records
+# winpe.wim as 340 134 390 bytes, and that is the FILE on disk. What
+# Get-WindowsImage reports as ImageSize - which is what SizeBytes carries, for
+# both this service and IImageService - is the UNCOMPRESSED size of the image
+# inside it: 2 009 251 937 bytes on ADK 10.1.26100.2454. Measured on this machine
+# rather than assumed, after the first version of this file asserted the file
+# size against the DISM number and went red for exactly the right reason.
+#
+# Both are worth pinning. The file size is the discriminator for "the build
+# applied nothing" (SPIKES S1's finished boot.wim was 480 MB on disk), and the
+# integration suite asserts it against the artifact. The DISM number is what this
+# interface returns, so it is what this contract asserts.
+$script:HDTWinPeWimImageSize = 2009251937
+$script:HDTWinPeWimFileSize = 340134390
 
 $script:HDTWinPeWim = ''
 try {
@@ -51,7 +61,10 @@ $script:HDTImplementation = @(
     @{
         Name           = 'FakeBootImageService'
         Factory        = {
-            param($RepositoryRoot, $WinPeWim)
+            # The winpe.wim path first, the repository root second: this factory
+            # needs the former and not the latter, and a declared-but-unused
+            # parameter is a PSScriptAnalyzer diagnostic that breaks lint.
+            param($WinPeWim)
 
             # Seeded to match what the ADK ships, so the two rows assert the same
             # numbers and the fake cannot drift from the machine.
@@ -59,7 +72,7 @@ $script:HDTImplementation = @(
                 $WinPeWim = @([pscustomobject] @{
                         Index     = 1
                         Name      = 'Microsoft Windows PE (amd64)'
-                        SizeBytes = 340134390
+                        SizeBytes = 2009251937
                     })
             }
         }
@@ -87,13 +100,14 @@ Describe 'IBootImageService contract: <Name>' -ForEach $script:HDTImplementation
         $script:winPeWim = ''
         try { $script:winPeWim = Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop } catch { $script:winPeWim = '' }
 
-        $script:winPeWimSize = 340134390
+        $script:winPeWimImageSize = 2009251937
+        $script:winPeWimFileSize = 340134390
     }
 
     Context 'read only' -Skip:$Skip {
 
         BeforeEach {
-            $script:boot = & $Factory $script:repoRoot $script:winPeWim
+            $script:boot = & $Factory $script:winPeWim $script:repoRoot
         }
 
         It 'exposes every method the contract requires' {
@@ -124,11 +138,17 @@ Describe 'IBootImageService contract: <Name>' -ForEach $script:HDTImplementation
             @($script:boot.GetImageInfo($script:winPeWim)).Count | Should -Be 1
         }
 
-        It 'reports the winpe.wim size this ADK ships' {
-            # 340 134 390 bytes on ADK 10.1.26100.2454. The number is the
-            # discriminator for "the build applied nothing": SPIKES S1's finished
-            # boot.wim was 480 MB.
-            @($script:boot.GetImageInfo($script:winPeWim))[0].SizeBytes | Should -Be $script:winPeWimSize
+        It 'reports the uncompressed winpe.wim size this ADK ships' {
+            # 2 009 251 937 bytes on ADK 10.1.26100.2454 - the UNCOMPRESSED size
+            # Get-WindowsImage reports, not the 340 134 390 byte file. The two
+            # were conflated in the first draft of this file and it went red on
+            # the real row, which is the whole reason the real row exists.
+            @($script:boot.GetImageInfo($script:winPeWim))[0].SizeBytes | Should -Be $script:winPeWimImageSize
+        }
+
+        It 'names the image Microsoft Windows PE (amd64)' {
+            @($script:boot.GetImageInfo($script:winPeWim))[0].Name |
+                Should -BeExactly 'Microsoft Windows PE (amd64)'
         }
 
         It 'types Index as an integer and SizeBytes as a long' {

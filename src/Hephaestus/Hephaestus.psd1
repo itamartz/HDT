@@ -64,6 +64,7 @@
         'Invoke-HDTBootReconciliation',
         'Invoke-HDTStep',
         'Invoke-HDTTaskSequence',
+        'New-HDTBootImageService',
         'New-HDTCimProvider',
         'New-HDTClock',
         'New-HDTContentProvider',

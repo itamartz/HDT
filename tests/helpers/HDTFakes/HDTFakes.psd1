@@ -11,6 +11,7 @@
     CompatiblePSEditions = @('Desktop', 'Core')
 
     FunctionsToExport    = @(
+        'New-HDTFakeBootImageService',
         'New-HDTFakeCimProvider',
         'New-HDTFakeClock',
         'New-HDTFakeContentProvider',

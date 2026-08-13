@@ -32,6 +32,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeContentProvider` | `IContentProvider` | `New-HDTLocalContentProvider`, `New-HDTSmbContentProvider` | `-Root`, `-Content`, `-Failure` |
 | `New-HDTFakeSmbService` | `ISmbService` | `New-HDTSmbService` | `-Connection`, `-ClientConfiguration`, `-Failure` |
+| `New-HDTFakeBootImageService` | `IBootImageService` | `New-HDTBootImageService` | `-FileSystem`, `-Image`, `-Package`, `-Driver`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
 `IRegistryService` is six methods. `TestPath` and `GetValue` are the read subset
@@ -182,6 +183,48 @@ mapping becomes, a mapping to a server it did not name becomes nothing, which is
 how "the mapping did not take" is staged. **The password is recorded as
 `<redacted>`** on both the fake and the real adapter, exactly as
 `ILsaService.SetSecret` redacts its value.
+
+`IBootImageService` is nine methods: `MountImage`, `DismountImage`, `AddPackage`,
+`AddDriver`, `GetPackage`, `GetImageInfo`, `ExportImage`, `SetScratchSpace` and
+`NewIso`. It is `Mount-WindowsImage` and friends, plus `dism.exe
+/Set-ScratchSpace` (there is no cmdlet for it) and `oscdimg.exe`.
+
+**This is the one fake that models a mount, and it is a fake talking to a fake.**
+`Update-HDTBootImage` *writes into* the mounted image — `startnet.cmd` into
+`<mount>\Windows\System32`, the engine into `<mount>\HDT` — so a double that
+recorded `MountImage` and did nothing else could not tell a builder that wrote
+before mounting from one that wrote after. `MountImage` therefore seeds
+`<MountPath>\Windows\System32` into the **injected `IFileSystem`**, and
+`DismountImage($false)` takes the whole tree away again, so **a builder that
+wrote after discarding is caught by a test** rather than by a boot image with no
+launcher in it. `ExportImage` and `NewIso` likewise produce a *file* in that
+filesystem, because DESIGN 6.1.1's mechanism is that the exported WIM is copied
+into the media tree — one file, two homes, same bytes — and a fake whose export
+wrote nothing would make the equivalence hash unprovable.
+
+Seeding into the filesystem goes through the fake's `Seed*` methods, never
+`CreateDirectory` or `WriteAllText`, so nothing the service does by itself
+appears in the shared journal as an operation the builder performed. The one
+exception is the discard, which really does remove the tree and records a
+`FileSystem.RemoveItem` — as `Dismount-WindowsImage -Discard` does.
+
+`AddPackage`, `AddDriver`, `SetScratchSpace` and `DismountImage` **refuse a path
+that is not mounted**, as DISM does, so a builder that packaged before it mounted
+cannot pass here and fail on metal fifteen minutes in.
+
+**`SizeBytes` is the UNCOMPRESSED size, not the file size**, on this interface
+and on `IImageService` alike — both project `Get-WindowsImage`'s `ImageSize`.
+The ADK's `winpe.wim` is **340 134 390 bytes on disk** and reports
+**2 009 251 937** here. The first draft of the contract asserted the file size
+against the DISM number and went red on the real row, which is what the real row
+is for.
+
+**The real row of `BootImageService.Contract.Tests.ps1` calls `GetImageInfo`
+only**, and is skipped with a printed warning where no ADK resolves. The other
+eight mount a WIM, write into a mounted image, export half a gigabyte or burn an
+ISO, and every one of them needs elevation; they are proven in
+`tests/integration/BootImage.Integration.Tests.ps1`, which builds a real image and
+re-mounts it read-only to read `startnet.cmd` back out of it.
 
 `New-HDTFakeRandomNumberGenerator` doubles a .NET type rather than an HDT
 service, so it has no real adapter row — but it follows every other convention
