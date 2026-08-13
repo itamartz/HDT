@@ -1,0 +1,9 @@
+# The id is the folder name under OperatingSystems\ and the key a sequence
+# names, so a catalog without one cannot be referred to.
+schemaVersion: 1
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

@@ -1,0 +1,10 @@
+# HDT applies a wim with Expand-WindowsImage and an ffu with DISM /Apply-Ffu.
+# There is no third apply path, so an iso is not a type the catalog can carry.
+schemaVersion: 1
+id: Win11-Iso
+name: Windows 11
+type: iso
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

@@ -1,0 +1,14 @@
+# defaultIndex names an index no image carries. JSON Schema draft-07 cannot
+# express a cross-field reference from defaultIndex into the images array, so
+# this is the documented schema blind spot the engine closes.
+schemaVersion: 1
+id: Win11-BadDefault
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+defaultIndex: 7
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC
+  - index: 2
+    name: Windows 11 Enterprise N LTSC

@@ -1,0 +1,12 @@
+# An unknown key is rejected rather than ignored, for the reason rules.yaml
+# rejects one: the INI dialect HDT replaces let a misspelled setting look
+# meaningful while doing nothing.
+schemaVersion: 1
+id: Win11-Unknown
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+priority: 1
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

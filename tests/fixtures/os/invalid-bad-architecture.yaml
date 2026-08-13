@@ -1,0 +1,10 @@
+# HDT deploys x86, x64 and arm64. ia64 has not shipped in Windows since 2011.
+schemaVersion: 1
+id: Win11-Itanium
+name: Windows 11
+type: wim
+architecture: ia64
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

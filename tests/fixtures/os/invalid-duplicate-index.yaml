@@ -1,0 +1,16 @@
+# Two images carrying index 1. Resolve-HDTImageIndex would have to guess which
+# one -Index 1 meant, which is the same refusal DESIGN 9.1 makes about disks.
+#
+# The two entries here are IDENTICAL, so the JSON Schema rejects this file
+# through uniqueItems. A duplicate index whose entries DIFFER is a documented
+# schema blind spot - see invalid-duplicate-index-distinct.yaml.
+schemaVersion: 1
+id: Win11-Duplicate
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC
+  - index: 1
+    name: Windows 11 Enterprise LTSC

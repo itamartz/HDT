@@ -1,0 +1,7 @@
+# An operating system with no images is an operating system nothing can apply.
+schemaVersion: 1
+id: Win11-Empty
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images: []

@@ -1,0 +1,14 @@
+# A full-flash-update image. DESIGN 9.2 applies an FFU with DISM /Apply-Ffu
+# rather than Expand-WindowsImage, so the type is what the apply step branches
+# on and it has to survive the catalog.
+schemaVersion: 1
+id: Win11-FFU
+name: Windows 11 factory image
+type: ffu
+architecture: arm64
+sourcePath: D:\Captures\surface.ffu
+importedUtc: '2026-08-13T09:14:22.0000000Z'
+images:
+  - index: 1
+    name: Windows 11 Enterprise
+    edition: Enterprise

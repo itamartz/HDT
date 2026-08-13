@@ -1,0 +1,13 @@
+# The same defect as invalid-duplicate-index.yaml, with entries that differ.
+# uniqueItems compares WHOLE items, so the schema accepts this and only the
+# engine rejects it. Listed in $script:HDTSchemaBlindSpot with its reason.
+schemaVersion: 1
+id: Win11-Duplicate-Distinct
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC
+  - index: 1
+    name: Windows 11 Enterprise N LTSC

@@ -1,0 +1,8 @@
+# Every HDT document declares a schemaVersion (DESIGN 2.2).
+id: Win11-Minimal
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

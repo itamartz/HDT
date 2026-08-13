@@ -1,0 +1,8 @@
+# The name is what an administrator reads in the console and in a log line.
+schemaVersion: 1
+id: Win11-Nameless
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

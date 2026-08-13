@@ -1,0 +1,10 @@
+# WIM indices are 1-based. Index 0 is what an author writes who is thinking in
+# arrays, and it names no image.
+schemaVersion: 1
+id: Win11-ZeroIndex
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 0
+    name: Windows 11 Enterprise LTSC

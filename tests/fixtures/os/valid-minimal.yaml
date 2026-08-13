@@ -1,0 +1,11 @@
+# The least a catalog entry can say and still be usable: one image, no default
+# index needed because there is only one, no architecture because DISM did not
+# report one this engine recognises.
+schemaVersion: 1
+id: Win11-Minimal
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+    name: Windows 11 Enterprise LTSC

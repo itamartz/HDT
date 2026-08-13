@@ -1,0 +1,8 @@
+schemaVersion: 1
+id: Win11-Broken
+name: Windows 11
+type: wim
+sourcePath: sources\install.wim
+images:
+  - index: 1
+     name: Windows 11 Enterprise LTSC
