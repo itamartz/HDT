@@ -20,8 +20,10 @@ function Get-HDTAdkPath {
                  KitsRoot10, the 32-bit view, for a session that is not
                  WOW-redirected.
 
-            THERE IS NO FALLBACK TO A LITERAL 'C:\Program Files (x86)\...'. A
-            hardcoded fallback is how "resolve at runtime" gets quietly broken:
+            THERE IS NO FALLBACK TO A HARDCODED KIT PATH, and this file
+            deliberately does not write one down even as an example - the
+            contract check for that is a grep. A hardcoded fallback is how
+            "resolve at runtime" gets quietly broken:
             it would work on the developer's machine forever and fail in the
             field, which is the failure mode the rule exists to prevent. When no
             key answers, this throws and names both keys.

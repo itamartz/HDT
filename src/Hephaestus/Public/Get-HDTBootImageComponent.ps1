@@ -19,8 +19,10 @@ function Get-HDTBootImageComponent {
 
             THAT ORDER WAS VERIFIED BY A MACHINE THAT BOOTED. DO NOT SORT IT and
             do not "tidy" it alphabetically. Note WinPE-NetFx - LOWERCASE x.
-            DESIGN 5.1 records that an earlier draft wrote WinPE-NetFX and that
-            no such cab exists.
+            DESIGN 5.1 records that an earlier draft capitalised that x and that
+            no cab of the capitalised name exists. The misspelling is written
+            nowhere in this repository's source, deliberately, so that a grep for
+            it stays a usable check.
 
             UNSET AND SET-TO-NOTHING ARE DIFFERENT INSTRUCTIONS. Omitting
             -OptionalComponent means "the admin did not say", and takes DESIGN
