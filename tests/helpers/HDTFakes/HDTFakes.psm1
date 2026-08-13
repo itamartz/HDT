@@ -286,6 +286,36 @@ class HDTFakeFileSystem {
 
         return [long] ([System.Text.Encoding]::UTF8.GetByteCount([string] $this.File[$full]))
     }
+
+    # SHA256 OVER THE SAME BYTES THE REAL ADAPTER WOULD HASH. The real one runs
+    # Get-FileHash over the file; this one hashes the UTF-8 bytes of the content
+    # it holds, which are the bytes New-HDTFileSystem would have written for the
+    # same WriteAllText. So the two implementations return the SAME NUMBER for
+    # the same content, not merely the same shape - and DESIGN 6.1.1's "the WIM
+    # inside the ISO hashes identical to the standalone WIM" is provable against
+    # the fake, where a copy is a copy.
+    [string] GetHash([string] $Path) {
+        $this.Record('GetHash', @($Path))
+        $full = $this.Normalize($Path)
+
+        if (-not $this.File.ContainsKey($full)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.", $full)
+        }
+
+        # Declared before the try: a PowerShell class method refuses to compile a
+        # variable it cannot see assigned on every path ("Variable is not
+        # assigned in the method"), and an assignment inside a try is not one.
+        [byte[]] $byte = @()
+
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $byte = $sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes([string] $this.File[$full]))
+        } finally {
+            $sha.Dispose()
+        }
+
+        return [System.BitConverter]::ToString($byte).Replace('-', '')
+    }
 }
 
 function New-HDTFakeFileSystem {

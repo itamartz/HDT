@@ -191,9 +191,25 @@ there is one shape to copy and no second one. It exists because
 makes "the same byte stream twice yields the same password" and "a byte in the
 rejection window is discarded, not folded" testable at all.
 
-`IFileSystem` is nine methods: `TestPath`, `ReadAllText`, `WriteAllText`,
+`IFileSystem` is ten methods: `TestPath`, `ReadAllText`, `WriteAllText`,
 `AppendAllText`, `CreateDirectory`, `RemoveItem`, `CopyItem`, `GetChildItem`,
-`GetLength`.
+`GetLength`, `GetHash`.
+
+**`GetHash` is the tenth, added in 05-04, and it is the one widening this
+interface has had.** DESIGN 6.1.1's claim — the WIM inside the ISO and the
+standalone WIM have identical hashes — has to be *written into the boot image
+manifest*, so an operator can check it without the test suite.
+`Update-HDTBootImage` therefore hashes three files it produced. A 500 MB ISO
+cannot go through `ReadAllText` (it is not text and it would sit in memory), and
+a `Get-FileHash` call in the builder would be a call no fake could answer, which
+is the exact shape PROJECT constraint 4 exists to prevent. Both implementations
+return **the same 64-character uppercase hex string for the same content** — the
+real one from `Get-FileHash -Algorithm SHA256`, the fake one from SHA256 over
+the UTF-8 bytes of the content it holds, which are the bytes the real adapter
+would have written — so "the copy has the same hash as its source" is provable
+against the fake rather than only against a real ISO. The contract asserts the
+value for `'hello'`, not merely the shape: a fake with its own hashing scheme
+would let a builder that compared nothing pass.
 
 **There is no `TestDirectory`, and `GetLength` is how a directory is told from a
 file.** `TestPath` answers for both, and `GetChildItem` returns an empty array

@@ -223,5 +223,29 @@ function New-HDTFileSystem {
         return [long] (New-Object -TypeName System.IO.FileInfo -ArgumentList $full).Length
     }
 
+    # THE TENTH METHOD, ADDED IN 05-04. DESIGN 6.1.1's claim - "the WIM inside
+    # the ISO and the standalone WIM have identical hashes" - has to be written
+    # into the boot image manifest so an operator can check it without the test
+    # suite. Hashing a 500 MB ISO through ReadAllText would be wrong twice over
+    # (it is not text, and it would be held in memory), so the interface grew a
+    # method rather than Update-HDTBootImage growing a Get-FileHash call that no
+    # fake could answer.
+    #
+    # The existence guard is the same one GetLength carries, for the same reason:
+    # Get-FileHash reports a path error that does not plainly say "that file is
+    # not there", and the fake throws FileNotFoundException.
+    $service | Add-Member -MemberType ScriptMethod -Name GetHash -Value {
+        param([string] $Path)
+
+        $this.Record('GetHash', @($Path))
+        $full = $this.NormalizePath($Path)
+
+        if (-not [System.IO.File]::Exists($full)) {
+            throw (New-Object -TypeName System.IO.FileNotFoundException -ArgumentList "Could not find file '$full'.", $full)
+        }
+
+        return [string] (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash
+    }
+
     return $service
 }
