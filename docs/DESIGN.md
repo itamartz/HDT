@@ -550,6 +550,24 @@ document and the engine disagree about is not controlled:
 multi-leg deployment is unambiguous even when timestamps skew across a clock
 change during specialize.
 
+**`clockUnsynced`.** WinPE boots with an unsynchronised clock — measured at
+`14:31` while the host running it was at `00:31`. So a WinPE-phase timestamp is
+present, correctly formatted, and *wrong*, and because `ts` is written as UTC a
+reader cannot tell it is unreliable. Worse, the CMTrace `date` field inherits
+the same skew, so a deployment's WinPE leg can appear on the wrong day entirely.
+
+Every record therefore carries a boolean `clockUnsynced`, true while the engine
+has no evidence the clock is trustworthy — set in WinPE, cleared once the full
+OS has synchronised. `ConvertTo-HDTReport` marks those rows rather than
+presenting them as fact, and the CMTrace line appends `(clock unsynced)` to the
+message.
+
+The engine does **not** try to fix the clock. Setting time needs a time source
+that may not exist on an isolated deployment VLAN, and a toolkit that refuses to
+deploy because it cannot reach an NTP server would be worse than one that logs
+honestly. Ordering comes from `seq`; the timestamp is a hint, and now an
+explicitly labelled one.
+
 **CMTrace line format**, for the same entry:
 
 ```
