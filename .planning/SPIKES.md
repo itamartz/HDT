@@ -254,6 +254,90 @@ Two consequences:
    confirm the decrement empirically and record the result, but it is not
    load-bearing on its own.
 
+## S8 — `AutoLogonCount` decrements to zero and Windows disarms itself ✅
+
+Answers the question S7 left open and DESIGN §4.5.2 flagged as *not yet
+observed*: does Windows actually decrement `AutoLogonCount` across legs, and
+does autologon keep working from an LSA secret alone?
+
+Date: 2026-08-13 · throwaway VM `HDT-AutoLogon-Spike`, Generation 2, Secure
+Boot on, 4 GB, isolated `HDT Lab` switch, built on a **copy** of S7's disk.
+
+### Method
+
+S7 could not answer this because it drove itself from `FirstLogonCommands`,
+which runs once by design. S8 uses the mechanism DESIGN §4.5.1 actually
+specifies: a `RunOnce` entry **re-registered by the observer each leg**. The
+observer appends one line per boot recording the Winlogon state, whether
+`DefaultPassword` exists in the registry, whether the `DefaultPassword` LSA
+secret exists (via `LsaOpenPolicy`/`LsaRetrievePrivateData` — its *length* only,
+never its value), and who is logged on. It then reboots.
+
+A startup scheduled task registered on leg 1, delayed four minutes, is the
+watchdog: on a boot where no autologon happens the logon observer never runs, so
+the watchdog records that fact and powers the VM off instead of leaving it
+sitting at a logon screen. That is what produced leg 4 below, and it is the
+single most informative line in the log.
+
+Arming was done entirely in the VM's **offline** `SOFTWARE` hive
+(`reg load HKLM\HDTSPIKE`, unloaded in a `finally`) — `AutoAdminLogon=1`,
+`DefaultUserName=Administrator`, `AutoLogonCount=3` (DWord) and the `RunOnce`
+entry. **`DefaultPassword` was deliberately not written to the registry**: the
+LSA secret Setup left on that disk in S7 was the only password store, so an
+autologon happening at all is itself the proof that LSA storage works.
+
+### What was observed
+
+```
+leg=1 mode=Logon    AutoAdminLogon=1 AutoLogonCount=2 RegistryDefaultPassword=absent LsaDefaultPassword=present-length-18 user=HDT-TEST-01\Administrator
+leg=2 mode=Logon    AutoAdminLogon=1 AutoLogonCount=1 RegistryDefaultPassword=absent LsaDefaultPassword=present-length-18 user=HDT-TEST-01\Administrator
+leg=3 mode=Logon    AutoAdminLogon=1 AutoLogonCount=0 RegistryDefaultPassword=absent LsaDefaultPassword=present-length-18 user=HDT-TEST-01\Administrator
+leg=4 mode=Watchdog AutoAdminLogon=0 AutoLogonCount=<absent> RegistryDefaultPassword=absent LsaDefaultPassword=present-length-0 RunOnce=present user=WORKGROUP\HDT-TEST-01$
+watchdog: no autologon happened on this boot - powering off
+```
+
+Corroboration, read offline before anything was armed: S7's disk had been left
+with `AutoLogonCount=2`, not the `3` S7 reported reading in-session. Windows had
+already decremented it at that first logon; S7 simply read the value before —
+or from a context ahead of — the write.
+
+### What this proves
+
+1. **The count decrements, one per autologon, and it decrements *before* the
+   session starts.** Armed at 3, the three autologged sessions read 2, 1 and 0.
+   So `AutoLogonCount = n` buys exactly *n* autologons and DESIGN §4.5.2's
+   "exactly the number of legs remaining" is literal — there is no off-by-one,
+   and `Set-HDTAutoLogon -RemainingLeg` means "how many more autologons".
+2. **Windows disarms itself when the count is spent.** On the fourth boot
+   `AutoAdminLogon` had been set to `0` by Windows, `AutoLogonCount` was gone
+   entirely, and — the part worth knowing — the `DefaultPassword` **LSA secret
+   had been blanked to zero length**. The third backstop is real.
+3. **Autologon works from the LSA secret with no registry `DefaultPassword`.**
+   Three autologons happened with `RegistryDefaultPassword=absent` throughout.
+   ROADMAP M2's registry-storage fallback is **not needed**; DESIGN §4.5.2 keeps
+   LSA storage, and `Set-HDTAutoLogon` has no `-PasswordStorage` parameter.
+4. **`RunOnce` is consumed per leg, as DESIGN §4.5.1 assumes.** Every leg found
+   `RunOnce=absent` (its own entry already consumed by the time it ran) and had
+   to re-register for the next one. On leg 4 the entry was still *present* —
+   re-registered by leg 3, never consumed, because there was no logon.
+
+### What it does not prove
+
+The teardown Windows performs is not a substitute for HDT's own. It only fires
+after the legs are spent, so an abandoned run still autologs on up to *n* more
+times. `finally` teardown and the boot-time reconcile remain the first two
+backstops; this is the third.
+
+### Lab safety
+
+Every Hyper-V call was name-filtered to `HDT-AutoLogon-Spike` and
+module-qualified (`Hyper-V\Get-VM` — PowerCLI shadows `Get-VM` on this host).
+`CM01` and `DC01` were never touched and are still `Off`. S7's disk
+`C:\HDTLab\vms\HDT-PE-Test-osdisk.vhdx` survived; the spike ran on a copy, which
+was deleted with the VM. **The host's own Winlogon key was read before and after
+and is byte-identical — no autologon value exists on it.** `HKLM\HDTSPIKE` is
+unloaded. Total elapsed: 6.1 minutes.
+
 ## Reusable spike artifacts
 
 | Artifact | Path |
