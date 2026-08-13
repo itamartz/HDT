@@ -108,6 +108,14 @@ $script:HDTJournalledFake = @(
         Argument  = @('OperatingSystems\Win11-LTSC-2024\os.yaml')
     }
     @{
+        Name      = 'SmbService'
+        Service   = 'SmbService'
+        Factory   = { param($Journal) New-HDTFakeSmbService -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.GetConnection('hdtserver') }
+        Operation = 'GetConnection'
+        Argument  = @('hdtserver')
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }
