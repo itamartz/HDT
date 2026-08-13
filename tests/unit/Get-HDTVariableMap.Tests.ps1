@@ -61,6 +61,41 @@ Describe 'Get-HDTVariableMap' {
         $engine[0].MdtName | Should -BeExactly '_SMSTSLogPath'
     }
 
+    It 'maps the six variables the imaging steps publish' {
+        # DESIGN 3.2 and 9.1/9.2: a step that publishes a variable other steps
+        # and conditions compose on has to say so here, or Get-HDTVariableMap is
+        # a table of the variables somebody remembered.
+        foreach ($name in @('HDTTargetDisk', 'HDTSystemVolume', 'HDTOSVolume',
+                'HDTRecoveryVolume', 'HDTImageIndex', 'HDTUnattendPath')) {
+
+            $row = @(Get-HDTVariableMap -Name $name)
+
+            $row.Count | Should -Be 1 -Because "$name is published by a phase 04 step"
+            $row[0].Writable | Should -BeTrue
+            $row[0].Description | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    It 'gives the four with an MDT counterpart their MDT name' {
+        (Get-HDTVariableMap -Name 'HDTTargetDisk').MdtName | Should -BeExactly 'OSDDiskIndex'
+        (Get-HDTVariableMap -Name 'HDTSystemVolume').MdtName | Should -BeExactly 'BootVolume'
+        (Get-HDTVariableMap -Name 'HDTOSVolume').MdtName | Should -BeExactly 'OSVolume'
+        (Get-HDTVariableMap -Name 'HDTRecoveryVolume').MdtName | Should -BeExactly 'RecoveryVolume'
+    }
+
+    It 'leaves the two with no MDT counterpart empty' {
+        (Get-HDTVariableMap -Name 'HDTImageIndex').MdtName | Should -BeNullOrEmpty
+        (Get-HDTVariableMap -Name 'HDTUnattendPath').MdtName | Should -BeNullOrEmpty
+    }
+
+    It 'names their origin as a step rather than a fact or an authored value' {
+        foreach ($name in @('HDTTargetDisk', 'HDTSystemVolume', 'HDTOSVolume',
+                'HDTRecoveryVolume', 'HDTImageIndex', 'HDTUnattendPath')) {
+
+            (Get-HDTVariableMap -Name $name).Origin | Should -BeExactly 'step'
+        }
+    }
+
     It 'reports no MDT counterpart for an HDT-only variable' {
         $only = @(Get-HDTVariableMap -Name 'HDTTPMVersion')
 
