@@ -1,0 +1,102 @@
+# DESIGN 4.1's sequence, as an administrator would actually write it.
+#
+# MOST OF THESE STEP TYPES DO NOT EXIST YET. Validate, DiskPartition, ApplyImage,
+# ApplyDrivers, ApplyUnattend and ConfigureBoot arrive in phase 04; JoinDomain,
+# InstallApplications and WindowsUpdate in phase 07. That is deliberate: this
+# file imports and schema-validates TODAY, and `Test-HDTTaskSequence` reports
+# each missing type as an Error finding - which is the authoring lint doing
+# exactly what it exists to do. Only Restart, PowerShell, CommandLine,
+# SetVariable and NoOp are runnable in M2; see TaskSequences/DEMO-M2 for a
+# sequence that runs end to end today.
+#
+# Three corrections against DESIGN 4.1 as printed:
+#
+#   1. Every variable is HDT-prefixed (DESIGN 3.2). 'OSImage' is not a
+#      deployment variable name; 'HDTOSImage' is.
+#   2. The State Restore condition reads '"%_HDTPhase%" == "FullOS"'. The phase
+#      variable takes the values WinPE and FullOS (DESIGN 4.4.1), so "OS" never
+#      matched anything - and the condition is a SINGLE-quoted YAML scalar,
+#      because the grammar itself carries double quotes.
+#   3. The domain join is commented out and a workgroup build is the default,
+#      because HDT's lab switch is isolated from the domain controller by design
+#      (PROJECT.md). Uncomment it when you have a reachable DC.
+
+schemaVersion: 1
+id: STD-CLIENT
+name: Standard Windows 11 Client
+description: Bare-metal client build - the DESIGN 4.1 reference sequence
+variables:
+  HDTOSImage: Win11-24H2-Ent
+  HDTDiskLayout: uefi-standard
+  HDTJoinWorkgroup: WORKGROUP
+
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 4096
+        minDiskGB: 60
+
+      - name: Format and Partition
+        type: DiskPartition
+        layout: "%HDTDiskLayout%"
+        wipe: true
+
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Apply OS
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: 1
+        target: primary
+        timeoutMinutes: 60
+
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: "%HDTDriverGroup%"
+        fallback: match-pnp        # index lookup if no group matches
+
+      - name: Apply Unattend
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Prepare Boot
+        type: ConfigureBoot
+
+      - name: Reboot Into Windows
+        type: Restart
+
+  - group: State Restore
+    condition: '"%_HDTPhase%" == "FullOS"'
+    steps:
+      # Domain join needs a reachable domain controller. HDT's test lab switch
+      # is deliberately isolated from one (PROJECT.md), so the sample ships as a
+      # workgroup build and this step is the line you uncomment.
+      #
+      # - name: Join Domain
+      #   type: JoinDomain
+      #   domain: "%HDTJoinDomain%"
+      #   ou: "%HDTMachineObjectOU%"
+      #   continueOnError: false
+      #   retry:
+      #     count: 2
+      #     delaySeconds: 30
+      #     backoff: exponential
+
+      - name: Install Applications
+        type: InstallApplications
+        selection: "%HDTApplications%"
+
+      - name: Windows Update
+        type: WindowsUpdate
+        continueOnError: true
+        timeoutMinutes: 120
+
+      - name: Corporate Baseline
+        type: PowerShell
+        script: Scripts\Set-CorpBaseline.ps1
+        runIn: FullOS
+        log: CorpBaseline.log

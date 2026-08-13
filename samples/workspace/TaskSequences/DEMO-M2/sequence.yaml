@@ -1,0 +1,82 @@
+schemaVersion: 1
+id: DEMO-M2
+name: M2 demonstration - sequencing, conditions, retry and reboots
+description: >
+  Exercises grouping, conditions, retry with backoff, runIn filtering,
+  continueOnError, two reboots and resume. Nothing it does is destructive.
+variables:
+  HDTDemoRole: workstation
+  HDTInstallStage: none
+
+steps:
+  - group: Preinstall
+    steps:
+      - name: Announce
+        type: NoOp
+        message: "Starting %HDTComputerName%"
+
+      - name: Record Stage
+        type: SetVariable
+        variables:
+          HDTInstallStage: preinstall
+
+      # failAttempt: 1 fails the FIRST attempt and succeeds on the second, so
+      # retry is proven without anything genuinely intermittent.
+      - name: Flaky Preflight
+        type: NoOp
+        failAttempt: 1
+        retry:
+          count: 2
+          delaySeconds: 5
+          backoff: exponential
+
+      - name: Reboot Into Install
+        type: Restart
+
+  - group: Install
+    condition: '"%HDTInstallStage%" != "skip"'
+    steps:
+      - name: Record Stage
+        type: SetVariable
+        variables:
+          HDTInstallStage: install
+
+      # command: carries the BARE command line. The step wraps it in
+      # %ComSpec% /c itself, so writing 'cmd.exe /c ...' here would double-wrap.
+      - name: Run Installer
+        type: CommandLine
+        command: echo HDT demo installer
+        successCodes: [0]
+        rebootCodes: [3010]
+
+      - name: Reboot After Install
+        type: Restart
+
+  - group: State Restore
+    condition: '"%_HDTPhase%" == "FullOS"'
+    steps:
+      - name: Corp Baseline
+        type: PowerShell
+        script: Scripts\Set-CorpBaseline.ps1
+
+      - name: WinPE Only Task
+        type: NoOp
+        runIn: WinPE
+
+      - name: Optional Task
+        type: NoOp
+        fail: true
+        continueOnError: true
+
+      - name: Finish
+        type: NoOp
+        message: Deployment complete
+
+  - group: Server Only
+    condition: '"%HDTDemoRole%" == "server"'
+    steps:
+      - name: Install Roles Placeholder
+        type: NoOp
+
+      - name: Configure Roles Placeholder
+        type: NoOp

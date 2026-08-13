@@ -53,6 +53,15 @@ $script:HDTBlindSpotFixture = @(Get-ChildItem -LiteralPath $script:HDTSequenceFi
 
 $script:HDTAgreementFixture = @($script:HDTValidFixture + $script:HDTInvalidFixture)
 
+# The shipped samples are held to the same gate as the fixtures. A sample that
+# does not validate is worse than no sample: it is a file administrators copy.
+$script:HDTSampleRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'samples/workspace/TaskSequences'
+
+$script:HDTSampleSequence = @(
+    @{ Name = 'DEMO-M2'; FixturePath = (Join-Path -Path $script:HDTSampleRoot -ChildPath 'DEMO-M2/sequence.yaml') }
+    @{ Name = 'STD-CLIENT'; FixturePath = (Join-Path -Path $script:HDTSampleRoot -ChildPath 'STD-CLIENT/sequence.yaml') }
+)
+
 Describe 'sequence.yaml schema contract' -Skip:$script:HDTSchemaSkip {
 
     BeforeAll {
@@ -137,6 +146,31 @@ Describe 'sequence.yaml schema contract' -Skip:$script:HDTSchemaSkip {
 
             $record | Should -Not -BeNullOrEmpty
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+        }
+    }
+
+    Context 'the shipped samples' {
+
+        It 'validates the <Name> sample sequence' -ForEach $script:HDTSampleSequence {
+            $schema = Get-Content -LiteralPath $script:sequenceSchemaPath -Raw
+            $yaml = Get-Content -LiteralPath $FixturePath -Raw
+            $json = (ConvertFrom-Yaml -Yaml $yaml -Ordered) | ConvertTo-Json -Depth 20
+
+            Test-Json -Json $json -Schema $schema | Should -BeTrue
+        }
+
+        It 'imports the <Name> sample sequence through the engine validator' -ForEach $script:HDTSampleSequence {
+            # STD-CLIENT names step types that phases 04-07 have not built yet.
+            # It still has to IMPORT: the schema and Assert-HDTSequenceDocument
+            # are about the document, and whether a type exists is what
+            # Test-HDTTaskSequence reports.
+            $yaml = Get-Content -LiteralPath $FixturePath -Raw
+
+            { InModuleScope Hephaestus -Parameters @{ Yaml = $yaml } {
+                    param($Yaml)
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path 'C:\ws\sequence.yaml'
+                    Assert-HDTSequenceDocument -Document $document -Path 'C:\ws\sequence.yaml'
+                } } | Should -Not -Throw
         }
     }
 }
