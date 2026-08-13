@@ -667,12 +667,44 @@ The credential is the cheaper problem to solve.
 
 These are the reasons to reimplement rather than copy:
 
-- **The password is a per-deployment random secret.** The Administrator
-  password used during deployment is generated at run start (high entropy,
-  stored only in the state document on the machine being built), *not* a fixed
-  corporate password reused across the fleet. If it leaks it is worth one
-  machine, mid-build. The real password — or LAPS enrollment — is set by a
-  cleanup step at the end.
+- **The administrator sets the password; HDT does not invent one.**
+  `HDTAdminPassword` is configured — in `workspace.yaml`, a rule, a per-machine
+  override, or the wizard's admin password page — and that is the password the
+  deployed machine ends up with.
+
+  An earlier draft generated a random per-deployment password and rotated it at
+  the end. That is better in isolation and worse in practice: when a deployment
+  fails halfway, the machine is sitting there with a password nobody knows, at
+  exactly the moment a technician needs to log in and look at it. A toolkit
+  whose failure mode is "you cannot get into the broken machine" is not one
+  people will keep using. Randomisation remains available —
+  `HDTAdminPassword: <random>` generates one per deployment for fleets that
+  pair it with LAPS — but it is opt-in, not the default.
+
+- **The password is never stored in clear text.** `Protect-HDTSecret` encrypts
+  it with AES; `Unprotect-HDTSecret` recovers it in WinPE. The ciphertext is
+  what lives in `workspace.yaml`, in `rules.yaml`, in a per-machine override
+  and in the state document, so a password is not sitting in a file an admin
+  opens in front of someone, or in a git diff, or in a log.
+
+  `Set-HDTAdminPassword` writes it; nobody hand-edits the value.
+
+  **The same mechanism protects the share credential (§6.3).** One secret
+  facility, not two — a second one would rot.
+
+  **Its honest limit, stated rather than implied:** the key lives in the boot
+  image, because WinPE must decrypt without a human present. Anyone who can
+  read the boot WIM or a USB stick can recover the key and therefore the
+  password. This is the same trust boundary already accepted for the share
+  credential, and it is the same one MDT has. It defeats shoulder-surfing, a
+  casual `Get-Content`, a screenshot of a config file and a git history search.
+  It does **not** defeat someone holding your boot media. Treat boot media as a
+  credential and the model holds; believe the encryption makes the media safe to
+  hand out and it does not.
+
+  DPAPI is deliberately not used: it binds to a machine or user that does not
+  exist on the machine being deployed, so the ciphertext would be undecryptable
+  exactly where it needs to be read.
 - **It is stored as an LSA secret, not registry cleartext.** Winlogon reads
   `DefaultPassword` from LSA private data as well as from the registry; this is
   the mechanism Sysinternals' `Autologon.exe` uses. Same behavior, no plaintext
@@ -719,11 +751,20 @@ These are the reasons to reimplement rather than copy:
 At sequence end — success or failure — the engine clears: `AutoAdminLogon`,
 `DefaultUserName`, `DefaultDomainName`, `DefaultPassword` (registry *and* LSA
 secret), `AutoLogonCount`, the `RunOnce` entry, the staged unattend, and the
-deployment password from `state.json`. It then applies the final Administrator
-password policy: rotate to the configured value, hand off to LAPS, or disable
-the account — whichever the sequence declares. The final state of the account is
-**explicit in the sequence**, never left as whatever deployment happened to
-leave behind.
+protected password from `state.json`.
+
+**The Administrator password itself is not changed at teardown.** It is the one
+the administrator configured (§4.5.2), so the deployed machine keeps it and a
+technician can log in — including into a machine whose deployment failed, which
+is the case that matters. What teardown removes is the *autologon*, not the
+account.
+
+A sequence may still declare a different end state, and then it is explicit
+rather than incidental: `HDTAdminPasswordPolicy` of `keep` (the default),
+`rotate` (to a second configured value), `laps` (hand off to LAPS and let it
+own the password from then on), or `disable` (turn the built-in Administrator
+off entirely, for fleets that manage access another way). `rotate` and `laps`
+are the right pairing for `HDTAdminPassword: <random>`.
 
 This checklist is a test in M2, asserted against a fake registry and LSA
 provider, and again in M3's integration layer against a real VM: after a
