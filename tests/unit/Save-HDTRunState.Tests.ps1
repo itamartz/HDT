@@ -57,18 +57,18 @@ Describe 'Save-HDTRunState' {
     }
 
     It 'stamps updatedUtc from the clock on every save' {
+        # Asserted on the FILE TEXT: ConvertFrom-Json under pwsh 7 rehydrates an
+        # ISO 8601 string into a [datetime], which would hide what was written.
         Save-HDTRunState -State $script:state -Path 'X:\HDT\state.json' -FileSystem $script:fs -Clock $script:saveClock
 
-        (ConvertFrom-Json -InputObject ($script:fs.ReadAllText('X:\HDT\state.json'))).updatedUtc |
-            Should -BeExactly '2026-08-13T00:11:02.4810000Z'
+        $script:fs.ReadAllText('X:\HDT\state.json') | Should -Match '"updatedUtc":\s*"2026-08-13T00:11:02\.4810000Z"'
         $script:state.updatedUtc | Should -BeExactly '2026-08-13T00:11:02.4810000Z'
     }
 
     It 'leaves startedUtc alone' {
         Save-HDTRunState -State $script:state -Path 'X:\HDT\state.json' -FileSystem $script:fs -Clock $script:saveClock
 
-        (ConvertFrom-Json -InputObject ($script:fs.ReadAllText('X:\HDT\state.json'))).startedUtc |
-            Should -BeExactly '2026-08-13T00:00:00.0000000Z'
+        $script:fs.ReadAllText('X:\HDT\state.json') | Should -Match '"startedUtc":\s*"2026-08-13T00:00:00\.0000000Z"'
     }
 
     It 'serialises nested step records' {

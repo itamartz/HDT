@@ -1,0 +1,149 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/Itamartz/HDT/schemas/state.schema.json",
+  "title": "HDT run state document (state.json)",
+  "description": "DESIGN 4.3's state document: the resolved variables, the step index, the per-step results and the autologon lifecycle of one deployment run. Written to X:\\HDT\\state.json in WinPE, mirrored to the target volume as soon as one is formatted, and read back on every resume. Assert-HDTRunStateDocument is the engine's own validator and must agree with this schema on every document.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "sequenceId",
+    "status",
+    "phase",
+    "leg",
+    "seq",
+    "startedUtc",
+    "updatedUtc",
+    "stepIndex",
+    "pauseOnError",
+    "variable",
+    "step",
+    "autoLogon"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "Exactly 1. A newer version means the workspace was written by a newer engine, and the engine is upgraded rather than the document downgraded.",
+      "enum": [ 1 ]
+    },
+    "runId": {
+      "description": "The deployment run id, also _HDTRunId.",
+      "type": "string",
+      "minLength": 1
+    },
+    "sequenceId": {
+      "description": "The sequence's id from sequence.yaml.",
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "description": "Running until the sequence ends. Succeeded or Failed is what makes the run abandoned to the boot reconcile.",
+      "enum": [ "Running", "Succeeded", "Failed" ]
+    },
+    "phase": {
+      "enum": [ "WinPE", "FullOS" ]
+    },
+    "leg": {
+      "description": "1-based, incremented on every resume.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "seq": {
+      "description": "The last JSONL seq number written. This is how DESIGN 4.4.2's monotonic seq survives a reboot.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "startedUtc": {
+      "description": "ISO 8601 round-trip format, as a STRING. A raw datetime serialises as \\/Date(...)\\/ under Windows PowerShell 5.1, which is the engine that writes this file in WinPE.",
+      "type": "string",
+      "minLength": 1
+    },
+    "updatedUtc": {
+      "description": "Stamped on every save. A Running document whose updatedUtc is older than the age limit is an abandoned deployment.",
+      "type": "string",
+      "minLength": 1
+    },
+    "stepIndex": {
+      "description": "The 1-based index of the NEXT step to run. It advances past a Completed or Skipped step and stays put for a Failed one, so a failed run resumes at the failure rather than after it.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "pauseOnError": {
+      "description": "DESIGN 4.3's LTISuspend equivalent: drop to a prompt with the state loaded rather than ending the sequence.",
+      "type": "boolean"
+    },
+    "variable": {
+      "description": "The resolved variables, name to value. Values may be scalars or lists.",
+      "type": "object",
+      "additionalProperties": true
+    },
+    "step": {
+      "description": "One record per flattened step, in index order.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/step" }
+    },
+    "autoLogon": {
+      "$ref": "#/definitions/autoLogon"
+    },
+    "deploymentPassword": {
+      "description": "The per-deployment random Administrator secret (DESIGN 4.5.2), or null once teardown has cleared it.",
+      "type": [ "string", "null" ]
+    }
+  },
+  "definitions": {
+    "step": {
+      "type": "object",
+      "required": [ "index", "name", "type", "status", "attempt", "resumable" ],
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "description": "1-based position in the flattened sequence.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "group": {
+          "description": "The group path this step sits under, outermost first.",
+          "type": [ "array", "null" ],
+          "items": { "type": "string" }
+        },
+        "status": {
+          "enum": [ "Pending", "Running", "Completed", "Failed", "Skipped" ]
+        },
+        "attempt": {
+          "description": "How many times this step has been started. 0 until it first runs.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "resumable": {
+          "description": "DESIGN 4.3: on resume the engine re-runs an interrupted step only if it declares resumable.",
+          "type": "boolean"
+        },
+        "startedUtc": { "type": [ "string", "null" ] },
+        "endedUtc": { "type": [ "string", "null" ] },
+        "durationMs": { "type": [ "integer", "null" ] },
+        "exitCode": { "type": [ "integer", "null" ] },
+        "message": { "type": [ "string", "null" ] }
+      }
+    },
+    "autoLogon": {
+      "description": "DESIGN 4.5's autologon lifecycle, so the boot reconcile can tear down exactly what was armed.",
+      "type": "object",
+      "required": [ "armed" ],
+      "additionalProperties": false,
+      "properties": {
+        "armed": { "type": "boolean" },
+        "userName": { "type": [ "string", "null" ] },
+        "domainName": { "type": [ "string", "null" ] },
+        "countSet": {
+          "description": "The AutoLogonCount the engine wrote: the number of legs remaining.",
+          "type": [ "integer", "null" ],
+          "minimum": 0
+        },
+        "secretName": { "type": [ "string", "null" ] },
+        "runOnceName": { "type": [ "string", "null" ] }
+      }
+    }
+  }
+}
