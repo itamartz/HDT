@@ -92,6 +92,7 @@
         'Save-HDTRunState',
         'Select-HDTTargetDisk',
         'Set-HDTAutoLogon',
+        'Set-HDTLogPath',
         'Set-HDTShareCredential',
         'Test-HDTRunStateAbandoned',
         'Test-HDTShareAcl',

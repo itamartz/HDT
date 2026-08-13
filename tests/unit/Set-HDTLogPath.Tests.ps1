@@ -161,11 +161,11 @@ Describe 'Set-HDTLogPath' {
             $null = Set-HDTLogPath -Context $harness.Log -TargetVolume 'W:'
 
             $record = & $script:recordOf $harness.FileSystem 'W:\HDT\Logs\HDT.jsonl'
-            $relocation = @($record | Where-Object { $_.msg -like '*W:\HDT\Logs*' })
+            $relocation = @($record | Where-Object { $_.message -like '*W:\HDT\Logs*' })
 
             $relocation.Count | Should -BeGreaterOrEqual 1
-            [string] $relocation[-1].msg | Should -BeLike '*X:\HDT\Logs*'
-            [string] $relocation[-1].msg | Should -BeLike '*W:\HDT\Logs*'
+            [string] $relocation[-1].message | Should -BeLike '*X:\HDT\Logs*'
+            [string] $relocation[-1].message | Should -BeLike '*W:\HDT\Logs*'
         }
 
         It 'writes that record into the NEW file' {
@@ -226,7 +226,7 @@ Describe 'Set-HDTLogPath' {
             $new = @(& $script:recordOf $script:harness.FileSystem 'W:\HDT\Logs\HDT.jsonl')
 
             @($new | Where-Object { $_.event -eq 'run.start' }).Count | Should -Be 1
-            @($new | Where-Object { $_.msg -eq 'partitioning' }).Count | Should -Be 1
+            @($new | Where-Object { $_.message -eq 'partitioning' }).Count | Should -Be 1
         }
     }
 
@@ -266,8 +266,8 @@ Describe 'Set-HDTLogPath' {
                     Where-Object { $_.level -eq 'Warning' })
 
             $record.Count | Should -BeGreaterOrEqual 1
-            [string] $record[-1].msg | Should -BeLike '*W:\HDT\Logs*'
-            [string] $record[-1].msg | Should -BeLike '*not enough space*'
+            [string] $record[-1].message | Should -BeLike '*W:\HDT\Logs*'
+            [string] $record[-1].message | Should -BeLike '*not enough space*'
         }
 
         It 'leaves _HDTLogPath alone' {

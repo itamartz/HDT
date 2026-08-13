@@ -125,7 +125,7 @@ Describe 'Invoke-HDTTaskSequence, the log relocation' {
         }
 
         It 'relocates exactly once across the leg' {
-            @($script:new | Where-Object { [string] $_.msg -like '*_HDTLogPath*' }).Count | Should -Be 1
+            @($script:new | Where-Object { [string] $_.message -like '*_HDTLogPath*' }).Count | Should -Be 1
         }
 
         It 'keeps seq continuous across the relocation' {
@@ -134,13 +134,30 @@ Describe 'Invoke-HDTTaskSequence, the log relocation' {
             # the one ordering that is trustworthy.
             $seq = @($script:new | ForEach-Object { [int] $_.seq })
             $lastBefore = [int] $script:old[-1].seq
-            $firstAfter = [int] @($script:new | Where-Object { [string] $_.msg -like '*_HDTLogPath*' })[0].seq
+            $firstAfter = [int] @($script:new | Where-Object { [string] $_.message -like '*_HDTLogPath*' })[0].seq
 
             $firstAfter | Should -Be ($lastBefore + 1) `
                 -Because ("the RAM disk log ends at seq {0} and the first record on the target volume is seq {1}" -f $lastBefore, $firstAfter)
 
             $seq | Should -Be @(1..$seq.Count) `
                 -Because ("the relocated log's seq numbers were: {0}" -f ($seq -join ', '))
+        }
+
+        It 'moves the status heartbeat with the log' {
+            # DESIGN 4.4.6's status.json lives IN the log directory, and the
+            # copy-back ships that directory. A heartbeat left behind on the RAM
+            # disk would put a stale 'Running' in the copy the technician reads
+            # while the live one died with the reboot.
+            $status = ConvertFrom-Json -InputObject ($script:leg.Harness.FileSystem.ReadAllText('W:\HDT\Logs\status.json'))
+
+            [string] $status.status | Should -BeExactly 'Succeeded'
+        }
+
+        It 'leaves an explicitly supplied -StatusPath alone' {
+            $leg = & $script:runLeg @{ StatusPath = 'Y:\heartbeat.json' }
+
+            $leg.Harness.FileSystem.TestPath('Y:\heartbeat.json') | Should -BeTrue
+            $leg.Harness.FileSystem.TestPath('W:\HDT\Logs\status.json') | Should -BeFalse
         }
 
         It 'sets _HDTLogPath to the relocated path' {

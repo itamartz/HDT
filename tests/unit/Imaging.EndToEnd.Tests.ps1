@@ -70,6 +70,15 @@ BeforeAll {
     # and log writes are what this list is filtered to keep out.
     $script:logTree = '*\HDT\Logs*'
 
+    # AND SO IS THE STATE DOCUMENT, for the same reason and by the same rule it
+    # always was. state.json used to sit inside X:\HDT\Logs and was excluded by
+    # the line above; from 05-03 it is ALSO mirrored to <target>\HDT\state.json
+    # at every checkpoint (DESIGN 4.3). That is one document written many times,
+    # not a new thing HDT does to a machine, and eight anonymous
+    # FileSystem.WriteAllText rows would make the specification list below
+    # unreadable. It is asserted on its own, by name, further down.
+    $script:stateDocument = '*\HDT\state.json'
+
     # -- the topology 04-04's VM has ---------------------------------------
 
     $script:targetDiskRow = @{
@@ -204,7 +213,8 @@ BeforeAll {
                 ($script:machineService -contains $_.Service) -or
                 ($_.Service -eq 'FileSystem' -and $script:machineFileOperation -contains $_.Operation -and
                     ([string] $_.Arguments[0]) -notlike $script:logTree -and
-                    ([string] $_.Arguments[-1]) -notlike $script:logTree)
+                    ([string] $_.Arguments[-1]) -notlike $script:logTree -and
+                    ([string] $_.Arguments[0]) -notlike $script:stateDocument)
             } |
             ForEach-Object { '{0}.{1}' -f $_.Service, $_.Operation })
 
@@ -404,6 +414,18 @@ Describe 'the DEMO-M3 imaging sequence, end to end against fakes' {
 
             # A MIRROR, NOT A MOVE: the RAM disk copy is still there.
             $script:leg.FileSystem.TestPath('X:\HDT\Logs\HDT.jsonl') | Should -BeTrue
+        }
+
+        It 'has mirrored the state document to the target volume' {
+            # DESIGN 4.3: "mirrored to the target disk's \HDT\ as soon as a
+            # formatted volume exists. The mirror is what makes the WinPE->OS
+            # transition survivable." Same trigger as the log, same information,
+            # and until 05-03 it needed a literal path the caller had to know in
+            # advance - which a boot-time payload cannot.
+            $mirror = ConvertFrom-Json -InputObject ($script:leg.FileSystem.ReadAllText('W:\HDT\state.json'))
+
+            [string] $mirror.status | Should -BeExactly 'Succeeded'
+            [string] $mirror.variable.HDTOSVolume | Should -BeExactly 'W'
         }
 
         It 'staged the unattend at W:\Windows\Panther\unattend.xml' {

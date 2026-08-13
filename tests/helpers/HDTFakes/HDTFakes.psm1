@@ -247,6 +247,12 @@ class HDTFakeFileSystem {
             throw [System.IO.FileNotFoundException]::new("Could not find file '$sourcePath'.", $sourcePath)
         }
 
+        # A COPY IS A WRITE, so a destination seeded to fail fails here too - as
+        # Copy-Item onto a full disk does. DESIGN 4.4.1's log relocation mirrors
+        # a whole tree with CopyItem and is required never to throw; without this
+        # that failure path could not be staged at all.
+        $this.AssertWritable($destinationPath)
+
         $this.AddFile($destinationPath, $this.File[$sourcePath])
     }
 
@@ -322,7 +328,9 @@ function New-HDTFakeFileSystem {
             Paths that refuse to be written. Keys are paths, values are the
             message the System.IO.IOException carries. Every other path stays
             writable, which is what makes "the checkpoint failed and the teardown
-            still ran" provable.
+            still ran" provable. A path seeded here refuses WriteAllText,
+            AppendAllText and a CopyItem that names it as the DESTINATION - a
+            copy is a write, and DESIGN 4.4.1's log mirror is made of copies.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every

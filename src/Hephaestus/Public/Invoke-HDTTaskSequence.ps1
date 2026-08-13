@@ -263,6 +263,14 @@ function Invoke-HDTTaskSequence {
         Save-HDTRunState -State $state @saveArgument
     }
 
+    # Captured, because $PSBoundParameters is scoped to the function's own param
+    # block and is EMPTY inside a scriptblock invoked with &. The relocation
+    # below reads these from the loop body, where that trap does not apply - but
+    # a later refactor that moves the block into a scriptblock would silently
+    # start overruling a caller who named a path, so they are read once here.
+    $mirrorStateWasGiven = $PSBoundParameters.ContainsKey('MirrorStatePath')
+    $statusPathWasGiven = $PSBoundParameters.ContainsKey('StatusPath')
+
     $reportUnresolved = {
         param([object] $Unresolved, [string] $Where)
 
@@ -332,11 +340,17 @@ function Invoke-HDTTaskSequence {
             $stepName = [string] $step.Name
             $stepTypeName = [string] $step.Type
 
-            $stepLogPath = '{0}\Steps\{1}' -f $logRoot, (Get-HDTStepLogName -Index $index -Name $stepName)
+            # READ OFF THE CONTEXT, NOT OFF $logRoot. Once DESIGN 4.4.1's
+            # relocation has fired, the log root is on the target volume and a
+            # step log built from the captured value would write half its lines
+            # to a RAM disk that is about to disappear.
+            $currentLogRoot = ([string] $log.LogPath).TrimEnd('\', '/')
+
+            $stepLogPath = '{0}\Steps\{1}' -f $currentLogRoot, (Get-HDTStepLogName -Index $index -Name $stepName)
             if (-not [string]::IsNullOrWhiteSpace([string] $step.Log)) {
                 # DESIGN 4.4.4: a step may declare its own log file, in addition
                 # to the master.
-                $stepLogPath = '{0}\{1}' -f $logRoot, [string] $step.Log
+                $stepLogPath = '{0}\{1}' -f $currentLogRoot, [string] $step.Log
             }
 
             $Context.Attempt = 1
@@ -504,6 +518,66 @@ function Invoke-HDTTaskSequence {
                     -Message ("step {0} '{1}' completed" -f $index, $stepName) `
                     -DurationMs ([long] $attempt.DurationMs) `
                     -Data ([ordered] @{ index = $index; attempt = [int] $attempt.Attempt; exitCode = [int] $attempt.ExitCode })
+
+                # DESIGN 4.4.1's RELOCATION, and DESIGN 4.3's state mirror, at
+                # the one point that sees every step finish. It runs AFTER the
+                # step's own completion record, so the RAM-disk copy carries a
+                # whole account of the step that caused the move.
+                #
+                # A DEPLOYMENT THAT DIES IN WinPE LOSES ITS LOG AT THE REBOOT,
+                # and dying in WinPE is exactly when the log is wanted: X: is a
+                # RAM disk. The moment a step formats a volume and publishes
+                # HDTOSVolume there is somewhere for the log to live that
+                # survives the power going off, so it goes there.
+                #
+                # THE STEP DOES NOT DO THIS ITSELF. A step does not own the log
+                # context, and one that reached into it would be the wrong shape.
+                #
+                # Four conditions, and this is all of them: the WinPE phase, a
+                # non-empty HDTOSVolume, a log still on the RAM disk, and a step
+                # that reported Completed - which is the branch this is in.
+                if ([string] $Context.Phase -eq 'WinPE' -and
+                    ([string] $log.LogPath) -eq (Get-HDTLogPath -Phase WinPE) -and
+                    $Context.Variable.Contains('HDTOSVolume') -and
+                    -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTOSVolume'])) {
+
+                    # Set-HDTLogPath never throws: a target volume that cannot be
+                    # written leaves the context on X: and returns the old path,
+                    # and then nothing below fires either.
+                    $relocated = Set-HDTLogPath -Context $log `
+                        -TargetVolume ([string] $Context.Variable['HDTOSVolume']) `
+                        -Variable $Context.Variable
+
+                    if ($relocated -ne (Get-HDTLogPath -Phase WinPE)) {
+                        # THE STATE MIRROR RIDES ALONG, because it is the same
+                        # trigger and the same information. DESIGN 4.3 says the
+                        # state document is mirrored to the target disk's \HDT\
+                        # as soon as a formatted volume exists - and
+                        # -MirrorStatePath was until now a literal path the
+                        # caller had to know in advance, which a boot-time
+                        # payload cannot, for exactly the reason it cannot know a
+                        # drive letter (SPIKES S9.1). A caller who DID name one
+                        # is not overruled.
+                        #
+                        # Built from the path actually reached, so the mirror and
+                        # the log agree about the volume without normalising a
+                        # letter twice.
+                        $volumeRoot = [System.IO.Path]::GetPathRoot($relocated)
+
+                        if (-not $mirrorStateWasGiven) {
+                            $saveArgument['MirrorPath'] = [System.IO.Path]::Combine($volumeRoot, 'HDT\state.json')
+                        }
+
+                        # DESIGN 4.4.6's heartbeat lives IN the log directory,
+                        # and the copy-back ships that directory. One left behind
+                        # on the RAM disk would put a stale 'Running' in the copy
+                        # a technician reads, while the live one died with the
+                        # reboot.
+                        if (-not $statusPathWasGiven) {
+                            $statusPathValue = '{0}\status.json' -f $relocated.TrimEnd('\', '/')
+                        }
+                    }
+                }
 
                 continue
             }

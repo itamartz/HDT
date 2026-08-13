@@ -58,12 +58,20 @@ function Invoke-HDTDiskPartitionStep {
             Configuration - so a refusal to wipe ends the run instead of being
             retried three times.
 
-            IT DOES NOT MOVE THE LOG. DESIGN 4.4.1 says _HDTLogPath moves to
-            <target>\HDT\Logs once the target volume is formatted. Relocating a
-            live log context mid-run touches New-HDTLogContext, Copy-HDTLog and
-            the state document's mirror, and it belongs with phase 05's
-            Start-HDTDeployment. What phase 04 does instead is leave the log
-            where the leg started it and let the caller pass -LogDestination.
+            THIS STEP PUBLISHES HDTOSVolume; THE LOOP MOVES THE LOG. DESIGN
+            4.4.1 says _HDTLogPath moves to <target>\HDT\Logs once the target
+            volume is formatted, and from 05-03 it does: Invoke-HDTTaskSequence
+            calls Set-HDTLogPath after any step completes in the WinPE phase
+            having left HDTOSVolume non-empty, mirroring the whole log tree onto
+            the volume this step just made, and pointing the state document's
+            mirror at <target>\HDT\state.json at the same moment.
+
+            IT IS STILL NOT THIS STEP'S JOB, and that is the point of saying so
+            here. A step does not own the log context; one that reached into it
+            would be the wrong shape, and every other step that formats a volume
+            in future would have to remember to do the same thing. The step
+            publishes a fact and the loop - the one place that sees every step
+            finish - acts on it.
 
         .PARAMETER Step
             A flattened step from Import-HDTSequenceDocument.
