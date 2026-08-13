@@ -689,10 +689,37 @@ The credential is the cheaper problem to solve.
    the `oobeSystem` pass sets `AdministratorPassword` and an `AutoLogon` block
    (`Username`, `Password`, `Enabled`, `LogonCount`). The staged
    `unattend.xml` is deleted from the target volume once Setup consumes it.
+
+   **`LogonCount` is 999, matching MDT.** All four MDT/PSD unattend templates
+   use it, and `PSDFinal.ps1` then sets `AutoLogonCount` to `0` at the end —
+   which is the point: **the count was never MDT's safety mechanism, cleanup
+   was.** 999 exists so the allowance cannot run out mid-deployment.
+
+   That matters because Windows reboots itself during specialize and OOBE, and
+   S8 proved the count decrements *before* a session starts. A small value can
+   therefore be spent on an intermediate boot, leaving the machine at a logon
+   prompt with the engine never reaching control — a failure that is silent and
+   indefinite, with no error and no timeout. A sample carrying `LogonCount 1`
+   stranded a real deployment exactly this way.
+
+   HDT does not rely on that 999 for long: step 2 replaces it.
 2. **Subsequent reboots** are configured by the engine writing the Winlogon
    values before each `Restart` step: `AutoAdminLogon`, `DefaultUserName`,
    `DefaultDomainName`, and `AutoLogonCount` under
    `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`.
+
+   **`Start-HDTResume.ps1` re-arms on its first full-OS leg, before running any
+   step**, replacing the unattend's 999 with a count equal to the legs actually
+   remaining. So the unattend only has to survive until the engine gets control
+   *once*; after that HDT owns the lifecycle, including teardown.
+
+   This is where HDT differs from MDT rather than copies it. MDT's 999 stays
+   999 until a cleanup step zeroes it, so a deployment that dies before cleanup
+   leaves a machine autologging on as Administrator ~indefinitely. HDT narrows
+   that to the handoff window and then bounds it, with two further backstops
+   behind the count: teardown in `finally`, and the boot-time reconcile
+   (§4.5.2) that disarms on any boot where the state document says the run is
+   finished, failed, or missing.
 3. **The engine is launched at logon** by a `RunOnce` entry re-registered each
    leg, pointing at `C:\HDT\Start-HDTResume.ps1`, which loads `state.json` and
    continues at the next step.
