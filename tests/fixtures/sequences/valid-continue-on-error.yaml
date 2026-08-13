@@ -1,0 +1,37 @@
+# ROADMAP M2's "continueOnError semantics", in one sequence.
+#
+# Two failures, deliberately different:
+#
+#   step 2  fails and is TOLERATED  - continueOnError: true, so the run carries
+#           on and the step is still recorded Failed. A tolerated failure is not
+#           a success, and a report that showed it as one would be a lie.
+#   step 4  fails and is FATAL      - continueOnError defaults to false, so the
+#           run ends AT step 4 with stepIndex still 4, which is what makes a
+#           resume retry the step that failed rather than skip past it.
+#
+# Step 5 exists only to be proven not to have run.
+schemaVersion: 1
+id: CONTINUE-ON-ERROR
+name: continueOnError semantics
+description: One tolerated failure and one fatal one.
+steps:
+  - name: First
+    type: NoOp
+    message: the step before any failure
+
+  - name: Tolerated failure
+    type: NoOp
+    fail: true
+    exitCode: 5
+    continueOnError: true
+
+  - name: After the tolerated failure
+    type: NoOp
+
+  - name: Fatal failure
+    type: NoOp
+    fail: true
+    exitCode: 7
+
+  - name: Never runs
+    type: NoOp

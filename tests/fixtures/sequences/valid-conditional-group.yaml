@@ -1,0 +1,72 @@
+# Conditions, at every level the engine evaluates them (DESIGN 4.1, 4.2).
+#
+# The shape matters more than the step count:
+#
+#   - a step with no condition at all, which always runs;
+#   - a SetVariable step that OPENS A GATE later conditions read, which is what
+#     proves conditions are evaluated at execution time and not at import;
+#   - a step whose condition is true and one whose condition is false;
+#   - a condition naming a variable NOTHING supplies - left literal, reported,
+#     and false, rather than collapsing to "" == "" (02-03's rule);
+#   - a group whose condition is false, holding two steps AND a nested group, so
+#     ROADMAP M2's "conditions skipping groups" is asserted over three contained
+#     steps each naming the group rather than one line that hides them;
+#   - a group whose condition reads the gate the SetVariable step opened;
+#   - a PowerShell step with no script:, which Test-HDTPowerShellStepApplicable
+#     reports inapplicable - a skip, not a failure;
+#   - a step after all of it, to prove the loop carried on.
+#
+# Every condition is a SINGLE-quoted YAML scalar, because a condition carries
+# double quotes as part of its own grammar (see valid-design-example.yaml).
+schemaVersion: 1
+id: CONDITIONAL-GROUP
+name: Conditions and groups
+description: Conditions at the step, group and nested-group level.
+variables:
+  HDTStage: start
+steps:
+  - name: Always runs
+    type: NoOp
+    message: no condition at all
+
+  - name: Open the gate
+    type: SetVariable
+    variable: HDTGate
+    value: open
+
+  - name: Runs when the gate is open
+    type: NoOp
+
+    condition: '"%HDTGate%" == "open"'
+
+  - name: Skipped while the gate is open
+    type: NoOp
+    condition: '"%HDTGate%" == "closed"'
+
+  - name: Skipped for an unresolved token
+    type: NoOp
+    condition: '"%HDTNeverSupplied%" == "yes"'
+
+  - group: Laptop only
+    condition: '"%HDTIsLaptop%" == "True"'
+    steps:
+      - name: Laptop first
+        type: NoOp
+      - name: Laptop second
+        type: NoOp
+      - group: Laptop inner
+        steps:
+          - name: Laptop inner first
+            type: NoOp
+
+  - group: Gate open
+    condition: '"%HDTGate%" == "open"'
+    steps:
+      - name: Inside the open group
+        type: NoOp
+
+  - name: Nothing to run
+    type: PowerShell
+
+  - name: After the groups
+    type: NoOp
