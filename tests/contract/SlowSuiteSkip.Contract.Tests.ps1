@@ -36,8 +36,16 @@ Describe 'no slow suite reads a BeforeDiscovery variable from BeforeAll' {
 
     It 'finds the slow suites to judge' {
         # A contract that scans nothing passes for the wrong reason
-        # (tests/helpers/README.md section 12).
-        @($script:slowSuiteFile).Count | Should -BeGreaterThan 0
+        # (tests/helpers/README.md section 12) - and SPIKES S9.15b records that
+        # the usual guard for it, @($x).Count -gt 0, is satisfied by $null,
+        # because @($null).Count is 1. So this names files that must be in the
+        # set: coercion cannot fabricate those.
+        @($script:slowSuiteFile).Count | Should -BeGreaterThan 3
+
+        $name = @($script:slowSuiteFile | ForEach-Object { Split-Path -Leaf $_ })
+        $name | Should -Contain 'ImageService.Integration.Tests.ps1'
+        $name | Should -Contain 'SmbContentProvider.Integration.Tests.ps1'
+        $name | Should -Contain 'Deployment.E2E.Tests.ps1'
     }
 
     It 'reports no violation across tests/integration and tests/e2e' {
@@ -57,6 +65,11 @@ Describe 'no slow suite reads a BeforeDiscovery variable from BeforeAll' {
         # so the scanner is pointed at a file that is known to violate.
         $bait = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/slowskip/DiscoveryReadInBeforeAll.ps1'
 
-        @(Get-HDTSlowSuiteSkipViolation -Path $bait).Count | Should -BeGreaterThan 0
+        $violation = @(Get-HDTSlowSuiteSkipViolation -Path $bait)
+
+        # Asserted on the variable it names rather than on a count: SPIKES S9.15b
+        # - @($null).Count is 1, so a count alone would pass for a scanner that
+        # returned nothing at all.
+        @($violation | ForEach-Object { $_.Variable }) | Should -Contain 'skipSlow'
     }
 }

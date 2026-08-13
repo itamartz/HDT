@@ -106,7 +106,7 @@ Describe 'Test-HDTShareAcl' {
 
             $result.Compliant | Should -BeFalse
             $finding = @($result.Finding | Where-Object { $_.Severity -eq 'Critical' })
-            $finding.Count | Should -BeGreaterThan 0
+            $finding.Count | Should -Be 1
             $finding[0].Message | Should -BeLike '*FullControl*'
             $finding[0].Path | Should -BeLike '*Applications*'
         }
@@ -242,7 +242,11 @@ Describe 'Test-HDTShareAcl' {
             $result = Test-HDTShareAcl -WorkspaceRoot $script:workspaceRoot -Identity $script:identity -AccessRule @{}
 
             $result.Compliant | Should -BeFalse
-            @($result.Finding).Count | Should -BeGreaterThan 0
+
+            # Asserted on the finding rather than on a count: SPIKES S9.15b -
+            # @($null).Count is 1, so a count alone passes for a result that
+            # carried no findings at all.
+            @($result.Finding | ForEach-Object { $_.Severity }) | Should -Contain 'Critical'
         }
     }
 

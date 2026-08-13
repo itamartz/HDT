@@ -208,7 +208,11 @@ Describe 'New-HDTSmbContentProvider against a real SMB share' {
             $provider = New-HDTSmbContentProvider -Root $script:remotePath -AllowAnonymous
             $provider.Connect() | Out-Null
 
-            @(Get-SmbMapping -RemotePath $script:remotePath -ErrorAction SilentlyContinue).Count | Should -BeGreaterThan 0
+            # Asserted on the mapping's own RemotePath, not on a count: SPIKES
+            # S9.15b - @($null).Count is 1, so a count alone would pass for no
+            # mapping at all.
+            @(Get-SmbMapping -RemotePath $script:remotePath -ErrorAction SilentlyContinue |
+                    ForEach-Object { $_.RemotePath }) | Should -Contain $script:remotePath
 
             $provider.Disconnect()
 
@@ -259,7 +263,7 @@ Describe 'New-HDTSmbContentProvider against a real SMB share' {
         It 'reads real access rules and judges them without throwing' {
             $accessRule = @{ '.' = Get-HDTShareAccessRule -Path $script:shareRoot }
 
-            @($accessRule['.']).Count | Should -BeGreaterThan 0
+            @($accessRule['.']).Count | Should -BeGreaterThan 2
             $accessRule['.'][0].Identity | Should -Not -BeNullOrEmpty
 
             $me = [Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -270,7 +274,7 @@ Describe 'New-HDTSmbContentProvider against a real SMB share' {
             # answer here is NOT Compliant - and saying so is the point. The
             # check is asserted to run and to judge, not to approve.
             $result.Compliant | Should -BeOfType ([bool])
-            @($result.Finding).Count | Should -BeGreaterThan 0
+            @($result.Finding | ForEach-Object { $_.Severity }) | Should -Contain 'Critical'
         }
 
         It 'returns $null from the adapter for a path it cannot read' {
