@@ -92,11 +92,21 @@ Describe 'New-HDTBootImageManifest' {
             $script:manifest.workspaceId | Should -BeExactly 'HDT-LAB'
         }
 
-        It 'records builtUtc as the string it was handed' {
-            # Round-tripped as a string on purpose: pwsh 7 coerces an ISO 8601
-            # string to [datetime] on the way back IN, which is 05-03's
-            # bootstrap trap in another file.
-            [string] $script:manifest.builtUtc | Should -BeLike '2026-08-14T09:14:22*'
+        It 'records builtUtc as the ISO 8601 string it was handed' {
+            # ASSERTED AGAINST THE SERIALISED TEXT, NOT THE PARSED OBJECT, and
+            # this is 05-03's bootstrap trap in a second file: under pwsh 7
+            # ConvertFrom-Json coerces an ISO 8601 string to [datetime] on the
+            # way back IN, so [string] $manifest.builtUtc is the machine-local
+            # '08/14/2026 09:14:22' there and the original string under 5.1. The
+            # bytes on disk are what an operator reads, so the bytes are what
+            # this asserts.
+            #
+            # \s* rather than a literal space: WINDOWS POWERSHELL 5.1's
+            # ConvertTo-Json PUTS TWO SPACES AFTER THE COLON and pwsh 7 puts
+            # one. Both are valid JSON and no consumer cares, but an assertion
+            # that pinned the formatting would be green on one engine and red on
+            # the other - which is exactly what it was, first run.
+            $script:text | Should -Match '"builtUtc":\s*"2026-08-14T09:14:22Z"'
         }
 
         It 'records the architecture and language' {
@@ -272,7 +282,9 @@ Describe 'New-HDTBootImageManifest' {
                 New-HDTBootImageManifest @local
             }
 
-            $text | Should -BeLike '*"optionalComponents":*[*'
+            # -Match, not -BeLike: '[' is a wildcard metacharacter and -BeLike
+            # rejects the pattern outright.
+            $text | Should -Match '"optionalComponents":\s*\['
             @((ConvertFrom-Json -InputObject $text).optionalComponents).Count | Should -Be 1
         }
 
