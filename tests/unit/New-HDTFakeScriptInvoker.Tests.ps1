@@ -121,4 +121,73 @@ Describe 'New-HDTFakeScriptInvoker' {
         { $first.Invoke($script:seededPath, @{}) } | Should -Not -Throw
         { $second.Invoke($script:seededPath, @{}) } | Should -Throw
     }
+
+    Context 'the transcript' {
+
+        # DESIGN 4.4.4 requires that a user script writing only to Write-Host
+        # still lands in the log, so IScriptInvoker gained GetTranscript() - the
+        # captured output of the LAST Invoke. The fake seeds it with
+        # SeedTranscript, and the seed key is normalised exactly as -Result keys
+        # already are, so one key serves both.
+
+        It 'returns the seeded transcript' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{ $script:seededPath = $null } `
+                -Transcript @{ $script:seededPath = @('checking vendor BIOS level', 'done') }
+
+            $invoker.Invoke($script:seededPath, @{}) | Out-Null
+
+            @($invoker.GetTranscript()) | Should -Be @('checking vendor BIOS level', 'done')
+        }
+
+        It 'returns an empty transcript when the path was seeded without one' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{ $script:seededPath = $null }
+
+            $invoker.Invoke($script:seededPath, @{}) | Out-Null
+
+            @($invoker.GetTranscript()).Count | Should -Be 0
+        }
+
+        It 'returns an empty transcript before the first invoke' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{ $script:seededPath = $null } `
+                -Transcript @{ $script:seededPath = @('a line') }
+
+            @($invoker.GetTranscript()).Count | Should -Be 0
+        }
+
+        It 'replaces the transcript on the next invoke' {
+            $invoker = New-HDTFakeScriptInvoker `
+                -Result @{ 'Scripts/First.ps1' = $null; 'Scripts/Second.ps1' = $null } `
+                -Transcript @{ 'Scripts/First.ps1' = @('first'); 'Scripts/Second.ps1' = @('second') }
+
+            $invoker.Invoke('Scripts/First.ps1', @{}) | Out-Null
+            $invoker.Invoke('Scripts/Second.ps1', @{}) | Out-Null
+
+            @($invoker.GetTranscript()) | Should -Be @('second')
+        }
+
+        It 'matches the transcript seed key case-insensitively' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{ $script:seededPath = $null } `
+                -Transcript @{ 'SCRIPTS\GET-COMPUTERNAME.PS1' = @('a line') }
+
+            $invoker.Invoke($script:seededPath, @{}) | Out-Null
+
+            @($invoker.GetTranscript()) | Should -Be @('a line')
+        }
+
+        It 'does not record SeedTranscript' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{ $script:seededPath = $null } `
+                -Transcript @{ $script:seededPath = @('a line') }
+
+            @($invoker.Operations).Count | Should -Be 0
+        }
+
+        It 'returns an array from GetTranscript even for one line' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{ $script:seededPath = $null } `
+                -Transcript @{ $script:seededPath = @('one line only') }
+
+            $invoker.Invoke($script:seededPath, @{}) | Out-Null
+
+            $invoker.GetTranscript() -is [System.Array] | Should -BeTrue
+        }
+    }
 }

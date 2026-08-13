@@ -52,6 +52,22 @@ $script:HDTJournalledFake = @(
         Argument  = @('Scripts/Get-ComputerName.ps1')
     }
     @{
+        Name      = 'ProcessService'
+        Service   = 'ProcessService'
+        Factory   = { param($Journal) New-HDTFakeProcessService -Result @{ 'cmd.exe /c exit 0' = @{ ExitCode = 0 } } -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.Start('cmd.exe', '/c exit 0', '', 0) }
+        Operation = 'Start'
+        Argument  = @('cmd.exe', '/c exit 0', '', 0)
+    }
+    @{
+        Name      = 'PowerService'
+        Service   = 'PowerService'
+        Factory   = { param($Journal) New-HDTFakePowerService -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.Restart(0) }
+        Operation = 'Restart'
+        Argument  = @(0)
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }
