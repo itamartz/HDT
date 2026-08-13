@@ -160,7 +160,8 @@ $state = $decision.State
 
 $sequenceFile = $SequencePath
 if ([string]::IsNullOrWhiteSpace($sequenceFile)) {
-    $sequenceFile = [System.IO.Path]::Combine($WorkspaceRoot, 'Sequences', [string] $state.sequenceId, 'sequence.yaml')
+    $sequenceFile = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind TaskSequences `
+        -ChildPath ([string] $state.sequenceId), 'sequence.yaml'
 }
 
 $sequence = Import-HDTSequenceDocument -Path $sequenceFile -FileSystem $fileSystem

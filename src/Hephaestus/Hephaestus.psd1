@@ -31,6 +31,7 @@
         'Get-HDTStepDescription',
         'Get-HDTStepType',
         'Get-HDTVariableMap',
+        'Get-HDTWorkspacePath',
         'Get-HDTVariableProvenance',
         'Import-HDTRuleDocument',
         'Import-HDTRunState',
