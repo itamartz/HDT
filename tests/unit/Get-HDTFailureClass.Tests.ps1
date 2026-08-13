@@ -45,6 +45,44 @@ Describe 'Get-HDTFailureClass' {
         }
     }
 
+    Context 'the refusal error ids' {
+
+        # DESIGN 9.1's refusals are bad authoring, not bad luck. A refusal to wipe
+        # a disk that got retried three times would be absurd - and it would print
+        # the sentence that would have fixed it three times over.
+        #
+        # The list is NAMED, not a wildcard on 'HDT*Error'. A wildcard would
+        # silently swallow every error id a later phase invents, including ones
+        # that really are transient.
+
+        It 'classifies <_> as Configuration' -ForEach @(
+            'HDTAmbiguousTargetError',
+            'HDTUnsafeTargetError',
+            'HDTNoTargetDiskError',
+            'HDTAmbiguousImageError'
+        ) {
+            InModuleScope Hephaestus -Parameters @{ ErrorId = $_ } {
+                param($ErrorId)
+
+                $exception = New-Object -TypeName System.Exception -ArgumentList 'a refusal'
+                $record = New-Object -TypeName System.Management.Automation.ErrorRecord `
+                    -ArgumentList $exception, ('{0},Select-HDTTargetDisk' -f $ErrorId), 'InvalidData', $null
+
+                Get-HDTFailureClass -ErrorRecord $record | Should -BeExactly 'Configuration'
+            }
+        }
+
+        It 'still classifies an unknown HDT error id as Transient' {
+            InModuleScope Hephaestus {
+                $exception = New-Object -TypeName System.Exception -ArgumentList 'something a later phase invented'
+                $record = New-Object -TypeName System.Management.Automation.ErrorRecord `
+                    -ArgumentList $exception, 'HDTSomethingElseError,Invoke-HDTContosoStep', 'InvalidData', $null
+
+                Get-HDTFailureClass -ErrorRecord $record | Should -BeExactly 'Transient'
+            }
+        }
+    }
+
     Context 'Environment' {
 
         It 'classes an IOException as Environment' {

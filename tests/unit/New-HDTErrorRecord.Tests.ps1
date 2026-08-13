@@ -86,6 +86,28 @@ Describe 'New-HDTErrorRecord' {
         }
     }
 
+    It 'takes a target object that is not a path' {
+        InModuleScope Hephaestus {
+            # DESIGN 9.1's refusals are about a DISK, not a file. The target of
+            # "disk 0 is the disk this machine booted from" is the number 0, and
+            # a console that has to parse it back out of the prose is a console
+            # that will get it wrong.
+            $record = New-HDTErrorRecord -Message 'disk 0 is the disk this machine booted from' -TargetObject 0
+
+            $record.TargetObject | Should -Be 0
+            $record.Exception.Message | Should -BeExactly 'disk 0 is the disk this machine booted from'
+        }
+    }
+
+    It 'prefers an explicit target object over the path' {
+        InModuleScope Hephaestus {
+            $record = New-HDTErrorRecord -Message 'something is wrong' -Path 'C:\ws\rules.yaml' -TargetObject 7
+
+            $record.TargetObject | Should -Be 7
+            $record.Exception.Message | Should -BeExactly 'C:\ws\rules.yaml: something is wrong'
+        }
+    }
+
     It 'keeps the inner exception' {
         InModuleScope Hephaestus {
             $inner = [System.IO.FileNotFoundException]::new('no such file')
