@@ -124,6 +124,14 @@ $script:HDTJournalledFake = @(
         Argument  = @('hdtserver')
     }
     @{
+        Name      = 'WdsService'
+        Service   = 'WdsService'
+        Factory   = { param($Journal) New-HDTFakeWdsService -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.GetBootImage('x64') }
+        Operation = 'GetBootImage'
+        Argument  = @('x64')
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }
