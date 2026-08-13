@@ -74,6 +74,30 @@ autologon lifecycle — all against fakes, touching nothing real. Includes the
 `SetVariable` / `PowerShell` / `CommandLine` / `Restart` steps and JSONL logging.
 *Exit:* a multi-group sequence with reboots runs to completion in a Pester run.
 
+**Plans:** 5 plans, executed in order (each depends on the ones before it).
+M2 is the largest milestone in the project — it encodes the execution model every
+later phase plugs into — so it is split by subsystem rather than compressed.
+
+- [ ] `03-01-PLAN.md` — the shared fake operation journal, `IClock`, the real
+      `New-HDTFileSystem` with `AppendAllText`, DESIGN 4.4 structured logging
+      (JSONL + CMTrace + `status.json` + `facts.json`), and DESIGN 4.3's
+      `state.json` with its schema
+- [ ] `03-02-PLAN.md` — `sequence.yaml` schema, validator, import and flattening;
+      the closed condition grammar; the step contract, its discovery convention and
+      the three dispatchers; `IProcessService` / `IPowerService`; and the five steps
+      `NoOp`, `SetVariable`, `PowerShell`, `CommandLine`, `Restart`
+- [ ] `03-03-PLAN.md` — the autologon lifecycle: the `IRegistryService` write half,
+      `ILsaService`, the per-deployment password, arming bounded by `AutoLogonCount`,
+      the DESIGN 4.5.3 teardown checklist, the boot-time reconcile, and the S8 spike
+      settling the `AutoLogonCount` decrement
+- [ ] `03-04-PLAN.md` — the execution loop: ordering, `runIn`, conditions,
+      `continueOnError`, retry with backoff, timeout, checkpointing,
+      reboot-and-resume, the `finally` teardown, and `Start-HDTResume.ps1`
+- [ ] `03-05-PLAN.md` — `ConvertTo-HDTReport`, **the DESIGN 12.2.1 headline test**
+      (a multi-group sequence with two reboots, end to end against fakes, asserting
+      the exact ordered operation list), the `DEMO-M2` and `STD-CLIENT` samples, the
+      DESIGN corrections this phase forced, and the live M2 exit demonstration
+
 **04 — Imaging.** The destructive parts, guarded. Disk layouts, apply, unattend,
 boot config, OS import. Target-disk ambiguity must refuse to proceed.
 *Exit:* a Hyper-V VM boots into Windows 11 from a real sequence run.
