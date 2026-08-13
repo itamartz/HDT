@@ -165,6 +165,29 @@ Describe 'Start-HDTResume.ps1' {
             $script:text | Should -BeLike '*New-HDTLogContext*'
         }
 
+        It 'seeds the BOOT log context with a seq too' {
+            # DESIGN 4.4.2: seq is monotonic and survives reboots. The boot log
+            # writes the reconcile's own reboot.resume record BEFORE the run log
+            # exists, so a boot context left at zero restarts the numbering at 1
+            # in the middle of the stream - which is precisely the ambiguity the
+            # counter exists to prevent. Every New-HDTLogContext call in this
+            # file therefore passes -Seq.
+            $context = @(& $script:commandNamed 'New-HDTLogContext')
+
+            $context.Count | Should -Be 2
+
+            foreach ($call in $context) {
+                @($call.CommandElements | ForEach-Object { $_.Extent.Text }) |
+                    Should -Contain '-Seq' -Because 'a log context that restarts seq breaks the ordering of a multi-leg deployment'
+            }
+        }
+
+        It 'continues the run log from the boot log rather than from the state' {
+            # The boot log has already consumed a number by the time the run log
+            # is built, so seeding the run log from $state.seq would reissue it.
+            $script:text | Should -BeLike '*$bootLog.Seq*'
+        }
+
         It 're-imports the sequence rather than assuming one' {
             @(& $script:commandNamed 'Import-HDTSequenceDocument').Count | Should -Be 1
         }

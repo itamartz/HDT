@@ -121,11 +121,29 @@ if ([string]::IsNullOrWhiteSpace($logRoot)) {
 
 $fileSystem.CreateDirectory($logRoot)
 
+# The boot log's counter is seeded from the state document BEFORE the reconcile
+# runs, because DESIGN 4.4.2's monotonic seq has to survive the reboot - and the
+# reconcile's own reboot.resume record is written through this context, in the
+# middle of the stream. A context left at zero restarts the numbering at 1 there,
+# which is exactly the ambiguity the counter exists to prevent.
+#
+# READ-ONLY AND BEST-EFFORT, so it is not the reconcile happening early: nothing
+# is decided or acted on here. A missing or corrupt document is the case the
+# reconcile is about to disarm, and a restarted counter is the least of it.
+$bootSeq = [long] 0
+try {
+    if ($fileSystem.TestPath($StatePath)) {
+        $bootSeq = [long] (ConvertFrom-Json -InputObject $fileSystem.ReadAllText($StatePath)).seq
+    }
+} catch {
+    $bootSeq = [long] 0
+}
+
 # A bootstrap log context, so the reconcile's own decision is recorded even when
 # it turns out there is no run to resume. Its run id is replaced below by the one
 # from the state document when there is one.
 $bootLog = New-HDTLogContext -RunId 'boot' -Phase FullOS -LogPath $logRoot `
-    -FileSystem $fileSystem -Clock $clock
+    -FileSystem $fileSystem -Clock $clock -Seq $bootSeq
 
 # BEFORE ANYTHING ELSE (DESIGN 4.5.2).
 $decision = Invoke-HDTBootReconciliation -StatePath $StatePath -FileSystem $fileSystem `
@@ -147,9 +165,12 @@ if ([string]::IsNullOrWhiteSpace($sequenceFile)) {
 
 $sequence = Import-HDTSequenceDocument -Path $sequenceFile -FileSystem $fileSystem
 
-# The state's runId and seq are what make this leg continuous with the last one.
+# The state's runId and the BOOT LOG'S seq are what make this leg continuous with
+# the last one. Not $state.seq: the boot context above has already consumed a
+# number for the reboot.resume record, and seeding from the state here would
+# reissue it.
 $log = New-HDTLogContext -RunId ([string] $state.runId) -Phase FullOS -LogPath $logRoot `
-    -FileSystem $fileSystem -Clock $clock -Seq ([long] $state.seq)
+    -FileSystem $fileSystem -Clock $clock -Seq ([long] $bootLog.Seq)
 
 $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
     -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim -Environment $environment
