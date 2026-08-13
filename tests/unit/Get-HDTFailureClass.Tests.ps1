@@ -22,13 +22,12 @@ Describe 'Get-HDTFailureClass' {
 
         It 'classes an HDTConfigurationError as Configuration' {
             InModuleScope Hephaestus {
+                # A real one, raised the way every HDT configuration failure is
+                # raised, rather than a hand-built record.
                 $record = $null
-                try {
-                    $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Message 'bad authoring' -Path 'C:\ws\sequence.yaml'))
-                } catch {
-                    $record = $_
-                }
+                try { ConvertFrom-HDTStepCondition -Condition 'this is not a condition' } catch { $record = $_ }
 
+                $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
                 Get-HDTFailureClass -ErrorRecord $record | Should -BeExactly 'Configuration'
             }
         }

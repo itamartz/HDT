@@ -113,8 +113,12 @@ Describe 'Invoke-HDTTaskSequence' {
             $harness = New-HDTSequenceTestHarness -Yaml (& $script:flakyYaml -FailAttempt 3 -Retry "    retry:`n      count: 2`n")
             Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State | Out-Null
 
+            # The loop's own step.fail record is the one carrying a failureClass;
+            # the NoOp step writes its own for each failed attempt. Reached
+            # through PSObject.Properties because the suite runs under
+            # Set-StrictMode -Version Latest, where a missing property throws.
             $failed = @(Get-HDTLogRecord -FileSystem $harness.FileSystem -Path $harness.Log.JsonlPath -Event 'step.fail' |
-                    Where-Object { $_.stepIndex -eq 2 -and $null -ne $_.data.failureClass })
+                    Where-Object { $_.stepIndex -eq 2 -and $null -ne $_.data.PSObject.Properties['failureClass'] })
 
             $failed.Count | Should -Be 1
             $failed[0].data.attempt | Should -Be 3
