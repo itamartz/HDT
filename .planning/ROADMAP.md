@@ -78,25 +78,62 @@ autologon lifecycle — all against fakes, touching nothing real. Includes the
 M2 is the largest milestone in the project — it encodes the execution model every
 later phase plugs into — so it is split by subsystem rather than compressed.
 
-- [ ] `03-01-PLAN.md` — the shared fake operation journal, `IClock`, the real
+- [x] `03-01-PLAN.md` — the shared fake operation journal, `IClock`, the real
       `New-HDTFileSystem` with `AppendAllText`, DESIGN 4.4 structured logging
       (JSONL + CMTrace + `status.json` + `facts.json`), and DESIGN 4.3's
       `state.json` with its schema
-- [ ] `03-02-PLAN.md` — `sequence.yaml` schema, validator, import and flattening;
+- [x] `03-02-PLAN.md` — `sequence.yaml` schema, validator, import and flattening;
       the closed condition grammar; the step contract, its discovery convention and
       the three dispatchers; `IProcessService` / `IPowerService`; and the five steps
       `NoOp`, `SetVariable`, `PowerShell`, `CommandLine`, `Restart`
-- [ ] `03-03-PLAN.md` — the autologon lifecycle: the `IRegistryService` write half,
+- [x] `03-03-PLAN.md` — the autologon lifecycle: the `IRegistryService` write half,
       `ILsaService`, the per-deployment password, arming bounded by `AutoLogonCount`,
       the DESIGN 4.5.3 teardown checklist, the boot-time reconcile, and the S8 spike
       settling the `AutoLogonCount` decrement
-- [ ] `03-04-PLAN.md` — the execution loop: ordering, `runIn`, conditions,
+- [x] `03-04-PLAN.md` — the execution loop: ordering, `runIn`, conditions,
       `continueOnError`, retry with backoff, timeout, checkpointing,
       reboot-and-resume, the `finally` teardown, and `Start-HDTResume.ps1`
-- [ ] `03-05-PLAN.md` — `ConvertTo-HDTReport`, **the DESIGN 12.2.1 headline test**
+- [x] `03-05-PLAN.md` — `ConvertTo-HDTReport`, **the DESIGN 12.2.1 headline test**
       (a multi-group sequence with two reboots, end to end against fakes, asserting
       the exact ordered operation list), the `DEMO-M2` and `STD-CLIENT` samples, the
       DESIGN corrections this phase forced, and the live M2 exit demonstration
+
+Phase 03 is **complete**. The M2 exit criterion is met and demonstrated twice: by
+`tests/unit/TaskSequence.EndToEnd.Tests.ps1`, which runs the `DEMO-M2` sample
+across three legs and two reboots against fakes and asserts the exact ordered
+list of the 31 operations it would have performed on a machine — plus every step
+accounted for exactly once, a continuous JSONL `seq`, an empty autologon
+checklist and a rendered report, in about three seconds; and by a live run of the
+same sequence at `C:\HDTLab\scratch\m2demo` against the real filesystem, clock,
+process service and script invoker (power, registry and LSA stayed fake, because
+a demonstration may not reboot the developer's machine) whose `report.html` was
+opened in a browser. Final counts: 2838 passed / 0 failed / 24 skipped under pwsh
+7.5.8 with lint clean across 201 files and selfcheck 4/4; 2752 passed / 0 failed
+/ 110 skipped under Windows PowerShell 5.1.26100.8655.
+
+Four defects were found by writing the headline test and then reading the report
+it produced, each fixed with a test first: `Start-HDTResume.ps1` restarted the
+JSONL `seq` at every boot, so DESIGN 4.4.2's "seq survives reboots" was not true
+on a real machine; `New-HDTRunState` read `Group` off a flattened step when the
+flattener emits `GroupPath`, so the state document's group array was empty on
+every real run; the report left every `Restart` step reading `Running` for ever,
+because a Restart step never logs a `step.complete`; and `-Timestamp` threw under
+`Set-StrictMode`.
+
+What M2 does **not** cover, recorded here so a later phase picks it up:
+
+- **The final Administrator password policy** (DESIGN 4.5.3's last item) is M6.
+  A machine HDT builds is left holding the per-deployment secret, which is safe —
+  the state document that knew it is gone — but not finished.
+- **`timeoutMinutes` is not pre-emptive** and **`PauseOnError` does not prompt**;
+  both are now documented in DESIGN 4.3 rather than implied.
+- **`New-HDTPowerService` has never been executed** and whether WinPE needs
+  `wpeutil reboot` rather than `shutdown.exe` is a phase 05 question.
+- **`powershell-yaml` is a hard runtime dependency of the engine and nothing yet
+  asserts it will be inside the WinPE boot image** — the third carried-forward
+  item from `02-VERIFICATION.md`, and phase 03 has made it worse rather than
+  better: the engine now reads `sequence.yaml` in WinPE too, so the boot image
+  build in **phase 05** must stage that module and prove it imports there.
 
 **04 — Imaging.** The destructive parts, guarded. Disk layouts, apply, unattend,
 boot config, OS import. Target-disk ambiguity must refuse to proceed.

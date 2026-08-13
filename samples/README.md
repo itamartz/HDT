@@ -8,9 +8,12 @@ parts M1 covers filled in.
 
 ```
 workspace/
-  rules.yaml                                              the rules
+  rules.yaml                                                   the rules
   Control/machines/4C4C4544-0031-3610-8052-B7C04F515A31.yaml   a per-machine override
-  Scripts/Get-ComputerName.ps1                            a setFrom: extension script
+  Scripts/Get-ComputerName.ps1                                 a setFrom: extension script
+  Scripts/Set-CorpBaseline.ps1                                 a PowerShell step script
+  TaskSequences/DEMO-M2/sequence.yaml                          the runnable demonstration sequence
+  TaskSequences/STD-CLIENT/sequence.yaml                       the realistic client build
 ```
 
 ### What each file is for
@@ -58,17 +61,20 @@ Get-HDTVariableProvenance -Resolution $r | Format-Table Order, Name, Value, Sour
 ```
 
 On the development machine this repository was built on — a Lenovo laptop that is
-not on the lab subnet — that prints:
+not on the lab subnet — that prints the following. The serial is shown as the
+repository's fixture serial rather than the real one, so that copying this file
+does not publish a machine's identity; on your machine the two rows carrying it
+read whatever `Win32_BIOS` reports:
 
 ```
 Order Name                 Value                                           Source       Rule
 ----- ----                 -----                                           ------       ----
-    1 HDTComputerName      PC-1ABC234                                     Rule         Fallback
+    1 HDTComputerName      PC-FIXTURE-SERIAL-0001                          Rule         Fallback
     2 HDTJoinWorkgroup     WORKGROUP                                       Rule         Fallback
     3 HDTMake              LENOVO                                          GatheredFact
     4 HDTModel             82RF                                            GatheredFact
     5 HDTProduct           LNVNB161216                                     GatheredFact
-    6 HDTSerialNumber      1ABC234                                        GatheredFact
+    6 HDTSerialNumber      FIXTURE-SERIAL-0001                             GatheredFact
     7 HDTUUID              4C4C4544-0042-3910-8051-B7C04F503332            GatheredFact
     8 HDTSystemSKU         LENOVO_MT_82RF_BU_idea_FM_Legion 5 Pro 16IAH7H  GatheredFact
     9 HDTMemory            65260                                           GatheredFact
@@ -103,3 +109,78 @@ Export-HDTVariableProvenance -Resolution $r `
 
 That is DESIGN 4.4's `Gather\provenance.json`: `schemaVersion`, `generated`, and
 one entry per variable carrying its source, rule, file, raw value and order.
+
+---
+
+## `workspace/TaskSequences/` — the sequence samples
+
+Two sequences, for two different jobs.
+
+### `DEMO-M2` — the one that runs today
+
+Every step type M2 ships, nothing destructive, and every behaviour the execution
+loop has: grouping, a group condition, `runIn` phase filtering, retry with
+exponential backoff, `continueOnError`, and **two reboots with resume**. Three
+legs come out of it: `Preinstall` in WinPE, `Install` after the first restart,
+`State Restore` after the second — with `WinPE Only Task` skipped on phase,
+`Optional Task` failing and tolerated, and both `Server Only` steps skipped on
+the group condition.
+
+It is the sequence `tests/unit/TaskSequence.EndToEnd.Tests.ps1` runs, seeded from
+**this file's text**, so the sample and the test can never drift apart.
+
+Two details worth copying correctly:
+
+- `command:` on a `CommandLine` step carries the **bare** command line. The step
+  wraps it in `%ComSpec% /c` itself, so writing `cmd.exe /c echo ...` would
+  double-wrap it.
+- a `condition:` is a **single-quoted** YAML scalar, because the condition
+  grammar carries double quotes as part of itself.
+
+Running it against fakes, from the repository root:
+
+```powershell
+Import-Module ./src/Hephaestus/Hephaestus.psd1 -Force
+Import-Module ./tests/helpers/HDTFakes/HDTFakes.psd1 -Force
+Import-Module ./tests/helpers/HDTTestTools/HDTTestTools.psd1 -Force
+
+$harness = New-HDTSequenceTestHarness `
+    -Yaml (Get-Content ./samples/workspace/TaskSequences/DEMO-M2/sequence.yaml -Raw) `
+    -ProcessResult @{ 'cmd.exe /c echo HDT demo installer' = @{ ExitCode = 0 } }
+
+$run = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State
+
+$run.Status                                   # RebootPending - the first leg ends at the Restart
+$run.Result | Format-Table Index, Name, Type, Status, Attempt, Reason -AutoSize
+
+ConvertTo-HDTReport -JsonlPath $harness.Log.JsonlPath -Path 'C:\HDTLab\scratch\report.html' `
+    -FileSystem (New-HDTFileSystem) -State $run.State -Title 'DEMO-M2 leg 1'
+```
+
+Nothing there touches a machine: the process, power, registry and LSA services
+are all doubles, and the only file that leaves the fake filesystem is the report
+you asked for.
+
+### `STD-CLIENT` — the realistic one
+
+DESIGN 4.1's client build, as an administrator would actually write it:
+`Validate`, `DiskPartition`, `ApplyImage`, `ApplyDrivers`, `ApplyUnattend`,
+`ConfigureBoot`, `Restart`, then applications, Windows Update and a `PowerShell`
+step.
+
+**Most of those step types do not exist yet** — they arrive in phases 04 to 07 —
+and that is the point of shipping it now: it imports and schema-validates today,
+and `Test-HDTTaskSequence` reports each missing type as an `Error` finding, which
+is the authoring lint doing its job.
+
+```powershell
+$fs = New-HDTFakeFileSystem -File @{
+    'C:\ws\sequence.yaml' = (Get-Content ./samples/workspace/TaskSequences/STD-CLIENT/sequence.yaml -Raw) }
+
+$sequence = Import-HDTSequenceDocument -Path 'C:\ws\sequence.yaml' -FileSystem $fs
+Test-HDTTaskSequence -Sequence $sequence | Format-Table Severity, Step, Message -AutoSize
+```
+
+Its domain join is commented out and it defaults to a workgroup build, because
+HDT's test lab switch is deliberately isolated from a domain controller
+(`.planning/PROJECT.md`). Uncomment the step when you have a reachable DC.

@@ -256,8 +256,8 @@ id: STD-CLIENT
 name: Standard Windows 11 Client
 description: Bare-metal client build
 variables:
-  OSImage: Win11-24H2-Ent
-  DiskLayout: uefi-standard
+  HDTOSImage: Win11-24H2-Ent
+  HDTDiskLayout: uefi-standard
 steps:
   - group: Preinstall
     steps:
@@ -274,7 +274,7 @@ steps:
     steps:
       - name: Apply OS
         type: ApplyImage
-        os: Win11-24H2-Ent
+        os: "%HDTOSImage%"
         index: 3
         target: primary
       - name: Inject Drivers
@@ -288,7 +288,7 @@ steps:
         type: ConfigureBoot
 
   - group: State Restore
-    condition: "%_HDTPhase%" == "OS"
+    condition: '"%_HDTPhase%" == "FullOS"'
     steps:
       - name: Join Domain
         type: JoinDomain
@@ -307,6 +307,21 @@ steps:
         runIn: FullOS
 ```
 
+Three details in that document are load-bearing rather than stylistic, and each
+was corrected in M2 after the parser and the condition grammar existed:
+
+- **Every variable is `HDT`-prefixed** (§3.2), and the schema enforces it. The
+  first draft of this example wrote `OSImage`, which no workspace can use.
+- **A condition is a single-quoted YAML scalar.** The grammar carries double
+  quotes as part of itself (`"%A%" == "B"`), so an unquoted mapping value ends
+  the scalar at the first quote and every YAML parser rejects the line.
+- **`_HDTPhase` is `WinPE` or `FullOS`** (§4.4.1). The first draft compared it to
+  `"OS"`, which never matched anything and would have silently skipped the whole
+  State Restore group.
+
+`samples/workspace/TaskSequences/STD-CLIENT/sequence.yaml` is this sequence as a
+file that imports and validates today.
+
 ### 4.2 Step types (v1)
 
 `Validate`, `DiskPartition`, `ApplyImage`, `CaptureImage`, `ApplyDrivers`,
@@ -314,13 +329,32 @@ steps:
 `InstallApplications`, `InstallRoles`, `JoinDomain`, `SetVariable`,
 `WindowsUpdate`, `Sysprep`, `EnableBitLocker`.
 
-Each step type is a PowerShell class/function pair implementing
-`Test-Applicable`, `Invoke-Step`, and `Get-StepDescription`. Third-party step
+Each step type is a set of functions discovered **by name**. Third-party step
 types can be dropped into `Modules\` — the engine discovers them by convention,
 so extending HDT does not mean forking it.
 
+**The convention, as implemented (M2).** For a step type `Foo`:
+
+| Function | Required | Contract |
+|---|---|---|
+| `Invoke-HDTFooStep` | **yes** | `-Step`, `-Context`; returns a `New-HDTStepResult` |
+| `Test-HDTFooStepApplicable` | no | `-Step`, `-Context`; `$false` skips the step |
+| `Get-HDTFooStepDescription` | no | `-Step`; one line for the log and the console |
+
+A type exists exactly when `Invoke-HDT<Type>Step` is exported by a loaded
+module, and `Get-HDTStepType` refuses to run when two modules export the same
+type — an ambiguous step type is a configuration error, not a race.
+
+**The result contract** is closed: `Completed`, `Failed`, or `RebootRequested`.
+`RebootRequested` is what triggers the §4.5 reboot ceremony, so an installer
+returning `3010` and a `Restart` step take the same path through the engine.
+
+These names are a compatibility surface for anyone writing a step type, which is
+why they are in the design rather than only in the code.
+
 Common properties on every step: `name`, `condition`, `continueOnError`,
-`timeoutMinutes`, `runIn` (`WinPE` | `FullOS` | `Any`), `retry`.
+`timeoutMinutes`, `runIn` (`WinPE` | `FullOS` | `Any`), `retry`, `resumable`,
+`log`.
 
 ### 4.3 Execution and reboot resume
 
@@ -339,9 +373,23 @@ one where the OS changes out from under you.
   completed steps by index and re-runs the interrupted one only if the step
   declares `resumable: true`.
 - Failure ends the sequence, writes a failure report, and — if
-  `PauseOnError` — drops to a PowerShell prompt with the state loaded, so the
-  technician can inspect `$HDTState` on the machine that failed. This is the
-  MDT `LTISuspend` idea, generalized.
+  `PauseOnError` — leaves the state loaded so the technician can inspect it on
+  the machine that failed. This is the MDT `LTISuspend` idea, generalized.
+
+**Two limitations, both discovered in M2 and both deliberate:**
+
+- **`timeoutMinutes` is not pre-emptive.** It is passed to the step — only
+  `CommandLine` can enforce it, through `IProcessService`, which kills the
+  process — and is otherwise measured by the loop *after* the step returns, so an
+  overrun becomes a `Failed` result carrying `TimedOut`. HDT does not preempt a
+  synchronous step: one that hangs in-process hangs the sequence, exactly as
+  MDT's does. Running steps in a child runspace is a post-v1 idea, and
+  `ForEach-Object -Parallel` is not available to an engine that must run under
+  Windows PowerShell 5.1.
+- **`PauseOnError` does not open a prompt.** The loop logs at `Error` that the
+  run is paused, writes the heartbeat and returns with the state loaded and
+  saved; dropping to a live prompt belongs to the caller (`Start-HDTDeployment`).
+  An engine that blocked on input could not be unit tested and would hang CI.
 
 ### 4.4 Logging
 
@@ -395,9 +443,23 @@ Every log call emits both, from a single `Write-HDTLog` invocation:
   `ConvertTo-HDTReport` renders to HTML and what the console's monitoring view
   consumes.
 
-Both are **UTF-8**. (A spike wrote UTF-16 by accident via `Tee-Object`'s default
-encoding and the result was unreadable in half the tooling — the log writer sets
-encoding explicitly.)
+Both are **UTF-8 with no byte order mark**, written through
+`[System.IO.File]::AppendAllText`. (A spike wrote UTF-16 by accident via
+`Tee-Object`'s default encoding and the result was unreadable in half the
+tooling; `Set-Content -Encoding UTF8` emits a BOM under Windows PowerShell 5.1
+and none under pwsh 7, which would put one in exactly the files a parser reads.
+The log writer sets the encoding explicitly and both cmdlets are banned in it.)
+
+**The report.** `ConvertTo-HDTReport` renders the JSONL to **one self-contained
+HTML file** — inline CSS, no script, no CDN, no external font — because a report
+is read from a USB stick, from a share, and from a machine with no network. It
+parses **line by line**: a blank line is ignored and a line that does not parse
+is counted and reported *in the report*, never thrown, because a truncated final
+line is the normal state of a log from a machine that died and that is exactly
+when somebody renders one. Everything is HTML-escaped, and the deployment
+password cannot appear: the report is built from the JSONL, which never carries
+it, and from the state document, from which it reads only the status, the leg and
+the step records.
 
 **Directory structure.** Fixed and predictable, so a human and a parser can both
 find things without searching:
@@ -446,11 +508,29 @@ deployment fails.
 }
 ```
 
-`event` is a controlled vocabulary — `run.start`, `run.end`, `phase.change`,
-`step.start`, `step.complete`, `step.fail`, `step.skip`, `var.resolve`,
-`native.exec`, `reboot.arm`, `reboot.resume` — so the report renderer and the
-console filter on a known set rather than regexing prose. `data` carries
-step-specific detail without polluting the top level.
+`event` is a controlled vocabulary, so the report renderer and the console filter
+on a known set rather than regexing prose. **Thirteen names, and exactly the
+thirteen `Write-HDTLog`'s `ValidateSet` accepts** — the list and the parameter
+are asserted against each other by a test, because a "controlled" vocabulary the
+document and the engine disagree about is not controlled:
+
+| Event | Written when |
+|---|---|
+| `run.start` | a leg begins |
+| `run.end` | a leg ends, whatever the outcome |
+| `phase.change` | the leg's phase differs from the state document's |
+| `step.start` | **each attempt** of a step begins |
+| `step.complete` | a step finished successfully |
+| `step.fail` | a step failed, or the loop itself did |
+| `step.skip` | a step was skipped, with the reason |
+| `var.resolve` | a variable was resolved or set, with its source |
+| `native.exec` | an external command line was run |
+| `reboot.arm` | autologon was armed before a restart (§4.5) |
+| `reboot.resume` | the boot reconcile resumed a run |
+| `reboot.teardown` | the §4.5.3 teardown checklist ran |
+| `message` | the default: any `Write-HDTLog` call that names no event, which is every custom step's log line under §4.4.4 |
+
+`data` carries step-specific detail without polluting the top level.
 
 `seq` is a monotonic counter that **survives reboots**, so the ordering of a
 multi-leg deployment is unambiguous even when timestamps skew across a clock

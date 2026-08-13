@@ -92,6 +92,25 @@ back to registry storage with explicit teardown and update DESIGN §4.5.2.
 **Exit:** a multi-group sequence with reboots runs to completion in a Pester
 run, with a readable report, having touched nothing real.
 
+**✅ Met.** `tests/unit/TaskSequence.EndToEnd.Tests.ps1` runs
+`samples/workspace/TaskSequences/DEMO-M2/sequence.yaml` across three legs and two
+reboots against fakes, asserting the exact ordered list of the 31 operations it
+would have performed on a machine, every step accounted for exactly once, the
+JSONL `seq` continuous across all three legs, an empty autologon checklist at the
+end, and a rendered report — in about three seconds, which is itself evidence
+that nothing in it was real. The same sequence was then run live against the real
+filesystem, clock, process service and script invoker (with power, registry and
+LSA still faked, because a demonstration may not reboot the developer's machine)
+and its report opened in a browser.
+
+**Two limitations M2 ships with, documented in DESIGN §4.3 rather than hidden:**
+`timeoutMinutes` is not pre-emptive — only `CommandLine` can enforce it, and an
+overrun is otherwise detected after the fact; and `PauseOnError` returns with the
+state loaded rather than opening a prompt, because the prompt belongs to the
+caller. **And one thing M2 does not ship:** the final Administrator password
+policy that DESIGN §4.5.3 requires at the end of the teardown checklist. It is
+listed under M6.
+
 ---
 
 ## M3 — Imaging
@@ -172,6 +191,14 @@ PnP fallback.
   name validation, SxS source through the content provider.
 - **`EnableBitLocker`** (DESIGN §10.3): `scope: usedSpaceOnly | full`, protector
   and method selection, AD/Entra escrow verified before encryption starts.
+- **`SetAdminPassword`** — the last item of DESIGN §4.5.3's teardown checklist,
+  which M2 does **not** ship: after deployment the local Administrator account is
+  left holding the per-deployment random secret, and the sequence must declare
+  what happens to it — rotate to a configured value, hand off to LAPS, or disable
+  the account. Until this exists, a machine HDT built has a working local
+  Administrator password that only the (now-deleted) state document ever knew,
+  which is safe but not finished. The final state of the account is **explicit in
+  the sequence**, never left as whatever deployment happened to leave behind.
 - Server task sequence in `samples/`; a Windows Server VM added to the E2E
   matrix.
 
@@ -185,6 +212,12 @@ before encryption begins** (a machine encrypted with no recoverable key is worse
 than an unencrypted one — this gets a dedicated test), `scope` mapping to
 `-UsedSpaceOnly`, `escrow: none` warning, `wait: false` returning without
 blocking.
+
+**Tests first (admin password):** the account left with the configured password
+and not the deployment secret; LAPS hand-off leaving the account enrolled rather
+than rotated; `disable` leaving it disabled; and the step refusing to run at all
+when the sequence declares none of the three, because "whatever deployment left
+behind" is not an outcome.
 
 **Tests first (applications):** dependency sort determinism; cycle detected as a validation
 error; detection short-circuiting an already-installed app; reboot mid-list

@@ -115,7 +115,7 @@ Get-HDTVariableProvenance -Resolution $r | Format-Table Order, Name, Value, Sour
 ```
 Order Name              Value            Source       Rule
 ----- ----              -----            ------       ----
-    1 HDTComputerName   PC-1ABC234      Rule         Fallback
+    1 HDTComputerName   PC-FIXTURE-SERIAL-0001  Rule         Fallback
     2 HDTJoinWorkgroup  WORKGROUP        Rule         Fallback
     3 HDTMake           LENOVO           GatheredFact
 ```
@@ -127,6 +127,82 @@ records go to `<_HDTLogPath>\Gather\provenance.json` via
 `Export-HDTVariableProvenance`.
 
 See [samples/README.md](samples/README.md) for a workspace to copy.
+
+## Task sequences
+
+A sequence is a `sequence.yaml` under `TaskSequences\<id>\`: groups, steps,
+conditions, retry, and reboots that resume where they left off.
+
+```yaml
+schemaVersion: 1
+id: DEMO-M2
+name: M2 demonstration
+variables:
+  HDTInstallStage: none
+
+steps:
+  - group: Preinstall
+    steps:
+      - name: Record Stage
+        type: SetVariable
+        variables:
+          HDTInstallStage: preinstall
+      - name: Flaky Preflight
+        type: NoOp
+        retry: { count: 2, delaySeconds: 5, backoff: exponential }
+      - name: Reboot Into Install
+        type: Restart
+
+  - group: State Restore
+    condition: '"%_HDTPhase%" == "FullOS"'      # note the single quotes
+    steps:
+      - name: Corp Baseline
+        type: PowerShell
+        script: Scripts\Set-CorpBaseline.ps1
+```
+
+**The five step types M2 ships:** `NoOp` (the test step), `SetVariable`,
+`PowerShell` (a script from `Scripts\`, with its `Write-Host` output captured),
+`CommandLine` (`command:` is the bare line — the step wraps it in `%ComSpec% /c`
+itself) and `Restart`. Imaging, drivers, applications and Windows Update arrive
+in later phases; a sequence that names one of them imports and validates today
+and `Test-HDTTaskSequence` reports the missing type as an `Error` finding.
+
+**Common properties on any step:** `condition`, `continueOnError`,
+`timeoutMinutes`, `runIn` (`WinPE` | `FullOS` | `Any`), `retry`, `resumable`,
+`log`.
+
+A condition is `<operand> <operator> <operand>` with `==`, `!=`, `-eq`, `-ne`,
+`-like`, `-notlike` — a closed grammar, not an expression language, so a
+sequence file can never execute code. It is written as a **single-quoted YAML
+scalar**, because the grammar itself carries double quotes.
+
+Running one against fakes — no machine, no reboot, nothing real:
+
+```powershell
+Import-Module ./src/Hephaestus/Hephaestus.psd1 -Force
+Import-Module ./tests/helpers/HDTFakes/HDTFakes.psd1 -Force
+Import-Module ./tests/helpers/HDTTestTools/HDTTestTools.psd1 -Force
+
+$harness = New-HDTSequenceTestHarness -Yaml (Get-Content ./samples/workspace/TaskSequences/DEMO-M2/sequence.yaml -Raw)
+$run     = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State
+
+$run.Result | Format-Table Index, Name, Type, Status, Attempt, Reason -AutoSize
+```
+
+Reading the run afterwards:
+
+```powershell
+Start-Process (ConvertTo-HDTReport -JsonlPath 'C:\HDT\Logs\HDT.jsonl' `
+                                   -Path 'C:\HDT\Logs\report.html' `
+                                   -FileSystem (New-HDTFileSystem) -State $run.State)
+```
+
+That is one self-contained HTML file — inline CSS, no script, no network — with
+the run, the counts, every step in order with its status, attempts, duration and
+exit code, the reboot legs as a timeline, every variable resolution with its
+source, and the whole log. It renders from a log that was truncated by a machine
+dying mid-write, and it never contains the deployment password.
 
 ## Status
 
@@ -142,6 +218,20 @@ engine with `%Var%` expansion and `setFrom:` script rules, and provenance —
 queryable with `Get-HDTVariableProvenance` and written to `provenance.json`. The
 M1 exit criterion is demonstrated end to end in
 `tests/unit/GatherAndResolve.EndToEnd.Tests.ps1`, over fixtures and fakes only.
+
+**Phase 03 (M2 — task sequence engine) is complete.** `sequence.yaml` with its
+schema, groups, nesting and the closed condition grammar; the step contract and
+its discovery convention; the execution loop with `runIn`, conditions,
+`continueOnError`, retry with backoff and timeout detection; the state document
+with a checkpoint either side of every step; the autologon lifecycle with a
+per-deployment password in an LSA secret, `AutoLogonCount`, a boot-time reconcile
+and teardown from `finally`; structured JSONL + CMTrace logging; and
+`ConvertTo-HDTReport`. The M2 exit criterion is demonstrated twice: by
+`tests/unit/TaskSequence.EndToEnd.Tests.ps1`, which runs the `DEMO-M2` sample
+across three legs and two reboots against fakes and asserts the exact ordered
+list of operations it would have performed on a machine, and by a live run of the
+same sequence against the real filesystem, clock and process service whose report
+was opened in a browser.
 
 ## Test-driven, without exception
 
