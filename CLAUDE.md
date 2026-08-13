@@ -101,6 +101,36 @@ must be stripped, not carried across (rule 4). Where PSD and `docs/DESIGN.md`
 disagree, the design wins. Derived code needs a comment on the function and an
 entry in `NOTICE.md`.
 
+## ⚠ Paths that must never be deleted
+
+**`C:\Users\Itamartz\Documents\GithubRepos\HDT` — the repository root — is never
+a delete target.** Not by a test, not by a cleanup block, not by a build task,
+not with `-Recurse`, not "because it will be recreated". Nor is any parent of it.
+
+Neither are these:
+
+| Path | Why |
+|---|---|
+| `C:\Users\Itamartz\Documents\GithubRepos\HDT` | **the repository** |
+| `C:\HDTLab` | the lab root itself |
+| `C:\HDTLab\media` | staged Windows 11 and Server 2025 sources, ~11 GB, slow to rebuild |
+| `C:\HDTLab\Share` | the test deployment share |
+| `C:\HDTLab\reference` | the PSD reference clone |
+| Anything under `C:\Users\Itamartz\` outside `C:\HDTLab` | the user's machine |
+
+**What code here *may* delete**, and only these:
+
+- `out/` — the build's own artifact directory, via `build.ps1 -Task clean`
+- A temp or staging directory **this process created in this run**, removed by
+  the same code that created it
+- A scratch VHDX or VM folder **this test created**, under `C:\HDTLab\scratch\`
+  or `C:\HDTLab\vms\`, matched by an `HDT-*` name
+
+Delete by explicit `-LiteralPath` to a specific thing you created. Never build a
+delete target by enumerating a parent directory, and never pass a variable to
+`Remove-Item -Recurse` without asserting first that it is one of the permitted
+locations above.
+
 ## ⚠ Hyper-V lab safety
 
 This host runs the user's **live lab**. Damaging it is worse than failing a test.
