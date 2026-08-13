@@ -743,3 +743,53 @@ run on failure too — both `Off` and untouched throughout. `HDT-PE-Test` was ne
 started - and it was LOST, which S9.13 records rather than tidies away. This host's disk 0 was GPT / `IsBoot` True / `IsSystem` True with the
 same partitions before and after every run; every destructive call in the
 integration suite was asserted to name the scratch disk number and no other.
+
+---
+
+## S10 — `C:\HDTLab\media` is gone, and `-Task e2e` cannot run until it is back ⚠
+
+Date: 2026-08-13, found during phase 05 plan 03 while running
+`./build.ps1 -Task e2e`.
+
+```
+BUILD FAILED: The 'e2e' task needs the staged Windows 11 media at
+'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
+(PROJECT.md, 'Test media - already staged locally').
+```
+
+**`C:\HDTLab\media` does not exist.** Both staged source trees —
+`Win11-LTSC-2024` and `WS2025-Std`, ~11 GB between them, listed in PROJECT.md as
+"already staged, do not re-extract" and in CLAUDE.md's "never deleted" table —
+are gone. `C:\HDTLab\vms` is empty again as well.
+
+Surviving: `C:\HDTLab\Share`, `C:\HDTLab\reference\PSD`, and
+`C:\HDTLab\scratch\pe\` — so S1/S3's WinPE media tree, `boot.wim` and the
+no-prompt ISO are intact and phase 05 still has a boot vehicle to compare
+against.
+
+**`CM01` and `DC01` are untouched and both `Off`**, read back name-filtered and
+module-qualified after the discovery. There are zero `HDT-*` VMs.
+
+**The cause was not established, and inventing one would be worse than saying
+so** — which is the position S9.13 took the first time this happened. What is
+known: `C:\HDTLab`'s mtime is 20:28 on 2026-08-13, 05-03's session began at
+about 23:15, and nothing in 05-03 deletes anything at all — no `Remove-Item`, no
+`-Recurse`, no Hyper-V call, no VHDX, no mount. The `e2e` guard in `build.ps1`
+throws before a single test runs, so no test code executed either.
+
+**Consequences, in order of who they hit:**
+
+1. **05-04 and 05-05 cannot meet ROADMAP M4's exit criterion until the media is
+   restored.** Re-extract from
+   `C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\HydrationKitWS2025\ISO\` to
+   `C:\HDTLab\media\Win11-LTSC-2024\` and `...\WS2025-Std\`.
+2. **`build.ps1 -Task e2e` is a hard fail, not a skip**, and that is correct: a
+   silently skipped end-to-end suite is S9.15's defect in another costume.
+3. Nothing proven *against fakes* is affected. 05-03 adds no e2e test.
+
+**The guard that would have caught a code cause already exists and is green.**
+`tests/contract/ProtectedPath.Contract.Tests.ps1` scans every `.ps1`/`.psm1`/
+`.psd1` outside fixtures for a delete naming a protected path, and S9.15b records
+it being proven to bite on a planted
+`Remove-Item -Path "C:\HDTLab\media" -Recurse`. It found nothing this time, which
+narrows the possibilities without closing them.
