@@ -10,9 +10,16 @@
 # It deliberately does NOT ban Remove-Item, because clearing out/ and cleaning up
 # a scratch VHDX a test itself created are both legitimate and necessary.
 
-BeforeDiscovery {
+BeforeAll {
     $script:contractRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
+    # THE FILE LIST IS BUILT HERE, IN THE RUN PHASE, AND NOT IN BeforeDiscovery.
+    # SPIKES S9.15: discovery and run do not share a scope. Read from an It body,
+    # a $script: variable set in BeforeDiscovery throws under ./build.ps1's
+    # StrictMode - and WITHOUT StrictMode it is $null, @($null).Count is 1, so
+    # "scans at least one PowerShell file" passed while the scan itself covered
+    # nothing at all. Nothing here is expanded at discovery time (there is no
+    # -ForEach), so the run phase is the only place this belongs.
     $script:scanFile = @(
         Get-ChildItem -LiteralPath $script:contractRepoRoot -Recurse -File -Include '*.ps1', '*.psm1', '*.psd1' -ErrorAction SilentlyContinue |
             Where-Object {
@@ -22,10 +29,6 @@ BeforeDiscovery {
                 $_.Name -ne 'ProtectedPath.Contract.Tests.ps1'
             }
     )
-}
-
-BeforeAll {
-    $script:contractRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
     # Literal paths that must never appear as the target of a delete.
     $script:protectedPattern = @(
