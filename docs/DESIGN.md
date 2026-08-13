@@ -458,6 +458,25 @@ Copy-back happens **on failure too** — a deployment that dies is exactly when
 the logs matter, and MDT's habit of stranding them on a wiped machine is a real
 operational problem.
 
+**The relocation is a mirror, the loop owns it, and it never fails a run.**
+`Set-HDTLogPath` copies everything already written — `HDT.log`, `HDT.jsonl`,
+`status.json`, `Steps\`, `Gather\`, `Native\` — onto the target volume and
+repoints the live context there; the RAM-disk copy **stays**, because a move that
+failed halfway would have destroyed the only log it was called to preserve. It is
+triggered by `Invoke-HDTTaskSequence`, not by the partition step: a step does not
+own the log context, and the loop is the one place that sees every step finish.
+Four conditions must hold — the phase is `WinPE`, `HDTOSVolume` is now non-empty,
+the log is still on the RAM disk, and the step that just ran reported
+`Completed`. `seq` (§4.4.2) is **not** reset by the move; it is monotonic across
+the whole run and restarting it would be exactly the ambiguity the counter exists
+to prevent. A destination that cannot be written — full, unformatted after all, a
+letter that went away — produces a `Warning` record through the old context,
+leaves everything pointing at `X:`, and the run continues: losing the logs is not
+an acceptable price for moving the logs. The state document's mirror (§4.3) is
+pointed at `<target>\HDT\state.json` at the same moment and by the same trigger,
+because it is the same information — and a caller who passed `-MirrorStatePath`
+or `-StatusPath` explicitly is not overruled.
+
 #### 4.4.2 Two formats, one write
 
 Every log call emits both, from a single `Write-HDTLog` invocation:
