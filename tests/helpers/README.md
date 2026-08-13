@@ -31,6 +31,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeContentProvider` | `IContentProvider` | `New-HDTLocalContentProvider`, `New-HDTSmbContentProvider` | `-Root`, `-Content`, `-Failure` |
+| `New-HDTFakeSmbService` | `ISmbService` | `New-HDTSmbService` | `-Connection`, `-ClientConfiguration`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
 `IRegistryService` is six methods. `TestPath` and `GetValue` are the read subset
@@ -165,6 +166,22 @@ engines. So `HDTConfigurationError` and `HDTSecurityError` are written into the
 sentence, where the fake's class method and the adapter's `ScriptMethod` can both
 carry them, and the contract asserts the exception *type* after unwrapping
 (section 5).
+
+`ISmbService` is four methods: `NewMapping(remotePath, userName, password)`,
+`RemoveMapping(remotePath)`, `GetConnection(serverName)` returning rows of
+`ServerName, ShareName, UserName, Dialect, Encrypted, Signed`, and
+`GetClientConfiguration()` returning `EnableInsecureGuestLogons,
+RequireSecuritySignature`. It is `SmbShare`, which DESIGN 5.1 records as
+**present in WinPE** — `NetTCPIP`, `NetAdapter` and `DnsClient` are not, so
+nothing may reach for those.
+
+**A mapping becomes a connection**, and that is the point: `New-HDTSmbContentProvider`
+maps and then reads the established identity back, so `-Connection` seeds what a
+mapping *will become*. Seeding is authoritative — once a test has said what a
+mapping becomes, a mapping to a server it did not name becomes nothing, which is
+how "the mapping did not take" is staged. **The password is recorded as
+`<redacted>`** on both the fake and the real adapter, exactly as
+`ILsaService.SetSecret` redacts its value.
 
 `New-HDTFakeRandomNumberGenerator` doubles a .NET type rather than an HDT
 service, so it has no real adapter row — but it follows every other convention

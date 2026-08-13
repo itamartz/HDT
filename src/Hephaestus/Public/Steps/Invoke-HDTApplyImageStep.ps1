@@ -37,7 +37,17 @@ function Invoke-HDTApplyImageStep {
             AN EXPLICIT image: PATH BYPASSES THE CATALOG, for media too large to
             bring into the share. The indices are then read through
             IImageService.GetImageInfo, which is the same list Import-HDTOperatingSystem
-            would have written into os.yaml.
+            would have written into os.yaml. THE CONTENT PROVIDER IS NOT ASKED
+            ABOUT IT EITHER: an explicit path is explicit, and a provider must
+            not second-guess it.
+
+            THE IMAGE IS RESOLVED THROUGH THE CONTENT PROVIDER when the run was
+            started with one - $Context.Service.Content, handed to
+            Get-HDTOperatingSystem, which is the whole change this step needed to
+            close the seam 04-02 marked. It never learns whether that provider is
+            Local or Smb, and DESIGN 6.2's claim that it cannot tell is asserted
+            by running this step through both and comparing the ordered list of
+            every service call.
 
         .PARAMETER Step
             A flattened step from Import-HDTSequenceDocument.
@@ -114,7 +124,14 @@ function Invoke-HDTApplyImageStep {
         }
     } elseif (-not [string]::IsNullOrWhiteSpace($osId)) {
         try {
-            $catalog = Get-HDTOperatingSystem -WorkspaceRoot ([string] $Context.WorkspaceRoot) -Id $osId -FileSystem $fileSystem
+            # THE WHOLE OF THIS STEP'S SHARE OF DESIGN 6. The catalog resolves
+            # its image through the provider when the run was started with one,
+            # and this step does not know or care which provider it is - which is
+            # DESIGN 6.2's "a content projection plus a provider swap, not a
+            # parallel code path", asserted by the operation-list equality test
+            # in tests/unit/Invoke-HDTApplyImageStep.Tests.ps1.
+            $catalog = Get-HDTOperatingSystem -WorkspaceRoot ([string] $Context.WorkspaceRoot) -Id $osId `
+                -FileSystem $fileSystem -Content $Context.Service.Content
         } catch {
             return (& $fail ([string] $_.Exception.Message) (([string] $_.FullyQualifiedErrorId).Split(',')[0]))
         }

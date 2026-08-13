@@ -35,7 +35,7 @@ function Test-HDTShareAcl {
             and then nobody is told about the domain admin credential either.
 
             IT IS PURE LOGIC. The rows come from Get-HDTShareAccessRule, which is
-            the only file in HDT that names Get-Acl; everything judged here is
+            the only file in HDT that calls Get-Acl; everything judged here is
             judged against hand-written rows in the unit tests, with no share
             attached.
 

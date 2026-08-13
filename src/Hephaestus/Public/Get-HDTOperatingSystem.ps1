@@ -19,14 +19,21 @@ function Get-HDTOperatingSystem {
                  file and the offending key;
               4. project, resolving ImagePath.
 
-            ImagePath IS THE SEAM M4 REPLACES. DESIGN 6 abstracts content access
-            behind Resolve-Content / Copy-Content / Test-Content, and M4 ships the
-            Smb and Local providers. Until then this resolves an image path from
-            the workspace root it is given, which is exactly what a provider would
-            return for Local. When M4 lands, ApplyImage changes from "ask the
-            catalog" to "ask the provider" and no step logic moves. A rooted
-            sourcePath is kept as it is, because media too large to bring into
-            the share is registered where it stands.
+            ImagePath IS THE SEAM 04-02 MARKED AND 05-02 CLOSED. DESIGN 6
+            abstracts content access behind a provider, and -Content is where one
+            arrives: given one, ImagePath is what the provider answered; given
+            none, it is resolved from the workspace root exactly as before, which
+            is what an administrator importing on a workstation gets.
+
+            ApplyImage changed from "ask the catalog" to "ask the provider" by
+            passing $Context.Service.Content, and NO STEP LOGIC MOVED - asserted
+            by running the same step through the Local and the Smb providers and
+            comparing the ordered list of every service call
+            (tests/unit/Invoke-HDTApplyImageStep.Tests.ps1, DESIGN 6.2).
+
+            A rooted sourcePath is kept as it is, provider or no provider,
+            because media too large to bring into the share is registered where
+            it stands (DESIGN 9.3).
 
         .PARAMETER WorkspaceRoot
             The workspace root - a local path or a UNC share.
@@ -37,6 +44,12 @@ function Get-HDTOperatingSystem {
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production,
             New-HDTFakeFileSystem in a test.
+
+        .PARAMETER Content
+            An IContentProvider, or nothing. When supplied, ImagePath is what it
+            answered for the relative sourcePath; a refusal is reported as a
+            configuration error naming os.yaml, because a sourcePath that climbs
+            out of the workspace is a mistake in that file.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -72,7 +85,11 @@ function Get-HDTOperatingSystem {
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Content = $null
     )
 
     Set-StrictMode -Version Latest
@@ -92,5 +109,15 @@ function Get-HDTOperatingSystem {
     $document = ConvertFrom-HDTYaml -Yaml $text -Path $catalogPath
     Assert-HDTOperatingSystemDocument -Document $document -Path $catalogPath
 
-    return (ConvertTo-HDTOperatingSystemCatalog -Document $document -OsFolder $osFolder -CatalogPath $catalogPath)
+    try {
+        return (ConvertTo-HDTOperatingSystemCatalog -Document $document -OsFolder $osFolder `
+                -CatalogPath $catalogPath -Content $Content)
+    } catch {
+        # A provider refusal - a sourcePath that escapes the content root - is a
+        # mistake in os.yaml, so it is reported naming os.yaml rather than
+        # surfacing as a MethodInvocationException from a ScriptMethod three
+        # frames down.
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
+                    -Message ("the image path could not be resolved: {0}" -f [string] $_.Exception.Message)))
+    }
 }
