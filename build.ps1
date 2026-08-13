@@ -227,6 +227,39 @@ function Test-HDTElevation {
         [Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Test-HDTAdkAvailable {
+    <#
+        .SYNOPSIS
+            True when a Windows ADK with the Windows PE add-on resolves on this
+            machine.
+
+        .DESCRIPTION
+            Asked through Get-HDTAdkPath rather than by testing a literal path,
+            because PROJECT.md's rule is that the ADK layout has moved between
+            releases and is resolved at runtime. Both the integration task and the
+            e2e task ask it: the first to warn that the boot image file will skip
+            itself, the second to decide whether the suite can build its own boot
+            vehicle or needs a prebuilt ISO.
+
+            It answers false rather than throwing, because "no ADK" is a fact
+            about the machine and both callers have something to say about it.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    try {
+        Import-Module -Name $script:HDTModuleManifest -Force -ErrorAction Stop
+
+        [void] (Get-HDTAdkPath -Asset Oscdimg -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop)
+
+        return $true
+    } catch {
+        return $false
+    }
+}
+
 function Invoke-HDTIntegrationTest {
     <#
         .SYNOPSIS
@@ -271,6 +304,16 @@ function Invoke-HDTIntegrationTest {
     $media = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
     if (-not (Test-Path -LiteralPath $media -PathType Leaf)) {
         Write-Warning ("The staged Windows 11 media is not at '{0}' (PROJECT.md, 'Test media - already staged locally'), so the files that apply an image will skip themselves. The rest of tests/integration still runs." -f $media)
+    }
+
+    # THE ADK IS A PRECONDITION OF ONE FILE, NOT OF THE TASK, and it is named
+    # here for the same reason the media is: BootImage.Integration.Tests.ps1
+    # builds a real boot image and skips itself without an ADK, and a suite that
+    # skipped silently would be SPIKES S9.15's defect in another costume. A warn
+    # rather than a throw, so the disk-only files still run on a machine that has
+    # no ADK.
+    if (-not (Test-HDTAdkAvailable)) {
+        Write-Warning "The Windows ADK (Deployment Tools + Windows PE add-on) does not resolve on this machine, so tests/integration/BootImage.Integration.Tests.ps1 will skip itself. Install it, or run Get-HDTAdkPath -All to see which assets are missing. The rest of tests/integration still runs."
     }
 
     $path = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/integration'
@@ -323,9 +366,17 @@ function Invoke-HDTEndToEndTest {
         throw "The 'e2e' task needs the Hyper-V PowerShell module. Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell."
     }
 
+    # EITHER ROUTE TO A BOOT VEHICLE IS ENOUGH, and until 05-04 only one of them
+    # existed. This precondition used to REQUIRE SPIKES S1/S3's hand-built ISO,
+    # and its own error message called a boot image built from code a future
+    # milestone. That is no longer true - Update-HDTBootImage exists, the e2e
+    # suite can build its own boot vehicle with it, and a task that refused to
+    # start unless a spike artifact was present would make the code that replaced
+    # the spike unrunnable. BuildScript.Tests.ps1 asserts, by parsing this
+    # function, that the old sentence has not come back.
     $iso = 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso'
-    if (-not (Test-Path -LiteralPath $iso -PathType Leaf)) {
-        throw ("The 'e2e' task needs the WinPE boot ISO at '{0}' (SPIKES.md S1/S3). Building one from code is M4's Update-HDTBootImage; until then the spike artifact is the boot vehicle." -f $iso)
+    if (-not (Test-HDTAdkAvailable) -and -not (Test-Path -LiteralPath $iso -PathType Leaf)) {
+        throw ("The 'e2e' task needs a WinPE boot vehicle and has neither route to one. Either install the Windows ADK with the Windows PE add-on, so the suite can build a boot image with Update-HDTBootImage (check with Get-HDTAdkPath -All), or put a prebuilt ISO at '{0}' (SPIKES.md S1/S3)." -f $iso)
     }
 
     $media = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
