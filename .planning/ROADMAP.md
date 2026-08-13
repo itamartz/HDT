@@ -52,7 +52,7 @@ and explains every value.
 
 - [x] `02-01-PLAN.md` — CIM/registry/environment/script services (fakes, contracts,
       real adapters), the remaining captured CIM fixtures, and `Get-HDTMachineFact`
-- [ ] `02-02-PLAN.md` — `Get-HDTVariableMap`, pointed configuration errors, the YAML
+- [x] `02-02-PLAN.md` — `Get-HDTVariableMap`, pointed configuration errors, the YAML
       adapter, `schemas/rules.schema.json` + `machine.schema.json`, and
       `Import-HDTRuleDocument` with thirteen fixture documents
 - [ ] `02-03-PLAN.md` — the resolution engine: five-source precedence, wildcard and

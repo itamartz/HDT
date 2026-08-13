@@ -324,3 +324,34 @@ Every factory — fake and real adapter alike — carries:
 and `GetOperationName()` and record before the call can throw, exactly as
 section 4 requires of the fakes, so a provenance or query-order assertion in a
 contract file holds against either implementation.
+
+## 12. Two assertions that pass for the wrong reason
+
+Both were observed in plan 02-02, against code that did not exist yet. Copy the
+fixed shapes, not the broken ones.
+
+**`Get-Help` falls back to a fuzzy search.** `Get-Help -Name Assert-HDTRuleDocument
+-ErrorAction Stop` returned **`Get-HDTVariableMap`'s** help — a different command
+entirely — so `$help.Synopsis | Should -Not -BeNullOrEmpty` passed for a command
+that had not been written. Every comment-based-help test asserts the name first:
+
+```powershell
+$help = Get-Help -Name Import-HDTRuleDocument -ErrorAction Stop
+$help.Name | Should -BeExactly 'Import-HDTRuleDocument'
+$help.Synopsis | Should -Not -BeNullOrEmpty
+```
+
+(It throws `HelpNotFoundException` only when nothing resembling the name exists,
+which is why this trap appears exactly when a sibling command is added.)
+
+**"It threw" is not an assertion.** A test that only checks *that* a call failed
+passes against `CommandNotFoundException`, which is what a missing implementation
+produces — so it is green before the code exists and green after it is deleted.
+Assert the identity of the failure:
+
+```powershell
+$record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+```
+
+The rule that catches both: **every new test must be watched failing for the
+right reason.** A test that passes on its first run is a defect in the test.
