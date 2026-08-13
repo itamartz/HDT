@@ -183,6 +183,32 @@ function Get-HDTVariableMap {
             Description = 'Named disk layout the partition step applies, such as uefi-standard.'
         }
 
+        # -- published by an imaging step (DESIGN 9.1, 9.2) -------------------
+        #
+        # Origin 'step' rather than 'authored' or 'GatheredFact', because these
+        # are facts about what a step DID: nothing can know HDTOSVolume before
+        # the disk has been partitioned. They are ordinary writable HDT names,
+        # so a later step or a condition composes on them the same way it does
+        # on anything else.
+        @{ HDTName = 'HDTTargetDisk'; MdtName = 'OSDDiskIndex'; Origin = 'step'
+            Description = 'Number of the disk DiskPartition cleared and repartitioned.'
+        }
+        @{ HDTName = 'HDTSystemVolume'; MdtName = 'BootVolume'; Origin = 'step'
+            Description = 'Drive letter of the EFI System or System Reserved partition, where the boot files are written.'
+        }
+        @{ HDTName = 'HDTOSVolume'; MdtName = 'OSVolume'; Origin = 'step'
+            Description = 'Drive letter of the Windows partition; ApplyImage applies to it and ApplyUnattend stages beneath it.'
+        }
+        @{ HDTName = 'HDTRecoveryVolume'; MdtName = 'RecoveryVolume'; Origin = 'step'
+            Description = 'Drive letter of the recovery partition, or empty for a layout that declares none.'
+        }
+        @{ HDTName = 'HDTImageIndex'; MdtName = $null; Origin = 'step'
+            Description = 'Index ApplyImage resolved and applied, whether the sequence asked by number, name or edition.'
+        }
+        @{ HDTName = 'HDTUnattendPath'; MdtName = $null; Origin = 'step'
+            Description = 'Full path of the staged unattend, which is Windows\Panther\unattend.xml on the OS volume.'
+        }
+
         # -- engine variables (DESIGN 4.4.1) - never writable -----------------
         @{ HDTName = '_HDTLogPath'; MdtName = '_SMSTSLogPath'; Origin = 'engine'
             Description = 'Current log directory; it moves with the phase and every log is written there.'
