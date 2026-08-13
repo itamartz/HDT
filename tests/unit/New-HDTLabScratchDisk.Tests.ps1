@@ -13,8 +13,16 @@ BeforeAll {
     # This host's own disk, as tests/fixtures/disk/host-nvme-disk.json captured
     # it: IsBoot and IsSystem both true. Read off the fixture rather than
     # retyped, so the shape cannot drift from the real projection.
-    $script:hostDisk = @(Get-Content -LiteralPath (Join-Path -Path $script:repoRoot `
-                -ChildPath 'tests/fixtures/disk/host-nvme-disk.json') -Raw | ConvertFrom-Json)[0]
+    #
+    # ASSIGNED FIRST, WRAPPED SECOND (helpers README F12). Under Windows
+    # PowerShell 5.1 ConvertFrom-Json does not enumerate a top-level array, so
+    # @(ConvertFrom-Json ...)[0] is THE WHOLE ARRAY rather than the first row -
+    # and an Object[] has no IsBoot property, so the guard saw nothing to refuse
+    # and these tests passed under pwsh 7 while failing under 5.1. Caught by the
+    # dual-engine run, which is exactly what it is for.
+    $captured = ConvertFrom-Json ([System.IO.File]::ReadAllText((Join-Path -Path $script:repoRoot `
+                    -ChildPath 'tests/fixtures/disk/host-nvme-disk.json')))
+    $script:hostDisk = @($captured)[0]
 
     $script:scratchRow = [pscustomobject] @{
         Number = 3; FriendlyName = 'Msft Virtual Disk'; SerialNumber = 'FIXTURE-SERIAL-0002'

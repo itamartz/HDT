@@ -251,8 +251,10 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
             # to filter on. The RAW 64 GB row is captured by
             # Deployment.E2E.Tests.ps1, through IDiskService, a moment before
             # the deployment repartitions it.
-            $fixture = @(ConvertFrom-Json ([System.IO.File]::ReadAllText(
-                        (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/disk/gen2-vm-raw-disk.json'))))[0]
+            # Assigned first, wrapped second (helpers README F12).
+            $captured = ConvertFrom-Json ([System.IO.File]::ReadAllText(
+                    (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/disk/gen2-vm-raw-disk.json')))
+            $fixture = @($captured)[0]
 
             $captured = @($script:probe.disk)[0]
 

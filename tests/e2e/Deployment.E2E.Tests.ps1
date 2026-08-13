@@ -580,8 +580,10 @@ Describe 'the engine ran the deployment' -Tag 'E2E' -Skip:$skipDeployment {
         $disk0[0].IsBoot | Should -BeFalse
         $disk0[0].IsSystem | Should -BeFalse
 
-        $fixture = @(ConvertFrom-Json ([System.IO.File]::ReadAllText(
-                    (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/disk/gen2-vm-raw-disk.json'))))[0]
+        # Assigned first, wrapped second (helpers README F12).
+        $capturedFixture = ConvertFrom-Json ([System.IO.File]::ReadAllText(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/disk/gen2-vm-raw-disk.json')))
+        $fixture = @($capturedFixture)[0]
 
         $disk0[0].BusType | Should -BeExactly ([string] $fixture.BusType)
         $disk0[0].PartitionStyle | Should -BeExactly ([string] $fixture.PartitionStyle)
