@@ -11,6 +11,32 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+
+    # Held in a variable rather than written inline at every call site:
+    # PSAvoidUsingComputerNameHardcoded is an Error, and it fires on a string
+    # literal bound to -ComputerName even inside a test.
+    $script:machine = 'PC-0001'
+    $script:copyRoot = '\\share\Logs\PC-0001-8f3c1a90'
+
+    # An IFileSystem whose CopyItem always fails - what a share that has gone away
+    # looks like from a machine that failed early. Everything else delegates to
+    # the fake it wraps, so the warning the failure provokes is still written.
+    $script:newBroken = {
+        param($Inner)
+
+        $broken = [pscustomobject] @{ Inner = $Inner }
+        $broken | Add-Member -MemberType ScriptMethod -Name TestPath -Value { param([string] $Path) return $this.Inner.TestPath($Path) }
+        $broken | Add-Member -MemberType ScriptMethod -Name GetChildItem -Value { param([string] $Path) return , ([string[]] @($this.Inner.GetChildItem($Path))) }
+        $broken | Add-Member -MemberType ScriptMethod -Name GetLength -Value { param([string] $Path) return $this.Inner.GetLength($Path) }
+        $broken | Add-Member -MemberType ScriptMethod -Name CreateDirectory -Value { param([string] $Path) $this.Inner.CreateDirectory($Path) }
+        $broken | Add-Member -MemberType ScriptMethod -Name AppendAllText -Value { param([string] $Path, [string] $Content) $this.Inner.AppendAllText($Path, $Content) }
+        $broken | Add-Member -MemberType ScriptMethod -Name CopyItem -Value {
+            param([string] $Source, [string] $Destination)
+            throw (New-Object -TypeName System.IO.IOException -ArgumentList ("The network path was not found: '$Source' to '$Destination'."))
+        }
+
+        return $broken
+    }
 }
 
 Describe 'Copy-HDTLog' {
@@ -30,37 +56,35 @@ Describe 'Copy-HDTLog' {
             -FileSystem $script:fs -Clock $script:clock
     }
 
-    It 'copies into <Destination>\<ComputerName>-<RunId>' {
-        $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName 'PC-0001'
+    It 'copies into a directory named for the computer and the run id' {
+        $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine
 
-        $result | Should -BeExactly '\\share\Logs\PC-0001-8f3c1a90'
+        $result | Should -BeExactly $script:copyRoot
     }
 
     It 'returns the directory it copied into' {
-        $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName 'PC-0001'
+        $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine
 
         $script:fs.TestPath($result) | Should -BeTrue
     }
 
     It 'copies every file under the log path' {
-        Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName 'PC-0001' | Out-Null
+        Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine | Out-Null
 
-        $root = '\\share\Logs\PC-0001-8f3c1a90'
-        $script:fs.ReadAllText((Join-Path -Path $root -ChildPath 'HDT.log')) | Should -BeExactly 'master'
-        $script:fs.ReadAllText((Join-Path -Path $root -ChildPath 'HDT.jsonl')) | Should -BeExactly "{`"seq`":1}`n"
-        $script:fs.ReadAllText((Join-Path -Path $root -ChildPath 'status.json')) | Should -BeExactly '{"status":"Failed"}'
+        $script:fs.ReadAllText((Join-Path -Path $script:copyRoot -ChildPath 'HDT.log')) | Should -BeExactly 'master'
+        $script:fs.ReadAllText((Join-Path -Path $script:copyRoot -ChildPath 'HDT.jsonl')) | Should -BeExactly "{`"seq`":1}`n"
+        $script:fs.ReadAllText((Join-Path -Path $script:copyRoot -ChildPath 'status.json')) | Should -BeExactly '{"status":"Failed"}'
     }
 
     It 'preserves the directory structure under the log path' {
-        Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName 'PC-0001' | Out-Null
+        Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine | Out-Null
 
-        $root = '\\share\Logs\PC-0001-8f3c1a90'
-        $script:fs.ReadAllText((Join-Path -Path $root -ChildPath 'Steps\001-Validate.log')) | Should -BeExactly 'validate'
-        $script:fs.ReadAllText((Join-Path -Path $root -ChildPath 'Gather\facts.json')) | Should -BeExactly '{"schemaVersion":1}'
+        $script:fs.ReadAllText((Join-Path -Path $script:copyRoot -ChildPath 'Steps\001-Validate.log')) | Should -BeExactly 'validate'
+        $script:fs.ReadAllText((Join-Path -Path $script:copyRoot -ChildPath 'Gather\facts.json')) | Should -BeExactly '{"schemaVersion":1}'
     }
 
     It 'copies through the injected filesystem' {
-        Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName 'PC-0001' | Out-Null
+        Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine | Out-Null
 
         @($script:fs.Operations | Where-Object { $_.Operation -eq 'CopyItem' }).Count | Should -Be 5
     }
@@ -70,62 +94,40 @@ Describe 'Copy-HDTLog' {
         $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
             -FileSystem $empty -Clock $script:clock
 
-        Copy-HDTLog -Context $context -Destination '\\share\Logs' -ComputerName 'PC-0001' | Out-Null
+        Copy-HDTLog -Context $context -Destination '\\share\Logs' -ComputerName $script:machine | Out-Null
 
         @($empty.Operations | Where-Object { $_.Operation -eq 'CopyItem' }).Count | Should -Be 0
     }
 
     It 'does not throw when the destination is unreachable' {
-        # A share that is gone is the normal case for a machine that failed early.
-        # The copy warns and returns nothing; it never masks the original failure.
-        $broken = [pscustomobject] @{ Inner = $script:fs }
-        $broken | Add-Member -MemberType ScriptMethod -Name TestPath -Value { param([string] $Path) return $this.Inner.TestPath($Path) }
-        $broken | Add-Member -MemberType ScriptMethod -Name GetChildItem -Value { param([string] $Path) return , ([string[]] @($this.Inner.GetChildItem($Path))) }
-        $broken | Add-Member -MemberType ScriptMethod -Name GetLength -Value { param([string] $Path) return $this.Inner.GetLength($Path) }
-        $broken | Add-Member -MemberType ScriptMethod -Name CreateDirectory -Value { param([string] $Path) $this.Inner.CreateDirectory($Path) }
-        $broken | Add-Member -MemberType ScriptMethod -Name AppendAllText -Value { param([string] $Path, [string] $Content) $this.Inner.AppendAllText($Path, $Content) }
-        $broken | Add-Member -MemberType ScriptMethod -Name CopyItem -Value {
-            param([string] $Source, [string] $Destination)
-            throw (New-Object -TypeName System.IO.IOException -ArgumentList 'The network path was not found.')
-        }
-
         $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
-            -FileSystem $broken -Clock $script:clock
+            -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
 
-        $result = $null
-        { $result = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName 'PC-0001' } |
+        $script:copyResult = 'unset'
+        { $script:copyResult = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine } |
             Should -Not -Throw
 
-        $result | Should -BeNullOrEmpty
+        $script:copyResult | Should -BeNullOrEmpty
     }
 
     It 'warns into the log when the destination is unreachable' {
-        $broken = [pscustomobject] @{ Inner = $script:fs }
-        $broken | Add-Member -MemberType ScriptMethod -Name TestPath -Value { param([string] $Path) return $this.Inner.TestPath($Path) }
-        $broken | Add-Member -MemberType ScriptMethod -Name GetChildItem -Value { param([string] $Path) return , ([string[]] @($this.Inner.GetChildItem($Path))) }
-        $broken | Add-Member -MemberType ScriptMethod -Name GetLength -Value { param([string] $Path) return $this.Inner.GetLength($Path) }
-        $broken | Add-Member -MemberType ScriptMethod -Name CreateDirectory -Value { param([string] $Path) $this.Inner.CreateDirectory($Path) }
-        $broken | Add-Member -MemberType ScriptMethod -Name AppendAllText -Value { param([string] $Path, [string] $Content) $this.Inner.AppendAllText($Path, $Content) }
-        $broken | Add-Member -MemberType ScriptMethod -Name CopyItem -Value {
-            param([string] $Source, [string] $Destination)
-            throw (New-Object -TypeName System.IO.IOException -ArgumentList 'The network path was not found.')
-        }
-
         $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
-            -FileSystem $broken -Clock $script:clock
+            -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
 
-        Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName 'PC-0001' | Out-Null
+        Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine | Out-Null
 
         $line = @($script:fs.ReadAllText('X:\HDT\Logs\HDT.jsonl') -split "`n" | Where-Object { $_ })
+        # The seeded first line has no level property, and the suite runs under
+        # Set-StrictMode -Version Latest, where reading an absent property throws.
         $warning = @($line | ForEach-Object { ConvertFrom-Json -InputObject $_ } |
-                Where-Object { $_.level -eq 'Warning' })
+                Where-Object { @($_.PSObject.Properties.Name) -contains 'level' -and $_.level -eq 'Warning' })
 
         $warning.Count | Should -BeGreaterThan 0
-        $warning[0].message | Should -BeLike '*\\gone\Logs*'
+        $warning[0].message.Contains('\\gone\Logs') | Should -BeTrue
     }
 
     It 'never touches the real filesystem' {
-        Copy-HDTLog -Context $script:context -Destination 'C:\HDTLab\does-not-exist\Logs' -ComputerName 'PC-0001' | Out-Null
+        Copy-HDTLog -Context $script:context -Destination 'C:\HDTLab\does-not-exist\Logs' -ComputerName $script:machine | Out-Null
 
         Test-Path -LiteralPath 'C:\HDTLab\does-not-exist' | Should -BeFalse
     }

@@ -70,7 +70,7 @@ Describe 'Export-HDTMachineFact' {
 
         $document = ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:factsPath))
 
-        $script:fs.ReadAllText($script:factsPath) | Should -BeLike '*"HDTMacAddress":*[*'
+        $script:fs.ReadAllText($script:factsPath) | Should -Match '"HDTMacAddress":\s*\['
         @($document.fact.HDTMacAddress).Count | Should -Be 2
         @($document.fact.HDTMacAddress) | Should -Be @('00:15:5D:01:02:03', '00:15:5D:01:02:04')
     }
@@ -99,7 +99,7 @@ Describe 'Export-HDTMachineFact' {
         Export-HDTMachineFact -Fact ([ordered] @{}) -Path $script:factsPath -FileSystem $script:fs -Timestamp $script:stamp
 
         $document = ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:factsPath))
-        @($document.fact.PSObject.Properties.Name).Count | Should -Be 0
+        @($document.fact.PSObject.Properties).Count | Should -Be 0
     }
 
     It 'supports ShouldProcess' {

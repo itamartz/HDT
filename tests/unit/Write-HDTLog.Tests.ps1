@@ -291,7 +291,10 @@ Describe 'Write-HDTLog' {
         It 'writes the message into the CMTrace line' {
             Write-HDTLog -Context $script:context -Message 'Applied index 1 to W:\ in 95s'
 
-            $script:fs.ReadAllText($script:masterPath) | Should -BeLike '<![LOG[Applied index 1 to W:\ in 95s]LOG]!>*'
+            # StartsWith, not -BeLike: '[' opens a character class in a wildcard
+            # pattern, and this format is made of square brackets.
+            $script:fs.ReadAllText($script:masterPath).StartsWith('<![LOG[Applied index 1 to W:\ in 95s]LOG]!>') |
+                Should -BeTrue
         }
 
         It 'maps the severity <Severity> to the CMTrace type <Type>' -ForEach @(
@@ -313,20 +316,21 @@ Describe 'Write-HDTLog' {
         It 'defaults the file to Engine when no step is running' {
             Write-HDTLog -Context $script:context -Message 'x'
 
-            $script:fs.ReadAllText($script:masterPath) | Should -BeLike '*file="Engine">'
+            # TrimEnd: the writer leaves the line terminator on the file.
+            $script:fs.ReadAllText($script:masterPath).TrimEnd("`n") | Should -BeLike '*file="Engine">'
         }
 
         It 'defaults the file to the step type when a step is running' {
             $script:context.SetStep(3, 'Apply OS', 'ApplyImage', $null)
             Write-HDTLog -Context $script:context -Message 'x'
 
-            $script:fs.ReadAllText($script:masterPath) | Should -BeLike '*file="ApplyImage">'
+            $script:fs.ReadAllText($script:masterPath).TrimEnd("`n") | Should -BeLike '*file="ApplyImage">'
         }
 
         It 'writes the source it was given as the file' {
             Write-HDTLog -Context $script:context -Message 'x' -Source 'Update-VendorBios.ps1'
 
-            $script:fs.ReadAllText($script:masterPath) | Should -BeLike '*file="Update-VendorBios.ps1">'
+            $script:fs.ReadAllText($script:masterPath).TrimEnd("`n") | Should -BeLike '*file="Update-VendorBios.ps1">'
         }
     }
 
@@ -337,8 +341,8 @@ Describe 'Write-HDTLog' {
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
             $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText', 'AppendAllText')
-            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log') |
-                Should -BeLike '<![LOG[Applied index 1]LOG]!>*'
+            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log').StartsWith('<![LOG[Applied index 1]LOG]!>') |
+                Should -BeTrue
         }
 
         It 'writes the same line to the step log and the master log' {

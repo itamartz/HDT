@@ -21,7 +21,9 @@ Describe 'ConvertTo-HDTCmTraceLine' {
                 -Severity 'Info' -Timestamp $Stamp -ThreadId 4820 -File 'Invoke-HDTApplyImage.ps1'
         }
 
-        $line | Should -BeLike '<![LOG[Applied index 1 to W:\ in 95s]LOG]!><*'
+        # StartsWith, not -BeLike: '[' opens a character class in a wildcard
+        # pattern, and this format is made of square brackets.
+        $line.StartsWith('<![LOG[Applied index 1 to W:\ in 95s]LOG]!><') | Should -BeTrue
     }
 
     It 'emits the exact DESIGN 4.4.2 line' {
@@ -88,7 +90,7 @@ Describe 'ConvertTo-HDTCmTraceLine' {
                 -Severity 'Error' -Timestamp $Stamp -ThreadId 1 -File 'a.ps1'
         }
 
-        $line | Should -BeLike '<![LOG[first second]LOG]!>*'
+        $line.StartsWith('<![LOG[first second]LOG]!>') | Should -BeTrue
     }
 
     It 'emits the whole line in the invariant culture' {

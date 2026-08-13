@@ -13,7 +13,10 @@
 
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
+        'Copy-HDTLog',
+        'Export-HDTMachineFact',
         'Export-HDTVariableProvenance',
+        'Get-HDTLogPath',
         'Get-HDTMachineFact',
         'Get-HDTMachineOverride',
         'Get-HDTModuleVersion',
@@ -24,9 +27,13 @@
         'New-HDTClock',
         'New-HDTEnvironmentProvider',
         'New-HDTFileSystem',
+        'New-HDTLogContext',
         'New-HDTRegistryService',
         'New-HDTScriptInvoker',
-        'Resolve-HDTVariable'
+        'Resolve-HDTVariable',
+        'Write-HDTLog',
+        'Write-HDTStatus',
+        'Write-HDTVariableLog'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
