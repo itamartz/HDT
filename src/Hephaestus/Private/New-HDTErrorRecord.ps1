@@ -43,6 +43,12 @@ function New-HDTErrorRecord {
             The error id. Defaults to HDTConfigurationError; the dependency gate
             in ConvertFrom-HDTYaml uses HDTDependencyError.
 
+        .PARAMETER TargetObject
+            The thing at fault, when it is not a file. DESIGN 9.1's refusals are
+            about a DISK, so Select-HDTTargetDisk carries the disk number here
+            and a console recovers it without parsing prose. Supplied, it wins
+            over -Path; omitted, -Path is still the target.
+
         .PARAMETER Category
             The ErrorCategory. Defaults to InvalidData.
 
@@ -79,6 +85,10 @@ function New-HDTErrorRecord {
         [string] $ErrorId = 'HDTConfigurationError',
 
         [Parameter()]
+        [AllowNull()]
+        [object] $TargetObject,
+
+        [Parameter()]
         [System.Management.Automation.ErrorCategory] $Category = [System.Management.Automation.ErrorCategory]::InvalidData,
 
         [Parameter()]
@@ -104,7 +114,9 @@ function New-HDTErrorRecord {
     }
 
     $target = $null
-    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+    if ($PSBoundParameters.ContainsKey('TargetObject')) {
+        $target = $TargetObject
+    } elseif (-not [string]::IsNullOrWhiteSpace($Path)) {
         $target = $Path
     }
 

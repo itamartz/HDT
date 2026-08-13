@@ -64,6 +64,7 @@
         'New-HDTStepResult',
         'Resolve-HDTVariable',
         'Save-HDTRunState',
+        'Select-HDTTargetDisk',
         'Set-HDTAutoLogon',
         'Test-HDTRunStateAbandoned',
         'Test-HDTPowerShellStepApplicable',

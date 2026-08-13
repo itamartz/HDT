@@ -16,9 +16,20 @@ function Get-HDTFailureClass {
 
               a timeout                                            Environment
               FullyQualifiedErrorId starting HDTConfigurationError  Configuration
+              one of the DESIGN 9.1 refusal ids                     Configuration
               System.IO.*, Win32Exception, TimeoutException         Environment
               anything else, including a Failed result with an
               exit code and no exception at all                     Transient
+
+            THE REFUSAL IDS ARE A NAMED LIST, NOT A WILDCARD. DESIGN 9.1's
+            refusal to guess which disk to wipe, and 9.2's refusal to guess
+            which image index to apply, are bad authoring rather than bad luck -
+            a refusal that got retried three times would spend a deployment's
+            time proving the same point twice more. They carry their own ids
+            rather than HDTConfigurationError so a log reader can tell a wipe
+            refusal from a malformed YAML file. Matching 'HDT*Error' instead
+            would silently swallow every id a later phase invents, including
+            ones that really are transient.
 
             A CONFIGURATION FAILURE IS NEVER RETRIED by the caller. Retrying bad
             authoring spends a deployment's time three times over and buries the
@@ -76,9 +87,22 @@ function Get-HDTFailureClass {
         return 'Transient'
     }
 
+    # DESIGN 9.1 and 9.2's refusals. Named, never a wildcard.
+    $configurationErrorId = @(
+        'HDTConfigurationError',
+        'HDTAmbiguousTargetError',
+        'HDTUnsafeTargetError',
+        'HDTNoTargetDiskError',
+        'HDTAmbiguousImageError'
+    )
+
     $exception = $ErrorRecord
     if ($ErrorRecord -is [System.Management.Automation.ErrorRecord]) {
-        if ([string] $ErrorRecord.FullyQualifiedErrorId -like 'HDTConfigurationError*') {
+        # The id is "<ErrorId>,<FunctionName>", so the comparison is against the
+        # part before the first comma rather than the whole string.
+        $errorId = ([string] $ErrorRecord.FullyQualifiedErrorId).Split(',')[0]
+
+        if ($configurationErrorId -contains $errorId) {
             return 'Configuration'
         }
 
