@@ -597,6 +597,14 @@ class HDTFakeRegistryService {
     # case-insensitive, matching registry semantics.
     [hashtable] $Key
 
+    # The same shape again, holding the New-ItemProperty -PropertyType name each
+    # value was written with. Kept beside the values rather than boxed with them
+    # so GetValue stays exactly what it was before the write half arrived.
+    [hashtable] $ValueTypeName
+
+    # The registry's value types, as New-ItemProperty -PropertyType names.
+    [string[]] $KnownValueType
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -610,8 +618,10 @@ class HDTFakeRegistryService {
 
     HDTFakeRegistryService() {
         $this.Key = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.ValueTypeName = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'RegistryService'
+        $this.KnownValueType = @('String', 'ExpandString', 'DWord', 'QWord', 'Binary', 'MultiString')
     }
 
     # -- recording ---------------------------------------------------------
@@ -700,6 +710,91 @@ class HDTFakeRegistryService {
         }
 
         return $this.Key[$full][$Name]
+    }
+
+    # -- IRegistryService, write half (03-03, DESIGN 4.5) ------------------
+    #
+    # All four record. Removing something that is not there is deliberately not
+    # an error: DESIGN 4.5.3's teardown runs on machines in unknown states, and a
+    # teardown that throws on the first absent value is one that does not finish.
+
+    [void] NewKey([string] $Path) {
+        $this.Record('NewKey', @($Path))
+        $this.SeedKey($Path)
+    }
+
+    [void] SetValue([string] $Path, [string] $Name, [object] $Value, [string] $Type) {
+        # Recorded before it can throw: query order is evidence about what the
+        # code under test tried, not only about what succeeded.
+        $this.Record('SetValue', @($Path, $Name, $Value, $Type))
+
+        if ($this.KnownValueType -notcontains $Type) {
+            throw [System.ArgumentException]::new(
+                ("'{0}' is not a registry value type. Expected one of: {1}." -f $Type, ($this.KnownValueType -join ', ')),
+                'Type')
+        }
+
+        # New-ItemProperty fails on a key that does not exist, so the real
+        # adapter creates it first and this must not be more forgiving.
+        $this.SeedKey($Path)
+        $this.SeedValue($Path, $Name, $Value)
+
+        $full = $this.Normalize($Path)
+        if (-not $this.ValueTypeName.ContainsKey($full)) {
+            $this.ValueTypeName[$full] = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        }
+        $this.ValueTypeName[$full][$Name] = $Type
+    }
+
+    [void] RemoveValue([string] $Path, [string] $Name) {
+        $this.Record('RemoveValue', @($Path, $Name))
+        $full = $this.Normalize($Path)
+
+        if ($this.Key.ContainsKey($full)) {
+            $this.Key[$full].Remove($Name)
+        }
+        if ($this.ValueTypeName.ContainsKey($full)) {
+            $this.ValueTypeName[$full].Remove($Name)
+        }
+    }
+
+    [void] RemoveKey([string] $Path, [bool] $Recurse) {
+        $this.Record('RemoveKey', @($Path, $Recurse))
+        $full = $this.Normalize($Path)
+
+        $prefix = $full + '\'
+        $child = @($this.Key.Keys | Where-Object { $_.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase) })
+
+        if ($child.Count -gt 0 -and -not $Recurse) {
+            throw [System.InvalidOperationException]::new(
+                ("The registry key '{0}' has {1} child key(s) and Recurse was not requested." -f $Path, $child.Count))
+        }
+
+        foreach ($key in $child) {
+            $this.Key.Remove($key)
+            $this.ValueTypeName.Remove($key)
+        }
+
+        $this.Key.Remove($full)
+        $this.ValueTypeName.Remove($full)
+    }
+
+    # -- inspection, for assertions only (never recorded) ------------------
+
+    # Not part of IRegistryService: it exists so a test can prove
+    # AutoLogonCount was written as a DWord rather than as the string '3',
+    # which Winlogon would ignore. Returns $null when the value is not there.
+    [string] GetValueType([string] $Path, [string] $Name) {
+        $full = $this.Normalize($Path)
+
+        if (-not $this.ValueTypeName.ContainsKey($full)) {
+            return $null
+        }
+        if (-not $this.ValueTypeName[$full].ContainsKey($Name)) {
+            return $null
+        }
+
+        return $this.ValueTypeName[$full][$Name]
     }
 }
 
@@ -793,6 +888,271 @@ function New-HDTFakeRegistryService {
                 $fake.SeedValue([string] $path, [string] $name, $entry[$name])
             }
         }
+    }
+
+    return $fake
+}
+
+class HDTFakeLsaService {
+
+    # Secret name -> value. Case-insensitive: LSA private data names are.
+    [hashtable] $Secret
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null.
+    [System.Collections.ArrayList] $Journal
+
+    [string] $ServiceName
+
+    HDTFakeLsaService() {
+        $this.Secret = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'LsaService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding (never recorded) ------------------------------------------
+
+    [void] SeedSecret([string] $Name, [string] $Value) {
+        $this.Secret[$Name] = $Value
+    }
+
+    # -- ILsaService -------------------------------------------------------
+
+    [void] SetSecret([string] $Name, [string] $Value) {
+        # The NAME is recorded and the VALUE is not. $Operations is printed
+        # verbatim in a Pester failure message, and the one secret HDT holds
+        # (DESIGN 4.5.2) does not belong in a test report any more than it
+        # belongs in the registry.
+        $this.Record('SetSecret', @($Name, '<redacted>'))
+        $this.Secret[$Name] = $Value
+    }
+
+    [string] GetSecret([string] $Name) {
+        $this.Record('GetSecret', @($Name))
+
+        if (-not $this.Secret.ContainsKey($Name)) {
+            return $null
+        }
+
+        return $this.Secret[$Name]
+    }
+
+    [void] RemoveSecret([string] $Name) {
+        $this.Record('RemoveSecret', @($Name))
+
+        # Idempotent: DESIGN 4.5.3 teardown runs on machines in unknown states.
+        $this.Secret.Remove($Name)
+    }
+}
+
+function New-HDTFakeLsaService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory ILsaService that records every call and never
+            touches real LSA private data.
+
+        .DESCRIPTION
+            The double behind every autologon test (DESIGN 4.5.2: the deployment
+            password is stored as an LSA secret named DefaultPassword, not as
+            registry cleartext).
+
+            Three methods - SetSecret, GetSecret, RemoveSecret. GetSecret returns
+            $null for a name that was never set and RemoveSecret is idempotent,
+            because DESIGN 4.5.3's teardown runs on machines in unknown states.
+
+            Two properties make it safe to lean on:
+
+            - It never reads or writes the host's real secrets. This machine may
+              genuinely carry a DefaultPassword LSA secret - SPIKES.md S7's test
+              machine did - and a fake that fell through to it would make every
+              test above it a lie.
+            - SetSecret records the secret NAME and the literal '<redacted>' in
+              place of the value. $Operations is printed verbatim when an
+              assertion fails.
+
+        .PARAMETER Secret
+            Seed secrets. Keys are secret names, values are the secret strings.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeLsaService. Never write the class name as a type literal in a
+            test - use this factory.
+
+        .EXAMPLE
+            $lsa = New-HDTFakeLsaService -Secret @{ DefaultPassword = 'Sw0rdfish!' }
+            $lsa.GetSecret('DefaultPassword')
+
+            The armed machine, without arming anything.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Secret,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeLsaService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Secret')) {
+        foreach ($name in @($Secret.Keys)) {
+            $fake.SeedSecret([string] $name, [string] $Secret[$name])
+        }
+    }
+
+    return $fake
+}
+
+class HDTFakeRandomNumberGenerator {
+
+    # The byte stream handed out by GetBytes, in order, wrapping when exhausted.
+    [byte[]] $Byte
+
+    # How far into $Byte the next call starts.
+    [int] $Position
+
+    [System.Collections.ArrayList] $Operations
+
+    [System.Collections.ArrayList] $Journal
+
+    [string] $ServiceName
+
+    HDTFakeRandomNumberGenerator() {
+        $this.Byte = [byte[]] @(0)
+        $this.Position = 0
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'RandomNumberGenerator'
+    }
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    [void] SeedByte([byte[]] $Value) {
+        $this.Byte = $Value
+        $this.Position = 0
+    }
+
+    # The one method of System.Security.Cryptography.RandomNumberGenerator that
+    # New-HDTDeploymentPassword uses. The COUNT is recorded, not the bytes: a
+    # test asserts that bytes are drawn one at a time, which is what makes
+    # rejection sampling cost exactly one byte per rejection.
+    [void] GetBytes([byte[]] $Buffer) {
+        $this.Record('GetBytes', @($Buffer.Length))
+
+        for ($index = 0; $index -lt $Buffer.Length; $index++) {
+            $Buffer[$index] = $this.Byte[$this.Position % $this.Byte.Length]
+            $this.Position++
+        }
+    }
+}
+
+function New-HDTFakeRandomNumberGenerator {
+    <#
+        .SYNOPSIS
+            Creates a deterministic stand-in for
+            System.Security.Cryptography.RandomNumberGenerator.
+
+        .DESCRIPTION
+            New-HDTDeploymentPassword takes its randomness as a parameter, so the
+            mapping from bytes to characters is testable: the same byte stream
+            twice must yield the same password, and a byte in the rejection
+            window must be discarded rather than folded with a modulo that would
+            bias the low end of the alphabet.
+
+            It doubles a .NET type rather than an HDT service, but it follows the
+            same conventions as every other fake - a New-HDTFake* factory,
+            $Operations, GetOperationName(), -Journal and a ServiceName - so
+            there is one shape to copy and no second one.
+
+            GetBytes fills the caller's buffer from -Byte in order, wrapping when
+            the stream is exhausted. Seed a stream long enough that it does not
+            wrap when the test cares about the exact output.
+
+        .PARAMETER Byte
+            The byte stream to hand out. Defaults to a single zero byte.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal.
+
+        .OUTPUTS
+            HDTFakeRandomNumberGenerator. Use this factory, never the class name
+            as a type literal.
+
+        .EXAMPLE
+            $rng = New-HDTFakeRandomNumberGenerator -Byte ([byte[]] (0..255))
+            New-HDTDeploymentPassword -RandomNumberGenerator $rng
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [byte[]] $Byte,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeRandomNumberGenerator]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Byte')) {
+        $fake.SeedByte($Byte)
     }
 
     return $fake
@@ -1588,8 +1948,10 @@ Export-ModuleMember -Function @(
     'New-HDTFakeClock',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',
+    'New-HDTFakeLsaService',
     'New-HDTFakePowerService',
     'New-HDTFakeProcessService',
+    'New-HDTFakeRandomNumberGenerator',
     'New-HDTFakeRegistryService',
     'New-HDTFakeScriptInvoker'
 )

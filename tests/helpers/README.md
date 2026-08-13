@@ -22,11 +22,55 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeFileSystem` | `IFileSystem` | `New-HDTFileSystem` | `-File`, `-Directory` |
 | `New-HDTFakeClock` | `IClock` | `New-HDTClock` | `-UtcNow`, `-TickMillisecond` |
 | `New-HDTFakeCimProvider` | `ICimProvider` | `New-HDTCimProvider` | `-Instance`, `-FixturePath`, `-NamespaceFixturePath` |
-| `New-HDTFakeRegistryService` | `IRegistryService` (read subset; phase 03 adds the writes) | `New-HDTRegistryService` | `-Value` |
+| `New-HDTFakeRegistryService` | `IRegistryService` | `New-HDTRegistryService` | `-Value` |
 | `New-HDTFakeEnvironmentProvider` | `IEnvironmentProvider` | `New-HDTEnvironmentProvider` | `-Variable` |
 | `New-HDTFakeScriptInvoker` | `IScriptInvoker` | `New-HDTScriptInvoker -Root` | `-Result`, `-Transcript` |
 | `New-HDTFakeProcessService` | `IProcessService` | `New-HDTProcessService` | `-Result` |
 | `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Command` | nothing |
+| `New-HDTFakeLsaService` | `ILsaService` | `New-HDTLsaService` | `-Secret` |
+| `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
+
+`IRegistryService` is six methods. `TestPath` and `GetValue` are the read subset
+fact gathering needs; `NewKey`, `SetValue(path, name, value, type)`,
+`RemoveValue` and `RemoveKey(path, recurse)` are the write half the autologon
+lifecycle of DESIGN 4.5 runs on. `$type` is a `New-ItemProperty -PropertyType`
+name — `String`, `ExpandString`, `DWord`, `QWord`, `Binary`, `MultiString`.
+
+**Removing a value or key that is not there is not an error.** DESIGN 4.5.3's
+teardown runs on machines in unknown states, and a teardown that throws on the
+first absent value is a teardown that does not finish. `SetValue` creates the key
+implicitly, because `New-ItemProperty` fails on a key that does not exist.
+
+The fake's **seeding** methods are `SeedValue(path, name, value)` and
+`SeedKey(path)` — renamed from `SetValue`/`AddKey` in 03-03 so the recorded
+interface method could take the name it has in the contract. It also carries
+`GetValueType(path, name)`, which is **not** part of `IRegistryService`: it is an
+inspection helper so a test can prove `AutoLogonCount` was written as a `DWord`
+rather than as the string `'3'`, which Winlogon would ignore. Like seeding, it
+does not record.
+
+`ILsaService` is three methods: `SetSecret(name, value)`, `GetSecret(name)`
+returning `$null` for a name that was never set, and an idempotent
+`RemoveSecret(name)`. The only secret HDT writes is `DefaultPassword`, with no
+`L$`/`M$` prefix — the name Winlogon reads and the one Sysinternals'
+`Autologon.exe` writes (DESIGN 4.5.2, proven against a real machine in
+SPIKES.md S8).
+
+**The real row of `LsaService.Contract.Tests.ps1` is opt-in and read-only.** It
+runs only when the session is elevated **and** `$env:HDT_ALLOW_LSA_TEST -eq '1'`,
+prints a warning naming both conditions when it does not, and even then only
+calls `GetSecret` on a name that cannot exist. **The suite never writes an LSA
+secret on anyone's machine.** For the same reason the real `IRegistryService` row
+writes only under `HKCU:\Software\HDT-Contract-Test-<guid>`, which it removes in
+`AfterAll`; `HKLM` is never written by the suite.
+
+`New-HDTFakeRandomNumberGenerator` doubles a .NET type rather than an HDT
+service, so it has no real adapter row — but it follows every other convention
+(factory, `$Operations`, `GetOperationName()`, `-Journal`, `ServiceName`) so
+there is one shape to copy and no second one. It exists because
+`New-HDTDeploymentPassword` takes its randomness as a parameter: that is what
+makes "the same byte stream twice yields the same password" and "a byte in the
+rejection window is discarded, not folded" testable at all.
 
 `IFileSystem` is nine methods: `TestPath`, `ReadAllText`, `WriteAllText`,
 `AppendAllText`, `CreateDirectory`, `RemoveItem`, `CopyItem`, `GetChildItem`,
@@ -123,6 +167,12 @@ Rules:
 - **Seeding is not an operation.** Anything the factory or an `Add*`/`Seed*`
   method does is invisible to `$Operations`, so the first recorded call is the
   first thing the code under test did.
+- **One exception to "the arguments, verbatim": a secret value is redacted.**
+  `ILsaService.SetSecret` records `@($Name, '<redacted>')` on both the fake and
+  the real adapter. `$Operations` is printed verbatim in a Pester failure
+  message, and DESIGN 4.5.2's whole point is that the deployment password does
+  not sit in plaintext anywhere it does not have to. A contract test asserts the
+  value is absent from the recording.
 
 ### The shared journal
 

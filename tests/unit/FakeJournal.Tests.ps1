@@ -68,6 +68,22 @@ $script:HDTJournalledFake = @(
         Argument  = @(0)
     }
     @{
+        Name      = 'LsaService'
+        Service   = 'LsaService'
+        Factory   = { param($Journal) New-HDTFakeLsaService -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.GetSecret('DefaultPassword') }
+        Operation = 'GetSecret'
+        Argument  = @('DefaultPassword')
+    }
+    @{
+        Name      = 'RandomNumberGenerator'
+        Service   = 'RandomNumberGenerator'
+        Factory   = { param($Journal) New-HDTFakeRandomNumberGenerator -Byte ([byte[]] @(1, 2, 3)) -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.GetBytes((New-Object -TypeName 'System.Byte[]' -ArgumentList 1)) }
+        Operation = 'GetBytes'
+        Argument  = @(1)
+    }
+    @{
         Name      = 'Clock'
         Service   = 'Clock'
         Factory   = { param($Journal) New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 0, 0, [System.DateTimeKind]::Utc)) -Journal $Journal }
