@@ -1,0 +1,406 @@
+# src/Hephaestus/Payload/Start-HDTDeployment.ps1 - THE WinPE ENTRY POINT, what
+# startnet.cmd runs (05-04 puts it in the image).
+#
+# IT IS TESTED BY PARSING AND INSPECTING IT, exactly as Start-HDTResume.ps1 and
+# phase 04's Start-HDTLabDeployment.ps1 are. Running it for real means a booted
+# machine to power off, which is what tests/e2e is.
+#
+# THE ASSERTION THIS FILE EXISTS FOR: the entry point contains NO DEPLOYMENT
+# LOGIC. Phase 05's exit criterion is that a machine deploys ITSELF from a boot
+# image, and an entry point that partitioned a disk or applied an image itself
+# would make that claim a lie while still producing a deployed machine - and
+# nobody would notice, because the machine would deploy.
+#
+# AND A SECOND ONE, WHICH IS THE ONE THAT WOULD HAVE COST 05-05 A WHOLE RUN: it
+# assumes exactly one drive letter, and it is the one WinPE guarantees. SPIKES
+# S9.1 measured WinPE handing the CONTENT DISK the letter the developer's
+# machine calls its system drive, and the RAM disk X:. Anything else this file
+# needs is DISCOVERED.
+
+BeforeAll {
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
+
+    $script:payloadPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Payload/Start-HDTDeployment.ps1'
+
+    $script:parseError = $null
+    $script:token = $null
+    $script:ast = $null
+    $script:text = ''
+
+    if (Test-Path -LiteralPath $script:payloadPath -PathType Leaf) {
+        $script:ast = [System.Management.Automation.Language.Parser]::ParseFile(
+            $script:payloadPath, [ref] $script:token, [ref] $script:parseError)
+        $script:text = Get-Content -LiteralPath $script:payloadPath -Raw
+    }
+
+    $script:commandNamed = {
+        param([string] $Name)
+
+        if ($null -eq $script:ast) { return @() }
+
+        # Copied into a local before the nested predicate closes over it, or
+        # PSScriptAnalyzer reports the parameter unused.
+        $wanted = $Name
+
+        return @($script:ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.CommandAst] -and
+                    $node.GetCommandName() -eq $wanted
+                }, $true))
+    }
+
+    $script:everyCommandName = @()
+    if ($null -ne $script:ast) {
+        $script:everyCommandName = @($script:ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.CommandAst]
+                }, $true) | ForEach-Object { [string] $_.GetCommandName() } | Where-Object { $_ })
+    }
+
+    $script:elementOf = {
+        param([object] $Command)
+
+        return @($Command.CommandElements | ForEach-Object { [string] $_.Extent.Text })
+    }
+
+    # The Storage and DISM cmdlets IDiskService and IImageService exist to be the
+    # only callers of.
+    $script:forbiddenCommand = @(
+        'Get-Disk', 'Clear-Disk', 'Initialize-Disk', 'New-Partition', 'Set-Partition',
+        'Remove-Partition', 'Get-Partition', 'Format-Volume', 'Get-Volume',
+        'Remove-PartitionAccessPath', 'Add-PartitionAccessPath',
+        'Get-WindowsImage', 'Expand-WindowsImage', 'Mount-WindowsImage', 'Dismount-WindowsImage',
+        'Add-WindowsDriver', 'Add-WindowsPackage'
+    )
+
+    # DESIGN 5.1: NONE OF THESE EXISTS IN WinPE. There is no optional component
+    # that adds them, and the entry point waits for an address - which is exactly
+    # where somebody reaches for one.
+    $script:forbiddenNetCommand = @(
+        'Get-NetAdapter', 'Get-NetIPAddress', 'New-NetIPAddress',
+        'Resolve-DnsName', 'Test-NetConnection', 'Get-NetIPConfiguration'
+    )
+
+    $script:forbiddenText = @('bcdboot', 'bcdedit', 'reagentc', 'diskpart', 'dism.exe')
+
+    # THE CODE, WITHOUT THE COMMENTS. The header says in prose that this file
+    # calls no bcdboot - and a raw text scan would fail on that sentence, which
+    # would teach the next author to delete the sentence rather than keep the
+    # property.
+    $script:codeOnly = ''
+    if ($null -ne $script:token) {
+        $script:codeOnly = (@($script:token |
+                    Where-Object { $_.Kind -ne 'Comment' } |
+                    ForEach-Object { [string] $_.Text }) -join ' ')
+    }
+
+    $script:largestTry = $null
+    if ($null -ne $script:ast) {
+        $script:largestTry = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.TryStatementAst]
+                    }, $true) | Sort-Object { $_.Extent.Text.Length } -Descending)[0]
+    }
+}
+
+Describe 'Start-HDTDeployment.ps1' {
+
+    It 'exists at src/Hephaestus/Payload/Start-HDTDeployment.ps1' {
+        Test-Path -LiteralPath $script:payloadPath -PathType Leaf | Should -BeTrue
+    }
+
+    It 'parses with no error' {
+        @($script:parseError).Count | Should -Be 0 -Because (@($script:parseError | ForEach-Object { $_.Message }) -join "`n")
+    }
+
+    It 'passes the PowerShell 5.1 compatibility scanner' {
+        # It runs inside WinPE, which has 5.1 and no pwsh at all (SPIKES S1).
+        $violation = @(Get-HDTScriptCompatibilityViolation -Path $script:payloadPath)
+
+        $violation.Count | Should -Be 0 -Because (@($violation | ForEach-Object { $_.Reason }) -join "`n")
+    }
+
+    It 'defines no unprefixed function' {
+        $name = @(Get-HDTSourceFunction -Path $script:payloadPath | ForEach-Object { $_.Name })
+        $violation = @(Get-HDTFunctionNameViolation -Name $name)
+
+        $violation.Count | Should -Be 0
+    }
+
+    It 'sets StrictMode and ErrorActionPreference' {
+        @(& $script:commandNamed 'Set-StrictMode').Count | Should -Be 1
+        $script:text | Should -BeLike "*ErrorActionPreference = 'Stop'*"
+    }
+
+    Context 'it does no deployment work itself' {
+
+        It 'names no fake' {
+            $script:text | Should -Not -BeLike '*New-HDTFake*'
+        }
+
+        It 'names no Storage or DISM cmdlet' {
+            $hit = @($script:everyCommandName | Where-Object { $script:forbiddenCommand -contains $_ })
+
+            $hit | Should -BeNullOrEmpty -Because ('the entry point called: {0}' -f ($hit -join ', '))
+        }
+
+        It 'names no native boot tool' {
+            $script:codeOnly | Should -Not -BeNullOrEmpty
+
+            foreach ($tool in $script:forbiddenText) {
+                $script:codeOnly | Should -Not -Match ('\b{0}\b' -f [regex]::Escape($tool)) `
+                    -Because "$tool belongs to IImageService, not to an entry point"
+            }
+        }
+
+        It 'calls Invoke-HDTTaskSequence exactly once' {
+            # ONE call. Not one per step, not one per group - the loop owns the
+            # sequence, and an entry point that drove steps itself would not be
+            # proving the engine deployed the machine.
+            @(& $script:commandNamed 'Invoke-HDTTaskSequence').Count | Should -Be 1
+        }
+
+        It 'invokes no step function directly' {
+            $hit = @($script:everyCommandName | Where-Object { $_ -like 'Invoke-HDT*Step' })
+
+            $hit | Should -BeNullOrEmpty -Because ('the entry point called: {0}' -f ($hit -join ', '))
+        }
+
+        It 'writes no unattend and stages no image' {
+            $script:codeOnly | Should -Not -Match '(?i)unattend'
+            $script:codeOnly | Should -Not -Match '(?i)install\.wim'
+        }
+
+        It 'contains no technician UI' {
+            # DESIGN 11's progress window and wizard are a later milestone. A
+            # silent entry point is the honest v1, and this is what stops this
+            # file quietly becoming the other thing.
+            @($script:everyCommandName | Where-Object { $_ -like 'Show-*' }) | Should -BeNullOrEmpty
+            $script:codeOnly | Should -Not -Match 'PresentationFramework'
+            $script:codeOnly | Should -Not -Match 'System\.Windows\.Forms'
+        }
+
+        It 'writes nothing with Write-Host' {
+            @($script:everyCommandName | Where-Object { $_ -eq 'Write-Host' }) | Should -BeNullOrEmpty
+        }
+    }
+
+    Context 'the dependency proof' {
+
+        It 'imports powershell-yaml before it imports Hephaestus' {
+            # ConvertFrom-HDTYaml imports powershell-yaml lazily and reports
+            # HDTDependencyError without it, so the engine cannot read a single
+            # YAML document until this has happened (SPIKES S9.1).
+            $import = @(& $script:commandNamed 'Import-Module')
+
+            $yaml = @($import | Where-Object { $_.Extent.Text -like '*powershell-yaml*' })
+            $engine = @($import | Where-Object { $_.Extent.Text -like '*Hephaestus*' })
+
+            $yaml.Count | Should -BeGreaterOrEqual 1
+            $engine.Count | Should -BeGreaterOrEqual 1
+
+            $yaml[0].Extent.StartOffset | Should -BeLessThan $engine[0].Extent.StartOffset
+        }
+
+        It 'logs the version of each module it loaded' {
+            $script:text | Should -BeLike '*yamlVersion*'
+            $script:text | Should -BeLike '*engineVersion*'
+        }
+
+        It 'puts the module root on PSModulePath' {
+            $script:text | Should -BeLike '*PSModulePath*'
+        }
+
+        It 'assumes only X: and no other drive letter' {
+            # SPIKES S9.1: WinPE gave the content disk the letter a developer's
+            # machine calls its system drive, and the RAM disk X:. X: is the one
+            # guarantee; everything else is discovered.
+            $script:codeOnly | Should -Not -BeNullOrEmpty
+            $script:codeOnly | Should -Not -Match '\b[C-WYZ]:\\'
+        }
+
+        It 'enumerates volumes instead of naming them' {
+            # Phase 04's launcher scanned a hard-coded run of letters. This one
+            # may not, and this assertion is what stops the next author putting
+            # it back.
+            $script:codeOnly | Should -Match 'GetDrives'
+            @(& $script:commandNamed 'Resolve-HDTDeployRoot').Count | Should -Be 1
+        }
+
+        It 'names no Net cmdlet WinPE does not have' {
+            $hit = @($script:everyCommandName | Where-Object { $script:forbiddenNetCommand -contains $_ })
+
+            $hit | Should -BeNullOrEmpty -Because ('the entry point called: {0}. DESIGN 5.1: no optional component adds them to WinPE.' -f ($hit -join ', '))
+        }
+    }
+
+    Context 'what it builds and what it hands the loop' {
+
+        It 'builds the real service adapters' {
+            foreach ($name in @('New-HDTFileSystem', 'New-HDTClock', 'New-HDTDiskService',
+                    'New-HDTImageService', 'New-HDTRegistryService', 'New-HDTLsaService',
+                    'New-HDTEnvironmentProvider', 'New-HDTCimProvider', 'New-HDTProcessService',
+                    'New-HDTPowerService', 'New-HDTScriptInvoker', 'New-HDTServiceCatalog')) {
+
+                @(& $script:commandNamed $name).Count | Should -BeGreaterOrEqual 1 -Because "the entry point has to build $name"
+            }
+        }
+
+        It 'builds the content provider through New-HDTContentProvider' {
+            @(& $script:commandNamed 'New-HDTContentProvider').Count | Should -Be 1
+            @(& $script:commandNamed 'New-HDTLocalContentProvider') | Should -BeNullOrEmpty
+            @(& $script:commandNamed 'New-HDTSmbContentProvider') | Should -BeNullOrEmpty
+        }
+
+        It 'reads the bootstrap through Get-HDTBootstrapConfiguration' {
+            @(& $script:commandNamed 'Get-HDTBootstrapConfiguration').Count | Should -Be 1
+        }
+
+        It 'gathers facts and resolves variables exactly once each' {
+            @(& $script:commandNamed 'Get-HDTMachineFact').Count | Should -Be 1
+            @(& $script:commandNamed 'Resolve-HDTVariable').Count | Should -Be 1
+        }
+
+        It 'looks for a per-machine override' {
+            # DESIGN 3.1's second source. 04-04 proved it is what makes one
+            # machine an exception without editing rules.yaml.
+            @(& $script:commandNamed 'Get-HDTMachineOverride').Count | Should -Be 1
+        }
+
+        It 'builds every workspace path through Get-HDTWorkspacePath' {
+            @(& $script:commandNamed 'Get-HDTWorkspacePath').Count | Should -BeGreaterOrEqual 1
+
+            $script:text | Should -Not -Match "'TaskSequences'"
+            $script:text | Should -Not -Match "'Logs'"
+            $script:text | Should -Not -Match "'Control'"
+        }
+
+        It 'passes -State, -StatePath and -LogDestination to the loop' {
+            $loop = @(& $script:commandNamed 'Invoke-HDTTaskSequence')[0]
+            $element = & $script:elementOf $loop
+
+            $element | Should -Contain '-State'
+            $element | Should -Contain '-StatePath'
+            $element | Should -Contain '-LogDestination'
+        }
+
+        It 'passes the content provider into the service catalog' {
+            $catalog = @(& $script:commandNamed 'New-HDTServiceCatalog')[0]
+
+            (& $script:elementOf $catalog) | Should -Contain '-Content'
+        }
+    }
+
+    Context 'it always leaves evidence and always ends' {
+
+        It 'writes RESULT.json under the deploy root Logs folder' {
+            # X:\HDT\RESULT.json ALONE WOULD BE WRITTEN TO A RAM DISK on a
+            # machine that is about to power off, and 05-05's whole
+            # zero-keystroke proof reads this file back.
+            $script:text | Should -BeLike '*RESULT.json*'
+            $script:codeOnly | Should -Match 'Get-HDTWorkspacePath'
+            $script:codeOnly | Should -Match '-Kind Logs'
+        }
+
+        It 'writes the X: copy as a fallback as well' {
+            $script:codeOnly | Should -Match 'X:\\HDT'
+        }
+
+        It 'writes LAUNCHER.log beside it' {
+            $script:text | Should -BeLike '*LAUNCHER.log*'
+        }
+
+        It 'writes it as UTF-8 without a BOM' {
+            # SPIKES S6's third finding: the default under 5.1 is UTF-16, which
+            # half the tooling cannot read.
+            $script:text | Should -BeLike '*UTF8Encoding*'
+        }
+
+        It 'records launchedBy from HDT_LAUNCHED_BY' {
+            # startnet.cmd sets it (05-04) and a human typing the command by hand
+            # does not. That single field is what 05-05 asserts to prove the
+            # deployment started ITSELF.
+            $script:text | Should -BeLike '*launchedBy*'
+            $script:text | Should -BeLike '*HDT_LAUNCHED_BY*'
+        }
+
+        It 'records resolvedDeployRoot, deployRootSource and candidateRoot' {
+            foreach ($field in @('resolvedDeployRoot', 'deployRootSource', 'candidateRoot')) {
+                $script:text | Should -BeLike ('*{0}*' -f $field) -Because "a support call needs to know what the resolver saw as well as what it chose"
+            }
+        }
+
+        It 'records endedWith' {
+            # ROADMAP M2 left "does WinPE need wpeutil reboot rather than
+            # shutdown.exe" open, and this is the first run that can answer it.
+            $script:text | Should -BeLike '*endedWith*'
+        }
+
+        It 'prompts for a credential only when the bootstrap says to' {
+            $prompt = @(& $script:commandNamed 'Get-Credential')
+
+            $prompt.Count | Should -Be 1
+
+            $guard = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.IfStatementAst]
+                    }, $true) |
+                    Where-Object {
+                        $_.Extent.StartOffset -lt $prompt[0].Extent.StartOffset -and
+                        $_.Extent.EndOffset -gt $prompt[0].Extent.EndOffset
+                    })
+
+            @($guard | Where-Object { $_.Extent.Text -match 'PromptForCredential' }).Count |
+                Should -BeGreaterOrEqual 1 -Because 'the one path in this file that stops for a human is reachable only when the image asked for it'
+
+            # And it says so. DESIGN 6.3 offers that build for a shared lab or
+            # media going offsite; it must not look like an accident.
+            $warning = @(& $script:commandNamed 'Write-Warning' |
+                    Where-Object { $_.Extent.StartOffset -gt ($guard | Sort-Object { $_.Extent.StartOffset })[-1].Extent.StartOffset })
+
+            $warning.Count | Should -BeGreaterOrEqual 1
+        }
+
+        It 'calls Copy-HDTLog outside the try' {
+            # A run that died before the loop never reached the loop's own
+            # copy-back, and that run is precisely the one whose log is wanted.
+            $copy = @(& $script:commandNamed 'Copy-HDTLog')
+
+            $copy.Count | Should -BeGreaterOrEqual 1
+            $script:largestTry | Should -Not -BeNullOrEmpty
+
+            @($copy | Sort-Object { $_.Extent.StartOffset })[-1].Extent.StartOffset |
+                Should -BeGreaterThan $script:largestTry.Extent.EndOffset
+        }
+
+        It 'disconnects the content provider' {
+            $script:codeOnly | Should -Match 'Disconnect'
+        }
+
+        It 'ends the machine with wpeutil' {
+            $script:text | Should -BeLike '*wpeutil*'
+        }
+
+        It 'reboots on RebootPending and shuts down otherwise' {
+            $script:codeOnly | Should -Match 'reboot'
+            $script:codeOnly | Should -Match 'shutdown'
+            $script:codeOnly | Should -Match 'RebootPending'
+        }
+
+        It 'ends the machine even when the run threw' {
+            # A VM left at a WinPE prompt tells nobody anything except that its
+            # timeout expired.
+            $ended = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        ([string] $node.Extent.Text) -like '*wpeutil*'
+                    }, $true))
+
+            $ended.Count | Should -BeGreaterOrEqual 1
+
+            @($ended | Sort-Object { $_.Extent.StartOffset })[-1].Extent.StartOffset |
+                Should -BeGreaterThan $script:largestTry.Extent.EndOffset
+        }
+    }
+}
