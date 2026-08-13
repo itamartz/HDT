@@ -1,0 +1,31 @@
+# The DESIGN 3.3 example, extended with one setFrom rule so the sample exercises
+# every feature of the resolution engine: multi-key and wildcard matching, a list
+# valued fact, %Var% expansion, a script rule, and a fallback.
+#
+# Rules are walked top to bottom. A set key only takes effect if that variable is
+# NOT already resolved, so first match wins per variable and the rules below act
+# as fallbacks for each other rather than overwriting.
+
+schemaVersion: 1
+rules:
+  - name: Lab subnet
+    when: { HDTDefaultGateway: "10.20.30.1" }
+    set:
+      HDTJoinDomain: lab.contoso.com
+      HDTTaskSequenceID: LAB-CLIENT
+      HDTSkipWizard: true
+
+  - name: Latitude naming
+    when: { HDTModel: "Latitude*", HDTIsLaptop: true }
+    set:
+      HDTComputerName: "LT-%HDTSerialNumber%"
+      HDTDriverGroup: "Dell\\%HDTModel%"
+
+  - name: Scripted name for laptops
+    when: { HDTIsLaptop: true }
+    setFrom: Scripts\Get-ComputerName.ps1
+
+  - name: Fallback
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"
+      HDTJoinWorkgroup: WORKGROUP

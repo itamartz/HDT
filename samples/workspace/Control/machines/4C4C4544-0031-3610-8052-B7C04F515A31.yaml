@@ -1,0 +1,12 @@
+# A per-machine override (DESIGN 3.1 source 2): the file-based equivalent of the
+# MDT database. The file name is the machine's HDTUUID, and this one matches the
+# UUID in tests/fixtures/cim/Win32_ComputerSystemProduct.json, so the sample and
+# the test fixtures describe the same machine.
+#
+# These two variables beat every rule below them, which is the point: an override
+# is how one machine is made an exception without editing rules.yaml.
+
+schemaVersion: 1
+variables:
+  HDTComputerName: FIN-0007
+  HDTTaskSequenceID: OVR-CLIENT
