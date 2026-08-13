@@ -80,9 +80,13 @@ Describe 'Export-HDTVariableProvenance' {
         Export-HDTVariableProvenance -Resolution $script:result -Path $script:exportPath `
             -FileSystem $script:fileSystem -Timestamp $script:timestamp
 
-        $document = $script:fileSystem.ReadAllText($script:exportPath) | ConvertFrom-Json
-
-        $document.generated | Should -BeExactly '2026-08-13T00:11:02.4810000Z'
+        # Asserted against the TEXT, not against ConvertFrom-Json's object:
+        # ConvertFrom-Json turns an ISO 8601 string back into a [datetime], which
+        # would hide the very difference this test exists to catch. The \s* also
+        # absorbs the one cosmetic difference between the engines - 5.1 puts two
+        # spaces after the colon, pwsh 7 puts one.
+        $script:fileSystem.ReadAllText($script:exportPath) |
+            Should -Match '"generated"\s*:\s*"2026-08-13T00:11:02\.4810000Z"'
     }
 
     It 'writes the same JSON under both engines' {
@@ -91,8 +95,10 @@ Describe 'Export-HDTVariableProvenance' {
 
         $text = $script:fileSystem.ReadAllText($script:exportPath)
 
+        # \/Date(1786579862481)\/ is what Windows PowerShell 5.1 writes for a raw
+        # [datetime], and WinPE is 5.1.
         $text | Should -Not -BeLike '*/Date(*'
-        ($text | ConvertFrom-Json).generated | Should -Match '^\d{4}-\d{2}-\d{2}T'
+        $text | Should -Match '"generated"\s*:\s*"\d{4}-\d{2}-\d{2}T'
     }
 
     It 'writes schemaVersion 1' {
