@@ -139,6 +139,27 @@ What M2 does **not** cover, recorded here so a later phase picks it up:
 boot config, OS import. Target-disk ambiguity must refuse to proceed.
 *Exit:* a Hyper-V VM boots into Windows 11 from a real sequence run.
 
+**Plans:** 4 plans in 4 waves (each depends on the one before it — the services
+before the decisions, the decisions before the steps, the steps before anything
+real is touched).
+
+- [ ] `04-01-PLAN.md` — `IDiskService` and `IImageService`: real adapters over the
+      Storage module, DISM, `bcdboot`, `bcdedit` and `reagentc`, hand-written fakes
+      (the disk fake models the MSR `Initialize-Disk` creates), two contracts, and
+      captured disk and WIM fixtures
+- [ ] `04-02-PLAN.md` — the decisions, all pure logic: `Select-HDTTargetDisk` and
+      DESIGN 9.1's refusal to guess (the most-tested unit in the phase), the
+      `uefi-standard` / `bios-standard` layouts and their partition arithmetic,
+      firmware selection, index resolution, and the `os.yaml` catalog with its schema
+- [ ] `04-03-PLAN.md` — the five steps (`Validate`, `DiskPartition`, `ApplyImage`,
+      `ApplyUnattend`, `ConfigureBoot`), the `DEMO-M3` sample, and the M3 benchmark:
+      a whole WinPE deployment leg against fakes asserting the exact ordered
+      operation list
+- [ ] `04-04-PLAN.md` — the first real runs: `build.ps1 -Task integration` and
+      `-Task e2e`, a real apply to a scratch VHDX, the engine's first start inside
+      WinPE, and **the M3 exit criterion** — a Gen2 VM on the isolated `HDT Lab`
+      switch deployed by a sequence run through the engine, booting into Windows 11
+
 **05 — Boot image / ISO / PXE.** `Update-HDTBootImage`, `New-HDTBootIso` with
 `-NoPromptForKey`, build manifest, WDS import, SMB content provider.
 *Exit:* a VM boots the ISO with no keypress; a VM PXE-boots the same image.
