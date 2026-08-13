@@ -962,10 +962,47 @@ Also injected: network and storage drivers (from a designated boot driver group
 under `X:\HDT\`, and a `startnet.cmd` that runs `wpeinit` then launches
 `X:\HDT\Start-HDTDeployment.ps1`.
 
+**What lands where inside the image** (settled in 05-04):
+
+| Path in the image | What |
+|---|---|
+| `X:\HDT\bootstrap.json` | where the content is and which provider reaches it (§6, read by `Get-HDTBootstrapConfiguration`) |
+| `X:\HDT\Start-HDTDeployment.ps1` | the WinPE entry point |
+| `X:\HDT\Start-HDTResume.ps1` | staged **from** the boot image **to** the target for the full-OS leg |
+| `X:\HDT\Modules\Hephaestus` | the engine, **excluding `Payload\`** — those two scripts live at `X:\HDT\`, and a second copy would be a second answer to "which one is running" |
+| `X:\HDT\Modules\powershell-yaml` | the parser the whole engine rests on in WinPE (SPIKES S9.1) |
+| `X:\Windows\System32\startnet.cmd` | five lines, below |
+
+`startnet.cmd` is five lines and no more, written ASCII with CRLF and no BOM:
+
+```
+@echo off
+rem Written by Update-HDTBootImage. Do not edit inside the image; edit HDT.
+set HDT_LAUNCHED_BY=startnet
+wpeinit
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTDeployment.ps1
+```
+
+`HDT_LAUNCHED_BY` is recorded into `RESULT.json`, which is how an end-to-end test
+proves the engine was launched by the image rather than typed at the prompt.
+`wpeinit` runs **before** PowerShell because it is what brings networking up.
+`X:` is written literally and is the only drive letter allowed here — the RAM
+disk is the one letter WinPE guarantees (SPIKES S9.1). There is no drive scan.
+
+`deployRoot` and `contentMarker` are carried into `bootstrap.json` **verbatim**,
+including the volume-relative form (`\Share`). A builder that expanded that to
+the drive letter it sees on the build host would bake in the one value that is
+certainly wrong.
+
 The build is **deterministic and repeatable**: mount, apply components, inject,
 commit, export (`/Compress:max`), and record a manifest of exactly what went in.
 Boot image drift — where nobody remembers what's in the WIM — is a real MDT
 operational problem.
+
+The scratch path the build mounts and stages in **must contain no space** — see
+§5.2 and SPIKES S2 — and must not be inside the workspace or inside the
+repository. A build that writes into the share it is reading is how a deployment
+share ends up with a `mount` folder in it forever.
 
 `Update-HDTBootImage -SkipIso` omits ISO generation, matching MDT's per-platform
 ISO checkbox. Generating the ISO is the slow half of the build, and during
@@ -1007,6 +1044,25 @@ case covers essentially all debugging. `-Firmware UEFI` is the default;
 Defaults chosen for the debugging use case: `-NoPromptForKey` is **on** for
 `New-HDTBootIso` invoked by `Update-HDTBootImage`, because a boot image you
 mount to test something should just boot.
+
+**`-bootdata:` cannot take a quoted path, and the ADK path has spaces in it**
+(SPIKES S2, verified). A quoted path arrives doubled and `oscdimg` answers
+`ERROR: Could not open boot sector file ""C:\Program Files (x86)\...""` /
+`Error 123`. So `New-HDTBootIso` **stages** the one or two El Torito images it
+needs into a space-free directory first and builds the argument unquoted;
+`Get-HDTBootIsoArgument` **refuses** a boot-bit path containing a space, so the
+staging cannot be quietly removed later. `Update-HDTBootImage` refuses a scratch
+path with a space for the same reason — `<scratch>\bootbits` is what it hands
+`New-HDTBootIso`, and a space-free staging directory underneath a path with a
+space solves nothing.
+
+**The ISO is built from the exported WIM copied into the media tree**, not from
+a second export (05-04). `Update-HDTBootImage` exports once to
+`Boot\<name>.wim` and copies that file to `<media>\sources\boot.wim`; the WinPE
+`Media\` template ships no `sources\` folder, so the build creates it. One file,
+two homes, same bytes — which is what makes §6.1.1 a fact rather than a hope,
+and the manifest records `isoBootWimSha256` so an operator can check it without
+the test suite.
 
 ---
 

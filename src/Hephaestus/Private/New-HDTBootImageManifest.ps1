@@ -35,7 +35,7 @@ function New-HDTBootImageManifest {
 
             THE SECRET IS DROPPED BY CONSTRUCTION, not by filtering: only
             Username, Embedded and PromptForCredential are read out of
-            -Credential, so a caller that passes a password in that hashtable
+            -CredentialRecord, so a caller that passes a password in that hashtable
             cannot leak it here. A unit test greps the serialised text for the
             protected string to prove it.
 
@@ -91,7 +91,7 @@ function New-HDTBootImageManifest {
         .PARAMETER Startnet
             The exact text written to startnet.cmd.
 
-        .PARAMETER Credential
+        .PARAMETER CredentialRecord
             Username, Embedded, PromptForCredential. Anything else in this
             hashtable is ignored.
 
@@ -116,7 +116,7 @@ function New-HDTBootImageManifest {
             New-HDTBootImageManifest -BuildId $id -BuiltUtc $utc -BuiltOn $env:COMPUTERNAME `
                 -EngineVersion '0.1.0' -WorkspaceId 'HDT-LAB' -Architecture amd64 -Language en-us `
                 -Adk $adk -Component $component -Driver $driver -Payload $payload `
-                -ExtraContent $extra -Startnet $startnet -Credential $credential `
+                -ExtraContent $extra -Startnet $startnet -CredentialRecord $credential `
                 -Wim $wim -Iso $iso -IsoBootWimSha256 $wim.Sha256
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -182,7 +182,7 @@ function New-HDTBootImageManifest {
 
         [Parameter()]
         [AllowNull()]
-        [hashtable] $Credential,
+        [hashtable] $CredentialRecord,
 
         [Parameter()]
         [AllowNull()]
@@ -299,9 +299,9 @@ function New-HDTBootImageManifest {
         extraContent       = [object[]] @($extraRow)
         startnet           = $Startnet
         credential         = [ordered] @{
-            username            = [string] (& $valueOf $Credential 'Username' '')
-            embedded            = [bool] (& $valueOf $Credential 'Embedded' $false)
-            promptForCredential = [bool] (& $valueOf $Credential 'PromptForCredential' $false)
+            username            = [string] (& $valueOf $CredentialRecord 'Username' '')
+            embedded            = [bool] (& $valueOf $CredentialRecord 'Embedded' $false)
+            promptForCredential = [bool] (& $valueOf $CredentialRecord 'PromptForCredential' $false)
         }
         artifacts          = [ordered] @{
             wim              = [ordered] @{

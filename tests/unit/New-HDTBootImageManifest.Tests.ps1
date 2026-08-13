@@ -61,7 +61,7 @@ BeforeAll {
             [pscustomobject] @{ Source = 'C:\ws\Modules\MyVendorTools'; Destination = '\HDT\Modules\MyVendorTools'; FileCount = 3 }
         )
         Startnet         = "@echo off`r`nwpeinit`r`n"
-        Credential       = @{ Username = 'CONTOSO\svc-hdt-deploy'; Embedded = $true; PromptForCredential = $false }
+        CredentialRecord = @{ Username = 'CONTOSO\svc-hdt-deploy'; Embedded = $true; PromptForCredential = $false }
         Wim              = @{ Path = 'C:\ws\Boot\HDTPE_x64.wim'; Sha256 = 'DEADBEEF01'; SizeBytes = 503316480 }
         Iso              = @{ Path = 'C:\ws\Boot\HDTPE_x64.iso'; Sha256 = 'CAFEBABE02'; SizeBytes = 558891008
             Firmware = 'UEFI'; NoPromptForKey = $true; Skipped = $false
@@ -192,7 +192,7 @@ Describe 'New-HDTBootImageManifest' {
             $text = InModuleScope Hephaestus -Parameters @{ Splat = $script:manifestSplat; Secret = $script:secret } {
                 param($Splat, $Secret)
                 $local = $Splat.Clone()
-                $local.Credential = @{ Username = 'CONTOSO\svc-hdt-deploy'; Embedded = $true
+                $local.CredentialRecord = @{ Username = 'CONTOSO\svc-hdt-deploy'; Embedded = $true
                     PromptForCredential = $false; Password = $Secret
                 }
                 New-HDTBootImageManifest @local
@@ -206,7 +206,7 @@ Describe 'New-HDTBootImageManifest' {
             $text = InModuleScope Hephaestus -Parameters @{ Splat = $script:manifestSplat } {
                 param($Splat)
                 $local = $Splat.Clone()
-                $local.Credential = @{ Username = ''; Embedded = $false; PromptForCredential = $true }
+                $local.CredentialRecord = @{ Username = ''; Embedded = $false; PromptForCredential = $true }
                 New-HDTBootImageManifest @local
             }
 

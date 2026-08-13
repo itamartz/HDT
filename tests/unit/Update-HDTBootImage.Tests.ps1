@@ -74,6 +74,8 @@ bootImage:
         })
 
     function New-HDTBootImageTestSeed {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory hashtable of seed data; it changes no state.')]
         [CmdletBinding()]
         [OutputType([hashtable])]
         param(
@@ -277,6 +279,13 @@ bootImage:
     @('SetScratchSpace', 'AddDriver', 'StageEngine', 'StageYaml',
         'StageDeploymentPayload', 'StageResumePayload', 'WriteBootstrap', 'WriteStartnet',
         'CopyExtraContent', 'DismountImage', 'ExportImage', 'CopyWimIntoMedia',
+        # THE SECOND ResolveAdkPath IS NOT A DEFECT AND IS NOT INCIDENTAL.
+        # New-HDTBootIso is a command in its own right - point it at any WinPE
+        # media tree and it produces an ISO - so it resolves Oscdimg and its own
+        # El Torito image through Get-HDTAdkPath rather than being handed paths
+        # by a caller it does not require. Recorded here so the day somebody
+        # "optimises" it into a parameter, this list says what changed.
+        'ResolveAdkPath',
         'NewIso', 'WriteManifest')
 }
 

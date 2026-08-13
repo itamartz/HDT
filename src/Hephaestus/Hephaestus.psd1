@@ -102,6 +102,7 @@
         'Test-HDTStepApplicable',
         'Test-HDTStepCondition',
         'Test-HDTTaskSequence',
+        'Update-HDTBootImage',
         'Update-HDTRunStateStep',
         'Write-HDTLog',
         'Write-HDTStatus',
