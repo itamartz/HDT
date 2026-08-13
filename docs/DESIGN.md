@@ -976,14 +976,25 @@ Configured in `workspace.yaml` and written into the boot image by
 `Update-HDTBootImage`:
 
 ```yaml
+# workspace.yaml - the file an admin hand-edits and commits. USERNAME ONLY.
 deployRoot: \\server\HdtShare
 credential:
   username: CONTOSO\svc-hdt-deploy
-  password: <set by Set-HDTShareCredential>
+```
+
+```
+Control\share-credential.json   <- written by Set-HDTShareCredential, gitignored
+{ "schemaVersion": 1, "username": ..., "password": <obfuscated>, "warning": ... }
 ```
 
 `Set-HDTShareCredential` writes it; the value never appears in a file an admin
-hand-edits, so it does not end up in git.
+hand-edits, so it does not end up in git. **The secret is in a second file for
+exactly that reason** — an earlier draft of this section showed a `password:` key
+inside `workspace.yaml` and then said in the next line that the value never
+appears in a file an admin hand-edits, and both could not be true of the same
+document. `Assert-HDTWorkspaceDocument` now rejects a `password:` key there,
+naming this command (05-01), and `Set-HDTShareCredential` is the only writer of
+the secret (05-02). The setup steps are in `docs/share-account.md`.
 
 **The exposure is real and is the same one MDT has:** anyone who can read the
 boot WIM or a USB stick can recover that account's password. It is not
