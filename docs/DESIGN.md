@@ -708,18 +708,19 @@ The credential is the cheaper problem to solve.
    `DefaultDomainName`, and `AutoLogonCount` under
    `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon`.
 
-   **`Start-HDTResume.ps1` re-arms on its first full-OS leg, before running any
-   step**, replacing the unattend's 999 with a count equal to the legs actually
-   remaining. So the unattend only has to survive until the engine gets control
-   *once*; after that HDT owns the lifecycle, including teardown.
+   The engine arms this **when it needs a reboot**, not proactively. The
+   unattend's 999 covers everything until then, and teardown (§4.5.3) disarms
+   the lot at the end.
 
-   This is where HDT differs from MDT rather than copies it. MDT's 999 stays
-   999 until a cleanup step zeroes it, so a deployment that dies before cleanup
-   leaves a machine autologging on as Administrator ~indefinitely. HDT narrows
-   that to the handoff window and then bounds it, with two further backstops
-   behind the count: teardown in `finally`, and the boot-time reconcile
-   (§4.5.2) that disarms on any boot where the state document says the run is
-   finished, failed, or missing.
+   **Deliberately not doing more.** An earlier draft had the engine re-arm on
+   its first full-OS leg to replace 999 with a bounded count, narrowing the
+   window in which an abandoned deployment keeps autologging on. That is a
+   hardening, not a requirement, and it buys a smaller exposure than the two
+   backstops already in place — teardown in `finally`, and the boot-time
+   reconcile (§4.5.2) that disarms on any boot where the state document says the
+   run is finished, failed or missing. MDT has lived with the same residual
+   exposure for years. Revisit in a later version if it ever proves to matter;
+   until then the mechanism stays simple enough to reason about.
 3. **The engine is launched at logon** by a `RunOnce` entry re-registered each
    leg, pointing at `C:\HDT\Start-HDTResume.ps1`, which loads `state.json` and
    continues at the next step.
