@@ -100,6 +100,14 @@ $script:HDTJournalledFake = @(
         Argument  = @()
     }
     @{
+        Name      = 'BootImageService'
+        Service   = 'BootImageService'
+        Factory   = { param($Journal) New-HDTFakeBootImageService -Journal $Journal }
+        Exercise  = { param($Fake) $Fake.MountImage('C:\scratch\HDTPE_x64.wim', 1, 'C:\scratch\mount') }
+        Operation = 'MountImage'
+        Argument  = @('C:\scratch\HDTPE_x64.wim', 1, 'C:\scratch\mount')
+    }
+    @{
         Name      = 'ContentProvider'
         Service   = 'ContentProvider'
         Factory   = { param($Journal) New-HDTFakeContentProvider -Root 'Z:\Deploy' -Journal $Journal }
