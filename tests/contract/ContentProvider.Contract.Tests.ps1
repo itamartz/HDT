@@ -40,6 +40,30 @@ $script:HDTImplementation = @(
         JournalFactory = { param($Journal, $LocalRoot) New-HDTLocalContentProvider -Root $LocalRoot -FileSystem (New-HDTFileSystem) -Journal $Journal }
         Skip           = $false
     }
+    @{
+        Name           = 'SmbContentProvider'
+        Factory        = {
+            # Over a FAKE SMB service and a FAKE filesystem, so this row runs on
+            # any machine with nothing mapped. The contract is about shape; the
+            # real SmbShare mechanism is proven in
+            # tests/integration/SmbContentProvider.Integration.Tests.ps1.
+            New-HDTSmbContentProvider -Root '\\hdtserver\HdtShare' `
+                -Credential (New-Object System.Management.Automation.PSCredential 'CONTOSO\svc-hdt-deploy', (ConvertTo-SecureString 'P@ssw0rd!' -AsPlainText -Force)) `
+                -SmbService (New-HDTFakeSmbService -Connection @(
+                    [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'HdtShare'; UserName = 'CONTOSO\svc-hdt-deploy'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true })) `
+                -FileSystem (New-HDTFakeFileSystem)
+        }
+        JournalFactory = {
+            param($Journal)
+
+            New-HDTSmbContentProvider -Root '\\hdtserver\HdtShare' `
+                -Credential (New-Object System.Management.Automation.PSCredential 'CONTOSO\svc-hdt-deploy', (ConvertTo-SecureString 'P@ssw0rd!' -AsPlainText -Force)) `
+                -SmbService (New-HDTFakeSmbService -Connection @(
+                    [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'HdtShare'; UserName = 'CONTOSO\svc-hdt-deploy'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true })) `
+                -FileSystem (New-HDTFakeFileSystem) -Journal $Journal
+        }
+        Skip           = $false
+    }
 )
 
 Describe 'IContentProvider contract: <Name>' -ForEach $script:HDTImplementation {
