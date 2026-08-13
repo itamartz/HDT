@@ -35,6 +35,7 @@
         'Resolve-HDTVariable',
         'Save-HDTRunState',
         'Test-HDTRunStateAbandoned',
+        'Test-HDTStepCondition',
         'Update-HDTRunStateStep',
         'Write-HDTLog',
         'Write-HDTStatus',
