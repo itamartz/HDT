@@ -23,11 +23,19 @@ jobs:
       fail-fast: false
       matrix:
         shell: [ pwsh, powershell ]
+
+    # The matrix context is NOT available on a step's `shell:` key -- GitHub
+    # rejects the whole workflow with "Unrecognized named-value: 'matrix'" and
+    # produces a run with zero jobs. It IS available on jobs.<id>.defaults.run,
+    # so the shell is selected once here and inherited by every `run:` step.
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Install build dependencies
-        shell: ${{ matrix.shell }}
         run: |
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
           Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
@@ -37,7 +45,6 @@ jobs:
           Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
 
       - name: Build, lint, test, self-check
-        shell: ${{ matrix.shell }}
         run: ./build.ps1 -Task ci
 
       - name: Upload test results
