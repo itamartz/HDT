@@ -18,11 +18,32 @@ function Send-HDTLabVmText {
             long lines are sent in chunks. -Enter presses Return afterwards
             (key code 13).
 
-            This is used ONCE in the E2E, to start the launcher at the WinPE
-            prompt, because the boot image's startnet.cmd predates the engine.
-            Wiring the engine into startnet.cmd is M4's Update-HDTBootImage;
-            typing one line is the smallest thing that does not pretend
-            otherwise.
+            THE M4 E2E DOES NOT USE THIS, AND THAT IS THE MILESTONE.
+            tests/e2e/UnattendedDeployment.E2E.Tests.ps1 boots a boot image HDT
+            itself built, whose startnet.cmd runs wpeinit and then
+            X:\HDT\Start-HDTDeployment.ps1, and it SENDS THE MACHINE NOTHING AT
+            ALL. tests/unit/UnattendedDeploymentE2E.Tests.ps1 asserts that by
+            parsing the file: no Send-HDTLabVmText, no TypeText, no TypeKey, no
+            Msvm_Keyboard, four assertions with four messages. So a future author
+            who reaches for this helper to "just get the M4 run going" turns the
+            fast suite red in three seconds rather than shipping a milestone
+            whose headline claim is false.
+
+            IT SURVIVES FOR THE TWO FILES THAT LEGITIMATELY TYPE:
+
+              tests/e2e/Deployment.E2E.Tests.ps1   ROADMAP M3's exit criterion,
+                                                   kept as the historical record.
+                                                   Its boot image is SPIKES
+                                                   S1/S3's hand-built ISO, which
+                                                   predates the engine and drops
+                                                   to a prompt, so the harness
+                                                   types one line - and the file
+                                                   says so.
+              tests/e2e/WinPeSmoke.E2E.Tests.ps1   the same, for the probe that
+                                                   makes M3's failures legible.
+
+            Neither is a deployment HDT started. Both are runs somebody started
+            for it, on an image built by hand before Update-HDTBootImage existed.
 
         .PARAMETER Name
             The VM. Must be HDT-*.

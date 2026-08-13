@@ -1,0 +1,106 @@
+# ROADMAP M4's EXIT CRITERION, AS A SEQUENCE.
+#
+#   "a VM boots the ISO produced by Update-HDTBootImage / New-HDTBootIso and
+#    deploys to Windows 11 WITH ZERO KEYSTROKES"
+#
+# WHAT M4 CHANGES IS NOT IN THIS FILE. The steps below are DEMO-M3's five,
+# unchanged, in the order SPIKES S6 proved by hand:
+#
+#   validate -> partition -> apply the WIM -> stage the unattend -> make it boot
+#
+# What changed is HOW THE RUN STARTS. In M3 the harness typed one line at the
+# WinPE prompt with Msvm_Keyboard, because the boot image predated the engine and
+# its startnet.cmd dropped to a shell (SPIKES S4). In M4 the boot image is one
+# HDT built: Update-HDTBootImage writes a startnet.cmd that runs wpeinit and then
+# X:\HDT\Start-HDTDeployment.ps1, and NOTHING IS TYPED AT THE MACHINE AT ALL.
+# tests/e2e/UnattendedDeployment.E2E.Tests.ps1 is that demonstration and
+# tests/unit/UnattendedDeploymentE2E.Tests.ps1 asserts, by parsing it, that it
+# sends no keyboard input.
+#
+# THIS IS DEMO-M3 PLUS NOTHING, AND THAT IS THE POINT. A milestone that also
+# changed the sequence could not say which half of the change made the machine
+# deploy itself.
+#
+# THERE IS STILL DELIBERATELY NO Restart STEP, and DEMO-M3's reason has not
+# expired. The reboot ceremony arms autologon through the registry and an LSA
+# secret, and in WinPE those belong to the RAM disk, not to the machine being
+# built. The first logon of the deployed machine is configured by the unattend
+# (DESIGN 4.5.1), which is what the ApplyUnattend step stages - and SPIKES S7 and
+# S8 proved that path against a real machine. The engine-driven reboot into an
+# autologon resume is M6's; putting an unproven mechanism inside THIS phase's
+# exit criterion is exactly what DEMO-M3's header warns against, and the warning
+# is worth more in the milestone that could most easily ignore it.
+#
+# WHAT IT STILL DOES NOT DO: no Restart, no autologon resume, no drivers (M5, and
+# deferred to v2), no applications, updates, roles or BitLocker (M6), no domain
+# join - the HDT Lab switch is isolated by design and a test VM cannot reach
+# DC01, so JoinDomain is verified against a fake only (PROJECT.md).
+
+schemaVersion: 1
+id: DEMO-M4
+name: Windows 11 bare metal, started by the boot image itself
+description: >
+  DEMO-M3's five imaging steps, run by a machine that started its own
+  deployment: startnet.cmd inside an HDT-built boot image launches
+  Start-HDTDeployment.ps1, and no key is ever pressed.
+variables:
+  HDTOSImage: Win11-LTSC-2024
+  HDTDiskLayout: uefi-standard
+  HDTComputerName: HDT-M4-01
+
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      # minRamMB is 2048 rather than 4096 ON PURPOSE: a 4 GB VM reports 2046 MB
+      # on the 2 GB machine SPIKES S9.2 measured, because the firmware keeps some
+      # of it. A 4 GB VM reports slightly under 4096 for the same reason.
+      #
+      # minDiskGB is what excludes the content disk from the choice, which is
+      # what makes the target unambiguous on a two-disk machine.
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+
+      # wipe: true is the sequence declaring that the target's contents are
+      # expendable. Without it a disk carrying any formatted volume is refused -
+      # naming the disk explicitly is NOT the same statement (DESIGN 9.1).
+      - name: Format and Partition
+        type: DiskPartition
+        layout: "%HDTDiskLayout%"
+        wipe: true
+
+  - group: Install
+    runIn: WinPE
+    steps:
+      # target: primary means %HDTOSVolume%, which the partition step published.
+      # It is never a guess at C: - and in WinPE it certainly is not C:, because
+      # SPIKES S9.1 recorded WinPE handing the CONTENT disk that letter.
+      - name: Apply OS
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: 1
+        target: primary
+        timeoutMinutes: 60
+
+      # Staged at W:\Windows\Panther\unattend.xml - the location SPIKES S7 proved
+      # Setup consumes. %HDTAdminPassword% in the template is substituted with
+      # this run's deployment password, minted here if nothing else made one, and
+      # it appears in no log.
+      #
+      # HDTComputerName above loses to rules.yaml's fallback on a Hyper-V VM,
+      # whose serial number is 32 characters (SPIKES S9.11) - DESIGN 3.1 puts
+      # rules above a sequence's own defaults, and Windows Setup silently
+      # discards a name over 15 characters. The E2E therefore stages a
+      # per-machine override keyed on the VM's UUID, which is DESIGN 3.1's second
+      # source and beats every rule below it.
+      - name: Apply Unattend
+        type: ApplyUnattend
+        template: unattend.xml
+
+      # bcdboot, the recovery image, and then the FIRMWARE BOOT ORDER. Without
+      # that last part the machine reboots into the installation media and the
+      # deployment appears to loop (SPIKES S6, proven by S9.12).
+      - name: Prepare Boot
+        type: ConfigureBoot
