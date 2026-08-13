@@ -55,10 +55,20 @@ BeforeAll {
     }
 
     function New-HDTAdkTestFileSystem {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory test double; it changes no state.')]
+        [CmdletBinding()]
+        param()
+
         return (New-HDTFakeFileSystem -File $script:seed)
     }
 
     function New-HDTAdkTestRegistry {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory test double; it changes no state.')]
+        [CmdletBinding()]
+        param()
+
         return (New-HDTFakeRegistryService -Value @{
                 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots' = @{ KitsRoot10 = $script:kitsRoot10 }
             })
@@ -212,8 +222,10 @@ Describe 'Get-HDTAdkPath' {
                 $path = Get-HDTAdkPath -Asset $asset -Architecture arm64 -Registry (New-HDTAdkTestRegistry) `
                     -FileSystem (New-HDTAdkTestFileSystem) -SkipExistenceCheck
 
-                $path | Should -BeLike '*\arm64\*' -Because ("{0} carries the architecture" -f $asset)
-                $path | Should -Not -BeLike '*\amd64\*'
+                # '\arm64' either ends the path (DeploymentTools, WinPeRoot) or
+                # is followed by more of it, so the anchor is the segment.
+                $path | Should -Match '\\arm64(\\|$)' -Because ("{0} carries the architecture" -f $asset)
+                $path | Should -Not -Match '\\amd64(\\|$)'
             }
         }
 
@@ -363,11 +375,15 @@ Describe 'Get-HDTAdkPath' {
         It 'reports Exists false rather than throwing for a missing asset' {
             $filesystem = New-HDTFakeFileSystem -Directory @($script:adkRoot)
 
-            $row = $null
-            { $row = @(Get-HDTAdkPath -All -Registry (New-HDTAdkTestRegistry) -FileSystem $filesystem) } | Should -Not -Throw
+            # Assigned OUTSIDE the Should scriptblock: a scriptblock runs in a
+            # child scope, so an assignment inside one does not escape and the
+            # assertions below would read $null and say nothing.
+            { Get-HDTAdkPath -All -Registry (New-HDTAdkTestRegistry) -FileSystem $filesystem | Out-Null } | Should -Not -Throw
 
-            @($row | Where-Object { $_.Name -eq 'Oscdimg' }).Exists | Should -BeFalse
-            @($row | Where-Object { $_.Name -eq 'Root' }).Exists | Should -BeTrue
+            $row = @(Get-HDTAdkPath -All -Registry (New-HDTAdkTestRegistry) -FileSystem $filesystem)
+
+            @($row | Where-Object { $_.Name -eq 'Oscdimg' })[0].Exists | Should -BeFalse
+            @($row | Where-Object { $_.Name -eq 'Root' })[0].Exists | Should -BeTrue
         }
     }
 

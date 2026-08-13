@@ -14,6 +14,7 @@
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
         'Clear-HDTAutoLogon',
+        'Get-HDTAdkPath',
         'ConvertTo-HDTReport',
         'Copy-HDTLog',
         'Export-HDTMachineFact',
