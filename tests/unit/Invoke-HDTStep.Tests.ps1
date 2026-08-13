@@ -251,7 +251,14 @@ Describe 'Get-HDTStepDescription over every discovered type' {
         Get-ChildItem -LiteralPath (Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'src/Hephaestus/Public/Steps') -Filter 'Invoke-HDT*Step.ps1' -File -ErrorAction SilentlyContinue |
         ForEach-Object { @{ Type = ($_.BaseName -replace '^Invoke-HDT(.+)Step$', '$1') } }) {
 
-        $step = [pscustomobject] @{ Index = 1; Name = 'A step'; Type = $Type }
+        # Property is part of the flattened step record, so every step type may
+        # assume it: Import-HDTSequenceDocument always produces one.
+        $step = [pscustomobject] @{
+            Index    = 1
+            Name     = 'A step'
+            Type     = $Type
+            Property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        }
 
         Get-HDTStepDescription -Step $step | Should -Not -BeNullOrEmpty
     }
