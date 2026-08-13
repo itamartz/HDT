@@ -1,4 +1,4 @@
-@{
+﻿@{
     RootModule           = 'Hephaestus.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
@@ -30,6 +30,7 @@
         'Get-HDTPowerShellStepDescription',
         'Get-HDTCommandLineStepDescription',
         'Get-HDTRestartStepDescription',
+        'Get-HDTValidateStepDescription',
         'Get-HDTStepDescription',
         'Get-HDTStepType',
         'Get-HDTVariableMap',
@@ -45,6 +46,7 @@
         'Invoke-HDTPowerShellStep',
         'Invoke-HDTCommandLineStep',
         'Invoke-HDTRestartStep',
+        'Invoke-HDTValidateStep',
         'Invoke-HDTBootReconciliation',
         'Invoke-HDTStep',
         'Invoke-HDTTaskSequence',
