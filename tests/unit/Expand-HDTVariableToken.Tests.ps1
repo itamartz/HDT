@@ -165,12 +165,17 @@ Describe 'Expand-HDTVariableToken' {
             # so it would take the whole test host down with it. A job contains
             # that, and the timeout turns a hang into a failed assertion rather
             # than a suite that never finishes.
-            $job = Start-Job -ScriptBlock {
-                param($ManifestPath)
+            # $using: rather than -ArgumentList: PSUseUsingScopeModifierInNewRunspaces
+            # does not recognise the param/-ArgumentList form and the lint task
+            # fails the build on a warning.
+            $manifest = $script:manifestPath
 
-                Import-Module -Name $ManifestPath -Force -ErrorAction Stop
+            $job = Start-Job -ScriptBlock {
+                Import-Module -Name $using:manifest -Force -ErrorAction Stop
                 $module = Get-Module -Name Hephaestus
 
+                # The private function is reached the way InModuleScope reaches
+                # it: a scriptblock invoked in the module's own session state.
                 & $module {
                     $scope = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
                     $scope['HDTA'] = '%HDTB%'
@@ -183,7 +188,7 @@ Describe 'Expand-HDTVariableToken' {
                         $_.Exception.Message
                     }
                 }
-            } -ArgumentList $script:manifestPath
+            }
 
             try {
                 $finished = @(Wait-Job -Job $job -Timeout 90)
