@@ -25,6 +25,8 @@ BeforeAll {
                 Turns rules.yaml text into the document Resolve-HDTVariable consumes,
                 through the real importer and a fake filesystem.
         #>
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory document for a test; it changes no state.')]
         [CmdletBinding()]
         [OutputType([pscustomobject])]
         param(
@@ -391,7 +393,7 @@ rules:
                 $Variable['HDTSerialNumber'] = 'TAMPERED'
                 $Variable['HDTInjected'] = 'from the script'
 
-                return [pscustomobject] @{ HDTAssetTag = 'ASSET-1' }
+                return [pscustomobject] @{ HDTAssetTag = ('ASSET-1 from {0}' -f $Path) }
             }
 
             $result = Resolve-HDTVariable -RuleDocument $rules -Fact $script:fact -ScriptInvoker $tampering
@@ -454,7 +456,9 @@ rules:
             $failing | Add-Member -MemberType ScriptMethod -Name Invoke -Value {
                 param([string] $Path, [System.Collections.IDictionary] $Variable)
 
-                throw 'the script blew up'
+                # The message names both arguments, so the double is also
+                # evidence about what the engine handed the script.
+                throw ('the script blew up: {0} saw {1} variables' -f $Path, @($Variable.Keys).Count)
             }
 
             $record = $null
@@ -475,7 +479,9 @@ rules:
             $failing | Add-Member -MemberType ScriptMethod -Name Invoke -Value {
                 param([string] $Path, [System.Collections.IDictionary] $Variable)
 
-                throw 'the script blew up'
+                # The message names both arguments, so the double is also
+                # evidence about what the engine handed the script.
+                throw ('the script blew up: {0} saw {1} variables' -f $Path, @($Variable.Keys).Count)
             }
 
             $record = $null
@@ -494,7 +500,9 @@ rules:
             $engineVariable | Add-Member -MemberType ScriptMethod -Name Invoke -Value {
                 param([string] $Path, [System.Collections.IDictionary] $Variable)
 
-                return [pscustomobject] @{ _HDTLogPath = 'X:\HDT\Logs' }
+                return [pscustomobject] @{
+                    _HDTLogPath = ('X:\HDT\Logs\{0}-{1}' -f $Variable['HDTSerialNumber'], (Split-Path -Path $Path -Leaf))
+                }
             }
 
             $record = $null

@@ -14,13 +14,15 @@
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
         'Get-HDTMachineFact',
+        'Get-HDTMachineOverride',
         'Get-HDTModuleVersion',
         'Get-HDTVariableMap',
         'Import-HDTRuleDocument',
         'New-HDTCimProvider',
         'New-HDTEnvironmentProvider',
         'New-HDTRegistryService',
-        'New-HDTScriptInvoker'
+        'New-HDTScriptInvoker',
+        'Resolve-HDTVariable'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()
