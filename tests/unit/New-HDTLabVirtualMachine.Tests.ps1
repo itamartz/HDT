@@ -201,6 +201,10 @@ Describe 'New-HDTLabVirtualMachine' {
 
             $guard[0].Extent.StartOffset | Should -BeLessThan $firstHyperV.Extent.StartOffset
         }
+
+        It 'carries SupportsShouldProcess' {
+            (Get-Command -Name 'New-HDTLabVirtualMachine').Parameters.ContainsKey('WhatIf') | Should -BeTrue
+        }
     }
 }
 

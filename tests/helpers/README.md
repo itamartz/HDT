@@ -597,3 +597,67 @@ $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
 
 The rule that catches both: **every new test must be watched failing for the
 right reason.** A test that passes on its first run is a defect in the test.
+
+## 13. Lab helpers
+
+`tests/helpers/HDTTestTools/tools/*HDTLab*.ps1` are the only code in the
+repository allowed to call Hyper-V. They exist so that **PROJECT.md's Hyper-V
+lab safety rules are enforced in code, before any Hyper-V call, rather than
+remembered by the person running the test.**
+
+This host runs the user's live lab. `CM01` is a Configuration Manager server
+with a PXE responder; `DC01` is the domain controller. Damaging either is worse
+than failing a test.
+
+| Helper | Does |
+|---|---|
+| `Assert-HDTLabVmName` | the name guard: refuses a wildcard, `CM01`, `DC01`, and anything not `HDT-*` |
+| `Assert-HDTLabScratchDisk` | the disk guard: refuses a row that is `IsBoot` or `IsSystem` |
+| `New-HDTLabScratchDisk` / `Remove-HDTLabScratchDisk` | a VHDX under `C:\HDTLab`, created, mounted and destroyed by the test that uses it |
+| `New-HDTLabVirtualMachine` / `Remove-HDTLabVirtualMachine` | a Generation 2 VM on `HDT Lab`, files under `C:\HDTLab\vms` |
+| `New-HDTLabContentDisk` | the workspace, the module and the launcher as an attachable VHDX |
+| `Send-HDTLabVmText` | SPIKES S4's `Msvm_Keyboard` `TypeText`/`TypeKey` |
+| `Save-HDTLabVmScreen` | SPIKES S4's thumbnail, as a PNG for a human to read |
+| `Wait-HDTLabVmState` | a power state, or an integration-services heartbeat |
+| `Get-HDTLabOfflineComputerName` | mounts a VHDX read-only, `reg load`s its `SYSTEM` hive, unloads in a `finally` |
+
+### The rules, and where each is enforced
+
+1. **Every Hyper-V command is module-qualified** — `Hyper-V\Get-VM`, never
+   `Get-VM`. PowerCLI is installed on this host and shadows `Get-VM`
+   (SPIKES S8). A unit test parses every lab helper and fails on a bare
+   `*-VM` command.
+2. **No unfiltered pipeline.** Every `Hyper-V\Get-VM` in a lab helper names a VM
+   or a name filter; a unit test asserts it. `Get-VM | Remove-VM` is the failure
+   mode PROJECT.md rule 1 exists to prevent.
+3. **`HDT-*` only, and never `CM01` or `DC01`.** `Assert-HDTLabVmName` runs
+   before the first Hyper-V call in both VM helpers — asserted by comparing AST
+   offsets, so a refactor that moves the guard down is caught.
+4. **A wildcard name is refused.** `HDT-*` is a legal Hyper-V filter and would
+   remove every test VM at once.
+5. **`HDT Lab` switch only, Generation 2 only, files under `C:\HDTLab\vms`
+   only, 8 GB per VM and 12 GB across every running `HDT-*` VM.**
+
+### Why the guard tests use no `Mock`
+
+The plan for these tests asked for a `Mock` on `Hyper-V\New-VM`, asserting it
+was never invoked when a helper refuses. **It cannot work.** A module-qualified
+call resolves straight into the module and never consults the function table
+Pester's `Mock` injects into, so the mock is never hit — and an assertion that
+is never consulted is one that always passes. That is worse than no assertion at
+all (section 12's subject).
+
+What replaces it runs everywhere and is stronger: the AST assertions above prove
+every Hyper-V command is module-qualified **and** that the safety guard is called
+before the first one. Every refusal test then passes arguments that are invalid
+by name, so the refusal is proven by the message it throws rather than by a
+mock's call count.
+
+### Nothing in `tests/unit` or `tests/contract` calls Hyper-V
+
+Every assertion about the lab helpers in the normal suite is a **refusal**, and
+every refusal happens before the first Hyper-V call. So
+`tests/unit/New-HDTLabVirtualMachine.Tests.ps1` and
+`tests/unit/New-HDTLabScratchDisk.Tests.ps1` run in a two-second suite on a
+machine with no Hyper-V, no VHDX and no elevation — and create, start and remove
+nothing.

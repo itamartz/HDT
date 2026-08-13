@@ -11,6 +11,8 @@
     CompatiblePSEditions = @('Desktop', 'Core')
 
     FunctionsToExport    = @(
+        'Assert-HDTLabScratchDisk',
+        'Assert-HDTLabVmName',
         'Get-HDTAutoLogonArtifact',
         'Get-HDTFunctionNameViolation',
         'Get-HDTLogRecord',
@@ -18,11 +20,16 @@
         'Get-HDTSourceFile',
         'Get-HDTScriptCompatibilityViolation',
         'Get-HDTSourceFunction',
+        'New-HDTLabScratchDisk',
+        'New-HDTLabVirtualMachine',
         'New-HDTPesterConfiguration',
         'New-HDTSequenceTestHarness',
+        'Remove-HDTLabScratchDisk',
+        'Remove-HDTLabVirtualMachine',
         'Test-HDTFunctionName',
         'Test-HDTModuleAvailable',
-        'Test-HDTScriptCompatibility'
+        'Test-HDTScriptCompatibility',
+        'Wait-HDTLabVmState'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()

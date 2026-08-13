@@ -192,17 +192,27 @@ Describe 'build.ps1' {
 
     Context 'the preconditions each new task names' {
 
+        It 'asks the identity, not the environment' {
+            # One shared check rather than the WindowsPrincipal incantation
+            # copied into two functions, which is how one of them ends up
+            # subtly different from the other.
+            $body = & $script:functionBody 'Test-HDTElevation'
+
+            $body | Should -BeLike '*WindowsBuiltInRole*'
+            $body | Should -BeLike '*WindowsIdentity*'
+        }
+
         It 'requires elevation for the integration task' {
             $body = & $script:functionBody 'Invoke-HDTIntegrationTest'
 
-            $body | Should -BeLike '*WindowsBuiltInRole*'
+            $body | Should -BeLike '*Test-HDTElevation*'
             $body | Should -BeLike '*elevated*'
         }
 
         It 'requires elevation for the e2e task' {
             $body = & $script:functionBody 'Invoke-HDTEndToEndTest'
 
-            $body | Should -BeLike '*WindowsBuiltInRole*'
+            $body | Should -BeLike '*Test-HDTElevation*'
             $body | Should -BeLike '*elevated*'
         }
 

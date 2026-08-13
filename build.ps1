@@ -12,9 +12,15 @@
         importable under 5.1 on every machine, so 'test' never depends on 'lint'.
 
     .PARAMETER Task
-        One or more of clean, build, lint, test, selfcheck, ci. Defaults to test.
-        Tasks always run in the canonical order clean -> build -> lint -> test ->
-        selfcheck regardless of the order given.
+        One or more of clean, build, lint, test, selfcheck, ci, integration, e2e.
+        Defaults to test. Tasks always run in the canonical order clean -> build
+        -> lint -> test -> selfcheck -> integration -> e2e regardless of the
+        order given.
+
+        integration and e2e are NOT part of ci and never will be. DESIGN 12.2.5
+        puts integration on pushes to main and E2E nightly; both need an elevated
+        session, a disk to write to and - for e2e - Hyper-V and the staged media,
+        none of which a CI worker has.
 
     .PARAMETER Verbosity
         Pester output verbosity for the test task.
@@ -24,10 +30,20 @@
 
     .EXAMPLE
         ./build.ps1 -Task ci
+
+    .EXAMPLE
+        ./build.ps1 -Task integration
+
+        Real DISM, a real mounted VHDX, elevated. Not part of ci.
+
+    .EXAMPLE
+        ./build.ps1 -Task e2e
+
+        Hyper-V, elevated, on the isolated 'HDT Lab' switch only. Not part of ci.
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('clean', 'build', 'lint', 'test', 'selfcheck', 'ci')]
+    [ValidateSet('clean', 'build', 'lint', 'test', 'selfcheck', 'ci', 'integration', 'e2e')]
     [string[]] $Task = @('test'),
 
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
@@ -196,6 +212,138 @@ function Invoke-HDTTest {
     }
 }
 
+function Test-HDTElevation {
+    <#
+        .SYNOPSIS
+            True when this session is running as Administrator.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+
+    return ([Security.Principal.WindowsPrincipal] $identity).IsInRole(
+        [Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Invoke-HDTIntegrationTest {
+    <#
+        .SYNOPSIS
+            Runs tests/integration - real DISM, a real mounted VHDX, real
+            partitioning.
+
+        .DESCRIPTION
+            NOT PART OF ci, and it must not become part of it. These tests mount
+            VHDXs, clear and repartition them, and apply a 4 GB Windows image;
+            they need an elevated session and about 25 GB of free disk.
+
+            Every precondition is named in a sentence here rather than left to
+            fail obscurely inside a test. A suite that dies with "Access is
+            denied" thirty seconds in has told the operator nothing.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param(
+        [Parameter()]
+        [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
+        [string] $OutputVerbosity = 'Detailed'
+    )
+
+    if (-not (Test-HDTElevation)) {
+        throw "The 'integration' task needs an elevated session: it mounts VHDXs, clears disks and applies images. Start PowerShell as Administrator and run ./build.ps1 -Task integration again."
+    }
+
+    # New-VHD comes from the Hyper-V module. It is how the scratch disk these
+    # tests write to is created, and it is the reason they never touch a
+    # physical disk.
+    if (-not (Get-Command -Name 'New-VHD' -ErrorAction SilentlyContinue)) {
+        throw "The 'integration' task needs the Hyper-V PowerShell module for New-VHD, which is how it creates the scratch VHDX it writes to. Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell."
+    }
+
+    $media = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
+    if (-not (Test-Path -LiteralPath $media -PathType Leaf)) {
+        throw ("The 'integration' task needs the staged Windows 11 media at '{0}' (PROJECT.md, 'Test media - already staged locally')." -f $media)
+    }
+
+    $path = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/integration'
+    if (-not (Test-Path -Path $path -PathType Container)) {
+        throw ("No integration suite found at '{0}'." -f $path)
+    }
+
+    $resultName = 'pester-integration-{0}-{1}.xml' -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion
+    $resultPath = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'testResults') -ChildPath $resultName
+
+    $configuration = New-HDTPesterConfiguration -Path @($path) -ResultPath $resultPath -Verbosity $OutputVerbosity
+    $result = Invoke-Pester -Configuration $configuration
+
+    Write-Information ("integration: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
+
+    if ($result.FailedCount -gt 0) {
+        throw ("{0} integration test(s) failed." -f $result.FailedCount)
+    }
+}
+
+function Invoke-HDTEndToEndTest {
+    <#
+        .SYNOPSIS
+            Runs tests/e2e - Hyper-V, on the isolated 'HDT Lab' switch only.
+
+        .DESCRIPTION
+            NOT PART OF ci. This builds a Generation 2 VM, boots it from the
+            WinPE ISO and lets the engine deploy Windows 11 onto it.
+
+            PROJECT.md's lab safety rules apply in full: HDT test VMs are named
+            HDT-*, sit on the 'HDT Lab' switch, keep their files under
+            C:\HDTLab\vms and stay under 12 GB combined. CM01 and DC01 are never
+            touched. The helpers in tests/helpers/HDTTestTools enforce all of
+            that in code; this function only checks that the run is possible at
+            all.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param(
+        [Parameter()]
+        [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
+        [string] $OutputVerbosity = 'Detailed'
+    )
+
+    if (-not (Test-HDTElevation)) {
+        throw "The 'e2e' task needs an elevated session: it creates and starts Hyper-V virtual machines and mounts VHDXs. Start PowerShell as Administrator and run ./build.ps1 -Task e2e again."
+    }
+
+    if (-not (Get-Module -Name 'Hyper-V' -ListAvailable)) {
+        throw "The 'e2e' task needs the Hyper-V PowerShell module. Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-Management-PowerShell."
+    }
+
+    $iso = 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso'
+    if (-not (Test-Path -LiteralPath $iso -PathType Leaf)) {
+        throw ("The 'e2e' task needs the WinPE boot ISO at '{0}' (SPIKES.md S1/S3). Building one from code is M4's Update-HDTBootImage; until then the spike artifact is the boot vehicle." -f $iso)
+    }
+
+    $media = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
+    if (-not (Test-Path -LiteralPath $media -PathType Leaf)) {
+        throw ("The 'e2e' task needs the staged Windows 11 media at '{0}' (PROJECT.md, 'Test media - already staged locally')." -f $media)
+    }
+
+    $path = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/e2e'
+    if (-not (Test-Path -Path $path -PathType Container)) {
+        throw ("No e2e suite found at '{0}'." -f $path)
+    }
+
+    $resultName = 'pester-e2e-{0}-{1}.xml' -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion
+    $resultPath = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'testResults') -ChildPath $resultName
+
+    $configuration = New-HDTPesterConfiguration -Path @($path) -ResultPath $resultPath -Verbosity $OutputVerbosity
+    $result = Invoke-Pester -Configuration $configuration
+
+    Write-Information ("e2e: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
+
+    if ($result.FailedCount -gt 0) {
+        throw ("{0} end-to-end test(s) failed." -f $result.FailedCount)
+    }
+}
+
 function Invoke-HDTSelfCheck {
     <#
         .SYNOPSIS
@@ -300,14 +448,31 @@ function Invoke-HDTSelfCheck {
     Write-Information 'selfcheck: 4 of 4 checks passed'
 }
 
+# WHAT ci MEANS. These five, and only these five. integration and e2e are
+# accepted tasks but are deliberately absent from this list, so 'ci' never
+# expands to a run that needs elevation, a disk or Hyper-V.
 $canonicalOrder = @('clean', 'build', 'lint', 'test', 'selfcheck')
+
+# WHAT CAN BE DISPATCHED. Everything above, plus the two slow tasks, in the
+# order they would be run together. A task accepted by the ValidateSet but
+# missing from THIS list would leave $ordered empty, the foreach would run
+# nothing, and the script would print BUILD SUCCEEDED () and exit 0 - reporting
+# success for a suite that never executed. The guard below makes that a failure,
+# but the list is what makes it not happen.
+$dispatchOrder = @($canonicalOrder + @('integration', 'e2e'))
+
 $requested = @($Task)
 if ($requested -contains 'ci') {
-    $requested = $canonicalOrder
+    $requested = @($requested + $canonicalOrder)
 }
-$ordered = @($canonicalOrder | Where-Object { $requested -contains $_ })
+$ordered = @($dispatchOrder | Where-Object { $requested -contains $_ })
 
 try {
+    if ($ordered.Count -eq 0) {
+        throw ("No task was dispatched for -Task [{0}]. A build that ran nothing is not a build that succeeded. The tasks are: {1} (and ci, which runs {2})." -f
+            ($requested -join ', '), ($dispatchOrder -join ', '), ($canonicalOrder -join ', '))
+    }
+
     Initialize-HDTBuildEnvironment
 
     foreach ($name in $ordered) {
@@ -317,6 +482,8 @@ try {
             'lint' { Invoke-HDTLint }
             'test' { Invoke-HDTTest -OutputVerbosity $Verbosity }
             'selfcheck' { Invoke-HDTSelfCheck }
+            'integration' { Invoke-HDTIntegrationTest -OutputVerbosity $Verbosity }
+            'e2e' { Invoke-HDTEndToEndTest -OutputVerbosity $Verbosity }
         }
     }
 } catch {

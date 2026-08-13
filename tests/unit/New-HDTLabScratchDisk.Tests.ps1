@@ -84,6 +84,11 @@ Describe 'New-HDTLabScratchDisk' {
             Should -Throw '*PROJECT.md*'
     }
 
+    It 'carries SupportsShouldProcess' {
+        # It creates a 40 GB file and mounts it as a disk. CLAUDE.md rule 6.
+        (Get-Command -Name 'New-HDTLabScratchDisk').Parameters.ContainsKey('WhatIf') | Should -BeTrue
+    }
+
     It 'calls Assert-HDTLabScratchDisk before it returns a disk number' {
         $path = Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/tools/New-HDTLabScratchDisk.ps1'
         Test-Path -LiteralPath $path -PathType Leaf | Should -BeTrue
