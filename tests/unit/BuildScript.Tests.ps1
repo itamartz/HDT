@@ -251,6 +251,40 @@ Describe 'build.ps1' {
             $body | Should -BeLike '*HDTPE_x64_uefi.iso*'
             $body | Should -BeLike '*install.wim*'
         }
+
+        It 'accepts either the ADK or a prebuilt ISO for the e2e task' {
+            # THIS PRECONDITION WAS FALSE UNTIL 05-04. It required SPIKES S1/S3's
+            # HAND-BUILT ISO and said in its own error message that "building one
+            # from code is M4's Update-HDTBootImage" - which now exists, and which
+            # the e2e suite calls to build its own boot vehicle. A task that
+            # refuses to start unless a hand-built artifact from a spike is
+            # present would make the code that replaced it unrunnable.
+            $body = & $script:functionBody 'Invoke-HDTEndToEndTest'
+
+            $body | Should -BeLike '*Get-HDTAdkPath*'
+            $body | Should -Not -BeLike '*Building one from code is M4*'
+        }
+
+        It 'names both routes when neither the ADK nor an ISO is present' {
+            $body = & $script:functionBody 'Invoke-HDTEndToEndTest'
+
+            # One sentence naming BOTH: install the ADK, or put a prebuilt ISO
+            # where the suite can find it. An error that named only one would
+            # send an operator down the wrong road half the time.
+            $body | Should -Match '(?s)HDTPE_x64_uefi\.iso[^}]*throw'
+            $body | Should -BeLike '*Update-HDTBootImage*'
+            $body | Should -BeLike '*Windows ADK*'
+        }
+
+        It 'names the ADK as an integration precondition' {
+            # tests/integration/BootImage.Integration.Tests.ps1 needs it and skips
+            # itself without it, exactly as the media-dependent files do. The task
+            # says what is missing and lets each file decide.
+            $body = & $script:functionBody 'Invoke-HDTIntegrationTest'
+
+            $body | Should -BeLike '*ADK*'
+            $body | Should -Match '(?s)ADK[^}]*Write-Warning'
+        }
     }
 
     Context 'naming' {
