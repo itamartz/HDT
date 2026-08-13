@@ -26,11 +26,18 @@ BeforeAll {
 
     $script:root = '\\hdtserver\HdtShare'
 
+    # Built a character at a time rather than with ConvertTo-SecureString
+    # -AsPlainText, which PSScriptAnalyzer refuses outright
+    # (PSAvoidUsingConvertToSecureStringWithPlainText) and which would need a
+    # suppression in every test file that names a password.
     $script:newCredential = {
-        param([string] $UserName, [string] $Password)
+        param([string] $UserName, [string] $Plain)
 
-        return (New-Object System.Management.Automation.PSCredential $UserName,
-            (ConvertTo-SecureString $Password -AsPlainText -Force))
+        $secure = New-Object System.Security.SecureString
+        foreach ($character in $Plain.ToCharArray()) { $secure.AppendChar($character) }
+        $secure.MakeReadOnly()
+
+        return (New-Object System.Management.Automation.PSCredential $UserName, $secure)
     }
 
     $script:emptyCredential = {

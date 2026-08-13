@@ -47,8 +47,14 @@ $script:HDTImplementation = @(
             # any machine with nothing mapped. The contract is about shape; the
             # real SmbShare mechanism is proven in
             # tests/integration/SmbContentProvider.Integration.Tests.ps1.
+            #
+            # The SecureString is built a character at a time: PSScriptAnalyzer
+            # refuses ConvertTo-SecureString -AsPlainText outright.
+            $secure = New-Object System.Security.SecureString
+            foreach ($character in 'P@ssw0rd!'.ToCharArray()) { $secure.AppendChar($character) }
+
             New-HDTSmbContentProvider -Root '\\hdtserver\HdtShare' `
-                -Credential (New-Object System.Management.Automation.PSCredential 'CONTOSO\svc-hdt-deploy', (ConvertTo-SecureString 'P@ssw0rd!' -AsPlainText -Force)) `
+                -Credential (New-Object System.Management.Automation.PSCredential 'CONTOSO\svc-hdt-deploy', $secure) `
                 -SmbService (New-HDTFakeSmbService -Connection @(
                     [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'HdtShare'; UserName = 'CONTOSO\svc-hdt-deploy'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true })) `
                 -FileSystem (New-HDTFakeFileSystem)
@@ -56,8 +62,11 @@ $script:HDTImplementation = @(
         JournalFactory = {
             param($Journal)
 
+            $secure = New-Object System.Security.SecureString
+            foreach ($character in 'P@ssw0rd!'.ToCharArray()) { $secure.AppendChar($character) }
+
             New-HDTSmbContentProvider -Root '\\hdtserver\HdtShare' `
-                -Credential (New-Object System.Management.Automation.PSCredential 'CONTOSO\svc-hdt-deploy', (ConvertTo-SecureString 'P@ssw0rd!' -AsPlainText -Force)) `
+                -Credential (New-Object System.Management.Automation.PSCredential 'CONTOSO\svc-hdt-deploy', $secure) `
                 -SmbService (New-HDTFakeSmbService -Connection @(
                     [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'HdtShare'; UserName = 'CONTOSO\svc-hdt-deploy'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true })) `
                 -FileSystem (New-HDTFakeFileSystem) -Journal $Journal

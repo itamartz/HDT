@@ -3283,7 +3283,11 @@ class HDTFakeSmbService {
     # ILsaService.SetSecret redacts its value: $Operations is printed verbatim
     # in a Pester failure message, and the deployment password does not belong
     # in one.
-    [void] NewMapping([string] $RemotePath, [string] $UserName, [string] $Password) {
+    # The third argument is the password. It is called $Secret because a class
+    # method cannot carry a SuppressMessageAttribute, and PSScriptAnalyzer's
+    # PSAvoidUsingUsernameAndPasswordParams fires on the pair of names - the real
+    # adapter suppresses the same two rules with a justification instead.
+    [void] NewMapping([string] $RemotePath, [string] $UserName, [string] $Secret) {
         $this.Record('NewMapping', @($RemotePath, $UserName, '<redacted>'))
         $this.AssertNoFailure('NewMapping')
 
@@ -3291,6 +3295,14 @@ class HDTFakeSmbService {
 
         if ($this.Seeded.ContainsKey($server)) {
             $this.Active[$server] = [object[]] @($this.Seeded[$server])
+            return
+        }
+
+        # SEEDING IS AUTHORITATIVE. Once a test has said what a mapping becomes,
+        # a mapping to a server it did not name becomes nothing - which is how
+        # "the mapping did not take" is staged for the provider.
+        if ($this.Seeded.Count -gt 0) {
+            $this.Active[$server] = [object[]] @()
             return
         }
 

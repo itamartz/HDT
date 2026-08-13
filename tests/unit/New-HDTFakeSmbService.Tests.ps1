@@ -69,6 +69,19 @@ Describe 'New-HDTFakeSmbService' {
             $row.Dialect | Should -BeExactly '3.1.1'
         }
 
+        It 'produces no connection for a server the seeds did not name' {
+            # SEEDING IS AUTHORITATIVE. Once a test has said what a mapping
+            # becomes, a mapping to some other server becomes nothing - which is
+            # how "the mapping did not take" is staged, and that is a case the
+            # provider has to have an answer for.
+            $smb = New-HDTFakeSmbService -Connection @(
+                [pscustomobject] @{ ServerName = 'someone-else'; ShareName = 'Other'; UserName = 'CONTOSO\svc'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true })
+
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+
+            @($smb.GetConnection('hdtserver')).Count | Should -Be 0
+        }
+
         It 'returns an empty list for a server that was never mapped' {
             $smb = New-HDTFakeSmbService
 

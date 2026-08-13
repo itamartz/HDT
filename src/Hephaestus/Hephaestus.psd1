@@ -78,6 +78,8 @@
         'New-HDTRegistryService',
         'New-HDTRunState',
         'New-HDTScriptInvoker',
+        'New-HDTSmbContentProvider',
+        'New-HDTSmbService',
         'New-HDTServiceCatalog',
         'New-HDTStepResult',
         'Resolve-HDTImageIndex',
