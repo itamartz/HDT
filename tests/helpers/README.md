@@ -28,6 +28,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeProcessService` | `IProcessService` | `New-HDTProcessService` | `-Result` |
 | `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Command` | nothing |
 | `New-HDTFakeLsaService` | `ILsaService` | `New-HDTLsaService` | `-Secret` |
+| `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
 
 `IRegistryService` is six methods. `TestPath` and `GetValue` are the read subset
@@ -63,6 +64,43 @@ calls `GetSecret` on a name that cannot exist. **The suite never writes an LSA
 secret on anyone's machine.** For the same reason the real `IRegistryService` row
 writes only under `HKCU:\Software\HDT-Contract-Test-<guid>`, which it removes in
 `AfterAll`; `HKLM` is never written by the suite.
+
+`IDiskService` is nine methods. `GetDisk`, `GetPartition` and `GetVolume` are
+three **flat listings, with no filters and no joins** — the same decision
+`ICimProvider` made when it refused a `-Filter`. A partition row carries its
+`DiskNumber` and a volume row carries its `DriveLetter`, so the pure logic in
+04-02 does the joining and the adapter stays a projection of three cmdlets. An
+adapter that filtered would be an adapter with a branch in it. The other six —
+`ClearDisk`, `InitializeDisk`, `NewPartition`, `SetPartitionDriveLetter`,
+`SetPartitionType`, `FormatVolume` — are the whole of what `DiskPartition` needs.
+
+**Two behaviours the fake models rather than documents, both from SPIKES.md S6:**
+
+- **`InitializeDisk` with `GPT` creates a 16 MB `Reserved` partition of its own,**
+  because `Initialize-Disk -PartitionStyle GPT` does. HDT never creates an MSR;
+  PSD's `PSDPartition.ps1` creates one by hand right after initialising, which is
+  how the spike ended up with a **duplicate** 16 MB partition. Because the fake
+  creates it too, a step that "helpfully" creates one produces a duplicate the
+  tests can see. The consequence a test must expect: **the first partition an
+  author creates on a GPT disk is number 2, not 1** — a test that assumed 1 would
+  pass against a naive fake and fail on metal.
+- **`NewPartition` refuses a disk that is still `RAW`,** as `New-Partition` does,
+  so a step that forgot `InitializeDisk` cannot pass here and fail on metal.
+
+A disk number nothing seeded throws `ArgumentOutOfRangeException`. A disk number
+carried by **two** seeded rows throws `InvalidOperationException` naming the
+ambiguity: `tests/fixtures/disk/` is a *catalogue* of captured rows rather than a
+snapshot of one machine — this host's disk and the derived Gen2 VM disk are both
+number 0 — and DESIGN 9.1's whole point is that HDT refuses an ambiguous target
+rather than guessing which disk to wipe.
+
+**The real row of `DiskService.Contract.Tests.ps1` is opt-in and read-only**, for
+the same reason the `ILsaService` one is. It runs only when the session is
+elevated **and** `$env:HDT_ALLOW_DISK_TEST -eq '1'`, and even then calls only
+`GetDisk`, `GetPartition` and `GetVolume`. The destructive half is proven in
+`tests/integration` (04-04) against a mounted scratch VHDX, never against
+whatever disk the developer happens to have — which on this machine is a single
+NVMe disk with `IsBoot` and `IsSystem` both true.
 
 `New-HDTFakeRandomNumberGenerator` doubles a .NET type rather than an HDT
 service, so it has no real adapter row — but it follows every other convention

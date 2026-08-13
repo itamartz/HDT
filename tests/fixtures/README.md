@@ -15,6 +15,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `cim/` | Captured `Get-CimInstance` output for the `root/cimv2` classes fact gathering uses (DESIGN 3.2.1), one JSON file per class | captured |
 | `cim-microsofttpm/` | Captured `Win32_Tpm`, which lives in `root/cimv2/security/microsofttpm` — a **separate directory because it is a separate namespace**, not a subdirectory of `cim/` | captured |
 | `cim-vm/` | A Hyper-V guest's `Win32_ComputerSystem` and `Win32_ComputerSystemProduct`, so `HDTIsVM` can be proven | **derived** — see below |
+| `disk/` | Captured `Get-Disk`, `Get-Partition` and `Get-Volume` projections, plus one **derived** Gen2 VM disk row | captured, one derived — see below |
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
 | `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
 | `naming/` | Source that breaks — and source that keeps — the `Verb-HDTNoun` rule (DESIGN 15.1), plus a class fixture proving class members are not commands | deliberately invalid |
@@ -128,6 +129,68 @@ Manufacturer, model, SKU, family, firmware version, `Description`,
 and `Version` are **kept**: they are hardware facts, not personal ones, and
 rule-matching tests need a realistic `Model` and a realistic chassis type to
 match on.
+
+## Disk fixtures
+
+`disk/` is a **catalogue of rows, not a snapshot of one machine.** The base
+name's suffix chooses which `IDiskService` listing a file seeds, and
+`New-HDTFakeDiskService -FixturePath` accepts either the directory or a single
+file:
+
+| File | Rows | Kind |
+|---|---|---|
+| `host-nvme-disk.json` | this machine's own disk — `NVMe`, `GPT`, **`IsBoot` and `IsSystem` both true** | captured |
+| `host-vhdx-disk.json` | `C:\HDTLab\scratch\imgtest-a.vhdx` mounted read-only — `BusType` `File Backed Virtual` | captured |
+| `gen2-vm-raw-disk.json` | a Gen2 Hyper-V VM's system disk — `SAS`, `RAW`, 64 GB | **derived** |
+| `host-partition.json` | this machine's four partitions: ESP, MSR, Windows, Recovery | captured |
+| `host-volume.json` | this machine's lettered volumes | captured |
+
+`host-nvme-disk.json` is the row 04-02's selection rule must refuse
+**unconditionally**: the developer machine is the disk most likely to be in
+front of this code, and it is the one disk on it.
+
+Two files each carry a disk numbered `0`, so loading the whole directory yields
+an ambiguous disk 0 — and `New-HDTFakeDiskService` throws for it rather than
+picking one, which is DESIGN 9.1's refusal to guess, enforced in the fake.
+
+Captured with, and re-capturable by, the equivalent of:
+
+```powershell
+# host-nvme-disk.json - the eleven documented GetDisk properties.
+@(Get-Disk | Select-Object Number, FriendlyName, SerialNumber,
+    @{n='SizeBytes';e={[long]$_.Size}}, BusType, PartitionStyle,
+    IsBoot, IsSystem, IsReadOnly, IsOffline, OperationalStatus) |
+  ConvertTo-Json -Depth 3
+
+# host-vhdx-disk.json - the same projection of a VHDX mounted READ ONLY and
+# dismounted again in a finally. IsReadOnly is true in the fixture BECAUSE the
+# capture used -Access ReadOnly; that is the honest value for how it was taken.
+Mount-DiskImage -ImagePath C:\HDTLab\scratch\imgtest-a.vhdx -Access ReadOnly -StorageType VHDX -NoDriveLetter
+
+# host-partition.json / host-volume.json - the documented GetPartition and
+# GetVolume projections. GetVolume reports only volumes with a drive letter, so
+# the capture filters to those.
+```
+
+`SerialNumber` is replaced with `FIXTURE-SERIAL-0001` in every disk row, exactly
+as the CIM fixtures do. `FriendlyName`, `BusType`, `SizeBytes`,
+`PartitionStyle`, the GPT type GUIDs and the volume labels are hardware facts
+and are kept — the GUIDs in particular are what 04-02 and 04-03 assert against.
+
+### `gen2-vm-raw-disk.json` is derived, and only until 04-04
+
+The property **shape** is this host's real `Get-Disk` projection. The **values**
+are SPIKES.md S6's recorded observation from inside a Gen2 VM — `Number 0`,
+`BusType SAS` (not `SCSI` and not `Virtual`; do not filter on a VM-specific bus
+type), `PartitionStyle RAW`, `SizeBytes 68719476736`, every flag false.
+`FriendlyName` is `Msft Virtual Disk`, which is what the mounted VHDX capture
+above reports for a Microsoft virtual disk; `SerialNumber` is the placeholder,
+because S6 did not record one.
+
+There is no HDT test VM yet, so there is no honest capture available today.
+**04-04 replaces this file with a true capture from the E2E VM and asserts that
+the derived row matched.** The derivation is a debt with a named closing date,
+not a permanent invention. Delete this section when 04-04 closes it.
 
 ## Rules fixtures
 

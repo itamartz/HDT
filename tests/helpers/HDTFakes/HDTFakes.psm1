@@ -1810,6 +1810,539 @@ function New-HDTFakeScriptInvoker {
     return $fake
 }
 
+class HDTFakeDiskService {
+
+    # Three flat listings, exactly as IDiskService exposes them. No filters and
+    # no joins: a partition row carries its DiskNumber and a volume row carries
+    # its DriveLetter, so the pure logic in 04-02 does the joining and the real
+    # adapter stays a projection of three cmdlets.
+    [System.Collections.ArrayList] $Disk
+    [System.Collections.ArrayList] $Partition
+    [System.Collections.ArrayList] $Volume
+
+    # GPT partition type GUID -> the Type name Get-Partition reports for it.
+    # The GUIDs are PSDPartition.ps1's, cross-checked against this machine's own
+    # captured tests/fixtures/disk/host-partition.json.
+    [hashtable] $GptTypeName
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeDiskService() {
+        $this.Disk = [System.Collections.ArrayList]::new()
+        $this.Partition = [System.Collections.ArrayList]::new()
+        $this.Volume = [System.Collections.ArrayList]::new()
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'DiskService'
+
+        $this.GptTypeName = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.GptTypeName['{c12a7328-f81f-11d2-ba4b-00a0c93ec93b}'] = 'System'
+        $this.GptTypeName['{e3c9e316-0b5c-4db8-817d-f92df00215ae}'] = 'Reserved'
+        $this.GptTypeName['{ebd0a0a2-b9e5-4433-87c0-68b6b72699c7}'] = 'Basic'
+        $this.GptTypeName['{de94bba4-06d1-4d40-a16a-bfd50179d6ac}'] = 'Recovery'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        # The shared journal is numbered globally, across every service, so a
+        # test can assert one ordered cross-service operation list. The per-fake
+        # Operations numbering above stays independent of it.
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- row handling ------------------------------------------------------
+
+    # Reads a property off a seeded row, whether it arrived as a pscustomobject
+    # (a fixture, deserialised) or as a hashtable (a test, typed by hand), and
+    # falls back to the documented default when it is absent or null.
+    hidden [object] Property([object] $Row, [string] $Name, [object] $Default) {
+        if ($null -eq $Row) {
+            return $Default
+        }
+
+        if ($Row -is [System.Collections.IDictionary]) {
+            if (-not $Row.Contains($Name)) {
+                return $Default
+            }
+            if ($null -eq $Row[$Name]) {
+                return $Default
+            }
+            return $Row[$Name]
+        }
+
+        $member = $Row.PSObject.Properties[$Name]
+        if ($null -eq $member) {
+            return $Default
+        }
+        if ($null -eq $member.Value) {
+            return $Default
+        }
+
+        return $member.Value
+    }
+
+    hidden [object] NewDiskRow([object] $Row) {
+        return [pscustomobject] @{
+            Number            = [int] $this.Property($Row, 'Number', 0)
+            FriendlyName      = [string] $this.Property($Row, 'FriendlyName', '')
+            SerialNumber      = [string] $this.Property($Row, 'SerialNumber', '')
+            SizeBytes         = [long] $this.Property($Row, 'SizeBytes', [long] 0)
+            BusType           = [string] $this.Property($Row, 'BusType', '')
+            PartitionStyle    = [string] $this.Property($Row, 'PartitionStyle', 'RAW')
+            IsBoot            = [bool] $this.Property($Row, 'IsBoot', $false)
+            IsSystem          = [bool] $this.Property($Row, 'IsSystem', $false)
+            IsReadOnly        = [bool] $this.Property($Row, 'IsReadOnly', $false)
+            IsOffline         = [bool] $this.Property($Row, 'IsOffline', $false)
+            OperationalStatus = [string] $this.Property($Row, 'OperationalStatus', 'Online')
+        }
+    }
+
+    hidden [object] NewPartitionRow([object] $Row) {
+        return [pscustomobject] @{
+            DiskNumber      = [int] $this.Property($Row, 'DiskNumber', 0)
+            PartitionNumber = [int] $this.Property($Row, 'PartitionNumber', 0)
+            DriveLetter     = [string] $this.Property($Row, 'DriveLetter', '')
+            SizeBytes       = [long] $this.Property($Row, 'SizeBytes', [long] 0)
+            OffsetBytes     = [long] $this.Property($Row, 'OffsetBytes', [long] 0)
+            Type            = [string] $this.Property($Row, 'Type', 'Basic')
+            GptType         = [string] $this.Property($Row, 'GptType', '')
+            IsActive        = [bool] $this.Property($Row, 'IsActive', $false)
+            IsHidden        = [bool] $this.Property($Row, 'IsHidden', $false)
+            IsBoot          = [bool] $this.Property($Row, 'IsBoot', $false)
+            IsSystem        = [bool] $this.Property($Row, 'IsSystem', $false)
+        }
+    }
+
+    hidden [object] NewVolumeRow([object] $Row) {
+        return [pscustomobject] @{
+            DriveLetter        = [string] $this.Property($Row, 'DriveLetter', '')
+            FileSystem         = [string] $this.Property($Row, 'FileSystem', '')
+            FileSystemLabel    = [string] $this.Property($Row, 'FileSystemLabel', '')
+            SizeBytes          = [long] $this.Property($Row, 'SizeBytes', [long] 0)
+            SizeRemainingBytes = [long] $this.Property($Row, 'SizeRemainingBytes', [long] 0)
+        }
+    }
+
+    hidden [string] TypeNameFor([string] $GptType) {
+        if ($this.GptTypeName.ContainsKey($GptType)) {
+            return [string] $this.GptTypeName[$GptType]
+        }
+
+        return 'Basic'
+    }
+
+    # DESIGN 9.1: HDT refuses ambiguous targets rather than guessing which disk
+    # to wipe. tests/fixtures/disk/ is a CATALOGUE of captured rows rather than a
+    # snapshot of one machine - the host disk and the derived Gen2 VM disk are
+    # both number 0 - so a fake that silently picked one would be lying about
+    # which disk a step just cleared.
+    hidden [object] FindDisk([int] $DiskNumber) {
+        $match = @($this.Disk | Where-Object { $_.Number -eq $DiskNumber })
+
+        if ($match.Count -eq 0) {
+            throw [System.ArgumentOutOfRangeException]::new(
+                'DiskNumber', $DiskNumber, "No disk numbered $DiskNumber was seeded on this fake.")
+        }
+        if ($match.Count -gt 1) {
+            throw [System.InvalidOperationException]::new(
+                "Disk number $DiskNumber is ambiguous: $($match.Count) seeded disks carry it.")
+        }
+
+        return $match[0]
+    }
+
+    hidden [object] FindPartition([int] $DiskNumber, [int] $PartitionNumber) {
+        $match = @($this.Partition |
+                Where-Object { $_.DiskNumber -eq $DiskNumber -and $_.PartitionNumber -eq $PartitionNumber })
+
+        if ($match.Count -eq 0) {
+            throw [System.ArgumentOutOfRangeException]::new(
+                'PartitionNumber', $PartitionNumber,
+                "No partition $PartitionNumber on disk $DiskNumber was seeded on this fake.")
+        }
+
+        return $match[0]
+    }
+
+    # -- seeding (never recorded: seeding is not an operation the code under
+    #    test performed) ---------------------------------------------------
+
+    [void] SeedDisk([object] $Row) {
+        [void] $this.Disk.Add($this.NewDiskRow($Row))
+    }
+
+    [void] SeedPartition([object] $Row) {
+        [void] $this.Partition.Add($this.NewPartitionRow($Row))
+    }
+
+    [void] SeedVolume([object] $Row) {
+        [void] $this.Volume.Add($this.NewVolumeRow($Row))
+    }
+
+    # -- IDiskService, the read-only three ---------------------------------
+    #
+    # They record too: query order is evidence about what the code under test
+    # tried, and 04-02's disk selection is judged on what it looked at.
+
+    [object[]] GetDisk() {
+        $this.Record('GetDisk', @())
+        return [object[]] @($this.Disk)
+    }
+
+    [object[]] GetPartition() {
+        $this.Record('GetPartition', @())
+        return [object[]] @($this.Partition)
+    }
+
+    [object[]] GetVolume() {
+        $this.Record('GetVolume', @())
+        return [object[]] @($this.Volume)
+    }
+
+    # -- IDiskService, the six that change something -----------------------
+
+    [void] ClearDisk([int] $DiskNumber) {
+        $this.Record('ClearDisk', @($DiskNumber))
+        $target = $this.FindDisk($DiskNumber)
+
+        $letter = @($this.Partition |
+                Where-Object { $_.DiskNumber -eq $DiskNumber -and -not [string]::IsNullOrEmpty($_.DriveLetter) } |
+                ForEach-Object { $_.DriveLetter })
+
+        $this.Partition = [System.Collections.ArrayList]::new(
+            [object[]] @($this.Partition | Where-Object { $_.DiskNumber -ne $DiskNumber }))
+        $this.Volume = [System.Collections.ArrayList]::new(
+            [object[]] @($this.Volume | Where-Object { $letter -notcontains $_.DriveLetter }))
+
+        # Clear-Disk -RemoveData -RemoveOEM leaves the disk RAW.
+        $target.PartitionStyle = 'RAW'
+    }
+
+    [void] InitializeDisk([int] $DiskNumber, [string] $PartitionStyle) {
+        $this.Record('InitializeDisk', @($DiskNumber, $PartitionStyle))
+        $target = $this.FindDisk($DiskNumber)
+
+        if ($target.PartitionStyle -ne 'RAW') {
+            throw [System.InvalidOperationException]::new(
+                "Disk $DiskNumber has already been initialized as $($target.PartitionStyle).")
+        }
+
+        $target.PartitionStyle = $PartitionStyle
+
+        # SPIKES.md S6, MODELLED RATHER THAN DOCUMENTED. Initialize-Disk with GPT
+        # silently creates a 16 MB Microsoft Reserved partition of its own. HDT
+        # never creates one; PSD's PSDPartition.ps1 does, which is how the spike
+        # ended up with a duplicate 16 MB partition. Because the fake creates it
+        # too, a step that "helpfully" creates an MSR produces a duplicate the
+        # tests can see, and the first partition an author creates on a GPT disk
+        # is number 2 rather than 1.
+        if ($PartitionStyle -eq 'GPT') {
+            $this.SeedPartition([pscustomobject] @{
+                    DiskNumber      = $DiskNumber
+                    PartitionNumber = 1
+                    SizeBytes       = [long] 16777216
+                    OffsetBytes     = [long] 1048576
+                    Type            = 'Reserved'
+                    GptType         = '{e3c9e316-0b5c-4db8-817d-f92df00215ae}'
+                    IsHidden        = $true
+                })
+        }
+    }
+
+    [object] NewPartition([int] $DiskNumber, [long] $SizeByte, [bool] $UseMaximumSize, [string] $GptType, [bool] $IsActive) {
+        $this.Record('NewPartition', @($DiskNumber, $SizeByte, $UseMaximumSize, $GptType, $IsActive))
+        $target = $this.FindDisk($DiskNumber)
+
+        # New-Partition fails on a disk that was never initialised. A fake that
+        # allowed it would let a step that forgot InitializeDisk pass here and
+        # fail on metal.
+        if ($target.PartitionStyle -eq 'RAW') {
+            throw [System.InvalidOperationException]::new(
+                "Disk $DiskNumber is RAW: initialise it before creating a partition on it.")
+        }
+
+        $existing = @($this.Partition | Where-Object { $_.DiskNumber -eq $DiskNumber })
+
+        $number = 1
+        $offset = [long] 1048576
+        foreach ($row in $existing) {
+            if ($row.PartitionNumber -ge $number) {
+                $number = $row.PartitionNumber + 1
+            }
+            if (($row.OffsetBytes + $row.SizeBytes) -gt $offset) {
+                $offset = [long] ($row.OffsetBytes + $row.SizeBytes)
+            }
+        }
+
+        $size = $SizeByte
+        if ($UseMaximumSize) {
+            $size = [long] ($target.SizeBytes - $offset)
+        }
+
+        $typeName = $this.TypeNameFor($GptType)
+        $created = $this.NewPartitionRow([pscustomobject] @{
+                DiskNumber      = $DiskNumber
+                PartitionNumber = $number
+                SizeBytes       = $size
+                OffsetBytes     = $offset
+                Type            = $typeName
+                GptType         = $GptType
+                IsActive        = $IsActive
+                IsHidden        = ($typeName -ne 'Basic')
+            })
+
+        [void] $this.Partition.Add($created)
+
+        return $created
+    }
+
+    [void] SetPartitionDriveLetter([int] $DiskNumber, [int] $PartitionNumber, [string] $DriveLetter) {
+        $this.Record('SetPartitionDriveLetter', @($DiskNumber, $PartitionNumber, $DriveLetter))
+        $target = $this.FindPartition($DiskNumber, $PartitionNumber)
+
+        $previous = [string] $target.DriveLetter
+        $target.DriveLetter = $DriveLetter
+
+        # An empty letter means "remove the access path", and a volume with no
+        # access path is not one GetVolume reports.
+        if ([string]::IsNullOrEmpty($DriveLetter)) {
+            $this.Volume = [System.Collections.ArrayList]::new(
+                [object[]] @($this.Volume | Where-Object { $_.DriveLetter -ne $previous }))
+            return
+        }
+
+        foreach ($item in @($this.Volume | Where-Object { $_.DriveLetter -eq $previous })) {
+            $item.DriveLetter = $DriveLetter
+        }
+    }
+
+    [void] SetPartitionType([int] $DiskNumber, [int] $PartitionNumber, [string] $GptType) {
+        $this.Record('SetPartitionType', @($DiskNumber, $PartitionNumber, $GptType))
+        $target = $this.FindPartition($DiskNumber, $PartitionNumber)
+
+        $typeName = $this.TypeNameFor($GptType)
+        $target.GptType = $GptType
+        $target.Type = $typeName
+        $target.IsHidden = ($typeName -ne 'Basic')
+    }
+
+    [void] FormatVolume([string] $DriveLetter, [string] $FileSystem, [string] $Label) {
+        $this.Record('FormatVolume', @($DriveLetter, $FileSystem, $Label))
+
+        $target = @($this.Partition | Where-Object { $_.DriveLetter -eq $DriveLetter })
+        if ($target.Count -eq 0) {
+            throw [System.ArgumentException]::new(
+                "No partition holds drive letter '$DriveLetter' on this fake.", 'DriveLetter')
+        }
+
+        $existing = @($this.Volume | Where-Object { $_.DriveLetter -eq $DriveLetter })
+        if ($existing.Count -gt 0) {
+            foreach ($item in $existing) {
+                $item.FileSystem = $FileSystem
+                $item.FileSystemLabel = $Label
+                $item.SizeBytes = [long] $target[0].SizeBytes
+                $item.SizeRemainingBytes = [long] $target[0].SizeBytes
+            }
+            return
+        }
+
+        $this.SeedVolume([pscustomobject] @{
+                DriveLetter        = $DriveLetter
+                FileSystem         = $FileSystem
+                FileSystemLabel    = $Label
+                SizeBytes          = [long] $target[0].SizeBytes
+                SizeRemainingBytes = [long] $target[0].SizeBytes
+            })
+    }
+}
+
+function New-HDTFakeDiskService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IDiskService that records every operation and
+            never touches a physical disk.
+
+        .DESCRIPTION
+            The hand-written double behind every disk test (DESIGN 12.2.1:
+            engine logic receives injected services so it can run with no
+            machine attached; DESIGN 12.2.3: fake, don't mock). It is what makes
+            04-02's DiskPartition step provable on a developer machine whose
+            only disk is the one it booted from.
+
+            Nine methods. GetDisk, GetPartition and GetVolume are three FLAT
+            listings - no filters, no joins - so the joining is done by the pure
+            logic that can be tested, not by an adapter that cannot.
+
+            TWO BEHAVIOURS ARE MODELLED RATHER THAN DOCUMENTED, both from
+            SPIKES.md S6:
+
+            - InitializeDisk with GPT creates a 16 MB Reserved partition of its
+              own, because Initialize-Disk does. HDT must never create a second
+              one; PSD's PSDPartition.ps1 does, which is how the spike ended up
+              with a duplicate. A consequence a test must expect: the first
+              partition an author creates on a GPT disk is number 2.
+            - NewPartition refuses a disk that is still RAW, as New-Partition
+              does, so a step that forgot InitializeDisk cannot pass here and
+              fail on metal.
+
+            A disk number that was never seeded throws
+            ArgumentOutOfRangeException; a disk number carried by two seeded
+            rows throws InvalidOperationException naming the ambiguity, because
+            DESIGN 9.1's whole point is that HDT refuses ambiguous targets
+            rather than guessing which disk to wipe.
+
+            Every call appends to $Operations - Sequence (1-based), Operation,
+            Arguments - including the read-only three, and including a call that
+            went on to throw. Seeding is deliberately not recorded, which is why
+            the seeding methods are named Seed*.
+
+        .PARAMETER Disk
+            Seed disk rows: Number, FriendlyName, SerialNumber, SizeBytes,
+            BusType, PartitionStyle, IsBoot, IsSystem, IsReadOnly, IsOffline,
+            OperationalStatus. Anything omitted takes its documented default,
+            and PartitionStyle defaults to RAW.
+
+        .PARAMETER Partition
+            Seed partition rows: DiskNumber, PartitionNumber, DriveLetter,
+            SizeBytes, OffsetBytes, Type, GptType, IsActive, IsHidden, IsBoot,
+            IsSystem.
+
+        .PARAMETER Volume
+            Seed volume rows: DriveLetter, FileSystem, FileSystemLabel,
+            SizeBytes, SizeRemainingBytes.
+
+        .PARAMETER FixturePath
+            A directory of captured *.json files, or one such file. THE BASE
+            NAME'S SUFFIX CHOOSES THE LISTING: *-disk.json seeds disks,
+            *-partition.json partitions and *-volume.json volumes. See
+            tests/fixtures/README.md for the capture and sanitisation rules.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeDiskService. Never write the class name as a type literal in
+            a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            $disk = New-HDTFakeDiskService -FixturePath ./tests/fixtures/disk/gen2-vm-raw-disk.json
+            $disk.ClearDisk(0)
+            $disk.InitializeDisk(0, 'GPT')
+            $disk.GetOperationName()
+
+            The start of the UEFI layout of DESIGN 9.1, with no disk attached.
+
+        .EXAMPLE
+            $disk = New-HDTFakeDiskService -FixturePath ./tests/fixtures/disk
+            @($disk.GetDisk() | Where-Object { $_.IsBoot })
+
+            The row 04-02's selection rule must refuse unconditionally: this
+            machine's own boot disk.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [object[]] $Disk,
+
+        [Parameter()]
+        [object[]] $Partition,
+
+        [Parameter()]
+        [object[]] $Volume,
+
+        [Parameter()]
+        [string] $FixturePath,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    # One file -> one listing, chosen by the base name's suffix. Both the
+    # directory form and the single-file form go through this, so they can never
+    # drift apart in how they load.
+    $loadFixtureFile = {
+        param($Fake, $File)
+
+        $text = Get-Content -LiteralPath $File.FullName -Raw
+
+        # Never -AsHashtable: it is PowerShell 6+ only and banned outright.
+        $content = @(ConvertFrom-Json -InputObject $text)
+
+        $name = $File.BaseName
+        if ($name -like '*-disk') {
+            foreach ($row in $content) { $Fake.SeedDisk($row) }
+        } elseif ($name -like '*-partition') {
+            foreach ($row in $content) { $Fake.SeedPartition($row) }
+        } elseif ($name -like '*-volume') {
+            foreach ($row in $content) { $Fake.SeedVolume($row) }
+        } else {
+            throw ("Disk fixture '{0}' does not say which listing it seeds. Name it *-disk.json, *-partition.json or *-volume.json." -f $File.FullName)
+        }
+    }
+
+    $fake = [HDTFakeDiskService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('FixturePath')) {
+        if (Test-Path -LiteralPath $FixturePath -PathType Container) {
+            foreach ($file in @(Get-ChildItem -LiteralPath $FixturePath -Filter '*.json' -File)) {
+                & $loadFixtureFile $fake $file
+            }
+        } elseif (Test-Path -LiteralPath $FixturePath -PathType Leaf) {
+            & $loadFixtureFile $fake (Get-Item -LiteralPath $FixturePath)
+        } else {
+            throw "FixturePath '$FixturePath' does not exist."
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Disk')) {
+        foreach ($row in @($Disk)) { $fake.SeedDisk($row) }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Partition')) {
+        foreach ($row in @($Partition)) { $fake.SeedPartition($row) }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Volume')) {
+        foreach ($row in @($Volume)) { $fake.SeedVolume($row) }
+    }
+
+    return $fake
+}
+
 class HDTFakeClock {
 
     # The current fake instant. Always Kind = Utc: a clock whose answers depend
@@ -1984,6 +2517,7 @@ function New-HDTFakeClock {
 Export-ModuleMember -Function @(
     'New-HDTFakeCimProvider',
     'New-HDTFakeClock',
+    'New-HDTFakeDiskService',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',
     'New-HDTFakeLsaService',
