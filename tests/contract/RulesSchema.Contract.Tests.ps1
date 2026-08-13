@@ -135,9 +135,10 @@ Describe 'rules.yaml schema contract' -Skip:$script:HDTSchemaSkip {
 
     Context 'the sample workspace' {
 
-        It 'validates the sample workspace rules file' -Skip {
-            # Written by plan 02-03, which removes this -Skip. Listed here rather
-            # than deferred so the gap is visible in the run output.
+        It 'validates the sample workspace rules file' {
+            # The workspace an administrator copies is held to the same schema as
+            # every fixture: a sample that would be rejected by the console is
+            # worse than no sample.
             $schema = Get-Content -LiteralPath $script:rulesSchemaPath -Raw
             $samplePath = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/rules.yaml'
             $json = (ConvertFrom-Yaml -Yaml (Get-Content -LiteralPath $samplePath -Raw) -Ordered) | ConvertTo-Json -Depth 10
@@ -145,8 +146,7 @@ Describe 'rules.yaml schema contract' -Skip:$script:HDTSchemaSkip {
             Test-Json -Json $json -Schema $schema | Should -BeTrue
         }
 
-        It 'validates the sample machine override against schemas/machine.schema.json' -Skip {
-            # Written by plan 02-03, which removes this -Skip.
+        It 'validates the sample machine override against schemas/machine.schema.json' {
             $schema = Get-Content -LiteralPath $script:machineSchemaPath -Raw
             $samplePath = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/Control/machines/4C4C4544-0031-3610-8052-B7C04F515A31.yaml'
             $json = (ConvertFrom-Yaml -Yaml (Get-Content -LiteralPath $samplePath -Raw) -Ordered) | ConvertTo-Json -Depth 10
