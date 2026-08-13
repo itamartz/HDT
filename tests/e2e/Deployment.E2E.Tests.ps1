@@ -48,13 +48,24 @@ BeforeAll {
     $script:artifactRoot = 'C:\HDTLab\scratch\e2e'
 
     # THE PROTECTED PAIR, RECORDED BEFORE ANYTHING STARTS.
+    #
+    # MemoryStartup, NOT MemoryStartupBytes. The property is called
+    # MemoryStartupBytes on New-VM's PARAMETER and MemoryStartup on the object
+    # Get-VM returns, and that difference is not cosmetic here: without
+    # StrictMode a missing property is $null, [long] $null is 0, and this
+    # snapshot compared 0 with 0 - so the assertion that protects the user's
+    # lab was passing while comparing nothing at all (helpers README 12).
+    #
+    # It surfaced only under ./build.ps1 -Task e2e, which sets
+    # Set-StrictMode -Version Latest; a bare Invoke-Pester does not. Run the
+    # E2E through the build script.
     $script:snapshotProtected = {
         return @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
                 ForEach-Object {
                     [pscustomobject] @{
                         Name   = [string] $_.Name
                         State  = [string] $_.State
-                        Memory = [long] $_.MemoryStartupBytes
+                        Memory = [long] $_.MemoryStartup
                         Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
                                     ForEach-Object { [string] $_.SwitchName }) -join ',')
                     }
@@ -101,7 +112,16 @@ BeforeAll {
     $script:targetPartition = @()
     $script:targetFile = @{}
 
-    if (-not $script:skipDeployment) {
+    # RECOMPUTED HERE, NOT READ FROM BeforeDiscovery. Pester's discovery and run
+    # phases do not share a scope: $script:skipDeployment is set at discovery for
+    # the -Skip: on each Describe, and reading it here throws under StrictMode -
+    # which ./build.ps1 sets and a bare Invoke-Pester does not. Without
+    # StrictMode it evaluated to $null, and 'if (-not $null)' is TRUE, so the
+    # whole deployment ran on a machine that was supposed to skip it.
+    $script:canDeploy = (Test-Path -LiteralPath $script:isoPath -PathType Leaf) -and
+        (Test-Path -LiteralPath $script:wimPath -PathType Leaf)
+
+    if ($script:canDeploy) {
 
         # -- rule 4: the memory budget, before anything is started ----------
 

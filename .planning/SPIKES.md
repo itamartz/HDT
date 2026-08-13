@@ -651,6 +651,59 @@ delete a lab helper performs and refuses:
 Seven unit tests, written failing first. A lab that has already lost something
 is the wrong time to argue about whether a guard was necessary.
 
+### S9.14 — the lab-safety assertion was comparing nothing ⚠
+
+`Get-VM` returns an object with **`MemoryStartup`**. `New-VM` takes a parameter
+called **`-MemoryStartupBytes`**. The E2E's "CM01 and DC01 are exactly as I found
+them" snapshot read `$_.MemoryStartupBytes` — the parameter name — off the
+object.
+
+**Without `Set-StrictMode` a missing property is `$null`, `[long] $null` is `0`,
+and the comparison held `0` against `0`.** The assertion that protects the
+user's live lab was green while comparing nothing at all. It is helpers
+README 12's "an assertion that passes for the wrong reason", in the one place it
+matters most.
+
+**It surfaced only under `./build.ps1 -Task e2e`**, which sets
+`Set-StrictMode -Version Latest` at script scope; a bare `Invoke-Pester` does
+not, and every earlier run of these files had been a bare `Invoke-Pester`. Under
+StrictMode the same line throws `PropertyNotFoundException` in `BeforeAll`, which
+is how it was found.
+
+**Method note, and it is the general lesson of this plan: run an E2E or
+integration suite through `build.ps1`, not through `Invoke-Pester` directly.**
+The build script's `StrictMode` and `$ErrorActionPreference` are part of the
+environment the tests are meant to run in, and a suite that only ever runs
+without them is a suite with a different meaning.
+
+Properties `Get-VM` actually exposes, for whoever writes the next one:
+
+```
+MemoryAssigned  MemoryDemand  MemoryStatus  MemoryMaximum  MemoryMinimum  MemoryStartup
+```
+
+`MemoryAssigned` is what the 12 GB lab budget check uses, and it is correct —
+it reads 0 for a VM that is `Off`, which is what makes the budget about *running*
+machines.
+
+### S9.15 — a BeforeDiscovery variable is not readable from BeforeAll
+
+Found by the same StrictMode run as S9.14, and it hid the same way.
+
+Pester's discovery and run phases do not share a scope. `$script:skipDeployment`
+set in `BeforeDiscovery` is what the `-Skip:` on each `Describe` reads at
+discovery; reading it inside `BeforeAll` throws
+`The variable cannot be retrieved because it has not been set` under StrictMode.
+
+**Without StrictMode it evaluated to `$null`, and `if (-not $null)` is TRUE** —
+so the expensive body ran on a machine that was supposed to be skipping it. A
+guard that means the opposite of what it says when its input is missing is worse
+than no guard.
+
+Both E2E files now recompute the condition inside `BeforeAll`, which is the
+pattern the integration files already used for the drive-letter check.
+
+
 ### Lab safety
 
 Every Hyper-V call name-filtered and module-qualified. `CM01` and `DC01` were

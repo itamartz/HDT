@@ -34,12 +34,19 @@ BeforeAll {
     $script:artifactRoot = 'C:\HDTLab\scratch\e2e'
 
     # -- the two protected VMs, recorded BEFORE anything starts ------------
+    #
+    # MemoryStartup, NOT MemoryStartupBytes: that is New-VM's parameter name,
+    # not the property Get-VM returns. Without StrictMode the missing property
+    # is $null, [long] $null is 0, and this comparison held 0 against 0 - the
+    # assertion protecting the user's lab was passing while comparing nothing
+    # (helpers README 12). Only ./build.ps1 -Task e2e sets StrictMode; a bare
+    # Invoke-Pester does not, which is why it hid.
 
     $script:protectedBefore = @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
             ForEach-Object {
                 [pscustomobject] @{
                     Name = [string] $_.Name; State = [string] $_.State
-                    Memory = [long] $_.MemoryStartupBytes
+                    Memory = [long] $_.MemoryStartup
                     Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
                                 ForEach-Object { [string] $_.SwitchName }) -join ',')
                 }
@@ -49,7 +56,12 @@ BeforeAll {
     $script:probeRaw = ''
     $script:startedOk = $false
 
-    if (-not $script:skipSmoke) {
+    # Recomputed here rather than read from BeforeDiscovery: the two phases do
+    # not share a scope, and reading it throws under the StrictMode ./build.ps1
+    # sets. See the same note in Deployment.E2E.Tests.ps1.
+    $script:canSmoke = Test-Path -LiteralPath $script:isoPath -PathType Leaf
+
+    if ($script:canSmoke) {
         # -- a small content disk: the module, the parser, the workspace ----
 
         $yamlModule = @(Get-Module -Name 'powershell-yaml' -ListAvailable |
@@ -282,7 +294,7 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
                     ForEach-Object {
                         [pscustomobject] @{
                             Name = [string] $_.Name; State = [string] $_.State
-                            Memory = [long] $_.MemoryStartupBytes
+                            Memory = [long] $_.MemoryStartup
                             Switch = (@(Hyper-V\Get-VMNetworkAdapter -VMName $_.Name -ErrorAction SilentlyContinue |
                                         ForEach-Object { [string] $_.SwitchName }) -join ',')
                         }
