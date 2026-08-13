@@ -11,6 +11,7 @@
     CompatiblePSEditions = @('Desktop', 'Core')
 
     FunctionsToExport    = @(
+        'Get-HDTAutoLogonArtifact',
         'Get-HDTFunctionNameViolation',
         'Get-HDTMdtDependency',
         'Get-HDTSourceFile',

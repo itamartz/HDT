@@ -25,6 +25,9 @@ BeforeAll {
     # point is to prove the checklist keeps going, and Mock would couple the test
     # to the call shape instead of the behaviour (tests/helpers/README.md 10).
     function New-HDTFailingRegistryDouble {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory test double; it changes no state.')]
+        [CmdletBinding()]
         param([object] $Inner, [string] $FailFor)
 
         $double = [pscustomobject] @{ Inner = $Inner; FailFor = $FailFor; ServiceName = 'RegistryService' }

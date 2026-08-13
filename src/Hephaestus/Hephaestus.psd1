@@ -13,9 +13,11 @@
 
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
+        'Clear-HDTAutoLogon',
         'Copy-HDTLog',
         'Export-HDTMachineFact',
         'Export-HDTVariableProvenance',
+        'Get-HDTAutoLogonState',
         'Get-HDTLogPath',
         'Get-HDTMachineFact',
         'Get-HDTMachineOverride',
@@ -56,6 +58,7 @@
         'New-HDTStepResult',
         'Resolve-HDTVariable',
         'Save-HDTRunState',
+        'Set-HDTAutoLogon',
         'Test-HDTRunStateAbandoned',
         'Test-HDTPowerShellStepApplicable',
         'Test-HDTStepApplicable',
