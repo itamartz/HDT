@@ -15,6 +15,7 @@
     FunctionsToExport    = @(
         'Clear-HDTAutoLogon',
         'Get-HDTAdkPath',
+        'Get-HDTBootImageComponent',
         'ConvertTo-HDTReport',
         'Copy-HDTLog',
         'Export-HDTMachineFact',

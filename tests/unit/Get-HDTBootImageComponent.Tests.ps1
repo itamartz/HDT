@@ -13,8 +13,15 @@ BeforeAll {
 
     $script:componentRoot = 'C:\Adk\WinPE_OCs'
 
-    $script:ocFixture = @(Get-Content -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/adk/winpe-ocs-amd64.json') -Raw |
-            ConvertFrom-Json)
+    # ConvertFrom-Json DOES NOT ENUMERATE ITS ARRAY UNDER WINDOWS POWERSHELL 5.1
+    # (04-04 hit this and recorded it). @(... | ConvertFrom-Json) there yields
+    # ONE element that is the whole Object[], so $row.Name silently becomes an
+    # array of 33 names and the seeded path is 'System.Object[].cab'. Parsing
+    # first and enumerating through the pipeline behaves the same on both
+    # editions.
+    $script:ocParsed = Get-Content -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/adk/winpe-ocs-amd64.json') -Raw |
+        ConvertFrom-Json
+    $script:ocFixture = @($script:ocParsed | ForEach-Object { $_ })
 
     # SPIKES S1's order, the one that booted. Written out here so a reordering of
     # the shipped constant has to be argued with this file.
@@ -71,9 +78,17 @@ Describe 'Get-HDTBootImageComponent' {
             # cab of that name does not exist. Its own It, so the failure says
             # which mistake was made.
             $row = @(Get-HDTBootImageComponent -ComponentRoot $script:componentRoot -FileSystem (New-HDTComponentTestFileSystem))
+            $name = @($row | ForEach-Object { $_.Name })
 
-            @($row | ForEach-Object { $_.Name }) | Should -Contain 'WinPE-NetFx'
-            @($row | ForEach-Object { $_.Name }) | Should -Not -Contain 'WinPE-NetFX'
+            # -ceq, not Should -Contain: Pester's -Contain compares without
+            # regard to case, so it would happily accept the very spelling this
+            # test exists to refuse.
+            @($name | Where-Object { $_ -ceq 'WinPE-NetFx' }).Count | Should -Be 1
+            @($name | Where-Object { $_ -ceq 'WinPE-NetFX' }) | Should -BeNullOrEmpty
+
+            # And the cab it will look for carries that spelling too.
+            @($row | Where-Object { $_.Name -eq 'WinPE-NetFx' })[0].CabPath |
+                Should -BeExactly ('{0}\WinPE-NetFx.cab' -f $script:componentRoot)
         }
 
         It 'marks exactly six components Required' {

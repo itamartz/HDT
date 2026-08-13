@@ -84,6 +84,28 @@ $oc = Get-HDTAdkPath -Asset WinPeOptionalComponent
 }) | Sort-Object Name | ConvertTo-Json -Depth 3
 ```
 
+### Where the dependency table came from
+
+`Get-HDTBootImageComponentDependency` is **not** a fixture — it ships in
+`src/Hephaestus/Private/` — but its provenance belongs beside these two. Each
+`WinPE_OCs\*.cab` contains an `update.mum` package manifest declaring the
+packages it is a child of, and that is Microsoft's own metadata, on this
+machine, rather than a table typed from memory:
+
+```powershell
+$oc = Get-HDTAdkPath -Asset WinPeOptionalComponent
+foreach ($cab in Get-ChildItem -LiteralPath $oc -Filter *.cab) {
+    $dir = Join-Path $env:TEMP ([IO.Path]::GetFileNameWithoutExtension($cab.Name))
+    & "$env:SystemRoot\System32\expand.exe" -f:*.mum $cab.FullName $dir
+    # //package/parent/assemblyIdentity/@name
+}
+```
+
+Six components declare a parent that is itself an optional component. The three
+`Microsoft-Windows-*-Package` parents are WinPE itself and are deliberately not
+rows. **A dependency this repository cannot cite is omitted, never guessed** —
+an invented dependency refuses a build that would have worked.
+
 The layout capture is the **one** place in this repository, outside
 documentation, where an ADK path is written down literally. Everywhere else
 resolves it — that is what `Get-HDTAdkPath` is for, and PROJECT.md's "the layout
