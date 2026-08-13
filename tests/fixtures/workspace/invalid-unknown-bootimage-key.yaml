@@ -1,6 +1,6 @@
 schemaVersion: 1
 id: HDT-LAB
 name: HDT lab deployment share
-deployRoot: \HDT-HOST\HdtShare
+deployRoot: \\HDT-HOST\HdtShare
 bootImage:
   scratchSpace: 512

@@ -1,0 +1,64 @@
+# The lab's deployment share (DESIGN 2.1). This is the file an administrator
+# hand-edits and commits, so THE SHARE PASSWORD IS NOT IN IT: `credential:`
+# carries a username and nothing else, and a `password:` key here is a
+# validation error. Run Set-HDTShareCredential to write the secret - it goes to
+# Control\share-credential.json, which is not a file anybody edits by hand.
+schemaVersion: 1
+id: HDT-LAB
+name: HDT lab deployment share
+
+# deployRoot is what a BOOTED CLIENT connects to, and it has three legal forms:
+#
+#   \\HDT-HOST\HdtShare   UNC - a PXE or network-booted client, over SMB. This
+#                         is the normal one.
+#   C:\HDTLab\Share       rooted local - correct while authoring on the build
+#                         host, WRONG inside a boot image: it names the builder's
+#                         own disk, not the client's.
+#   \Share                volume-relative - the volume is discovered at boot.
+#                         THE ONLY FORM STANDALONE MEDIA MAY CARRY, because WinPE
+#                         does not guarantee a drive letter: SPIKES S9.1 recorded
+#                         it giving the content disk C: while the RAM disk was X:.
+deployRoot: \\HDT-HOST\HdtShare
+
+logLevel: Info
+
+credential:
+  username: CONTOSO\svc-hdt-deploy
+
+bootImage:
+  # The artifact base name. Produces Boot\HDTPE_x64.wim and Boot\HDTPE_x64.iso
+  # from one build (DESIGN 5).
+  name: HDTPE_x64
+  architecture: amd64
+  language: en-us
+  scratchSpaceMB: 512
+
+  # MERGED WITH THE REQUIRED SET, ORDER PRESERVED (DESIGN 5.1). The six required
+  # components - WinPE-WMI, WinPE-NetFx, WinPE-Scripting, WinPE-PowerShell,
+  # WinPE-StorageWMI, WinPE-DismCmdlets - are not listed here: they are not
+  # configuration, and Get-HDTBootImageComponent always puts them first, in the
+  # order that booted in SPIKES S1.
+  #
+  # These three are DESIGN 5.1's defaults, spelled out so they can be edited.
+  # Deleting the key entirely gets you the same three; an empty list ([]) means
+  # the required six and nothing else.
+  optionalComponents:
+    - WinPE-SecureStartup    # BitLocker
+    - WinPE-EnhancedStorage
+    - WinPE-WDS-Tools
+
+  # Arbitrary files copied into the image. `source` is relative to the workspace
+  # root, `destination` is a path INSIDE the image. Uncomment to ship a vendor
+  # module to every booted client:
+  #
+  # extraContent:
+  #   - source: Modules\MyVendorTools
+  #     destination: \HDT\Modules\MyVendorTools
+  #
+  # It is for self-contained payloads. Do NOT try to reconstruct Windows
+  # components with it - DESIGN 5.1 explains why injecting the Net* modules by
+  # hand does not work and does not survive an ADK release.
+
+  # A driver group under Drivers\, injected into the boot image. Boot images get
+  # network and storage drivers only - never the whole driver store.
+  # drivers: boot-critical

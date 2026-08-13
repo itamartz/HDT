@@ -46,6 +46,7 @@
         'Import-HDTRunState',
         'Import-HDTSequenceDocument',
         'Import-HDTStepModule',
+        'Import-HDTWorkspaceDocument',
         'Invoke-HDTNoOpStep',
         'Invoke-HDTSetVariableStep',
         'Invoke-HDTPowerShellStep',

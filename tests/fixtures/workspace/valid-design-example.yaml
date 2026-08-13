@@ -5,7 +5,7 @@
 schemaVersion: 1
 id: HDT-LAB
 name: HDT lab deployment share
-deployRoot: \HDT-HOST\HdtShare
+deployRoot: \\HDT-HOST\HdtShare
 logLevel: Info
 credential:
   username: CONTOSO\svc-hdt-deploy

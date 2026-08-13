@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hephaestus/schemas/workspace.schema.json",
+  "title": "HDT workspace.yaml",
+  "type": "object",
+  "required": ["schemaVersion", "id", "name", "deployRoot"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+    "name": { "type": "string", "minLength": 1 },
+    "deployRoot": {
+      "description": "UNC (\\\\server\\share), rooted local (C:\\path), or volume-relative (\\Share) for media whose drive letter cannot be known at build time. Never contains '..'.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!.*\\.\\.)\\s*\\S.*$"
+    },
+    "logLevel": { "type": "string", "enum": ["Error", "Warning", "Info", "Debug"] },
+    "credential": {
+      "description": "A username and nothing else. The secret lives in Control\\share-credential.json, written by Set-HDTShareCredential (DESIGN 6.3).",
+      "type": "object",
+      "required": ["username"],
+      "additionalProperties": false,
+      "properties": {
+        "username": { "type": "string", "minLength": 1 }
+      }
+    },
+    "bootImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" },
+        "architecture": { "type": "string", "enum": ["amd64", "arm64"] },
+        "language": { "type": "string", "minLength": 1 },
+        "scratchSpaceMB": { "type": "integer", "minimum": 32, "maximum": 1024 },
+        "optionalComponents": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^WinPE-[A-Za-z0-9-]+$" }
+        },
+        "extraContent": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/extraContentEntry" }
+        },
+        "drivers": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "definitions": {
+    "extraContentEntry": {
+      "type": "object",
+      "required": ["source", "destination"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "destination": {
+          "description": "A path inside the image, rooted at the image and free of '..'.",
+          "type": "string",
+          "pattern": "^(?!.*\\.\\.)\\\\.+$"
+        }
+      }
+    }
+  }
+}
