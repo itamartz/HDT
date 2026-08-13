@@ -24,7 +24,7 @@ function New-HDTRunState {
               stepIndex      the 1-based index of the NEXT step to run
               pauseOnError   bool
               variable       name -> value, ordered and case-insensitive
-              step[]         index, name, type, group, status, attempt,
+              step[]         index, name, type, group, status, attempt, leg,
                              resumable, startedUtc, endedUtc, durationMs,
                              exitCode, message
               autoLogon      armed, userName, domainName, countSet, secretName,
@@ -163,6 +163,11 @@ function New-HDTRunState {
                     group      = $group
                     status     = 'Pending'
                     attempt    = 0
+
+                    # Which leg last touched this step. Null until it runs, and
+                    # the only way a resume can say "step 3 completed on leg 1"
+                    # rather than "on some earlier leg".
+                    leg        = $null
                     resumable  = $resumable
                     startedUtc = $null
                     endedUtc   = $null

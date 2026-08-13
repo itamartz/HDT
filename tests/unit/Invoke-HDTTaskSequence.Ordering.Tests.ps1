@@ -136,36 +136,31 @@ Describe 'Invoke-HDTTaskSequence' {
 
         It 'discovers step types once, not once per step' {
             # A mock is right here and a fake is not: the question is how many
-            # times the engine called its own discovery, which no service double
+            # times the engine called its own DISCOVERY, which no service double
             # can answer.
-            $global:HDTTestStepType = Get-HDTStepType
+            #
+            # The mock returns an empty registry, so every step fails as an
+            # unknown type. That is deliberate: it needs no captured variable to
+            # reach into the module's session state, and the assertion is about
+            # the call count rather than the run's outcome.
+            Mock -ModuleName Hephaestus -CommandName Get-HDTStepType -MockWith { @() }
 
-            try {
-                Mock -ModuleName Hephaestus -CommandName Get-HDTStepType -MockWith { $global:HDTTestStepType }
+            $harness = New-HDTSequenceTestHarness -Yaml $script:flatYaml
+            Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State | Out-Null
 
-                $harness = New-HDTSequenceTestHarness -Yaml $script:flatYaml
-                Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State | Out-Null
-
-                Should -Invoke -ModuleName Hephaestus -CommandName Get-HDTStepType -Times 1 -Exactly
-            } finally {
-                Remove-Variable -Name HDTTestStepType -Scope Global -ErrorAction SilentlyContinue
-            }
+            Should -Invoke -ModuleName Hephaestus -CommandName Get-HDTStepType -Times 1 -Exactly
         }
 
         It 'uses a registry it was given rather than discovering one' {
-            $global:HDTTestStepType = Get-HDTStepType
+            Mock -ModuleName Hephaestus -CommandName Get-HDTStepType -MockWith { @() }
 
-            try {
-                Mock -ModuleName Hephaestus -CommandName Get-HDTStepType -MockWith { $global:HDTTestStepType }
+            $registry = Get-HDTStepType
+            $harness = New-HDTSequenceTestHarness -Yaml $script:flatYaml
+            $result = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context `
+                -State $harness.State -StepType $registry
 
-                $harness = New-HDTSequenceTestHarness -Yaml $script:flatYaml
-                Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context `
-                    -State $harness.State -StepType $global:HDTTestStepType | Out-Null
-
-                Should -Invoke -ModuleName Hephaestus -CommandName Get-HDTStepType -Times 0 -Exactly
-            } finally {
-                Remove-Variable -Name HDTTestStepType -Scope Global -ErrorAction SilentlyContinue
-            }
+            $result.Status | Should -BeExactly 'Succeeded'
+            Should -Invoke -ModuleName Hephaestus -CommandName Get-HDTStepType -Times 0 -Exactly
         }
     }
 

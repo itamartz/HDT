@@ -116,6 +116,11 @@
           "type": "integer",
           "minimum": 0
         },
+        "leg": {
+          "description": "Which leg last touched this step, so a resume can say 'completed on leg 1' rather than 'on some earlier leg'. Null until it runs.",
+          "type": [ "integer", "null" ],
+          "minimum": 1
+        },
         "resumable": {
           "description": "DESIGN 4.3: on resume the engine re-runs an interrupted step only if it declares resumable.",
           "type": "boolean"

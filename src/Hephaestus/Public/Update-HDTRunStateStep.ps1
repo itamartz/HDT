@@ -36,6 +36,11 @@ function Update-HDTRunStateStep {
             How many times the step has been started. 03-04's retry policy
             increments it.
 
+        .PARAMETER Leg
+            Which leg touched the step. Recorded so a resume can say "step 3
+            completed on leg 1" rather than "on some earlier leg" - the one thing
+            a technician reading a multi-leg log actually wants to know.
+
         .PARAMETER ExitCode
             The step's exit code. Zero is a result, not an absence, so it is
             recorded when supplied.
@@ -81,6 +86,9 @@ function Update-HDTRunStateStep {
         [int] $Attempt,
 
         [Parameter()]
+        [int] $Leg,
+
+        [Parameter()]
         [int] $ExitCode,
 
         [Parameter()]
@@ -114,6 +122,10 @@ function Update-HDTRunStateStep {
 
     if ($PSBoundParameters.ContainsKey('Attempt')) {
         $step.attempt = $Attempt
+    }
+
+    if ($PSBoundParameters.ContainsKey('Leg')) {
+        $step.leg = $Leg
     }
 
     if ($PSBoundParameters.ContainsKey('ExitCode')) {

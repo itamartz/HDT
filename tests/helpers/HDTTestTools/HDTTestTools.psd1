@@ -13,11 +13,13 @@
     FunctionsToExport    = @(
         'Get-HDTAutoLogonArtifact',
         'Get-HDTFunctionNameViolation',
+        'Get-HDTLogRecord',
         'Get-HDTMdtDependency',
         'Get-HDTSourceFile',
         'Get-HDTScriptCompatibilityViolation',
         'Get-HDTSourceFunction',
         'New-HDTPesterConfiguration',
+        'New-HDTSequenceTestHarness',
         'Test-HDTFunctionName',
         'Test-HDTModuleAvailable',
         'Test-HDTScriptCompatibility'
