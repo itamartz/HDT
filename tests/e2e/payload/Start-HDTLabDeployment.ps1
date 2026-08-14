@@ -57,9 +57,12 @@
         -LogDestination.
 
     .EXAMPLE
-        powershell -ExecutionPolicy Bypass -File D:\HDT\Start-HDTLabDeployment.ps1
+        powershell -ExecutionPolicy Bypass -File X:\HDT\Start-HDTLabDeployment.ps1
 
-        What the harness types at the WinPE prompt.
+        What the boot image's startnet.cmd runs. The harness types nothing:
+        Deployment.E2E.Tests.ps1 stages this script into the image with
+        workspace.yaml's extraContent and points entryCommand at it, so it runs
+        from X: - the RAM disk, whose letter is fixed.
 #>
 [CmdletBinding()]
 param(
@@ -127,6 +130,13 @@ $shareLogRoot = Join-Path -Path $workspaceRoot -ChildPath 'Logs'
 $result = [ordered] @{
     runId        = $runId
     sequenceId   = $SequenceId
+
+    # THE GUEST'S OWN STATEMENT ABOUT WHO STARTED IT. startnet.cmd sets
+    # HDT_LAUNCHED_BY=startnet before it launches anything; a human typing the
+    # command at the WinPE prompt does not. This is what makes "nothing types"
+    # an assertion about the machine rather than about the harness source.
+    launchedBy   = [string] $env:HDT_LAUNCHED_BY
+
     status       = 'Failed'
     failedStep   = ''
     message      = ''

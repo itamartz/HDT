@@ -417,6 +417,31 @@ Describe 'Update-HDTBootImage' {
                 $script:mountPath + '\Windows\System32\startnet.cmd') | Should -BeExactly $expected
         }
 
+        It 'launches the workspace entryCommand instead of the deployment payload' {
+            # THE DIAGNOSTIC IMAGE. Without this the only way to run anything
+            # other than Start-HDTDeployment.ps1 in WinPE was to type it at the
+            # prompt, which is what tests/e2e used to do.
+            $yaml = $script:workspaceYaml + "`n  entryCommand: powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTLabProbe.ps1"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $startnet = $context.FileSystem.ReadAllText($script:mountPath + '\Windows\System32\startnet.cmd')
+
+            $startnet | Should -BeLike '*X:\HDT\Start-HDTLabProbe.ps1*'
+            $startnet | Should -Not -BeLike '*Start-HDTDeployment.ps1*'
+
+            # The parts that are not the admin's to change stay put: startnet.cmd
+            # is still the file that declares who launched the payload, and the
+            # E2E's launchedBy assertion rests on it.
+            $startnet | Should -BeLike '*HDT_LAUNCHED_BY=startnet*'
+            $startnet | Should -BeLike '*wpeinit*'
+        }
+
+        It 'still launches the deployment payload when no entryCommand is declared' {
+            $script:contentContext.FileSystem.ReadAllText(
+                $script:mountPath + '\Windows\System32\startnet.cmd') | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1*'
+        }
+
         It 'writes bootstrap.json that Get-HDTBootstrapConfiguration accepts' {
             # The 05-03 link, asserted rather than assumed: the writer and the
             # reader are in different plans and nothing else holds them together.

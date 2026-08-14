@@ -107,7 +107,7 @@ function Assert-HDTWorkspaceDocument {
         'credential', 'bootImage')
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
-        'optionalComponents', 'extraContent', 'drivers')
+        'optionalComponents', 'extraContent', 'drivers', 'entryCommand')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
     $allowedLogLevel = @('Error', 'Warning', 'Info', 'Debug')
@@ -304,6 +304,33 @@ function Assert-HDTWorkspaceDocument {
         if (([int] $scratchSpace -lt $minimumScratchSpaceMB) -or ([int] $scratchSpace -gt $maximumScratchSpaceMB)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message ("bootImage: scratchSpaceMB {0} is outside the range DISM accepts. It must be between {1} and {2}." -f $scratchSpace, $minimumScratchSpaceMB, $maximumScratchSpaceMB)))
+        }
+    }
+
+    # -- the entry command ----------------------------------------------------
+    #
+    # It is written into startnet.cmd verbatim (DESIGN 5.1), so the two things
+    # checked here are the two that make the written file mean something other
+    # than what the document says: nothing to run, and more than one thing to
+    # run. What the command DOES is not this validator's business - a diagnostic
+    # image exists to run something other than the deployment payload.
+
+    if ($bootImage.Contains('entryCommand')) {
+        $entryCommand = $bootImage['entryCommand']
+
+        if ($null -ne $entryCommand -and -not ($entryCommand -is [string])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: entryCommand must be a command to run, but it is '{0}'." -f $entryCommand)))
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string] $entryCommand)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: entryCommand must be a command to run. Remove the key to launch the deployment payload.'))
+        }
+
+        if (([string] $entryCommand).IndexOfAny([char[]] @("`r", "`n")) -ge 0) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: entryCommand must be one command on one line. A line break here becomes a second command inside startnet.cmd that nobody reading this document would see.'))
         }
     }
 

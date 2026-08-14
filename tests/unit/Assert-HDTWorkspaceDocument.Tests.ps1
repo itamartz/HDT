@@ -358,6 +358,59 @@ Describe 'Assert-HDTWorkspaceDocument' {
         }
     }
 
+    Context 'entryCommand' {
+
+        It 'accepts an entryCommand naming a script staged inside the image' {
+            # The diagnostic boot image Get-HDTStartnetScript's own .EXAMPLE
+            # describes: extraContent puts the script at X:\HDT, entryCommand
+            # launches it. X: is deterministic - it is the WinPE RAM disk - which
+            # is why nothing has to scan for a drive letter.
+            Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  entryCommand: powershell.exe -NoProfile -File X:\HDT\Start-HDTProbe.ps1" |
+                Should -BeNullOrEmpty
+        }
+
+        It 'accepts a document with no entryCommand, which takes the default payload' {
+            Get-HDTWorkspaceRejection -Yaml $script:fixture['valid-minimal.yaml'] | Should -BeNullOrEmpty
+        }
+
+        It 'rejects an empty entryCommand rather than writing a startnet.cmd that runs nothing' {
+            $record = Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  entryCommand: ''"
+
+            # THE MESSAGE, NOT JUST THE KEY NAME. While entryCommand was not yet
+            # an allowed key this assertion passed on the unknown-key rejection,
+            # which mentions every key by name - a test green for a reason that
+            # had nothing to do with emptiness. Matching the sentence the empty
+            # case actually produces is what makes the pass mean something.
+            $record.Exception.Message | Should -BeLike '*must be a command to run*'
+            $record.Exception.Message | Should -BeLike ('*{0}*' -f $script:workspacePath)
+        }
+
+        It 'rejects an entryCommand carrying a newline, which would be a second startnet line' {
+            # THE REASON THIS FIELD IS VALIDATED AT ALL. The value is written into
+            # startnet.cmd verbatim, so an embedded newline is not a formatting
+            # nuisance: it is a second command, executing inside WinPE, that no
+            # reader of the workspace document would see as one.
+            #
+            # A single-quoted here-string, so the \n reaches the YAML parser as
+            # the two characters a double-quoted YAML scalar turns into a line
+            # break. Writing the break in PowerShell instead would end the YAML
+            # scalar before the parser ever saw it.
+            $yaml = @'
+schemaVersion: 1
+id: A
+name: A
+deployRoot: \\s\h
+bootImage:
+  entryCommand: "wpeutil shutdown\nformat C: /y"
+'@
+
+            $record = Get-HDTWorkspaceRejection -Yaml $yaml
+
+            $record.Exception.Message | Should -BeLike '*entryCommand*'
+            $record.Exception.Message | Should -BeLike '*one command*'
+        }
+    }
+
     Context 'unparseable YAML' {
 
         It 'names the file and the line' {

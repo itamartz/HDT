@@ -2,9 +2,26 @@
 # purpose.
 #
 # Everything phase 04 built is asserted against fakes, on a developer machine,
-# under pwsh 7. This file boots the SPIKES S1/S3 WinPE image in a Generation 2
-# VM on the isolated 'HDT Lab' switch, starts tests/e2e/payload/Start-HDTLabProbe.ps1
-# at the prompt, and reads what came back.
+# under pwsh 7. This file boots a Generation 2 VM on the isolated 'HDT Lab'
+# switch from a boot image IT BUILDS, and reads back what the probe found.
+#
+# NOTHING TYPES AT THE PROMPT, and that is a property of the whole tests/e2e
+# folder now, enforced by tests/contract/NoKeystroke.Contract.Tests.ps1.
+#
+# This file used to send a 'for %d in (C D E F G) do @if exist ...' line to the
+# VM's keyboard, because the hand-built SPIKES S1/S3 image ran a startnet.cmd
+# that launched nothing and the probe sat on a data disk whose letter WinPE
+# chooses. Both halves of that are gone: Update-HDTBootImage builds the image
+# here, workspace.yaml's extraContent stages the probe INSIDE it, and
+# entryCommand points startnet.cmd at it. Content staged into the image lands
+# under X:, the RAM disk, whose letter is fixed - so there is nothing to scan
+# for and nothing to type.
+#
+# WHAT THE PROBE STILL READS OFF THE CONTENT DISK is deliberate: the engine and
+# powershell-yaml stay on the data disk, and the probe prepends that disk's
+# HDT\Modules to PSModulePath before importing. So 'loads it from the staged
+# copy on the content disk' still means what it says even though the image now
+# carries its own copy of both.
 #
 # WHY BEFORE THE DEPLOYMENT. If powershell-yaml does not load inside WinPE, the
 # engine cannot read a sequence, and every failure of the deployment would be a
@@ -19,19 +36,42 @@
 # now there was no HDT test VM to capture from.
 
 BeforeDiscovery {
-    $script:isoPath = 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso'
-    $script:skipSmoke = -not (Test-Path -LiteralPath $script:isoPath -PathType Leaf)
+    # THE ADK, not a pre-built ISO on a scratch path. This file builds its own
+    # image now, so what it needs is the toolchain that builds one.
+    $script:skipSmoke = $true
+    try {
+        Import-Module -Name (Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+        [void] (Get-HDTAdkPath -Asset Oscdimg -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeMedia -ErrorAction Stop)
+        $script:skipSmoke = $false
+    } catch {
+        $script:skipSmoke = $true
+    }
+
+    if ($script:skipSmoke) {
+        Write-Warning 'WinPeSmoke.E2E.Tests.ps1 is SKIPPED. It builds its own diagnostic boot image, which needs the Windows ADK with the Windows PE add-on.'
+    }
 }
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
     $script:vmName = 'HDT-M3-Smoke'
     $script:vmRoot = Join-Path -Path 'C:\HDTLab\vms' -ChildPath $script:vmName
     $script:contentPath = Join-Path -Path $script:vmRoot -ChildPath 'HDT-M3-Smoke-content.vhdx'
-    $script:isoPath = 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso'
     $script:artifactRoot = 'C:\HDTLab\scratch\e2e'
+
+    # The image this file builds, kept apart from the deployment image's build
+    # root so the two cannot overwrite one another's artifacts.
+    $script:buildRoot = 'C:\HDTLab\scratch\e2e-probeimage'
+    $script:buildWorkspace = Join-Path -Path $script:buildRoot -ChildPath 'Share'
+    $script:buildScratch = Join-Path -Path $script:buildRoot -ChildPath 'work'
+    $script:probeStaging = Join-Path -Path $script:buildRoot -ChildPath 'stage'
+    $script:isoPath = ''
 
     # -- the two protected VMs, recorded BEFORE anything starts ------------
     #
@@ -64,10 +104,83 @@ BeforeAll {
     # Recomputed here rather than read from BeforeDiscovery: the two phases do
     # not share a scope, and reading it throws under the StrictMode ./build.ps1
     # sets. See the same note in Deployment.E2E.Tests.ps1.
-    $script:canSmoke = Test-Path -LiteralPath $script:isoPath -PathType Leaf
+    $script:canSmoke = $false
+    try {
+        [void] (Get-HDTAdkPath -Asset Oscdimg -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeMedia -ErrorAction Stop)
+        $script:canSmoke = $true
+    } catch {
+        $script:canSmoke = $false
+    }
 
     if ($script:canSmoke) {
+        # -- the diagnostic boot image, built by the product -----------------
+        #
+        # extraContent stages a DIRECTORY (Copy-HDTContentTree walks children),
+        # so the probe is copied into a staging folder of its own rather than
+        # pointing extraContent at tests/e2e/payload and dragging the deployment
+        # payload in beside it.
+
+        foreach ($folder in @($script:buildWorkspace,
+                (Join-Path -Path $script:buildWorkspace -ChildPath 'Boot'),
+                (Join-Path -Path $script:buildWorkspace -ChildPath 'Control'),
+                (Join-Path -Path $script:buildWorkspace -ChildPath 'Logs'),
+                $script:probeStaging,
+                $script:artifactRoot)) {
+
+            if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+                New-Item -Path $folder -ItemType Directory -Force | Out-Null
+            }
+        }
+
+        Copy-Item -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'tests/e2e/payload/Start-HDTLabProbe.ps1') `
+            -Destination (Join-Path -Path $script:probeStaging -ChildPath 'Start-HDTLabProbe.ps1') -Force
+
+        $utf8NoBom = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+
+        [System.IO.File]::WriteAllText((Join-Path -Path $script:buildWorkspace -ChildPath 'workspace.yaml'), @"
+# Written by tests/e2e/WinPeSmoke.E2E.Tests.ps1.
+#
+# THE DIAGNOSTIC IMAGE OF DESIGN 5.1. entryCommand replaces the deployment
+# payload with the probe, and extraContent is what puts the probe where
+# entryCommand says it is. X: is the WinPE RAM disk and its letter is fixed,
+# which is the whole reason no drive scan is needed here any more.
+schemaVersion: 1
+id: HDT-LAB-PROBE
+name: HDT WinPE probe workspace
+deployRoot: \Share
+logLevel: Debug
+bootImage:
+  name: HDTPE_probe_x64
+  architecture: amd64
+  language: en-us
+  scratchSpaceMB: 512
+  extraContent:
+    - source: $script:probeStaging
+      destination: \HDT
+  entryCommand: powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTLabProbe.ps1
+"@, $utf8NoBom)
+
+        [System.IO.File]::WriteAllText((Join-Path -Path $script:buildWorkspace -ChildPath 'rules.yaml'),
+            "schemaVersion: 1`nrules: []`n", $utf8NoBom)
+
+        $buildStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        $script:build = Update-HDTBootImage -WorkspaceRoot $script:buildWorkspace `
+            -ScratchPath $script:buildScratch -Confirm:$false
+
+        $buildStopwatch.Stop()
+        $script:isoPath = [string] $script:build.IsoPath
+
+        Write-Information ("probe boot image built in {0}s: {1}" -f
+            [int] $buildStopwatch.Elapsed.TotalSeconds, $script:isoPath) -InformationAction Continue
+
         # -- a small content disk: the module, the parser, the workspace ----
+        #
+        # The probe is NOT staged here any more - it is in the image. The engine
+        # and the parser stay, because the probe prepends this disk's HDT\Modules
+        # to PSModulePath and the assertion below is about loading them FROM HERE.
 
         $yamlModule = @(Get-Module -Name 'powershell-yaml' -ListAvailable |
                 Sort-Object Version -Descending)[0]
@@ -78,7 +191,6 @@ BeforeAll {
         New-HDTLabContentDisk -Path $script:contentPath -SizeByte 2147483648 -Confirm:$false -Source @{
             'HDT\Modules\Hephaestus'                             = (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus')
             'HDT\Modules\powershell-yaml'                        = $script:yamlSource
-            'HDT\Start-HDTLabProbe.ps1'                          = (Join-Path -Path $script:repoRoot -ChildPath 'tests/e2e/payload/Start-HDTLabProbe.ps1')
             'Share\rules.yaml'                                   = (Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/rules.yaml')
             'Share\Scripts'                                      = (Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/Scripts')
             'Share\TaskSequences\DEMO-M3'                        = (Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/TaskSequences/DEMO-M3')
@@ -94,20 +206,16 @@ BeforeAll {
 
         Hyper-V\Start-VM -Name $script:vmName
 
-        # SPIKES S1 measured boot to a WinPE prompt at well under 100 s on
-        # 2 vCPU / 4 GB. 150 s is that with room, and a screenshot is saved
-        # either way so a human can see what was on screen when we typed.
-        Start-Sleep -Seconds 150
-
-        Save-HDTLabVmScreen -Name $script:vmName -Path (Join-Path -Path $script:artifactRoot -ChildPath 'smoke-winpe.png') | Out-Null
-
-        # The content drive letter is not guaranteed in WinPE, so the line
-        # scans for the probe rather than assuming one.
-        $line = 'for %d in (C D E F G) do @if exist %d:\HDT\Start-HDTLabProbe.ps1 powershell -ExecutionPolicy Bypass -File %d:\HDT\Start-HDTLabProbe.ps1'
-        Send-HDTLabVmText -Name $script:vmName -Text $line -Enter -Confirm:$false
-
-        # The probe shuts the machine down when it has written its answer.
+        # NOTHING IS SENT TO THIS MACHINE. startnet.cmd launches the probe, so
+        # the wait below is the whole interaction: the probe shuts the machine
+        # down when it has written its answer, and a machine still running at
+        # the timeout means startnet.cmd did not launch it.
         $script:startedOk = Wait-HDTLabVmState -Name $script:vmName -State 'Off' -TimeoutMinute 15
+
+        # Taken AFTER the wait rather than at a fixed 150 s, because there is no
+        # longer a moment we have to type into. On the failure path this is a
+        # picture of the prompt the probe never left.
+        Save-HDTLabVmScreen -Name $script:vmName -Path (Join-Path -Path $script:artifactRoot -ChildPath 'smoke-winpe.png') | Out-Null
 
         Save-HDTLabVmScreen -Name $script:vmName -Path (Join-Path -Path $script:artifactRoot -ChildPath 'smoke-final.png') | Out-Null
 
@@ -177,6 +285,15 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
 
         It 'wrote PROBE.json to the content disk' {
             $script:probe | Should -Not -BeNullOrEmpty
+        }
+
+        It 'was started by startnet.cmd, not by anything typed at the prompt' {
+            # THE ASSERTION THAT MAKES THIS FILE'S HEADER TRUE, and it is the
+            # guest's own answer rather than a property of the harness source.
+            # HDT_LAUNCHED_BY is set by the image's startnet.cmd - written from
+            # workspace.yaml's entryCommand - and by nothing else.
+            [string] $script:probe.launchedBy | Should -BeExactly 'startnet' -Because (
+                'the probe runs because Update-HDTBootImage pointed startnet.cmd at it; open {0}\smoke-winpe.png if this fails - a bare X:\Windows\System32> prompt means startnet.cmd did not launch it' -f $script:artifactRoot)
         }
     }
 

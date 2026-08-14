@@ -16,17 +16,32 @@ current exit criterion.
 | `Deployment.E2E.Tests.ps1` | ~35 min | **ROADMAP M3's exit criterion**: a Generation 2 VM partitioned, imaged, unattended and boot-configured by a sequence run through `Invoke-HDTTaskSequence`, booting into Windows 11 |
 | `UnattendedDeployment.E2E.Tests.ps1` | ~30 min | **ROADMAP M4's exit criterion, and the current one**: the same deployment, on a boot image **HDT built**, started by that image's own `startnet.cmd` — **with zero keystrokes sent to the machine** |
 
+## Nothing in this folder types into a virtual machine
+
+**Every file here boots an image built by `Update-HDTBootImage`**, whose
+`startnet.cmd` launches the payload named by `workspace.yaml`'s `entryCommand`.
+No file sends keyboard input, and `tests/contract/NoKeystroke.Contract.Tests.ps1`
+is what keeps that true.
+
+It used to be true of `UnattendedDeployment.E2E` alone. The other two booted
+SPIKES S1/S3's hand-built ISO, whose `startnet.cmd` launched nothing, so each
+sent a `for %d in (C D E F G) do @if exist ...` line at the WinPE prompt — a
+scan, because a payload on a data disk has no guaranteed letter. Both halves are
+gone: the payload is staged INSIDE the image by `extraContent`, so it lives
+under `X:`, the RAM disk, whose letter is fixed.
+
 ## The difference between the two deployment files
 
 They deploy the same `DEMO-M3`/`DEMO-M4` steps in the same order to the same kind
-of VM. Everything that distinguishes them is in **how the run starts**:
+of VM, and neither types. What still distinguishes them is **where the engine
+comes from**:
 
 | | `Deployment.E2E` (M3) | `UnattendedDeployment.E2E` (M4) |
 |---|---|---|
-| Boot image | `C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso` — SPIKES S1/S3's **hand-built** artifact | built in the test by `Update-HDTBootImage`, matched against its own manifest by hash |
-| How the engine starts | the harness types one line with `Send-HDTLabVmText` (SPIKES S4's `Msvm_Keyboard`) | **nothing types.** `startnet.cmd` runs `wpeinit` and then `X:\HDT\Start-HDTDeployment.ps1` |
-| Who says it started itself | nobody can | the guest: `RESULT.json`'s `launchedBy` is `startnet`, set by `set HDT_LAUNCHED_BY=startnet` in the image |
-| Deploy root | typed into the launcher line, which scans `C D E F G` | **discovered**: `Resolve-HDTDeployRoot` picks the volume carrying `rules.yaml`, and `RESULT.json` reports `deployRootSource` as `Discovered` |
+| Boot image | built in the test, `entryCommand` pointing at this file's own launcher | built in the test, matched against its own manifest by hash |
+| Where the engine loads from | the **content disk** — the thin-image topology, where the share carries the code | **inside the image**, staged by `Update-HDTBootImage` |
+| The payload | `tests/e2e/payload/Start-HDTLabDeployment.ps1`, staged into the image by `extraContent` | `src/Hephaestus/Payload/Start-HDTDeployment.ps1`, the product's own |
+| Deploy root | the launcher scans for the disk carrying `HDT\Modules\Hephaestus` | **discovered**: `Resolve-HDTDeployRoot` picks the volume carrying `rules.yaml`, and `RESULT.json` reports `deployRootSource` as `Discovered` |
 
 **`Deployment.E2E.Tests.ps1` is kept, not superseded.** It is the record of what
 M3 proved and it still passes; a milestone that deleted the evidence for the
@@ -36,13 +51,20 @@ previous one would leave nothing to compare against.
 
 Three independent proofs, because one would not be enough:
 
-1. **The test file sends nothing**, and that is checked in the *fast* suite.
-   `tests/unit/UnattendedDeploymentE2E.Tests.ps1` parses the E2E and asserts,
-   over the comment-free token stream, that it names no `Send-HDTLabVmText`, no
-   `TypeText`, no `TypeKey` and no `Msvm_Keyboard` — four assertions with four
-   messages, so a failure says which one crept back in. A claim a suite makes
-   about itself must be checkable without running it, or it is only true on the
-   days somebody remembered to look.
+1. **No file here sends anything**, and that is checked in the *fast* suite.
+   `tests/contract/NoKeystroke.Contract.Tests.ps1` scans every `.ps1` in this
+   folder over both the comment-free token stream and the raw text, and it names
+   the lab typing helper FIRST. That order is the finding of SPIKES S9.16: this
+   project once answered "zero typing calls" after searching only for the two
+   underlying WMI keyboard methods, while two files typed on every run through a
+   helper that wraps them. A search for what an implementation eventually calls
+   cannot find the callers of the thing that wraps it. The names themselves are
+   spelled only in the contract file, so a plain `Select-String` over this folder
+   still comes back empty. The contract also carries
+   anti-vacuity floors, and was watched failing against a planted violation
+   before being trusted green. A claim a suite makes about itself must be
+   checkable without running it, or it is only true on the days somebody
+   remembered to look.
 2. **The guest says who started it.** `launchedBy` is set by the image's own
    `startnet.cmd` and by nothing else. A hand-typed launch leaves it empty.
 3. **A run that did not start itself cannot look like success.** Nothing types,
@@ -98,7 +120,7 @@ also DESIGN 6.2's `Local` provider shape, one milestone early.
 ```
 Disk 0  HDT-M3-Deploy-osdisk.vhdx    64 GB dynamic   the deployment target
 Disk 1  HDT-M3-Deploy-content.vhdx    8 GB dynamic   the workspace and the engine
-DVD     C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso      SPIKES S1/S3's image
+DVD     the ISO this file builds with Update-HDTBootImage
 ```
 
 `DEMO-M3` declares `minDiskGB: 60`, so the content disk is excluded from
@@ -123,11 +145,15 @@ the disk itself — and nobody would notice, because the VM would still boot.
 `Update-HDTBootImage` writes a `startnet.cmd` that runs `wpeinit` and then
 `X:\HDT\Start-HDTDeployment.ps1`; the harness starts the VM and then only waits.
 
-**In `Deployment.E2E.Tests.ps1` and `WinPeSmoke.E2E.Tests.ps1` (M3) the harness
-types one line** at the WinPE prompt with `Send-HDTLabVmText` (SPIKES S4's
-`Msvm_Keyboard`, filtered on the VM's **GUID**, not its friendly name), because
-those two boot SPIKES S1/S3's hand-built image, whose `startnet.cmd` predates the
-engine and drops to a shell. Both files say so.
+**In `Deployment.E2E.Tests.ps1` and `WinPeSmoke.E2E.Tests.ps1` nothing starts it
+but the image either.** Each builds its own, with `workspace.yaml`'s
+`entryCommand` pointing `startnet.cmd` at its own payload — the M3 launcher and
+the WinPE probe respectively — and `extraContent` staging that payload under
+`X:\HDT` inside the image. Both then start the VM and only wait.
+
+Each payload records `HDT_LAUNCHED_BY`, which the image's `startnet.cmd` sets and
+nothing else does, and each file asserts it is `startnet`. So "nothing typed" is
+answered by the guest rather than by the harness's own source.
 
 The launcher shuts the machine down when the sequence ends, whatever the
 outcome, so `Wait-HDTLabVmState -State Off` is how the harness knows the run
@@ -172,7 +198,7 @@ Elevation, the Hyper-V module, the staged Windows 11 media, and about 30 GB free
 For a boot vehicle, **either** the Windows ADK with the Windows PE add-on — so
 `UnattendedDeployment.E2E.Tests.ps1` can build its own with
 `Update-HDTBootImage` — **or** a prebuilt
-`C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso` for the two M3 files.
+the Windows ADK with the WinPE add-on, since every file here builds the image it boots.
 `build.ps1 -Task e2e` throws a sentence naming whichever one is missing rather
 than failing obscurely inside a test.
 

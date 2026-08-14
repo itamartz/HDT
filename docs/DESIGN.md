@@ -911,9 +911,29 @@ bootImage:
     - source: Modules\MyVendorTools
       destination: \HDT\Modules\MyVendorTools
   drivers: boot-critical         # driver group injected into the boot image
+  entryCommand: >-                # what startnet.cmd runs; omit for deployment
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTProbe.ps1
 ```
 
 `Update-HDTBootImage -OptionalComponent` overrides per invocation.
+
+**`entryCommand` is what makes a diagnostic image possible without a keyboard.**
+Omitted — the normal case — `startnet.cmd` launches `X:\HDT\Start-HDTDeployment.ps1`
+and the image deploys. Declared, it launches that command instead, which is how
+an image whose job is to probe, repair or report is built without the engine
+having to pretend it is deploying.
+
+The value is written into `startnet.cmd` verbatim, so it is validated for the two
+things that would make the written file mean something other than what the
+document says: it may not be empty, and it may not contain a line break — a break
+is a second command running inside WinPE that no reader of `workspace.yaml` would
+see as one. What the command *does* is not validated; that is the admin's.
+
+Pair it with `extraContent` to put the script inside the image. That pairing is
+the point: content staged into the image lands under `X:`, the WinPE RAM disk,
+whose letter is fixed. A script staged on a data disk instead has no guaranteed
+letter, which is what forces the `for %d in (C D E F G)` scan that HDT does not
+write into `startnet.cmd` and no longer types at a prompt either.
 
 **Required set, in dependency order — verified working (SPIKES.md S1):**
 

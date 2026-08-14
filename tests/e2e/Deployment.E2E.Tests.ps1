@@ -2,8 +2,8 @@
 #
 #   "a VM boots into Windows from a sequence run end-to-end"
 #
-# A Generation 2 VM on the isolated 'HDT Lab' switch is booted from the WinPE
-# ISO, Start-HDTLabDeployment.ps1 is typed at its prompt, and
+# A Generation 2 VM on the isolated 'HDT Lab' switch is booted from a boot image
+# THIS FILE BUILDS, whose startnet.cmd launches Start-HDTLabDeployment.ps1, and
 # Invoke-HDTTaskSequence runs samples/workspace/TaskSequences/DEMO-M3 -
 # Validate, DiskPartition, ApplyImage, ApplyUnattend, ConfigureBoot - against
 # the REAL disk and image services. Then the VM is started again, WITHOUT
@@ -26,25 +26,62 @@
 # DC01 are recorded before anything starts and asserted identical afterwards, in
 # an AfterAll that runs even when the test failed. Nothing here creates a VM
 # except through New-HDTLabVirtualMachine, whose guards are unit tested.
+#
+# NOTHING TYPES AT THE PROMPT. This file used to send a
+# 'for %d in (C D E F G) do @if exist ...' line to the VM's keyboard, because
+# the hand-built WinPE ISO ran a startnet.cmd that launched nothing. It builds
+# its own image now: workspace.yaml's extraContent stages the launcher inside
+# the image and entryCommand points startnet.cmd at it, so the launcher runs
+# from X: - the RAM disk, whose letter is fixed - with nothing to scan for.
+# tests/contract/NoKeystroke.Contract.Tests.ps1 keeps it that way.
+#
+# THE LAUNCHER IS STILL THIS FILE'S OWN, not src/Hephaestus/Payload's. Keeping
+# it is what keeps this file distinct from UnattendedDeployment.E2E: the engine
+# is loaded off the CONTENT DISK here, which is the topology where the boot
+# image is thin and the share carries the code.
 
 BeforeDiscovery {
-    $script:isoPath = 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso'
     $script:wimPath = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
+    $script:discoveryWim = Test-Path -LiteralPath $script:wimPath -PathType Leaf
 
-    $script:skipDeployment = -not ((Test-Path -LiteralPath $script:isoPath -PathType Leaf) -and
-        (Test-Path -LiteralPath $script:wimPath -PathType Leaf))
+    # THE ADK, not a pre-built ISO: this file builds the image it boots.
+    $script:discoveryAdk = $false
+    try {
+        Import-Module -Name (Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+        [void] (Get-HDTAdkPath -Asset Oscdimg -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop)
+        [void] (Get-HDTAdkPath -Asset WinPeMedia -ErrorAction Stop)
+        $script:discoveryAdk = $true
+    } catch {
+        $script:discoveryAdk = $false
+    }
+
+    $script:skipDeployment = (-not $script:discoveryWim) -or (-not $script:discoveryAdk)
+
+    if ($script:skipDeployment) {
+        Write-Warning ("Deployment.E2E.Tests.ps1 is SKIPPED. It builds its own boot image and deploys Windows 11 to a VM, which needs the staged media (currently present: {0}) and the Windows ADK with the Windows PE add-on (currently resolvable: {1})." -f
+            $script:discoveryWim, $script:discoveryAdk)
+    }
 }
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:vmName = 'HDT-M3-Deploy'
     $script:vmRoot = Join-Path -Path 'C:\HDTLab\vms' -ChildPath $script:vmName
     $script:osDiskPath = Join-Path -Path $script:vmRoot -ChildPath 'HDT-M3-Deploy-osdisk.vhdx'
     $script:contentPath = Join-Path -Path $script:vmRoot -ChildPath 'HDT-M3-Deploy-content.vhdx'
-    $script:isoPath = 'C:\HDTLab\scratch\pe\HDTPE_x64_uefi.iso'
     $script:wimPath = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
+
+    # The image this file builds. Its own build root, so it cannot overwrite the
+    # artifacts UnattendedDeployment.E2E or WinPeSmoke.E2E built.
+    $script:isoPath = ''
+    $script:buildRoot = 'C:\HDTLab\scratch\e2e-m3-bootimage'
+    $script:buildWorkspace = Join-Path -Path $script:buildRoot -ChildPath 'Share'
+    $script:buildScratch = Join-Path -Path $script:buildRoot -ChildPath 'work'
+    $script:launcherStaging = Join-Path -Path $script:buildRoot -ChildPath 'stage'
     $script:artifactRoot = 'C:\HDTLab\scratch\e2e'
 
     # THE PROTECTED PAIR, RECORDED BEFORE ANYTHING STARTS.
@@ -118,8 +155,17 @@ BeforeAll {
     # which ./build.ps1 sets and a bare Invoke-Pester does not. Without
     # StrictMode it evaluated to $null, and 'if (-not $null)' is TRUE, so the
     # whole deployment ran on a machine that was supposed to skip it.
-    $script:canDeploy = (Test-Path -LiteralPath $script:isoPath -PathType Leaf) -and
-        (Test-Path -LiteralPath $script:wimPath -PathType Leaf)
+    $script:canDeploy = $false
+    if (Test-Path -LiteralPath $script:wimPath -PathType Leaf) {
+        try {
+            [void] (Get-HDTAdkPath -Asset Oscdimg -ErrorAction Stop)
+            [void] (Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop)
+            [void] (Get-HDTAdkPath -Asset WinPeMedia -ErrorAction Stop)
+            $script:canDeploy = $true
+        } catch {
+            $script:canDeploy = $false
+        }
+    }
 
     if ($script:canDeploy) {
 
@@ -135,7 +181,70 @@ BeforeAll {
             throw ("running HDT VMs already hold {0} bytes; starting a 4 GB test VM would exceed the 12 GB lab budget (PROJECT.md rule 4)." -f $runningByte)
         }
 
-        # -- the content disk: engine, parser, launcher, workspace, media ---
+        # -- the boot image, built by the product ---------------------------
+        #
+        # extraContent stages a DIRECTORY (Copy-HDTContentTree walks children),
+        # so the launcher is copied into a staging folder of its own rather than
+        # pointing extraContent at tests/e2e/payload and dragging the probe in
+        # beside it.
+
+        foreach ($folder in @($script:buildWorkspace,
+                (Join-Path -Path $script:buildWorkspace -ChildPath 'Boot'),
+                (Join-Path -Path $script:buildWorkspace -ChildPath 'Control'),
+                (Join-Path -Path $script:buildWorkspace -ChildPath 'Logs'),
+                $script:launcherStaging)) {
+
+            if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+                New-Item -Path $folder -ItemType Directory -Force | Out-Null
+            }
+        }
+
+        Copy-Item -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'tests/e2e/payload/Start-HDTLabDeployment.ps1') `
+            -Destination (Join-Path -Path $script:launcherStaging -ChildPath 'Start-HDTLabDeployment.ps1') -Force
+
+        $utf8NoBomBuild = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
+
+        [System.IO.File]::WriteAllText((Join-Path -Path $script:buildWorkspace -ChildPath 'workspace.yaml'), @"
+# Written by tests/e2e/Deployment.E2E.Tests.ps1.
+#
+# entryCommand launches THIS FILE'S launcher rather than the deployment payload
+# (DESIGN 5.1), and extraContent is what puts it where entryCommand says it is.
+# X: is the WinPE RAM disk and its letter is fixed, which is why the launcher no
+# longer has to be found by a drive scan typed at the prompt.
+#
+# The launcher still finds the ENGINE by scanning, and that is deliberate: the
+# engine lives on the content disk here, not in the image.
+schemaVersion: 1
+id: HDT-LAB-M3
+name: HDT M3 exit criterion workspace
+deployRoot: \Share
+logLevel: Debug
+bootImage:
+  name: HDTPE_m3_x64
+  architecture: amd64
+  language: en-us
+  scratchSpaceMB: 512
+  extraContent:
+    - source: $script:launcherStaging
+      destination: \HDT
+  entryCommand: powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTLabDeployment.ps1
+"@, $utf8NoBomBuild)
+
+        [System.IO.File]::WriteAllText((Join-Path -Path $script:buildWorkspace -ChildPath 'rules.yaml'),
+            "schemaVersion: 1`nrules: []`n", $utf8NoBomBuild)
+
+        $bootBuildStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+        $script:build = Update-HDTBootImage -WorkspaceRoot $script:buildWorkspace `
+            -ScratchPath $script:buildScratch -Confirm:$false
+
+        $bootBuildStopwatch.Stop()
+        $script:isoPath = [string] $script:build.IsoPath
+
+        Write-Information ("boot image built in {0}s: {1}" -f
+            [int] $bootBuildStopwatch.Elapsed.TotalSeconds, $script:isoPath) -InformationAction Continue
+
+        # -- the content disk: engine, parser, workspace, media -------------
         #
         # Every path under Share\ is written here BY HAND in the layout
         # Get-HDTWorkspacePath defines; the engine reading it builds the same
@@ -220,8 +329,10 @@ variables:
         New-HDTLabContentDisk -Path $script:contentPath -SizeByte 8589934592 -Confirm:$false -Source @{
             ('Share\Control\machines\{0}.yaml' -f $script:vmUuid)         = $script:overrideFile
             'HDT\Modules\Hephaestus'                                     = (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus')
+            # The launcher is NOT here any more: it is inside the boot image,
+            # staged by extraContent and launched by startnet.cmd. The engine
+            # and the parser stay, because the launcher loads them from here.
             'HDT\Modules\powershell-yaml'                                = [string] $yamlModule.ModuleBase
-            'HDT\Start-HDTLabDeployment.ps1'                             = (Join-Path -Path $script:repoRoot -ChildPath 'tests/e2e/payload/Start-HDTLabDeployment.ps1')
             'Share\rules.yaml'                                           = (Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/rules.yaml')
             'Share\Scripts'                                              = (Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/Scripts')
             # THE SAMPLE FILES, COPIED, NOT RETYPED. The benchmark in
@@ -244,18 +355,14 @@ variables:
 
         Hyper-V\Start-VM -Name $script:vmName
 
-        # SPIKES S1 measured boot to a WinPE prompt at well under 100 s.
+        # NOTHING IS SENT TO THIS MACHINE. startnet.cmd launches the launcher,
+        # so these screenshots are diagnosis rather than a moment we have to hit:
+        # the first is taken once WinPE is up and the sequence should be running,
+        # and a bare X:\Windows\System32> prompt in it means startnet.cmd did not
+        # launch anything.
         Start-Sleep -Seconds 150
 
         Save-HDTLabVmScreen -Name $script:vmName -Path (Join-Path -Path $script:artifactRoot -ChildPath 'deploy-01-winpe.png') | Out-Null
-
-        # The boot image's startnet.cmd predates the engine, so the harness
-        # types one line (SPIKES S4). Wiring the engine into startnet.cmd is
-        # M4's Update-HDTBootImage; this is the smallest thing that does not
-        # pretend otherwise. It scans for the drive because WinPE's letter
-        # assignment is not guaranteed.
-        $line = 'for %d in (C D E F G) do @if exist %d:\HDT\Start-HDTLabDeployment.ps1 powershell -ExecutionPolicy Bypass -File %d:\HDT\Start-HDTLabDeployment.ps1'
-        Send-HDTLabVmText -Name $script:vmName -Text $line -Enter -Confirm:$false
 
         Start-Sleep -Seconds 60
         Save-HDTLabVmScreen -Name $script:vmName -Path (Join-Path -Path $script:artifactRoot -ChildPath 'deploy-02-running.png') | Out-Null
@@ -519,6 +626,15 @@ Describe 'the engine ran the deployment' -Tag 'E2E' -Skip:$skipDeployment {
 
     It 'wrote a RESULT.json' {
         $script:result | Should -Not -BeNullOrEmpty -Because $script:launcherLog
+    }
+
+    It 'was started by startnet.cmd, not by anything typed at the prompt' {
+        # THE ASSERTION THAT MAKES THIS FILE'S HEADER TRUE, and it is the guest's
+        # own answer rather than a property of the harness source.
+        # HDT_LAUNCHED_BY is set by the image's startnet.cmd - written from
+        # workspace.yaml's entryCommand - and by nothing else.
+        [string] $script:result.launchedBy | Should -BeExactly 'startnet' -Because (
+            'the launcher runs because Update-HDTBootImage pointed startnet.cmd at it; open {0}\deploy-01-winpe.png if this fails - a bare X:\Windows\System32> prompt means startnet.cmd did not launch it' -f $script:artifactRoot)
     }
 
     It 'loaded powershell-yaml inside WinPE' {

@@ -1433,3 +1433,36 @@ mounted: `Get-WindowsImage -Mounted` is empty. This host's disk 0 is
 `GPT|True|True` before and after, and the only images this plan mounted were
 mounted `-ReadOnly` and dismounted `-Discard` in a `finally`. The planted
 discovery-failure file was removed in the same step that proved the guard.
+
+### S9.16 — a "no keyboard input" search that looked at the wrong symbol ⚠
+
+Asked whether anything still typed into WinPE, this project answered "zero
+typing calls" after searching the E2E suite for `TypeText` and `TypeKey` — the
+two `Msvm_Keyboard` methods SPIKES S4 recorded. The search came back empty and
+the answer was wrong.
+
+**The suite typed through a wrapper.** `tests/helpers` exposes a single lab
+helper that wraps both WMI methods, and two E2E files called it — one line each,
+sending the same `for %d in (C D E F G) do @if exist ...` scan at the WinPE
+prompt. Searching for the methods the wrapper calls is a search that cannot find
+the wrapper's callers, so it reported the property as held on a suite that
+violated it twice.
+
+**The shape of the mistake is general**: a "nothing does X" search must name the
+symbol callers actually write, not the one the implementation eventually
+reaches. Where a wrapper exists, the wrapper IS the symbol to search for, and
+the underlying calls are the secondary check rather than the primary one.
+
+**What replaced the search.** `tests/contract/NoKeystroke.Contract.Tests.ps1`
+scans every `.ps1` under `tests/e2e` for the wrapper FIRST and the two methods
+and the keyboard class after it, over both the comment-stripped token stream and
+the raw text. It carries anti-vacuity floors on file count and total scanned
+length (S9.15b: a "no file contains X" assertion is trivially true of no files),
+and it was watched failing against a planted violation before being trusted
+green — 13 passed / 2 failed with the offending path named in the message, then
+15 passed once the plant was removed.
+
+**The property is now asserted from inside the guest as well**, which is the
+part a source scan cannot cover: `startnet.cmd` sets `HDT_LAUNCHED_BY=startnet`
+and nothing else does, both lab payloads record it, and each E2E asserts it. A
+harness that went back to typing would leave that field empty.

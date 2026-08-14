@@ -80,7 +80,7 @@ function Import-HDTWorkspaceDocument {
               BootImage   -> { Name, Architecture, Language, ScratchSpaceMB,
                                OptionalComponent [string[]],
                                ExtraContent [rows of { Source, Destination }],
-                               Drivers }
+                               Drivers, EntryCommand }
 
         .EXAMPLE
             Import-HDTWorkspaceDocument -Path 'X:\Deploy\workspace.yaml' -FileSystem (New-HDTFileSystem)
@@ -166,6 +166,14 @@ function Import-HDTWorkspaceDocument {
         $drivers = [string] $bootImage['drivers']
     }
 
+    # Empty means "the builder decides". The default command lives in
+    # Get-HDTStartnetScript's parameter and is not repeated here: two defaults
+    # for one string is one of them being wrong after the next edit.
+    $entryCommand = ''
+    if ($null -ne $bootImage -and $bootImage.Contains('entryCommand')) {
+        $entryCommand = [string] $bootImage['entryCommand']
+    }
+
     # Unset takes the defaults; set-to-nothing is honoured as nothing.
     $optionalComponent = $defaultOptionalComponent
     if ($null -ne $bootImage -and $bootImage.Contains('optionalComponents')) {
@@ -201,6 +209,7 @@ function Import-HDTWorkspaceDocument {
             OptionalComponent = [string[]] @($optionalComponent)
             ExtraContent      = [pscustomobject[]] @($extraContent)
             Drivers           = $drivers
+            EntryCommand      = $entryCommand
         }
     }
 }

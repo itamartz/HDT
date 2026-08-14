@@ -494,7 +494,14 @@ function Update-HDTBootImage {
     $driver = @()
     $payloadRow = New-Object -TypeName System.Collections.ArrayList
     $extraRow = New-Object -TypeName System.Collections.ArrayList
-    $startnet = Get-HDTStartnetScript
+    # An empty EntryCommand means the workspace did not say, so the default in
+    # Get-HDTStartnetScript's parameter decides. Passing the empty string through
+    # would trip its ValidateNotNullOrEmpty and turn "did not say" into an error.
+    $startnet = if ([string]::IsNullOrWhiteSpace([string] $workspace.BootImage.EntryCommand)) {
+        Get-HDTStartnetScript
+    } else {
+        Get-HDTStartnetScript -Command ([string] $workspace.BootImage.EntryCommand)
+    }
 
     try {
         # -- 7. mount -------------------------------------------------------

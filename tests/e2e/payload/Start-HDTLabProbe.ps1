@@ -74,6 +74,13 @@ $InformationPreference = 'Continue'
 $probe = [ordered] @{
     psVersion       = [string] $PSVersionTable.PSVersion
     psEdition       = [string] $PSVersionTable.PSEdition
+
+    # THE GUEST'S OWN STATEMENT ABOUT WHO STARTED IT. startnet.cmd sets
+    # HDT_LAUNCHED_BY=startnet before it launches anything; a human typing the
+    # command at the WinPE prompt does not. This is what makes "nothing types"
+    # an assertion about the machine rather than about the harness source.
+    launchedBy      = [string] $env:HDT_LAUNCHED_BY
+
     contentRoot     = ''
     yamlLoaded      = $false
     yamlVersion     = ''

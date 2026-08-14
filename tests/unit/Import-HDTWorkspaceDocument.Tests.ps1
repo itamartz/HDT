@@ -191,6 +191,23 @@ Describe 'Import-HDTWorkspaceDocument' {
                 Should -BeExactly 'HDTPE_x64'
         }
 
+        It 'returns EntryCommand empty when none was declared' {
+            # Empty means "the builder decides", and the builder's decision is
+            # Get-HDTStartnetScript's own default parameter value. Defaulting the
+            # payload path HERE as well would be a second place to change it.
+            $filesystem = New-HDTWorkspaceTestFileSystem -Yaml $script:fixture['valid-minimal.yaml']
+
+            (Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $filesystem).BootImage.EntryCommand |
+                Should -BeNullOrEmpty
+        }
+
+        It 'carries a declared entryCommand through verbatim' {
+            $filesystem = New-HDTWorkspaceTestFileSystem -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  entryCommand: powershell.exe -NoProfile -File X:\HDT\Start-HDTProbe.ps1"
+
+            (Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $filesystem).BootImage.EntryCommand |
+                Should -BeExactly 'powershell.exe -NoProfile -File X:\HDT\Start-HDTProbe.ps1'
+        }
+
         It 'returns Drivers empty when none were declared' {
             $filesystem = New-HDTWorkspaceTestFileSystem -Yaml $script:fixture['valid-minimal.yaml']
 
