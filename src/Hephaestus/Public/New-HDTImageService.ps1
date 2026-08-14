@@ -220,6 +220,15 @@ function New-HDTImageService {
         $this.Record('InstallBootFile', @($OsRoot, $SystemVolume, $Firmware))
 
         $windows = Join-Path -Path $OsRoot -ChildPath 'Windows'
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
         $output = @(& "$env:SystemRoot\System32\bcdboot.exe" $windows '/s' $SystemVolume '/f' $Firmware 2>&1)
 
         # Exit-code check, with bcdboot's own sentence attached.
@@ -240,6 +249,15 @@ function New-HDTImageService {
 
         # /setreimage, NOT the verb DESIGN 9.2 names - reagentc on Windows 11
         # 24H2 has no such verb at all. DESIGN 9.2 is corrected in 04-03.
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
         $output = @(& $reagentc '/setreimage' '/path' $RecoveryPath '/target' $windows 2>&1)
 
         $this.AssertExitCode($LASTEXITCODE, 'Reagentc.exe',
@@ -251,6 +269,15 @@ function New-HDTImageService {
 
         # SPIKES.md S6: after apply, a machine whose firmware still has the boot
         # media first simply reboots into WinPE and the deployment loops.
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
         $output = @(& "$env:SystemRoot\System32\bcdedit.exe" '/set' '{fwbootmgr}' 'displayorder' '{bootmgr}' '/addfirst' 2>&1)
 
         $this.AssertExitCode($LASTEXITCODE, 'bcdedit.exe',

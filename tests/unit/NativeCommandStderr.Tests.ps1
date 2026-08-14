@@ -48,9 +48,17 @@ BeforeAll {
     foreach ($file in $script:sourceFile) {
         $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $null, [ref] $null)
 
+        # `2>&1` ONLY, NOT `*>&1`. They are different idioms with different
+        # owners: 2>&1 is how this repository captures a NATIVE tool's stderr,
+        # and *>&1 is how New-HDTScriptInvoker merges the streams of a
+        # PowerShell script the administrator wrote. A user script that writes
+        # an error SHOULD stop the step, so disarming the preference there would
+        # change behaviour rather than fix a trap. In the AST they are told
+        # apart by FromStream - Error against All.
         $redirection = @($ast.FindAll({
                     param($node)
-                    $node -is [System.Management.Automation.Language.MergingRedirectionAst]
+                    $node -is [System.Management.Automation.Language.MergingRedirectionAst] -and
+                    ([string] $node.FromStream) -eq 'Error'
                 }, $true))
 
         foreach ($node in $redirection) {

@@ -294,6 +294,15 @@ function New-HDTBootImageService {
         $imageArgument = '/Image:{0}' -f $MountPath
         $scratchArgument = '/Set-ScratchSpace:{0}' -f $Megabyte
 
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
         $output = @(& "$env:SystemRoot\System32\dism.exe" $imageArgument $scratchArgument 2>&1)
 
         $this.AssertExitCode($LASTEXITCODE, 'dism.exe',
@@ -314,6 +323,15 @@ function New-HDTBootImageService {
         }
 
         $full = @($Argument) + @($MediaRoot, $IsoPath)
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
 
         $output = @(& $oscdimg @full 2>&1)
 
