@@ -14,11 +14,18 @@
 # NOT BE ENOUGH:
 #
 #   1. THIS FILE SENDS NOTHING, and that is checked in the FAST suite.
-#      tests/unit/UnattendedDeploymentE2E.Tests.ps1 parses this file and asserts,
-#      over the comment-free token stream, that it names no Send-HDTLabVmText, no
-#      TypeText, no TypeKey and no Msvm_Keyboard - four assertions with four
-#      messages. A claim a suite makes about itself must be checkable without
-#      running it, or it is only true on the days somebody remembered to look.
+#      tests/unit/UnattendedDeploymentE2E.Tests.ps1 parses this file and asserts
+#      that it names neither the lab keyboard helper nor either of the two
+#      Msvm keyboard methods SPIKES S4 records - four assertions with four
+#      messages, and that file names all four in full. A claim a suite makes
+#      about itself must be checkable without running it, or it is only true on
+#      the days somebody remembered to look.
+#
+#      THE FOUR NAMES ARE DELIBERATELY NOT WRITTEN OUT HERE. 05-05's verification
+#      asks a human to run a plain Select-String over this file for them and
+#      expect nothing back, so a sentence that spelled them would make the
+#      simplest check anyone can perform report a hit - and the next author would
+#      resolve that by deleting the sentence rather than by keeping the property.
 #   2. THE GUEST SAYS WHO STARTED IT. startnet.cmd sets HDT_LAUNCHED_BY=startnet
 #      (05-04) and Start-HDTDeployment.ps1 records it in RESULT.json (05-03). A
 #      hand-typed launch leaves that field empty.
@@ -41,8 +48,9 @@
 # isolated 'HDT Lab' switch and SPIKES S6 records that a VM there cannot reach a
 # share on the host, so the image declares provider Local. The Smb provider's
 # evidence is 05-02's unit refusals and its loopback integration run. DO NOT move
-# a test VM to 'HDT External' or 'Default Switch' to close that gap - it would
-# put the machine on a segment where CM01's PXE responder can answer it.
+# a test VM to one of the host's other three switches to close that gap - it
+# would put the machine on a segment where CM01's PXE responder can answer it.
+# tests/e2e/README.md names them; this file may not, for the reason above.
 #
 # LAB SAFETY. Every Hyper-V call is module-qualified (SPIKES S9.9: PowerCLI
 # shadows Get-VM on this host) and name-filtered. CM01 and DC01 are recorded

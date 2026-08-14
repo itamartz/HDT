@@ -170,6 +170,40 @@ Describe 'the M4 E2E, parsed' -Skip:(-not $script:e2eExists) {
             $script:codeOnly | Should -Not -Match 'Msvm_Keyboard' -Because (
                 'the keyboard class itself. Reaching for it at all is the thing this milestone eliminated')
         }
+
+        It 'names none of the four in its comments either' {
+            # THE CHECK A HUMAN CAN PERFORM, MADE PERMANENT.
+            #
+            # Everything above scans the comment-free token stream, and that is
+            # the right scan: a file's header should be able to discuss the
+            # property it holds, and a raw-text assertion would teach the next
+            # author to delete the sentence rather than keep the property.
+            #
+            # But 05-05's verification asks a human to run a plain
+            # Select-String over the E2E for these four names and expect nothing
+            # back, because that is the simplest check anybody can perform
+            # without this suite. A header that spelled them would make that
+            # check report a hit on a file that is perfectly correct, and a
+            # verification step that cries wolf is one nobody runs twice.
+            #
+            # So the names live HERE, in the file whose job is to name them, and
+            # the E2E's header points at this one instead. This assertion is what
+            # keeps that arrangement true.
+            foreach ($name in @('Send-HDTLabVmText', 'TypeText', 'TypeKey', 'Msvm_Keyboard')) {
+                $script:text | Should -Not -Match ([regex]::Escape($name)) -Because (
+                    "a plain Select-String for '{0}' over the E2E must come back empty" -f $name)
+            }
+        }
+
+        It 'names no switch but HDT Lab, in its comments either' {
+            # Same arrangement, same reason (PROJECT.md rule 2). The three
+            # forbidden switch names are written out in tests/e2e/README.md and
+            # in this file, and not in the E2E.
+            foreach ($switch in @('Default Switch', 'HDT External', 'FSE Switch')) {
+                $script:text | Should -Not -Match ([regex]::Escape($switch)) -Because (
+                    "a plain Select-String for '{0}' over the E2E must come back empty" -f $switch)
+            }
+        }
     }
 
     Context 'it boots the ISO the code built' {
