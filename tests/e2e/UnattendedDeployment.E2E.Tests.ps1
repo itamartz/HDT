@@ -108,7 +108,20 @@ BeforeAll {
     # $null is 0, and the assertion that protects the user's live lab compared 0
     # with 0 through six green runs.
     $script:snapshotProtected = {
+        # EVERY VM THIS SUITE DOES NOT OWN, not two names.
+        #
+        # It used to read 'CM01', 'DC01' explicitly. When those two were deleted
+        # from this host the snapshot became an empty array, and comparing an
+        # empty array with an empty array afterwards held while checking nothing
+        # - the same shape as SPIKES S9.14, where the lab-safety assertion
+        # compared 0 with 0 through six green runs.
+        #
+        # Reading every non-HDT-* VM instead means the guard covers whatever the
+        # user builds next without anyone remembering to add its name, and the
+        # count is asserted separately so an empty host reads as "there was
+        # nothing to protect" rather than as "nothing was harmed".
         return @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
+                Sort-Object Name |
                 ForEach-Object {
                     [pscustomobject] @{
                         Name   = [string] $_.Name

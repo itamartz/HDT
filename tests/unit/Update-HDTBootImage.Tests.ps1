@@ -465,6 +465,61 @@ Describe 'Update-HDTBootImage' {
             $bootstrap.DeployRoot | Should -BeExactly '\Share'
         }
 
+        It 'asks the technician when a share image carries no credential' {
+            # MDT'S LOGIC, KEPT. A Bootstrap.ini naming a DeployRoot but no
+            # UserID does not fail the build - LiteTouch prompts at the start of
+            # the deployment. So this builds, and the image it produces is one
+            # that stops and asks.
+            #
+            # An earlier version of this test asserted a BUILD-TIME REFUSAL.
+            # That was a rule MDT does not have, and it would have made the
+            # ordinary "build the image, let the technician sign in at the
+            # machine" workflow impossible.
+            #
+            # THE CREDENTIAL BLOCK IS REMOVED, not just the secret. The default
+            # fixture declares one, which is what makes the normal Smb build
+            # unattended - so a test that only swapped the deployRoot would
+            # build an embedded-credential image and prove nothing.
+            $yaml = ($script:workspaceYaml -replace 'deployRoot: \\Share', 'deployRoot: \\HDT-HOST\HdtShare') `
+                -replace '(?m)^credential:\r?\n\s+username:.*\r?\n', ''
+
+            $yaml | Should -Not -BeLike '*credential:*' -Because (
+                'the point of this test is a share image with no account declared')
+
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            Invoke-HDTBootImageTestBuild -Context $context -WarningVariable warning -WarningAction SilentlyContinue | Out-Null
+
+            $bootstrap = Get-HDTBootstrapConfiguration -Path ($script:mountPath + '\HDT\bootstrap.json') `
+                -FileSystem $context.FileSystem
+
+            $bootstrap.Provider | Should -BeExactly 'Smb'
+            $bootstrap.PromptForCredential | Should -BeTrue -Because (
+                'the machine has no other way to reach the share, so it must ask - which is what MDT does')
+            $bootstrap.HasCredential | Should -BeFalse
+
+            # WARNED, not silent: the two builds behave very differently in
+            # front of a technician - one runs unattended, one stops - and the
+            # admin should know which one they just made.
+            (@($warning) -join ' ') | Should -BeLike '*ASK THE TECHNICIAN*'
+            (@($warning) -join ' ') | Should -BeLike '*Set-HDTShareCredential*'
+        }
+
+        It 'builds a UNC deployRoot image when it is told to prompt for the credential' {
+            # THE ESCAPE HATCH, asserted so the refusal above cannot become a ban
+            # on the shared-lab build DESIGN 6.3 offers.
+            $yaml = $script:workspaceYaml -replace 'deployRoot: \\Share', 'deployRoot: \\HDT-HOST\HdtShare'
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+
+            $record = $null
+            try {
+                Invoke-HDTBootImageTestBuild -Context $context -Argument @{ PromptForCredential = $true } | Out-Null
+            } catch {
+                $record = $_
+            }
+
+            $record | Should -BeNullOrEmpty
+        }
+
         It 'carries a UNC deployRoot across as Smb' {
             $yaml = $script:workspaceYaml -replace 'deployRoot: \\Share', 'deployRoot: \\HDT-HOST\HdtShare'
             $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml

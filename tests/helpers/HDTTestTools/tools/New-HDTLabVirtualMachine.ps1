@@ -1,7 +1,8 @@
 function New-HDTLabVirtualMachine {
     <#
         .SYNOPSIS
-            Creates a Generation 2 HDT test VM on the isolated 'HDT Lab' switch.
+            Creates a Generation 2 HDT test VM on one of the two permitted
+            switches.
 
         .DESCRIPTION
             PROJECT.md's Hyper-V lab safety rules, enforced in code before any
@@ -10,11 +11,12 @@ function New-HDTLabVirtualMachine {
 
               rule 1  the name must be HDT-*, and never CM01 or DC01
                       (Assert-HDTLabVmName)
-              rule 2  the switch must be 'HDT Lab' - the isolated internal one.
-                      'Default Switch' carries the user's 192.168.25.0/24 lab
-                      and CM01's PXE responder; a test VM there would either
-                      break their lab or be answered by SCCM, which silently
-                      invalidates the test
+              rule 2  the switch must be 'HDT Lab' - the isolated internal one,
+                      reserved for PXE/WDS - or 'HDT External', which reaches the
+                      192.168.2.0/24 lab network and is what a share deployment
+                      needs. 'Default Switch' carries the user's lab and CM01's
+                      PXE responder; a test VM there would either break their lab
+                      or be answered by SCCM, which silently invalidates the test
               rule 4  memory. All HDT VMs stay under 12 GB combined, so one test
                       VM may not take more than 8 GB, and the total already
                       assigned to running HDT-* VMs is checked before this one
@@ -43,7 +45,9 @@ function New-HDTLabVirtualMachine {
             Virtual processors.
 
         .PARAMETER SwitchName
-            Must be 'HDT Lab'.
+            'HDT Lab' or 'HDT External', and nothing else. 'Default Switch' is
+            refused by name in the message, because that is the one that would
+            damage the user's lab.
 
         .PARAMETER VhdPath
             One or more existing VHDXs to attach, in order. All must be under
@@ -96,7 +100,24 @@ function New-HDTLabVirtualMachine {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
+    # THE TWO SWITCHES A TEST VM MAY USE, and no others.
+    #
+    # 'HDT Lab' is the isolated internal one, reserved for PXE/WDS work where a
+    # second responder must not be able to answer (PROJECT.md rule 3).
+    #
+    # 'HDT External' is how a VM reaches the lab network. PROJECT.md's network
+    # rule: the lab network is 192.168.2.0/24, DHCP comes from the real LAN, and
+    # a VM on the ISOLATED switch gets no lease and cannot reach a share on the
+    # host (SPIKES S6) - which is exactly why no deployment had ever run over
+    # SMB. A share deployment has to be here.
+    #
+    # 'Default Switch' REMAINS REFUSED, and that is the rule that must never
+    # relax: it carries the user's live lab and CM01's PXE responder, so a test
+    # VM there would either break their lab or be silently answered by SCCM and
+    # invalidate the test.
     $labSwitch = 'HDT Lab'
+    $externalSwitch = 'HDT External'
+    $allowedSwitch = @($labSwitch, $externalSwitch)
     $vmRoot = 'C:\HDTLab\vms'
     $maximumVmByte = 8589934592     # 8 GB for one VM
     $maximumLabByte = 12884901888   # 12 GB for all of them together
@@ -109,8 +130,9 @@ function New-HDTLabVirtualMachine {
         throw ("Generation {0} is not what HDT targets. HDT test VMs are Generation 2 - UEFI and Secure Boot - which is what the uefi-standard layout and the -NoPromptForKey UEFI ISO require (PROJECT.md, 'Hyper-V lab safety rules', rule 6)." -f $Generation)
     }
 
-    if ($SwitchName -ne $labSwitch) {
-        throw ("'{0}' is not the '{1}' switch. HDT test VMs attach ONLY to '{1}': 'Default Switch' carries the user's lab and CM01's PXE responder, and a test VM there would either break their lab or be answered by SCCM (PROJECT.md, 'Hyper-V lab safety rules', rule 2 and 3)." -f $SwitchName, $labSwitch)
+    if ($allowedSwitch -notcontains $SwitchName) {
+        throw ("'{0}' is not a switch an HDT test VM may attach to. The only two are '{1}' - the isolated internal one, reserved for PXE/WDS - and '{2}', which reaches the 192.168.2.0/24 lab network. 'Default Switch' in particular carries the user's lab and CM01's PXE responder, and a test VM there would either break their lab or be answered by SCCM (PROJECT.md, 'Hyper-V lab safety rules', rules 2 and 3, and the network rule)." -f
+                $SwitchName, $labSwitch, $externalSwitch)
     }
 
     foreach ($path in @($VhdPath)) {
@@ -142,7 +164,7 @@ function New-HDTLabVirtualMachine {
 
     # -- create it ---------------------------------------------------------
 
-    if (-not $PSCmdlet.ShouldProcess($Name, ("Create a Generation 2 VM on the '{0}' switch" -f $labSwitch))) {
+    if (-not $PSCmdlet.ShouldProcess($Name, ("Create a Generation 2 VM on the '{0}' switch" -f $SwitchName))) {
         return $null
     }
 
@@ -152,7 +174,7 @@ function New-HDTLabVirtualMachine {
     }
 
     $vm = Hyper-V\New-VM -Name $Name -MemoryStartupBytes $MemoryByte -Generation 2 `
-        -SwitchName $labSwitch -Path $vmRoot -NoVHD
+        -SwitchName $SwitchName -Path $vmRoot -NoVHD
 
     Hyper-V\Set-VM -Name $Name -ProcessorCount $ProcessorCount -AutomaticCheckpointsEnabled $false
     Hyper-V\Set-VMMemory -VMName $Name -DynamicMemoryEnabled $false

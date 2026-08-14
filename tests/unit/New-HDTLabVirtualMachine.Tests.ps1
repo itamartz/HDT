@@ -130,12 +130,41 @@ Describe 'New-HDTLabVirtualMachine' {
                     -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw '*DC01*'
         }
 
-        It 'refuses a switch that is not HDT Lab' {
+        It 'refuses Default Switch, where CM01''s PXE responder lives' {
             # PROJECT.md rule 3: PXE/WDS testing on Default Switch would collide
             # with CM01's PXE - either breaking the lab or silently answering our
-            # test VMs and invalidating the test.
+            # test VMs and invalidating the test. THIS IS THE ONE THAT MUST NEVER
+            # RELAX, and it is asserted separately from the two allowed switches
+            # below so that widening the allow-list cannot quietly widen this.
             { New-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -MemoryByte 4294967296 -ProcessorCount 2 `
-                    -SwitchName 'Default Switch' -VhdPath $script:legalVhd } | Should -Throw '*HDT Lab*'
+                    -SwitchName 'Default Switch' -VhdPath $script:legalVhd } | Should -Throw '*Default Switch*'
+        }
+
+        It 'refuses a switch that is neither HDT Lab nor HDT External' {
+            { New-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -MemoryByte 4294967296 -ProcessorCount 2 `
+                    -SwitchName 'FSE Switch' -VhdPath $script:legalVhd } | Should -Throw '*HDT External*'
+        }
+
+        It 'accepts HDT External, the switch a share deployment needs' {
+            # PROJECT.md's network rule: the lab network is 192.168.2.0/24, DHCP
+            # comes from the real LAN and test VMs reach it through 'HDT
+            # External'. A VM on the ISOLATED 'HDT Lab' switch gets no lease and
+            # cannot reach a share on the host (SPIKES S6), which is the whole
+            # reason no deployment had ever run over SMB.
+            #
+            # ASSERTED AS "does not throw the switch refusal", not as a full
+            # creation: creating a VM belongs to the e2e suite, and this file
+            # runs in the fast one.
+            $record = $null
+            try {
+                New-HDTLabVirtualMachine -Name 'HDT-Smb-Probe' -MemoryByte 4294967296 -ProcessorCount 2 `
+                    -SwitchName 'HDT External' -VhdPath $script:legalVhd -WhatIf
+            } catch {
+                $record = $_
+            }
+
+            [string] $record | Should -Not -BeLike '*is not the*switch*'
+            [string] $record | Should -Not -BeLike '*HDT External*is not*'
         }
 
         It 'refuses a VHD path outside C:\HDTLab\vms' {

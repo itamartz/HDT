@@ -417,6 +417,32 @@ function Update-HDTBootImage {
         $embedCredential = $true
     }
 
+    # -- a share image with no embedded credential ASKS THE TECHNICIAN -------
+    #
+    # MDT'S LOGIC, KEPT. A Bootstrap.ini that names a DeployRoot but no UserID
+    # does not fail the build - LiteTouch prompts for the credentials at the
+    # start of the deployment. HDT does the same: a UNC deployRoot with no
+    # embedded credential turns promptForCredential on, and the payload asks.
+    #
+    # An earlier version of this REFUSED the build instead. That was a rule MDT
+    # does not have, and it would have made the ordinary "build the image now,
+    # let the technician sign in at the machine" workflow impossible.
+    #
+    # It is a warning rather than silence because the two builds behave very
+    # differently in front of a technician - one runs unattended, one stops -
+    # and the admin should know which one they just made.
+
+    $promptForCredentialEffective = [bool] $PromptForCredential
+
+    if (-not $embedCredential -and -not $promptForCredentialEffective -and
+        ([string] $workspace.DeployRoot).StartsWith('\\')) {
+
+        $promptForCredentialEffective = $true
+
+        Write-Warning ("deployRoot '{0}' is a share and no credential is embedded, so this image will ASK THE TECHNICIAN for the deployment account when it boots - MDT's behaviour when Bootstrap.ini carries no UserID. To make it run unattended instead, declare the account in workspace.yaml's credential block and write its secret with Set-HDTShareCredential (DESIGN 6.3)." -f
+            [string] $workspace.DeployRoot)
+    }
+
     # -- extraContent, resolved and judged before the mount ------------------
 
     $extraContentPlan = New-Object -TypeName System.Collections.ArrayList
@@ -633,7 +659,7 @@ function Update-HDTBootImage {
             deployRoot          = [string] $workspace.DeployRoot
             contentMarker       = 'rules.yaml'
             sequenceId          = ''
-            promptForCredential = [bool] $PromptForCredential
+            promptForCredential = [bool] $promptForCredentialEffective
             logLevel            = [string] $workspace.LogLevel
             buildId             = $buildId
             builtUtc            = $builtUtc

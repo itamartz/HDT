@@ -82,7 +82,13 @@ BeforeAll {
     # (helpers README 12). Only ./build.ps1 -Task e2e sets StrictMode; a bare
     # Invoke-Pester does not, which is why it hid.
 
+    # EVERY VM THIS SUITE DOES NOT OWN, not two names. CM01 and DC01 were
+    # deleted from this host, which turned a two-name snapshot into an empty
+    # array - and comparing empty with empty afterwards held while checking
+    # nothing (the shape of SPIKES S9.14). Reading every non-HDT-* VM covers
+    # whatever is built next without anyone remembering to add its name.
     $script:protectedBefore = @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
+            Sort-Object Name |
             ForEach-Object {
                 [pscustomobject] @{
                     Name = [string] $_.Name; State = [string] $_.State
@@ -462,8 +468,9 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
 
     Context 'the lab is unharmed' {
 
-        It 'left CM01 and DC01 exactly as it found them' {
+        It 'left every VM it does not own exactly as it found it' {
             $after = @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
+                    Sort-Object Name |
                     ForEach-Object {
                         [pscustomobject] @{
                             Name = [string] $_.Name; State = [string] $_.State
@@ -472,6 +479,11 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
                                         ForEach-Object { [string] $_.SwitchName }) -join ',')
                         }
                     })
+
+            # THE COUNT FIRST, so an empty host reads as "there was nothing to
+            # protect" rather than as "nothing was harmed".
+            @($after).Count | Should -Be @($script:protectedBefore).Count -Because (
+                'this host had {0} VM(s) outside HDT-* when the run started' -f @($script:protectedBefore).Count)
 
             ($after | ConvertTo-Json -Depth 3) | Should -BeExactly ($script:protectedBefore | ConvertTo-Json -Depth 3)
         }

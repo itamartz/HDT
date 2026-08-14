@@ -161,8 +161,19 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
 
 - **Never touch `CM01`** (SCCM server, runs a PXE responder) **or `DC01`**
   (domain controller). Both on `Default Switch`, 192.168.25.0/24.
-- HDT test VMs: named `HDT-*`, **Generation 2**, on the isolated **`HDT Lab`**
-  switch only, files in `C:\HDTLab\vms\`, under 12 GB combined.
+- HDT test VMs: named `HDT-*`, **Generation 2**, files in `C:\HDTLab\vms\`,
+  under 12 GB combined, and on **one of exactly two switches**:
+  - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
+    `192.168.2.0/24` and can reach the host at `192.168.2.108`, which is what a
+    deployment over SMB needs.
+  - **`HDT Lab`** — the isolated internal one, reserved for PXE/WDS, where a
+    second responder cannot answer. A VM here gets **no lease and cannot reach a
+    share on the host** (SPIKES S6), so it is the wrong choice for anything that
+    needs the network.
+
+  `New-HDTLabVirtualMachine` refuses every other switch by name, and
+  **`Default Switch` must stay refused** — it carries the user's live lab and
+  CM01's PXE responder.
 - **PXE/WDS testing only on `HDT Lab`** — on `Default Switch` it would collide
   with CM01's PXE, breaking their lab or silently invalidating the test.
 - Never run an unfiltered Hyper-V pipeline. Filter to `HDT-*` explicitly.
