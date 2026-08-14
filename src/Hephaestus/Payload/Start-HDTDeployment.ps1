@@ -200,7 +200,12 @@ try {
     $environment = New-HDTEnvironmentProvider
     $cim = New-HDTCimProvider
     $processService = New-HDTProcessService
-    $power = New-HDTPowerService
+
+    # WinPE, and it is not a guess: this file IS the WinPE entry point and hard-
+    # codes -Phase WinPE everywhere else. 05-06 mounted the boot image and found
+    # no shutdown.exe in it, so a power service built for the full OS would give
+    # a Restart step a command that does not exist.
+    $power = New-HDTPowerService -Environment WinPE
 
     # -- 4. the log, before anything else can fail ---------------------------
 

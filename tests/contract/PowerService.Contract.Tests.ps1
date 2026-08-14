@@ -3,17 +3,22 @@
 #   Restart($DelaySecond)
 #   Stop($DelaySecond)
 #
-# THE REAL ROW IS SKIPPED, DELIBERATELY AND PERMANENTLY. A contract test may not
-# reboot the machine running it, and there is no dry-run form of shutdown.exe
-# that would exercise the same code path. The real adapter is a branch-free
-# shell-out (README section 10: adapters stay dumb precisely because they are not
-# unit tested) and is exercised for real in phase 04's integration layer, on a
-# throwaway VM.
+# THE REAL ROW'S BEHAVIOUR IS SKIPPED, DELIBERATELY AND PERMANENTLY. A contract
+# test may not reboot the machine running it, and there is no dry-run form of
+# shutdown.exe or wpeutil that would exercise the same code path. The real
+# adapter is a branch-free shell-out (README section 10: adapters stay dumb
+# precisely because they are not unit tested).
 #
-# UNVERIFIED, RECORDED FOR PHASE 05: whether shutdown.exe is the right call
-# inside WinPE, or whether it must be wpeutil reboot. Nothing in phase 03 reboots
-# anything, so the question is deferred honestly rather than guessed at. The real
-# adapter takes -Command so the answer can be supplied without changing a step.
+# ANSWERED IN 05-06, and this comment used to say "UNVERIFIED, RECORDED FOR
+# PHASE 05: whether shutdown.exe is the right call inside WinPE, or whether it
+# must be wpeutil reboot". A read-only mount of the boot image
+# Update-HDTBootImage builds says shutdown.exe is NOT IN IT and wpeutil.exe is -
+# see tests/integration/WinPeContent.Integration.Tests.ps1, which holds that
+# against a real image. So -Environment is now mandatory on the real adapter and
+# the decision lives in Get-HDTPowerCommand, which is pure and unit tested.
+#
+# WHERE THE REAL ADAPTER IS ACTUALLY EXECUTED, since it cannot be here:
+# tests/e2e/WinPeSmoke.E2E.Tests.ps1 powers the smoke VM off with it, in WinPE.
 
 $script:HDTImplementation = @(
     @{
@@ -23,7 +28,7 @@ $script:HDTImplementation = @(
     }
     @{
         Name    = 'PowerService'
-        Factory = { New-HDTPowerService }
+        Factory = { New-HDTPowerService -Environment FullOS }
         Skip    = $true
     }
 )

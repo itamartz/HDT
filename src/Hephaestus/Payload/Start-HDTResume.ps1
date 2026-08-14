@@ -108,7 +108,9 @@ $fileSystem = New-HDTFileSystem
 $clock = New-HDTClock
 $registry = New-HDTRegistryService
 $lsa = New-HDTLsaService
-$power = New-HDTPowerService
+# FullOS, and it is not a guess either: this payload runs from RunOnce on a
+# deployed Windows install, which has shutdown.exe and does not have wpeutil.
+$power = New-HDTPowerService -Environment FullOS
 $process = New-HDTProcessService
 $scriptInvoker = New-HDTScriptInvoker -Root $WorkspaceRoot
 $environment = New-HDTEnvironmentProvider

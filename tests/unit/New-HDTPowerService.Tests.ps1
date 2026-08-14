@@ -97,6 +97,25 @@ Describe 'New-HDTPowerService' {
             $script:code | Should -Match 'Get-HDTPowerCommand'
         }
 
+        It 'can actually reach it from a caller outside the module' {
+            # NOT PEDANTRY. Get-HDTPowerCommand is PRIVATE - the module exports
+            # only Public\. A ScriptMethod resolves its commands in the session
+            # state its scriptblock was created in, so this works only because
+            # the scriptblock literal is inside the module. Get that wrong and
+            # the failure is a CommandNotFoundException on the one machine
+            # nobody can attach a debugger to, at the moment it was supposed to
+            # reboot.
+            #
+            # Asserted, not invoked: invoking Restart would restart this machine.
+            foreach ($name in @('Restart', 'Stop')) {
+                $block = (New-HDTPowerService -Environment WinPE).PSObject.Methods[$name].Script
+
+                [string] $block.Module.Name | Should -BeExactly 'Hephaestus'
+                @(& $block.Module { Get-Command -Name 'Get-HDTPowerCommand' -ErrorAction SilentlyContinue }).Count |
+                    Should -Be 1 -Because "the $name method resolves commands in that module's session state"
+            }
+        }
+
         It 'names neither executable itself' {
             # The two command names appear in exactly one file in src/, and it is
             # not this one. If they were here too, the decision would be in two
@@ -105,11 +124,30 @@ Describe 'New-HDTPowerService' {
             $script:code | Should -Not -Match 'wpeutil'
         }
 
-        It 'contains no branch at all' {
-            # The literal reason CLAUDE.md rule 1 lets this file exist without a
-            # test that executes it.
-            @($script:token | Where-Object { $_.Kind -in @('If', 'ElseIf', 'Else', 'Switch') }) |
-                Should -BeNullOrEmpty
+        It 'has no branch in Restart or Stop' {
+            # THE LITERAL REASON CLAUDE.md rule 1 lets this file exist without a
+            # test that executes it. Scoped to the two methods that end a
+            # machine, and NOT to the whole file: Record carries the journal
+            # guard every adapter in this repository has, which decides nothing
+            # about the outside world and is exercised on the fake row of the
+            # IPowerService contract.
+            $method = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.GetCommandName() -eq 'Add-Member' -and
+                        (@($node.CommandElements | ForEach-Object { [string] $_.Extent.Text }) -contains 'Restart' -or
+                        @($node.CommandElements | ForEach-Object { [string] $_.Extent.Text }) -contains 'Stop')
+                    }, $true))
+
+            @($method).Count | Should -Be 2 -Because 'Restart and Stop are both added, and finding fewer means this assertion is looking at the wrong thing'
+
+            foreach ($node in $method) {
+                @($node.FindAll({
+                            param($inner)
+                            $inner -is [System.Management.Automation.Language.IfStatementAst] -or
+                            $inner -is [System.Management.Automation.Language.SwitchStatementAst]
+                        }, $true)) | Should -BeNullOrEmpty -Because 'a branch here is a decision that belongs in Get-HDTPowerCommand, where it would be tested'
+            }
         }
 
         It 'sleeps unconditionally, because Start-Sleep 0 is a no-op' {

@@ -25,6 +25,13 @@ BeforeAll {
         $script:ast = [System.Management.Automation.Language.Parser]::ParseFile(
             $script:payloadPath, [ref] $script:token, [ref] $script:parseError)
         $script:text = Get-Content -LiteralPath $script:payloadPath -Raw
+
+        # The comment-free token stream, so an assertion that a name appears
+        # NOWHERE is about the code and not about the prose explaining why the
+        # name is absent from the code.
+        $script:codeOnly = (@($script:token |
+                    Where-Object { $_.Kind -ne 'Comment' } |
+                    ForEach-Object { [string] $_.Text }) -join ' ')
     }
 
     $script:commandNamed = {
@@ -213,10 +220,12 @@ Describe 'Start-HDTResume.ps1' {
             $element | Should -Contain 'FullOS'
         }
 
-        It 'names wpeutil nowhere' {
+        It 'names wpeutil nowhere in its code' {
             # It is not on a deployed machine, and reaching for it here would
-            # fail on every resume leg.
-            $script:text | Should -Not -BeLike '*wpeutil*'
+            # fail on every resume leg. Asserted over the comment-free stream,
+            # because the payload's own comment explains that absence and an
+            # assertion on the raw text would be about the explanation.
+            $script:codeOnly | Should -Not -BeLike '*wpeutil*'
         }
 
         It 'names no fake' {
