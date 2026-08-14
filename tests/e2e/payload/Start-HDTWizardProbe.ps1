@@ -80,6 +80,7 @@ $probe = [ordered] @{
     psVersion          = [string] $PSVersionTable.PSVersion
 
     moduleImported     = $false
+    modulePath         = ''
     xamlPresent        = $false
     xamlByteCount      = 0
 
@@ -122,10 +123,16 @@ $title = 'Hephaestus Deployment Toolkit'
 # -- 0. the engine, off the content disk -------------------------------------
 
 try {
-    foreach ($letter in @('C', 'D', 'E', 'F', 'G', 'H')) {
-        $candidate = '{0}:\HDT\Modules' -f $letter
+    # X: FIRST, BECAUSE THAT IS WHERE Update-HDTBootImage PUT IT. The engine and
+    # powershell-yaml are staged into the image at X:\HDT\Modules, and X: is the
+    # RAM disk whose letter is fixed - so there is nothing to scan for. The disk
+    # scan below is the fallback for an image built without them.
+    foreach ($candidate in @('X:\HDT\Modules') + @('C', 'D', 'E', 'F', 'G', 'H' |
+                ForEach-Object { '{0}:\HDT\Modules' -f $_ })) {
+
         if (Test-Path -LiteralPath $candidate) {
             $env:PSModulePath = '{0};{1}' -f $candidate, $env:PSModulePath
+            $probe['modulePath'] = $candidate
             break
         }
     }

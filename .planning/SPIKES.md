@@ -1520,3 +1520,64 @@ the computer name the per-machine override set.
 `CM01` and `DC01` no longer exist on this host - the user deleted them. Nothing
 in this spike created, touched or removed any VM but `HDT-Smb-Probe` and
 `HDT-Smb-Deploy`, both `HDT-*`, both Generation 2, both under `C:\HDTLab\vms`.
+
+## S15 — the Welcome screen, in WinPE, through the product ✅⚠
+
+**W2's evidence.** W1 proved a window renders in this image by loading the XAML
+itself. This ran the whole product path on the machine instead, unattended, on
+`HDT External`:
+
+```
+launchedBy         : startnet          psVersion   : 5.1.26100.1
+moduleImported     : True              modulePath  : X:\HDT\Modules
+consoleHidden      : True              consoleRestored : True
+networkRead        : True              hasLease    : True
+ipAddress          : 192.168.2.126     subnetMask  : 255.255.255.0
+gateway            : 192.168.2.1       dnsServer   : 1.1.1.1, 4.2.2.1
+adapterDescription : Microsoft Hyper-V Network Adapter
+fieldCount         : 7                 shown       : True
+action             : Cancel            showError   : (none)
+```
+
+`Get-HDTNetworkConfiguration` → `Get-HDTWizardField` → `Show-HDTWizard` →
+`New-HDTWizardHost`. The probe loads no XAML and decides no answer.
+
+### What this settles
+
+- **`Win32_NetworkAdapterConfiguration` reads a real lease in WinPE.** S14 said
+  `Get-NetIPAddress` is absent; this is the positive half - the WMI route
+  returned the address, mask, gateway and *both* DNS servers on a live machine.
+- **`Hide-HDTShellWindow` works and reverses.** `consoleHidden` and
+  `consoleRestored` are both true, and the screenshot has no black
+  `X:\Windows\System32>` behind the wizard. `-WindowStyle Hidden` on the
+  `entryCommand` is **not** sufficient on its own: it hides the PowerShell host,
+  not the `cmd.exe` that `startnet.cmd` runs in. Both are needed.
+- **A dismissed window is a Cancel, on the machine.** The probe closes the
+  wizard with `WM_CLOSE`, which runs no handler, and the answer came back
+  `Cancel`. That is the property that keeps a dismissed wizard from meaning
+  consent to partition a disk, asserted somewhere other than a unit test.
+- **The module loads from `X:\HDT\Modules`.** `Update-HDTBootImage` already
+  stages the engine, `powershell-yaml` and `UI\` into the image, so there is
+  nothing to scan a content disk for.
+
+### Traps this hit
+
+- **`FindWindow($null, $title)` answers 0, always.** `$null` cast to a `[string]`
+  P/Invoke parameter marshals as **empty, not null**, so it searches for a
+  window class literally named `""`. Use `[NullString]::Value` - or, better,
+  `Process.MainWindowHandle`, which needs no title to keep in step with markup.
+- **`GetVirtualSystemThumbnailImage` returns 32775 ("invalid state") often
+  enough that one screenshot at a fixed time is not a screenshot.** The first
+  run finished with no picture at all. Capture in a burst across the window the
+  wizard might be up in.
+- **⚠ `Save-HDTLabVmScreen` decodes the thumbnail palette wrongly.** The image
+  is legible and correctly laid out, but the colours are not the wizard's -
+  magenta where `#FF1E1E1E` should be. The helper is what is wrong, not the
+  window; the same XAML renders correctly on the desktop. Not yet fixed, and it
+  degrades "a screenshot is the evidence" for every increment after this one.
+
+### Lab safety
+
+The only VM created, started or removed was `HDT-W2-Wizard`: `HDT-*`,
+Generation 2, under `C:\HDTLab\vms`, on `HDT External`. It is powered off and
+left in place.

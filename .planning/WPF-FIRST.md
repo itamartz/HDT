@@ -93,6 +93,46 @@ They resolve through the ordinary rules engine like any other variable, so a
 site can set them in `rules.yaml` once and never see the wizard again - which
 is precisely how MDT is used in practice.
 
+#### ⚠ Correction: the Welcome screen's Skip rules cannot come from `rules.yaml`
+
+**Found 2026-08-14 while implementing W2. The paragraph above is wrong, and
+this is what replaces it.**
+
+`rules.yaml` lives **on the deployment share**. The Welcome screen runs
+**before the share is reachable** - configuring the network and collecting the
+credential is *how* it becomes reachable. So a `HDTSkipWelcome` in `rules.yaml`
+is a rule the machine cannot read until after the screen it was meant to skip
+has already been shown.
+
+**MDT has exactly this split and it is not an accident:**
+
+| MDT file | Where it lives | What it can configure |
+|---|---|---|
+| `Bootstrap.ini` | inside the boot image | `SkipBDDWelcome`, `DeployRoot`, `UserID` |
+| `CustomSettings.ini` | on the share | everything after connecting |
+
+`SkipBDDWelcome` is in `Bootstrap.ini` **because it has to be**, and every
+other `Skip*` property is in `CustomSettings.ini` because it can be.
+
+So the four Welcome rules resolve from **`bootstrap.json`**, the file already
+in the boot image, which `Get-HDTBootstrapConfiguration` already reads:
+
+| Rule | Read from | Because |
+|---|---|---|
+| `HDTSkipWelcome` | `bootstrap.json` | decided before any share exists |
+| `HDTSkipStaticIp` | `bootstrap.json` | the network is what reaches the share |
+| `HDTSkipDeployRoot` | `bootstrap.json` | it *is* the share |
+| `HDTSkipCredential` | `bootstrap.json` | it is what opens the share |
+
+Every **later** pane - task sequence (W3), computer name (W4), summary (W5) -
+runs after connecting and does resolve through the ordinary rules engine, which
+is what the paragraph above was describing and where it is correct.
+
+**Not yet implemented.** `bootstrap.json` needs a `skip:` block, the schema
+needs it, `Update-HDTBootImage` needs to write it, and `Get-HDTWizardField`
+needs to return pane visibility alongside field text. Nothing in the code
+currently pretends otherwise.
+
 **THE UNATTENDED PATH IS THE DEFAULT, NOT THE EXCEPTION.** An image built with
 an embedded credential and a resolved `HDTTaskSequenceID` must still deploy with
 nobody present: the E2E suite proves zero-keystroke deployment and it must not
