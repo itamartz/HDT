@@ -47,6 +47,7 @@
         'Get-HDTWizardCredential',
         'Get-HDTWorkspacePath',
         'Get-HDTVariableProvenance',
+        'Hide-HDTShellWindow',
         'Import-HDTBootImageToWds',
         'Import-HDTOperatingSystem',
         'Import-HDTRuleDocument',

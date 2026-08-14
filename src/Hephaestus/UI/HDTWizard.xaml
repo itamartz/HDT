@@ -5,6 +5,7 @@
     Height="480" Width="720"
     WindowStartupLocation="CenterScreen"
     ResizeMode="NoResize"
+    WindowStyle="None"
     Background="#FF1E1E1E">
 
     <!--
@@ -87,7 +88,7 @@
         </Grid.RowDefinitions>
 
         <!-- banner -->
-        <Border Grid.Row="0" Background="#FF0E639C">
+        <Border Grid.Row="0" Background="#FF0E639C" x:Name="HDTDragBanner">
             <StackPanel VerticalAlignment="Center" Margin="28,0,28,0">
                 <TextBlock x:Name="HDTBannerTitle"
                            Text="Hephaestus Deployment Toolkit"
