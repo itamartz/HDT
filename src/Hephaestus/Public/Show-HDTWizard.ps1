@@ -21,10 +21,24 @@ function Show-HDTWizard {
             here that is not plumbing. Next leads to a task sequence that
             partitions a disk. A window closed with the X, a dialog killed by
             the shell, a host that returns nothing at all - none of those are a
-            technician saying yes, so anything that is not exactly 'Next' comes
-            back as 'Cancel'. The refusal is deliberate rather than defensive:
-            reading an empty answer as approval is how an unattended machine
-            wipes a disk nobody meant to wipe.
+            technician saying yes, so anything that is not on the allow-list
+            comes back as 'Cancel'. The refusal is deliberate rather than
+            defensive: reading an empty answer as approval is how an unattended
+            machine wipes a disk nobody meant to wipe.
+
+            THREE ANSWERS, AND ONLY THESE THREE:
+
+              Next           the technician approved. The only one that deploys.
+              Cancel         everything else, including silence.
+              CommandPrompt  MDT's "Exit to Command Prompt" - the escape hatch
+                             for a wrong network, a missing driver, or diskpart.
+
+            OPENING THE PROMPT IS THE CALLER'S JOB, NOT THIS COMMAND'S. This
+            reports what the technician asked for; the payload decides what a
+            prompt means on that machine - which shell, whether the wizard comes
+            back afterwards, whether the console has to be un-hidden first. The
+            same split that keeps the window out of this function keeps
+            cmd.exe out of it.
 
             THE XAML IS CHECKED BEFORE THE WINDOW IS SHOWN. A file that is not
             there, or that is not well-formed, is refused by name - on the build
@@ -50,8 +64,8 @@ function Show-HDTWizard {
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Action ('Next' or
-            'Cancel'), Title and XamlPath.
+            System.Management.Automation.PSCustomObject with Action ('Next',
+            'Cancel' or 'CommandPrompt'), Title and XamlPath.
 
         .EXAMPLE
             Show-HDTWizard -XamlPath 'X:\HDT\UI\HDTWizard.xaml'
@@ -111,9 +125,21 @@ function Show-HDTWizard {
 
     $answer = [string] $WizardHost.Show($xaml, $Title)
 
-    # ANYTHING THAT IS NOT AN EXPLICIT Next IS A CANCEL. See the header.
+    # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
+    # anything that is not one of these three exactly is a Cancel.
+    #
+    # MATCHED CASE-SENSITIVELY, and the ALLOW-LIST's spelling is what is
+    # returned - never the host's string. Both halves matter. A host answering
+    # 'next' is not the host this command was written against, and a widened
+    # list that also normalises case is one step from "recognise anything that
+    # looks close enough" - which, on the other side of Next, partitions a disk.
     $action = 'Cancel'
-    if ($answer -eq 'Next') { $action = 'Next' }
+    foreach ($allowed in @('Next', 'Cancel', 'CommandPrompt')) {
+        if ($answer -ceq $allowed) {
+            $action = $allowed
+            break
+        }
+    }
 
     return [pscustomobject] @{
         Action   = $action

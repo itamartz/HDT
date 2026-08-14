@@ -144,6 +144,59 @@ Describe 'Show-HDTWizard' {
                 'a dismissed wizard is not consent to deploy')
         }
 
+        It 'returns CommandPrompt when the technician chose Open CMD' {
+            # MDT's "Exit to Command Prompt". WinPE offers it on F8, but F8 is
+            # folklore and a button is discoverable - and a technician whose
+            # network is wrong or whose disk needs diskpart has to be able to
+            # get to a prompt without cancelling the deployment.
+            $result = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -WizardHost (New-HDTFakeWizardHost -Action 'CommandPrompt') `
+                -FileSystem (New-HDTWizardTestFileSystem)
+
+            [string] $result.Action | Should -BeExactly 'CommandPrompt'
+        }
+
+        It 'never lets Open CMD be read as consent to deploy' {
+            $result = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -WizardHost (New-HDTFakeWizardHost -Action 'CommandPrompt') `
+                -FileSystem (New-HDTWizardTestFileSystem)
+
+            [string] $result.Action | Should -Not -BeExactly 'Next'
+        }
+
+        It 'reads <_> as Cancel, because it is not on the allow-list' -ForEach @(
+            'OpenCmd', 'Deploy', 'Yes', 'Continue', 'Next ', ' Next') {
+
+            # THE ALLOW-LIST IS WHAT KEEPS THIS SAFE. Widening the answers from
+            # one to three is where a "recognise more things" reflex quietly
+            # turns into "recognise anything that looks close enough", and the
+            # thing on the other side of Next partitions a disk.
+            $result = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -WizardHost (New-HDTFakeWizardHost -Action $PSItem) `
+                -FileSystem (New-HDTWizardTestFileSystem)
+
+            [string] $result.Action | Should -BeExactly 'Cancel'
+        }
+
+        It 'reads the case variant <_> as Cancel' -ForEach @('next', 'NEXT', 'commandprompt', 'COMMANDPROMPT') {
+            # Matched case-sensitively on purpose: a host answering 'next' is a
+            # host that is not the one this command was written against, and
+            # guessing what it meant is how the allow-list stops being one.
+            $result = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -WizardHost (New-HDTFakeWizardHost -Action $PSItem) `
+                -FileSystem (New-HDTWizardTestFileSystem)
+
+            [string] $result.Action | Should -BeExactly 'Cancel'
+        }
+
+        It 'returns the allow-list spelling, never the string the host handed back' {
+            $result = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -WizardHost (New-HDTFakeWizardHost -Action 'CommandPrompt') `
+                -FileSystem (New-HDTWizardTestFileSystem)
+
+            @('Next', 'Cancel', 'CommandPrompt') | Should -Contain ([string] $result.Action)
+        }
+
         It 'records that it showed the window exactly once' {
             $wizardHost = New-HDTFakeWizardHost -Action 'Next'
 
