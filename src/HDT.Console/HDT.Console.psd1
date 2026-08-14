@@ -18,6 +18,7 @@
 
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
+        'Add-HDTConsoleStep',
         'Copy-HDTConsoleStep',
         'Move-HDTConsoleStep',
         'Remove-HDTConsoleStep',
@@ -28,6 +29,7 @@
         'Get-HDTConsoleWorkspace',
         'New-HDTConsoleHost',
         'New-HDTConsoleScreen',
+        'Save-HDTConsoleSequence',
         'Save-HDTConsoleSetting',
         'Show-HDTConsole',
         'Show-HDTSequenceEditor'

@@ -118,6 +118,52 @@ Describe 'Remove-HDTConsoleStep' {
         { Remove-HDTConsoleStep -Line $script:line -Name 'No Such Step' -ErrorAction Stop } |
             Should -Throw -ExpectedMessage '*No Such Step*'
     }
+
+    It 'refuses to empty a group, because the engine will not load one' {
+        # The schema says a group's steps must be a list of steps and groups,
+        # so taking the last one out produces a file that fails to load. Caught
+        # here it names the choice the administrator actually has; caught at
+        # Save it arrives after several more edits have been built on top.
+        $single = @'
+schemaVersion: 1
+id: ONE
+name: One step per group
+steps:
+  - group: Only
+    steps:
+      - name: Alone
+        type: NoOp
+  - group: Other
+    steps:
+      - name: Company
+        type: NoOp
+'@ -split "`r?`n"
+
+        { Remove-HDTConsoleStep -Line $single -Name 'Alone' -ErrorAction Stop } |
+            Should -Throw -ExpectedMessage '*only step*'
+    }
+
+    It 'still allows the GROUP to go, which is what it told you to do' {
+        $single = @'
+schemaVersion: 1
+id: ONE
+name: One step per group
+steps:
+  - group: Only
+    steps:
+      - name: Alone
+        type: NoOp
+  - group: Other
+    steps:
+      - name: Company
+        type: NoOp
+'@ -split "`r?`n"
+
+        $after = Remove-HDTConsoleStep -Line $single -Name 'Only'
+
+        ($after -join "`n") | Should -Not -Match 'Alone'
+        ($after -join "`n") | Should -Match 'Company'
+    }
 }
 
 Describe 'Move-HDTConsoleStep' {

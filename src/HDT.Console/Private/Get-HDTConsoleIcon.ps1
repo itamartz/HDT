@@ -76,7 +76,11 @@ function Get-HDTConsoleIcon {
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
         StepGroup       = [char]::ConvertFromUtf32(0x1F4C2)   # open folder - a group holds steps, it does not do anything
-        Step            = [string] ([char] 0x25B8)            # small right triangle - one thing that runs
+        # A GEAR, NOT A TRIANGLE. The first version used a small right triangle,
+        # which in a TreeView is what an expander looks like - so every step
+        # appeared to be a branch that would not open. An action gets an action's
+        # icon, the way Deployment Workbench gives each step type one.
+        Step            = [string] ([char] 0x2699)            # gear - one thing that runs
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 

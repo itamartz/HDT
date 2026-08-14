@@ -63,7 +63,26 @@ function Remove-HDTConsoleStep {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $block = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $all = @(Get-HDTConsoleStepBlock -Line $Line)
+    $found = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $block = @($all | Where-Object { $_.Entry -eq $found.Entry })[0]
+
+    # A GROUP WITH NO STEPS IS NOT A DOCUMENT THE ENGINE ACCEPTS. The schema
+    # says a group's steps must be a list of steps and groups, so taking the
+    # last one out produces a file that fails to load - and it would fail at
+    # Save, after the administrator had done several more edits on top of it.
+    # Refusing here names the choice they actually have.
+    $parent = @(Get-HDTConsoleStepParent -Block $all)
+    $at = [array]::IndexOf($all, $block)
+
+    if ($block.Kind -eq 'Step' -and $parent[$at] -ge 0) {
+        $sibling = @($all | Where-Object { $parent[[array]::IndexOf($all, $_)] -eq $parent[$at] })
+
+        if (@($sibling).Count -le 1) {
+            throw (New-HDTConsoleErrorRecord -Path $Name -Category InvalidOperation `
+                    -Message ("'{0}' is the only step in the '{1}' group, and a group with no steps is not a document the engine will load. Remove the group instead." -f $Name, $all[$parent[$at]].Name))
+        }
+    }
 
     if (-not $PSCmdlet.ShouldProcess($Name, 'Remove from the task sequence')) {
         return [string[]] @($Line)
