@@ -63,6 +63,10 @@ function New-HDTConsoleShareFailure {
         Error           = $Message
         TaskSequence    = [pscustomobject[]] @()
         OperatingSystem = [pscustomobject[]] @()
+        Driver          = [pscustomobject] @{
+            Folder  = [System.IO.Path]::Combine($Path, 'Drivers')
+            Present = $false
+        }
         BootImage       = [pscustomobject] @{
             Name             = ''
             Architecture     = ''

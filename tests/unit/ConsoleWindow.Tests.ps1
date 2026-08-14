@@ -61,22 +61,28 @@ steps:
         )
 
         $fake = [pscustomobject] @{
-            Action    = $Action
-            ShowCount = 0
-            Xaml      = ''
-            Title     = ''
-            Node      = @()
-            Theme     = $null
+            Action     = $Action
+            ShowCount  = 0
+            Xaml       = ''
+            Title      = ''
+            Node       = @()
+            Theme      = $null
+            OpenedSize = $null
+
+            # What the real host reports back after the window closes.
+            Width      = 1640
+            Height     = 880
         }
 
         $fake | Add-Member -MemberType ScriptMethod -Name Show -Value {
-            param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme)
+            param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size)
 
             $this.ShowCount = $this.ShowCount + 1
             $this.Xaml = $Xaml
             $this.Title = $Title
             $this.Node = $Node
             $this.Theme = $Theme
+            $this.OpenedSize = $Size
 
             return [string] $this.Action
         }
@@ -336,6 +342,64 @@ Describe 'Show-HDTConsole' {
         }
     }
 
+    Context 'the size it was left at' {
+
+        BeforeAll {
+            $script:appData = 'C:\Users\tech\AppData\Roaming'
+            $script:settingPath = 'C:\Users\tech\AppData\Roaming\HDT\console.json'
+        }
+
+        It 'opens at the remembered size' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\ws\workspace.yaml' = $script:workspaceYaml
+                $script:xamlPath       = '<Window />'
+                $script:settingPath    = '{ "width": 1440, "height": 820 }'
+            }
+            $consoleHost = New-HDTFakeConsoleHost
+
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
+                    -ConsoleHost $consoleHost -FileSystem $fs `
+                    -Environment (New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }))
+
+            $consoleHost.OpenedSize.Width | Should -Be 1440
+            $consoleHost.OpenedSize.Height | Should -Be 820
+        }
+
+        It 'remembers the size the window was closed at' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\ws\workspace.yaml' = $script:workspaceYaml
+                $script:xamlPath       = '<Window />'
+            }
+            $consoleHost = New-HDTFakeConsoleHost
+            $environment = New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }
+
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
+                    -ConsoleHost $consoleHost -FileSystem $fs -Environment $environment)
+
+            $saved = Get-HDTConsoleSetting -FileSystem $fs -Environment $environment
+
+            $saved.Width | Should -Be 1640
+            $saved.Height | Should -Be 880
+        }
+
+        It 'writes that nowhere near the deployment share' {
+            # C1 reads a live share and writes nothing to it. A window size is a
+            # preference of one administrator on one workstation anyway.
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\ws\workspace.yaml' = $script:workspaceYaml
+                $script:xamlPath       = '<Window />'
+            }
+
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
+                    -ConsoleHost (New-HDTFakeConsoleHost) -FileSystem $fs `
+                    -Environment (New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }))
+
+            foreach ($write in @($fs.Operations | Where-Object { $_.Operation -in 'WriteAllText', 'AppendAllText', 'RemoveItem', 'CopyItem' })) {
+                $write.Arguments[0] | Should -Not -Match ([regex]::Escape('C:\ws'))
+            }
+        }
+    }
+
     Context 'the apartment WPF needs' {
 
         It 'refuses to show a window on an MTA thread, naming the switch that fixes it' {
@@ -568,6 +632,41 @@ Describe 'the shipped console window' {
 
     It 'builds its nesting from the Children member, so the host builds none of it' {
         $script:shippedXaml | Should -Match 'HierarchicalDataTemplate ItemsSource="\{Binding Children\}"'
+    }
+
+    It 'opens tall enough for the boot image pane, which is the longest one' {
+        # Measured, not guessed: seventeen fields, two of them 64-character
+        # hashes, want 866 units of window. Anything less hides a hash behind a
+        # scrollbar nobody notices.
+        $document = [xml] $script:shippedXaml
+
+        [double] $document.DocumentElement.GetAttribute('Height') | Should -BeGreaterOrEqual 866
+    }
+
+    It 'declares the same first-run size the module defaults to' {
+        # Two files hold these numbers - the markup, for a window loaded on its
+        # own, and the module, for the reader and writer of the remembered size.
+        # They must not drift, and drift is invisible: the console would open at
+        # one size on a fresh profile and another the moment anything is saved.
+        $document = [xml] $script:shippedXaml
+        $module = Get-Module -Name 'HDT.Console'
+
+        [double] $document.DocumentElement.GetAttribute('Width') |
+            Should -Be (& $module { $script:HDTConsoleDefaultWidth })
+        [double] $document.DocumentElement.GetAttribute('Height') |
+            Should -Be (& $module { $script:HDTConsoleDefaultHeight })
+        [double] $document.DocumentElement.GetAttribute('MinWidth') |
+            Should -Be (& $module { $script:HDTConsoleMinimumWidth })
+        [double] $document.DocumentElement.GetAttribute('MinHeight') |
+            Should -Be (& $module { $script:HDTConsoleMinimumHeight })
+    }
+
+    It 'gives each tree row an accessible name, so it is not announced as an object dump' {
+        # A TreeViewItem with no AutomationProperties.Name falls back to the
+        # bound item's ToString(), and a PSCustomObject's ToString() is every
+        # property it has - including the whole Detail text. Nothing on screen
+        # looks wrong; a screen reader reads the blob.
+        $script:shippedXaml | Should -Match 'AutomationProperties\.Name" Value="\{Binding Text\}"'
     }
 
     It 'binds <_> off the row rather than reading it from anywhere else' -ForEach @(

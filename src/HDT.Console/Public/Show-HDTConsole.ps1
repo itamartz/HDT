@@ -81,6 +81,10 @@ function Show-HDTConsole {
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real adapter.
 
+        .PARAMETER Environment
+            An IEnvironmentProvider, used to find the remembered window size
+            under the user profile. Defaults to the real adapter.
+
         .PARAMETER ApartmentState
             The apartment the window would be created on. Defaults to the
             calling thread's, and exists so the refusal above is provable
@@ -137,6 +141,10 @@ function Show-HDTConsole {
         [Parameter()]
         [AllowNull()]
         [object] $FileSystem,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Environment,
 
         [Parameter()]
         [ValidateSet('Light', 'Dark')]
@@ -220,7 +228,16 @@ function Show-HDTConsole {
 
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot, (Get-HDTConsoleTheme -Name $Theme))
+    $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment
+
+    $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
+        (Get-HDTConsoleTheme -Name $Theme), $size)
+
+    # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
+    # below the window's minimum and never throws, so a closing window cannot
+    # fail because a preference could not be written.
+    [void] (Save-HDTConsoleSetting -Width ([int] $ConsoleHost.Width) -Height ([int] $ConsoleHost.Height) `
+            -FileSystem $FileSystem -Environment $Environment)
 
     # A window that was shut and a window whose Close button was pressed are the
     # same outcome here. See the header for why that differs from the wizard.

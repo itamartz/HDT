@@ -68,6 +68,8 @@ function Get-HDTConsoleWorkspace {
               OperatingSystem [pscustomobject[]] Id, Name, Description, Type,
                               Architecture, DefaultIndex, ImageCount, Image,
                               SourcePath, ImagePath, Path, Status, Error
+              Driver          Folder, Present - the folder only; the engine has
+                              no driver catalog to read (DESIGN 7 is unbuilt)
               BootImage       Name, Architecture, Language, ManifestPath,
                               Status ('Ok', 'Missing' or 'Error'), Error,
                               BuildId, BuiltUtc, BuiltOn, EngineVersion,
@@ -206,6 +208,23 @@ function Get-HDTConsoleWorkspace {
         [void] $osRow.Add($row)
     }
 
+    # -- drivers -----------------------------------------------------------
+    #
+    # THE FOLDER, AND NOTHING ABOUT ITS CONTENTS. DESIGN 7 describes a driver
+    # store; the engine has no command that reads one - no Get-HDTDriver, no
+    # driver schema, nothing (M5 is deferred). So the console reports where the
+    # folder is and whether it exists, which is true, and says the rest is not
+    # built yet. Enumerating the tree here would put a driver inventory on
+    # screen that no deployment could act on, and inventing a reader is exactly
+    # what DESIGN 12's "the console may not do anything the cmdlets can't"
+    # forbids.
+    $driverFolder = Get-HDTWorkspacePath -Root $root -Kind Drivers
+
+    $driver = [pscustomobject] @{
+        Folder  = $driverFolder
+        Present = [bool] $FileSystem.TestPath($driverFolder)
+    }
+
     # -- the boot image ----------------------------------------------------
 
     $bootImage = Get-HDTConsoleBootImage -Root $root -BootImage $workspace.BootImage -FileSystem $FileSystem
@@ -228,6 +247,7 @@ function Get-HDTConsoleWorkspace {
         Error           = ''
         TaskSequence    = [pscustomobject[]] @($sequenceRow)
         OperatingSystem = [pscustomobject[]] @($osRow)
+        Driver          = $driver
         BootImage       = $bootImage
     }
 }

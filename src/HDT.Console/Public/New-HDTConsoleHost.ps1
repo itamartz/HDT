@@ -52,10 +52,16 @@ function New-HDTConsoleHost {
 
     $service = [pscustomobject] @{
         Answer = ''
+
+        # What the window was when it closed. Show-HDTConsole remembers it; this
+        # only reports it, because "should that size be kept" is a decision and
+        # decisions do not go in an adapter.
+        Width  = 0
+        Height = 0
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme)
+        param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -65,6 +71,11 @@ function New-HDTConsoleHost {
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
         $window.Title = $Title
+
+        # The size the console was last left at, over the markup's first-run
+        # numbers. Get-HDTConsoleSetting decided these; this applies them.
+        $window.Width = [double] $Size.Width
+        $window.Height = [double] $Size.Height
 
         # THE PALETTE, OVER THE DEFAULTS THE MARKUP DECLARED. Every colour in the
         # window is a DynamicResource, so replacing the resource repaints it.
@@ -76,6 +87,17 @@ function New-HDTConsoleHost {
         }
 
         $this.Answer = ''
+
+        # THE HOST, CAPTURED BY NAME. Inside an Add_Click handler $this is the
+        # BUTTON that raised the event, not this object - and the enclosing
+        # function's $service is not in scope inside a ScriptMethod at all, so a
+        # handler written against it closes over a variable that does not exist
+        # and throws under StrictMode. New-HDTWizardHost hit exactly this and
+        # documented it in cb4200e; this adapter was written the same way and
+        # carried the same bug, and it survived every screenshot because a window
+        # dismissed with WM_CLOSE or the title-bar X never runs the handler at
+        # all. It took an administrator pressing Close.
+        $consoleHost = $this
 
         $share = $window.FindName('HDTShareText')
         $deployRoot = $window.FindName('HDTDeployRootText')
@@ -111,8 +133,22 @@ function New-HDTConsoleHost {
             }.GetNewClosure())
 
         $close.Add_Click({
-                $service.Answer = 'Close'
+                $consoleHost.Answer = 'Close'
                 $window.Close()
+            }.GetNewClosure())
+
+        # THE SIZE IS TAKEN WHILE THE WINDOW STILL EXISTS. Read after ShowDialog
+        # returns, RestoreBounds belongs to a window that has already been torn
+        # down and throws - which surfaced as an error box saying "calling Show",
+        # three frames from anything to do with a size. Closing is the last
+        # moment it is a real window.
+        #
+        # RestoreBounds, not ActualWidth: a window closed while maximised or
+        # minimised reports the screen, or nothing, and remembering either is how
+        # a console comes back at a size nobody chose.
+        $window.Add_Closing({
+                $consoleHost.Width = [int] $window.RestoreBounds.Width
+                $consoleHost.Height = [int] $window.RestoreBounds.Height
             }.GetNewClosure())
 
         [void] $window.ShowDialog()
