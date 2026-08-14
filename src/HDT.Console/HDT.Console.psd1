@@ -23,6 +23,7 @@
         'Get-HDTConsoleTreeNode',
         'Get-HDTConsoleWorkspace',
         'New-HDTConsoleHost',
+        'New-HDTConsoleScreen',
         'Save-HDTConsoleSetting',
         'Show-HDTConsole'
     )

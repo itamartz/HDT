@@ -85,6 +85,10 @@ function Show-HDTConsole {
             An IEnvironmentProvider, used to find the remembered window size
             under the user profile. Defaults to the real adapter.
 
+        .PARAMETER Screen
+            An IScreen, used to fit the remembered size to the desktop the
+            window has to open on. Defaults to the real adapter.
+
         .PARAMETER ApartmentState
             The apartment the window would be created on. Defaults to the
             calling thread's, and exists so the refusal above is provable
@@ -145,6 +149,10 @@ function Show-HDTConsole {
         [Parameter()]
         [AllowNull()]
         [object] $Environment,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Screen,
 
         [Parameter()]
         [ValidateSet('Light', 'Dark')]
@@ -228,7 +236,11 @@ function Show-HDTConsole {
 
     # -- show it -----------------------------------------------------------
 
-    $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment
+    # THE SIZE IT WAS LEFT AT, FITTED TO THE SCREEN IT HAS TO OPEN ON. The window
+    # is centred by the markup, so a remembered size larger than this desktop
+    # would put the title bar off the top edge - open, focusable, and impossible
+    # to drag back into view.
+    $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment -Screen $Screen
 
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
         (Get-HDTConsoleTheme -Name $Theme), $size)
