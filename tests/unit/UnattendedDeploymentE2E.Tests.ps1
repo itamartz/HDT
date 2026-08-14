@@ -292,11 +292,18 @@ Describe 'the M4 E2E, parsed' -Skip:(-not $script:e2eExists) {
 
             $beforeAll.Count | Should -BeGreaterOrEqual 1
 
-            # The outermost BeforeAll is the longest one.
-            $body = (@($beforeAll | ForEach-Object { [string] $_.Extent.Text }) |
-                    Sort-Object -Property Length -Descending)[0]
+            # The outermost BeforeAll is the longest one. ASSIGNED FIRST, WRAPPED
+            # SECOND (tests/helpers/README.md F12): Sort-Object returns a SCALAR
+            # for a one-element input, and indexing [0] into a scalar string
+            # yields its first CHARACTER - which is 'B', and which matched
+            # nothing while looking like it had found a body.
+            $sorted = @($beforeAll | ForEach-Object { [string] $_.Extent.Text } |
+                    Sort-Object -Property Length -Descending)
 
-            $body | Should -Match 'Test-Path' -Because 'the condition has to be recomputed here, not read across the discovery boundary'
+            $sorted.Count | Should -BeGreaterThan 0
+            $sorted[0].Length | Should -BeGreaterThan 200 -Because 'a one-character "body" is the scalar-indexing trap, not a BeforeAll'
+
+            $sorted[0] | Should -Match 'Test-Path' -Because 'the condition has to be recomputed here, not read across the discovery boundary'
         }
     }
 
