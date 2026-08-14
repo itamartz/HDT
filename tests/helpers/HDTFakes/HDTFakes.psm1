@@ -476,6 +476,10 @@ class HDTFakeCimProvider {
     # "namespace|class", lower case, separators normalised -> object[] of instances.
     [hashtable] $Instance
 
+    # Method name -> the ReturnValue InvokeMethod should answer with. Absent
+    # means 0, which is what a machine that did what it was told returns.
+    [hashtable] $MethodReturnValue
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -489,6 +493,7 @@ class HDTFakeCimProvider {
 
     HDTFakeCimProvider() {
         $this.Instance = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.MethodReturnValue = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'CimProvider'
     }
@@ -561,6 +566,53 @@ class HDTFakeCimProvider {
 
     [void] AddInstance([string] $Namespace, [string] $ClassName, [object[]] $Instance) {
         $this.Instance[$this.Key($Namespace, $ClassName)] = [object[]] @($Instance)
+    }
+
+    # -- ICimProvider: invoking a method on an instance --------------------
+    #
+    # WMI IS HOW WinPE CONFIGURES A NETWORK. SPIKES S14: NetTCPIP is not in an
+    # ADK image, so Win32_NetworkAdapterConfiguration's EnableStatic,
+    # SetGateways and SetDNSServerSearchOrder are the only route to a static
+    # address on the one machine that matters. Reading CIM was never enough.
+    #
+    # The operation is recorded AS 'InvokeMethod(EnableStatic)' rather than a
+    # bare 'InvokeMethod', because the ordered operation list is the assertion
+    # these tests are built on and "three method calls happened" is not a fact
+    # about which three or in what order.
+
+    [int] InvokeMethod([object] $Instance, [string] $MethodName, [hashtable] $Argument) {
+        if ([string]::IsNullOrWhiteSpace($MethodName)) {
+            throw [System.ArgumentException]::new('MethodName must not be empty.', 'MethodName')
+        }
+
+        $this.Record(('InvokeMethod({0})' -f $MethodName), @($MethodName, $this.Flatten($Argument), $Argument))
+
+        if ($this.MethodReturnValue.ContainsKey($MethodName)) {
+            return [int] $this.MethodReturnValue[$MethodName]
+        }
+
+        return 0
+    }
+
+    # Fake-only: make a method answer the way a refusing machine would. 0 is
+    # success and 1 is "success, reboot required"; everything else is a WMI
+    # error code, and a wizard has to say so rather than report a network it
+    # did not configure.
+    [void] SetMethodReturnValue([string] $MethodName, [int] $ReturnValue) {
+        $this.MethodReturnValue[$MethodName] = $ReturnValue
+    }
+
+    # Arguments in a stable, readable order, so an assertion on them does not
+    # depend on hashtable enumeration order.
+    hidden [string] Flatten([hashtable] $Argument) {
+        if ($null -eq $Argument) { return '' }
+
+        $part = @()
+        foreach ($name in @($Argument.Keys | Sort-Object)) {
+            $part += ('{0}={1}' -f $name, (@($Argument[$name]) -join ','))
+        }
+
+        return ($part -join ';')
     }
 }
 

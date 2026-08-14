@@ -104,6 +104,7 @@
         'Set-HDTAutoLogon',
         'Set-HDTLogPath',
         'Set-HDTShareCredential',
+        'Set-HDTStaticAddress',
         'Show-HDTWizard',
         'Test-HDTRunStateAbandoned',
         'Test-HDTShareAcl',

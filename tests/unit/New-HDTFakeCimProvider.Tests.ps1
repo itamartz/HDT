@@ -214,4 +214,62 @@ Describe 'New-HDTFakeCimProvider' {
             @($cim.Operations).Count | Should -Be 0
         }
     }
+
+    Context 'invoking a method on an instance' {
+
+        # WMI IS HOW WinPE CONFIGURES A NETWORK (SPIKES S14), so reading CIM was
+        # never enough: Win32_NetworkAdapterConfiguration's EnableStatic,
+        # SetGateways and SetDNSServerSearchOrder are the only route to a static
+        # address on the one machine that matters.
+
+        BeforeAll {
+            $script:adapter = [pscustomobject] @{ Description = 'Microsoft Hyper-V Network Adapter'; InterfaceIndex = 3 }
+        }
+
+        It 'answers 0 for a method nobody said anything about' {
+            # 0 is what a machine that did what it was told returns.
+            $cim = New-HDTFakeCimProvider
+            $cim.InvokeMethod($script:adapter, 'EnableStatic', @{ IPAddress = @('192.168.2.50') }) | Should -Be 0
+        }
+
+        It 'answers what the test told it to answer' {
+            $cim = New-HDTFakeCimProvider
+            $cim.SetMethodReturnValue('EnableStatic', 70)
+
+            $cim.InvokeMethod($script:adapter, 'EnableStatic', @{ IPAddress = @('bad') }) | Should -Be 70
+        }
+
+        It 'records the method name in the operation, not just that a method ran' {
+            # The ordered operation list is the assertion these suites are built
+            # on, and "three method calls happened" is not a fact about which
+            # three or in what order.
+            $cim = New-HDTFakeCimProvider
+            $cim.InvokeMethod($script:adapter, 'EnableStatic', @{}) | Out-Null
+            $cim.InvokeMethod($script:adapter, 'SetGateways', @{}) | Out-Null
+
+            @($cim.GetOperationName()) | Should -Be @('InvokeMethod(EnableStatic)', 'InvokeMethod(SetGateways)')
+        }
+
+        It 'keeps the arguments it was handed, so a test can assert the values' {
+            $cim = New-HDTFakeCimProvider
+            $cim.InvokeMethod($script:adapter, 'EnableStatic',
+                @{ IPAddress = @('192.168.2.50'); SubnetMask = @('255.255.255.0') }) | Out-Null
+
+            @($cim.Operations[0].Arguments[2]['SubnetMask']) | Should -Be @('255.255.255.0')
+        }
+
+        It 'flattens the arguments in a stable order, not hashtable order' {
+            $cim = New-HDTFakeCimProvider
+            $cim.InvokeMethod($script:adapter, 'EnableStatic',
+                @{ SubnetMask = @('255.255.255.0'); IPAddress = @('192.168.2.50') }) | Out-Null
+
+            [string] $cim.Operations[0].Arguments[1] |
+                Should -BeExactly 'IPAddress=192.168.2.50;SubnetMask=255.255.255.0'
+        }
+
+        It 'refuses a method with no name' {
+            $cim = New-HDTFakeCimProvider
+            { $cim.InvokeMethod($script:adapter, '', @{}) } | Should -Throw
+        }
+    }
 }

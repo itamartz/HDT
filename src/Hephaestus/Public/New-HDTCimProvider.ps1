@@ -77,5 +77,24 @@ function New-HDTCimProvider {
         }
     }
 
+    # WMI IS HOW WinPE CONFIGURES A NETWORK, and that is not a preference.
+    # SPIKES S14: Get-NetIPAddress does not exist in a WinPE image built from
+    # the ADK - the NetTCPIP module is not there, and it is what killed the
+    # first SMB probe. Win32_NetworkAdapterConfiguration's EnableStatic,
+    # SetGateways and SetDNSServerSearchOrder are guaranteed, because WinPE-WMI
+    # is one of the six components Get-HDTBootImageComponent always injects.
+    #
+    # RETURNS THE ReturnValue AND NOTHING ELSE. Deciding that 0 and 1 mean
+    # success, and what any other code should say to a technician, is
+    # Set-HDTStaticAddress's job - this adapter reads no data and judges none.
+    $provider | Add-Member -MemberType ScriptMethod -Name InvokeMethod -Value {
+        param([object] $Instance, [string] $MethodName, [hashtable] $Argument)
+
+        $outcome = Invoke-CimMethod -InputObject $Instance -MethodName $MethodName `
+            -Arguments $Argument -ErrorAction Stop
+
+        return [int] $outcome.ReturnValue
+    }
+
     return $provider
 }
