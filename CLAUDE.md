@@ -131,6 +131,30 @@ delete target by enumerating a parent directory, and never pass a variable to
 `Remove-Item -Recurse` without asserting first that it is one of the permitted
 locations above.
 
+## ⚠ Networking: 192.168.2.0/24, and nothing else without asking
+
+**The lab network is `192.168.2.0/24`.** The host is **`192.168.2.108`**, DHCP
+comes from the real LAN, and test VMs reach it through the **`HDT External`**
+switch. Everything that needs a network uses that.
+
+**Never assign, create or use another subnet without asking the user first.**
+Not a new IP on a vSwitch, not a static address outside `192.168.2.0/24`, not a
+new virtual switch with its own range. Ask, then act.
+
+This rule exists because inventing one caused a near miss: a `10.10.10.0/24`
+segment was chosen for an isolated switch and **`10.10.10.1` was already in use
+by the user's VMware VMnet2 adapter**. The conflict was caught only because the
+assignment failed with "The object already exists" — had it landed on a free
+address in a range the user was using for something else, it would have broken
+their environment silently. This host also runs VMnet1/2/3/4/8, Tailscale,
+Ethernet and Wi-Fi; the free-looking ranges are not free.
+
+`HDT Lab` (internal, isolated) still exists and carries `172.30.30.1`, assigned
+before this rule. It is reserved for future PXE/WDS work, where an isolated
+segment is genuinely required so a second responder cannot collide with CM01's.
+**Do not use it for anything else, and do not add addresses to it, without
+asking.**
+
 ## ⚠ Hyper-V lab safety
 
 This host runs the user's **live lab**. Damaging it is worse than failing a test.

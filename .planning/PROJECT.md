@@ -252,7 +252,19 @@ Both sit on the **`Default Switch`** (192.168.25.0/24).
 1. **HDT test VMs are named `HDT-*`.** Only ever act on VMs matching that
    prefix. Before any destructive Hyper-V call, filter explicitly — never
    `Get-VM | Remove-VM` or any unfiltered pipeline.
-2. **Two switches, chosen by what the test needs.** Never `Default Switch` —
+2. **THE NETWORK IS `192.168.2.0/24`. NEVER USE ANOTHER SUBNET WITHOUT ASKING
+   THE USER FIRST.** No new IP on a vSwitch, no static address outside that
+   range, no new virtual switch with its own range. Ask, then act.
+
+   Why: a `10.10.10.0/24` segment was invented for an isolated switch and
+   **`10.10.10.1` was already taken by the user's VMware VMnet2**. It was caught
+   only because the assignment errored. This host also runs VMnet1/2/3/4/8,
+   Tailscale, Ethernet and Wi-Fi — ranges that look free are not.
+
+   `HDT Lab` carries `172.30.30.1` from before this rule and is reserved for
+   future PXE/WDS work only. Do not extend it without asking.
+
+   **Two switches, chosen by what the test needs.** Never `Default Switch` —
    that is where CM01 and DC01 live.
 
    | Switch | Use it for | Why |
