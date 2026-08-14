@@ -576,6 +576,41 @@ function Invoke-HDTTaskSequence {
                         if (-not $statusPathWasGiven) {
                             $statusPathValue = '{0}\status.json' -f $relocated.TrimEnd('\', '/')
                         }
+
+                        # AND SO DOES THE STATE DOCUMENT, FOR THE SAME REASON -
+                        # which is not obvious, and cost a full lab run to find.
+                        #
+                        # By default the state document lives IN the log
+                        # directory. Set-HDTLogPath mirrors the whole tree, so a
+                        # copy of state.json arrives on the target volume; if the
+                        # writes keep going to the RAM disk that copy is FROZEN at
+                        # the moment of the move, and Copy-HDTLog then ships the
+                        # frozen one to the share. The first real -Task e2e run
+                        # after 05-03 read it back reporting three steps Pending
+                        # on a deployment that had succeeded, booted, and come up
+                        # with the right computer name.
+                        #
+                        # A STALE STATE DOCUMENT IS WORSE THAN AN ABSENT ONE,
+                        # because it is believed. Nothing on the RAM disk survives
+                        # the reboot, so leaving the live copy there buys nothing:
+                        # the abandoned file stays where it is, exactly as the
+                        # abandoned log does, and every write from here lands
+                        # beside the log it belongs to.
+                        #
+                        # A CALLER WHO PUT IT SOMEWHERE ELSE IS NOT OVERRULED, and
+                        # nor is one who put it outside the log directory: only a
+                        # path that was under the OLD log root is rebased onto the
+                        # new one.
+                        $oldRoot = $logRoot.TrimEnd('\', '/')
+
+                        if ($statePathValue.StartsWith(($oldRoot + [System.IO.Path]::DirectorySeparatorChar),
+                                [System.StringComparison]::OrdinalIgnoreCase)) {
+
+                            $statePathValue = '{0}{1}' -f $relocated.TrimEnd('\', '/'),
+                            $statePathValue.Substring($oldRoot.Length)
+
+                            $saveArgument['Path'] = $statePathValue
+                        }
                     }
                 }
 
