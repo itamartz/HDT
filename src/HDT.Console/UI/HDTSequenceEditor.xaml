@@ -190,6 +190,95 @@
                         <!-- Without this a row announces itself as a dump of the
                              whole object to a screen reader. See HDTConsole.xaml. -->
                         <Setter Property="AutomationProperties.Name" Value="{Binding Text}" />
+
+                        <!--
+                            A STEP IS A LEAF AND MUST NOT LOOK LIKE A BRANCH.
+                            The stock TreeViewItem template draws its expander
+                            for every row and merely hides the glyph on a
+                            childless one, which still leaves a clickable
+                            triangle-shaped gap - and in a window whose whole
+                            subject is "which of these contains which", a step
+                            that appears to open is a step an administrator
+                            clicks at and gets nothing from.
+
+                            The template below is the stock one with the
+                            ToggleButton bound to HasItems, so a group gets a
+                            triangle and a step gets flat indentation. Groups
+                            keep the same indent as before, because the column
+                            the toggle occupied is still reserved by the
+                            19-unit ColumnDefinition.
+                        -->
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TreeViewItem">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="19" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition />
+                                        </Grid.RowDefinitions>
+
+                                        <ToggleButton x:Name="HDTExpander"
+                                                      Grid.Row="0" Grid.Column="0"
+                                                      ClickMode="Press"
+                                                      Focusable="False"
+                                                      IsChecked="{Binding IsExpanded,
+                                                                  RelativeSource={RelativeSource TemplatedParent}}">
+                                            <ToggleButton.Template>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border Background="Transparent" Padding="5,4,5,4">
+                                                        <Path x:Name="HDTArrow"
+                                                              Data="M 0 0 L 4 4 L 0 8 Z"
+                                                              Fill="{DynamicResource HDTPanelTextBrush}" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="HDTArrow" Property="Data"
+                                                                    Value="M 0 4 L 8 4 L 4 8 Z" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </ToggleButton.Template>
+                                        </ToggleButton>
+
+                                        <Border x:Name="HDTRowSurface"
+                                                Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter x:Name="PART_Header"
+                                                              ContentSource="Header"
+                                                              HorizontalAlignment="Left" />
+                                        </Border>
+
+                                        <ItemsPresenter x:Name="HDTItems"
+                                                        Grid.Row="1" Grid.Column="1"
+                                                        Grid.ColumnSpan="2" />
+                                    </Grid>
+
+                                    <ControlTemplate.Triggers>
+                                        <!-- A leaf has no toggle at all. -->
+                                        <Trigger Property="HasItems" Value="False">
+                                            <Setter TargetName="HDTExpander" Property="Visibility"
+                                                    Value="Collapsed" />
+                                        </Trigger>
+                                        <Trigger Property="IsExpanded" Value="False">
+                                            <Setter TargetName="HDTItems" Property="Visibility"
+                                                    Value="Collapsed" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="HDTRowSurface" Property="Background"
+                                                    Value="{DynamicResource HDTButtonHoverBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
                     </Style>
                 </TreeView.ItemContainerStyle>
 
