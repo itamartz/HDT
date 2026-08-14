@@ -691,6 +691,35 @@ function Update-HDTBootImage {
             builtUtc            = $builtUtc
         }
 
+        # THE SKIP BLOCK, WRITTEN ONLY FOR RULES THE WORKSPACE ACTUALLY STATED.
+        #
+        # MDT's Bootstrap.ini carries SkipBDDWelcome for a structural reason:
+        # the Welcome screen runs BEFORE the share is reachable, so a rule about
+        # it cannot live on the share (.planning/WPF-FIRST.md, W2). This is the
+        # in-image half of that split.
+        #
+        # AN UNSTATED RULE IS OMITTED, NOT WRITTEN AS false. Get-HDTWizardSkip's
+        # defaults are what turn "the image said nothing" into the unattended
+        # path, and writing false here would silently move that decision to
+        # build time - where the machine's promptForCredential is not yet known
+        # to whoever is reading the file.
+        $skipStated = [ordered] @{}
+
+        foreach ($pair in @(
+                @{ Key = 'welcome'; Property = 'SkipWelcome' },
+                @{ Key = 'staticIp'; Property = 'SkipStaticIp' },
+                @{ Key = 'deployRoot'; Property = 'SkipDeployRoot' },
+                @{ Key = 'credential'; Property = 'SkipCredential' })) {
+
+            $property = [string] $pair.Property
+            if ($null -eq $workspace.BootImage.PSObject.Properties[$property]) { continue }
+            if ($null -eq $workspace.BootImage.$property) { continue }
+
+            $skipStated[[string] $pair.Key] = [bool] $workspace.BootImage.$property
+        }
+
+        if ($skipStated.Count -ge 1) { $bootstrap['skip'] = $skipStated }
+
         if ($embedCredential) {
             $bootstrap['credential'] = [ordered] @{
                 username  = $credentialUserName

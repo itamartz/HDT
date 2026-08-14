@@ -4288,6 +4288,7 @@ function New-HDTFakeWizardHost {
         LastXaml   = ''
         LastTitle  = ''
         LastField  = @()
+        LastPane   = @()
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -4298,11 +4299,12 @@ function New-HDTFakeWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field)
+        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane)
 
         $this.LastXaml = $Xaml
         $this.LastTitle = $Title
         $this.LastField = @($Field)
+        $this.LastPane = @($Pane)
         $this.Record(('Show({0})' -f $Title))
 
         return $this.Action

@@ -45,8 +45,8 @@ function New-HDTWizardHost {
             would have an opinion about what a dismissed window means.
 
         .OUTPUTS
-            A PSCustomObject with a Show(xaml, title, field) method returning
-            'Next', 'Cancel', 'CommandPrompt', or an empty string.
+            A PSCustomObject with a Show(xaml, title, field, pane) method
+            returning 'Next', 'Cancel', 'CommandPrompt', or an empty string.
 
         .EXAMPLE
             Show-HDTWizard -XamlPath 'X:\HDT\UI\HDTWizard.xaml' -WizardHost (New-HDTWizardHost)
@@ -71,7 +71,7 @@ function New-HDTWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field)
+        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -109,6 +109,21 @@ function New-HDTWizardHost {
         foreach ($current in @($Field)) {
             $control = $window.FindName([string] $current.Name)
             if ($null -ne $control) { $control.Text = [string] $current.Text }
+        }
+
+        # WHICH PANES EXIST WAS ALSO DECIDED SOMEWHERE ELSE. Get-HDTWizardSkip
+        # resolves MDT's Skip* rules and hands over Visible flags, so this never
+        # has to reason about the word "skip".
+        #
+        # COLLAPSED, NOT HIDDEN: Visibility.Hidden leaves the space behind, so
+        # a screen with two panes turned off would be mostly gap. Collapsed
+        # takes the space back and the remaining panes close up.
+        foreach ($current in @($Pane)) {
+            $control = $window.FindName([string] $current.Name)
+            if ($null -eq $control) { continue }
+
+            $control.Visibility = [System.Windows.Visibility]::Collapsed
+            if ($current.Visible) { $control.Visibility = [System.Windows.Visibility]::Visible }
         }
 
         # DRAG BY THE BANNER. WindowStyle=None removes the title bar - which is

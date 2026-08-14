@@ -119,6 +119,36 @@ Describe 'Show-HDTWizard' {
             [string] @($wizardHost.LastField)[0].Text | Should -BeExactly '192.168.2.118'
         }
 
+        It 'hands the host the panes it was given, to collapse by name' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' -WizardHost $wizardHost `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -Pane @([pscustomobject] @{ Name = 'HDTCredentialPane'; Visible = $false }) | Out-Null
+
+            @($wizardHost.LastPane).Count | Should -Be 1
+            [string] @($wizardHost.LastPane)[0].Name | Should -BeExactly 'HDTCredentialPane'
+            [bool] @($wizardHost.LastPane)[0].Visible | Should -BeFalse
+        }
+
+        It 'still shows the window when every pane is hidden' {
+            # HDTSkipWelcome is what suppresses the WINDOW, and it is the
+            # caller's decision - not this command's. A Show-HDTWizard that
+            # sometimes showed nothing would return an Action for a window
+            # nobody saw.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            $result = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' -WizardHost $wizardHost `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -Pane @(
+                [pscustomobject] @{ Name = 'HDTNetworkPane'; Visible = $false },
+                [pscustomobject] @{ Name = 'HDTDeployRootPane'; Visible = $false },
+                [pscustomobject] @{ Name = 'HDTCredentialPane'; Visible = $false })
+
+            @($wizardHost.Operations | Where-Object { $_ -like 'Show*' }).Count | Should -Be 1
+            [string] $result.Action | Should -BeExactly 'Next'
+        }
+
         It 'shows a window with no fields at all, because prefill is optional' {
             $wizardHost = New-HDTFakeWizardHost -Action 'Next'
 
