@@ -8,13 +8,20 @@ function New-HDTConsoleNode {
             identically and no caller can invent a row missing the member the
             window binds to.
 
-            DISPLAY IS BUILT HERE AND NOT IN THE WINDOW. The list is a flat
-            ListBox in a monospaced font, and Display is Text with its
-            indentation already applied - four spaces per level. The alternative
-            is a TreeView built by the host, or a Margin binding with a value
-            converter, and both put layout decisions inside the one component
-            that cannot be unit tested. Indentation is a string, and a string is
-            assertable.
+            THE ROWS ARE BOTH A TREE AND A LIST, AND BOTH ARE BUILT HERE. The
+            window is a WPF TreeView - it expands, it collapses, and each row
+            carries an icon, because that is what Deployment Workbench looks like
+            and DESIGN 12 asks for muscle memory rather than a novel shape. The
+            TreeView needs nesting, so every node carries Children; a test, a
+            Format-Table and a screenshot want a flat ordered reading, so every
+            node also carries Depth and Display, which is Text with its
+            indentation already applied.
+
+            NEITHER SHAPE IS BUILT BY THE HOST. The host binds Children through a
+            HierarchicalDataTemplate and reads Icon, Text and IsExpanded from the
+            row - it never works out what nests inside what, which node is open,
+            or which picture belongs to a task sequence. That is what keeps the
+            one component with no tests free of decisions.
 
             THE HEADER TRAVELS ON THE ROW. The banner above the tree names the
             share the selected row belongs to, and with several shares open that
@@ -46,13 +53,18 @@ function New-HDTConsoleNode {
             What the banner says while this row is selected - Title, Root and
             DeployRoot, as Get-HDTConsoleHeader builds them.
 
+        .PARAMETER Collapsed
+            Starts the row closed. Omitted, a row with children opens - C1 has
+            one screen's worth of tree and an administrator should see it, not
+            hunt for it.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Depth, Kind,
-            Status, Text, Display, Detail, Command, HeaderTitle, HeaderRoot and
-            HeaderDeployRoot.
+            Status, Text, Display, Detail, Command, Icon, IsExpanded, Children,
+            HeaderTitle, HeaderRoot and HeaderDeployRoot.
 
         .EXAMPLE
             New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status 'Ok' -Text 'DEMO-M4 - Deploy Windows 11' -Detail $detail -Command $command -Header $header
@@ -88,7 +100,10 @@ function New-HDTConsoleNode {
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
-        [object] $Header
+        [object] $Header,
+
+        [Parameter()]
+        [switch] $Collapsed
     )
 
     Set-StrictMode -Version Latest
@@ -102,6 +117,14 @@ function New-HDTConsoleNode {
         Display          = ((' ' * (4 * $Depth)) + $Text)
         Detail           = $Detail
         Command          = $Command
+        Icon             = (Get-HDTConsoleIcon -Kind $Kind -Status $Status)
+        IsExpanded       = (-not $Collapsed.IsPresent)
+
+        # An ArrayList rather than an array: the tree is assembled by adding to
+        # a parent that already exists, and a PowerShell array would be copied
+        # on every add, leaving the bound collection behind.
+        Children         = [System.Collections.ArrayList]::new()
+
         HeaderTitle      = [string] $Header.Title
         HeaderRoot       = [string] $Header.Root
         HeaderDeployRoot = [string] $Header.DeployRoot

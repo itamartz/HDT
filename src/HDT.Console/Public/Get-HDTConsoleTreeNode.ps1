@@ -112,18 +112,26 @@ function Get-HDTConsoleTreeNode {
         $rootDetail += '  {0,-10} {1}' -f $current.Status, $current.Root
     }
 
-    [void] $node.Add((New-HDTConsoleNode -Depth 0 -Kind 'Root' -Status 'Ok' `
-                -Text ('Deployment Shares ({0})' -f $share.Count) `
-                -Detail ($rootDetail -join [System.Environment]::NewLine) `
-                -Command $rootCommand `
-                -Header ([pscustomobject] @{
-                        Title      = 'Deployment Shares'
-                        Root       = '(select a share)'
-                        DeployRoot = '(select a share)'
-                    })))
+    $rootNode = New-HDTConsoleNode -Depth 0 -Kind 'Root' -Status 'Ok' `
+        -Text ('Deployment Shares ({0})' -f $share.Count) `
+        -Detail ($rootDetail -join [System.Environment]::NewLine) `
+        -Command $rootCommand `
+        -Header ([pscustomobject] @{
+                Title      = 'Deployment Shares'
+                Root       = '(select a share)'
+                DeployRoot = '(select a share)'
+            })
+
+    [void] $node.Add($rootNode)
 
     foreach ($current in $share) {
-        foreach ($row in @(Get-HDTConsoleShareNode -Workspace $current)) {
+        $subtree = @(Get-HDTConsoleShareNode -Workspace $current)
+
+        # The share's own row is first, by construction, and everything after it
+        # is already nested underneath it.
+        [void] $rootNode.Children.Add($subtree[0])
+
+        foreach ($row in $subtree) {
             [void] $node.Add($row)
         }
     }

@@ -171,6 +171,33 @@ Describe 'Get-HDTConsoleTreeNode' {
             $share.Detail | Should -Match ([regex]::Escape('C:\ws'))
         }
 
+        It 'nests the rows, so the window can expand and collapse them' {
+            $root = @($script:node | Where-Object { $_.Kind -eq 'Root' })[0]
+            $share = @($root.Children)[0]
+
+            $share.Kind | Should -BeExactly 'Share'
+            @($share.Children | ForEach-Object { $_.Text }) |
+                Should -Be @('Task Sequences (1)', 'Operating Systems (1)', 'Boot Image')
+
+            @($share.Children)[0].Children[0].Kind | Should -BeExactly 'TaskSequence'
+        }
+
+        It 'opens every branch that has one, because C1 is one screen and not a search' {
+            foreach ($row in @($script:node | Where-Object { @($_.Children).Count -gt 0 })) {
+                $row.IsExpanded | Should -BeTrue -Because $row.Text
+            }
+        }
+
+        It 'gives each kind its own icon' {
+            $icon = @{}
+            foreach ($row in $script:node) { $icon[$row.Kind] = $row.Icon }
+
+            # Distinct, non-empty, and one per kind - an icon column where every
+            # row looks the same is a column that costs space and says nothing.
+            @($icon.Values | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count | Should -Be 0
+            @($icon.Values | Sort-Object -Unique).Count | Should -Be @($icon.Keys).Count
+        }
+
         It 'carries its share banner on every row beneath that share' {
             foreach ($row in @($script:node | Where-Object { $_.Depth -ge 1 })) {
                 $row.HeaderTitle | Should -BeExactly 'HDT deployment share'
@@ -350,6 +377,36 @@ Describe 'Get-HDTConsoleTreeNode' {
             $node.Status | Should -BeExactly 'Error'
             $node.Text | Should -Match 'DEMO-M4'
             $node.Detail | Should -Not -BeNullOrEmpty
+        }
+
+        It 'marks it with the warning icon, whatever kind of thing it is' {
+            # The eye finds a warning in a tree of folders without reading a
+            # word, which is the one thing an icon column is genuinely good at.
+            $file = @{
+                'C:\ws\workspace.yaml'                          = $script:workspaceYaml
+                'C:\ws\OperatingSystems\Win11-LTSC-2024\os.yaml' = "schemaVersion: 1`nid: Win11-LTSC-2024`n"
+            }
+
+            $model = Get-HDTConsoleWorkspace -Path $script:root -FileSystem (New-HDTFakeFileSystem -File $file)
+            $node = @(Get-HDTConsoleTreeNode -Workspace $model)
+
+            $broken = @($node | Where-Object { $_.Kind -eq 'OperatingSystem' })[0]
+            $healthy = @($node | Where-Object { $_.Kind -eq 'Category' })[0]
+
+            $broken.Icon | Should -Not -BeExactly $healthy.Icon
+            $broken.Icon | Should -BeExactly ([string] ([char] 0x26A0))
+        }
+
+        It 'does not mark a boot image that was never built as a fault' {
+            # 'Missing' is a share partway through being set up, and its row
+            # already says 'not built' in words. Marking it would train an
+            # administrator to ignore the mark.
+            $node = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleNodeTestModel -Empty))
+
+            $boot = @($node | Where-Object { $_.Kind -eq 'BootImage' })[0]
+
+            $boot.Status | Should -BeExactly 'Missing'
+            $boot.Icon | Should -Not -BeExactly ([string] ([char] 0x26A0))
         }
     }
 }

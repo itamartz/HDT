@@ -66,15 +66,17 @@ steps:
             Xaml      = ''
             Title     = ''
             Node      = @()
+            Theme     = $null
         }
 
         $fake | Add-Member -MemberType ScriptMethod -Name Show -Value {
-            param([string] $Xaml, [string] $Title, [object[]] $Node)
+            param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme)
 
             $this.ShowCount = $this.ShowCount + 1
             $this.Xaml = $Xaml
             $this.Title = $Title
             $this.Node = $Node
+            $this.Theme = $Theme
 
             return [string] $this.Action
         }
@@ -197,20 +199,64 @@ Describe 'Show-HDTConsole' {
             $script:consoleHost.Title | Should -BeExactly 'HDT Console'
         }
 
-        It 'passes the same rows Get-HDTConsoleTreeNode decided on' {
+        It 'passes the tree ROOTS, because WPF builds the branches from Children' {
             $expected = @(Get-HDTConsoleTreeNode -Workspace $script:answer.Workspace)
 
-            @($script:consoleHost.Node).Count | Should -Be $expected.Count
-            @($script:consoleHost.Node | ForEach-Object { $_.Display }) |
-                Should -Be @($expected | ForEach-Object { $_.Display })
+            @($script:consoleHost.Node).Count | Should -Be 1
+            @($script:consoleHost.Node)[0].Kind | Should -BeExactly 'Root'
+            @($script:consoleHost.Node)[0].Text |
+                Should -BeExactly @($expected | Where-Object { $_.Depth -eq 0 })[0].Text
+        }
+
+        It 'passes roots whose Children reach every row the tree decided on' {
+            # The adapter is handed one row; the window must still be able to
+            # show all of them. Walking Children here is what proves the tree
+            # is actually linked rather than merely ordered.
+            $reached = New-Object -TypeName System.Collections.ArrayList
+            $pending = New-Object -TypeName System.Collections.Queue
+
+            foreach ($row in @($script:consoleHost.Node)) { $pending.Enqueue($row) }
+
+            while ($pending.Count -gt 0) {
+                $row = $pending.Dequeue()
+                [void] $reached.Add($row.Text)
+                foreach ($child in @($row.Children)) { $pending.Enqueue($child) }
+            }
+
+            $expected = @(Get-HDTConsoleTreeNode -Workspace $script:answer.Workspace)
+
+            @($reached).Count | Should -Be $expected.Count
         }
 
         It 'passes rows carrying both the path it opened and the deployRoot the share declares' {
-            $share = @($script:consoleHost.Node | Where-Object { $_.Kind -eq 'Share' })[0]
+            $share = @(@($script:consoleHost.Node)[0].Children)[0]
 
             $share.HeaderRoot | Should -BeExactly 'C:\ws'
             $share.HeaderDeployRoot | Should -BeExactly '\\192.168.2.108\HDTShare'
             $share.HeaderTitle | Should -Match 'HDT deployment share'
+        }
+    }
+
+    Context 'the palette' {
+
+        It 'opens light, because the console is a desktop application and not a bench tool' {
+            $consoleHost = New-HDTFakeConsoleHost
+
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
+                    -ConsoleHost $consoleHost -FileSystem (New-HDTConsoleWindowTestFileSystem))
+
+            $consoleHost.Theme['HDTPanelBrush'] |
+                Should -BeExactly (Get-HDTConsoleTheme -Name Light)['HDTPanelBrush']
+        }
+
+        It 'hands the dark palette over when it is asked for' {
+            $consoleHost = New-HDTFakeConsoleHost
+
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath -Theme Dark `
+                    -ConsoleHost $consoleHost -FileSystem (New-HDTConsoleWindowTestFileSystem))
+
+            $consoleHost.Theme['HDTPanelBrush'] |
+                Should -BeExactly (Get-HDTConsoleTheme -Name Dark)['HDTPanelBrush']
         }
     }
 
@@ -258,7 +304,7 @@ Describe 'Show-HDTConsole' {
                 -ConsoleHost $consoleHost -FileSystem $fs
 
             @($answer.Workspace).Count | Should -Be 2
-            @($consoleHost.Node | Where-Object { $_.Kind -eq 'Share' }).Count | Should -Be 2
+            @(@($consoleHost.Node)[0].Children).Count | Should -Be 2
         }
 
         It 'shows a share that would not open as a row, and still shows the others' {
@@ -277,11 +323,13 @@ Describe 'Show-HDTConsole' {
             @($answer.Workspace).Count | Should -Be 2
             @($answer.Workspace | Where-Object { $_.Status -eq 'Error' })[0].Root | Should -BeExactly 'C:\gone'
 
-            $failed = @($consoleHost.Node | Where-Object { $_.Status -eq 'Error' -and $_.Kind -eq 'Share' })[0]
+            $shown = @(@($consoleHost.Node)[0].Children)
+
+            $failed = @($shown | Where-Object { $_.Status -eq 'Error' })[0]
             $failed.Text | Should -Match ([regex]::Escape('C:\gone'))
             $failed.Detail | Should -Match 'workspace.yaml'
 
-            @($consoleHost.Node | Where-Object { $_.Kind -eq 'Share' -and $_.Status -eq 'Ok' }).Count | Should -Be 1
+            @($shown | Where-Object { $_.Status -eq 'Ok' }).Count | Should -Be 1
         }
     }
 
@@ -348,13 +396,49 @@ Describe 'the shipped console window' {
     }
 
     It 'names <_>, which New-HDTConsoleHost finds by name' -ForEach @(
-        'HDTConsoleList', 'HDTDetailText', 'HDTCommandText',
+        'HDTConsoleTree', 'HDTDetailText', 'HDTCommandText',
         'HDTShareText', 'HDTDeployRootText', 'HDTRootText', 'HDTCloseButton') {
 
         $script:shippedXaml | Should -Match ('x:Name="{0}"' -f $PSItem)
     }
 
-    It 'binds the list to the Display member the node command produces' {
-        $script:shippedXaml | Should -Match 'DisplayMemberPath="Display"'
+    It 'declares a default for every key Get-HDTConsoleTheme sets, and sets none it does not' {
+        # A key the markup names and the theme omits keeps a stale colour from
+        # the other palette; a key the theme sets and the markup never names is
+        # a colour nobody can see. Either way it only shows up in the theme
+        # nobody had open.
+        $document = [xml] $script:shippedXaml
+
+        $declared = @($document.SelectNodes("//*[local-name()='SolidColorBrush']") |
+                ForEach-Object { $_.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml') })
+
+        foreach ($name in @('Light', 'Dark')) {
+            $key = @((Get-HDTConsoleTheme -Name $name).Keys)
+
+            @($key).Count | Should -BeGreaterThan 0
+            @($key | Sort-Object) | Should -Be @($declared | Sort-Object) -Because "the $name palette"
+        }
+    }
+
+    It 'paints every colour through a DynamicResource, so a palette swap repaints it' {
+        # A literal colour left in the markup is one that stays put when the
+        # theme changes - the single hardest thing to notice by looking, because
+        # it only looks wrong in the palette you did not open.
+        $literal = [regex]::Matches($script:shippedXaml, '(?<!Color=)"#[0-9A-Fa-f]{8}"')
+
+        @($literal).Count | Should -Be 0 -Because (
+            'only the SolidColorBrush defaults may name a colour: ' + (@($literal | ForEach-Object { $_.Value }) -join ', '))
+    }
+
+    It 'builds its nesting from the Children member, so the host builds none of it' {
+        $script:shippedXaml | Should -Match 'HierarchicalDataTemplate ItemsSource="\{Binding Children\}"'
+    }
+
+    It 'binds <_> off the row rather than reading it from anywhere else' -ForEach @(
+        'Icon', 'Text', 'IsExpanded') {
+
+        # Concatenated, not -f: the pattern contains a literal brace and the
+        # format operator would try to read it as a placeholder.
+        $script:shippedXaml | Should -Match ('\{Binding ' + $PSItem)
     }
 }

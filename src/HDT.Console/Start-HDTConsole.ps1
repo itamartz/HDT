@@ -27,11 +27,26 @@
 
         IT ONLY READS THE SHARES. C1 writes nothing.
 
+        AN ERROR IS SHOWN IN A BOX, NOT IN THE TERMINAL THAT WAS JUST HIDDEN.
+        Once the console window is gone, anything written to it is written to
+        nobody - which is how the first version of this script reported a
+        parameter mistake by silently exiting 1. A GUI application says what went
+        wrong in a way the person who started it can see.
+
     .PARAMETER Path
-        The deployment shares to open. Defaults to the lab share.
+        The deployment shares to open, positionally or after -Path. Defaults to
+        the lab share.
+
+        REMAINING ARGUMENTS COUNT AS SHARES, deliberately: 'pwsh -File' does not
+        build an array out of several arguments, so
+        '-Path C:\a \\host\share' would otherwise bind only the first and refuse
+        the second. Every extra argument is another share.
 
     .PARAMETER Title
         The window title.
+
+    .PARAMETER Theme
+        Light or Dark. Light by default - see Show-HDTConsole.
 
     .EXAMPLE
         .\Start-HDTConsole.ps1
@@ -39,19 +54,28 @@
         Opens the console on C:\HDTLab\Share.
 
     .EXAMPLE
-        .\Start-HDTConsole.ps1 -Path 'C:\HDTLab\Share', '\\192.168.2.108\HDTShare'
+        .\Start-HDTConsole.ps1 -Theme Dark
 
-        Two shares, one window.
+        The same window in the wizard's palette.
+
+    .EXAMPLE
+        .\Start-HDTConsole.ps1 'C:\HDTLab\Share' '\\192.168.2.108\HDTShare'
+
+        Two shares, one window - and the form that survives 'pwsh -File'.
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Position = 0)]
+    [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
     [ValidateNotNullOrEmpty()]
     [string[]] $Path = @('C:\HDTLab\Share'),
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [string] $Title = 'Hephaestus Deployment Toolkit'
+    [string] $Title = 'Hephaestus Deployment Toolkit',
+
+    [Parameter()]
+    [ValidateSet('Light', 'Dark')]
+    [string] $Theme = 'Light'
 )
 
 Set-StrictMode -Version Latest
@@ -60,7 +84,7 @@ $ErrorActionPreference = 'Stop'
 # -- the apartment WPF needs ----------------------------------------------
 
 if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne [System.Threading.ApartmentState]::STA) {
-    $argument = @('-NoProfile', '-STA', '-File', $PSCommandPath, '-Path') + @($Path) + @('-Title', $Title)
+    $argument = @('-NoProfile', '-STA', '-File', $PSCommandPath, '-Title', $Title, '-Theme', $Theme, '-Path') + @($Path)
 
     $process = Start-Process -FilePath ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) `
         -ArgumentList $argument -WindowStyle Hidden -PassThru -Wait
@@ -96,8 +120,22 @@ if ($consoleWindow -ne [IntPtr]::Zero) {
 
 # -- the window ------------------------------------------------------------
 
-Import-Module -Name (Join-Path -Path $PSScriptRoot -ChildPath 'HDT.Console.psd1') -Force -ErrorAction Stop
+try {
+    Import-Module -Name (Join-Path -Path $PSScriptRoot -ChildPath 'HDT.Console.psd1') -Force -ErrorAction Stop
 
-$answer = Show-HDTConsole -Path $Path -Title $Title
+    $answer = Show-HDTConsole -Path $Path -Title $Title -Theme $Theme
 
-Write-Verbose ('The console closed with {0} after showing {1} rows.' -f $answer.Action, $answer.NodeCount)
+    Write-Verbose ('The console closed with {0} after showing {1} rows.' -f $answer.Action, $answer.NodeCount)
+} catch {
+    # The terminal is hidden by now, so writing there would be writing to
+    # nobody. A window application reports in a window.
+    Add-Type -AssemblyName PresentationFramework
+
+    [void] [System.Windows.MessageBox]::Show(
+        [string] $_.Exception.Message,
+        'Hephaestus Deployment Toolkit',
+        [System.Windows.MessageBoxButton]::OK,
+        [System.Windows.MessageBoxImage]::Error)
+
+    exit 1
+}

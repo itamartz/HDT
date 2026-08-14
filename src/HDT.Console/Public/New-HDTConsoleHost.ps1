@@ -35,8 +35,8 @@ function New-HDTConsoleHost {
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            A PSCustomObject with a Show(xaml, title, node) method returning
-            'Close' or an empty string.
+            A PSCustomObject with a Show(xaml, title, node, theme) method
+            returning 'Close' or an empty string.
 
         .EXAMPLE
             Show-HDTConsole -Path 'C:\HDTLab\Share' -ConsoleHost (New-HDTConsoleHost)
@@ -55,7 +55,7 @@ function New-HDTConsoleHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Node)
+        param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -66,24 +66,36 @@ function New-HDTConsoleHost {
 
         $window.Title = $Title
 
+        # THE PALETTE, OVER THE DEFAULTS THE MARKUP DECLARED. Every colour in the
+        # window is a DynamicResource, so replacing the resource repaints it.
+        # Which colours those are is Get-HDTConsoleTheme's decision; this only
+        # applies them, key by key, with no opinion about what is in the list.
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $window.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
         $this.Answer = ''
 
         $share = $window.FindName('HDTShareText')
         $deployRoot = $window.FindName('HDTDeployRootText')
         $root = $window.FindName('HDTRootText')
-        $list = $window.FindName('HDTConsoleList')
+        $tree = $window.FindName('HDTConsoleTree')
         $detail = $window.FindName('HDTDetailText')
         $command = $window.FindName('HDTCommandText')
         $close = $window.FindName('HDTCloseButton')
 
-        $list.ItemsSource = $Node
+        # The roots only. WPF builds the rest from each row's Children through
+        # the HierarchicalDataTemplate, so the nesting, the expanders and the
+        # icons all come out of data this adapter never inspects.
+        $tree.ItemsSource = $Node
 
         # Five assignments off the selected row and nothing else. The banner
         # follows the selection because with several shares open it has to name
         # the one being looked at - and the row already knows which that is, so
         # this does not have to work it out.
-        $list.Add_SelectionChanged({
-                $selected = $list.SelectedItem
+        $tree.Add_SelectedItemChanged({
+                $selected = $tree.SelectedItem
                 $detail.Text = [string] $selected.Detail
                 $command.Text = [string] $selected.Command
                 $share.Text = [string] $selected.HeaderTitle
@@ -91,9 +103,12 @@ function New-HDTConsoleHost {
                 $root.Text = [string] $selected.HeaderRoot
             }.GetNewClosure())
 
-        # Selecting the first row raises SelectionChanged, which is what fills
-        # the two panes; the window is never shown blank.
-        $list.SelectedIndex = 0
+        # Selecting the root raises SelectedItemChanged, which is what fills the
+        # two panes and the banner; the window is never shown blank.
+        $window.Add_ContentRendered({
+                $first = $tree.ItemContainerGenerator.ContainerFromIndex(0)
+                $first.IsSelected = $true
+            }.GetNewClosure())
 
         $close.Add_Click({
                 $service.Answer = 'Close'

@@ -65,6 +65,10 @@ function Get-HDTConsoleShareNode {
     }
 
     # -- the share ---------------------------------------------------------
+    #
+    # TWO SHAPES, ONE PASS. $node is the flat reading, in display order, and
+    # every row is also added to its parent's Children so the window has a tree
+    # to expand. Building them separately is how the two would come to disagree.
 
     $shareDetail = @(
         ('{0,-16}: {1}' -f 'Share', $Workspace.Name)
@@ -79,24 +83,29 @@ function Get-HDTConsoleShareNode {
         ('{0,-16}: {1}' -f 'Document', $Workspace.WorkspacePath)
     )
 
-    [void] $node.Add((New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Ok' `
-                -Text ('{0} ({1})' -f $Workspace.Name, $Workspace.Id) `
-                -Detail ($shareDetail -join [System.Environment]::NewLine) `
-                -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
-                -Header $header))
+    $shareNode = New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Ok' `
+        -Text ('{0} ({1})' -f $Workspace.Name, $Workspace.Id) `
+        -Detail ($shareDetail -join [System.Environment]::NewLine) `
+        -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
+        -Header $header
+
+    [void] $node.Add($shareNode)
 
     # -- task sequences ----------------------------------------------------
 
     $sequenceFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind TaskSequences
     $sequenceCommand = "Get-HDTWorkspacePath -Root '{0}' -Kind TaskSequences" -f $Workspace.Root
 
-    [void] $node.Add((New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
-                -Text ('Task Sequences ({0})' -f @($Workspace.TaskSequence).Count) `
-                -Detail (@(
-                    ('{0,-16}: {1}' -f 'Folder', $sequenceFolder)
-                    ('{0,-16}: {1}' -f 'Sequences', @($Workspace.TaskSequence).Count)
-                ) -join [System.Environment]::NewLine) `
-                -Command $sequenceCommand -Header $header))
+    $sequenceCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Text ('Task Sequences ({0})' -f @($Workspace.TaskSequence).Count) `
+        -Detail (@(
+            ('{0,-16}: {1}' -f 'Folder', $sequenceFolder)
+            ('{0,-16}: {1}' -f 'Sequences', @($Workspace.TaskSequence).Count)
+        ) -join [System.Environment]::NewLine) `
+        -Command $sequenceCommand -Header $header
+
+    [void] $node.Add($sequenceCategory)
+    [void] $shareNode.Children.Add($sequenceCategory)
 
     foreach ($sequence in @($Workspace.TaskSequence)) {
         $detail = @(
@@ -122,16 +131,22 @@ function Get-HDTConsoleShareNode {
             )
         }
 
-        [void] $node.Add((New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
-                    -Text $text -Detail ($detail -join [System.Environment]::NewLine) `
-                    -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
-                    -Header $header))
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
+            -Text $text -Detail ($detail -join [System.Environment]::NewLine) `
+            -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
+            -Header $header
+
+        [void] $node.Add($row)
+        [void] $sequenceCategory.Children.Add($row)
     }
 
     if (@($Workspace.TaskSequence).Count -eq 0) {
-        [void] $node.Add((New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
-                    -Detail ("There is no task sequence on this share yet. A task sequence is a folder under {0} with a sequence.yaml in it (DESIGN 2.1)." -f $sequenceFolder) `
-                    -Command $sequenceCommand -Header $header))
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
+            -Detail ("There is no task sequence on this share yet. A task sequence is a folder under {0} with a sequence.yaml in it (DESIGN 2.1)." -f $sequenceFolder) `
+            -Command $sequenceCommand -Header $header
+
+        [void] $node.Add($row)
+        [void] $sequenceCategory.Children.Add($row)
     }
 
     # -- operating systems -------------------------------------------------
@@ -139,13 +154,16 @@ function Get-HDTConsoleShareNode {
     $osFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind OperatingSystems
     $osCommand = "Get-HDTWorkspacePath -Root '{0}' -Kind OperatingSystems" -f $Workspace.Root
 
-    [void] $node.Add((New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
-                -Text ('Operating Systems ({0})' -f @($Workspace.OperatingSystem).Count) `
-                -Detail (@(
-                    ('{0,-16}: {1}' -f 'Folder', $osFolder)
-                    ('{0,-16}: {1}' -f 'Systems', @($Workspace.OperatingSystem).Count)
-                ) -join [System.Environment]::NewLine) `
-                -Command $osCommand -Header $header))
+    $osCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Text ('Operating Systems ({0})' -f @($Workspace.OperatingSystem).Count) `
+        -Detail (@(
+            ('{0,-16}: {1}' -f 'Folder', $osFolder)
+            ('{0,-16}: {1}' -f 'Systems', @($Workspace.OperatingSystem).Count)
+        ) -join [System.Environment]::NewLine) `
+        -Command $osCommand -Header $header
+
+    [void] $node.Add($osCategory)
+    [void] $shareNode.Children.Add($osCategory)
 
     foreach ($operatingSystem in @($Workspace.OperatingSystem)) {
         $detail = @(
@@ -179,32 +197,44 @@ function Get-HDTConsoleShareNode {
             )
         }
 
-        [void] $node.Add((New-HDTConsoleNode -Depth 3 -Kind 'OperatingSystem' -Status $operatingSystem.Status `
-                    -Text $text -Detail ($detail -join [System.Environment]::NewLine) `
-                    -Command ("Get-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
-                        $Workspace.Root, $operatingSystem.Id) `
-                    -Header $header))
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'OperatingSystem' -Status $operatingSystem.Status `
+            -Text $text -Detail ($detail -join [System.Environment]::NewLine) `
+            -Command ("Get-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
+                $Workspace.Root, $operatingSystem.Id) `
+            -Header $header
+
+        [void] $node.Add($row)
+        [void] $osCategory.Children.Add($row)
     }
 
     if (@($Workspace.OperatingSystem).Count -eq 0) {
-        [void] $node.Add((New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
-                    -Detail ("There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under {0} with an os.yaml in it (DESIGN 9.3)." -f $osFolder) `
-                    -Command $osCommand -Header $header))
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
+            -Detail ("There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under {0} with an os.yaml in it (DESIGN 9.3)." -f $osFolder) `
+            -Command $osCommand -Header $header
+
+        [void] $node.Add($row)
+        [void] $osCategory.Children.Add($row)
     }
 
     # -- the boot image ----------------------------------------------------
 
     $bootFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind Boot
 
-    [void] $node.Add((New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' -Text 'Boot Image' `
-                -Detail (@(
-                    ('{0,-16}: {1}' -f 'Folder', $bootFolder)
-                    ('{0,-16}: {1}' -f 'Image name', $Workspace.BootImage.Name)
-                ) -join [System.Environment]::NewLine) `
-                -Command ("Get-HDTWorkspacePath -Root '{0}' -Kind Boot" -f $Workspace.Root) `
-                -Header $header))
+    $bootCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' -Text 'Boot Image' `
+        -Detail (@(
+            ('{0,-16}: {1}' -f 'Folder', $bootFolder)
+            ('{0,-16}: {1}' -f 'Image name', $Workspace.BootImage.Name)
+        ) -join [System.Environment]::NewLine) `
+        -Command ("Get-HDTWorkspacePath -Root '{0}' -Kind Boot" -f $Workspace.Root) `
+        -Header $header
 
-    [void] $node.Add((Get-HDTConsoleBootImageNode -BootImage $Workspace.BootImage -Workspace $Workspace -Header $header))
+    [void] $node.Add($bootCategory)
+    [void] $shareNode.Children.Add($bootCategory)
+
+    $bootNode = Get-HDTConsoleBootImageNode -BootImage $Workspace.BootImage -Workspace $Workspace -Header $header
+
+    [void] $node.Add($bootNode)
+    [void] $bootCategory.Children.Add($bootNode)
 
     return [pscustomobject[]] @($node)
 }

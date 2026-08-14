@@ -5,7 +5,7 @@
     Height="720" Width="1180"
     MinHeight="520" MinWidth="900"
     WindowStartupLocation="CenterScreen"
-    Background="#FF1E1E1E">
+    Background="{DynamicResource HDTWindowBrush}">
 
     <!--
         C1 of the WPF-first direction: the admin console, showing what is on a
@@ -19,25 +19,53 @@
         PowerShell, by name, after the tree is loaded.
 
         NAMED CONTROLS ARE THE CONTRACT between this file and New-HDTConsoleHost:
-        HDTShareText, HDTDeployRootText, HDTRootText, HDTConsoleList,
+        HDTShareText, HDTDeployRootText, HDTRootText, HDTConsoleTree,
         HDTDetailText, HDTCommandText and HDTCloseButton are found with FindName,
         and tests/unit/ConsoleWindow.Tests.ps1 asserts every one of those names is
         present, so renaming one here fails on a developer machine rather than in
         front of an administrator.
 
-        THE LIST IS FLAT AND MONOSPACED, NOT A TreeView. Get-HDTConsoleTreeNode
-        emits Display with its indentation already applied, so the tree shape is
-        a string this window merely renders - and a string is something a unit
-        test can assert. A TreeView would have to be built by the host, which is
-        the one component with no tests. The monospaced font is not decoration
-        either: this window shows 64-character SHA-256 hashes, and hashes are
-        read by comparing columns.
+        EVERY COLOUR IS A DynamicResource, AND THE LIGHT PALETTE IS DECLARED
+        BELOW. The values here are the defaults, so this file renders correctly
+        on its own; New-HDTConsoleHost replaces the same keys with whatever
+        Get-HDTConsoleTheme returned, which is how one window file serves both
+        the light and dark palettes without a second copy to keep in step. The
+        keys are asserted against that command, so a colour added to one and not
+        the other fails on a developer machine.
 
-        DisplayMemberPath BINDS TO THE Display MEMBER of the row objects the host
-        is handed. Nothing else in this file binds to anything, so there is no
-        DataContext, no converter and no MVVM plumbing to keep in step with the
-        commands.
+        THE TREE EXPANDS AND COLLAPSES, AND IT IS STILL THE HOST THAT DECIDES
+        NOTHING. A HierarchicalDataTemplate binds Children, so WPF builds the
+        nesting itself from rows Get-HDTConsoleTreeNode already linked together;
+        the host assigns ItemsSource and attaches one handler. Icon, Text and
+        IsExpanded are read off the row, which means what a task sequence looks
+        like and which branches start open are decisions made in a command and
+        asserted in tests/unit/ConsoleTreeNode.Tests.ps1 - not in this file, and
+        not in the adapter.
+
+        THE DETAIL PANE IS MONOSPACED AND THE TREE IS NOT. The pane shows
+        64-character SHA-256 hashes, which are read by comparing columns; the
+        tree shows names, which are read as words.
+
+        THE ICONS ARE CHARACTERS. A .png is another file to ship, find at
+        runtime and get right in two themes. These come out of Windows' own
+        fonts, scale with the row, and survive being copied out as text.
     -->
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
+    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -47,7 +75,7 @@
         </Grid.RowDefinitions>
 
         <!-- banner: the share, and BOTH of its paths -->
-        <Border Grid.Row="0" Background="#FF0E639C" Padding="24,16,24,16">
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="24,16,24,16">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -62,24 +90,29 @@
                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                            x:Name="HDTShareText"
                            Text="Deployment share"
-                           Foreground="White" FontSize="21" FontWeight="SemiBold"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontSize="21" FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis" />
 
                 <TextBlock Grid.Row="1" Grid.Column="0"
-                           Text="Deploy root" Foreground="#FFBEDCF0"
+                           Text="Deploy root"
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
                            FontSize="12" Margin="0,10,14,0" Width="86" />
                 <TextBlock Grid.Row="1" Grid.Column="1"
                            x:Name="HDTDeployRootText"
-                           Text="" Foreground="White" FontSize="12"
+                           Text=""
+                           Foreground="{DynamicResource HDTBannerTextBrush}" FontSize="12"
                            FontFamily="Consolas, Courier New" Margin="0,10,0,0"
                            TextTrimming="CharacterEllipsis" />
 
                 <TextBlock Grid.Row="2" Grid.Column="0"
-                           Text="Opened from" Foreground="#FFBEDCF0"
+                           Text="Opened from"
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
                            FontSize="12" Margin="0,4,14,0" Width="86" />
                 <TextBlock Grid.Row="2" Grid.Column="1"
                            x:Name="HDTRootText"
-                           Text="" Foreground="White" FontSize="12"
+                           Text=""
+                           Foreground="{DynamicResource HDTBannerTextBrush}" FontSize="12"
                            FontFamily="Consolas, Courier New" Margin="0,4,0,0"
                            TextTrimming="CharacterEllipsis" />
             </Grid>
@@ -99,25 +132,49 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="Deployment share"
-                       Foreground="#FF9CDCFE" FontSize="12" Margin="0,0,0,6" />
+                       Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
 
-            <ListBox Grid.Row="1" Grid.Column="0"
-                     x:Name="HDTConsoleList"
-                     DisplayMemberPath="Display"
-                     Background="#FF252526" Foreground="#FFE6E6E6"
-                     BorderBrush="#FF3C3C3C" BorderThickness="1"
-                     FontFamily="Consolas, Courier New" FontSize="13"
-                     ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+            <TreeView Grid.Row="1" Grid.Column="0"
+                      x:Name="HDTConsoleTree"
+                      Background="{DynamicResource HDTPanelBrush}"
+                      Foreground="{DynamicResource HDTPanelTextBrush}"
+                      BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                      FontFamily="Segoe UI" FontSize="13"
+                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <!-- Which branches start open is the row's decision. -->
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+                        <Setter Property="Padding" Value="2,3,2,3" />
+                    </Style>
+                </TreeView.ItemContainerStyle>
+
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Icon}"
+                                       FontFamily="Segoe UI Emoji, Segoe UI Symbol"
+                                       FontSize="13" Margin="0,0,7,0"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Text}"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
 
             <TextBlock Grid.Row="0" Grid.Column="2" Text="Details"
-                       Foreground="#FF9CDCFE" FontSize="12" Margin="0,0,0,6" />
+                       Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
 
             <TextBox Grid.Row="1" Grid.Column="2"
                      x:Name="HDTDetailText"
                      Text=""
                      IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
-                     Background="#FF252526" Foreground="#FFE6E6E6"
-                     BorderBrush="#FF3C3C3C" BorderThickness="1"
+                     Background="{DynamicResource HDTPanelBrush}"
+                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                     BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
                      FontFamily="Consolas, Courier New" FontSize="13"
                      Padding="12"
                      VerticalScrollBarVisibility="Auto"
@@ -135,15 +192,16 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock Grid.Column="0" Text="Command"
-                           Foreground="#FF9CDCFE" FontSize="12"
+                           Foreground="{DynamicResource HDTLabelBrush}" FontSize="12"
                            VerticalAlignment="Center" Margin="0,0,12,0" />
 
                 <TextBox Grid.Column="1"
                          x:Name="HDTCommandText"
                          Text=""
                          IsReadOnly="True" TextWrapping="NoWrap"
-                         Background="#FF1B1B1B" Foreground="#FFCE9178"
-                         BorderBrush="#FF3C3C3C" BorderThickness="1"
+                         Background="{DynamicResource HDTCommandBrush}"
+                         Foreground="{DynamicResource HDTCommandTextBrush}"
+                         BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
                          FontFamily="Consolas, Courier New" FontSize="13"
                          Padding="8,6,8,6"
                          HorizontalScrollBarVisibility="Auto" />
@@ -151,12 +209,14 @@
         </Grid>
 
         <!-- footer -->
-        <Border Grid.Row="2" Background="#FF252526" Margin="0,20,0,0">
+        <Border Grid.Row="2" Background="{DynamicResource HDTFooterBrush}" Margin="0,20,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center" Margin="0,0,24,0">
                 <Button x:Name="HDTCloseButton" Content="Close"
                         Width="112" Height="34"
-                        Background="#FF0E639C" Foreground="White" BorderThickness="0"
+                        Background="{DynamicResource HDTButtonBrush}"
+                        Foreground="{DynamicResource HDTButtonTextBrush}"
+                        BorderThickness="0"
                         IsDefault="True" IsCancel="True" />
             </StackPanel>
         </Border>

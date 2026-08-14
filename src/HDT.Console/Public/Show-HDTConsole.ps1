@@ -69,6 +69,12 @@ function Show-HDTConsole {
         .PARAMETER Title
             The window title.
 
+        .PARAMETER Theme
+            Light or Dark. LIGHT IS THE DEFAULT: the console is a desktop
+            application sitting beside Explorer and the Workbench it replaces,
+            in an office. The WinPE wizard keeps its dark palette, because that
+            one is read on a bench with nothing else on the screen.
+
         .PARAMETER ConsoleHost
             An IConsoleHost. Defaults to the real adapter.
 
@@ -131,6 +137,10 @@ function Show-HDTConsole {
         [Parameter()]
         [AllowNull()]
         [object] $FileSystem,
+
+        [Parameter()]
+        [ValidateSet('Light', 'Dark')]
+        [string] $Theme = 'Light',
 
         [Parameter()]
         [System.Threading.ApartmentState] $ApartmentState =
@@ -202,9 +212,15 @@ function Show-HDTConsole {
 
     $node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($share)))
 
+    # THE HOST IS HANDED THE ROOTS, NOT EVERY ROW. WPF builds the branches from
+    # each row's Children, so the depth-0 rows are the whole ItemsSource. Which
+    # rows those are is decided here rather than in the adapter, which is not
+    # unit tested and must therefore not be the thing that knows.
+    $treeRoot = @($node | Where-Object { $_.Depth -eq 0 })
+
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $node)
+    $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot, (Get-HDTConsoleTheme -Name $Theme))
 
     # A window that was shut and a window whose Close button was pressed are the
     # same outcome here. See the header for why that differs from the wizard.
