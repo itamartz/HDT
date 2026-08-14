@@ -207,8 +207,66 @@ function Invoke-HDTTest {
 
     Write-Information ("test: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
 
-    if ($result.FailedCount -gt 0) {
-        throw ("{0} test(s) failed." -f $result.FailedCount)
+    Assert-HDTPesterResult -Result $result -Suite 'test'
+}
+
+function Assert-HDTPesterResult {
+    <#
+        .SYNOPSIS
+            Throws unless a Pester run both ran and passed.
+
+        .DESCRIPTION
+            FailedCount IS NOT ENOUGH, and 05-06 found out the expensive way.
+
+            A file whose DISCOVERY fails - the commonest cause being SPIKES
+            S9.15's trap, a `-Skip:` reading a variable that only BeforeAll sets,
+            which throws under the StrictMode this script sets - is not run at
+            all. Pester drops the tests it could not discover and reports:
+
+                Result Failed   FailedCount 0   FailedContainersCount 1
+
+            FailedCount is zero because no test failed. No test failed because
+            most of the file was never discovered. Judged by FailedCount alone
+            the build prints BUILD SUCCEEDED over a suite whose assertions never
+            ran, which is the same class of defect as the empty dispatch the
+            header of tests/unit/BuildScript.Tests.ps1 describes: a build that
+            ran nothing is not a build that succeeded.
+
+            IT NAMES THE FILE. "1 container failed" without a path sends the
+            operator to read three suites; the error record Pester attaches to
+            the container is the only thing that says where and why.
+
+        .PARAMETER Result
+            The object Invoke-Pester -PassThru returned.
+
+        .PARAMETER Suite
+            test, integration or e2e - what the message calls the run.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNull()]
+        [object] $Result,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string] $Suite
+    )
+
+    if ($Result.FailedContainersCount -gt 0) {
+        $detail = @($Result.Containers |
+                Where-Object { @($_.ErrorRecord).Count -gt 0 } |
+                ForEach-Object {
+                    '{0}: {1}' -f $_.Item, (@($_.ErrorRecord | ForEach-Object { [string] $_ }) -join '; ')
+                })
+
+        throw ("{0} {1} file(s) could not be run at all - a discovery or setup failure means their assertions never executed, and no test failing is not the same as every test passing. {2}" -f
+            $Result.FailedContainersCount, $Suite, ($detail -join ' | '))
+    }
+
+    if ($Result.FailedCount -gt 0) {
+        throw ("{0} {1} test(s) failed." -f $Result.FailedCount, $Suite)
     }
 }
 
@@ -329,9 +387,7 @@ function Invoke-HDTIntegrationTest {
 
     Write-Information ("integration: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
 
-    if ($result.FailedCount -gt 0) {
-        throw ("{0} integration test(s) failed." -f $result.FailedCount)
-    }
+    Assert-HDTPesterResult -Result $result -Suite 'integration'
 }
 
 function Invoke-HDTEndToEndTest {
@@ -397,9 +453,7 @@ function Invoke-HDTEndToEndTest {
 
     Write-Information ("e2e: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
 
-    if ($result.FailedCount -gt 0) {
-        throw ("{0} end-to-end test(s) failed." -f $result.FailedCount)
-    }
+    Assert-HDTPesterResult -Result $result -Suite 'end-to-end'
 }
 
 function Invoke-HDTSelfCheck {

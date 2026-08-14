@@ -191,6 +191,20 @@ Describe 'Start-HDTLabDeployment.ps1' {
             }
         }
 
+        It 'tells the power service it is in WinPE' {
+            # 05-06. This launcher runs inside WinPE too, and WinPE has no
+            # shutdown.exe - so the third caller of New-HDTPowerService needs the
+            # same answer as the other two, and cannot be left to a default
+            # because there is not one.
+            $power = @(& $script:commandNamed 'New-HDTPowerService')
+
+            $power.Count | Should -Be 1
+
+            $element = @($power[0].CommandElements | ForEach-Object { [string] $_.Extent.Text })
+            $element | Should -Contain '-Environment'
+            $element | Should -Contain 'WinPE'
+        }
+
         It 'gathers facts and resolves variables' {
             @(& $script:commandNamed 'Get-HDTMachineFact').Count | Should -Be 1
             @(& $script:commandNamed 'Resolve-HDTVariable').Count | Should -Be 1

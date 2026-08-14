@@ -244,14 +244,16 @@ Describe 'build.ps1' {
         It 'leaves no suite judging itself by FailedCount alone' {
             # The assertion that keeps the previous one from being satisfied by
             # a call that sits BESIDE the old condition rather than replacing it.
-            $stray = @($script:ast.FindAll({
-                        param($node)
-                        $node -is [System.Management.Automation.Language.IfStatementAst] -and
-                        ([string] $node.Clauses[0].Item1.Extent.Text) -match 'FailedCount' -and
-                        ([string] $node.Clauses[0].Item1.Extent.Text) -notmatch 'FailedContainersCount'
-                    }, $true))
+            #
+            # Scoped to the three runner functions. Invoke-HDTSelfCheck reads
+            # FailedCount too and is right to: it is asserting that a
+            # DELIBERATELY failing test was detected, which is a different
+            # question from whether a suite ran.
+            foreach ($name in @('Invoke-HDTTest', 'Invoke-HDTIntegrationTest', 'Invoke-HDTEndToEndTest')) {
+                $body = & $script:functionBody $name
 
-            @($stray) | Should -BeNullOrEmpty
+                $body | Should -Not -BeLike '*FailedCount -gt 0*' -Because "$name must not keep its own judgement beside the shared one"
+            }
         }
     }
 

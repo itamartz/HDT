@@ -26,7 +26,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeEnvironmentProvider` | `IEnvironmentProvider` | `New-HDTEnvironmentProvider` | `-Variable` |
 | `New-HDTFakeScriptInvoker` | `IScriptInvoker` | `New-HDTScriptInvoker -Root` | `-Result`, `-Transcript` |
 | `New-HDTFakeProcessService` | `IProcessService` | `New-HDTProcessService` | `-Result` |
-| `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Command` | nothing |
+| `New-HDTFakePowerService` | `IPowerService` | `New-HDTPowerService -Environment` | nothing |
 | `New-HDTFakeLsaService` | `ILsaService` | `New-HDTLsaService` | `-Secret` |
 | `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |

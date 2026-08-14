@@ -169,7 +169,10 @@ try {
     $environment = New-HDTEnvironmentProvider
     $cim = New-HDTCimProvider
     $processService = New-HDTProcessService
-    $power = New-HDTPowerService
+    # WinPE. 05-06 mounted the boot image and found no shutdown.exe in it, so
+    # a power service built for the full OS would hand a Restart step a command
+    # that does not exist. -Environment is mandatory so it cannot be left out.
+    $power = New-HDTPowerService -Environment WinPE
     $scriptInvoker = New-HDTScriptInvoker -Root $workspaceRoot
 
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
