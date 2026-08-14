@@ -1,0 +1,79 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Hephaestus Deployment Toolkit"
+    Height="480" Width="720"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="NoResize"
+    Background="#FF1E1E1E">
+
+    <!--
+        W1 of the WPF-first direction. Deliberately almost nothing: a window, a
+        title, and the two buttons every later increment will sit between.
+
+        NO x:Class AND NO CODE-BEHIND. XamlReader::Load parses markup only -
+        there is no compiler in WinPE to build a partial class against, so a
+        x:Class attribute here would fail at load with an error that reads like
+        a XAML problem rather than a missing assembly. Handlers are attached in
+        PowerShell, by name, after the tree is loaded.
+
+        NAMED CONTROLS ARE THE CONTRACT between this file and Show-HDTWizard:
+        HDTNextButton and HDTCancelButton are found with FindName, and
+        tests/unit/Show-HDTWizard.Tests.ps1 asserts both names are present so
+        renaming one here fails on a developer machine rather than in WinPE.
+
+        Colours are literal rather than themed. A ResourceDictionary merge is
+        another file that has to reach the RAM disk intact, and W1's job is to
+        answer "does WPF render here at all" with as few moving parts as
+        possible.
+    -->
+
+    <Grid Margin="0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="96" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="72" />
+        </Grid.RowDefinitions>
+
+        <!-- banner -->
+        <Border Grid.Row="0" Background="#FF0E639C">
+            <StackPanel VerticalAlignment="Center" Margin="28,0,28,0">
+                <TextBlock x:Name="HDTBannerTitle"
+                           Text="Hephaestus Deployment Toolkit"
+                           Foreground="White" FontSize="24" FontWeight="SemiBold" />
+                <TextBlock x:Name="HDTBannerSubtitle"
+                           Text="Windows deployment"
+                           Foreground="#FFD6E9F5" FontSize="13" Margin="0,4,0,0" />
+            </StackPanel>
+        </Border>
+
+        <!-- body -->
+        <StackPanel Grid.Row="1" Margin="28,24,28,0">
+            <TextBlock x:Name="HDTBodyHeading"
+                       Text="Welcome"
+                       Foreground="White" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock x:Name="HDTBodyText"
+                       Text="This machine will be deployed from the HDT deployment share."
+                       Foreground="#FFCCCCCC" FontSize="13" Margin="0,10,0,0"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="HDTDeployRootText"
+                       Text=""
+                       Foreground="#FF9CDCFE" FontSize="12" Margin="0,18,0,0"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!-- buttons -->
+        <Border Grid.Row="2" Background="#FF252526">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,28,0">
+                <Button x:Name="HDTCancelButton" Content="Cancel"
+                        Width="112" Height="34" Margin="0,0,12,0"
+                        Background="#FF3C3C3C" Foreground="White" BorderThickness="0" />
+                <Button x:Name="HDTNextButton" Content="Next"
+                        Width="112" Height="34"
+                        Background="#FF0E639C" Foreground="White" BorderThickness="0"
+                        IsDefault="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

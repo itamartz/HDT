@@ -590,7 +590,11 @@ function Update-HDTBootImage {
         $engineFileCount = 0
         foreach ($child in @($FileSystem.GetChildItem($EngineModulePath))) {
             $leaf = [System.IO.Path]::GetFileName(([string] $child).TrimEnd('\', '/'))
-            if ($leaf -eq 'Payload') { continue }
+            # Payload\ AND UI\ ARE BOTH EXCLUDED FROM THE MODULE TREE and
+            # staged to X:\HDT\ instead. A second copy under
+            # Modules\Hephaestus\ would be a second answer to "where is the
+            # wizard", and the one startnet.cmd does not use.
+            if (@('Payload', 'UI') -contains $leaf) { continue }
 
             $target = [System.IO.Path]::Combine($engineDestination, $leaf)
 
@@ -621,6 +625,28 @@ function Update-HDTBootImage {
                 FileCount   = $yamlFileCount
                 SizeBytes   = [long] 0
             })
+
+        # -- the wizard UI ---------------------------------------------------
+        #
+        # W1 of the WPF-first direction. The window lives at X:\HDT\UI\ because
+        # X: is the RAM disk and its letter is fixed - the same reason the
+        # payloads are there. An image with no UI\ folder on the build host is
+        # not an error: the engine deploys perfectly well without a technician
+        # window, and DESIGN's unattended path must not start requiring one.
+
+        $uiSource = [System.IO.Path]::Combine($EngineModulePath, 'UI')
+
+        if ($FileSystem.TestPath($uiSource)) {
+            $uiDestination = [System.IO.Path]::Combine($hdtRoot, 'UI')
+            $uiFileCount = Copy-HDTContentTree -Source $uiSource -Destination $uiDestination -FileSystem $FileSystem
+
+            [void] $payloadRow.Add([pscustomobject] @{
+                    Destination = '\HDT\UI'
+                    Source      = $uiSource
+                    FileCount   = $uiFileCount
+                    SizeBytes   = [long] 0
+                })
+        }
 
         $FileSystem.CopyItem($deploymentPayload, [System.IO.Path]::Combine($hdtRoot, 'Start-HDTDeployment.ps1'))
         [void] $payloadRow.Add([pscustomobject] @{

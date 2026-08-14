@@ -109,6 +109,10 @@ bootImage:
         $seed[($script:enginePath + '\Payload\Start-HDTDeployment.ps1')] = '# the entry point'
         $seed[($script:enginePath + '\Payload\Start-HDTResume.ps1')] = '# the resume leg'
 
+        # UI\ is staged to X:\HDT\UI\ like Payload\, and for the same reason:
+        # the window has to be findable at a fixed path inside the image.
+        $seed[($script:enginePath + '\UI\HDTWizard.xaml')] = '<Window />'
+
         $seed[($script:yamlPath + '\powershell-yaml.psd1')] = '@{ ModuleVersion = ''0.4.12'' }'
         $seed[($script:yamlPath + '\net47\YamlDotNet.dll')] = 'binary'
 
@@ -401,6 +405,14 @@ Describe 'Update-HDTBootImage' {
             $record | Should -Not -BeNullOrEmpty
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTDependencyError*'
             $record.Exception.Message | Should -BeLike '*powershell-yaml*'
+        }
+
+        It 'stages the wizard UI at \HDT\UI so the technician window can be shown' {
+            # W1 of the WPF-first direction. The window has to be INSIDE the
+            # image: X: is the RAM disk and its letter is fixed, which is the
+            # same reason the payloads live there rather than on a data disk.
+            $script:contentContext.FileSystem.TestPath(
+                $script:mountPath + '\HDT\UI\HDTWizard.xaml') | Should -BeTrue
         }
 
         It 'writes startnet.cmd into Windows\System32 under the mount' {
@@ -946,6 +958,11 @@ Describe 'Update-HDTBootImage' {
         It 'records the ADK it built from' {
             $script:manifestDocument.adk.root | Should -BeExactly $script:adkRoot
             $script:manifestDocument.adk.oscdimg | Should -BeLike '*oscdimg.exe'
+        }
+
+        It 'records the UI in the manifest, like the other staged payloads' {
+            @($script:manifestDocument.payload | Where-Object { $_.destination -like '*\HDT\UI*' }).Count |
+                Should -BeGreaterThan 0
         }
 
         It 'records the payload it staged' {

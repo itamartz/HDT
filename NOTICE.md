@@ -26,6 +26,7 @@ attached.
 | File | Derived from | What was derived |
 |---|---|---|
 | `src/Hephaestus/Public/Get-HDTMachineFact.ps1` | `Scripts/PSDGather.psm1`, function `Get-PSDLocalInfo` | The chassis-type classification tables (laptop 8, 9, 10, 11, 12, 14, 18, 21; desktop 3, 4, 5, 6, 7, 15, 16; server 23), the virtual-machine manufacturer list, and the `PROCESSOR_ARCHITEW6432` over `PROCESSOR_ARCHITECTURE` precedence |
+| `src/Hephaestus/Public/New-HDTWizardHost.ps1` | `Scripts/PSDWizard.psm1` and `Scripts/PSDWizardNew.psm1` | The technique for showing a WPF window inside WinPE: `Add-Type -AssemblyName PresentationFramework` followed by `XamlReader::Load` over an `XmlNodeReader`, with markup that carries no `x:Class` and handlers attached by `FindName` afterwards. PSD is the proof that this works in WinPE at all; the window, its contents and every decision about what a click means are HDT's own |
 
 The derived facts are also recorded in a `.NOTES` block on the function itself,
 so a reader of the code finds the attribution without opening this file.

@@ -26,7 +26,8 @@
         'New-HDTFakeRegistryService',
         'New-HDTFakeScriptInvoker',
         'New-HDTFakeSmbService',
-        'New-HDTFakeWdsService'
+        'New-HDTFakeWdsService',
+        'New-HDTFakeWizardHost'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()

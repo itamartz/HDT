@@ -4170,8 +4170,92 @@ function New-HDTFakeBootImageService {
     return $fake
 }
 
+function New-HDTFakeWizardHost {
+    <#
+        .SYNOPSIS
+            Creates an IWizardHost that shows nothing and answers what it was
+            told to answer.
+
+        .DESCRIPTION
+            The hand-written double behind every wizard test (DESIGN 12.2.3:
+            fake, don't mock). It is what lets Show-HDTWizard be asserted on a
+            developer machine with no display and no WinPE - the window itself
+            lives in New-HDTWizardHost, which is a branch-free adapter and is
+            therefore not unit tested.
+
+            It implements the one IWizardHost method, Show(xaml, title), and
+            records the XAML and title it was handed so a test can assert what
+            reached the window without rendering one.
+
+            -Action IS RETURNED VERBATIM, INCLUDING EMPTY. An empty action is
+            the shape a real window produces when it is closed with the X rather
+            than answered, and Show-HDTWizard is required to read that as
+            Cancel. A fake that quietly substituted 'Cancel' here would hide the
+            very branch that keeps a dismissed wizard from meaning consent to
+            partition a disk.
+
+        .PARAMETER Action
+            What the technician "chose". 'Next', 'Cancel', or empty for a window
+            that was dismissed without answering.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal.
+
+        .OUTPUTS
+            A PSCustomObject with a Show method, an Operations list, and the
+            LastXaml and LastTitle it was handed.
+
+        .EXAMPLE
+            Show-HDTWizard -XamlPath $p -Title 'HDT' -WizardHost (New-HDTFakeWizardHost -Action 'Next')
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Action = 'Cancel',
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Journal
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $service = [pscustomobject] @{
+        Action     = $Action
+        Operations = (New-Object -TypeName System.Collections.ArrayList)
+        Journal    = $Journal
+        LastXaml   = ''
+        LastTitle  = ''
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
+        param([string] $Operation)
+
+        [void] $this.Operations.Add($Operation)
+        if ($null -ne $this.Journal) { [void] $this.Journal.Add($Operation) }
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
+        param([string] $Xaml, [string] $Title)
+
+        $this.LastXaml = $Xaml
+        $this.LastTitle = $Title
+        $this.Record(('Show({0})' -f $Title))
+
+        return $this.Action
+    }
+
+    return $service
+}
+
 Export-ModuleMember -Function @(
     'New-HDTFakeBootImageService',
+    'New-HDTFakeWizardHost',
     'New-HDTFakeCimProvider',
     'New-HDTFakeClock',
     'New-HDTFakeContentProvider',
