@@ -10,7 +10,9 @@
         over a network. SPIKES S6 recorded that a VM on the isolated 'HDT Lab'
         switch cannot reach a share on the host, which is why it stayed unproven;
         PROJECT.md now permits the 'HDT External' switch, where the VM gets DHCP
-        from the real LAN and the host is reachable at 192.168.2.108.
+        from the real LAN and the host is reachable on 192.168.2.0/24. The
+        host's octet is a lease and moves, so this probe is handed a share path
+        rather than assuming one.
 
         WHY A PROBE BEFORE A DEPLOYMENT. A deployment that cannot reach the share
         fails in the first thirty seconds and shuts the machine down, and from

@@ -269,7 +269,7 @@ Both sit on the **`Default Switch`** (192.168.25.0/24).
 
    | Switch | Use it for | Why |
    |---|---|---|
-   | **`HDT External`** (Wi-Fi, 192.168.2.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable at **192.168.2.108**, DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps `\\192.168.2.108\HDTShare` and applies a 4 GB WIM over it in 95 s |
+   | **`HDT External`** (Wi-Fi, 192.168.2.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable on this subnet, but **its octet is a DHCP lease that moves — read it before building a boot image**, do not quote it here. DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps the host's `HDTShare` and applies a 4 GB WIM over it in 95 s |
    | **`HDT Lab`** (internal, isolated) | **PXE and WDS work only** | An isolated segment is the only place a second PXE responder cannot collide with CM01's |
 
    An earlier version of this rule sent *every* test VM to the isolated switch.

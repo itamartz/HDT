@@ -133,9 +133,22 @@ locations above.
 
 ## ⚠ Networking: 192.168.2.0/24, and nothing else without asking
 
-**The lab network is `192.168.2.0/24`.** The host is **`192.168.2.108`**, DHCP
-comes from the real LAN, and test VMs reach it through the **`HDT External`**
-switch. Everything that needs a network uses that.
+**The lab network is `192.168.2.0/24`.** DHCP comes from the real LAN and test
+VMs reach the host through the **`HDT External`** switch. Everything that needs
+a network uses that.
+
+**In this lab, the host's own address is a DHCP lease and it moves** — changing
+the Wi-Fi is enough to move it. The subnet is stable; the octet is not. So this
+file does not name one, and neither should any test or plan: **read it before
+you build a boot image**, because the address gets baked into what you build.
+
+This is a fact about *this lab*, not about HDT. A real deployment share has a
+stable address, and nothing in `src/` should be shaped around a lease that
+moves.
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'vEthernet (HDT External)'
+```
 
 **Never assign, create or use another subnet without asking the user first.**
 Not a new IP on a vSwitch, not a static address outside `192.168.2.0/24`, not a
@@ -164,8 +177,8 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
 - HDT test VMs: named `HDT-*`, **Generation 2**, files in `C:\HDTLab\vms\`,
   under 12 GB combined, and on **one of exactly two switches**:
   - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
-    `192.168.2.0/24` and can reach the host at `192.168.2.108`, which is what a
-    deployment over SMB needs.
+    `192.168.2.0/24` and can reach the host on that subnet, which is what a
+    deployment over SMB needs. Read the host's address; don't assume it.
   - **`HDT Lab`** — the isolated internal one, reserved for PXE/WDS, where a
     second responder cannot answer. A VM here gets **no lease and cannot reach a
     share on the host** (SPIKES S6), so it is the wrong choice for anything that
