@@ -179,6 +179,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="34" />
                             <RowDefinition Height="34" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="IP address"
@@ -196,10 +197,25 @@
                         <TextBlock Grid.Row="1" Grid.Column="2" Text="DNS servers"
                                    Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0" />
                         <TextBox   Grid.Row="1" Grid.Column="3" x:Name="HDTDnsBox" Style="{StaticResource HDTAddressBox}" />
-                    </Grid>
 
-                    <TextBlock x:Name="HDTDnsHint" Text="Separate multiple DNS servers with a comma."
-                               Foreground="#FF8A8A8A" FontSize="11" Margin="152,2,0,0" />
+                        <!--
+                            UNDER THE BOX IT DESCRIBES, NOT A TOOLTIP. It sat
+                            under the IP address column while describing a box
+                            two columns to its right, which is worse than not
+                            being there. A tooltip was the alternative and is
+                            wrong here for two reasons: the credential pane
+                            already puts its hint directly under the Domain box,
+                            so a tooltip would be the one inconsistent
+                            affordance on the screen; and hover is invisible - a
+                            technician on a bench in WinPE has no reason to
+                            discover it, and Set-HDTStaticAddress genuinely
+                            needs the comma to split the list.
+                        -->
+                        <TextBlock Grid.Row="2" Grid.Column="3" x:Name="HDTDnsHint"
+                                   Text="Separate several with a comma."
+                                   Foreground="#FF8A8A8A" FontSize="11"
+                                   Margin="2,2,0,0" TextWrapping="Wrap" />
+                    </Grid>
                 </StackPanel>
 
                 <!-- ============ share ============ -->

@@ -173,9 +173,9 @@ function Set-HDTStaticAddress {
                     -Message ("the default gateway '{0}' is not an IPv4 address. A gateway is an address on this subnet, not a name." -f $Gateway)))
     }
 
-    # THE BOX SAYS "separate multiple DNS servers with a comma", so what the box
-    # produces has to be what this accepts - otherwise the hint on screen is an
-    # instruction to break it.
+    # THE HINT UNDER THE DNS BOX SAYS "separate several with a comma", so what
+    # the box produces has to be what this accepts - otherwise the hint on
+    # screen is an instruction to break it.
     $dns = @(@($DnsServer) |
             Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_) } |
             ForEach-Object { [string] $_ } |

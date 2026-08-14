@@ -148,7 +148,7 @@ Describe 'Set-HDTStaticAddress' {
         }
 
         It 'splits the comma-separated list the DNS box asks a technician to type' {
-            # HDTWelcome.xaml says "Separate multiple DNS servers with a comma",
+            # The hint under the DNS box says "Separate several with a comma",
             # so what the box produces has to be what this accepts. Otherwise the
             # hint on screen is an instruction to break it.
             $cim = New-HDTTestWinPeCim
