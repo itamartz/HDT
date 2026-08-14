@@ -1,0 +1,151 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Hephaestus Deployment Toolkit"
+    Height="700" Width="900"
+    WindowStartupLocation="CenterScreen"
+    ResizeMode="NoResize"
+    WindowStyle="None"
+    Background="#FF1E1E1E">
+
+    <!--
+        MDT'S LITETOUCH WIZARD, REBUILT - the shape an MDT admin already knows:
+        a coloured rail down the left listing the pages, the current page's
+        content to the right of it, and Back / Next / Cancel at the bottom.
+        PSDWizard_Template_Classic_en-US.xaml is the closest prior art and this
+        follows its layout deliberately (NOTICE.md).
+
+        WHERE IT DEVIATES FROM PSD, AND WHY BOTH ARE FORCED:
+
+          NO x:Class. PSD's template declares PSDWizard.MainWindow and relies on
+          code-behind. There is no compiler in WinPE; New-HDTWizardHost attaches
+          every handler through FindName instead, and
+          tests/contract/WinPeUiStack.Contract.Tests.ps1 refuses a code-behind
+          class outright.
+
+          NO MERGED ResourceDictionary. PSD's template merges six of them by
+          Source=. That is six more files that must reach the RAM disk intact,
+          and a page that half-loads in WinPE is a XamlParseException where a
+          wizard should be. The host merges HDTTheme.xaml at runtime instead, so
+          this file names no other file at all.
+
+        THE RAIL IS A LIST, NOT A TabControl. MDT's panes are not tabs a
+        technician may click between - the order is the deployment's order, and
+        a page becomes reachable by being reached. The rail SHOWS progress; the
+        buttons MAKE it. HDTPageList is therefore display-only, and the host
+        drives HDTPageHost.
+
+        EVERY PAGE IS INDIVIDUALLY SKIPPABLE (DESIGN 11.2). A page whose values
+        are all supplied never appears, and never appears in the rail either -
+        the rail lists what this deployment will actually ask, not the catalogue
+        of what a deployment could ask.
+    -->
+
+    <!--
+        THE ROOT PAINTS ITS OWN GROUND. Window.Background alone is not enough:
+        anything that renders this tree without the Window around it - a
+        preview, a screenshot harness, a page hosted elsewhere - gets whatever
+        is behind it, and white text on white ground is a wizard nobody can
+        read. It cost exactly one screenshot to learn.
+    -->
+    <Grid Background="#FF1E1E1E">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="230" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="76" />
+        </Grid.RowDefinitions>
+
+        <!-- ============ the rail ============ -->
+        <!--
+            DARKER THAN THE ACCENT, not the accent itself: the rail is a
+            backdrop that must never compete with the selected row painted on
+            top of it in that accent.
+        -->
+        <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Background="#FF083B5C" x:Name="HDTDragBanner">
+            <DockPanel LastChildFill="True">
+
+                <StackPanel DockPanel.Dock="Top" Margin="24,28,24,24">
+                    <TextBlock x:Name="HDTShellTitle" Text="Hephaestus"
+                               Foreground="White" FontSize="26" FontWeight="SemiBold" />
+                    <TextBlock x:Name="HDTShellSubtitle" Text="Deployment Toolkit"
+                               Foreground="#FFA9CDE6" FontSize="15" Margin="0,2,0,0" />
+                </StackPanel>
+
+                <!--
+                    THE VERSION AND THE BUILD, at the bottom of the rail where
+                    MDT puts them. On a machine that has just failed, the first
+                    question is always WHICH IMAGE THIS IS - and the answer has
+                    to be on screen, because the log is on a share the machine
+                    may not have reached.
+                -->
+                <TextBlock DockPanel.Dock="Bottom" x:Name="HDTShellBuild" Text=""
+                           Foreground="#FF7FA8C4" FontSize="13"
+                           Margin="24,0,24,20" TextWrapping="Wrap" />
+
+                <ItemsControl x:Name="HDTPageList" Margin="0,8,0,0"
+                              Background="Transparent" BorderThickness="0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{Binding Fill}" Padding="24,10,16,10">
+                                <TextBlock Text="{Binding Title}" Foreground="{Binding Ink}"
+                                           FontSize="16" TextWrapping="Wrap" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
+        </Border>
+
+        <!-- ============ the page ============ -->
+        <Grid Grid.Row="0" Grid.Column="1" Margin="36,32,36,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" x:Name="HDTPageHeading" Text=""
+                       Foreground="White" FontSize="26" FontWeight="SemiBold" />
+
+            <TextBlock Grid.Row="1" x:Name="HDTPageSubheading" Text=""
+                       Foreground="#FFCCCCCC" FontSize="16"
+                       Margin="0,6,0,0" TextWrapping="Wrap" />
+
+            <!--
+                WHERE THE PAGE ITSELF GOES. The host parses the page's own XAML
+                and drops it in here, which is what lets DESIGN 11.2's eight
+                pages live on the SHARE under Scripts\UI and be redesigned
+                without rebuilding a boot image.
+            -->
+            <ContentControl Grid.Row="2" x:Name="HDTPageHost" Margin="0,24,0,0" />
+        </Grid>
+
+        <!-- ============ the buttons ============ -->
+        <Border Grid.Row="1" Grid.Column="1" Background="#FF252526">
+            <Grid Margin="36,0,36,0">
+                <TextBlock x:Name="HDTMessageText" Text="" HorizontalAlignment="Left"
+                           VerticalAlignment="Center" Foreground="#FFF48771"
+                           FontSize="15" TextWrapping="Wrap" MaxWidth="300" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <!--
+                        OPEN CMD IS NOT A WAY OUT, it is the diagnostic door -
+                        and it stays on every page because the page a technician
+                        is stuck on is the page they need a prompt from.
+                    -->
+                    <Button x:Name="HDTCommandPromptButton" Content="Open CMD"
+                            Width="120" Height="38" Background="#FF3A3A3C" Margin="0,0,16,0" />
+                    <Button x:Name="HDTBackButton" Content="Back"
+                            Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />
+                    <Button x:Name="HDTCancelButton" Content="Cancel"
+                            Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />
+                    <Button x:Name="HDTNextButton" Content="Next"
+                            Width="130" Height="38" Background="#FF0E639C" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

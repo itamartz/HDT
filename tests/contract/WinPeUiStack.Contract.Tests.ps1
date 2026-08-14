@@ -98,7 +98,33 @@ Describe 'the WinPE UI stack' {
         # out of the rules by existing.
 
         BeforeAll {
-            $script:window = @($script:scanned | Where-Object { $_.Relative -like '*.xaml' })
+            # MARKUP WITHOUT ITS COMMENTS, for every rule below. These files
+            # explain themselves at length, and several of them explain a rule
+            # by naming the thing it forbids - HDTTheme.xaml's header says why
+            # it is not merged with `ResourceDictionary Source=`, which under a
+            # raw scan convicts the one file that had to say it. Same trap the
+            # no-keystroke contract hit, same fix: judge the markup, not the
+            # prose.
+            $script:markup = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.xaml' } |
+                    ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Text     = $_.Text
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    })
+
+            # A WINDOW IS A FILE WHOSE ROOT IS <Window>, and the difference now
+            # matters: HDTTheme.xaml is a ResourceDictionary, so it has no Next
+            # button, no Cancel button and no business being asked for them. It
+            # is still markup that ships into the image, so every OTHER rule
+            # still applies to it.
+            $script:window = @($script:markup |
+                    Where-Object { ([xml] $_.Text).DocumentElement.LocalName -eq 'Window' })
+
+            $script:dictionary = @($script:markup |
+                    Where-Object { ([xml] $_.Text).DocumentElement.LocalName -eq 'ResourceDictionary' })
         }
 
         It 'found at least one window' {
@@ -106,11 +132,21 @@ Describe 'the WinPE UI stack' {
                 'the assertions below are vacuous with nothing to check')
         }
 
+        It 'found the theme dictionary' {
+            # Anti-vacuity for the split above: if the root-element test ever
+            # stopped recognising a dictionary, every dictionary would silently
+            # become a window and the button rule would start failing them -
+            # or worse, the split would quietly classify a real window as a
+            # dictionary and excuse it from the button rule entirely.
+            @($script:dictionary).Count | Should -BeGreaterThan 0 -Because (
+                'HDTTheme.xaml is a ResourceDictionary and the split must see it as one')
+        }
+
         It 'declares no code-behind class in any window' {
             # There is no compiler in WinPE to build a partial class against, so
             # XamlReader::Load - which parses markup only - is the only way in.
             $offender = @()
-            foreach ($row in $script:window) {
+            foreach ($row in $script:markup) {
                 $document = [xml] $row.Text
                 if (-not [string]::IsNullOrEmpty($document.DocumentElement.GetAttribute('Class', 'http://schemas.microsoft.com/winfx/2006/xaml'))) {
                     $offender += $row.Relative
@@ -124,15 +160,18 @@ Describe 'the WinPE UI stack' {
             # Another file that would have to reach the RAM disk intact. Every
             # increment that adds one has to add it to the image as well, and
             # this is where that gets noticed.
-            $offender = @($script:window |
-                    Where-Object { $_.Text -match 'ResourceDictionary\s+Source=' } |
+            # EVERY .xaml, not only the windows: a dictionary that merged
+            # another dictionary would put the same second file on the RAM disk
+            # by a longer route.
+            $offender = @($script:markup |
+                    Where-Object { $_.Code -match 'ResourceDictionary\s+Source=' } |
                     ForEach-Object { $_.Relative })
 
             @($offender).Count | Should -Be 0 -Because ('external resources in: {0}' -f ($offender -join ', '))
         }
 
         It 'parses as XML' {
-            foreach ($row in $script:window) {
+            foreach ($row in $script:markup) {
                 { [xml] $row.Text } | Should -Not -Throw -Because $row.Relative
             }
         }
@@ -140,9 +179,10 @@ Describe 'the WinPE UI stack' {
         It 'names its buttons so the backend can find them' {
             # FindName is how handlers are attached with no code-behind, so a
             # page whose buttons are anonymous cannot be wired at all.
+            # WINDOWS ONLY. A ResourceDictionary has no buttons to name.
             foreach ($row in $script:window) {
-                $row.Text | Should -BeLike '*HDTNextButton*' -Because $row.Relative
-                $row.Text | Should -BeLike '*HDTCancelButton*' -Because $row.Relative
+                $row.Code | Should -BeLike '*HDTNextButton*' -Because $row.Relative
+                $row.Code | Should -BeLike '*HDTCancelButton*' -Because $row.Relative
             }
         }
     }
