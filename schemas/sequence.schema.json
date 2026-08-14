@@ -33,6 +33,7 @@
       "properties": {
         "group": { "type": "string", "minLength": 1 },
         "condition": { "type": "string", "minLength": 1 },
+        "disabled": { "type": "boolean" },
         "runIn": { "enum": ["WinPE", "FullOS", "Any"] },
         "steps": { "$ref": "#/definitions/nodeList" }
       }
@@ -45,6 +46,7 @@
         "type": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$" },
         "condition": { "type": "string", "minLength": 1 },
         "continueOnError": { "type": "boolean" },
+        "disabled": { "type": "boolean" },
         "resumable": { "type": "boolean" },
         "timeoutMinutes": { "type": "integer", "minimum": 1 },
         "runIn": { "enum": ["WinPE", "FullOS", "Any"] },

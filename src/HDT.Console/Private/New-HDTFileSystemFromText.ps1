@@ -64,8 +64,15 @@ function New-HDTFileSystemFromText {
         return ([string] $Path -eq [string] $this.DocumentPath)
     }
 
+    # IT ANSWERS FOR ONE PATH AND REFUSES EVERY OTHER. Returning the document
+    # whatever was asked for would make a caller that read the wrong file look
+    # like it had read the right one.
     Add-Member -InputObject $service -MemberType ScriptMethod -Name 'ReadAllText' -Value {
         param([string] $Path)
+
+        if ([string] $Path -ne [string] $this.DocumentPath) {
+            throw ("this reader holds only '{0}', and '{1}' was asked for." -f $this.DocumentPath, $Path)
+        }
 
         return [string] $this.DocumentText
     }

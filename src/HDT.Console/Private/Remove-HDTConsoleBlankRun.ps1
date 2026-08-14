@@ -30,6 +30,8 @@ function Remove-HDTConsoleBlankRun {
         .EXAMPLE
             Remove-HDTConsoleBlankRun -Line $line -At 42
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Returns a copy of in-memory lines. Save-HDTConsoleSequence is the only command that writes, and it carries ShouldProcess.')]
     [CmdletBinding()]
     [OutputType([string[]])]
     param(

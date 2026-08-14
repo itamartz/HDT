@@ -37,6 +37,9 @@ function Import-HDTSequenceDocument {
               GroupCondition   [object[]] of Group/Condition, outermost first,
                                only for ancestors that declare one
               ContinueOnError  [bool], default $false
+              Disabled         [bool], default $false - the step is skipped
+                               without being removed. A step inside a disabled
+                               group is disabled whatever it says about itself
               TimeoutMinutes   [int], 0 = unbounded, default 0
               RunIn            WinPE | FullOS | Any; a step with none inherits its
                                nearest ancestor group's runIn, default Any
@@ -110,7 +113,7 @@ function Import-HDTSequenceDocument {
 
     # The common properties. Everything else on a step node is that step type's
     # own argument and goes into Property untouched.
-    $commonKey = @('name', 'type', 'condition', 'continueOnError', 'timeoutMinutes', 'runIn', 'retry', 'resumable', 'log')
+    $commonKey = @('name', 'type', 'condition', 'continueOnError', 'disabled', 'timeoutMinutes', 'runIn', 'retry', 'resumable', 'log')
 
     $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
     if ($document.Contains('variables')) {
@@ -138,6 +141,7 @@ function Import-HDTSequenceDocument {
                 GroupPath      = [string[]] @()
                 GroupCondition = [object[]] @()
                 RunIn          = 'Any'
+                Disabled       = $false
             })
     }
 
@@ -169,10 +173,20 @@ function Import-HDTSequenceDocument {
                 $groupRunIn = [string] $node['runIn']
             }
 
+            # A DISABLED GROUP DISABLES EVERYTHING UNDER IT, and a group inside a
+            # disabled group cannot switch itself back on. Turning off a group of
+            # six is one edit, and re-enabling one step inside it by hand would be
+            # a document that says two contradictory things.
+            $groupDisabled = [bool] $frame.Disabled
+            if (-not $groupDisabled -and $node.Contains('disabled')) {
+                $groupDisabled = [bool] $node['disabled']
+            }
+
             [void] $group.Add([pscustomobject] @{
                     Path      = $groupPath
                     Condition = $groupCondition
                     RunIn     = $groupRunIn
+                    Disabled  = $groupDisabled
                 })
 
             $childNode = @($node['steps'])
@@ -182,6 +196,7 @@ function Import-HDTSequenceDocument {
                         GroupPath      = $groupPath
                         GroupCondition = $inheritedCondition
                         RunIn          = $groupRunIn
+                        Disabled       = $groupDisabled
                     })
             }
 
@@ -198,6 +213,15 @@ function Import-HDTSequenceDocument {
         $continueOnError = $false
         if ($node.Contains('continueOnError')) {
             $continueOnError = [bool] $node['continueOnError']
+        }
+
+        # ABSENT MEANS ENABLED, and a step inside a disabled group is disabled
+        # whatever it says about itself. Every sequence written before this key
+        # existed has no 'disabled' anywhere in it, and all of their steps must
+        # still run.
+        $disabled = [bool] $frame.Disabled
+        if (-not $disabled -and $node.Contains('disabled')) {
+            $disabled = [bool] $node['disabled']
         }
 
         $resumable = $false
@@ -250,6 +274,7 @@ function Import-HDTSequenceDocument {
                 Condition       = $condition
                 GroupCondition  = [object[]] @($frame.GroupCondition)
                 ContinueOnError = $continueOnError
+                Disabled        = $disabled
                 TimeoutMinutes  = $timeoutMinutes
                 RunIn           = $runIn
                 Retry           = [pscustomobject] @{

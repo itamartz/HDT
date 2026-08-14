@@ -159,6 +159,7 @@ function Get-HDTConsoleStepNode {
             New-HDTConsoleField -Label 'Type' -Value $current.Type
             New-HDTConsoleField -Label 'Runs' -Value ('step {0} of {1}' -f $current.Index, $step.Count)
             New-HDTConsoleField -Label 'Group' -Value (Get-HDTConsoleDisplayText -Text ($path -join ' \ ') -Fallback '(none)')
+            New-HDTConsoleField -Label 'Enabled' -Value (Get-HDTConsoleFlagText -Value (-not $current.Disabled))
             New-HDTConsoleField -Label 'Runs in' -Value (Get-HDTConsoleDisplayText -Text $current.RunIn -Fallback 'any phase')
             New-HDTConsoleField -Label 'Condition' -Value (Get-HDTConsoleDisplayText -Text $current.Condition -Fallback '(none)')
             New-HDTConsoleField -Label 'Continue on error' -Value (Get-HDTConsoleFlagText -Value $current.ContinueOnError)
@@ -170,10 +171,23 @@ function Get-HDTConsoleStepNode {
             )
         }
 
+        # A DISABLED STEP HAS TO LOOK DISABLED AT A GLANCE. The reason to switch
+        # one off is usually to run the sequence again and watch what changes,
+        # and the tree is what an administrator checks before they do. The
+        # engine skips it (Invoke-HDTTaskSequence branch 2a); this is the same
+        # fact, on the screen.
+        $text = '{0}. {1}' -f $current.Index, $current.Name
+        $icon = ''
+
+        if ([bool] $current.Disabled) {
+            $text = '{0}. {1}  (disabled)' -f $current.Index, $current.Name
+            $icon = [string] ([char] 0x2298)     # circled division slash - switched off
+        }
+
         $row = New-HDTConsoleNode -Depth $path.Count -Kind 'Step' -Status 'Ok' `
-            -Text ('{0}. {1}' -f $current.Index, $current.Name) -Field $field `
+            -Text $text -Field $field `
             -Command ('{0}.Step[{1}]' -f $document, $index) `
-            -Header $Header
+            -Header $Header -Icon $icon
 
         [void] $node.Add($row)
 
