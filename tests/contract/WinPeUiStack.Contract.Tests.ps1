@@ -146,4 +146,57 @@ Describe 'the WinPE UI stack' {
             }
         }
     }
+
+    Context 'every name the engine reaches for is a name a window answers to' {
+
+        # THE FAILURE THIS CATCHES, AND WHY IT IS HERE RATHER THAN IN A UNIT
+        # TEST. New-HDTWizardHost is exempt from TDD as a thin WPF adapter
+        # (CLAUDE.md rule 1), so nothing executes its FindName calls until a
+        # machine in WinPE does. FindName does not throw on a name nothing
+        # answers to - it returns null - so a renamed control does not fail, it
+        # SILENTLY DOES NOTHING, on the one machine with no debugger attached.
+        #
+        # Comparing the two sides of that name is the part that needs no display,
+        # so it is the part that can be automated.
+
+        BeforeAll {
+            $script:declaredName = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.xaml' } |
+                    ForEach-Object {
+                        [regex]::Matches($_.Text, 'x:Name\s*=\s*"([^"]+)"') |
+                            ForEach-Object { $_.Groups[1].Value }
+                        } |
+                    Sort-Object -Unique)
+
+            # Only HDT-prefixed names: a template part like HDTButtonSurface is
+            # declared inside a ControlTemplate and is not addressable from the
+            # window, but everything the engine looks up is.
+            $script:requestedName = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.ps1' } |
+                    ForEach-Object {
+                        $relative = $_.Relative
+                        [regex]::Matches($_.Text, "FindName\(\s*'(HDT[A-Za-z0-9]+)'\s*\)") |
+                            ForEach-Object {
+                                [pscustomobject] @{ Name = $_.Groups[1].Value; Relative = $relative }
+                            }
+                        })
+        }
+
+        It 'found the names on both sides' {
+            @($script:declaredName).Count | Should -BeGreaterThan 5 -Because (
+                'the assertion below is vacuous with nothing declared')
+            @($script:requestedName).Count | Should -BeGreaterThan 0 -Because (
+                'the assertion below is vacuous with nothing requested')
+        }
+
+        It 'looks up no control that no window declares' {
+            $offender = @($script:requestedName |
+                    Where-Object { $script:declaredName -notcontains $_.Name } |
+                    ForEach-Object { '{0} ({1})' -f $_.Name, $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'FindName returns null rather than throwing, so this is a control that silently does nothing in WinPE. Found: {0}' -f
+                    ($offender -join ', '))
+        }
+    }
 }

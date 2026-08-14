@@ -45,6 +45,7 @@
         'Get-HDTStepType',
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
+        'Get-HDTWizardField',
         'Get-HDTWorkspacePath',
         'Get-HDTVariableProvenance',
         'Hide-HDTShellWindow',

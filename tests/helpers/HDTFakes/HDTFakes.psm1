@@ -4183,9 +4183,13 @@ function New-HDTFakeWizardHost {
             lives in New-HDTWizardHost, which is a branch-free adapter and is
             therefore not unit tested.
 
-            It implements the one IWizardHost method, Show(xaml, title), and
-            records the XAML and title it was handed so a test can assert what
-            reached the window without rendering one.
+            It implements the one IWizardHost method, Show(xaml, title, field),
+            and records the XAML, title and fields it was handed so a test can
+            assert what reached the window without rendering one.
+
+            THE FIELDS ARE RECORDED, NOT APPLIED. Working out what belongs in
+            each box is Get-HDTWizardField's job and is tested there; what this
+            has to prove is that the list reached the host intact.
 
             -Action IS RETURNED VERBATIM, INCLUDING EMPTY. An empty action is
             the shape a real window produces when it is closed with the X rather
@@ -4203,7 +4207,7 @@ function New-HDTFakeWizardHost {
 
         .OUTPUTS
             A PSCustomObject with a Show method, an Operations list, and the
-            LastXaml and LastTitle it was handed.
+            LastXaml, LastTitle and LastField it was handed.
 
         .EXAMPLE
             Show-HDTWizard -XamlPath $p -Title 'HDT' -WizardHost (New-HDTFakeWizardHost -Action 'Next')
@@ -4231,6 +4235,7 @@ function New-HDTFakeWizardHost {
         Journal    = $Journal
         LastXaml   = ''
         LastTitle  = ''
+        LastField  = @()
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -4241,10 +4246,11 @@ function New-HDTFakeWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title)
+        param([string] $Xaml, [string] $Title, [object[]] $Field)
 
         $this.LastXaml = $Xaml
         $this.LastTitle = $Title
+        $this.LastField = @($Field)
         $this.Record(('Show({0})' -f $Title))
 
         return $this.Action

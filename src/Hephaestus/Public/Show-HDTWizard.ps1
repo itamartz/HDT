@@ -54,6 +54,12 @@ function Show-HDTWizard {
         .PARAMETER Title
             The window title.
 
+        .PARAMETER Field
+            What every box should say, from Get-HDTWizardField. Each entry is a
+            control Name and its Text; the host applies them by name and this
+            command interprets none of them. Omitted, the window opens with
+            whatever the markup declares.
+
         .PARAMETER WizardHost
             An IWizardHost. Defaults to the real adapter.
 
@@ -91,6 +97,10 @@ function Show-HDTWizard {
 
         [Parameter()]
         [AllowNull()]
+        [object[]] $Field,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $WizardHost,
 
         [Parameter()]
@@ -123,7 +133,7 @@ function Show-HDTWizard {
 
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $WizardHost.Show($xaml, $Title)
+    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field))
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these three exactly is a Cancel.

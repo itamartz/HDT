@@ -104,6 +104,30 @@ Describe 'Show-HDTWizard' {
             [string] $wizardHost.LastXaml | Should -BeLike '*<Window*'
         }
 
+        It 'hands the host the fields it was given, to apply by name' {
+            # THE HOST DOES NOT WORK OUT WHAT GOES IN THE BOXES. Get-HDTWizardField
+            # does, and it is unit tested; this command forwards the answer and
+            # interprets none of it.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' -WizardHost $wizardHost `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -Field @([pscustomobject] @{ Name = 'HDTIpAddressBox'; Text = '192.168.2.118' }) | Out-Null
+
+            @($wizardHost.LastField).Count | Should -Be 1
+            [string] @($wizardHost.LastField)[0].Name | Should -BeExactly 'HDTIpAddressBox'
+            [string] @($wizardHost.LastField)[0].Text | Should -BeExactly '192.168.2.118'
+        }
+
+        It 'shows a window with no fields at all, because prefill is optional' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+                -WizardHost $wizardHost -FileSystem (New-HDTWizardTestFileSystem) | Out-Null
+
+            @($wizardHost.LastField) | Should -BeNullOrEmpty
+        }
+
         It 'hands the host the title' {
             $wizardHost = New-HDTFakeWizardHost -Action 'Next'
 

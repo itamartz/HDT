@@ -58,9 +58,27 @@ if ([string]::IsNullOrWhiteSpace($XamlPath)) {
 
 Write-Information ("showing {0}" -f $XamlPath) -InformationAction Continue
 
+# THE LEASE, THE SAME WAY THE PAYLOAD GETS IT. The host does not read the
+# network any more - Get-HDTWizardField decides what goes in every box, and both
+# this tool and the WinPE payload ask it the same question. That is what makes
+# "it looked right on the desktop" evidence about WinPE rather than about this
+# machine.
+#
+# BEST EFFORT: a network read that fails leaves the boxes empty and the window
+# still opens. On a build host it will show whichever adapter has a gateway,
+# which is this machine's real lease and not the deployment one.
+$network = $null
+try {
+    $network = Get-HDTNetworkConfiguration
+} catch {
+    Write-Information ("no network configuration could be read: {0}" -f $_.Exception.Message) -InformationAction Continue
+}
+
+$field = @(Get-HDTWizardField -NetworkConfiguration $network)
+
 # THE PRODUCT PATH, not a private one: the same command and the same host the
 # payload uses in WinPE, so what is on screen here is what is on screen there.
-$answer = Show-HDTWizard -XamlPath $XamlPath -Title 'Hephaestus Deployment Toolkit'
+$answer = Show-HDTWizard -XamlPath $XamlPath -Title 'Hephaestus Deployment Toolkit' -Field $field
 
 Write-Information ("the technician chose: {0}" -f $answer.Action) -InformationAction Continue
 
