@@ -1466,3 +1466,57 @@ green — 13 passed / 2 failed with the offending path named in the message, the
 part a source scan cannot cover: `startnet.cmd` sets `HDT_LAUNCHED_BY=startnet`
 and nothing else does, both lab payloads record it, and each E2E asserts it. A
 harness that went back to typing would leave that field empty.
+
+## S14 — the first deployment over SMB, through the product ✅
+
+**The gap every verification report had led with, closed.** Until now every
+deployment HDT ran used the `Local` provider against a VHDX bolted to the VM.
+The `Smb` provider's evidence was unit refusals, an operation-list equality test
+and a loopback run - never a machine in WinPE pulling an image across a network.
+
+**Measured, on `HDT External`, with nothing typed:**
+
+```
+status             : Succeeded          sequenceId : DEMO-M4
+computerName       : HDT-SMB-01         provider   : Smb
+deployRoot         : \192.168.2.108\HDTShare
+resolvedDeployRoot : \192.168.2.108\HDTShare     connected : True
+logPath            : W:\HDT\Logs
+logDestination     : \192.168.2.108\HDTShare\Logs
+launchedBy         : startnet           elapsedSecond : 230
+heartbeat after reboot: OK
+```
+
+The five steps ran in order and all completed; the 64 GB target grew to ~12 GB
+as the WIM came over the wire; the machine rebooted into full Windows carrying
+the computer name the per-machine override set.
+
+### What had to be true, and was
+
+- **`HDT External`, not `HDT Lab`.** The isolated switch has no DHCP, so a VM
+  there lands on APIPA and cannot reach the host - the reason this went unproven
+  for five phases. On the external switch the lease arrived in **1 second**
+  (`192.168.2.118/24`, gateway `192.168.2.1`).
+- **The firewall rule already existed**: `HDT Lab SMB (445) inbound`, scoped to
+  `192.168.2.0/24` and `172.30.30.0/24`. No host change was needed.
+- **The credential comes from the workspace, in two halves** (DESIGN 6.3): the
+  USERNAME in `workspace.yaml`'s `credential:` block, the PASSWORD in
+  `Control\share-credential.json` via `Set-HDTShareCredential`. A first attempt
+  omitted the block, and `Update-HDTBootImage` embedded nothing - producing an
+  image that booted and then refused in WinPE. It now warns and turns
+  `promptForCredential` on instead, which is MDT's behaviour.
+- **`Get-NetIPAddress` does not exist in WinPE.** NetTCPIP is not in an ADK
+  image. `Win32_NetworkAdapterConfiguration` is, because `WinPE-WMI` is one of
+  the six required components.
+- **`Get-VMBios` does not exist for Generation 2.** The BIOS GUID comes from
+  `Msvm_VirtualSystemSettingData.BIOSGUID`, matched on the VM's `Id`.
+- **The rules must name the task sequence.** `bootstrap.json` carries an empty
+  `sequenceId` deliberately - one image, many sequences - so `HDTTaskSequenceID`
+  has to be resolved from the rules, exactly as MDT resolves `TaskSequenceID`
+  from `CustomSettings.ini`. The first run failed with precisely that sentence.
+
+### Lab safety
+
+`CM01` and `DC01` no longer exist on this host - the user deleted them. Nothing
+in this spike created, touched or removed any VM but `HDT-Smb-Probe` and
+`HDT-Smb-Deploy`, both `HDT-*`, both Generation 2, both under `C:\HDTLab\vms`.
