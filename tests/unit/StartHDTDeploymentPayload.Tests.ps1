@@ -247,6 +247,25 @@ Describe 'Start-HDTDeployment.ps1' {
             }
         }
 
+        It 'tells the power service it is in WinPE' {
+            # THE DEFECT 05-06 FOUND. shutdown.exe is not in the boot image - a
+            # read-only mount says so and
+            # tests/integration/WinPeContent.Integration.Tests.ps1 keeps saying
+            # it - so a Restart step run from here through a power service built
+            # for the full OS would call a command that does not exist.
+            #
+            # This entry point IS the WinPE one; it hardcodes -Phase WinPE
+            # everywhere else. There is no detection to do, and -Environment is
+            # mandatory so it cannot be left out.
+            $power = @(& $script:commandNamed 'New-HDTPowerService')
+
+            $power.Count | Should -Be 1
+
+            $element = & $script:elementOf $power[0]
+            $element | Should -Contain '-Environment'
+            $element | Should -Contain 'WinPE'
+        }
+
         It 'builds the content provider through New-HDTContentProvider' {
             @(& $script:commandNamed 'New-HDTContentProvider').Count | Should -Be 1
             @(& $script:commandNamed 'New-HDTLocalContentProvider') | Should -BeNullOrEmpty
@@ -386,6 +405,33 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:codeOnly | Should -Match 'reboot'
             $script:codeOnly | Should -Match 'shutdown'
             $script:codeOnly | Should -Match 'RebootPending'
+        }
+
+        It 'uses the same two verbs Get-HDTPowerCommand yields for WinPE' {
+            # THE ANTI-DRIFT ASSERTION. This last line runs after the catch, on a
+            # machine that may have failed before the module imported, so it
+            # invokes wpeutil directly rather than through the service - and that
+            # is exactly the sort of duplicate that goes stale in silence.
+            #
+            # It cannot go stale here: the verbs the payload assigns to $ending
+            # are compared with the verbs the engine's own decision produces.
+            Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+            $engineVerb = @(InModuleScope Hephaestus {
+                    foreach ($operation in @('Restart', 'Stop')) {
+                        [string] (Get-HDTPowerCommand -Environment WinPE -Operation $operation -DelaySecond 0).Argument[0]
+                    }
+                }) | Sort-Object
+
+            $payloadVerb = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        ([string] $node.Left.Extent.Text) -eq '$ending'
+                    }, $true) |
+                    ForEach-Object { ([string] $_.Right.Extent.Text).Trim("'`"") }) | Sort-Object -Unique
+
+            @($payloadVerb).Count | Should -Be 2 -Because 'the payload assigns $ending exactly twice: reboot and shutdown'
+            @($payloadVerb) | Should -Be @($engineVerb)
         }
 
         It 'ends the machine even when the run threw' {

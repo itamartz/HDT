@@ -198,6 +198,27 @@ Describe 'Start-HDTResume.ps1' {
             }
         }
 
+        It 'tells the power service it is in the full OS' {
+            # THE OTHER HALF OF 05-06. This payload runs from RunOnce on a
+            # deployed Windows install, where shutdown.exe exists and wpeutil
+            # does not - the exact mirror of the WinPE entry point. Neither
+            # detects anything, because both already know, and -Environment is
+            # mandatory so neither can forget.
+            $power = @(& $script:commandNamed 'New-HDTPowerService')
+
+            $power.Count | Should -Be 1
+
+            $element = @($power[0].CommandElements | ForEach-Object { [string] $_.Extent.Text })
+            $element | Should -Contain '-Environment'
+            $element | Should -Contain 'FullOS'
+        }
+
+        It 'names wpeutil nowhere' {
+            # It is not on a deployed machine, and reaching for it here would
+            # fail on every resume leg.
+            $script:text | Should -Not -BeLike '*wpeutil*'
+        }
+
         It 'names no fake' {
             $script:text | Should -Not -BeLike '*New-HDTFake*'
         }
