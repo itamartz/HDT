@@ -15,8 +15,18 @@
         attached to that console - which is true when the script was
         double-clicked or started with Start-Process, and false when it was run
         from a terminal the administrator already had open. GetConsoleProcessList
-        answers that exactly; the usual shortcut, hiding GetConsoleWindow()
-        unconditionally, would make somebody's terminal tab disappear.
+        answers that exactly.
+
+        THAT OWNERSHIP TEST IS WHY THIS DOES NOT CALL Hide-HDTShellWindow. The
+        engine's adapter hides GetConsoleWindow() unconditionally, which is right
+        where it is used: WinPE boots into cmd.exe and that console is always
+        this process's own. On a desktop it is not - run this from a terminal
+        that is already open and the unconditional form makes somebody's terminal
+        tab disappear. Same two Win32 calls, different question in front of them.
+
+        AND IT IS PUT BACK IF THE WINDOW NEVER OPENS. A hidden console plus a
+        failure is a blank screen, which is the engine's rule for the same reason
+        and is worth honouring here even though the failure also reaches a box.
 
         IT RE-LAUNCHES ITSELF INTO A SINGLE-THREADED APARTMENT WHEN IT HAS TO.
         WPF requires STA. Windows PowerShell 5.1 and pwsh 7.5 both start STA, so
@@ -106,6 +116,7 @@ public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 '@
 
 $consoleWindow = [HDTConsoleNative.Terminal]::GetConsoleWindow()
+$consoleHidden = $false
 
 if ($consoleWindow -ne [IntPtr]::Zero) {
     $attached = New-Object -TypeName 'int[]' -ArgumentList 8
@@ -115,6 +126,7 @@ if ($consoleWindow -ne [IntPtr]::Zero) {
     # using. Anything else is a terminal that was already open.
     if ($attachedCount -eq 1) {
         [void] [HDTConsoleNative.Terminal]::ShowWindow($consoleWindow, 0)   # SW_HIDE
+        $consoleHidden = $true
     }
 }
 
@@ -127,8 +139,15 @@ try {
 
     Write-Verbose ('The console closed with {0} after showing {1} rows.' -f $answer.Action, $answer.NodeCount)
 } catch {
-    # The terminal is hidden by now, so writing there would be writing to
-    # nobody. A window application reports in a window.
+    # Hidden is a presentation choice, not a place to get stuck: if the window
+    # never opened, the terminal goes back so there is something to read and
+    # something to type into.
+    if ($consoleHidden) {
+        [void] [HDTConsoleNative.Terminal]::ShowWindow($consoleWindow, 5)    # SW_SHOW
+    }
+
+    # And the failure is reported where somebody who double-clicked this will
+    # actually see it.
     Add-Type -AssemblyName PresentationFramework
 
     [void] [System.Windows.MessageBox]::Show(
