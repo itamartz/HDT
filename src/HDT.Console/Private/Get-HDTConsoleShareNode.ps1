@@ -100,7 +100,7 @@ function Get-HDTConsoleShareNode {
         -Text ('Task Sequences ({0})' -f @($Workspace.TaskSequence).Count) `
         -Detail (@(
             ('{0,-16}: {1}' -f 'Folder', $sequenceFolder)
-            ('{0,-16}: {1}' -f 'Sequences', @($Workspace.TaskSequence).Count)
+            ('{0,-16}: {1}' -f 'Task Sequences', @($Workspace.TaskSequence).Count)
         ) -join [System.Environment]::NewLine) `
         -Command $sequenceCommand -Header $header
 
