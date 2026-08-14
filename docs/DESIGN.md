@@ -743,30 +743,26 @@ These are the reasons to reimplement rather than copy:
   `HDTAdminPassword: <random>` generates one per deployment for fleets that
   pair it with LAPS — but it is opt-in, not the default.
 
-- **The password is never stored in clear text.** `Protect-HDTSecret` encrypts
-  it with AES; `Unprotect-HDTSecret` recovers it in WinPE. The ciphertext is
-  what lives in `workspace.yaml`, in `rules.yaml`, in a per-machine override
-  and in the state document, so a password is not sitting in a file an admin
-  opens in front of someone, or in a git diff, or in a log.
+- **It is stored as clear text, exactly as MDT stores `AdminPassword`.**
+  `HDTAdminPassword` sits in `workspace.yaml`, `rules.yaml` or a per-machine
+  override as a readable value, and the unattend carries it with
+  `PlainText="true"`.
 
-  `Set-HDTAdminPassword` writes it; nobody hand-edits the value.
+  **This is a deliberate decision, not an oversight.** An earlier draft
+  specified AES with `Protect-HDTSecret`/`Unprotect-HDTSecret`. It was dropped
+  because the encryption could not have been a security boundary: WinPE must
+  decrypt with no human present, so the key has to ship inside the boot image,
+  and anyone holding the media recovers both. It would have bought obfuscation
+  against a casual `Get-Content` while adding a key-management surface, a second
+  failure mode during deployment, and a false impression that boot media is safe
+  to hand out.
 
-  **The same mechanism protects the share credential (§6.3).** One secret
-  facility, not two — a second one would rot.
-
-  **Its honest limit, stated rather than implied:** the key lives in the boot
-  image, because WinPE must decrypt without a human present. Anyone who can
-  read the boot WIM or a USB stick can recover the key and therefore the
-  password. This is the same trust boundary already accepted for the share
-  credential, and it is the same one MDT has. It defeats shoulder-surfing, a
-  casual `Get-Content`, a screenshot of a config file and a git history search.
-  It does **not** defeat someone holding your boot media. Treat boot media as a
-  credential and the model holds; believe the encryption makes the media safe to
-  hand out and it does not.
-
-  DPAPI is deliberately not used: it binds to a machine or user that does not
-  exist on the machine being deployed, so the ciphertext would be undecryptable
-  exactly where it needs to be read.
+  **The real control is the same one that governs the share credential (§6.3):
+  treat boot media and the workspace as credentials.** Restrict who can read
+  them, and give the account a password worth only what a freshly-built machine
+  is worth — then rotate it, hand off to LAPS, or disable the account at the end
+  (`HDTAdminPasswordPolicy`, below). That is how MDT has been operated for
+  fifteen years, and it is honest about where the trust actually sits.
 - **It is stored as an LSA secret, not registry cleartext.** Winlogon reads
   `DefaultPassword` from LSA private data as well as from the registry; this is
   the mechanism Sysinternals' `Autologon.exe` uses. Same behavior, no plaintext

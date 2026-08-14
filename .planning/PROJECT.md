@@ -176,6 +176,38 @@ of relying on every future agent remembering it.
   on the function and add the file to `NOTICE.md` at the repo root (create it if
   absent, reproducing the MIT notice from `C:\HDTLab\reference\PSD\LICENSE`).
 
+## Remote lab and CI host
+
+A second Hyper-V host is available and is the right place for anything this
+laptop cannot do — a clean CI environment, PXE/WDS work, or a server role.
+
+- Host **`MS-A2`**, reached over Tailscale at **`100.117.142.13`**, via WinRM:
+  `New-PSSession -ComputerName '100.117.142.13' -Credential $cred -Authentication Negotiate`
+- Guests are reached by **nesting PowerShell Direct inside the host session**
+  (VMBus, so no guest network is needed):
+  `Invoke-Command -Session $sess { Invoke-Command -VMName <name> -Credential $using:g { ... } }`
+- **Credentials live outside this repo** — in the sibling project's `.secrets\`
+  folder, described in
+  `C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\HydrationKitWS2025\CLAUDE.md`.
+  Read them from there at runtime. **Never copy a credential into this
+  repository**, not into a doc, a test, a fixture or a commit message.
+- Its lab is `sadab.pri` on an internal `HydrationLab` switch, 192.168.25.0/24,
+  with DC01 `.200` providing AD/DNS/DHCP and CM01 `.214` running ConfigMgr.
+  **Those are the same protected names as this host's VMs — never touch them
+  there either.**
+
+Vagrant is also available locally.
+
+Two findings from that kit's own notes, both corroborating ours and both
+relevant to phase 07:
+
+- **A blank auto-logon password makes Windows Server stall at the logon
+  screen.** Set it with `PlainText="true"`. Same failure class as an exhausted
+  `LogonCount`.
+- **Server VMs need ≥4 GB *static* RAM.** 2 GB fails the DISM apply of a full
+  WS2025 Desktop-Experience image with error 1450, because WinPE does not
+  balloon dynamic memory.
+
 ## ⚠ Paths that must never be deleted
 
 **`C:\Users\Itamartz\Documents\GithubRepos\HDT` — the repository root — is never
@@ -220,8 +252,20 @@ Both sit on the **`Default Switch`** (192.168.25.0/24).
 1. **HDT test VMs are named `HDT-*`.** Only ever act on VMs matching that
    prefix. Before any destructive Hyper-V call, filter explicitly — never
    `Get-VM | Remove-VM` or any unfiltered pipeline.
-2. **HDT test VMs attach ONLY to the `HDT Lab` switch** (internal, already
-   created). Never `Default Switch`.
+2. **Two switches, chosen by what the test needs.** Never `Default Switch` —
+   that is where CM01 and DC01 live.
+
+   | Switch | Use it for | Why |
+   |---|---|---|
+   | **`HDT External`** (Wi-Fi, 192.168.2.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable at **192.168.2.108**, DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps `\\192.168.2.108\HDTShare` and applies a 4 GB WIM over it in 95 s |
+   | **`HDT Lab`** (internal, isolated) | **PXE and WDS work only** | An isolated segment is the only place a second PXE responder cannot collide with CM01's |
+
+   An earlier version of this rule sent *every* test VM to the isolated switch.
+   That was over-constrained: it has no DHCP, so VMs land on APIPA and cannot
+   reach the host share — which is why every deployment in phases 04 and 05 used
+   `provider Local` from an attached content disk, and why HDT's primary model,
+   share-based deployment, went unproven end to end. Use `HDT External` unless
+   the test involves PXE.
 3. **PXE/WDS testing happens ONLY on the `HDT Lab` switch.** This is the
    critical one: standing up a WDS or DHCP/PXE responder on `Default Switch`
    would collide with CM01's PXE — either breaking the user's SCCM lab or
