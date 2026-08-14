@@ -56,6 +56,11 @@ BeforeAll {
     $script:probeRaw = ''
     $script:startedOk = $false
 
+    # 05-06: set when the probe had to call wpeutil itself because
+    # New-HDTPowerService did not end the machine. Its ABSENCE is the assertion.
+    $script:fellBack = $true
+    $script:fallbackText = ''
+
     # Recomputed here rather than read from BeforeDiscovery: the two phases do
     # not share a scope, and reading it throws under the StrictMode ./build.ps1
     # sets. See the same note in Deployment.E2E.Tests.ps1.
@@ -116,6 +121,15 @@ BeforeAll {
                     ForEach-Object { [string] $_.DriveLetter })
 
             if ($letter.Count -ge 1) {
+                # THE MARKER, READ FIRST. It is written only by the probe's
+                # fallback, immediately before it calls wpeutil itself, so its
+                # presence means New-HDTPowerService did not end the machine.
+                $fallbackPath = '{0}:\FALLBACK.txt' -f $letter[0]
+                $script:fellBack = Test-Path -LiteralPath $fallbackPath -PathType Leaf
+                if ($script:fellBack) {
+                    $script:fallbackText = [System.IO.File]::ReadAllText($fallbackPath)
+                }
+
                 $probePath = '{0}:\PROBE.json' -f $letter[0]
                 if (Test-Path -LiteralPath $probePath) {
                     $script:probeRaw = [System.IO.File]::ReadAllText($probePath)
@@ -274,6 +288,48 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
             $captured.FriendlyName | Should -BeExactly ([string] $fixture.FriendlyName)
             $captured.IsBoot | Should -Be ([bool] $fixture.IsBoot)
             $captured.IsSystem | Should -Be ([bool] $fixture.IsSystem)
+        }
+    }
+
+    Context 'ROADMAP M2s deferred question, answered by the machine itself' {
+
+        # M2 asked "whether WinPE needs wpeutil reboot rather than shutdown.exe"
+        # and named phase 05 as the owner. 05-VERIFICATION.md recorded it
+        # not_answered after five plans, and the reason it stayed open is that
+        # New-HDTPowerService had NEVER EXECUTED - its contract row is skipped
+        # permanently, because a contract test may not reboot the machine
+        # running it. This is the run that closes it.
+
+        It 'has no shutdown.exe' {
+            # THE ANSWER, measured from inside a running WinPE rather than from
+            # a mounted image. Not "shutdown.exe behaves differently here": it is
+            # not on the machine at all, so the old default could not have worked.
+            $script:probe.shutdownExe | Should -BeFalse -Because 'this is why WinPE needs wpeutil, and it is not a preference'
+        }
+
+        It 'has wpeutil.exe' {
+            # The anti-vacuity control. A probe looking in the wrong System32
+            # would report both absent.
+            $script:probe.wpeutilExe | Should -BeTrue
+        }
+
+        It 'built a power service for WinPE' {
+            [string] $script:probe.powerError | Should -BeNullOrEmpty
+            [string] $script:probe.powerEnvironment | Should -BeExactly 'WinPE'
+        }
+
+        It 'resolved a command this machine actually has' {
+            [string] $script:probe.powerCommand | Should -BeExactly 'wpeutil.exe'
+            [string] $script:probe.powerArgument | Should -BeExactly 'shutdown'
+        }
+
+        It 'powered the machine off with it, and did not fall back' {
+            # THE ASSERTION THAT MAKES THE REST MEAN SOMETHING. The probe calls
+            # $power.Stop(0) and then waits 120 s; only if it is still running
+            # after that does it write FALLBACK.txt and call wpeutil itself.
+            # Without this, "the VM ended" would be satisfied by the fallback and
+            # would prove nothing at all about the adapter.
+            $script:fellBack | Should -BeFalse -Because ("the probe's fallback fired: {0}" -f $script:fallbackText)
         }
     }
 

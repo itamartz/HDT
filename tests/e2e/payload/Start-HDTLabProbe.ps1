@@ -28,9 +28,23 @@
           5. Do Import-HDTSequenceDocument and Import-HDTRuleDocument actually
              return documents? Loading the parser module is necessary but not
              sufficient, and proving the sufficient thing costs two more lines.
+          6. ADDED IN 05-06: is shutdown.exe here at all, and does
+             New-HDTPowerService work? ROADMAP M2 deferred "does WinPE need
+             wpeutil reboot rather than shutdown.exe" to phase 05 and five plans
+             went by with New-HDTPowerService never once executed anywhere. This
+             machine is a WinPE that is about to power itself off; there is no
+             cheaper place to run the one adapter in HDT that ends machines.
 
         Everything is written to PROBE.json on the content disk, and the machine
         shuts down - so the harness reads a file rather than a screenshot.
+
+        HOW IT ENDS, AND WHY THAT IS AN ASSERTION. The machine is powered off BY
+        New-HDTPowerService, not by a wpeutil line of its own. A direct call is
+        kept as a bounded fallback so a broken adapter produces a fast, readable
+        failure instead of a fifteen-minute timeout - and the fallback WRITES
+        FALLBACK.txt BEFORE it fires. The harness asserts that file is ABSENT,
+        which is what makes "the service did it" a fact rather than a
+        coincidence of a machine that was going to power off anyway.
 
         NOTHING HERE IS DESTRUCTIVE. It reads. The smoke VM is given exactly one
         small disk so there is nothing on it that could be mistaken for a
@@ -80,6 +94,12 @@ $probe = [ordered] @{
     ruleError       = ''
     osCatalogId     = ''
     osCatalogError  = ''
+    shutdownExe     = $false
+    wpeutilExe      = $false
+    powerEnvironment = ''
+    powerCommand    = ''
+    powerArgument   = ''
+    powerError      = ''
 }
 
 if ([string]::IsNullOrWhiteSpace($ContentRoot)) {
@@ -193,6 +213,41 @@ if ($probe['engineLoaded'] -and -not [string]::IsNullOrWhiteSpace($ContentRoot))
 Write-Information ("sequence: '{0}' with {1} step(s)" -f $probe['sequenceId'], $probe['sequenceStep'])
 Write-Information ("rules: {0}" -f $probe['ruleCount'])
 
+# -- 6. what this WinPE has to end itself with (05-06) ------------------------
+#
+# MEASURED FROM INSIDE A RUNNING WinPE, which is a better witness than a mounted
+# image: tests/integration/WinPeContent.Integration.Tests.ps1 reads the WIM, and
+# this reads the machine that WIM became.
+
+$system32 = Join-Path -Path $env:SystemRoot -ChildPath 'System32'
+$probe['shutdownExe'] = Test-Path -LiteralPath (Join-Path -Path $system32 -ChildPath 'shutdown.exe') -PathType Leaf
+$probe['wpeutilExe'] = Test-Path -LiteralPath (Join-Path -Path $system32 -ChildPath 'wpeutil.exe') -PathType Leaf
+
+Write-Information ("shutdown.exe present: {0}   wpeutil.exe present: {1}" -f $probe['shutdownExe'], $probe['wpeutilExe'])
+
+# The service that will end this machine, built here rather than at the bottom
+# so its construction is recorded even if the call goes wrong.
+$power = $null
+
+if ($probe['engineLoaded']) {
+    try {
+        $power = New-HDTPowerService -Environment WinPE
+        $probe['powerEnvironment'] = [string] $power.Environment
+
+        # What it is about to run, so PROBE.json says it BEFORE the machine goes.
+        # Reached through the module because the decision is private.
+        $plan = & (Get-Module -Name 'Hephaestus') { Get-HDTPowerCommand -Environment WinPE -Operation Stop -DelaySecond 0 }
+        $probe['powerCommand'] = [string] $plan.Command
+        $probe['powerArgument'] = (@($plan.Argument) -join ' ')
+    } catch {
+        $probe['powerError'] = [string] $_.Exception.Message
+    }
+} else {
+    $probe['powerError'] = 'the engine did not load, so there was no power service to build'
+}
+
+Write-Information ("power service: {0} {1} ({2})" -f $probe['powerCommand'], $probe['powerArgument'], $probe['powerError'])
+
 # -- the answer, on the content disk ------------------------------------------
 
 if (-not [string]::IsNullOrWhiteSpace($ContentRoot)) {
@@ -210,6 +265,41 @@ if (-not [string]::IsNullOrWhiteSpace($ContentRoot)) {
 }
 
 Start-Sleep -Seconds 5
+
+# -- the machine ends, and the service is what ends it ------------------------
+#
+# THE FIRST EXECUTION OF New-HDTPowerService ANYWHERE. Everything else this
+# repository knows about IPowerService comes from a fake; the real adapter's
+# contract row is skipped permanently because a contract test may not reboot the
+# machine running it. A WinPE VM that is about to power off is the one place the
+# call is free.
+
+if ($null -ne $power) {
+    try {
+        $power.Stop(0)
+    } catch {
+        # Recorded where a human will see it: PROBE.json is already written.
+        Write-Information ("the power service threw: {0}" -f $_.Exception.Message)
+    }
+}
+
+# THE FALLBACK, AND THE MARKER THAT MAKES IT VISIBLE. wpeutil shutdown takes
+# effect in seconds, so reaching this line at all means the service did not end
+# the machine. The harness asserts FALLBACK.txt is ABSENT - without it, "the VM
+# powered off" would be satisfied by this line and would prove nothing about the
+# adapter.
+Start-Sleep -Seconds 120
+
+if (-not [string]::IsNullOrWhiteSpace($ContentRoot)) {
+    try {
+        [System.IO.File]::WriteAllText(
+            (Join-Path -Path $ContentRoot -ChildPath 'FALLBACK.txt'),
+            ("New-HDTPowerService did not end this machine within 120s; wpeutil was called directly. powerCommand='{0}' powerError='{1}'" -f
+                $probe['powerCommand'], $probe['powerError']))
+    } catch {
+        Write-Information 'could not write FALLBACK.txt'
+    }
+}
 
 & "$env:SystemRoot\System32\wpeutil.exe" shutdown
 
