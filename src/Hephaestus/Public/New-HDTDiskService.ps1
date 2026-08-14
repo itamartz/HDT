@@ -273,7 +273,7 @@ function New-HDTDiskService {
 
         # SPIKES.md S6: -RemoveData -RemoveOEM is the form that leaves a disk
         # Initialize-Disk will accept.
-        Clear-Disk -Number $DiskNumber -RemoveData -RemoveOEM -Confirm:$false
+        Clear-Disk -Number $DiskNumber -RemoveData -RemoveOEM -Confirm:$false -ErrorAction Stop
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name InitializeDisk -Value {
@@ -283,7 +283,7 @@ function New-HDTDiskService {
         $this.AssertDisk($DiskNumber)
 
         # This creates a 16 MB MSR of its own. Do not create a second one.
-        Initialize-Disk -Number $DiskNumber -PartitionStyle $PartitionStyle
+        Initialize-Disk -Number $DiskNumber -PartitionStyle $PartitionStyle -ErrorAction Stop
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name NewPartition -Value {
@@ -296,7 +296,11 @@ function New-HDTDiskService {
         # mutually exclusive on New-Partition, an empty GptType means "do not
         # pass -GptType", and -IsActive is a switch that must be absent rather
         # than false on a GPT disk, which rejects it outright.
-        $argument = @{ DiskNumber = $DiskNumber }
+        # ErrorAction travels in the splat because there is nowhere else to put
+        # it: this is the one destructive call here that is splatted. Same rule
+        # as its six siblings - a disk operation must not depend on the caller's
+        # preference to report that it failed (05-06).
+        $argument = @{ DiskNumber = $DiskNumber; ErrorAction = 'Stop' }
         if ($UseMaximumSize) {
             $argument['UseMaximumSize'] = $true
         } else {
@@ -323,11 +327,11 @@ function New-HDTDiskService {
         # -NewDriveLetter value that clears one.
         if ([string]::IsNullOrEmpty($DriveLetter)) {
             Remove-PartitionAccessPath -DiskNumber $DiskNumber -PartitionNumber $PartitionNumber `
-                -AccessPath ('{0}:\' -f $this.ToLetter($existing.DriveLetter))
+                -AccessPath ('{0}:\' -f $this.ToLetter($existing.DriveLetter)) -ErrorAction Stop
             return
         }
 
-        Set-Partition -DiskNumber $DiskNumber -PartitionNumber $PartitionNumber -NewDriveLetter $DriveLetter
+        Set-Partition -DiskNumber $DiskNumber -PartitionNumber $PartitionNumber -NewDriveLetter $DriveLetter -ErrorAction Stop
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name SetPartitionType -Value {
@@ -336,7 +340,7 @@ function New-HDTDiskService {
         $this.Record('SetPartitionType', @($DiskNumber, $PartitionNumber, $GptType))
         [void] $this.AssertPartition($DiskNumber, $PartitionNumber)
 
-        Set-Partition -DiskNumber $DiskNumber -PartitionNumber $PartitionNumber -GptType $GptType
+        Set-Partition -DiskNumber $DiskNumber -PartitionNumber $PartitionNumber -GptType $GptType -ErrorAction Stop
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name FormatVolume -Value {
@@ -345,7 +349,7 @@ function New-HDTDiskService {
         $this.Record('FormatVolume', @($DriveLetter, $FileSystem, $Label))
 
         Format-Volume -DriveLetter $DriveLetter -FileSystem $FileSystem `
-            -NewFileSystemLabel $Label -Force -Confirm:$false | Out-Null
+            -NewFileSystemLabel $Label -Force -Confirm:$false -ErrorAction Stop | Out-Null
     }
 
     return $service

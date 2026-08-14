@@ -67,6 +67,26 @@ Describe 'New-HDTDiskService and the preference it must not depend on' {
         foreach ($node in $script:call) {
             $element = @($node.CommandElements | ForEach-Object { [string] $_.Extent.Text })
 
+            # A splatted call carries it in the hashtable instead - New-Partition
+            # is the only one, because -Size and -UseMaximumSize are mutually
+            # exclusive and the arguments have to be built. Same requirement,
+            # different spelling, so the assertion reads the whole method.
+            $splatted = @($element | Where-Object { $_ -like '@*' })
+
+            if (@($splatted).Count -gt 0) {
+                $scope = $node.Parent
+                while ($null -ne $scope -and -not ($scope -is [System.Management.Automation.Language.ScriptBlockAst])) {
+                    $scope = $scope.Parent
+                }
+
+                [string] $scope.Extent.Text |
+                    Should -Match "ErrorAction\s*=\s*'Stop'" -Because (
+                    "{0} on line {1} is splatted, so its splat must carry ErrorAction = 'Stop'" -f
+                    $node.GetCommandName(), $node.Extent.StartLineNumber)
+
+                continue
+            }
+
             $index = [array]::IndexOf($element, '-ErrorAction')
 
             $index | Should -BeGreaterThan 0 -Because (
