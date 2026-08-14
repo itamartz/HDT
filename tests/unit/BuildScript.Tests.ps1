@@ -190,6 +190,71 @@ Describe 'build.ps1' {
         }
     }
 
+    Context 'how it judges a Pester result' {
+
+        # FOUND BY 05-06, THE HARD WAY, AND IT IS THE HEADER'S TRAP IN A NEW
+        # COSTUME. A discovery-time failure - reading a variable in a `-Skip:`
+        # that was never set, SPIKES S9.15's trap for the fourth time - makes
+        # Pester DROP the tests it could not discover and report:
+        #
+        #     Result: Failed   FailedCount: 0   FailedContainersCount: 1
+        #
+        # FailedCount is zero because no test failed. No test failed because
+        # three quarters of the file was never discovered. A build that judges a
+        # run by FailedCount alone prints BUILD SUCCEEDED over a file whose
+        # assertions never ran - which is exactly what it did, over
+        # tests/integration/WinPeContent.Integration.Tests.ps1, before this test
+        # was written.
+        #
+        # An empty dispatch is a failure (above); so is an empty discovery.
+
+        It 'judges a run in one place' {
+            # One shared judgement rather than the same condition copied into
+            # three functions, for the same reason Test-HDTElevation is shared:
+            # that is how one of the three ends up subtly different.
+            @($script:functionAst | Where-Object { $_.Name -eq 'Assert-HDTPesterResult' }).Count |
+                Should -Be 1
+        }
+
+        It 'judges it by more than FailedCount' {
+            $body = & $script:functionBody 'Assert-HDTPesterResult'
+
+            $body | Should -BeLike '*FailedCount*'
+            $body | Should -BeLike '*FailedContainersCount*' -Because 'a container that failed to discover reports FailedCount 0, and a build that only reads FailedCount calls that success'
+        }
+
+        It 'says which file could not be discovered' {
+            # A build that fails with "1 container failed" and no name sends the
+            # operator to read three suites. The error Pester attaches to the
+            # container is the only thing that says where.
+            $body = & $script:functionBody 'Assert-HDTPesterResult'
+
+            $body | Should -BeLike '*Containers*'
+            $body | Should -BeLike '*ErrorRecord*'
+        }
+
+        It 'has all three suites judge their run through it' {
+            foreach ($name in @('Invoke-HDTTest', 'Invoke-HDTIntegrationTest', 'Invoke-HDTEndToEndTest')) {
+                $body = & $script:functionBody $name
+
+                $body | Should -BeLike '*Assert-HDTPesterResult*' -Because "$name must not judge its own run"
+            }
+        }
+
+        It 'leaves no suite judging itself by FailedCount alone' {
+            # The assertion that keeps the previous one from being satisfied by
+            # a call that sits BESIDE the old condition rather than replacing it.
+            $stray = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.IfStatementAst] -and
+                        ([string] $node.Clauses[0].Item1.Extent.Text) -match 'FailedCount' -and
+                        ([string] $node.Clauses[0].Item1.Extent.Text) -notmatch 'FailedContainersCount'
+                    }, $true))
+
+            @($stray) | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'the preconditions each new task names' {
 
         It 'asks the identity, not the environment' {
