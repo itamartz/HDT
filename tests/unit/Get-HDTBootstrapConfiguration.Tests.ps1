@@ -213,15 +213,20 @@ Describe 'Get-HDTBootstrapConfiguration' {
             $bootstrap.DeployRoot | Should -BeExactly '\Share'
         }
 
-        It 'refuses a missing deployRoot' {
-            $fs = & $script:seed 'invalid-missing-deployroot.json'
+        It 'reads a boot image with no deployRoot, because a technician can supply one' {
+            # THIS USED TO BE A REFUSAL, and the refusal was in the wrong place.
+            # An image with no share is not a malformed document - it is an
+            # image that has a question for whoever is standing in front of it.
+            # Throwing here means the Welcome screen never opens, so the person
+            # who could have typed the share never gets asked.
+            #
+            # The failure still happens if nobody answers: connecting to an
+            # empty share fails, loudly, at connect time.
+            $fs = & $script:seed 'valid-missing-deployroot.json'
 
-            $record = & $script:errorOf { Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs }
+            $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
 
-            $record | Should -Not -BeNullOrEmpty
-            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
-            $record.Exception.Message | Should -BeLike '*deployRoot*'
-            $record.Exception.Message | Should -BeLike ('*{0}*' -f $script:bootstrapPath)
+            [string] $bootstrap.DeployRoot | Should -BeExactly ''
         }
 
         It 'still refuses a non-UNC deployRoot for Smb' {

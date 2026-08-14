@@ -678,17 +678,25 @@ function Update-HDTBootImage {
         $provider = 'Local'
         if (([string] $workspace.DeployRoot).StartsWith('\\')) { $provider = 'Smb' }
 
+        # AN UNSTATED SHARE IS OMITTED, NOT WRITTEN EMPTY - the same rule the
+        # skip block below follows. A deployRoot of "" in the file reads as a
+        # share somebody meant to set and got wrong; the key's absence reads as
+        # an image that means to ask, which is what the Welcome screen's hint
+        # then does.
         $bootstrap = [ordered] @{
             schemaVersion       = 1
             workspaceId         = [string] $workspace.Id
             provider            = $provider
-            deployRoot          = [string] $workspace.DeployRoot
             contentMarker       = 'rules.yaml'
             sequenceId          = ''
             promptForCredential = [bool] $promptForCredentialEffective
             logLevel            = [string] $workspace.LogLevel
             buildId             = $buildId
             builtUtc            = $builtUtc
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace([string] $workspace.DeployRoot)) {
+            $bootstrap['deployRoot'] = [string] $workspace.DeployRoot
         }
 
         # THE SKIP BLOCK, WRITTEN ONLY FOR RULES THE WORKSPACE ACTUALLY STATED.

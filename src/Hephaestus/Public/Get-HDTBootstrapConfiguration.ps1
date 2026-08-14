@@ -203,12 +203,21 @@ function Get-HDTBootstrapConfiguration {
                     -Message ("provider '{0}' is not a transport HDT can build. The provider must be Smb or Local (DESIGN 6)." -f $provider)))
     }
 
-    if ([string]::IsNullOrWhiteSpace($deployRoot)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'deployRoot is missing. It is the only thing in the boot image that says where the content is, so a machine that boots this image would have nowhere to go.'))
-    }
-
-    if ($provider -eq 'Smb' -and -not $deployRoot.StartsWith('\\')) {
+    # A MISSING deployRoot IS A QUESTION, NOT A MALFORMED DOCUMENT, and this
+    # used to throw. The refusal was in the wrong place: an image with no share
+    # still boots, still reaches the Welcome screen, and still has a technician
+    # in front of it who can type one. Throwing here is what stopped that
+    # screen from ever opening, so the only person who could fix it was never
+    # asked - Get-HDTWizardSkip raises HDTDeployRootHint instead.
+    #
+    # NOTHING IS SILENTLY EXCUSED. An empty share that nobody fills in fails at
+    # connect time, loudly, which is where a share that is wrong rather than
+    # absent has always failed.
+    #
+    # The shape checks below still apply to a share that IS stated - a
+    # deployRoot present and wrong is still a malformed document.
+    if (-not [string]::IsNullOrWhiteSpace($deployRoot) -and
+        $provider -eq 'Smb' -and -not $deployRoot.StartsWith('\\')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                     -Message ("provider is Smb and deployRoot '{0}' is not a UNC path. An Smb deployRoot names a share (\\server\share); a volume-relative or drive-qualified root is a Local idea and the transports are not interchangeable." -f $deployRoot)))
     }

@@ -101,7 +101,7 @@ function Assert-HDTWorkspaceDocument {
     # tests/contract/WorkspaceSchema.Contract.Tests.ps1, which reads this very
     # variable out of this file. A key added to one and forgotten in the other
     # turns that contract red. Do not inline this list into the loop below.
-    $requiredRootKey = @('schemaVersion', 'id', 'name', 'deployRoot')
+    $requiredRootKey = @('schemaVersion', 'id', 'name')
 
     $allowedRootKey = @('schemaVersion', 'id', 'name', 'deployRoot', 'logLevel',
         'credential', 'bootImage')
@@ -189,12 +189,20 @@ function Assert-HDTWorkspaceDocument {
 
     # -- deployRoot -----------------------------------------------------------
 
-    $deployRoot = [string] $Document['deployRoot']
-
-    if ([string]::IsNullOrWhiteSpace($deployRoot)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'deployRoot is empty. It is what a booted client connects to: a UNC path (\\server\HdtShare), a rooted local path (C:\HDTLab\Share), or a volume-relative path (\Share) for media whose drive letter cannot be known at build time.'))
-    }
+    # NO SHARE IS NO SHARE, however it was spelled. An omitted key, an empty
+    # value and a whitespace value all mean the same thing here: the image is
+    # built without a deployment root, reaches the Welcome screen with an empty
+    # box, and asks the technician for one.
+    #
+    # An earlier version refused the empty spelling on the grounds that a
+    # written-but-blank key looks like a failed template substitution rather
+    # than a decision. That is true, and it is still not worth two documents
+    # that mean the same thing behaving differently - the surprise costs more
+    # than the typo it caught, and an image that asks for its share is not a
+    # broken image.
+    $deployRoot = ''
+    if ($Document.Contains('deployRoot')) { $deployRoot = [string] $Document['deployRoot'] }
+    if ([string]::IsNullOrWhiteSpace($deployRoot)) { $deployRoot = '' }
 
     if ($deployRoot -like '*..*') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `

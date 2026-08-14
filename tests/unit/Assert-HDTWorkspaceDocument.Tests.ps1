@@ -204,10 +204,19 @@ Describe 'Assert-HDTWorkspaceDocument' {
             $record.Exception.Message | Should -BeLike '*deployRoot*'
         }
 
-        It 'rejects an empty deployRoot' {
-            $record = Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: '   '"
+        It 'accepts an empty deployRoot, which means the same as omitting it' {
+            # NO SHARE IS NO SHARE, HOWEVER IT WAS SPELLED. This used to be a
+            # rejection on the grounds that a written-but-blank key looks like a
+            # failed template substitution. Two documents that mean the same
+            # thing now behave the same: the image is built without a share and
+            # the Welcome screen asks for one.
+            Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: '   '" |
+                Should -BeNullOrEmpty
+        }
 
-            $record.Exception.Message | Should -BeLike '*deployRoot*'
+        It 'accepts a document with no deployRoot key at all' {
+            Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A" |
+                Should -BeNullOrEmpty
         }
 
         It 'rejects a deployRoot containing .., naming the value' {

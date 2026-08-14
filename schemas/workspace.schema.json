@@ -6,8 +6,7 @@
   "required": [
     "schemaVersion",
     "id",
-    "name",
-    "deployRoot"
+    "name"
   ],
   "additionalProperties": false,
   "properties": {
@@ -25,10 +24,9 @@
       "minLength": 1
     },
     "deployRoot": {
-      "description": "UNC (\\\\server\\share), rooted local (C:\\path), or volume-relative (\\Share) for media whose drive letter cannot be known at build time. Never contains '..'.",
+      "description": "UNC (\\\\server\\share), rooted local (C:\\path), or volume-relative (\\Share) for media whose drive letter cannot be known at build time. Never contains '..'. OPTIONAL: an image built without one reaches the Welcome screen with an empty share box and a hint telling the technician to supply it, rather than failing to boot.",
       "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!.*\\.\\.)\\s*\\S.*$"
+      "pattern": "^$|^(?!.*\\.\\.)\\s*\\S.*$"
     },
     "logLevel": {
       "type": "string",
