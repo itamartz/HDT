@@ -109,14 +109,17 @@ function Get-HDTWizardSkip {
     #               reason a technician is looking at this screen at all.
     #   deployRoot  shown, prefilled. Inferring it away is fine right up until
     #               the prefilled share is the unreachable one.
-    #   credential  skipped when the image already carries one, because then the
-    #               pane has nothing to ask and an empty password box reads as
-    #               an instruction to fill it in.
+    #   credential  SHOWN, even when the image carries an account. The pane is
+    #               then a statement rather than a question, and WHICH ACCOUNT
+    #               this machine deploys as is the fact a technician most wants
+    #               to confirm before pressing Next. Hiding it is something the
+    #               image asks for, never something inferred from having an
+    #               answer.
     $rule = @(
         @{ Name = 'Welcome'; Rule = 'HDTSkipWelcome'; Default = (-not $prompt) }
         @{ Name = 'StaticIp'; Rule = 'HDTSkipStaticIp'; Default = $false }
         @{ Name = 'DeployRoot'; Rule = 'HDTSkipDeployRoot'; Default = $false }
-        @{ Name = 'Credential'; Rule = 'HDTSkipCredential'; Default = (-not $prompt) }
+        @{ Name = 'Credential'; Rule = 'HDTSkipCredential'; Default = $false }
     )
 
     $result = [ordered] @{
@@ -151,9 +154,29 @@ function Get-HDTWizardSkip {
     # THE PANE CONTROLS THE HOST COLLAPSES, by name. Visible is the inverse of
     # skipped, so the host never has to reason about the word "skip" - it sets
     # visibility and nothing else.
+    # THE HINT IS A PANE LIKE ANY OTHER, so the host needs no new mechanism: it
+    # sets visibility by name and still never reasons about why.
+    #
+    # It appears only when the image carried NO SHARE - the case that used to be
+    # a refusal in Get-HDTBootstrapConfiguration and is now a question, because
+    # the person who can answer it is standing in front of the machine. An empty
+    # box on its own reads as optional; this says it is not.
+    #
+    # NO BOOTSTRAP AT ALL IS NOT "NO SHARE". Nothing is known then, and the
+    # whole screen is skipped anyway - rendering the hint would state a fact
+    # nobody established.
+    $shareStated = $false
+    if ($null -ne $Bootstrap -and $null -ne $Bootstrap.PSObject.Properties['DeployRoot']) {
+        $shareStated = -not [string]::IsNullOrWhiteSpace([string] $Bootstrap.DeployRoot)
+    }
+
+    $hintSkipped = $true
+    if ($null -ne $Bootstrap -and -not $shareStated) { $hintSkipped = $false }
+
     foreach ($pane in @(
             @{ Name = 'HDTNetworkPane'; Skipped = $result['StaticIp'] }
             @{ Name = 'HDTDeployRootPane'; Skipped = $result['DeployRoot'] }
+            @{ Name = 'HDTDeployRootHint'; Skipped = $hintSkipped }
             @{ Name = 'HDTCredentialPane'; Skipped = $result['Credential'] })) {
 
         $result['Pane'] += [pscustomobject] @{

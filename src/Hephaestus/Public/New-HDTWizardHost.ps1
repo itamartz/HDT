@@ -126,6 +126,36 @@ function New-HDTWizardHost {
             if ($current.Visible) { $control.Visibility = [System.Windows.Visibility]::Visible }
         }
 
+        # THE EYE, AND WHY IT IS WIRED HERE RATHER THAN IN THE MARKUP.
+        # PasswordBox.Password is not a DependencyProperty, so it cannot be
+        # bound, styled or DataTriggered - there is no declarative way to reveal
+        # it, and there is no code-behind to put one in. So the markup carries
+        # two boxes in one cell and this swaps which is visible, copying the
+        # text across so the technician never loses what they typed.
+        #
+        # BOTH DIRECTIONS, because a password typed while revealed has to
+        # survive being hidden again just as much as the other way round.
+        $revealToggle = $window.FindName('HDTPasswordRevealToggle')
+        $passwordBox = $window.FindName('HDTPasswordBox')
+        $revealBox = $window.FindName('HDTPasswordRevealBox')
+
+        if ($null -ne $revealToggle -and $null -ne $passwordBox -and $null -ne $revealBox) {
+
+            $revealToggle.Add_Checked({
+                    $revealBox.Text = $passwordBox.Password
+                    $passwordBox.Visibility = [System.Windows.Visibility]::Collapsed
+                    $revealBox.Visibility = [System.Windows.Visibility]::Visible
+                    $revealToggle.ToolTip = 'Hide the password'
+                }.GetNewClosure())
+
+            $revealToggle.Add_Unchecked({
+                    $passwordBox.Password = $revealBox.Text
+                    $revealBox.Visibility = [System.Windows.Visibility]::Collapsed
+                    $passwordBox.Visibility = [System.Windows.Visibility]::Visible
+                    $revealToggle.ToolTip = 'Show the password'
+                }.GetNewClosure())
+        }
+
         # DRAG BY THE BANNER. WindowStyle=None removes the title bar - which is
         # right for WinPE, where an X is a third way out of a deployment wizard -
         # but it also removes the thing you grab to move the window. A banner

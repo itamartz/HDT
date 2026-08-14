@@ -28,7 +28,7 @@
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="White" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontSize" Value="16" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -58,6 +58,42 @@
         </Style>
 
         <!--
+            THE EYE, and it gets its own template for the same reason Button
+            does: WPF's default ToggleButton chrome paints light-on-light on
+            hover, and an eye you cannot see is worse than no eye.
+
+            THE GLYPH IS A VECTOR, NOT A FONT CHARACTER. Segoe MDL2 Assets is
+            not guaranteed to be in a WinPE image built from the ADK, and a
+            missing glyph renders as a box - so the eye is drawn from geometry
+            that needs no font at all. Its colour follows the button's
+            Foreground so the hover trigger recolours the drawing too.
+        -->
+        <Style TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#FFCCCCCC" />
+            <Setter Property="Background" Value="#FF2D2D30" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="HDTToggleSurface" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="HDTToggleSurface" Property="Background" Value="#FF0E639C" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTToggleSurface" Property="Background" Value="#FFE6E6E6" />
+                                <Setter Property="Foreground" Value="Black" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
             THE ADDRESS BOXES FOLLOW THE RADIO, DECLARATIVELY. A DataTrigger
             bound to HDTUseStaticRadio.IsChecked - no code-behind, because there
             is no compiler in WinPE and the contract refuses one.
@@ -69,7 +105,7 @@
             defeats the point; read-only keeps it legible and uncopyable-over.
         -->
         <Style x:Key="HDTAddressBox" TargetType="TextBox">
-            <Setter Property="Height" Value="26" />
+            <Setter Property="Height" Value="32" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="BorderBrush" Value="#FF3F3F46" />
             <Setter Property="IsReadOnly" Value="True" />
@@ -135,7 +171,7 @@
 
     <Grid Background="#FF1E1E1E">
         <Grid.RowDefinitions>
-            <RowDefinition Height="92" />
+            <RowDefinition Height="104" />
             <RowDefinition Height="*" />
             <RowDefinition Height="72" />
         </Grid.RowDefinitions>
@@ -143,9 +179,9 @@
         <Border Grid.Row="0" Background="#FF0E639C" x:Name="HDTDragBanner">
             <StackPanel VerticalAlignment="Center" Margin="28,0,28,0">
                 <TextBlock Text="Welcome to Hephaestus Deployment Toolkit"
-                           Foreground="White" FontSize="24" FontWeight="SemiBold" />
+                           Foreground="White" FontSize="30" FontWeight="SemiBold" />
                 <TextBlock Text="Configure the network and connect to the deployment share"
-                           Foreground="#FFD6E9F5" FontSize="13" Margin="0,4,0,0" />
+                           Foreground="#FFD6E9F5" FontSize="16" Margin="0,4,0,0" />
             </StackPanel>
         </Border>
 
@@ -160,20 +196,20 @@
 
                 <!-- ============ network ============ -->
                 <StackPanel x:Name="HDTNetworkPane">
-                    <TextBlock Text="Network" Foreground="White" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="Network" Foreground="White" FontSize="19" FontWeight="SemiBold" />
 
                     <RadioButton x:Name="HDTUseDhcpRadio" Content="Obtain an IP address automatically (DHCP)"
                                  GroupName="HDTAddressMode" IsChecked="True"
-                                 Foreground="#FFCCCCCC" FontSize="13" Margin="0,10,0,0" />
+                                 Foreground="#FFCCCCCC" FontSize="16" Margin="0,10,0,0" />
                     <RadioButton x:Name="HDTUseStaticRadio" Content="Use the following IP address"
                                  GroupName="HDTAddressMode"
-                                 Foreground="#FFCCCCCC" FontSize="13" Margin="0,6,0,0" />
+                                 Foreground="#FFCCCCCC" FontSize="16" Margin="0,6,0,0" />
 
                     <Grid x:Name="HDTStaticGrid" Margin="22,8,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="155" />
                             <ColumnDefinition Width="220" />
-                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="130" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -183,19 +219,19 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="IP address"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" />
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
                         <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTIpAddressBox" Style="{StaticResource HDTAddressBox}" />
 
                         <TextBlock Grid.Row="0" Grid.Column="2" Text="Subnet mask"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" Margin="12,0,0,0" />
                         <TextBox   Grid.Row="0" Grid.Column="3" x:Name="HDTSubnetMaskBox" Style="{StaticResource HDTAddressBox}" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Default gateway"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" />
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
                         <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTGatewayBox" Style="{StaticResource HDTAddressBox}" />
 
                         <TextBlock Grid.Row="1" Grid.Column="2" Text="DNS servers"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" Margin="12,0,0,0" />
                         <TextBox   Grid.Row="1" Grid.Column="3" x:Name="HDTDnsBox" Style="{StaticResource HDTAddressBox}" />
 
                         <!--
@@ -213,36 +249,57 @@
                         -->
                         <TextBlock Grid.Row="2" Grid.Column="3" x:Name="HDTDnsHint"
                                    Text="Separate several with a comma."
-                                   Foreground="#FF8A8A8A" FontSize="11"
+                                   Foreground="#FF8A8A8A" FontSize="14"
                                    Margin="2,2,0,0" TextWrapping="Wrap" />
                     </Grid>
                 </StackPanel>
 
                 <!-- ============ share ============ -->
                 <StackPanel x:Name="HDTDeployRootPane" Margin="0,22,0,0">
-                    <TextBlock Text="Deployment share" Foreground="White" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="Deployment share" Foreground="White" FontSize="19" FontWeight="SemiBold" />
 
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="155" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Column="0" Text="Share"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" />
-                        <TextBox   Grid.Column="1" x:Name="HDTDeployRootBox" Height="26"
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Share"
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTDeployRootBox" Height="32"
                                    VerticalContentAlignment="Center"
                                    Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
+
+                        <!--
+                            THE BOX IS EMPTY AND NOBODY IS COMING TO FILL IT.
+                            An image built with no deployRoot reaches this screen
+                            with nothing to connect to, and an empty box on its
+                            own reads as "optional". This says otherwise, and it
+                            is amber rather than red because nothing has failed
+                            yet - the technician simply has to type it.
+
+                            Collapsed by default: the host shows it only when the
+                            boot image carried no share.
+                        -->
+                        <TextBlock Grid.Row="1" Grid.Column="1" x:Name="HDTDeployRootHint"
+                                   Visibility="Collapsed"
+                                   Text="This boot image carries no deployment share. Enter one to continue."
+                                   Foreground="#FFD9A441" FontSize="14" TextWrapping="Wrap"
+                                   Margin="2,6,0,0" />
                     </Grid>
                 </StackPanel>
 
                 <!-- ============ account ============ -->
                 <StackPanel x:Name="HDTCredentialPane" Margin="0,22,0,0">
-                    <TextBlock Text="Deployment account" Foreground="White" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="Deployment account" Foreground="White" FontSize="19" FontWeight="SemiBold" />
 
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="155" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -253,31 +310,63 @@
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="User name"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTUserIdBox" Height="26"
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTUserIdBox" Height="32"
                                    VerticalContentAlignment="Center"
                                    Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Domain"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTUserDomainBox" Height="26"
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTUserDomainBox" Height="32"
                                    VerticalContentAlignment="Center"
                                    Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
                         <TextBlock Grid.Row="2" Grid.Column="1" x:Name="HDTUserDomainHint"
                                    Text="Leave blank if the account is local to the server."
-                                   Foreground="#FF8A8A8A" FontSize="11" Margin="2,0,0,0" />
+                                   Foreground="#FF8A8A8A" FontSize="14" Margin="2,0,0,0" />
 
                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Password"
-                                   Foreground="#FFCCCCCC" FontSize="12" VerticalAlignment="Center" />
-                        <PasswordBox Grid.Row="3" Grid.Column="1" x:Name="HDTPasswordBox" Height="26"
-                                     VerticalContentAlignment="Center"
+                                   Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
+                        <!--
+                            TWO BOXES IN ONE CELL, and only one of them visible
+                            at a time. PasswordBox.Password is not a
+                            DependencyProperty, so it cannot be bound and the
+                            reveal cannot be done declaratively: the host swaps
+                            the text and the visibility (New-HDTWizardHost),
+                            which is why both carry x:Name.
+                        -->
+                        <Grid Grid.Row="3" Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <PasswordBox Grid.Column="0" x:Name="HDTPasswordBox" Height="32"
+                                         VerticalContentAlignment="Center"
+                                         Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
+
+                            <TextBox Grid.Column="0" x:Name="HDTPasswordRevealBox" Height="32"
+                                     Visibility="Collapsed" VerticalContentAlignment="Center"
                                      Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
+
+                            <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle"
+                                          Width="38" Height="32" Margin="6,0,0,0"
+                                          ToolTip="Show the password">
+                                <Grid Width="22" Height="16">
+                                    <Path Data="M 1,8 C 5,2.5 17,2.5 21,8 C 17,13.5 5,13.5 1,8 Z"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                          StrokeThickness="1.3" />
+                                    <Ellipse Width="6" Height="6"
+                                             HorizontalAlignment="Center" VerticalAlignment="Center"
+                                             Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                                </Grid>
+                            </ToggleButton>
+                        </Grid>
                     </Grid>
                 </StackPanel>
 
                 <TextBlock x:Name="HDTMessageText" Text=""
-                           Foreground="#FFF48771" FontSize="12"
+                           Foreground="#FFF48771" FontSize="15"
                            Margin="0,18,0,12" TextWrapping="Wrap" />
         </StackPanel>
 

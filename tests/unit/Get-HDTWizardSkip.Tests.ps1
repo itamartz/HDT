@@ -43,12 +43,16 @@ BeforeAll {
             # is a skip rule for the account pane, so it is named for the pane.
             [Parameter()] [object] $AccountRule = $null,
             [Parameter()] [bool] $PromptForCredential = $false,
-            [Parameter()] [bool] $HasCredential = $true
+            [Parameter()] [bool] $HasCredential = $true,
+
+            # The share the image carries, if any. Empty is the case the hint
+            # exists for.
+            [Parameter()] [string] $DeployRootValue = '\\HDT-HOST\HDTShare'
         )
 
         return [pscustomobject] @{
-            DeployRoot          = '\\192.168.2.108\HDTShare'
-            UserName            = '192.168.2.108\svc-hdt-deploy'
+            DeployRoot          = $DeployRootValue
+            UserName            = 'HDT-HOST\svc-hdt-deploy'
             PromptForCredential = $PromptForCredential
             HasCredential       = $HasCredential
             Skip                = [pscustomobject] @{
@@ -129,6 +133,66 @@ Describe 'Get-HDTWizardSkip' {
         }
     }
 
+    Context 'a pane with an answer already in it is SHOWN, not hidden' {
+
+        # THE CHANGE, AND THE REASONING BEHIND IT. Collapsing the account pane
+        # because the image carries a credential hides the one fact a
+        # technician most wants to confirm before pressing Next: WHICH ACCOUNT
+        # this machine is about to deploy as. The pane is not a question when
+        # the answer is known - it is a statement - and a statement worth
+        # reading.
+        #
+        # HIDING IS NOW SOMETHING THE IMAGE ASKS FOR, never something inferred
+        # from having an answer.
+
+        It 'shows the account pane even though the image carries a credential' {
+            $skip = Get-HDTWizardSkip -Bootstrap (New-HDTTestSkipBootstrap -PromptForCredential $false -HasCredential $true)
+
+            [bool] $skip.Credential | Should -BeFalse
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTCredentialPane' | Should -BeTrue
+        }
+
+        It 'shows the share pane' {
+            $skip = Get-HDTWizardSkip -Bootstrap (New-HDTTestSkipBootstrap)
+
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTDeployRootPane' | Should -BeTrue
+        }
+
+        It 'still hides the account pane when the image explicitly asks' {
+            $skip = Get-HDTWizardSkip -Bootstrap (New-HDTTestSkipBootstrap -AccountRule $true)
+
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTCredentialPane' | Should -BeFalse
+        }
+    }
+
+    Context 'an image with no share says so on the screen' {
+
+        # An empty box reads as "optional". This is the line that says it is
+        # not, and it is the only reason a missing deployRoot is no longer a
+        # refusal in Get-HDTBootstrapConfiguration: the person who can fix it
+        # is standing right there.
+
+        It 'shows the hint when the boot image carried no share' {
+            $skip = Get-HDTWizardSkip -Bootstrap (New-HDTTestSkipBootstrap -DeployRootValue '')
+
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTDeployRootHint' | Should -BeTrue
+        }
+
+        It 'hides the hint when the boot image carried one' {
+            $skip = Get-HDTWizardSkip -Bootstrap (New-HDTTestSkipBootstrap -DeployRootValue '\\HDT-HOST\HDTShare')
+
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTDeployRootHint' | Should -BeFalse
+        }
+
+        It 'hides the hint when there is no bootstrap at all, because nothing is known' {
+            # A boot with no bootstrap document skips the whole screen anyway;
+            # asserting the hint is off keeps "unknown" from rendering as "wrong".
+            $skip = Get-HDTWizardSkip -Bootstrap $null
+
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTDeployRootHint' | Should -BeFalse
+        }
+    }
+
     Context 'what the image explicitly says wins' {
 
         It 'shows the Welcome screen when the image asked for it, credential or not' {
@@ -168,14 +232,16 @@ Describe 'Get-HDTWizardSkip' {
 
     Context 'a pane appears only when it has something to ask' {
 
-        It 'hides the credential pane when the image already carries a credential' {
-            # NOTHING TO ASK. The account is embedded and works; a technician
-            # staring at an empty password box would reasonably think they had
-            # to fill it in.
+        It 'shows the credential pane even when the image already carries a credential' {
+            # REVERSED DELIBERATELY. This used to hide the pane on the grounds
+            # that an embedded account has nothing to ask - but a pane with the
+            # answer already in it is a STATEMENT, and which account this
+            # machine deploys as is the fact a technician most wants to confirm
+            # before pressing Next. Hiding is now something the image asks for.
             $skip = Get-HDTWizardSkip -Bootstrap (New-HDTTestSkipBootstrap -Welcome $false -PromptForCredential $false)
 
-            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTCredentialPane' | Should -BeFalse
-            [bool] $skip.Credential | Should -BeTrue
+            Get-HDTTestPaneVisible -Skip $skip -Name 'HDTCredentialPane' | Should -BeTrue
+            [bool] $skip.Credential | Should -BeFalse
         }
 
         It 'shows the credential pane when the image is the one that stops for a person' {
@@ -211,7 +277,8 @@ Describe 'Get-HDTWizardSkip' {
         It 'still describes every pane when there is no bootstrap document' {
             $skip = Get-HDTWizardSkip -Bootstrap $null
 
-            @($skip.Pane).Count | Should -Be 3
+            # Four: the three panes, plus HDTDeployRootHint.
+            @($skip.Pane).Count | Should -Be 4
         }
 
         It 'tolerates a bootstrap document with no skip block, which every existing image has' {
