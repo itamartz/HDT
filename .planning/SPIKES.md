@@ -943,3 +943,201 @@ as well as by the suite.
 
 `C:\HDTLab\media` is **still missing** — S10 stands, and `-Task e2e` still cannot
 run. It is not a precondition of anything in this plan.
+
+---
+
+## S12 — a machine started its own deployment, and two plans of unproven code came due ✅⚠
+
+Date: 2026-08-14 · phase 05 plan 05. **ROADMAP M4's exit criterion, met.** A
+Generation 2 VM booted an ISO this repository built and deployed Windows 11 to
+completion **with zero keystrokes sent to it**.
+
+### S12.0 — the staged media is back, and S10 is closed
+
+`C:\HDTLab\media` was re-extracted from the Dropbox ISOs PROJECT.md names, with
+`Mount-DiskImage -Access ReadOnly` and `robocopy /E` — a create-only operation
+that deletes nothing:
+
+```
+C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim   4 313 252 141 B   6 s
+C:\HDTLab\media\WS2025-Std\sources\install.wim        5 186 143 750 B   6 s
+```
+
+Six seconds each on this NVMe host. **The cause of the original loss was never
+established and still is not** — S10 says so and that has not changed. What is
+now known is that restoring it is cheap, which is worth writing down beside a
+finding that stopped two plans from running `-Task e2e`.
+
+### S12.1 — the run, and the one line that proves nobody typed ✅
+
+`tests/e2e/UnattendedDeployment.E2E.Tests.ps1`. `Update-HDTBootImage` built the
+image, `New-HDTLabVirtualMachine` created `HDT-M4-Deploy` on the isolated
+`HDT Lab` switch, the VM was started, **and then nothing happened to it at all**.
+
+`RESULT.json`, read off the content disk after the machine powered itself off:
+
+```json
+"status":             "Succeeded",   "launchedBy":   "startnet",
+"provider":           "Local",       "sequenceId":   "DEMO-M4",
+"deployRoot":         "\\Share",     "resolvedDeployRoot": "C:\\Share",
+"deployRootSource":   "Discovered",  "computerName": "HDT-M4-01",
+"yamlVersion":        "0.4.12",      "yamlBase":     "X:\\HDT\\Modules\\powershell-yaml",
+"engineVersion":      "0.1.0",       "psVersion":    "5.1.26100.1",
+"elapsedSecond":      105,           "endedWith":    "wpeutil shutdown",
+"logPath":            "W:\\HDT\\Logs"
+```
+
+**`launchedBy` is `startnet`.** `startnet.cmd` inside the image runs
+`set HDT_LAUNCHED_BY=startnet` before it launches anything (S11.3), and nothing
+else sets it. A hand-typed launch leaves it empty.
+
+**`yamlBase` is on `X:`.** The engine and the parser came out of the boot image,
+not off the content disk — which is what let the M4 content disk drop the
+`HDT\Modules\` tree the M3 one carried.
+
+And the WinPE screenshot at t+150 s, `m4-01-winpe.png`, shows the engine already
+running rather than a prompt — colours inverted exactly as S4's byte-order caveat
+predicts, text legible:
+
+```
+powershell-yaml 0.4.12 loaded from X:\HDT\Modules\powershell-yaml
+Hephaestus 0.1.0 loaded from X:\HDT\Modules\Hephaestus
+...
+machine override: C:\Share\Control\machines\351B53DB-...-6A5BA69610DC.yaml
+sequence 'DEMO-M4': 5 step(s)
+HDTComputerName resolved to 'HDT-M4-01'
+running the task sequence
+```
+
+### S12.2 — SPIKES S9.1 confirmed a second time, on an image built by code ✅
+
+```
+03:12:38  deploy root 'C:\Share' (Discovered); the volumes considered were: C:\, X:\
+```
+
+**WinPE gave the content disk `C:` again**, on a boot image with a completely
+different contents list from the one S9.1 measured. The RAM disk is `X:`. The
+image carries the volume-relative `\Share` and `Resolve-HDTDeployRoot` found the
+volume holding `rules.yaml`; the payload writes no drive letter of its own.
+
+This is the failure mode the plan called the likeliest, and the reason it is
+dangerous is worth restating: **a lettered `deployRoot` baked into the image
+would have booted, found nothing, and powered the machine off — which from
+outside is indistinguishable from success**, because the discriminator for the
+whole demonstration is "the VM shut itself down". The assertion that
+`deployRootSource` is `Discovered` is what makes the two distinguishable.
+
+### S12.3 — the state document was frozen by its own relocation ⚠
+
+**The most valuable finding of the plan, and BOTH E2E files found it in the same
+run.** `Deployment.E2E.Tests.ps1` (M3) and `UnattendedDeployment.E2E.Tests.ps1`
+(M4) each reported:
+
+```
+Expected @('Completed','Completed','Completed','Completed','Completed'),
+but got  @('Completed','Completed','Pending','Pending','Pending')
+```
+
+on deployments that had **succeeded**, booted into Windows, and come up with the
+right computer name.
+
+The chain:
+
+1. the state document lives **in the log directory** by default —
+   `-StatePath` defaults to `<logRoot>\state.json`;
+2. 05-03's relocation **mirrors the whole log tree** onto the target volume, so a
+   copy of `state.json` arrives at `W:\HDT\Logs\state.json`;
+3. the writes kept going to `X:\HDT\Logs\state.json`, because the loop
+   deliberately did not repoint the primary — so the copy on the target volume
+   was **frozen at the moment of the move**, which is the end of step 2;
+4. `Copy-HDTLog` ships the **relocated** directory to the share. So the state
+   document a technician reads off the deployment share reported three steps
+   `Pending` on a run that finished.
+
+**A stale state document is worse than an absent one, because it is believed.**
+
+DESIGN 4.4.6's heartbeat was moved for exactly this reason, in exactly this
+place, ten lines earlier — 05-03 wrote "one left behind on the RAM disk would put
+a stale 'Running' in the copy a technician reads". The state document was not,
+and 05-03's stated reason for that ("moving the primary would make the mirror the
+only copy on a machine that has not rebooted yet") is wrong on its own terms:
+after the move there are **two** copies on the target volume, and the one on the
+RAM disk dies at the reboot regardless.
+
+Fixed: a state path that was under the **old** log root is rebased onto the new
+one. A caller who supplied `-StatePath`, or who put it outside the log directory,
+is not overruled. The second `-Task e2e` run — with the fixed engine staged into
+a freshly built boot image — is **93 passed, 0 failed**.
+
+**It sat unproven for two plans.** 05-03 added the relocation; S10 then stopped
+anybody running `-Task e2e`; 05-04 added no E2E. **The first `-Task e2e` run
+after the media came back found it in both files at once** — which is the
+argument for running the slow suites, made by the suites themselves.
+
+### S12.4 — `GetVirtualSystemThumbnailImage` returns 32775 intermittently ⚠
+
+Two of the four M4 screenshots and one of the M3 ones failed with
+`ReturnValue 32775` from `Msvm_VirtualSystemManagementService`. The ones that
+worked (`m4-01-winpe.png` at t+150 s, `m4-04-windows.png` after the Windows boot)
+are the two a human is asked to look at, so the run lost nothing — but a harness
+that **asserted** on a screenshot would have been red for a reason that has
+nothing to do with the deployment.
+
+SPIKES S4 already said screenshots are diagnosis and never assertion. This is the
+first measured reason to keep it that way: the call itself is not reliable.
+`Save-HDTLabVmScreen` warns and returns rather than throwing, which is why the
+run continued.
+
+### S12.5 — the timings, beside SPIKES S9.12's
+
+| Leg | S9.12 (M3, 04-04) | S12 (M4) |
+|---|---|---|
+| Boot image built by `Update-HDTBootImage` | — (hand-built, S1/S3) | **134 s**, then **128 s** |
+| Content disk staged | 12–14 s | **11 s** — and it no longer carries the engine |
+| WinPE boot → five steps → shutdown | 273 s wall, engine reported 100 s | **248 s / 247 s wall, engine reported 105 s** |
+| First Windows boot to a settled heartbeat | 265 s | **319 s**, both runs |
+| Whole `-Task e2e` (three files, two full deployments) | — | **1561 s** |
+
+Two runs because the first found S12.3 and the second proved the fix. Per file
+on the green run: `Deployment.E2E` 640 s, `UnattendedDeployment.E2E` 730 s,
+`WinPeSmoke.E2E` 190 s. **93 passed, 0 failed.**
+
+**The M4 leg is 25 s FASTER end to end than the M3 one that was started by hand**,
+which is not what anyone would have guessed: the machine starts deploying the
+moment `wpeinit` returns, instead of after a harness slept 150 s and typed.
+The engine's own 105 s against 100 s is the same work.
+
+The build's 134 s is consistent with S11.1's 123 s on a workspace with one less
+`extraContent` entry. **A full M4 demonstration from nothing is about 26
+minutes**, of which 21 are the two deployments waiting for Windows.
+
+### S12.6 — what this run did NOT prove
+
+Stated here rather than left to be inferred:
+
+- **No VM deployed over SMB.** PROJECT.md rule 2 keeps test VMs on the isolated
+  `HDT Lab` switch and S6 records that a VM there cannot reach a host share, so
+  the image declares `provider: Local`. The `Smb` provider's evidence is 05-02's
+  unit refusals and its loopback integration run.
+- **No WDS import has ever executed.** This host is Windows 11 Pro;
+  `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe` both return
+  nothing, and PROJECT.md rule 3 forbids standing one up beside CM01's PXE
+  responder. `New-HDTWdsService` throws `HDTDependencyError` here, which is
+  asserted, and the replace-in-place semantics are asserted against a fake.
+- **The PXE payload has never been network-booted.** It is staged and
+  hash-verified against the real ADK media and the real boot WIM; that is
+  completeness, not bootability.
+- **`New-HDTPowerService` still has never executed.** ROADMAP M2 asked whether
+  WinPE needs `wpeutil reboot` rather than `shutdown.exe` and called it a phase
+  05 question. `DEMO-M4` has no `Restart` step, so the only evidence this phase
+  produces is the payload's own `endedWith: wpeutil shutdown` — **which is not
+  the same thing** and must not be reported as if it were.
+
+### Lab safety
+
+Every Hyper-V call name-filtered and module-qualified. `CM01` and `DC01` were
+recorded before each run and asserted identical after, in `AfterAll` blocks that
+run on failure too — both `Off` and untouched throughout. Every VM was created
+and removed through `New-`/`Remove-HDTLabVirtualMachine`; nothing touched
+`Default Switch`, `HDT External` or `FSE Switch`. `C:\HDTLab\vms` was empty before
+and after.

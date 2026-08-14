@@ -239,6 +239,103 @@ perspective); refusal to fall back to guest auth.
 **Exit:** a VM boots the ISO unattended with no keypress, and a physical or
 virtual machine PXE-boots the same image from WDS and deploys.
 
+**✅ Met — the first half in full, the second half not at all, and the
+difference is stated rather than blurred.**
+
+`tests/e2e/UnattendedDeployment.E2E.Tests.ps1` builds a boot image with
+`Update-HDTBootImage`, creates `HDT-M4-Deploy` — Generation 2, Secure Boot on,
+4 GB, 2 vCPU, on the isolated `HDT Lab` switch — boots it from the ISO **that
+build produced**, and then **sends the machine nothing at all**. Inside the
+image, `startnet.cmd` runs `wpeinit` and then `X:\HDT\Start-HDTDeployment.ps1`,
+which resolves its own deploy root and runs
+`samples/workspace/TaskSequences/DEMO-M4` against the real disk and image
+services. The VM is then started again **with the ISO still attached and the
+boot order untouched**, and reaches full Windows 11.
+
+`RESULT.json`, read off the content disk after the machine powered itself off:
+
+```
+status Succeeded    launchedBy startnet    provider Local    sequenceId DEMO-M4
+deployRoot \Share   resolvedDeployRoot C:\Share   deployRootSource Discovered
+yamlBase X:\HDT\Modules\powershell-yaml   psVersion 5.1.26100.1
+elapsedSecond 105   endedWith "wpeutil shutdown"   computerName HDT-M4-01
+```
+
+| Leg | M3 (SPIKES S9.12) | M4 (SPIKES S12) |
+|---|---|---|
+| Boot image built by HDT | — (hand-built spike artifact) | **134 s** |
+| Content disk staged | 12–14 s | **11 s**, and it no longer carries the engine |
+| WinPE boot → five steps → shutdown | 273 s wall, engine reported 100 s | **248 s wall, engine reported 105 s** |
+| First Windows boot to a settled heartbeat | 265 s | **319 s** |
+
+**The M4 leg is 25 s faster than the M3 one that a harness started by hand** —
+the machine begins deploying the moment `wpeinit` returns, instead of after a
+harness slept and typed.
+
+**Why "zero keystrokes" is a fact and not a claim.** Three independent proofs:
+`tests/unit/UnattendedDeploymentE2E.Tests.ps1` parses the E2E in the *fast* suite
+and asserts it names no `Send-HDTLabVmText`, `TypeText`, `TypeKey` or
+`Msvm_Keyboard`; the guest reports `launchedBy startnet`, which only the image's
+own `startnet.cmd` sets; and nothing types, so a `startnet.cmd` that failed to
+launch the payload would leave a WinPE prompt and time out rather than pass.
+
+**What the lab run corrected.** One defect, and both E2E files found it in the
+same run (SPIKES S12.3): **the state document was frozen by its own log
+relocation.** `state.json` lives in the log directory, 05-03's relocation mirrors
+that whole directory onto the target volume, the writes kept going to the RAM
+disk, and `Copy-HDTLog` then shipped the frozen copy to the share — so the state
+document a technician reads reported three steps `Pending` on a deployment that
+had succeeded and booted. DESIGN 4.4.6's heartbeat was moved for exactly this
+reason ten lines earlier; the state document was not. It had been unprovable for
+two plans because SPIKES S10's missing media stopped `-Task e2e` from running at
+all.
+
+**What M4 ships without, stated plainly:**
+
+- **No VM deployed over SMB.** `PROJECT.md` rule 2 keeps test VMs on the isolated
+  `HDT Lab` switch and SPIKES S6 records that a VM there cannot reach a share on
+  the host, so the image declares `provider: Local` and a **volume-relative**
+  `deployRoot`. The `Smb` provider's evidence is 05-02's unit refusals plus its
+  loopback integration run — not a lab deployment.
+- **No WDS import has ever executed, anywhere in this repository.** This host is
+  Windows 11 Pro; `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe`
+  both return nothing, and standing WDS up beside `CM01`'s PXE responder is
+  refused by `PROJECT.md` rule 3. `Import-HDTBootImageToWds`'s replace-in-place
+  semantics — including "importing the same image twice leaves one image" — are
+  asserted against `New-HDTFakeWdsService`. The one thing this machine can prove
+  is proven against the real adapter: `New-HDTWdsService` refuses with a named
+  `HDTDependencyError`. **So the second clause of M4's exit criterion above is
+  NOT met**, and no amount of green elsewhere changes that.
+- **The PXE payload is staged and hash-verified but has never been
+  network-booted.** `New-HDTPxePayload`'s `Complete` means "every declared file
+  is staged and its bytes verify" and **not** "a machine will PXE boot from
+  this". The `BCD` it stages is the ADK media template, which describes booting
+  `sources\boot.wim` from removable media; a TFTP/HTTP stack generally needs its
+  own store and its own device element. The source file, the integration test and
+  this list all say so in those words.
+- **No drivers** (M5, deferred to v2) and **no applications, updates, roles or
+  BitLocker** (M6).
+- **No engine-driven reboot into an autologon resume.** `DEMO-M4` has no
+  `Restart` step, deliberately and for DEMO-M3's unexpired reason: the reboot
+  ceremony arms autologon through the registry and an LSA secret, and in WinPE
+  those belong to the RAM disk. The first logon of the deployed machine is
+  configured by the unattend, which `ApplyUnattend` stages.
+- **`New-HDTPowerService` still has never executed.** M2 above asked whether
+  WinPE needs `wpeutil reboot` rather than `shutdown.exe` and called it a phase
+  05 question. The only evidence this phase produces is the payload's own
+  `endedWith: wpeutil shutdown` — the payload calls `wpeutil.exe` directly, not
+  through the service. **That is not the same thing and is not reported as if it
+  were.**
+- **Domain join is still unproven end to end**, for the reason `PROJECT.md`
+  gives: the `HDT Lab` switch is isolated and a test VM must not be moved to
+  reach `DC01`.
+- **DESIGN 11's technician UI is absent.** It is M8.
+
+**Two questions this phase cannot decide for itself**, both about whether the
+gaps above are acceptable: an isolated `HDT-FS01` file server on `HDT Lab` would
+let a VM deploy over SMB, and an isolated `HDT-WDS01` would let the WDS import
+run for real. Neither is built, and neither may be built on `Default Switch`.
+
 ---
 
 ## M5 — Drivers  ·  **DEFERRED TO v2**
