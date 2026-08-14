@@ -165,4 +165,51 @@ Describe 'workspace.yaml schema contract' -Skip:$script:HDTSchemaSkip {
             $engineRequired | Should -Be $schemaRequired
         }
     }
+
+    Context 'the allowed-key lists' {
+
+        # THE HOLE THIS CLOSES, AND IT WAS A REAL ONE. The required-key check
+        # above compares only "required", so bootImage.skip could be added to
+        # the schema, read by Import-HDTWorkspaceDocument and written by
+        # Update-HDTBootImage with every unit test green - and still be refused
+        # by the validator the moment a real workspace.yaml declared it. The
+        # whole suite passed; the E2E fell over on the first boot.
+        #
+        # additionalProperties is false on all four of these objects, so the
+        # schema's property list IS its allowed-key list, and the validator's
+        # must say the same thing.
+        It 'declares the same allowed keys as the schema for <Variable>' -ForEach @(
+            @{ Variable = '$allowedRootKey'; Pointer = 'properties' }
+            @{ Variable = '$allowedCredentialKey'; Pointer = 'properties.credential.properties' }
+            @{ Variable = '$allowedBootImageKey'; Pointer = 'properties.bootImage.properties' }
+            @{ Variable = '$allowedExtraContentKey'; Pointer = 'definitions.extraContentEntry.properties' }) {
+
+            $schema = Get-Content -LiteralPath $script:workspaceSchemaPath -Raw | ConvertFrom-Json
+
+            $node = $schema
+            foreach ($step in ($Pointer -split '\.')) { $node = $node.$step }
+
+            $schemaKey = @($node.PSObject.Properties | ForEach-Object { $_.Name }) | Sort-Object
+
+            # Read out of the validator's own source, same as above, so the
+            # comparison cannot be satisfied by a list nothing loops over.
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($script:assertPath, [ref] $null, [ref] $null)
+            $assignment = @($ast.FindAll({
+                        param($astNode)
+                        $astNode -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $astNode.Left.Extent.Text -eq $Variable
+                    }.GetNewClosure(), $true))
+
+            $assignment.Count | Should -Be 1 -Because (
+                'Assert-HDTWorkspaceDocument declares these keys in one place named {0}' -f $Variable)
+
+            $engineKey = @($assignment[0].Right.FindAll({
+                        param($astNode)
+                        $astNode -is [System.Management.Automation.Language.StringConstantExpressionAst]
+                    }, $true) | ForEach-Object { $_.Value }) | Sort-Object
+
+            $engineKey | Should -Be $schemaKey -Because (
+                'a key in one and not the other is a document the schema accepts and the engine refuses')
+        }
+    }
 }
