@@ -320,16 +320,36 @@ all.
   ceremony arms autologon through the registry and an LSA secret, and in WinPE
   those belong to the RAM disk. The first logon of the deployed machine is
   configured by the unattend, which `ApplyUnattend` stages.
-- **`New-HDTPowerService` still has never executed.** M2 above asked whether
-  WinPE needs `wpeutil reboot` rather than `shutdown.exe` and called it a phase
-  05 question. The only evidence this phase produces is the payload's own
-  `endedWith: wpeutil shutdown` — the payload calls `wpeutil.exe` directly, not
-  through the service. **That is not the same thing and is not reported as if it
-  were.**
 - **Domain join is still unproven end to end**, for the reason `PROJECT.md`
   gives: the `HDT Lab` switch is isolated and a test VM must not be moved to
   reach `DC01`.
 - **DESIGN 11's technician UI is absent.** It is M8.
+
+**One thing M4 shipped late, in 05-06, because it was the phase's own unanswered
+question.** M2 above asked whether WinPE needs `wpeutil reboot` rather than
+`shutdown.exe` and named phase 05 as the owner; five plans went by with it open
+and `New-HDTPowerService` never once executed. **It is answered now, and it was
+not a matter of style — `shutdown.exe` is not in WinPE at all:**
+
+```
+Windows\System32\shutdown.exe   ABSENT
+Windows\System32\wpeutil.exe    PRESENT, 32768 bytes
+```
+
+read out of the boot image `Update-HDTBootImage` builds, and confirmed from
+inside a running WinPE by the smoke probe. So the old adapter would have given a
+`Restart` step a command that does not exist. Nothing caught it because `DEMO-M3`
+and `DEMO-M4` both deliberately have no `Restart` step and the `IPowerService`
+contract's real row is skipped permanently — a contract test may not reboot the
+machine running it.
+
+`Get-HDTPowerCommand` now makes the decision (pure, 26 tests),
+`New-HDTPowerService -Environment` is **mandatory** so no caller can inherit the
+wrong answer, and `tests/e2e/WinPeSmoke.E2E.Tests.ps1` **powers its VM off with
+the real adapter** — the probe's fallback marker `FALLBACK.txt` is asserted
+absent, so "the machine ended" cannot stand in for "the service ended it". The
+payload's own `endedWith: wpeutil shutdown` is still a direct call, after the
+catch, because it must work on a run where the module never imported.
 
 **Two questions this phase cannot decide for itself**, both about whether the
 gaps above are acceptable: an isolated `HDT-FS01` file server on `HDT Lab` would

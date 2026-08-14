@@ -236,7 +236,8 @@ if ($probe['engineLoaded']) {
 
         # What it is about to run, so PROBE.json says it BEFORE the machine goes.
         # Reached through the module because the decision is private.
-        $plan = & (Get-Module -Name 'Hephaestus') { Get-HDTPowerCommand -Environment WinPE -Operation Stop -DelaySecond 0 }
+        $engineModule = @(Get-Module -Name 'Hephaestus')[0]
+        $plan = & $engineModule { Get-HDTPowerCommand -Environment WinPE -Operation Stop -DelaySecond 0 }
         $probe['powerCommand'] = [string] $plan.Command
         $probe['powerArgument'] = (@($plan.Argument) -join ' ')
     } catch {

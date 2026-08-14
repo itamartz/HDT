@@ -32,13 +32,24 @@ gaps:
       - "05-02's unit refusals: guest, anonymous, empty user and SMB1 all throw HDTSecurityError and tear the mapping down"
       - "05-02's loopback integration run against a real throwaway share"
   - truth: "WinPE needs wpeutil reboot rather than shutdown.exe (ROADMAP M2's open question, deferred to phase 05)"
-    status: not_answered
-    reason: >
-      DEMO-M4 has no Restart step, so New-HDTPowerService still has never
-      executed. The only evidence this phase produces is the payload's own
-      endedWith 'wpeutil shutdown', and the payload calls wpeutil.exe directly
-      rather than through the service. That is not the same thing and is not
-      reported as if it were.
+    status: answered_in_05_06
+    answer: >
+      YES, and not as a preference: shutdown.exe is not in WinPE at all. A
+      read-only mount of the boot image Update-HDTBootImage builds finds
+      wpeutil.exe (32768 bytes) and wpeinit.exe in Windows\System32 and NO
+      shutdown.exe, and the smoke probe measures the same thing from inside a
+      running WinPE. So the old adapter default would have handed a Restart step
+      a command that does not exist. Nothing caught it because DEMO-M3 and
+      DEMO-M4 both deliberately have no Restart step and the IPowerService
+      contract's real row is skipped permanently.
+    evidence:
+      - "tests/integration/WinPeContent.Integration.Tests.ps1 - the fact, against a real mounted image, with wpeutil.exe asserted PRESENT in the same mount so the absence cannot be an artefact of looking in the wrong place"
+      - "Get-HDTPowerCommand - the decision, pure, 26 tests, exact argument arrays"
+      - "New-HDTPowerService -Environment is MANDATORY, so no caller can inherit the wrong answer; a better default was not the fix"
+      - "tests/e2e/WinPeSmoke.E2E.Tests.ps1 - New-HDTPowerService EXECUTED, in WinPE, powering the VM off. FALLBACK.txt asserted ABSENT, so 'the machine ended' cannot stand in for 'the service ended it'"
+    still_not_claimed:
+      - "that a Restart step has run in WinPE. Stop has, through the real adapter; Restart differs only in the verb it takes from the same asserted table, and 'differs only in' is an argument, not a measurement."
+      - "that Start-HDTResume.ps1's FullOS leg has run. Nothing here has ever executed shutdown.exe /r through the service, because it would restart the developer's machine."
 human_verification:
   - test: "Open C:\\HDTLab\\scratch\\e2e-m4\\m4-01-winpe.png"
     expected: "the engine already running - the two module-load lines, the machine override path, 'sequence DEMO-M4: 5 step(s)', 'running the task sequence'. NOT a bare X:\\Windows\\System32> prompt."
@@ -107,6 +118,9 @@ No WDS import has ever executed. See the gaps in the front matter.
 | 05-05 | importing the same image twice leaves one image | met **against a fake only** | `New-HDTFakeWdsService` is a store and does not de-duplicate, so the assertion is about the command |
 | 05-05 | WDS absence stated plainly, payload demonstrated instead | met | `tests/integration/PxePayload.Integration.Tests.ps1` asserts the absence and stages 23 real files |
 | 05-05 | the content volume DISCOVERED, not assumed | met | `deployRootSource Discovered`, `resolvedDeployRoot C:\Share`, candidates `C:\, X:\` |
+| 05-06 | **ROADMAP M2's `wpeutil` question answered** | met | `shutdown.exe` is not in WinPE — read out of a real mounted image and confirmed from inside a running one (SPIKES S13.1) |
+| 05-06 | `New-HDTPowerService` has executed | met | it powers the smoke VM off, in WinPE; `FALLBACK.txt` asserted absent (SPIKES S13.2) |
+| 05-06 | a build cannot report success over a suite that never ran | met | `Assert-HDTPesterResult`, proven by planting a discovery failure (SPIKES S13.3) |
 
 ---
 
@@ -154,6 +168,28 @@ is not evidence. Two plans of green fast suites did not notice.
 
 ---
 
+## The defect 05-06 found, which is the same lesson one level up
+
+**`./build.ps1` was reporting `BUILD SUCCEEDED` over a test file that never ran**
+(SPIKES S13.3). A file whose *discovery* fails — S9.15's trap, for the fourth
+time — is dropped by Pester, which then reports `Result Failed`,
+`FailedContainersCount 1` and **`FailedCount 0`**. All three suites judged
+themselves by `FailedCount` alone.
+
+So the entry point this phase kept insisting on had a hole in it the whole time:
+running a suite through `build.ps1` was not, by itself, evidence that the suite
+ran. `Assert-HDTPesterResult` now checks the container count first and names the
+file; it was proven by planting a discovery failure and watching a run of
+**4893 passed, 0 failed** turn into `BUILD FAILED`.
+
+And 05-06's own boot-image question is answered rather than deferred: **WinPE has
+no `shutdown.exe`**, so `New-HDTPowerService`'s default could never have
+rebooted a machine from a `Restart` step. It had been unprovable in the same way
+as everything else here — the only code path that would have executed it is one
+`DEMO-M3` and `DEMO-M4` deliberately do not have.
+
+---
+
 ## What phase 05 ships without
 
 Every item here is also in `docs/ROADMAP.md` M4 and in `05-05-SUMMARY.md`, in the
@@ -166,9 +202,8 @@ same words.
 - No drivers (M5, deferred to v2); no applications, updates, roles or BitLocker
   (M6).
 - No engine-driven reboot into an autologon resume — `DEMO-M4` has no `Restart`
-  step, deliberately.
-- `New-HDTPowerService` still has never executed, so ROADMAP M2's `wpeutil`
-  question is still open.
+  step, deliberately. So **no `Restart` step has executed in WinPE**, even though
+  the power adapter underneath one now has.
 - Domain join is still unproven end to end.
 - DESIGN 11's technician UI is absent (M8).
 

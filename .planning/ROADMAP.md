@@ -157,8 +157,12 @@ What M2 does **not** cover, recorded here so a later phase picks it up:
   the state document that knew it is gone — but not finished.
 - **`timeoutMinutes` is not pre-emptive** and **`PauseOnError` does not prompt**;
   both are now documented in DESIGN 4.3 rather than implied.
-- **`New-HDTPowerService` has never been executed** and whether WinPE needs
-  `wpeutil reboot` rather than `shutdown.exe` is a phase 05 question.
+- ~~**`New-HDTPowerService` has never been executed** and whether WinPE needs
+  `wpeutil reboot` rather than `shutdown.exe` is a phase 05 question.~~
+  **ANSWERED in 05-06, and it was a defect rather than a preference:**
+  `shutdown.exe` is not in the WinPE image at all, so a `Restart` step there
+  would have called a command that does not exist. `New-HDTPowerService` has now
+  executed, in WinPE, powering the smoke VM off. See SPIKES S13.
 - **`powershell-yaml` is a hard runtime dependency of the engine and nothing yet
   asserts it will be inside the WinPE boot image** — the third carried-forward
   item from `02-VERIFICATION.md`, and phase 03 has made it worse rather than
@@ -173,22 +177,35 @@ boot config, OS import. Target-disk ambiguity must refuse to proceed.
 before the decisions, the decisions before the steps, the steps before anything
 real is touched).
 
-- [ ] `04-01-PLAN.md` — `IDiskService` and `IImageService`: real adapters over the
+- [x] `04-01-PLAN.md` — `IDiskService` and `IImageService`: real adapters over the
       Storage module, DISM, `bcdboot`, `bcdedit` and `reagentc`, hand-written fakes
       (the disk fake models the MSR `Initialize-Disk` creates), two contracts, and
       captured disk and WIM fixtures
-- [ ] `04-02-PLAN.md` — the decisions, all pure logic: `Select-HDTTargetDisk` and
+- [x] `04-02-PLAN.md` — the decisions, all pure logic: `Select-HDTTargetDisk` and
       DESIGN 9.1's refusal to guess (the most-tested unit in the phase), the
       `uefi-standard` / `bios-standard` layouts and their partition arithmetic,
       firmware selection, index resolution, and the `os.yaml` catalog with its schema
-- [ ] `04-03-PLAN.md` — the five steps (`Validate`, `DiskPartition`, `ApplyImage`,
+- [x] `04-03-PLAN.md` — the five steps (`Validate`, `DiskPartition`, `ApplyImage`,
       `ApplyUnattend`, `ConfigureBoot`), the `DEMO-M3` sample, and the M3 benchmark:
       a whole WinPE deployment leg against fakes asserting the exact ordered
       operation list
-- [ ] `04-04-PLAN.md` — the first real runs: `build.ps1 -Task integration` and
+- [x] `04-04-PLAN.md` — the first real runs: `build.ps1 -Task integration` and
       `-Task e2e`, a real apply to a scratch VHDX, the engine's first start inside
       WinPE, and **the M3 exit criterion** — a Gen2 VM on the isolated `HDT Lab`
       switch deployed by a sequence run through the engine, booting into Windows 11
+
+Phase 04 is **complete**. The M3 exit criterion is met and demonstrated: a
+Generation 2 VM on the isolated `HDT Lab` switch was deployed by a five-step
+sequence run through the engine inside WinPE, and booted into Windows 11 **with
+the WinPE media still attached and the firmware boot order untouched** — so
+`ConfigureBoot`'s `SetBootOrderFirst` works, and it had never run anywhere
+before, because it edits the boot order of the machine it runs on. SPIKES S9
+records the whole run, including four things the fakes had wrong. The most
+important is S9.3: `Clear-Disk` **refuses a RAW disk**, which is every machine
+`DiskPartition` exists for, and the entire unit suite was green over code that
+could not partition a factory-fresh disk. The most dangerous is S9.11: Windows
+Setup **silently discards a `ComputerName` over 15 characters** and names the
+machine itself, on a deployment that reports `Succeeded`.
 
 **05 — Boot image / ISO / PXE.** `Update-HDTBootImage`, `New-HDTBootIso` with
 `-NoPromptForKey`, build manifest, WDS import, SMB content provider — **and the
@@ -200,33 +217,61 @@ and PROJECT.md forbids standing one up beside `CM01`'s PXE responder — so the 
 import is proven against a fake and `New-HDTPxePayload`'s staging completeness is
 demonstrated instead. That gap is stated, not worked around.)
 
-**Plans:** 5 plans in 5 waves (each depends on the ones before it — the pure
+**Plans:** 6 plans in 6 waves (each depends on the ones before it — the pure
 logic before the providers, the providers before the entry point, the entry point
-before the image that carries it, the image before the machine that boots it).
+before the image that carries it, the image before the machine that boots it, and
+the machine before the question only a machine could answer).
 
-- [ ] `05-01-PLAN.md` — the foundations, none of which mounts anything:
+- [x] `05-01-PLAN.md` — the foundations, none of which mounts anything:
       `Get-HDTAdkPath` (runtime resolution, refused by name when absent),
       `workspace.yaml` with its schema and sample, and `Get-HDTBootImageComponent`
       — SPIKES S1's verified order merged with what the admin declared,
       dependency-validated, language packs probed rather than assumed
-- [ ] `05-02-PLAN.md` — DESIGN 6's content provider: `Local`, `Smb`, one contract
+- [x] `05-02-PLAN.md` — DESIGN 6's content provider: `Local`, `Smb`, one contract
       all three implementations satisfy, the refusal to fall back to guest auth,
       `Set-HDTShareCredential` / `Test-HDTShareAcl`, and **closing the seam 04-02
       marked at the resolved image path**
-- [ ] `05-03-PLAN.md` — `Start-HDTDeployment.ps1`, **the WinPE entry point**,
+- [x] `05-03-PLAN.md` — `Start-HDTDeployment.ps1`, **the WinPE entry point**,
       proven by AST to do nothing a step would do; `bootstrap.json`; and DESIGN
       4.4.1's `_HDTLogPath` relocation, which phase 04 deferred and which is why
       WinPE-phase logs currently do not survive the reboot
-- [ ] `05-04-PLAN.md` — `Update-HDTBootImage` and `New-HDTBootIso`: the
+- [x] `05-04-PLAN.md` — `Update-HDTBootImage` and `New-HDTBootIso`: the
       `IBootImageService` adapter and its fake, the seventeen-step build asserted
       from a journal, the manifest, SPIKES S2's space-free `-bootdata` staging —
       then the real ADK run proving **WIM/ISO equivalence by hash** and reading
       `startnet.cmd` back out of a mounted image
-- [ ] `05-05-PLAN.md` — `Import-HDTBootImageToWds` (replace-in-place),
+- [x] `05-05-PLAN.md` — `Import-HDTBootImageToWds` (replace-in-place),
       `New-HDTPxePayload`, `DEMO-M4`, and **the exit criterion**: a VM boots HDT's
       own ISO and deploys with zero keystrokes, proven three ways — the test sends
       nothing (asserted by parsing it), the guest reports `launchedBy startnet`,
       and a run that did not start itself would time out rather than pass
+- [x] `05-06-PLAN.md` — **the phase's own unanswered question**: ROADMAP M2 asked
+      whether WinPE needs `wpeutil reboot` rather than `shutdown.exe` and named
+      phase 05 as the owner. `shutdown.exe` is **not in WinPE at all**, so the
+      adapter's default could never have worked; `Get-HDTPowerCommand` now makes
+      the decision, `New-HDTPowerService -Environment` is mandatory, and the
+      smoke VM is powered off by the real adapter — the first time it has ever
+      executed
+
+Phase 05 is **complete, with two named gaps that are refusals rather than
+omissions.** ROADMAP M4's **first** exit clause is met and demonstrated: a
+Generation 2 VM booted an ISO `Update-HDTBootImage` produced and deployed Windows
+11 to completion with **zero keystrokes sent to it** — `RESULT.json` reports
+`status Succeeded`, `launchedBy startnet`, `deployRootSource Discovered`,
+`endedWith "wpeutil shutdown"` (SPIKES S12). The **second** clause, PXE boot from
+WDS, is **NOT met**: this host is Windows 11 Pro with no WDS, and PROJECT.md
+rule 3 forbids standing one up beside CM01's PXE responder, so no WDS import has
+ever executed anywhere in this repository. No VM deployed over SMB either, for
+the reason SPIKES S6 records about the isolated switch. `05-VERIFICATION.md`
+states both, and `docs/ROADMAP.md` M4 states them in the same words.
+
+Final counts after 05-06: **4907 passed / 0 failed / 42 skipped** under pwsh
+7.5.8 and **4762 passed / 0 failed / 187 skipped** under Windows PowerShell
+5.1.26100.8655, lint clean across 344 files. And, for the first time in this
+repository, the slow suites under **5.1** as well as pwsh: `-Task integration`
+**138 passed / 0 failed**, `-Task e2e` **98 passed / 0 failed**. Getting there
+cost three defects nobody had seen, because nobody had run them there
+(SPIKES S13).
 
 **05.5 — Technician UI.** Two WPF surfaces inside WinPE (DESIGN 11): the
 full-screen progress window driven by the JSONL event stream, and the wizard

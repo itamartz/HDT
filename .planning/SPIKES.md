@@ -1141,3 +1141,295 @@ run on failure too — both `Off` and untouched throughout. Every VM was created
 and removed through `New-`/`Remove-HDTLabVirtualMachine`; nothing touched
 `Default Switch`, `HDT External` or `FSE Switch`. `C:\HDTLab\vms` was empty before
 and after.
+
+---
+
+## S13 — `shutdown.exe` is not in WinPE, and a build was calling a run that never happened a success ⚠✅
+
+Date: 2026-08-14 · phase 05 plan 06. **The question ROADMAP M2 deferred to phase
+05, answered by execution rather than by argument** — and a second finding, in
+the build script, that the answering of it turned up.
+
+### S13.1 — the answer, and it is not a matter of style ⚠
+
+`docs/ROADMAP.md` M2 asked "whether WinPE needs `wpeutil reboot` rather than
+`shutdown.exe`" and named phase 05 as the owner. Five plans went by;
+`05-VERIFICATION.md` recorded it `not_answered`; `New-HDTPowerService.ps1` and
+`PowerService.Contract.Tests.ps1` both carried the comment *"UNVERIFIED,
+RECORDED FOR PHASE 05"*.
+
+A read-only mount of the boot image `Update-HDTBootImage` built in 05-04,
+`Windows\System32`:
+
+```
+shutdown.exe     False
+wpeutil.exe      True    32768
+wpeinit.exe      True    61440
+powershell.exe   False        <- it is under WindowsPowerShell\v1.0\, not System32
+```
+
+**`shutdown.exe` is not there.** The adapter defaulted to it, the engine's
+`Restart` step calls `IPowerService.Restart()`, and in WinPE that call could only
+ever have raised *"The term 'shutdown.exe' is not recognized"*.
+
+**Why nothing caught it, which is the more useful half:**
+
+- `DEMO-M3` and `DEMO-M4` both deliberately have **no `Restart` step** — the
+  reboot ceremony arms autologon in a registry and an LSA secret that belong to
+  the RAM disk in WinPE. So the one path that would have executed it never ran.
+- The `IPowerService` contract's **real row is skipped permanently**, and
+  correctly: a contract test may not reboot the machine running it, and there is
+  no dry-run form of `shutdown.exe`.
+- The fake shrugs. It records `Restart` and returns, which is the whole point of
+  it — and it is exactly SPIKES S9.3's shape (`Clear-Disk` on a RAW disk), where
+  a fake that accepts a call the world refuses keeps a suite green over code that
+  cannot work.
+
+Fixed the way the repository splits everything else: **the decision is pure and
+the adapter is dumb.** `Get-HDTPowerCommand -Environment WinPE|FullOS -Operation
+Restart|Stop -DelaySecond n` returns the command, the exact argument array, a
+`SleepSecond` and a reason; 26 tests. `New-HDTPowerService -Environment` is
+**mandatory and undefaulted** — a better default would have left every existing
+caller inheriting the wrong answer in silence, which is what happened the first
+time. The three callers (`Start-HDTDeployment.ps1`, `Start-HDTResume.ps1`, the
+M3 lab launcher) all already know which world they are in; nothing detects
+anything.
+
+`wpeutil reboot` and `wpeutil shutdown` **take no delay argument**, so a
+sequence's `delaySecond:` is honoured by sleeping first. The plan carries that as
+`SleepSecond` and the adapter sleeps unconditionally — `Start-Sleep -Seconds 0`
+is a no-op, and a guard would have been a branch.
+
+### S13.2 — the adapter has now executed, in WinPE, and the proof is a file that is not there ✅
+
+`New-HDTPowerService` had **never executed anywhere in this repository** across
+three phases. `tests/e2e/WinPeSmoke.E2E.Tests.ps1` now ends its VM with it.
+
+The discriminator matters more than the run. The smoke VM was always going to
+power off — the probe used to call `wpeutil` itself — so "the VM ended" proves
+nothing about the adapter. The probe therefore:
+
+1. writes `PROBE.json` first, carrying `shutdownExe`, `wpeutilExe`,
+   `powerEnvironment`, `powerCommand`, `powerArgument` and `powerError`;
+2. calls `$power.Stop(0)`;
+3. waits **120 s**, and only then writes **`FALLBACK.txt`** and calls `wpeutil`
+   directly.
+
+**The assertion is that `FALLBACK.txt` is ABSENT.** A fast, readable failure
+instead of a fifteen-minute timeout, and a claim that cannot be satisfied by a
+machine that was going to shut down regardless.
+
+The probe also measures the same fact from **inside a running WinPE**, which is a
+better witness than a mounted image: the integration file reads the WIM, the
+probe reads the machine that WIM became.
+
+### S13.3 — `./build.ps1` was reporting BUILD SUCCEEDED over a file that never ran ⚠
+
+**Found by walking into SPIKES S9.15 for the fourth time, and the first time its
+symptom was a MISSING result rather than a wrong one.**
+
+The first draft of `tests/integration/WinPeContent.Integration.Tests.ps1` read a
+`BeforeAll` variable from a `Context`'s `-Skip:`. Discovery and run do not share
+a scope, so under the `Set-StrictMode -Version Latest` that `build.ps1` sets,
+**discovery died**. Pester dropped three of the four contexts and reported:
+
+```
+Discovery in ...WinPeContent.Integration.Tests.ps1 failed with:
+  The variable '$script:hasBuilt' cannot be retrieved because it has not been set.
+Discovery found 4 tests in 2.11s.
+
+Tests Passed: 4, Failed: 0, Skipped: 0
+```
+
+Four passed out of a file with fourteen assertions in it. And the result object:
+
+```
+Result                Failed
+FailedCount           0
+FailedContainersCount 1
+```
+
+**`build.ps1` read `FailedCount` alone, in all three of its suites.** So a
+discovery failure — the commonest failure mode this repository has, recorded
+three times already — printed **BUILD SUCCEEDED**. That is the empty-dispatch
+defect `tests/unit/BuildScript.Tests.ps1` was written for, in a new costume: a
+build that ran nothing is not a build that succeeded.
+
+`Assert-HDTPesterResult` now judges every suite, checks `FailedContainersCount`
+**before** `FailedCount`, and names the file and the error. **Proven by planting
+one**, which is the only proof S9.15b accepts:
+
+```
+test: 4893 passed, 0 failed, 42 skipped
+BUILD FAILED: 1 test file(s) could not be run at all - a discovery or setup
+  failure means their assertions never executed, and no test failing is not the
+  same as every test passing.
+  ...\ZZPlantedDiscoveryFailure.Tests.ps1: The variable '$script:plantedFlag'
+  cannot be retrieved because it has not been set.
+```
+
+**Note what the first line says.** 4893 tests passed. Under the old condition
+that was a green build.
+
+### S13.4 — what this did NOT prove
+
+- **No `Restart` step has executed in WinPE.** `IPowerService.Stop` has, through
+  the real adapter, in WinPE. `Restart` differs only in the verb it takes from
+  the same table, and the table is asserted — but "differs only in" is an
+  argument, not a measurement, and it is written here as one.
+- **`Start-HDTResume.ps1`'s `FullOS` leg is still unexecuted.** Nothing in this
+  repository has ever run `shutdown.exe /r` through the service, because doing so
+  would restart the developer's machine.
+- **The delay is unmeasured.** Every run uses 0.
+
+### S13.5 — the boot image build could not run under Windows PowerShell 5.1, and a progress meter was why ⚠
+
+**Found by the guard S13.3 had just added, on its first real use.** The first
+`./build.ps1 -Task integration` ever run under `powershell.exe` died in
+`BootImage.Integration.Tests.ps1`'s setup:
+
+```
+Exception calling "NewIso" with "3" argument(s): "The running command stopped
+because the preference variable "ErrorActionPreference" or common parameter is
+set to Stop: 0% complete"
+```
+
+**`0% complete` is oscdimg's progress meter.** Every adapter in this repository
+captures its tool's own words —
+
+```powershell
+$output = @(& $oscdimg @full 2>&1)
+```
+
+— because *"oscdimg failed"* without oscdimg's sentence is the log entry that
+wastes an hour. Under **Windows PowerShell 5.1** that line wraps each stderr line
+in an `ErrorRecord`, and the `$ErrorActionPreference = 'Stop'` that engine code
+is required to set (CLAUDE.md rule 7) makes the **first** one terminating. So the
+call died before `$LASTEXITCODE` was ever consulted, and a tool that had merely
+been chatty was indistinguishable from one that had failed.
+
+Reproduced in one line, both ways:
+
+```
+PS 5.1> $ErrorActionPreference='Stop';     & cmd /c 'echo oops 1>&2' 2>&1   ->  THREW: oops
+PS 5.1> $ErrorActionPreference='Continue'; & cmd /c 'echo oops 1>&2' 2>&1   ->  oops
+```
+
+**pwsh 7 does not do this**, and every `-Task integration` run before 05-06 was
+under pwsh. `-Task test` had always been run under both engines, as CLAUDE.md
+requires — but *test* is not the suite that shells out. **Five adapters were
+affected**: `oscdimg`, `dism /Set-ScratchSpace`, `bcdboot`, `reagentc` and
+`bcdedit` — which is to say the ISO build and most of `ConfigureBoot`.
+
+Fixed with one line per method, `$ErrorActionPreference = 'Continue'` local to
+the method scope. It adds no branch, so the adapters keep rule 1's exemption from
+TDD, and `tests/unit/NativeCommandStderr.Tests.ps1` is what keeps the next one
+honest: it finds every `2>&1` in `src/` and requires the line. It deliberately
+does **not** cover `*>&1`, which is `New-HDTScriptInvoker` merging the streams of
+an administrator's own script — an error there SHOULD stop the step, and
+disarming the preference would change behaviour rather than fix a trap.
+
+**The general lesson, and it is not the one anybody would have guessed:** the
+rule "green under both engines" was being honoured only for the suite that never
+touches an external tool. The suites that do had only ever run under the engine
+that is more forgiving than the one HDT actually ships on.
+
+### S13.6 — a destructive adapter was trusting an ambient preference, and once it was not Stop the failure was silent ⚠
+
+Found by the first `./build.ps1 -Task integration` run that got past S13.5. On
+**both** engines:
+
+```
+The disk has not been initialized.
+[-] IDiskService against a scratch VHDX.clear and initialise.refuses to clear a
+    disk that has never been initialised
+    Expected an exception with message like '*not been initialized*' to be
+    thrown, but no exception was thrown.
+```
+
+Read those two lines together. **`Clear-Disk` failed — its own message is right
+there — and `ClearDisk` returned as though it had not.** The disk was `RAW`,
+asserted one line earlier in the same test. Had this been a deployment rather
+than a test, `Invoke-HDTDiskPartitionStep` would have carried straight on to
+partition a disk it believed it had cleared.
+
+The mechanism is that `Clear-Disk` writes a **non-terminating** error, and every
+Storage call in `New-HDTDiskService` was written without `-ErrorAction`. That is
+correct-by-accident while `$ErrorActionPreference` is `Stop` — which the module
+sets and which CLAUDE.md rule 7 requires — and means the opposite the moment it
+is not.
+
+**Why it was not `Stop` in that scope was NOT ESTABLISHED, and inventing a cause
+would be worse than saying so** (the position S9.13 and S10 took). What is known:
+
+- it reproduces **only** in the full seven-file `-Task integration` run, on both
+  pwsh 7.5.8 and Windows PowerShell 5.1;
+- it does **not** reproduce with the file alone (24/24), with
+  `DiskPartition` + `DiskService` (43/43), with `BootImage` + `DiskService`
+  (63/63, and the module's `$ErrorActionPreference` read back `Stop` afterwards),
+  with all three (82/82), or with `DiskService` plus the four files that follow
+  it (53/53) — the last three of those built through the same
+  `New-HDTPesterConfiguration` the build uses;
+- a `$ErrorActionPreference = 'Continue'` assigned inside a `ScriptMethod` does
+  **not** leak to module scope, tested directly on both engines, so S13.5's fix
+  is not the cause.
+
+**The fix is not to find the caller. It is that the question should never have
+been askable.** All seven destructive Storage calls now pass `-ErrorAction Stop`
+explicitly (`New-Partition` in its splat, being the only splatted one), so the
+behaviour is a property of the code rather than of whoever called it.
+`tests/unit/DiskServiceErrorAction.Tests.ps1` keeps it that way — and asserts the
+converse for `Get-Disk`, `Get-Partition` and `Get-Volume`, where an empty result
+is a legitimate answer that DESIGN 9.1's refusal to guess a target is built on.
+
+**The general form of this, worth more than the instance:** the whole engine
+relies on ambient `$ErrorActionPreference` for a non-terminating error to be
+noticed. Everywhere that matters — anything destructive — should say so itself.
+
+### S13.7 — the numbers, and the file that is not there ✅
+
+Everything through `./build.ps1`, and — for the first time in this repository —
+the slow suites under **Windows PowerShell 5.1** as well as pwsh.
+
+| Run | Engine | Result |
+|---|---|---|
+| `-Task test` | pwsh 7.5.8 | **4907 passed, 0 failed, 42 skipped** |
+| `-Task test` | Windows PowerShell 5.1.26100.8655 | **4762 passed, 0 failed, 187 skipped** |
+| `-Task lint` | pwsh 7.5.8 | 0 diagnostics across 344 files |
+| `-Task integration` | **Windows PowerShell 5.1** | **138 passed, 0 failed, 0 skipped**, 607 s |
+| `-Task e2e` | **Windows PowerShell 5.1** | **98 passed, 0 failed, 0 skipped**, 1566 s |
+
+Integration by file (5.1): `BootImage` 325 s, `ImageService` 152 s,
+`WinPeContent` 70 s, `DiskPartition` 26 s, `DiskService` 24 s, `PxePayload` 6 s,
+`SmbContentProvider` 3 s. E2E by file: `UnattendedDeployment` 740 s,
+`Deployment` 640 s, `WinPeSmoke` 186 s.
+
+`PROBE.json`, written by the smoke VM from inside WinPE and read off its content
+disk after it powered itself off:
+
+```json
+"psVersion":        "5.1.26100.1",
+"shutdownExe":      false,
+"wpeutilExe":       true,
+"powerEnvironment": "WinPE",
+"powerCommand":     "wpeutil.exe",
+"powerArgument":    "shutdown",
+"powerError":       ""
+```
+
+**`shutdownExe: false`, measured by the machine itself.** And the assertion that
+matters is about a file that does not exist: `FALLBACK.txt` was **absent**, so
+`New-HDTPowerService` — not the probe's own `wpeutil` line — is what ended that
+machine. The file took 186 s, well inside the 120 s the fallback would have
+added on top.
+
+### Lab safety
+
+**No VM was created by anything in 05-06 except the three the E2E suite already
+creates and removes.** `CM01` and `DC01` were read back name-filtered and
+module-qualified before and after every run — both `Off` and untouched
+throughout. Zero `HDT-*` VMs and an empty `C:\HDTLab\vms` afterwards. Nothing
+mounted: `Get-WindowsImage -Mounted` is empty. This host's disk 0 is
+`GPT|True|True` before and after, and the only images this plan mounted were
+mounted `-ReadOnly` and dismounted `-Discard` in a `finally`. The planted
+discovery-failure file was removed in the same step that proved the guard.

@@ -79,6 +79,15 @@ because the assertion is that nothing happens.
 | `ImageService.Integration.Tests.ps1` | a real Windows 11 apply, `bcdboot`, `reagentc`, and the unattend Setup will read. Tagged `Slow` — the apply alone takes minutes |
 | `SmbContentProvider.Integration.Tests.ps1` | a real SMB mapping over loopback, and the identity the provider reads back off it |
 | `BootImage.Integration.Tests.ps1` | a real boot image: nine cabs into a real WIM, a real `oscdimg` ISO, and the DESIGN 6.1.1 equivalence hash |
+| `PxePayload.Integration.Tests.ps1` | `New-HDTPxePayload` staging the real ADK media tree and the real boot WIM, hash-verified file by file — **staging completeness, not bootability** |
+| `WinPeContent.Integration.Tests.ps1` | **what WinPE ships and what it does not**: `wpeutil.exe` present and `shutdown.exe` ABSENT, read out of the real ADK `winpe.wim` and out of HDT's own built image. It is the fact `Get-HDTPowerCommand` rests on, and it asserts a known-present file in the same mount so the absence can never be an artefact of looking in the wrong place |
+
+**Run this suite under `powershell.exe` as well as `pwsh`.** It is not the same
+run: 5.1 turns a native tool's stderr into terminating errors when
+`$ErrorActionPreference` is `Stop`, and the first 5.1 run of this suite — in
+05-06, long after the code shipped — died on **oscdimg's progress meter**
+(SPIKES S13.5). `-Task test` had always been run under both engines, but `test`
+is not the suite that shells out.
 
 ## The boot image build, and what it costs
 

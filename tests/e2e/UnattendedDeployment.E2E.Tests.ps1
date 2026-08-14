@@ -737,9 +737,15 @@ Describe 'it started itself' -Tag 'E2E' -Skip:$skipDeployment {
     }
 
     It 'recorded how it ended' {
-        # THE FIRST EVIDENCE ANYWHERE ABOUT ROADMAP M2's OPEN wpeutil QUESTION -
-        # and only about the payload's own ending, not about a Restart step.
-        # DEMO-M4 has none, so New-HDTPowerService still has never executed.
+        # EVIDENCE ABOUT THE PAYLOAD'S OWN ENDING, and only that: the payload
+        # calls wpeutil directly, after the catch, because it must end the
+        # machine even on a run where the module never imported.
+        #
+        # ROADMAP M2's question - wpeutil or shutdown.exe - is no longer open;
+        # 05-06 answered it (shutdown.exe is not in the image) and
+        # tests/e2e/WinPeSmoke.E2E.Tests.ps1 is where New-HDTPowerService is
+        # EXECUTED. This line is still not that: DEMO-M4 has no Restart step, so
+        # nothing here goes through IPowerService.
         [string] $script:result.endedWith | Should -BeExactly 'wpeutil shutdown'
     }
 }
