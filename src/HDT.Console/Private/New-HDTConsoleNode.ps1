@@ -55,6 +55,12 @@ function New-HDTConsoleNode {
             What the banner says while this row is selected - Title, Root and
             DeployRoot, as Get-HDTConsoleHeader builds them.
 
+        .PARAMETER Icon
+            A glyph to show instead of the one the row's Kind would give it.
+            Get-HDTConsoleIcon still chooses it - the caller asks for a named
+            picture rather than writing a character here - and omitting it takes
+            the Kind's own.
+
         .PARAMETER Collapsed
             Starts the row closed. Omitted, a row with children opens - C1 has
             one screen's worth of tree and an administrator should see it, not
@@ -105,6 +111,10 @@ function New-HDTConsoleNode {
         [object] $Header,
 
         [Parameter()]
+        [AllowEmptyString()]
+        [string] $Icon = '',
+
+        [Parameter()]
         [switch] $Collapsed
     )
 
@@ -114,6 +124,11 @@ function New-HDTConsoleNode {
     # ONE SOURCE, TWO READINGS. The window shows the fields; a console, a
     # Format-List and a test read Detail. Rendering Detail from the same fields
     # is what stops the two describing different things after the next edit.
+    $glyph = $Icon
+    if ([string]::IsNullOrEmpty($glyph)) {
+        $glyph = Get-HDTConsoleIcon -Kind $Kind -Status $Status
+    }
+
     $line = foreach ($current in @($Field)) {
         if ([string]::IsNullOrEmpty($current.Label)) {
             $current.Value
@@ -131,7 +146,7 @@ function New-HDTConsoleNode {
         Field            = [pscustomobject[]] @($Field)
         Detail           = (@($line) -join [System.Environment]::NewLine)
         Command          = $Command
-        Icon             = (Get-HDTConsoleIcon -Kind $Kind -Status $Status)
+        Icon             = $glyph
         IsExpanded       = (-not $Collapsed.IsPresent)
 
         # An ArrayList rather than an array: the tree is assembled by adding to

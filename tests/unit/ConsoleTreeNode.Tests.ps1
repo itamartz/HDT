@@ -207,14 +207,38 @@ Describe 'Get-HDTConsoleTreeNode' {
             }
         }
 
-        It 'gives each kind its own icon' {
-            $icon = @{}
-            foreach ($row in $script:node) { $icon[$row.Kind] = $row.Icon }
+        It 'gives every row an icon' {
+            @($script:node | Where-Object { [string]::IsNullOrWhiteSpace($_.Icon) }).Count | Should -Be 0
+        }
 
-            # Distinct, non-empty, and one per kind - an icon column where every
-            # row looks the same is a column that costs space and says nothing.
-            @($icon.Values | Where-Object { [string]::IsNullOrWhiteSpace($_) }).Count | Should -Be 0
-            @($icon.Values | Sort-Object -Unique).Count | Should -Be @($icon.Keys).Count
+        It 'gives the share, the task sequence, the OS and the boot image each a different one' {
+            # An icon column where every row looks the same costs space and says
+            # nothing. The categories are excluded here: they share a folder
+            # except for Drivers, which is asserted below.
+            $icon = @($script:node |
+                    Where-Object { $_.Kind -in 'Root', 'Share', 'TaskSequence', 'OperatingSystem', 'BootImage' } |
+                    ForEach-Object { $_.Icon } |
+                    Sort-Object -Unique)
+
+            @($icon).Count | Should -Be 5
+        }
+
+        It 'draws a task sequence as a list of steps rather than a clipboard' {
+            $sequence = @($script:node | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Icon | Should -BeExactly ([char]::ConvertFromUtf32(0x1F5D2))
+        }
+
+        It 'draws the driver store as a network card, not as another folder' {
+            # It is the category an administrator scans the tree for by eye, and
+            # a machine with no NIC driver is the failure it exists to prevent.
+            $drivers = @($script:node | Where-Object { $_.Text -eq 'Drivers' })[0]
+            $others = @($script:node |
+                    Where-Object { $_.Kind -eq 'Category' -and $_.Text -ne 'Drivers' } |
+                    ForEach-Object { $_.Icon } | Sort-Object -Unique)
+
+            $drivers.Icon | Should -BeExactly ([char]::ConvertFromUtf32(0x1F5A7))
+            $others | Should -Not -Contain $drivers.Icon
         }
 
         It 'carries its share banner on every row beneath that share' {

@@ -191,6 +191,7 @@ function Get-HDTConsoleShareNode {
     $driverCommand = "Get-HDTWorkspacePath -Root '{0}' -Kind Drivers" -f $Workspace.Root
 
     $driverCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' -Text 'Drivers' `
+        -Icon (Get-HDTConsoleIcon -Kind 'DriverStore' -Status 'Ok') `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $Workspace.Driver.Folder
         New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)

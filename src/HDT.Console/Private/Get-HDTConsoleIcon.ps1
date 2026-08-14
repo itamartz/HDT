@@ -24,8 +24,16 @@ function Get-HDTConsoleIcon {
             themes. Windows renders these from its own fonts, they scale with the
             row, and they survive being copied out of the window as text.
 
+            'DriverStore' IS A GLYPH NAME, NOT A ROW KIND. The Drivers category
+            is a Category like the other three and behaves like one; it just
+            does not look like a folder, because "where the drivers are" is the
+            one category an administrator scans the tree for by eye. Asking for
+            a named glyph keeps that choice in this table with all the others
+            rather than putting a literal character in the node builder.
+
         .PARAMETER Kind
-            The row's kind.
+            The row's kind, or a glyph name for a caller that wants a specific
+            picture.
 
         .PARAMETER Status
             The row's status. 'Error' wins over Kind.
@@ -43,7 +51,8 @@ function Get-HDTConsoleIcon {
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty')]
+        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
+            'DriverStore')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -62,9 +71,10 @@ function Get-HDTConsoleIcon {
         Root            = [char]::ConvertFromUtf32(0x1F5C4)   # file cabinet - every share
         Share           = [char]::ConvertFromUtf32(0x1F5C2)   # dividers - one share
         Category        = [char]::ConvertFromUtf32(0x1F4C1)   # folder
-        TaskSequence    = [char]::ConvertFromUtf32(0x1F4CB)   # clipboard
+        TaskSequence    = [char]::ConvertFromUtf32(0x1F5D2)   # spiral notepad - an ordered list of steps
         OperatingSystem = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
+        DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 
