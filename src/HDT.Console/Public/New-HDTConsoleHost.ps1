@@ -156,5 +156,71 @@ function New-HDTConsoleHost {
         return [string] $this.Answer
     }
 
+    # -- the task sequence editor ------------------------------------------
+    #
+    # A SECOND WINDOW, THE SAME ADAPTER. It loads markup, assigns an
+    # ItemsSource and attaches handlers by name; every decision about what the
+    # rows say was made in Get-HDTConsoleSequenceEditor and asserted there.
+    #
+    # THE ACTION BUTTONS ARE INERT UNTIL THE EDITING CMDLETS ARE WIRED, and the
+    # markup disables them rather than leaving them bright and unresponsive. An
+    # administrator pressing a blue button that does nothing concludes the
+    # window is broken; a greyed one says "not yet" without being asked.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowEditor -Value {
+        param([string] $Xaml, [string] $Title, [string] $Path, [object[]] $Node, [object] $Theme)
+
+        Add-Type -AssemblyName PresentationFramework
+        Add-Type -AssemblyName PresentationCore
+        Add-Type -AssemblyName WindowsBase
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $window.Title = $Title
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $window.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        $this.Answer = ''
+
+        # See the Show method above for why the host is captured by name: inside
+        # an Add_Click handler $this is the button that raised the event.
+        $editorHost = $this
+
+        $titleText = $window.FindName('HDTEditorTitleText')
+        $pathText = $window.FindName('HDTEditorPathText')
+        $tree = $window.FindName('HDTStepTree')
+        $detail = $window.FindName('HDTStepDetail')
+        $command = $window.FindName('HDTEditorCommandText')
+        $close = $window.FindName('HDTEditorCloseButton')
+
+        $titleText.Text = $Title
+        $pathText.Text = $Path
+
+        $tree.ItemsSource = $Node
+
+        $tree.Add_SelectedItemChanged({
+                $selected = $tree.SelectedItem
+                $detail.ItemsSource = $selected.Field
+                $command.Text = [string] $selected.Command
+            }.GetNewClosure())
+
+        $window.Add_ContentRendered({
+                $first = $tree.ItemContainerGenerator.ContainerFromIndex(0)
+                if ($null -ne $first) { $first.IsSelected = $true }
+            }.GetNewClosure())
+
+        $close.Add_Click({
+                $editorHost.Answer = 'Close'
+                $window.Close()
+            }.GetNewClosure())
+
+        [void] $window.ShowDialog()
+
+        return [string] $this.Answer
+    }
+
     return $service
 }

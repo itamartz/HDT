@@ -29,7 +29,8 @@
         'New-HDTConsoleHost',
         'New-HDTConsoleScreen',
         'Save-HDTConsoleSetting',
-        'Show-HDTConsole'
+        'Show-HDTConsole',
+        'Show-HDTSequenceEditor'
     )
 
     CmdletsToExport      = @()
