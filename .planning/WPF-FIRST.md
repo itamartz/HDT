@@ -59,3 +59,55 @@ render in this WinPE build, before any wizard logic exists to throw away.
   built with an embedded credential and a resolved `HDTTaskSequenceID` must
   still deploy with nobody present, because that is what the E2E suite proves
   and it must not start needing a human.
+
+## W2, expanded — the Welcome screen, and MDT's Skip properties
+
+Added by the user on 2026-08-14, and it is MDT's LiteTouch Welcome screen
+rebuilt rather than a new invention:
+
+> "the WINPE should have the Welcome screen that give us the ability to add a
+> static ip\subnet\dg\DNS and the ability to add the Share and the creds with
+> all of this as a Hide parameter like we have in MDT"
+
+### The three things the Welcome screen offers
+
+| Pane | Fields | MDT equivalent |
+|---|---|---|
+| **Static IP** | IP address, subnet mask, default gateway, DNS servers | LiteTouch's "Configure with Static IP Address" |
+| **Deployment share** | DeployRoot | `Bootstrap.ini` `DeployRoot` |
+| **Credentials** | UserID, UserDomain, UserPassword | `Bootstrap.ini` `UserID`/`UserDomain`/`UserPassword` |
+
+### Every pane is hideable, exactly as MDT hides them
+
+MDT's `Skip*` properties are the mechanism, and HDT keeps the names under its
+own prefix so an MDT admin recognises them instantly:
+
+| HDT rule | Hides |
+|---|---|
+| `HDTSkipWelcome` | the Welcome screen entirely |
+| `HDTSkipStaticIp` | the static IP pane; DHCP is used |
+| `HDTSkipDeployRoot` | the share box; `bootstrap.json`'s value is used |
+| `HDTSkipCredential` | the credential pane; the embedded credential is used |
+
+They resolve through the ordinary rules engine like any other variable, so a
+site can set them in `rules.yaml` once and never see the wizard again - which
+is precisely how MDT is used in practice.
+
+**THE UNATTENDED PATH IS THE DEFAULT, NOT THE EXCEPTION.** An image built with
+an embedded credential and a resolved `HDTTaskSequenceID` must still deploy with
+nobody present: the E2E suite proves zero-keystroke deployment and it must not
+start needing a human. So a pane appears only when it has something to ask, or
+when a rule explicitly asks for it.
+
+### Static IP in WinPE is WMI, not NetTCPIP
+
+SPIKES S14 recorded that `Get-NetIPAddress` does not exist in a WinPE image
+built from the ADK - the NetTCPIP module is not there. So the static IP pane
+configures the adapter through `Win32_NetworkAdapterConfiguration`, which
+`WinPE-WMI` guarantees:
+
+    EnableStatic(address, mask)      SetGateways(gateway)
+    SetDNSServerSearchOrder(dns)
+
+A pane that configured the network with cmdlets that do not exist on the one
+machine that matters would fail exactly where nobody could see it.

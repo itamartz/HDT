@@ -27,7 +27,12 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:sourceRoot = Join-Path -Path $script:repoRoot -ChildPath 'src'
+    # SCOPED TO THE ENGINE, NOT ALL OF src. src\HDT.Console is a DESKTOP app -
+    # it never enters a boot image, so WinPE's constraints do not apply to it
+    # and it has no Next/Cancel buttons to name. Scanning it made this contract
+    # fail on a perfectly correct file belonging to another workstream, which is
+    # exactly how a contract earns its own deletion.
+    $script:sourceRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus'
 
     $script:sourceFile = @(Get-ChildItem -LiteralPath $script:sourceRoot -Recurse -File -Include '*.ps1', '*.psm1', '*.xaml')
 
@@ -84,25 +89,61 @@ Describe 'the WinPE UI stack' {
         }
     }
 
-    Context 'the wizard window is loadable by XamlReader in WinPE' {
+    Context 'every wizard window is loadable by XamlReader in WinPE' {
 
-        It 'declares no code-behind class' {
-            # There is no compiler in WinPE to build a partial class against, so
-            # XamlReader::Load - which parses markup only - is the only way in.
-            $window = @($script:scanned | Where-Object { $_.Relative -like '*HDTWizard.xaml' })[0]
-            $document = [xml] $window.Text
+        # ITERATED, NOT NAMED. The first version of this contract checked
+        # HDTWizard.xaml by name, so the second page - HDTWizardCredential.xaml
+        # - would have escaped every assertion below simply by being new. Each
+        # increment of the WPF-first direction adds a page; none of them may opt
+        # out of the rules by existing.
 
-            $document.DocumentElement.GetAttribute('Class', 'http://schemas.microsoft.com/winfx/2006/xaml') |
-                Should -BeNullOrEmpty
+        BeforeAll {
+            $script:window = @($script:scanned | Where-Object { $_.Relative -like '*.xaml' })
         }
 
-        It 'references no external resource dictionary' {
+        It 'found at least one window' {
+            @($script:window).Count | Should -BeGreaterThan 0 -Because (
+                'the assertions below are vacuous with nothing to check')
+        }
+
+        It 'declares no code-behind class in any window' {
+            # There is no compiler in WinPE to build a partial class against, so
+            # XamlReader::Load - which parses markup only - is the only way in.
+            $offender = @()
+            foreach ($row in $script:window) {
+                $document = [xml] $row.Text
+                if (-not [string]::IsNullOrEmpty($document.DocumentElement.GetAttribute('Class', 'http://schemas.microsoft.com/winfx/2006/xaml'))) {
+                    $offender += $row.Relative
+                }
+            }
+
+            @($offender).Count | Should -Be 0 -Because ('code-behind in: {0}' -f ($offender -join ', '))
+        }
+
+        It 'references no external resource dictionary in any window' {
             # Another file that would have to reach the RAM disk intact. Every
             # increment that adds one has to add it to the image as well, and
             # this is where that gets noticed.
-            $window = @($script:scanned | Where-Object { $_.Relative -like '*HDTWizard.xaml' })[0]
+            $offender = @($script:window |
+                    Where-Object { $_.Text -match 'ResourceDictionary\s+Source=' } |
+                    ForEach-Object { $_.Relative })
 
-            $window.Text | Should -Not -Match 'ResourceDictionary\s+Source='
+            @($offender).Count | Should -Be 0 -Because ('external resources in: {0}' -f ($offender -join ', '))
+        }
+
+        It 'parses as XML' {
+            foreach ($row in $script:window) {
+                { [xml] $row.Text } | Should -Not -Throw -Because $row.Relative
+            }
+        }
+
+        It 'names its buttons so the backend can find them' {
+            # FindName is how handlers are attached with no code-behind, so a
+            # page whose buttons are anonymous cannot be wired at all.
+            foreach ($row in $script:window) {
+                $row.Text | Should -BeLike '*HDTNextButton*' -Because $row.Relative
+                $row.Text | Should -BeLike '*HDTCancelButton*' -Because $row.Relative
+            }
         }
     }
 }

@@ -1,0 +1,233 @@
+function Get-HDTConsoleWorkspace {
+    <#
+        .SYNOPSIS
+            Reads a deployment share and returns everything the admin console
+            shows about it.
+
+        .DESCRIPTION
+            C1 of the WPF-first direction (.planning/WPF-FIRST.md), backend half,
+            and the whole of what the window knows. DESIGN 12's rule is that the
+            console may not do anything the cmdlets can't, so this reads the
+            share through the SAME commands an administrator would type:
+
+              Import-HDTWorkspaceDocument   the share identity and its deployRoot
+              Get-HDTWorkspacePath          where each catalog folder is
+              Import-HDTSequenceDocument    one task sequence
+              Get-HDTOperatingSystem        one operating system
+
+            Nothing here re-parses YAML the engine already parses, and nothing
+            here knows a folder name the engine does not know. A console that
+            grew its own reader would be a second opinion about what is on the
+            share, and the deployment's opinion is the one that matters.
+
+            THE PATH IT WAS OPENED THROUGH AND THE deployRoot IT DECLARES ARE
+            BOTH REPORTED, AND THEY ARE NOT THE SAME FACT. The lab share is
+            C:\HDTLab\Share to the administrator sitting at the host and
+            \\192.168.2.108\HDTShare to a machine that booted the image; the
+            boot image carries the second. Showing only one of them is how an
+            admin edits a share that no client can reach and cannot see why.
+
+            ONE UNREADABLE DOCUMENT DOES NOT EMPTY THE CONSOLE. A sequence whose
+            YAML does not parse, or an os.yaml that fails validation, becomes a
+            row with Status 'Error' carrying the engine's own message - the file
+            and the line included, because that is what the engine's error says.
+            Deployment Workbench shows the broken item and complains about it;
+            throwing instead would show an administrator nothing at all on
+            exactly the day something on their share is broken. THE ROOT
+            workspace.yaml IS THE ONE EXCEPTION: without it there is no share to
+            show, so that failure is terminating and names the file.
+
+            THE BOOT IMAGE COMES FROM THE MANIFEST, NOT FROM THE ARTIFACTS.
+            Update-HDTBootImage writes Boot\<name>.manifest.json beside the .wim
+            and the .iso, and it records the build date, the machine, the engine
+            version and the SHA-256 of both artifacts. Reading it is how the
+            console can state DESIGN 6.1.1's claim - that the WIM inside the ISO
+            hashes equal to the standalone WIM - instead of hashing 500 MB twice
+            to re-derive it. A share whose image has never been built says so and
+            names Update-HDTBootImage, rather than showing an image with empty
+            hashes.
+
+        .PARAMETER Path
+            The deployment share to open - a local path or a UNC share. The
+            console only ever reads it.
+
+        .PARAMETER FileSystem
+            An IFileSystem - the real adapter by default, New-HDTFakeFileSystem
+            in a test.
+
+        .INPUTS
+            None. This command does not accept pipeline input.
+
+        .OUTPUTS
+            System.Management.Automation.PSCustomObject:
+
+              Root, WorkspacePath, SchemaVersion, Id, Name, DeployRoot,
+              LogLevel, CredentialUser, Status, Error
+              TaskSequence    [pscustomobject[]] Id, Name, Description,
+                              StepCount, GroupCount, Path, Status, Error
+              OperatingSystem [pscustomobject[]] Id, Name, Description, Type,
+                              Architecture, DefaultIndex, ImageCount, Image,
+                              SourcePath, ImagePath, Path, Status, Error
+              BootImage       Name, Architecture, Language, ManifestPath,
+                              Status ('Ok', 'Missing' or 'Error'), Error,
+                              BuildId, BuiltUtc, BuiltOn, EngineVersion,
+                              WimPath, WimSha256, WimSizeBytes,
+                              IsoPath, IsoSha256, IsoSizeBytes,
+                              IsoBootWimSha256, HashMatch
+
+        .EXAMPLE
+            Get-HDTConsoleWorkspace -Path 'C:\HDTLab\Share'
+
+            What the console calls when it opens a share.
+
+        .EXAMPLE
+            (Get-HDTConsoleWorkspace -Path '\\192.168.2.108\HDTShare').TaskSequence |
+                Format-Table Id, Name, StepCount, Status
+
+            The same answer without a window - the console shows nothing the
+            command line cannot (DESIGN 12).
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [ValidateNotNullOrEmpty()]
+        [string] $Path,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+
+    # A trailing separator would put a doubled one in every path built below and
+    # in every path shown on screen. 'C:\' is three characters and its separator
+    # is part of the root.
+    $root = $Path
+    if ($root.Length -gt 3) {
+        $root = $root.TrimEnd('\', '/')
+    }
+
+    $workspacePath = [System.IO.Path]::Combine($root, 'workspace.yaml')
+
+    if (-not $FileSystem.TestPath($workspacePath)) {
+        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $workspacePath `
+                    -Category ObjectNotFound `
+                    -Message ("there is no workspace document here, so '{0}' is not a deployment share. A share declares its identity and its deployRoot in workspace.yaml at its root (DESIGN 2.1)." -f $root)))
+    }
+
+    # Deliberately NOT wrapped: a workspace.yaml that does not parse is a share
+    # that cannot be shown at all, and the engine's error already names the file
+    # and the line.
+    $workspace = Import-HDTWorkspaceDocument -Path $workspacePath -FileSystem $FileSystem
+
+    $credentialUser = ''
+    if ($null -ne $workspace.Credential) {
+        $credentialUser = [string] $workspace.Credential.Username
+    }
+
+    # -- task sequences ----------------------------------------------------
+
+    $sequenceRow = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($entry in @(Get-HDTConsoleCatalogEntry -Root $root -Kind TaskSequences `
+                -DocumentName 'sequence.yaml' -FileSystem $FileSystem)) {
+
+        $row = [pscustomobject] @{
+            Id          = $entry.Id
+            Name        = $entry.Id
+            Description = ''
+            StepCount   = 0
+            GroupCount  = 0
+            Path        = $entry.DocumentPath
+            Status      = 'Ok'
+            Error       = ''
+        }
+
+        try {
+            $sequence = Import-HDTSequenceDocument -Path $entry.DocumentPath -FileSystem $FileSystem
+
+            $row.Name = [string] $sequence.Name
+            $row.Description = [string] $sequence.Description
+            $row.StepCount = @($sequence.Step).Count
+            $row.GroupCount = @($sequence.Group).Count
+        } catch {
+            $row.Status = 'Error'
+            $row.Error = [string] $_.Exception.Message
+        }
+
+        [void] $sequenceRow.Add($row)
+    }
+
+    # -- operating systems -------------------------------------------------
+
+    $osRow = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($entry in @(Get-HDTConsoleCatalogEntry -Root $root -Kind OperatingSystems `
+                -DocumentName 'os.yaml' -FileSystem $FileSystem)) {
+
+        $row = [pscustomobject] @{
+            Id           = $entry.Id
+            Name         = $entry.Id
+            Description  = ''
+            Type         = ''
+            Architecture = ''
+            DefaultIndex = 0
+            ImageCount   = 0
+            Image        = [pscustomobject[]] @()
+            SourcePath   = ''
+            ImagePath    = ''
+            Path         = $entry.DocumentPath
+            Status       = 'Ok'
+            Error        = ''
+        }
+
+        try {
+            $operatingSystem = Get-HDTOperatingSystem -WorkspaceRoot $root -Id $entry.Id -FileSystem $FileSystem
+
+            $row.Name = [string] $operatingSystem.Name
+            $row.Description = [string] $operatingSystem.Description
+            $row.Type = [string] $operatingSystem.Type
+            $row.Architecture = [string] $operatingSystem.Architecture
+            $row.DefaultIndex = [int] $operatingSystem.DefaultIndex
+            $row.Image = [pscustomobject[]] @($operatingSystem.Images)
+            $row.ImageCount = @($operatingSystem.Images).Count
+            $row.SourcePath = [string] $operatingSystem.SourcePath
+            $row.ImagePath = [string] $operatingSystem.ImagePath
+        } catch {
+            $row.Status = 'Error'
+            $row.Error = [string] $_.Exception.Message
+        }
+
+        [void] $osRow.Add($row)
+    }
+
+    # -- the boot image ----------------------------------------------------
+
+    $bootImage = Get-HDTConsoleBootImage -Root $root -BootImage $workspace.BootImage -FileSystem $FileSystem
+
+    return [pscustomobject] @{
+        Root            = $root
+        WorkspacePath   = $workspacePath
+        SchemaVersion   = [int] $workspace.SchemaVersion
+        Id              = [string] $workspace.Id
+        Name            = [string] $workspace.Name
+        DeployRoot      = [string] $workspace.DeployRoot
+        LogLevel        = [string] $workspace.LogLevel
+        CredentialUser  = $credentialUser
+
+        # A share this command returned is by definition one it could open. The
+        # member is here so a share that could NOT be opened
+        # (New-HDTConsoleShareFailure) is the same shape, and nothing downstream
+        # needs to know which kind it is holding.
+        Status          = 'Ok'
+        Error           = ''
+        TaskSequence    = [pscustomobject[]] @($sequenceRow)
+        OperatingSystem = [pscustomobject[]] @($osRow)
+        BootImage       = $bootImage
+    }
+}
