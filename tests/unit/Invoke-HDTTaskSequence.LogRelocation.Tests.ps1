@@ -254,10 +254,58 @@ steps:
             $leg.Harness.FileSystem.TestPath('W:\HDT\state.json') | Should -BeFalse
         }
 
-        It 'leaves the primary state document where the caller put it' {
-            # DESIGN 4.3: X:\HDT\state.json is the primary and the target volume
-            # is the MIRROR. Moving the primary would make the mirror the only
-            # copy on a machine that has not rebooted yet.
+        It 'leaves an explicitly supplied -StatePath alone' {
+            # A caller who said where the state document goes is not overruled,
+            # exactly as with -MirrorStatePath and -StatusPath.
+            $leg = & $script:runLeg @{ StatePath = 'Y:\somewhere\state.json' }
+
+            $leg.Harness.FileSystem.TestPath('Y:\somewhere\state.json') | Should -BeTrue
+            $leg.Harness.FileSystem.TestPath('W:\HDT\Logs\state.json') | Should -BeFalse
+        }
+    }
+
+    Context 'the state document inside the log directory' {
+
+        # THE DEFECT THE FIRST REAL M4 RUN FOUND, and the M3 E2E found it in the
+        # same run - 05-03 added the relocation and SPIKES S10 stopped anybody
+        # running -Task e2e afterwards, so it sat unproven for two plans.
+        #
+        # By default the state document lives IN the log directory. The
+        # relocation MIRRORS THE WHOLE LOG TREE, so a copy of state.json arrives
+        # on the target volume - and if the writes keep going to the RAM disk
+        # that copy is FROZEN at the moment of the move. Copy-HDTLog then ships
+        # the relocated directory to the share, so the state document a
+        # technician reads reports three steps Pending on a deployment that
+        # succeeded. A stale document is worse than an absent one, because it is
+        # believed.
+        #
+        # DESIGN 4.4.6's heartbeat was moved for exactly this reason and in
+        # exactly this place; the state document was not, and nothing on the RAM
+        # disk survives the reboot to make keeping it there worth anything.
+
+        It 'moves the state document with the log' {
+            $leg = & $script:runLeg $null
+
+            $leg.Harness.FileSystem.TestPath('W:\HDT\Logs\state.json') | Should -BeTrue
+        }
+
+        It 'keeps writing it after the relocation' {
+            # THE ASSERTION THAT BITES. The mirrored copy exists either way; what
+            # a stale one cannot say is that step 4 completed, because step 4 ran
+            # after the move.
+            $leg = & $script:runLeg $null
+
+            $document = ConvertFrom-Json -InputObject ($leg.Harness.FileSystem.ReadAllText('W:\HDT\Logs\state.json'))
+
+            [string] $document.status | Should -BeExactly 'Succeeded'
+            @($document.step | ForEach-Object { [string] $_.status }) |
+                Should -Be @('Completed', 'Completed', 'Completed', 'Completed')
+        }
+
+        It 'leaves the RAM disk copy behind rather than deleting it' {
+            # The same bargain the log itself makes: everything written so far
+            # was mirrored and the copy on X: is left in place. It dies with the
+            # RAM disk, which is why it is not the one that matters.
             $leg = & $script:runLeg $null
 
             $leg.Harness.FileSystem.TestPath($leg.Harness.StatePath) | Should -BeTrue
