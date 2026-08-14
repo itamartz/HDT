@@ -47,17 +47,14 @@ function Get-HDTConsoleShareNode {
     # -- a share that would not open ---------------------------------------
 
     if ($Workspace.Status -ne 'Ok') {
-        $detail = @(
-            ('{0,-16}: {1}' -f 'Path', $Workspace.Root)
-            ''
-            'This deployment share could not be opened:'
-            ''
-            $Workspace.Error
+        $field = @(
+            New-HDTConsoleField -Label 'Path' -Value $Workspace.Root
+            New-HDTConsoleField -Label 'Could not be opened' -Value $Workspace.Error
         )
 
         [void] $node.Add((New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Error' `
                     -Text ('{0} - (could not be opened)' -f $Workspace.Root) `
-                    -Detail ($detail -join [System.Environment]::NewLine) `
+                    -Field $field `
                     -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
                     -Header $header))
 
@@ -70,22 +67,20 @@ function Get-HDTConsoleShareNode {
     # every row is also added to its parent's Children so the window has a tree
     # to expand. Building them separately is how the two would come to disagree.
 
-    $shareDetail = @(
-        ('{0,-16}: {1}' -f 'Share', $Workspace.Name)
-        ('{0,-16}: {1}' -f 'Id', $Workspace.Id)
-        ('{0,-16}: {1}' -f 'Schema version', $Workspace.SchemaVersion)
-        ''
-        ('{0,-16}: {1}' -f 'Opened from', $Workspace.Root)
-        ('{0,-16}: {1}' -f 'Deploy root', $Workspace.DeployRoot)
-        ''
-        ('{0,-16}: {1}' -f 'Log level', $Workspace.LogLevel)
-        ('{0,-16}: {1}' -f 'Credential', (Get-HDTConsoleDisplayText -Text $Workspace.CredentialUser -Fallback '(none - the share is opened as the signed-in user)'))
-        ('{0,-16}: {1}' -f 'Document', $Workspace.WorkspacePath)
+    $shareField = @(
+        New-HDTConsoleField -Label 'Share' -Value $Workspace.Name
+        New-HDTConsoleField -Label 'Id' -Value $Workspace.Id
+        New-HDTConsoleField -Label 'Schema version' -Value $Workspace.SchemaVersion
+        New-HDTConsoleField -Label 'Opened from' -Value $Workspace.Root
+        New-HDTConsoleField -Label 'Deploy root' -Value $Workspace.DeployRoot
+        New-HDTConsoleField -Label 'Log level' -Value $Workspace.LogLevel
+        New-HDTConsoleField -Label 'Credential' -Value (Get-HDTConsoleDisplayText -Text $Workspace.CredentialUser -Fallback '(none - the share is opened as the signed-in user)')
+        New-HDTConsoleField -Label 'Document' -Value $Workspace.WorkspacePath
     )
 
     $shareNode = New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Ok' `
         -Text ('{0} ({1})' -f $Workspace.Name, $Workspace.Id) `
-        -Detail ($shareDetail -join [System.Environment]::NewLine) `
+        -Field $shareField `
         -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
         -Header $header
 
@@ -98,41 +93,37 @@ function Get-HDTConsoleShareNode {
 
     $sequenceCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
         -Text ('Task Sequences ({0})' -f @($Workspace.TaskSequence).Count) `
-        -Detail (@(
-            ('{0,-16}: {1}' -f 'Folder', $sequenceFolder)
-            ('{0,-16}: {1}' -f 'Task Sequences', @($Workspace.TaskSequence).Count)
-        ) -join [System.Environment]::NewLine) `
+        -Field @(
+        New-HDTConsoleField -Label 'Folder' -Value $sequenceFolder
+        New-HDTConsoleField -Label 'Task Sequences' -Value @($Workspace.TaskSequence).Count
+    ) `
         -Command $sequenceCommand -Header $header
 
     [void] $node.Add($sequenceCategory)
     [void] $shareNode.Children.Add($sequenceCategory)
 
     foreach ($sequence in @($Workspace.TaskSequence)) {
-        $detail = @(
-            ('{0,-16}: {1}' -f 'Id', $sequence.Id)
-            ('{0,-16}: {1}' -f 'Name', $sequence.Name)
-            ('{0,-16}: {1}' -f 'Description', (Get-HDTConsoleDisplayText -Text $sequence.Description -Fallback '(none)'))
-            ''
-            ('{0,-16}: {1}' -f 'Steps', $sequence.StepCount)
-            ('{0,-16}: {1}' -f 'Groups', $sequence.GroupCount)
-            ('{0,-16}: {1}' -f 'Document', $sequence.Path)
+        $field = @(
+            New-HDTConsoleField -Label 'Id' -Value $sequence.Id
+            New-HDTConsoleField -Label 'Name' -Value $sequence.Name
+            New-HDTConsoleField -Label 'Description' -Value (Get-HDTConsoleDisplayText -Text $sequence.Description -Fallback '(none)')
+            New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
+            New-HDTConsoleField -Label 'Groups' -Value $sequence.GroupCount
+            New-HDTConsoleField -Label 'Document' -Value $sequence.Path
         )
 
         $text = '{0} - {1}' -f $sequence.Id, $sequence.Name
         if ($sequence.Status -eq 'Error') {
             $text = '{0} - (unreadable)' -f $sequence.Id
-            $detail = @(
-                ('{0,-16}: {1}' -f 'Id', $sequence.Id)
-                ('{0,-16}: {1}' -f 'Document', $sequence.Path)
-                ''
-                'This task sequence could not be read:'
-                ''
-                $sequence.Error
+            $field = @(
+                New-HDTConsoleField -Label 'Id' -Value $sequence.Id
+                New-HDTConsoleField -Label 'Document' -Value $sequence.Path
+                New-HDTConsoleField -Label 'Could not be read' -Value $sequence.Error
             )
         }
 
         $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
-            -Text $text -Detail ($detail -join [System.Environment]::NewLine) `
+            -Text $text -Field $field `
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
             -Header $header
 
@@ -142,7 +133,10 @@ function Get-HDTConsoleShareNode {
 
     if (@($Workspace.TaskSequence).Count -eq 0) {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
-            -Detail ("There is no task sequence on this share yet. A task sequence is a folder under {0} with a sequence.yaml in it (DESIGN 2.1)." -f $sequenceFolder) `
+            -Field @(
+            New-HDTConsoleField -Label 'Folder' -Value $sequenceFolder
+            New-HDTConsoleField -Label '' -Value 'There is no task sequence on this share yet. A task sequence is a folder under the folder above with a sequence.yaml in it (DESIGN 2.1).'
+        ) `
             -Command $sequenceCommand -Header $header
 
         [void] $node.Add($row)
@@ -156,49 +150,44 @@ function Get-HDTConsoleShareNode {
 
     $osCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
         -Text ('Operating Systems ({0})' -f @($Workspace.OperatingSystem).Count) `
-        -Detail (@(
-            ('{0,-16}: {1}' -f 'Folder', $osFolder)
-            ('{0,-16}: {1}' -f 'Systems', @($Workspace.OperatingSystem).Count)
-        ) -join [System.Environment]::NewLine) `
+        -Field @(
+        New-HDTConsoleField -Label 'Folder' -Value $osFolder
+        New-HDTConsoleField -Label 'Operating Systems' -Value @($Workspace.OperatingSystem).Count
+    ) `
         -Command $osCommand -Header $header
 
     [void] $node.Add($osCategory)
     [void] $shareNode.Children.Add($osCategory)
 
     foreach ($operatingSystem in @($Workspace.OperatingSystem)) {
-        $detail = @(
-            ('{0,-16}: {1}' -f 'Id', $operatingSystem.Id)
-            ('{0,-16}: {1}' -f 'Name', $operatingSystem.Name)
-            ('{0,-16}: {1}' -f 'Type', $operatingSystem.Type)
-            ('{0,-16}: {1}' -f 'Architecture', (Get-HDTConsoleDisplayText -Text $operatingSystem.Architecture -Fallback '(not recorded)'))
-            ('{0,-16}: {1}' -f 'Default index', $operatingSystem.DefaultIndex)
-            ''
-            ('{0,-16}: {1}' -f 'Source path', $operatingSystem.SourcePath)
-            ('{0,-16}: {1}' -f 'Image path', $operatingSystem.ImagePath)
-            ('{0,-16}: {1}' -f 'Document', $operatingSystem.Path)
-            ''
-            ('Images ({0}):' -f $operatingSystem.ImageCount)
-        )
-
-        foreach ($image in @($operatingSystem.Image)) {
-            $detail += '  {0,-3} {1} [{2}] {3}' -f $image.Index, $image.Name, $image.Edition, $image.Version
+        $image = foreach ($current in @($operatingSystem.Image)) {
+            '{0,-3} {1} [{2}] {3}' -f $current.Index, $current.Name, $current.Edition, $current.Version
         }
+
+        $field = @(
+            New-HDTConsoleField -Label 'Id' -Value $operatingSystem.Id
+            New-HDTConsoleField -Label 'Name' -Value $operatingSystem.Name
+            New-HDTConsoleField -Label 'Type' -Value $operatingSystem.Type
+            New-HDTConsoleField -Label 'Architecture' -Value (Get-HDTConsoleDisplayText -Text $operatingSystem.Architecture -Fallback '(not recorded)')
+            New-HDTConsoleField -Label 'Default index' -Value $operatingSystem.DefaultIndex
+            New-HDTConsoleField -Label ('Images ({0})' -f $operatingSystem.ImageCount) -Value (@($image) -join [System.Environment]::NewLine)
+            New-HDTConsoleField -Label 'Source path' -Value $operatingSystem.SourcePath
+            New-HDTConsoleField -Label 'Image path' -Value $operatingSystem.ImagePath
+            New-HDTConsoleField -Label 'Document' -Value $operatingSystem.Path
+        )
 
         $text = '{0} - {1}' -f $operatingSystem.Id, $operatingSystem.Name
         if ($operatingSystem.Status -eq 'Error') {
             $text = '{0} - (unreadable)' -f $operatingSystem.Id
-            $detail = @(
-                ('{0,-16}: {1}' -f 'Id', $operatingSystem.Id)
-                ('{0,-16}: {1}' -f 'Document', $operatingSystem.Path)
-                ''
-                'This operating system could not be read:'
-                ''
-                $operatingSystem.Error
+            $field = @(
+                New-HDTConsoleField -Label 'Id' -Value $operatingSystem.Id
+                New-HDTConsoleField -Label 'Document' -Value $operatingSystem.Path
+                New-HDTConsoleField -Label 'Could not be read' -Value $operatingSystem.Error
             )
         }
 
         $row = New-HDTConsoleNode -Depth 3 -Kind 'OperatingSystem' -Status $operatingSystem.Status `
-            -Text $text -Detail ($detail -join [System.Environment]::NewLine) `
+            -Text $text -Field $field `
             -Command ("Get-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
                 $Workspace.Root, $operatingSystem.Id) `
             -Header $header
@@ -209,7 +198,10 @@ function Get-HDTConsoleShareNode {
 
     if (@($Workspace.OperatingSystem).Count -eq 0) {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
-            -Detail ("There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under {0} with an os.yaml in it (DESIGN 9.3)." -f $osFolder) `
+            -Field @(
+            New-HDTConsoleField -Label 'Folder' -Value $osFolder
+            New-HDTConsoleField -Label '' -Value 'There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under the folder above with an os.yaml in it (DESIGN 9.3).'
+        ) `
             -Command $osCommand -Header $header
 
         [void] $node.Add($row)
@@ -221,10 +213,10 @@ function Get-HDTConsoleShareNode {
     $bootFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind Boot
 
     $bootCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' -Text 'Boot Image' `
-        -Detail (@(
-            ('{0,-16}: {1}' -f 'Folder', $bootFolder)
-            ('{0,-16}: {1}' -f 'Image name', $Workspace.BootImage.Name)
-        ) -join [System.Environment]::NewLine) `
+        -Field @(
+        New-HDTConsoleField -Label 'Folder' -Value $bootFolder
+        New-HDTConsoleField -Label 'Image name' -Value $Workspace.BootImage.Name
+    ) `
         -Command ("Get-HDTWorkspacePath -Root '{0}' -Kind Boot" -f $Workspace.Root) `
         -Header $header
 

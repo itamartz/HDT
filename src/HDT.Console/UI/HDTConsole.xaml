@@ -46,6 +46,15 @@
         64-character SHA-256 hashes, which are read by comparing columns; the
         tree shows names, which are read as words.
 
+        THE TREE NEVER SCROLLS SIDEWAYS. WPF brings a newly selected TreeViewItem
+        into view horizontally as well as vertically, so clicking a row with a
+        long name drags the whole tree left and takes the icons and the
+        indentation off the edge of the panel with it - the tree stops looking
+        like a tree, and the thing an administrator just clicked is the only row
+        still readable. Horizontal scrolling is therefore off and long names end
+        in an ellipsis. Nothing is lost: the full name is the second line of the
+        detail pane, which is where Workbench puts it too.
+
         THE ICONS ARE CHARACTERS. A .png is another file to ship, find at
         runtime and get right in two themes. These come out of Windows' own
         fonts, scale with the row, and survive being copied out as text.
@@ -62,9 +71,58 @@
         <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
         <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
-        <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
-        <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
-        <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFFAFAFA" />
+        <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTButtonHoverBrush"     Color="#FFCCE4F7" />
+        <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
+        <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
+
+        <!--
+            THE BUTTON CARRIES ITS OWN TEMPLATE, AND ITS COLOURS ARE SETTERS
+            RATHER THAN LOCAL VALUES. Two WPF traps meet on this control. A local
+            Foreground="White" on the Button element beats any style trigger, so
+            a hover rule written that way silently does nothing - the wizard
+            workstream hit exactly that. And the stock button template ignores
+            Background on hover entirely, painting its own wash, so a Setter
+            alone cannot fix the pairing either. The template below is the only
+            arrangement where "light wash, dark label" actually reaches the
+            screen; Get-HDTConsoleTheme decides which colours those are, and a
+            test measures the contrast of the pair in both palettes.
+        -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HDTButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonHoverBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -121,9 +179,18 @@
         <!-- body: the tree on the left, the selected row on the right -->
         <Grid Grid.Row="1" Margin="24,20,24,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="420" />
-                <ColumnDefinition Width="20" />
-                <ColumnDefinition Width="*" />
+                <!--
+                    BOTH SIDES ARE STAR-SIZED so the splitter can give width to
+                    either one. A fixed left column and a star right column
+                    would let the splitter grow the tree and never the details,
+                    which is the direction nobody needs: the pane is where the
+                    long text is. The MinWidths stop either side being dragged
+                    shut, because a pane dragged to nothing looks like a bug
+                    rather than a choice.
+                -->
+                <ColumnDefinition Width="420*" MinWidth="220" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="740*" MinWidth="260" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -140,7 +207,7 @@
                       Foreground="{DynamicResource HDTPanelTextBrush}"
                       BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
                       FontFamily="Segoe UI" FontSize="13"
-                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
@@ -159,26 +226,76 @@
                                        FontSize="13" Margin="0,0,7,0"
                                        VerticalAlignment="Center" />
                             <TextBlock Text="{Binding Text}"
-                                       VerticalAlignment="Center" />
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </HierarchicalDataTemplate>
                 </TreeView.ItemTemplate>
             </TreeView>
 
+            <!--
+                The handle between them. It spans the label row as well as the
+                tree, so the grip runs the full height of the two panes and
+                there is no dead strip above it to grab at by mistake.
+            -->
+            <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                          x:Name="HDTSplitter"
+                          Width="8" Margin="6,0,6,0"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="{DynamicResource HDTBorderBrush}"
+                          ShowsPreview="False" />
+
             <TextBlock Grid.Row="0" Grid.Column="2" Text="Details"
                        Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
 
-            <TextBox Grid.Row="1" Grid.Column="2"
-                     x:Name="HDTDetailText"
-                     Text=""
-                     IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap"
-                     Background="{DynamicResource HDTPanelBrush}"
-                     Foreground="{DynamicResource HDTPanelTextBrush}"
-                     BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
-                     FontFamily="Consolas, Courier New" FontSize="13"
-                     Padding="12"
-                     VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Auto" />
+            <!--
+                A PROPERTIES SHEET, NOT A PARAGRAPH. One labelled box per fact,
+                the way Deployment Workbench shows a selected item: each value
+                can be selected and copied on its own, long ones wrap instead of
+                running off the edge, and the layout is already the shape an
+                editor needs when C2 makes these writable.
+
+                THE BOXES ARE READ-ONLY IN C1 BECAUSE THE SHARE IS LIVE and the
+                comment-preserving YAML writer DESIGN 12 requires does not exist
+                yet. A box that took typing and threw it away would be worse than
+                one that plainly does not.
+            -->
+            <Border Grid.Row="1" Grid.Column="2"
+                    Background="{DynamicResource HDTPanelBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="14,12,14,12">
+                    <ItemsControl x:Name="HDTDetailList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                               Foreground="{DynamicResource HDTPanelTextBrush}"
+                                               FontFamily="Segoe UI" FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,5,10,0" VerticalAlignment="Top" />
+
+                                    <TextBox Grid.Column="1" Text="{Binding Value}"
+                                             IsReadOnly="True"
+                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                             Background="{DynamicResource HDTFieldBrush}"
+                                             Foreground="{DynamicResource HDTPanelTextBrush}"
+                                             BorderBrush="{DynamicResource HDTBorderBrush}"
+                                             BorderThickness="1"
+                                             FontFamily="Consolas, Courier New" FontSize="12"
+                                             Padding="6,4,6,4" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
 
             <!--
                 DESIGN 12: "the console shows that invocation - so an admin can
@@ -212,11 +329,13 @@
         <Border Grid.Row="2" Background="{DynamicResource HDTFooterBrush}" Margin="0,20,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Center" Margin="0,0,24,0">
+                <!--
+                    No local Background or Foreground: they are Setters in the
+                    style above, because a local value would beat the hover
+                    trigger and the label would stay white on a light wash.
+                -->
                 <Button x:Name="HDTCloseButton" Content="Close"
                         Width="112" Height="34"
-                        Background="{DynamicResource HDTButtonBrush}"
-                        Foreground="{DynamicResource HDTButtonTextBrush}"
-                        BorderThickness="0"
                         IsDefault="True" IsCancel="True" />
             </StackPanel>
         </Border>

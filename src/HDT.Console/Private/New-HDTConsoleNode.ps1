@@ -43,8 +43,10 @@ function New-HDTConsoleNode {
         .PARAMETER Text
             The row itself, without indentation.
 
-        .PARAMETER Detail
-            The multi-line text the detail pane shows for this row.
+        .PARAMETER Field
+            The labelled fields the detail pane shows for this row, as
+            New-HDTConsoleField builds them. Detail is rendered from them, so a
+            console reading and a screen reading cannot disagree.
 
         .PARAMETER Command
             The module command that produced the row (DESIGN 12).
@@ -91,8 +93,8 @@ function New-HDTConsoleNode {
         [string] $Text,
 
         [Parameter(Mandatory = $true)]
-        [AllowEmptyString()]
-        [string] $Detail,
+        [AllowEmptyCollection()]
+        [object[]] $Field,
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
@@ -109,13 +111,25 @@ function New-HDTConsoleNode {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
+    # ONE SOURCE, TWO READINGS. The window shows the fields; a console, a
+    # Format-List and a test read Detail. Rendering Detail from the same fields
+    # is what stops the two describing different things after the next edit.
+    $line = foreach ($current in @($Field)) {
+        if ([string]::IsNullOrEmpty($current.Label)) {
+            $current.Value
+        } else {
+            '{0,-20}: {1}' -f $current.Label, $current.Value
+        }
+    }
+
     return [pscustomobject] @{
         Depth            = $Depth
         Kind             = $Kind
         Status           = $Status
         Text             = $Text
         Display          = ((' ' * (4 * $Depth)) + $Text)
-        Detail           = $Detail
+        Field            = [pscustomobject[]] @($Field)
+        Detail           = (@($line) -join [System.Environment]::NewLine)
         Command          = $Command
         Icon             = (Get-HDTConsoleIcon -Kind $Kind -Status $Status)
         IsExpanded       = (-not $Collapsed.IsPresent)

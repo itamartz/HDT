@@ -239,6 +239,82 @@ Describe 'Show-HDTConsole' {
 
     Context 'the palette' {
 
+        BeforeAll {
+            function Get-HDTContrastRatio {
+                <#
+                    .SYNOPSIS
+                        The WCAG contrast ratio between two #AARRGGBB colours.
+                    .DESCRIPTION
+                        Written here rather than eyeballed, because "white on a
+                        light blue wash" looks fine in a palette listing and
+                        disappears on a screen. 4.5:1 is WCAG AA for body text.
+                #>
+                [CmdletBinding()]
+                [OutputType([double])]
+                param(
+                    [Parameter(Mandatory = $true, Position = 0)] [string] $First,
+                    [Parameter(Mandatory = $true, Position = 1)] [string] $Second
+                )
+
+                function Get-HDTRelativeLuminance {
+                    [CmdletBinding()]
+                    [OutputType([double])]
+                    param([Parameter(Mandatory = $true)] [string] $Colour)
+
+                    $hex = $Colour.TrimStart('#')
+                    if ($hex.Length -eq 8) { $hex = $hex.Substring(2) }
+
+                    $channel = foreach ($offset in 0, 2, 4) {
+                        $value = [Convert]::ToInt32($hex.Substring($offset, 2), 16) / 255.0
+                        if ($value -le 0.03928) {
+                            $value / 12.92
+                        } else {
+                            [Math]::Pow((($value + 0.055) / 1.055), 2.4)
+                        }
+                    }
+
+                    return (0.2126 * $channel[0]) + (0.7152 * $channel[1]) + (0.0722 * $channel[2])
+                }
+
+                $one = Get-HDTRelativeLuminance -Colour $First
+                $two = Get-HDTRelativeLuminance -Colour $Second
+
+                $lighter = [Math]::Max($one, $two)
+                $darker = [Math]::Min($one, $two)
+
+                return (($lighter + 0.05) / ($darker + 0.05))
+            }
+        }
+
+        It 'keeps <_> readable when the pointer is over the button' -ForEach @('Light', 'Dark') {
+            # THE BUG THIS EXISTS FOR: the light theme's hover is a pale wash,
+            # and white-on-pale is a button that empties as the pointer reaches
+            # it. Measured rather than trusted, in both palettes, because the
+            # right answer differs between them.
+            $palette = Get-HDTConsoleTheme -Name $PSItem
+
+            $ratio = Get-HDTContrastRatio $palette['HDTButtonHoverBrush'] $palette['HDTButtonHoverTextBrush']
+
+            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem hover text on hover background"
+        }
+
+        It 'keeps the <_> button readable at rest too' -ForEach @('Light', 'Dark') {
+            $palette = Get-HDTConsoleTheme -Name $PSItem
+
+            $ratio = Get-HDTContrastRatio $palette['HDTButtonBrush'] $palette['HDTButtonTextBrush']
+
+            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem button text on button background"
+        }
+
+        It 'keeps the <_> detail pane readable' -ForEach @('Light', 'Dark') {
+            $palette = Get-HDTConsoleTheme -Name $PSItem
+
+            $ratio = Get-HDTContrastRatio $palette['HDTFieldBrush'] $palette['HDTPanelTextBrush']
+
+            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem field text on field background"
+        }
+
+
         It 'opens light, because the console is a desktop application and not a bench tool' {
             $consoleHost = New-HDTFakeConsoleHost
 
@@ -396,10 +472,70 @@ Describe 'the shipped console window' {
     }
 
     It 'names <_>, which New-HDTConsoleHost finds by name' -ForEach @(
-        'HDTConsoleTree', 'HDTDetailText', 'HDTCommandText',
+        'HDTConsoleTree', 'HDTDetailList', 'HDTCommandText',
         'HDTShareText', 'HDTDeployRootText', 'HDTRootText', 'HDTCloseButton') {
 
         $script:shippedXaml | Should -Match ('x:Name="{0}"' -f $PSItem)
+    }
+
+    It 'shows the detail as labelled boxes rather than one block of text' {
+        # A properties sheet: each value selectable and copyable on its own, and
+        # already the shape an editor needs when C2 makes them writable.
+        $script:shippedXaml | Should -Match '\{Binding Label'
+        $script:shippedXaml | Should -Match '\{Binding Value'
+        $script:shippedXaml | Should -Match 'ItemsControl x:Name="HDTDetailList"'
+    }
+
+    It 'keeps those boxes read-only, because C1 does not write to a live share' {
+        $document = [xml] $script:shippedXaml
+
+        $box = @($document.SelectNodes("//*[local-name()='TextBox']"))
+
+        @($box).Count | Should -BeGreaterThan 0
+        foreach ($current in $box) {
+            $current.GetAttribute('IsReadOnly') | Should -BeExactly 'True'
+        }
+    }
+
+    It 'sets no local Foreground on a button, which would beat the hover trigger' {
+        # The trap the wizard workstream hit: a local value wins over a style
+        # trigger in WPF, so the hover rule compiles, runs, and does nothing.
+        $document = [xml] $script:shippedXaml
+
+        foreach ($button in @($document.SelectNodes("//*[local-name()='Button']"))) {
+            $button.GetAttribute('Foreground') | Should -BeNullOrEmpty
+            $button.GetAttribute('Background') | Should -BeNullOrEmpty
+        }
+    }
+
+    It 'puts a draggable splitter between the tree and the detail pane' {
+        # The detail pane holds descriptions and 64-character hashes, and how
+        # much room each side needs is the reader's business rather than a
+        # number chosen here.
+        $document = [xml] $script:shippedXaml
+
+        $splitter = @($document.SelectNodes("//*[local-name()='GridSplitter']"))
+
+        @($splitter).Count | Should -Be 1
+        $splitter[0].GetAttribute('Column', 'http://schemas.microsoft.com/winfx/2006/xaml/presentation') |
+            Should -BeNullOrEmpty -Because 'the attached property is written Grid.Column'
+        $script:shippedXaml | Should -Match 'GridSplitter[\s\S]*Grid\.Column="1"'
+    }
+
+    It 'lets the splitter give width to either side' {
+        # A fixed left column and a star right column would let the splitter
+        # grow the tree and never the pane, which is the direction nobody needs.
+        $document = [xml] $script:shippedXaml
+
+        $width = @($document.SelectNodes("//*[local-name()='ColumnDefinition']") |
+                ForEach-Object { $_.GetAttribute('Width') } |
+                Where-Object { $_ -match '\*' })
+
+        @($width).Count | Should -BeGreaterOrEqual 2
+    }
+
+    It 'never scrolls the tree sideways, which would take the icons off the edge' {
+        $script:shippedXaml | Should -Match 'ScrollViewer\.HorizontalScrollBarVisibility="Disabled"'
     }
 
     It 'declares a default for every key Get-HDTConsoleTheme sets, and sets none it does not' {

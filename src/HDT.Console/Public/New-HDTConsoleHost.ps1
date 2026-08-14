@@ -81,7 +81,7 @@ function New-HDTConsoleHost {
         $deployRoot = $window.FindName('HDTDeployRootText')
         $root = $window.FindName('HDTRootText')
         $tree = $window.FindName('HDTConsoleTree')
-        $detail = $window.FindName('HDTDetailText')
+        $detail = $window.FindName('HDTDetailList')
         $command = $window.FindName('HDTCommandText')
         $close = $window.FindName('HDTCloseButton')
 
@@ -96,7 +96,7 @@ function New-HDTConsoleHost {
         # this does not have to work it out.
         $tree.Add_SelectedItemChanged({
                 $selected = $tree.SelectedItem
-                $detail.Text = [string] $selected.Detail
+                $detail.ItemsSource = $selected.Field
                 $command.Text = [string] $selected.Command
                 $share.Text = [string] $selected.HeaderTitle
                 $deployRoot.Text = [string] $selected.HeaderDeployRoot

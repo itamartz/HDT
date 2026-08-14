@@ -75,20 +75,18 @@ function Get-HDTConsoleBootImageNode {
             $suffix = 'manifest unreadable'
         }
 
-        $detail = @(
-            ('{0,-20}: {1}' -f 'Image name', $BootImage.Name)
-            ('{0,-20}: {1}' -f 'Architecture', $BootImage.Architecture)
-            ('{0,-20}: {1}' -f 'Language', $BootImage.Language)
-            ('{0,-20}: {1}' -f 'Manifest', $BootImage.ManifestPath)
-            ''
-            $BootImage.Error
-            ''
-            ("To build it:  Update-HDTBootImage -WorkspacePath '{0}'" -f $Workspace.WorkspacePath)
+        $field = @(
+            New-HDTConsoleField -Label 'Image name' -Value $BootImage.Name
+            New-HDTConsoleField -Label 'Architecture' -Value $BootImage.Architecture
+            New-HDTConsoleField -Label 'Language' -Value $BootImage.Language
+            New-HDTConsoleField -Label 'Manifest' -Value $BootImage.ManifestPath
+            New-HDTConsoleField -Label 'Why' -Value $BootImage.Error
+            New-HDTConsoleField -Label 'To build it' -Value ("Update-HDTBootImage -WorkspacePath '{0}'" -f $Workspace.WorkspacePath)
         )
 
         return (New-HDTConsoleNode -Depth 3 -Kind 'BootImage' -Status $BootImage.Status `
                 -Text ('{0} - {1}' -f $BootImage.Name, $suffix) `
-                -Detail ($detail -join [System.Environment]::NewLine) -Command $command -Header $Header)
+                -Field $field -Command $command -Header $Header)
     }
 
     $built = '(not recorded)'
@@ -102,33 +100,30 @@ function Get-HDTConsoleBootImageNode {
         $verdict = 'matches the standalone WIM (DESIGN 6.1.1)'
     }
 
-    $detail = @(
-        ('{0,-20}: {1}' -f 'Image name', $BootImage.Name)
-        ('{0,-20}: {1}' -f 'Architecture', $BootImage.Architecture)
-        ('{0,-20}: {1}' -f 'Language', $BootImage.Language)
-        ''
-        ('{0,-20}: {1} UTC' -f 'Built', $built)
-        ('{0,-20}: {1}' -f 'Built on', $BootImage.BuiltOn)
-        ('{0,-20}: {1}' -f 'Engine version', $BootImage.EngineVersion)
-        ('{0,-20}: {1}' -f 'Build id', $BootImage.BuildId)
-        ''
-        'WIM (WDS / PXE)'
-        ('  {0,-18}: {1}' -f 'Path', $BootImage.WimPath)
-        ('  {0,-18}: {1}' -f 'Size', (Format-HDTConsoleByteCount -Byte $BootImage.WimSizeBytes))
-        ('  {0,-18}: {1}' -f 'SHA-256', $BootImage.WimSha256)
-        ''
-        'ISO (VM / removable media)'
-        ('  {0,-18}: {1}' -f 'Path', $BootImage.IsoPath)
-        ('  {0,-18}: {1}' -f 'Size', (Format-HDTConsoleByteCount -Byte $BootImage.IsoSizeBytes))
-        ('  {0,-18}: {1}' -f 'SHA-256', $BootImage.IsoSha256)
-        ('  {0,-18}: {1}' -f 'boot.wim SHA-256', (Get-HDTConsoleDisplayText -Text $BootImage.IsoBootWimSha256 -Fallback '(not recorded by this manifest)'))
-        ('  {0,-18}: {1}' -f 'boot.wim', $verdict)
-        ''
-        ('{0,-20}: {1}' -f 'Manifest', $BootImage.ManifestPath)
-        ("To rebuild:  Update-HDTBootImage -WorkspacePath '{0}'" -f $Workspace.WorkspacePath)
+    $field = @(
+        New-HDTConsoleField -Label 'Image name' -Value $BootImage.Name
+        New-HDTConsoleField -Label 'Architecture' -Value $BootImage.Architecture
+        New-HDTConsoleField -Label 'Language' -Value $BootImage.Language
+        New-HDTConsoleField -Label 'Built' -Value ('{0} UTC' -f $built)
+        New-HDTConsoleField -Label 'Built on' -Value $BootImage.BuiltOn
+        New-HDTConsoleField -Label 'Engine version' -Value $BootImage.EngineVersion
+        New-HDTConsoleField -Label 'Build id' -Value $BootImage.BuildId
+
+        New-HDTConsoleField -Label 'WIM path' -Value $BootImage.WimPath
+        New-HDTConsoleField -Label 'WIM size' -Value (Format-HDTConsoleByteCount -Byte $BootImage.WimSizeBytes)
+        New-HDTConsoleField -Label 'WIM SHA-256' -Value $BootImage.WimSha256
+
+        New-HDTConsoleField -Label 'ISO path' -Value $BootImage.IsoPath
+        New-HDTConsoleField -Label 'ISO size' -Value (Format-HDTConsoleByteCount -Byte $BootImage.IsoSizeBytes)
+        New-HDTConsoleField -Label 'ISO SHA-256' -Value $BootImage.IsoSha256
+        New-HDTConsoleField -Label 'boot.wim SHA-256' -Value (Get-HDTConsoleDisplayText -Text $BootImage.IsoBootWimSha256 -Fallback '(not recorded by this manifest)')
+        New-HDTConsoleField -Label 'boot.wim in the ISO' -Value $verdict
+
+        New-HDTConsoleField -Label 'Manifest' -Value $BootImage.ManifestPath
+        New-HDTConsoleField -Label 'To rebuild it' -Value ("Update-HDTBootImage -WorkspacePath '{0}'" -f $Workspace.WorkspacePath)
     )
 
     return (New-HDTConsoleNode -Depth 3 -Kind 'BootImage' -Status 'Ok' `
             -Text ('{0} - built {1} UTC' -f $BootImage.Name, $built) `
-            -Detail ($detail -join [System.Environment]::NewLine) -Command $command -Header $Header)
+            -Field $field -Command $command -Header $Header)
 }

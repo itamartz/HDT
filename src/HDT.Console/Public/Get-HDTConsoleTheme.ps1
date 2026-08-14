@@ -68,9 +68,13 @@ function Get-HDTConsoleTheme {
             HDTLabelBrush       = '#FF9CDCFE'
             HDTCommandBrush     = '#FF1B1B1B'
             HDTCommandTextBrush = '#FFCE9178'
-            HDTFooterBrush      = '#FF252526'
-            HDTButtonBrush      = '#FF0E639C'
-            HDTButtonTextBrush  = '#FFFFFFFF'
+            HDTFieldBrush            = '#FF1B1B1B'
+            HDTFooterBrush           = '#FF252526'
+            HDTButtonBrush           = '#FF0E639C'
+            HDTButtonTextBrush       = '#FFFFFFFF'
+            HDTButtonHoverBrush      = '#FF1177BB'
+            HDTButtonHoverTextBrush  = '#FFFFFFFF'
+            HDTButtonPressedBrush    = '#FF0C5484'
         }
     }
 
@@ -85,8 +89,18 @@ function Get-HDTConsoleTheme {
         HDTLabelBrush       = '#FF0E639C'
         HDTCommandBrush     = '#FFF7F7F7'
         HDTCommandTextBrush = '#FFA31515'
-        HDTFooterBrush      = '#FFE8E8E8'
-        HDTButtonBrush      = '#FF0E639C'
-        HDTButtonTextBrush  = '#FFFFFFFF'
+        HDTFieldBrush            = '#FFFAFAFA'
+        HDTFooterBrush           = '#FFE8E8E8'
+        HDTButtonBrush           = '#FF0E639C'
+        HDTButtonTextBrush       = '#FFFFFFFF'
+
+        # HOVER IS A LIGHT WASH IN THE LIGHT THEME, SO THE LABEL GOES BLACK.
+        # White on #FFCCE4F7 is a contrast ratio of about 1.7:1 - a button that
+        # empties as the pointer reaches it. The dark theme's hover goes the
+        # other way, so its label stays white. A test measures both rather than
+        # trusting the pair to be chosen carefully next time.
+        HDTButtonHoverBrush      = '#FFCCE4F7'
+        HDTButtonHoverTextBrush  = '#FF000000'
+        HDTButtonPressedBrush    = '#FFA9CFEC'
     }
 }

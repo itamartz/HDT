@@ -103,18 +103,18 @@ function Get-HDTConsoleTreeNode {
 
     $rootCommand = "Get-HDTConsoleWorkspace -Path '{0}'" -f (@($share | ForEach-Object { $_.Root }) -join "', '")
 
-    $rootDetail = @(
-        ('{0,-16}: {1}' -f 'Shares', $share.Count)
-        ''
-    )
-
-    foreach ($current in $share) {
-        $rootDetail += '  {0,-10} {1}' -f $current.Status, $current.Root
+    $listed = foreach ($current in $share) {
+        '{0,-8} {1}' -f $current.Status, $current.Root
     }
+
+    $rootField = @(
+        New-HDTConsoleField -Label 'Shares' -Value $share.Count
+        New-HDTConsoleField -Label 'Opened' -Value (@($listed) -join [System.Environment]::NewLine)
+    )
 
     $rootNode = New-HDTConsoleNode -Depth 0 -Kind 'Root' -Status 'Ok' `
         -Text ('Deployment Shares ({0})' -f $share.Count) `
-        -Detail ($rootDetail -join [System.Environment]::NewLine) `
+        -Field $rootField `
         -Command $rootCommand `
         -Header ([pscustomobject] @{
                 Title      = 'Deployment Shares'
