@@ -50,6 +50,40 @@ steps:
     operatingSystem: Win11-LTSC-2024
 '@
 
+    # THE REAL SHAPE OF A DEPLOYMENT SEQUENCE: groups, an ordered run, a
+    # condition, a step that may fail, and per-type properties. DEMO-M4 on the
+    # lab share is this shape, which is why the tree has to render it rather
+    # than a flat list of names.
+    $script:groupedSequenceYaml = @'
+schemaVersion: 1
+id: DEMO-M4
+name: Deploy Windows 11 LTSC
+description: The M4 exit criterion, as a sequence.
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+      - name: Format and Partition
+        type: DiskPartition
+        layout: uefi-standard
+        wipe: true
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Apply OS
+        type: ApplyImage
+        os: Win11-LTSC-2024
+        index: 1
+        target: primary
+      - name: Prepare Boot
+        type: ConfigureBoot
+        continueOnError: true
+'@
+
     $script:osYaml = @'
 schemaVersion: 1
 id: Win11-LTSC-2024
@@ -104,6 +138,24 @@ images:
         }
 
         return Get-HDTConsoleWorkspace -Path $script:root -FileSystem (New-HDTFakeFileSystem -File $file)
+    }
+
+    # One share holding the GROUPED sequence, for the step rows.
+    function New-HDTConsoleStepTestModel {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a projection from an in-memory fake; it changes no state.')]
+        [CmdletBinding()]
+        [OutputType([pscustomobject])]
+        param(
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [string] $Root = 'C:\ws'
+        )
+
+        return Get-HDTConsoleWorkspace -Path $Root -FileSystem (New-HDTFakeFileSystem -File @{
+                ('{0}\workspace.yaml' -f $Root)                             = $script:workspaceYaml
+                ('{0}\TaskSequences\DEMO-M4\sequence.yaml' -f $Root)        = $script:groupedSequenceYaml
+            })
     }
 }
 
@@ -452,6 +504,143 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $boot.Status | Should -BeExactly 'Missing'
             $boot.Icon | Should -Not -BeExactly ([string] ([char] 0x26A0))
+        }
+    }
+
+    # ------------------------------------------------------------------------
+    # THE STEPS THEMSELVES
+    #
+    # Until now the tree stopped at the sequence and the detail pane said
+    # "Steps: 5". A count is not something an administrator can click. DESIGN 12
+    # calls for a "drag-and-drop step tree with a properties pane"; these rows
+    # are that tree's contents, decided here so they can be asserted with no
+    # window - the rule this whole file exists for.
+    #
+    # THE ENGINE ALREADY DID THE HARD PART. Import-HDTSequenceDocument returns a
+    # FLAT, ordered step list where each step carries its GroupPath, plus the
+    # groups separately. The console does not re-parse YAML and does not invent
+    # an order: it renders what the engine resolved, which is the order
+    # Invoke-HDTTaskSequence would execute.
+    # ------------------------------------------------------------------------
+    Context 'the steps inside a task sequence' {
+
+        BeforeAll {
+            $script:stepNode = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleStepTestModel))
+            $script:stepRow = @($script:stepNode | Where-Object { $_.Kind -eq 'Step' })
+            $script:groupRow = @($script:stepNode | Where-Object { $_.Kind -eq 'StepGroup' })
+        }
+
+        It 'keeps the steps on the workspace, not just how many there were' {
+            # Get-HDTConsoleWorkspace recorded StepCount and threw the steps
+            # away, so no amount of work in the tree builder could have shown
+            # them.
+            $sequence = @((New-HDTConsoleStepTestModel).TaskSequence)[0]
+
+            @($sequence.Step).Count | Should -Be 4
+            @($sequence.Step)[0].Name | Should -BeExactly 'Validate'
+        }
+
+        It 'gives every step a row' {
+            @($script:stepRow).Count | Should -Be 4
+        }
+
+        It 'gives every group a row' {
+            @($script:groupRow | ForEach-Object { $_.Text }) | Should -Be @('Preinstall', 'Install')
+        }
+
+        It 'puts the steps in the order the engine would run them' {
+            @($script:stepRow | ForEach-Object { $_.Text }) |
+                Should -Be @('1. Validate', '2. Format and Partition', '3. Apply OS', '4. Prepare Boot')
+        }
+
+        It 'nests a step under its group, and the group under its sequence' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Depth | Should -Be 3
+            @($sequence.Children | ForEach-Object { $_.Text }) | Should -Be @('Preinstall', 'Install')
+
+            $preinstall = @($sequence.Children)[0]
+            $preinstall.Depth | Should -Be 4
+            @($preinstall.Children | ForEach-Object { $_.Text }) |
+                Should -Be @('1. Validate', '2. Format and Partition')
+            @($preinstall.Children)[0].Depth | Should -Be 5
+        }
+
+        It 'says what the step IS, not just what it is called' {
+            # A row reading "Apply OS" tells an administrator nothing about what
+            # it will do. The type is the part that maps to a cmdlet and to
+            # DESIGN 4's step catalogue.
+            $applyOs = @($script:stepRow | Where-Object { $_.Text -match 'Apply OS' })[0]
+
+            ($applyOs.Detail -join "`n") | Should -Match 'ApplyImage'
+        }
+
+        It 'carries the per-type properties into the detail pane' {
+            $validate = @($script:stepRow | Where-Object { $_.Text -match 'Validate' })[0]
+
+            ($validate.Detail -join "`n") | Should -Match '2048'
+            ($validate.Detail -join "`n") | Should -Match '60'
+        }
+
+        It 'shows the phase a step runs in, because it is the commonest reason one is skipped' {
+            $validate = @($script:stepRow | Where-Object { $_.Text -match 'Validate' })[0]
+
+            ($validate.Detail -join "`n") | Should -Match 'WinPE'
+        }
+
+        It 'shows that a step is allowed to fail, because that changes what a red run means' {
+            $prepareBoot = @($script:stepRow | Where-Object { $_.Text -match 'Prepare Boot' })[0]
+
+            ($prepareBoot.Detail -join "`n") | Should -Match 'Continue on error'
+        }
+
+        It 'carries the cmdlet that produced it, like every other row' {
+            # DESIGN 12: an admin can learn the automation surface by clicking
+            # around. A step row showing no command would be the one place in
+            # the console where that stopped being true.
+            @($script:stepRow | Where-Object { [string]::IsNullOrWhiteSpace($_.Command) }) |
+                Should -BeNullOrEmpty
+        }
+    }
+
+    # THE CASE THAT BREAKS A NAIVE IMPLEMENTATION: two shares, each with a task
+    # sequence of the SAME id. A builder that looked steps up by sequence id, or
+    # appended to one flat list, would hang the second share's steps under the
+    # first share's sequence - and each share would still look right on its own.
+    Context 'several shares, each with their own task sequences' {
+
+        BeforeAll {
+            $script:twoShare = @(
+                Get-HDTConsoleTreeNode -Workspace ([object[]] @(
+                        (New-HDTConsoleStepTestModel -Root 'C:\ws'),
+                        (New-HDTConsoleStepTestModel -Root 'C:\prod')
+                    )))
+        }
+
+        It 'shows a task sequence for each share rather than merging them' {
+            @($script:twoShare | Where-Object { $_.Kind -eq 'TaskSequence' }).Count | Should -Be 2
+        }
+
+        It 'gives each share its own full set of step rows' {
+            @($script:twoShare | Where-Object { $_.Kind -eq 'Step' }).Count | Should -Be 8
+        }
+
+        It 'hangs each share''s steps under ITS OWN sequence' {
+            $sequence = @($script:twoShare | Where-Object { $_.Kind -eq 'TaskSequence' })
+
+            foreach ($current in $sequence) {
+                $step = @($current.Children | ForEach-Object { $_.Children } |
+                        Where-Object { $_.Kind -eq 'Step' })
+
+                @($step).Count | Should -Be 4
+            }
+        }
+
+        It 'points each sequence at the document on its own share' {
+            $sequence = @($script:twoShare | Where-Object { $_.Kind -eq 'TaskSequence' })
+
+            @($sequence | Where-Object { $_.Command -match ([regex]::Escape('C:\ws\')) }).Count | Should -Be 1
+            @($sequence | Where-Object { $_.Command -match ([regex]::Escape('C:\prod\')) }).Count | Should -Be 1
         }
     }
 }

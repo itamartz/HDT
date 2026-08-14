@@ -87,7 +87,8 @@ function New-HDTConsoleNode {
         [int] $Depth,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty')]
+        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
+            'DriverStore', 'StepGroup', 'Step')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]

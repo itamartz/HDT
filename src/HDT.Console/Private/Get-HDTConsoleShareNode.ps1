@@ -255,6 +255,19 @@ function Get-HDTConsoleShareNode {
 
         [void] $node.Add($row)
         [void] $sequenceCategory.Children.Add($row)
+
+        # THE STEPS, BENEATH THEIR OWN SEQUENCE. Built per sequence object and
+        # never looked up by id: two shares commonly hold a task sequence with
+        # the same id, and both of this lab's shares hold a DEMO-M4.
+        $step = Get-HDTConsoleStepNode -Sequence $sequence -Header $header
+
+        foreach ($stepRow in @($step.Node)) {
+            [void] $node.Add($stepRow)
+        }
+
+        foreach ($stepRow in @($step.TopLevel)) {
+            [void] $row.Children.Add($stepRow)
+        }
     }
 
     if (@($Workspace.TaskSequence).Count -eq 0) {
