@@ -253,21 +253,15 @@ function Get-HDTConsoleShareNode {
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
             -Header $header
 
+        # THE BROWSER STOPS HERE, and the steps are Get-HDTConsoleSequenceEditor's.
+        # Deployment Workbench lists task sequences in the tree and edits their
+        # steps in a properties window opened from one; CLAUDE.md asks for a
+        # console close enough to it that muscle memory transfers. Expanding
+        # every step of every sequence of every share would also be unusable at
+        # the size an administrator runs - the lab's own sample share is four
+        # sequences and over thirty step rows before a single operating system.
         [void] $node.Add($row)
         [void] $sequenceCategory.Children.Add($row)
-
-        # THE STEPS, BENEATH THEIR OWN SEQUENCE. Built per sequence object and
-        # never looked up by id: two shares commonly hold a task sequence with
-        # the same id, and both of this lab's shares hold a DEMO-M4.
-        $step = Get-HDTConsoleStepNode -Sequence $sequence -Header $header
-
-        foreach ($stepRow in @($step.Node)) {
-            [void] $node.Add($stepRow)
-        }
-
-        foreach ($stepRow in @($step.TopLevel)) {
-            [void] $row.Children.Add($stepRow)
-        }
     }
 
     if (@($Workspace.TaskSequence).Count -eq 0) {

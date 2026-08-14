@@ -38,6 +38,11 @@ function Get-HDTConsoleStepNode {
             what a red deployment means. The per-type properties follow, since
             they are the difference between "Apply OS" and "apply THAT image".
 
+            DEPTH IS COUNTED FROM THE EDITOR'S ROOT, NOT THE BROWSER'S. A
+            top-level group is 0 and a step inside it is 1, because these rows
+            fill the task sequence editor's own tree - the browser stops at the
+            sequence (Deployment Workbench's shape) and never shows a step.
+
         .PARAMETER Sequence
             One task sequence row from Get-HDTConsoleWorkspace, carrying Step
             and Group.
@@ -129,7 +134,7 @@ function Get-HDTConsoleStepNode {
                     )
                 }
 
-                $row = New-HDTConsoleNode -Depth (3 + $walked.Count) -Kind 'StepGroup' -Status 'Ok' `
+                $row = New-HDTConsoleNode -Depth ($walked.Count - 1) -Kind 'StepGroup' -Status 'Ok' `
                     -Text $name -Field $field `
                     -Command ('{0}.Group[{1}]' -f $document, $groupIndex) `
                     -Header $Header
@@ -165,7 +170,7 @@ function Get-HDTConsoleStepNode {
             )
         }
 
-        $row = New-HDTConsoleNode -Depth (4 + $path.Count) -Kind 'Step' -Status 'Ok' `
+        $row = New-HDTConsoleNode -Depth $path.Count -Kind 'Step' -Status 'Ok' `
             -Text ('{0}. {1}' -f $current.Index, $current.Name) -Field $field `
             -Command ('{0}.Step[{1}]' -f $document, $index) `
             -Header $Header
