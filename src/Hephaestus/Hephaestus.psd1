@@ -1,4 +1,4 @@
-﻿@{
+@{
     RootModule           = 'Hephaestus.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
@@ -60,6 +60,7 @@
         'Import-HDTRunState',
         'Import-HDTSequenceDocument',
         'Import-HDTStepModule',
+        'Import-HDTWizardDocument',
         'Import-HDTWorkspaceDocument',
         'Invoke-HDTNoOpStep',
         'Invoke-HDTSetVariableStep',
