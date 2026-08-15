@@ -23,6 +23,8 @@
         'Move-HDTConsoleStep',
         'Remove-HDTConsoleStep',
         'Get-HDTConsoleSequenceEditor',
+        'Get-HDTConsoleStepCatalog',
+        'Get-HDTConsoleStepOption',
         'Get-HDTConsoleSetting',
         'Get-HDTConsoleTheme',
         'Get-HDTConsoleTreeNode',
