@@ -4250,19 +4250,41 @@ function New-HDTFakeWizardHost {
             very branch that keeps a dismissed wizard from meaning consent to
             partition a disk.
 
+            IT ALSO REPLAYS A TECHNICIAN. ShowShell is the multi-page shell,
+            where the window opens once and the page inside it is swapped, so a
+            fake that only recorded what it was handed could not exercise the
+            navigation at all. -Click is the sequence of buttons a technician
+            presses; each one goes through THE SAME navigator scriptblock the
+            real host calls, and Visited records where each click landed. That
+            is what lets a whole Next/Next/Back/Next walk be asserted as an
+            ordered list with no display attached.
+
         .PARAMETER Action
             What the technician "chose". 'Next', 'Cancel', or empty for a window
             that was dismissed without answering.
+
+        .PARAMETER Click
+            For ShowShell: the buttons the technician presses, in order. 'Next'
+            and 'Back' go through the navigator; 'Cancel' and 'CommandPrompt'
+            end the walk with that answer. Running out of clicks before the last
+            page falls back to -Action, which is how "they closed the window on
+            page two" is expressed.
 
         .PARAMETER Journal
             The shared cross-service operation journal.
 
         .OUTPUTS
-            A PSCustomObject with a Show method, an Operations list, and the
-            LastXaml, LastTitle and LastField it was handed.
+            A PSCustomObject with Show and ShowShell methods, an Operations
+            list, and the LastXaml, LastTitle, LastField, LastState and Visited
+            it recorded.
 
         .EXAMPLE
             Show-HDTWizard -XamlPath $p -Title 'HDT' -WizardHost (New-HDTFakeWizardHost -Action 'Next')
+
+        .EXAMPLE
+            $host = New-HDTFakeWizardHost -Action 'Next' -Click @('Next', 'Next', 'Back', 'Next', 'Next')
+            Show-HDTWizardShell -ShellXamlPath $p -Page $page -WizardHost $host
+            $host.Visited   # every page, in the order it was reached
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory test double; it changes no state.')]
@@ -4275,20 +4297,36 @@ function New-HDTFakeWizardHost {
 
         [Parameter()]
         [AllowNull()]
+        [string[]] $Click,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Journal
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
+    # @($null) IS AN ARRAY OF ONE NULL, NOT AN EMPTY ARRAY. Left alone, a fake
+    # built with no -Click replays one press of the empty string, and the
+    # navigator's ValidateSet refuses it - so every test that never meant to
+    # click anything fails inside the fake. Filtered here rather than in the
+    # method, so there is one place the list is a list.
+    $press = @(@($Click) | Where-Object { -not [string]::IsNullOrEmpty($_) })
+
     $service = [pscustomobject] @{
-        Action     = $Action
-        Operations = (New-Object -TypeName System.Collections.ArrayList)
-        Journal    = $Journal
-        LastXaml   = ''
-        LastTitle  = ''
-        LastField  = @()
-        LastPane   = @()
+        Action         = $Action
+        Click          = $press
+        Operations     = (New-Object -TypeName System.Collections.ArrayList)
+        Journal        = $Journal
+        LastXaml       = ''
+        LastShellXaml  = ''
+        LastThemeXaml  = ''
+        LastTitle      = ''
+        LastField      = @()
+        LastPane       = @()
+        LastState      = $null
+        Visited        = (New-Object -TypeName System.Collections.ArrayList)
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -4307,6 +4345,56 @@ function New-HDTFakeWizardHost {
         $this.LastPane = @($Pane)
         $this.Record(('Show({0})' -f $Title))
 
+        return $this.Action
+    }
+
+    # THE SHELL, WALKED. The real host opens ONE window and swaps the page
+    # inside it; this opens nothing and swaps nothing, but it takes the same
+    # arguments and calls the SAME navigator, so what is asserted here is the
+    # navigation the real host will perform rather than a paraphrase of it.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowShell -Value {
+        param(
+            [string] $ShellXaml,
+            [string] $ThemeXaml,
+            [string] $Title,
+            [object] $State,
+            [object[]] $Field,
+            [object[]] $Pane,
+            [scriptblock] $Navigator)
+
+        $this.LastShellXaml = $ShellXaml
+        $this.LastThemeXaml = $ThemeXaml
+        $this.LastTitle = $Title
+        $this.LastState = $State
+        $this.LastField = @($Field)
+        $this.LastPane = @($Pane)
+        $this.Record(('ShowShell({0})' -f $Title))
+
+        $current = $State
+        [void] $this.Visited.Add([string] $current.Page.Id)
+
+        foreach ($press in @($this.Click)) {
+
+            # Cancel and Open CMD never reach the navigator - they are not
+            # navigation, they are the technician leaving.
+            if ($press -eq 'Cancel' -or $press -eq 'CommandPrompt') {
+                $this.Record(('press {0}' -f $press))
+                return $press
+            }
+
+            $current = & $Navigator $current.Index $press
+
+            if ($current.Done) {
+                $this.Record('press Next -> Done')
+                return 'Next'
+            }
+
+            $this.Record(('press {0} -> {1}' -f $press, [string] $current.Page.Id))
+            [void] $this.Visited.Add([string] $current.Page.Id)
+        }
+
+        # RAN OUT OF CLICKS. The technician is still standing in front of the
+        # window; -Action is what they did next, including nothing at all.
         return $this.Action
     }
 

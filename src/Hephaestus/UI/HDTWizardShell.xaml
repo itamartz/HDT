@@ -85,13 +85,51 @@
                            Foreground="#FF7FA8C4" FontSize="13"
                            Margin="24,0,24,20" TextWrapping="Wrap" />
 
+                <!--
+                    EACH ROW STATES WHAT IT IS, AND THIS DECIDES WHAT THAT LOOKS
+                    LIKE. Step-HDTWizardPage hands over Title and State - Done,
+                    Current or Pending - and nothing else. It used to be handed
+                    a Fill and an Ink brush, which put the look in a PowerShell
+                    command: a second place the palette is defined, and the
+                    first one to drift from HDTTheme.xaml.
+                -->
                 <ItemsControl x:Name="HDTPageList" Margin="0,8,0,0"
                               Background="Transparent" BorderThickness="0">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{Binding Fill}" Padding="24,10,16,10">
-                                <TextBlock Text="{Binding Title}" Foreground="{Binding Ink}"
-                                           FontSize="16" TextWrapping="Wrap" />
+                            <Border Padding="24,10,16,10">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Style.Triggers>
+                                            <!-- THE ACCENT, and only on the row being asked. -->
+                                            <DataTrigger Binding="{Binding State}" Value="Current">
+                                                <Setter Property="Background" Value="#FF0E639C" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+
+                                <TextBlock Text="{Binding Title}" FontSize="16" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <!--
+                                                PENDING IS THE DIMMEST, and it is
+                                                the default because most of the
+                                                rail is ahead of the technician.
+                                            -->
+                                            <Setter Property="Foreground" Value="#FF7FA8C4" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding State}" Value="Done">
+                                                    <Setter Property="Foreground" Value="#FFA9CDE6" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding State}" Value="Current">
+                                                    <Setter Property="Foreground" Value="White" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -135,8 +173,18 @@
                         OPEN CMD IS NOT A WAY OUT, it is the diagnostic door -
                         and it stays on every page because the page a technician
                         is stuck on is the page they need a prompt from.
+
+                        HDTOpenCmdButton, AND THE NAME IS NOT A DETAIL. This
+                        button shipped as HDTCommandPromptButton, which is what
+                        the ANSWER is called - but New-HDTWizardHost wires the
+                        BUTTON, and it wires HDTOpenCmdButton, the name
+                        HDTWelcome.xaml uses. Both files read correctly on their
+                        own and every assertion passed. The button was dead: it
+                        opened no prompt and did not even close the window.
+                        WinPeUiStack.Contract.Tests.ps1 now refuses a named
+                        button no engine code mentions.
                     -->
-                    <Button x:Name="HDTCommandPromptButton" Content="Open CMD"
+                    <Button x:Name="HDTOpenCmdButton" Content="Open CMD"
                             Width="120" Height="38" Background="#FF3A3A3C" Margin="0,0,16,0" />
                     <Button x:Name="HDTBackButton" Content="Back"
                             Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />

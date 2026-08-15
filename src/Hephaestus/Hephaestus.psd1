@@ -107,6 +107,8 @@
         'Set-HDTShareCredential',
         'Set-HDTStaticAddress',
         'Show-HDTWizard',
+        'Show-HDTWizardShell',
+        'Step-HDTWizardPage',
         'Test-HDTRunStateAbandoned',
         'Test-HDTShareAcl',
         'Test-HDTPowerShellStepApplicable',
