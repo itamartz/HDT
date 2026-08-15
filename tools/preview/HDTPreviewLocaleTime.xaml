@@ -1,0 +1,137 @@
+<!--
+    A PREVIEW PAGE, NOT A PRODUCT ONE. See HDTPreviewTaskSequence.xaml.
+
+    MDT'S "LOCALE AND TIME" PANE, followed deliberately: "Specify locale and
+    time preferences", a Language Settings group of three, a Time Settings group
+    of one. An MDT admin has filled this in a hundred times and should not have
+    to work out where anything went.
+
+    FOUR SETTINGS, NOT ONE, BECAUSE WINDOWS TREATS THEM SEPARATELY: the language
+    the OS is INSTALLED in, the formats a USER sees, the KEYBOARD, and the
+    clock. A machine deployed in English with a German keyboard is an ordinary
+    request that one setting could not express.
+
+    TWO GROUPS, TWO SKIP KEYS. HDTSkipLocaleSelection hides the language group
+    and HDTSkipTimeZone the time group - MDT has both properties for this one
+    pane, and the pane mechanism the host already has collapses either by name.
+
+    SelectedValuePath="Tag" IS WHAT MAKES A COMBO COLLECTABLE. The declaration
+    reads SelectedValue, and the Tag carries the value Windows wants - en-US,
+    not "English (United States)". Without it the host would collect a
+    ComboBoxItem and the summary would show a control's type name where a
+    culture belongs.
+-->
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- ============ language ============ -->
+    <StackPanel Grid.Row="0" x:Name="HDTLocalePane">
+
+        <!-- MDT's group header: a label with a rule running off to the right. -->
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Language settings" Foreground="White"
+                       FontSize="15" FontWeight="SemiBold" Margin="0,0,12,0" />
+            <Border Grid.Column="1" Height="1" Background="#FF3A3A3C" VerticalAlignment="Center" />
+        </Grid>
+
+        <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Language to install" Foreground="#FF8A8A8A"
+                       FontSize="13" VerticalAlignment="Center" Margin="0,0,0,10"
+                       ToolTip="The language the operating system itself is installed in." />
+            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="HDTUILanguageBox" SelectedValuePath="Tag"
+                      Width="380" HorizontalAlignment="Left" Margin="0,0,0,10">
+                <ComboBoxItem Tag="en-US" Content="English (United States)" IsSelected="True" />
+                <ComboBoxItem Tag="en-GB" Content="English (United Kingdom)" />
+                <ComboBoxItem Tag="he-IL" Content="Hebrew (Israel)" />
+                <ComboBoxItem Tag="de-DE" Content="German (Germany)" />
+                <ComboBoxItem Tag="fr-FR" Content="French (France)" />
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Time and currency format" Foreground="#FF8A8A8A"
+                       FontSize="13" VerticalAlignment="Center" Margin="0,0,0,10"
+                       ToolTip="The formats a user sees - dates, numbers, currency. MDT calls this the locale." />
+            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="HDTUserLocaleBox" SelectedValuePath="Tag"
+                      Width="380" HorizontalAlignment="Left" Margin="0,0,0,10">
+                <ComboBoxItem Tag="en-US" Content="English (United States)" IsSelected="True" />
+                <ComboBoxItem Tag="en-GB" Content="English (United Kingdom)" />
+                <ComboBoxItem Tag="he-IL" Content="Hebrew (Israel)" />
+                <ComboBoxItem Tag="de-DE" Content="German (Germany)" />
+                <ComboBoxItem Tag="fr-FR" Content="French (France)" />
+            </ComboBox>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="Keyboard layout" Foreground="#FF8A8A8A"
+                       FontSize="13" VerticalAlignment="Center"
+                       ToolTip="The keyboard the deployed machine comes up with. It does not have to match the language." />
+            <ComboBox Grid.Row="2" Grid.Column="1" x:Name="HDTKeyboardLocaleBox" SelectedValuePath="Tag"
+                      Width="380" HorizontalAlignment="Left">
+                <ComboBoxItem Tag="0409:00000409" Content="United States - English" IsSelected="True" />
+                <ComboBoxItem Tag="0809:00000809" Content="United Kingdom - English" />
+                <ComboBoxItem Tag="040d:0002040d" Content="Hebrew (Standard)" />
+                <ComboBoxItem Tag="0407:00000407" Content="German" />
+                <ComboBoxItem Tag="040c:0000040c" Content="French" />
+            </ComboBox>
+        </Grid>
+    </StackPanel>
+
+    <!-- ============ time ============ -->
+    <StackPanel Grid.Row="1" x:Name="HDTTimeZonePane" Margin="0,28,0,0">
+
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Time settings" Foreground="White"
+                       FontSize="15" FontWeight="SemiBold" Margin="0,0,12,0" />
+            <Border Grid.Column="1" Height="1" Background="#FF3A3A3C" VerticalAlignment="Center" />
+        </Grid>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="210" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" Text="Time zone" Foreground="#FF8A8A8A"
+                       FontSize="13" VerticalAlignment="Center"
+                       ToolTip="The Windows time zone identifier applied to the deployed machine." />
+
+            <!--
+                THE TAG IS THE WINDOWS IDENTIFIER, not the display name. The
+                deployed machine is configured with 'Israel Standard Time'; the
+                technician reads '(UTC+02:00) Jerusalem'. Storing what is on
+                screen would put a label into a setting that wants an id.
+            -->
+            <ComboBox Grid.Column="1" x:Name="HDTTimeZoneNameBox" SelectedValuePath="Tag"
+                      Width="380" HorizontalAlignment="Left">
+                <ComboBoxItem Tag="Israel Standard Time" Content="(UTC+02:00) Jerusalem" IsSelected="True" />
+                <ComboBoxItem Tag="GMT Standard Time" Content="(UTC+00:00) London" />
+                <ComboBoxItem Tag="W. Europe Standard Time" Content="(UTC+01:00) Amsterdam, Berlin" />
+                <ComboBoxItem Tag="Eastern Standard Time" Content="(UTC-05:00) Eastern Time (US &amp; Canada)" />
+                <ComboBoxItem Tag="Pacific Standard Time" Content="(UTC-08:00) Pacific Time (US &amp; Canada)" />
+                <ComboBoxItem Tag="UTC" Content="(UTC) Coordinated Universal Time" />
+            </ComboBox>
+        </Grid>
+    </StackPanel>
+</Grid>
