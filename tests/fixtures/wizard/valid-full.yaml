@@ -1,0 +1,92 @@
+# Every feature of the definition, and the four pages HDT ships as samples.
+#
+# MDT's DeployWiz_Definition_ENU.xml lists one <Pane id= reference= /> per
+# screen with a <Condition> deciding whether it appears; PSD's theme definition
+# lists the same panes the same way. This is that file, in HDT's YAML, with the
+# condition reduced to the thing every MDT condition actually tests: a Skip
+# variable.
+schemaVersion: 1
+title: Hephaestus Deployment Toolkit
+
+pages:
+  - id: TaskSequence
+    title: Task sequence
+    heading: Choose a task sequence
+    subheading: What this machine will be deployed with.
+    reference: TaskSequence.xaml
+    skip: HDTSkipTaskSequence
+    collect:
+      - control: HDTTaskSequenceList
+        variable: HDTTaskSequenceID
+        property: SelectedValue
+
+  # MDT's Computer Details pane: the name and what the machine joins are one
+  # decision, so they are one page - with both skip variables, because MDT has
+  # both for this one pane.
+  - id: ComputerDetail
+    title: Computer details
+    heading: Name this computer
+    subheading: The name it will carry after deployment, and what it joins.
+    reference: ComputerDetail.xaml
+    skip: HDTSkipComputerName
+    validate:
+      control: HDTComputerNameBox
+      rule: ComputerName
+    collect:
+      - control: HDTComputerNameBox
+        variable: HDTComputerName
+      - control: HDTJoinDomainBox
+        variable: HDTJoinDomain
+      - control: HDTMachineObjectOuBox
+        variable: HDTMachineObjectOU
+      - control: HDTJoinWorkgroupBox
+        variable: HDTJoinWorkgroup
+
+      # The account domain box is read BEFORE the account box, so the split
+      # below can see what it held and decide whether to keep it.
+      - control: HDTDomainAdminDomainBox
+        variable: HDTDomainAdminDomain
+
+      # One box, two variables: CORP\svc-hdt-join, or a bare account that
+      # belongs to the domain being joined.
+      - control: HDTDomainAdminBox
+        variable: HDTDomainAdmin
+        split: AccountName
+        splitVariable: HDTDomainAdminDomain
+        splitDefaultFrom: HDTJoinDomain
+
+      # Never shown on the summary, never written into the snippet.
+      - control: HDTPasswordBox
+        variable: HDTDomainAdminPassword
+        property: Password
+        isSecret: true
+
+  - id: LocaleTime
+    title: Locale and time
+    heading: Specify locale and time preferences
+    subheading: What the deployed machine speaks, types and reads the clock in.
+    reference: LocaleTime.xaml
+    skip: HDTSkipLocaleSelection
+    collect:
+      - control: HDTUILanguageBox
+        variable: HDTUILanguage
+        property: SelectedValue
+      - control: HDTUserLocaleBox
+        variable: HDTUserLocale
+        property: SelectedValue
+      - control: HDTKeyboardLocaleBox
+        variable: HDTKeyboardLocale
+        property: SelectedValue
+      - control: HDTTimeZoneNameBox
+        variable: HDTTimeZoneName
+        property: SelectedValue
+
+  - id: Summary
+    title: Summary
+    heading: Ready to deploy
+    subheading: Check what was chosen - and what to set so nobody has to choose it again.
+    reference: Summary.xaml
+    skip: HDTSkipSummary
+    summary:
+      rowControl: HDTSummaryList
+      snippetControl: HDTSummarySnippet

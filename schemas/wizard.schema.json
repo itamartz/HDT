@@ -1,0 +1,157 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hephaestus/schemas/wizard.schema.json",
+  "title": "HDT Scripts\\UI\\wizard.yaml",
+  "description": "The technician wizard's pages, in the order they are asked. MDT's DeployWiz_Definition_ENU.xml, which lists one <Pane id= reference= /> per screen with a <Condition> deciding whether it appears - and PSD's Classic_Theme_Definitions_en-US.xml, which lists the same panes the same way. A share with no wizard.yaml has NO WIZARD, which is what keeps an image built before this existed deploying with nobody present.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "pages"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "title": {
+      "description": "The window title. Omitted, the wizard uses its own.",
+      "type": "string",
+      "minLength": 1
+    },
+    "pages": {
+      "description": "In the order they are asked. An empty list is legal and means no wizard.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "reference"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Stable, and what a skip variable is named after. MDT's Pane id=.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "title": {
+            "description": "What the rail shows. Omitted, the id is used.",
+            "type": "string",
+            "minLength": 1
+          },
+          "heading": {
+            "type": "string"
+          },
+          "subheading": {
+            "type": "string"
+          },
+          "reference": {
+            "description": "The page's markup, relative to Scripts\\UI on the share. MDT's Pane reference=. Never rooted and never containing '..' - a definition file is authored content and must not be able to name a path outside the share.",
+            "type": "string",
+            "pattern": "^(?!.*\\.\\.)(?![A-Za-z]:)(?!\\\\)[^\\\\/].*\\.xaml$"
+          },
+          "skip": {
+            "description": "The variable that hides this page. MDT's <Condition> tests exactly this. Omitted, the page cannot be skipped individually - HDTSkipWizard still hides it.",
+            "type": "string",
+            "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+          },
+          "validate": {
+            "description": "A control on this page whose contents are judged as they are typed.",
+            "type": "object",
+            "required": [
+              "control",
+              "rule"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "control": {
+                "type": "string",
+                "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+              },
+              "rule": {
+                "description": "A rule this engine implements. A name it does not know is refused rather than ignored, because a control that silently never validates looks like a wizard that accepts anything.",
+                "type": "string",
+                "enum": [
+                  "ComputerName"
+                ]
+              }
+            }
+          },
+          "summary": {
+            "description": "Marks this as the summary page and names the controls the engine fills.",
+            "type": "object",
+            "required": [
+              "rowControl"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "rowControl": {
+                "type": "string",
+                "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+              },
+              "snippetControl": {
+                "type": "string",
+                "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+              }
+            }
+          },
+          "collect": {
+            "description": "What this page fills in. One entry per variable; MDT's panes set properties the same way.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "control",
+                "variable"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "control": {
+                  "type": "string",
+                  "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+                },
+                "variable": {
+                  "type": "string",
+                  "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+                },
+                "property": {
+                  "description": "The control property to read. Text for a TextBox, SelectedValue for a list or a combo, Password for a PasswordBox. Omitted, Text.",
+                  "type": "string",
+                  "enum": [
+                    "Text",
+                    "SelectedValue",
+                    "Password",
+                    "IsChecked"
+                  ]
+                },
+                "isSecret": {
+                  "description": "Never shown on the summary and never written into the rules.yaml snippet. HDTDomainAdminPassword is the case this exists for.",
+                  "type": "boolean"
+                },
+                "split": {
+                  "description": "Splits one typed value across two variables. AccountName turns CORP\\svc into the account and its domain.",
+                  "type": "string",
+                  "enum": [
+                    "AccountName"
+                  ]
+                },
+                "splitVariable": {
+                  "description": "Where the second half goes. Required when split is set.",
+                  "type": "string",
+                  "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+                },
+                "splitDefaultFrom": {
+                  "description": "The variable to fall back to when the typed value carried no domain. For a join account this is HDTJoinDomain - a bare account belongs to the domain being joined.",
+                  "type": "string",
+                  "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
