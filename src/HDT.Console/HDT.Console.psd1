@@ -22,6 +22,7 @@
         'Copy-HDTConsoleStep',
         'Move-HDTConsoleStep',
         'Remove-HDTConsoleStep',
+        'Get-HDTConsoleEditorState',
         'Get-HDTConsoleSequenceEditor',
         'Get-HDTConsoleStepCatalog',
         'Get-HDTConsoleStepOption',
