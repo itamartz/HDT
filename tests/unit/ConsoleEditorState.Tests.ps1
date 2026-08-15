@@ -184,6 +184,50 @@ Describe 'Get-HDTConsoleEditorState' {
         }
     }
 
+    Context 'putting the selection back after an edit' {
+
+        # THE BUG THIS FIXES: ticking "Disable this step" rebuilt the tree from
+        # the edited lines and left nothing selected, so the highlight fell back
+        # to the nearest container - the step's GROUP - and the panes followed
+        # it. An administrator switching a step off then found themselves
+        # looking at the group's properties.
+        #
+        # A ROW CARRIES ITS OWN SELECTION, the way it already carries
+        # IsExpanded, and the window binds to it. That is what makes this
+        # assertable at all: a host that walked ItemContainerGenerator to find
+        # the row again could only be checked by looking at a screen.
+
+        It 'marks the selected row selected' {
+            $state = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Apply OS'
+
+            $state.Selected.IsSelected | Should -BeTrue
+        }
+
+        It 'marks only that one' {
+            $state = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Apply OS'
+
+            @($state.Node | Where-Object { $_.IsSelected }).Count | Should -Be 1
+        }
+
+        It 'still finds the row when the edit changed how it reads' {
+            # A disabled step's Text gains '(disabled)'. Name is what the row is
+            # matched on, and it does not move.
+            $off = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
+
+            $state = Get-HDTConsoleEditorState -Line $off -Path $script:path -SelectedName 'Apply OS'
+
+            $state.Selected | Should -Not -BeNullOrEmpty
+            $state.Selected.Text | Should -BeLike '*(disabled)*'
+            $state.Selected.IsSelected | Should -BeTrue
+        }
+
+        It 'selects nothing when nothing was selected' {
+            $state = Get-HDTConsoleEditorState -Line $script:line -Path $script:path
+
+            @($state.Node | Where-Object { $_.IsSelected }) | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'Paste and Save, which are about the window rather than the row' {
 
         It 'offers Paste only when something has been copied' {

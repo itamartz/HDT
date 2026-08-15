@@ -227,6 +227,13 @@ function Get-HDTConsoleEditorState {
             # than Text: a step legitimately called '2. Reboot' would otherwise
             # be found by the wrong row, or by none.
             $selected = @($built.Node | Where-Object { $_.Name -eq $SelectedName })[0]
+
+            # AND IT IS MARKED, so the tree comes back with it highlighted. The
+            # window binds TreeViewItem.IsSelected to this and does nothing
+            # else; a host that walked ItemContainerGenerator to find the row
+            # again would be a decision in an adapter, and one only a person
+            # looking at a screen could check.
+            if ($null -ne $selected) { $selected.IsSelected = $true }
         }
     }
 

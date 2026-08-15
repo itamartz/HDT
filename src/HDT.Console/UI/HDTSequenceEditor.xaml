@@ -296,6 +296,14 @@
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+
+                        <!-- A splice rebuilds the tree, so the row that was
+                             selected no longer exists as an object. The rows
+                             carry their own selection and this binding puts it
+                             back - without it the highlight falls to the
+                             nearest container, which is why switching a step
+                             off used to leave its GROUP selected. -->
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
                         <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
                         <Setter Property="Padding" Value="2,3,2,3" />
                         <!-- Without this a row announces itself as a dump of the

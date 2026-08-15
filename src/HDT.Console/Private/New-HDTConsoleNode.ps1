@@ -177,6 +177,18 @@ function New-HDTConsoleNode {
         Icon             = $glyph
         IsExpanded       = (-not $Collapsed.IsPresent)
 
+        # WHETHER THIS ROW IS THE SELECTED ONE, carried the way IsExpanded is
+        # and bound the same way. A splice rebuilds the tree from scratch, so
+        # the row object that WAS selected no longer exists; without this the
+        # highlight falls back to the nearest container - the step's group -
+        # and the panes follow it, which is what an administrator saw after
+        # ticking "Disable this step".
+        #
+        # It is set before the tree is handed the rows, because a PSCustomObject
+        # raises no change notification: the binding takes the value it finds at
+        # the moment the container is generated, and nothing afterwards.
+        IsSelected       = $false
+
         # An ArrayList rather than an array: the tree is assembled by adding to
         # a parent that already exists, and a PowerShell array would be copied
         # on every add, leaving the bound collection behind.
