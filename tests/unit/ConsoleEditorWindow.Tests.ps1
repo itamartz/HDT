@@ -62,23 +62,43 @@ steps:
             Title     = ''
             Path      = ''
             Node      = @()
+            Line      = @()
+            Catalog   = @()
             Theme     = $null
         }
 
         $fake | Add-Member -MemberType ScriptMethod -Name ShowEditor -Value {
-            param([string] $Xaml, [string] $Title, [string] $Path, [object[]] $Node, [object] $Theme)
+            param(
+                [string] $Xaml, [string] $Title, [string] $Path,
+                [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme
+            )
 
             $this.ShowCount = $this.ShowCount + 1
             $this.Xaml = $Xaml
             $this.Title = $Title
             $this.Path = $Path
             $this.Node = $Node
+            $this.Line = $Line
+            $this.Catalog = $Catalog
             $this.Theme = $Theme
 
             return [string] $this.Action
         }
 
         return $fake
+    }
+
+    function New-HDTEditorTestFileSystem {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory test double; it changes no state.')]
+        [CmdletBinding()]
+        [OutputType([object])]
+        param()
+
+        return New-HDTFakeFileSystem -File @{
+            'C:\ws\workspace.yaml'                      = $script:workspaceYaml
+            'C:\ws\TaskSequences\DEMO-M4\sequence.yaml' = $script:sequenceYaml
+        }
     }
 
     function New-HDTEditorTestSequence {
@@ -125,8 +145,37 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTPasteButton' }
         @{ Name = 'HDTSaveButton' }
         @{ Name = 'HDTEditorCloseButton' }
+
+        # The Add menu, and the Options tab.
+        @{ Name = 'HDTAddMenu' }
+        @{ Name = 'HDTOptionTab' }
+        @{ Name = 'HDTDisableCheck' }
+        @{ Name = 'HDTContinueCheck' }
+        @{ Name = 'HDTConditionText' }
+        @{ Name = 'HDTConditionApplyButton' }
+        @{ Name = 'HDTConditionClearButton' }
+        @{ Name = 'HDTRunInText' }
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
+    }
+
+    It 'hangs a menu off Add rather than a plain button, which is how Workbench offers a step type' {
+        # Get-HDTConsoleStepCatalog decides what is in it; this only asserts
+        # there is somewhere to put it. An Add that opened no menu would leave
+        # the catalog built, tested and unreachable.
+        $script:markup | Should -Match '(?s)<ContextMenu[^>]*x:Name="HDTAddMenu"'
+    }
+
+    It 'splits the right-hand pane into Properties and Options, the way MDT does' {
+        $script:markup | Should -Match 'Header="Properties"'
+        $script:markup | Should -Match 'Header="Options"'
+    }
+
+    It 'draws the actions as a toolbar rather than as a row of filled buttons' {
+        # MDT and ConfigMgr both use a flat toolbar; a row of solid blue pills
+        # is the one part of this window that would not read as Workbench.
+        $script:markup | Should -Match 'x:Key="HDTToolButton"'
+        $script:markup | Should -Match 'Style="\{StaticResource HDTToolButton\}"'
     }
 
     It 'has no code-behind, like every other window in the toolkit' {
@@ -178,6 +227,30 @@ Describe 'Show-HDTSequenceEditor' {
                 -XamlPath $script:xamlPath -ConsoleHost $editorHost)
 
         $editorHost.Path | Should -BeExactly 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
+    }
+
+    It 'hands the window the document''s own lines, which are what an edit splices' {
+        # Not the parsed document: a round trip through ConvertFrom-HDTYaml
+        # returns a dictionary, and a dictionary has no comments in it.
+        $editorHost = New-HDTFakeEditorHost
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -FileSystem (New-HDTEditorTestFileSystem))
+
+        $editorHost.Line | Should -Contain 'id: DEMO-M4'
+        $editorHost.Line | Should -Contain '      - name: Apply OS'
+    }
+
+    It 'hands the window the step catalog, so Add can offer what this engine can run' {
+        $editorHost = New-HDTFakeEditorHost
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -FileSystem (New-HDTEditorTestFileSystem))
+
+        @($editorHost.Catalog).Count | Should -BeGreaterThan 1
+        @($editorHost.Catalog)[0].Item[0].Text | Should -BeExactly 'New Group'
     }
 
     It 'passes the palette, so the editor matches the console it was opened from' {
