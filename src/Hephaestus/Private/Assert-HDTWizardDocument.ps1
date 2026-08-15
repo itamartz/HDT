@@ -49,6 +49,10 @@ function Assert-HDTWizardDocument {
         .EXAMPLE
             Assert-HDTWizardDocument -Document $document -Path 'C:\Share\Scripts\UI\wizard.yaml'
     #>
+    # $Path IS used - by the $fail closure below, which names it in every
+    # message. The analyzer does not follow a parameter into a closure.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+        Justification = 'Used inside the $fail closure, which PSReviewUnusedParameter does not follow.')]
     [CmdletBinding()]
     [OutputType([void])]
     param(

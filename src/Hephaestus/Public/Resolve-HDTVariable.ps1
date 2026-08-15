@@ -116,6 +116,14 @@ function Resolve-HDTVariable {
         [AllowNull()]
         [System.Collections.IDictionary] $CommandLine,
 
+        # WHAT A TECHNICIAN TYPED AT THE WIZARD (DESIGN 11.2). It beats the
+        # rules and the per-machine override, and loses only to the command
+        # line - which was set before the machine booted, so the wizard could
+        # not have known about it while the reverse is not true.
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $Wizard,
+
         [Parameter()]
         [AllowNull()]
         [System.Collections.IDictionary] $MachineOverride,
@@ -171,6 +179,31 @@ function Resolve-HDTVariable {
         foreach ($key in @($CommandLine.Keys)) {
             $null = Add-HDTResolvedVariable -Resolution $resolution -Scope $scope `
                 -Name ([string] $key) -Value $CommandLine[$key] -Source 'CommandLine'
+        }
+    }
+
+    # -- precedence 1b: what the technician typed at the wizard -----------------
+    #
+    # AFTER THE COMMAND LINE AND BEFORE EVERYTHING ELSE. A command line was set
+    # before this machine booted; the wizard answered a question that was still
+    # open after it did, so where both speak the wizard yields - it could not
+    # have known about the command line, and the technician who set the command
+    # line could not have known what the wizard would ask.
+    #
+    # AN EMPTY BOX IS NOT AN ANSWER. Collected as '', it would RESOLVE the
+    # variable and stop the rule that would have supplied a real one - the same
+    # trap Get-HDTWizardSummary refuses to write into a snippet, and the reason
+    # a technician who tabbed past a box gets the rule's value rather than
+    # nothing at all.
+    if ($null -ne $Wizard) {
+        foreach ($key in @($Wizard.Keys)) {
+
+            $value = $Wizard[$key]
+            if ($value -is [string] -and [string]::IsNullOrWhiteSpace($value)) { continue }
+            if ($null -eq $value) { continue }
+
+            $null = Add-HDTResolvedVariable -Resolution $resolution -Scope $scope `
+                -Name ([string] $key) -Value $value -Source 'Wizard'
         }
     }
 

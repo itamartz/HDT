@@ -155,13 +155,19 @@ This replaces `ZTIGather.wsf` + `CustomSettings.ini` + the MDT database.
 
 ### 3.1 Variable sources, in precedence order
 
-1. **Command line / media prompt** — what the technician typed.
-2. **Per-machine override** — `Control\machines\<UUID>.yaml`, if present. This is
+1. **Command line / media prompt** — what the media was launched with.
+2. **The wizard** — what the technician typed at the machine (§11.2). It beats
+   everything below and loses only to the command line: that was set before this
+   machine booted, so the wizard could not have known about it, while the person
+   who set it could not have known what the wizard would ask. **An empty box is
+   not an answer** — a value the technician left blank is skipped rather than
+   resolved, or it would silence the rule that would have supplied a real one.
+3. **Per-machine override** — `Control\machines\<UUID>.yaml`, if present. This is
    the MDT-database equivalent, but file-based; a SQL or REST provider can be
    plugged in later behind the same interface.
-3. **Rules** — `rules.yaml`, first-match-wins per variable (§3.3).
-4. **Gathered facts** — hardware, firmware, network (§3.2).
-5. **Sequence defaults** — declared in `sequence.yaml`.
+4. **Rules** — `rules.yaml`, first-match-wins per variable (§3.3).
+5. **Gathered facts** — hardware, firmware, network (§3.2).
+6. **Sequence defaults** — declared in `sequence.yaml`.
 
 Higher entries win. Every variable resolution records *which* source set it,
 and that provenance is written to the log — the single biggest debugging pain in

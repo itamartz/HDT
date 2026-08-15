@@ -59,6 +59,8 @@ BeforeAll {
     # One page, with whatever the test needs bolted on. Written as YAML because
     # that is what an administrator writes and what the parser produces.
     function New-HDTWizardYaml {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a string in a test; it changes no state.')]
         [CmdletBinding()]
         param(
             [Parameter()]

@@ -100,7 +100,13 @@ function Add-HDTResolvedVariable {
         [object] $Value,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('CommandLine', 'MachineOverride', 'Rule', 'RuleScript', 'GatheredFact', 'SequenceDefault')]
+        # Wizard IS ITS OWN SOURCE, NOT CommandLine WEARING A DISGUISE. They
+        # arrive at the same precedence and beat the same things, but they
+        # answer different questions afterwards: "somebody typed this at the
+        # bench" and "the media was launched with this on its command line" are
+        # different explanations for a machine's name, and DESIGN 3.1 exists so
+        # provenance can tell them apart.
+        [ValidateSet('CommandLine', 'Wizard', 'MachineOverride', 'Rule', 'RuleScript', 'GatheredFact', 'SequenceDefault')]
         [string] $Source,
 
         [Parameter()]
