@@ -26,11 +26,23 @@
     .PARAMETER Fail
         Fail the third step, to see the status line in red.
 
+    .PARAMETER XamlPath
+        The window. Point it at a file that is not there to watch DESIGN 11.1's
+        CONSOLE FALLBACK instead - the path a boot image built without
+        WinPE-NetFx takes, and the one nobody exercises until the night it
+        matters.
+
     .EXAMPLE
         ./tools/Show-HDTProgressOnDesktop.ps1
 
     .EXAMPLE
         ./tools/Show-HDTProgressOnDesktop.ps1 -Fail
+
+    .EXAMPLE
+        ./tools/Show-HDTProgressOnDesktop.ps1 -XamlPath 'X:\nothing-here.xaml'
+
+        The same replay with no window: styled console lines, and a deployment
+        that carries on.
 #>
 [CmdletBinding()]
 param(
@@ -39,7 +51,11 @@ param(
     [int] $StepSecond = 2,
 
     [Parameter()]
-    [switch] $Fail
+    [switch] $Fail,
+
+    [Parameter()]
+    [AllowEmptyString()]
+    [string] $XamlPath = ''
 )
 
 Set-StrictMode -Version Latest
@@ -48,7 +64,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Import-Module -Name (Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force
 
-$xamlPath = Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/UI/HDTProgress.xaml'
+if ([string]::IsNullOrWhiteSpace($XamlPath)) {
+    $XamlPath = Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/UI/HDTProgress.xaml'
+}
 
 # A sequence with the shape a real one has: WinPE work, a reboot, full-OS work.
 $step = @(
@@ -121,16 +139,18 @@ function Add-HDTPreviewRecord {
 # as the replay does rather than all being 'now'.
 $total = $step.Count * $StepSecond
 
-$display = Start-HDTProgressDisplay -XamlPath $xamlPath
+$display = Start-HDTProgressDisplay -XamlPath $XamlPath
 
 Write-Information ("progress display mode: {0} {1}" -f $display.Mode, $display.Reason) -InformationAction Continue
 
-if ($display.Mode -ne 'Window') {
-    Write-Information 'no window - nothing to look at. That is the console fallback working.' -InformationAction Continue
-    return $display
-}
-
+# THE REPLAY DOES NOT CARE WHICH MODE IT GOT, and neither does the engine: the
+# fallback is a HOST with the same Update, so there is no branch here to be
+# wrong on the machines that take it.
 $display.DisplayHost.SetComputerName('HDT-LAB-01')
+
+# A window is worth leaving up to look at; a console has already scrolled past.
+$dwell = 10
+if ($display.Mode -ne 'Window') { $dwell = 0 }
 
 Add-HDTPreviewRecord -Event 'run.start' -Data @{ sequenceId = 'STD-CLIENT'; stepIndex = 0; stepCount = $step.Count; leg = 1 }
 $display.DisplayHost.Update((Get-HDTDeploymentProgress -Record @($record)))
@@ -157,8 +177,8 @@ try {
             Add-HDTPreviewRecord -Event 'run.end' -Phase $current.Phase -Data @{ status = 'Failed' }
             $display.DisplayHost.Update((Get-HDTDeploymentProgress -Record @($record)))
 
-            Write-Information 'the run failed at step 3 - leaving it on screen for 10 seconds' -InformationAction Continue
-            Start-Sleep -Seconds 10
+            Write-Information 'the run failed at step 3' -InformationAction Continue
+            Start-Sleep -Seconds $dwell
             return
         }
 
@@ -171,8 +191,8 @@ try {
     Add-HDTPreviewRecord -Event 'run.end' -Phase 'FullOS' -Data @{ status = 'Succeeded' }
     $display.DisplayHost.Update((Get-HDTDeploymentProgress -Record @($record)))
 
-    Write-Information 'done - leaving it on screen for 10 seconds' -InformationAction Continue
-    Start-Sleep -Seconds 10
+    Write-Information 'done' -InformationAction Continue
+    Start-Sleep -Seconds $dwell
 } finally {
     # THE WINDOW IS FULL SCREEN AND HAS NO WAY OUT OF IT, so a preview that
     # threw without this would leave a technician - or a developer - looking at

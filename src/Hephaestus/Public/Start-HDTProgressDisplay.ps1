@@ -133,11 +133,17 @@ function Start-HDTProgressDisplay {
 
     # -- the window file ----------------------------------------------------
 
+    # THE FALLBACK IS A HOST, NOT A BRANCH AT THE CALL SITE. The caller gets an
+    # object with the same Update it would have had, so the engine reports
+    # progress the same way whatever machine it is on - and there is no
+    # `if ($mode -eq 'Window')` anywhere for somebody to forget. That matters
+    # precisely because this path only happens on machines nobody is testing on.
     $fallback = {
         param([string] $Why)
 
         $result['Mode'] = 'Console'
         $result['Reason'] = $Why
+        $result['DisplayHost'] = New-HDTConsoleProgressHost
 
         return [pscustomobject] $result
     }

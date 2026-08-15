@@ -1,0 +1,86 @@
+function New-HDTConsoleProgressHost {
+    <#
+        .SYNOPSIS
+            The IProgressHost for a machine that cannot draw a window: it writes
+            DESIGN 11.1's console lines instead.
+
+        .DESCRIPTION
+            THE FALLBACK IS A HOST, NOT A BRANCH AT THE CALL SITE. When the
+            window cannot be opened, Start-HDTProgressDisplay hands back one of
+            these instead of the WPF one - so the engine calls Update the same
+            way whatever machine it is on, and there is no `if ($mode -eq
+            'Window')` anywhere for somebody to forget.
+
+            That matters more than it looks. DESIGN 11.1's fallback exists for
+            "a boot image built without the right components, an exotic display,
+            a serial console" - all machines nobody is testing on - and a branch
+            at every call site is a branch that is wrong on exactly those.
+
+            IT REPEATS NOTHING. The same line twice tells a technician the
+            deployment is stuck when it is only the caller polling; a console
+            scrolls, so every line printed pushes the last real change further
+            up. Only a line that DIFFERS is written.
+
+            THE LINE ITSELF IS Format-HDTProgressLine's, which is pure and
+            tested. What is left here is writing it, which is why this adapter
+            can be exempt from tests at all (CLAUDE.md rule 1).
+
+            Write-Information, NOT Write-Host. The payload sets
+            $InformationPreference and the stream is redirectable, so a lab
+            harness can capture the deployment's own account of itself. Write-Host
+            goes to a screen nobody is reading on the machines this exists for.
+
+        .OUTPUTS
+            A PSCustomObject with Open(xaml), Update(progress), SetComputerName
+            and Close() - the same shape New-HDTProgressHost has, so callers
+            cannot tell them apart.
+
+        .EXAMPLE
+            $display = Start-HDTProgressDisplay -XamlPath $p
+            $display.DisplayHost.Update($progress)
+
+            Writes a window on a machine that has one and a line on a machine
+            that does not.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds a stateless service adapter object; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param()
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $service = [pscustomobject] @{
+        ComputerName = ''
+        LastLine     = ''
+    }
+
+    # NOTHING TO OPEN. The signature matches the WPF host so the two are
+    # interchangeable, and that is the whole point of this object.
+    $service | Add-Member -MemberType ScriptMethod -Name Open -Value {
+        param([string] $Xaml)
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name SetComputerName -Value {
+        param([string] $Name)
+
+        $this.ComputerName = $Name
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Update -Value {
+        param([object] $Progress)
+
+        if ($null -eq $Progress) { return }
+
+        $line = Format-HDTProgressLine -Progress $Progress
+        if ($line -eq $this.LastLine) { return }
+
+        $this.LastLine = $line
+        Write-Information -MessageData $line -InformationAction Continue
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Close -Value { }
+
+    return $service
+}

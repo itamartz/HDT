@@ -131,6 +131,34 @@ Describe 'Start-HDTProgressDisplay' {
             [string] $display.Reason | Should -Not -BeNullOrEmpty
         }
 
+        It 'hands back a host that writes the console lines instead' {
+            # THE FALLBACK IS A HOST, NOT A BRANCH AT THE CALL SITE. The engine
+            # calls Update the same way on every machine; a caller that had to
+            # ask which mode it got would be a caller that forgets to, on
+            # exactly the machines this path exists for.
+            $display = Start-HDTProgressDisplay -XamlPath $script:xamlPath `
+                -DisplayHost (New-HDTFakeProgressHost -FailOpen) `
+                -FileSystem (New-HDTProgressTestFileSystem)
+
+            $display.DisplayHost | Should -Not -BeNullOrEmpty
+            @($display.DisplayHost.PSObject.Methods.Name) | Should -Contain 'Update'
+            @($display.DisplayHost.PSObject.Methods.Name) | Should -Contain 'Close'
+        }
+
+        It 'the fallback host writes a line rather than throwing' {
+            $display = Start-HDTProgressDisplay -XamlPath $script:xamlPath `
+                -DisplayHost (New-HDTFakeProgressHost -FailOpen) `
+                -FileSystem (New-HDTProgressTestFileSystem)
+
+            $progress = [pscustomobject] @{
+                SequenceId = 'STD-CLIENT'; StepNumber = 1; StepCount = 3; StepName = 'Partition disk'
+                StepType = 'DiskPartition'; CompletedCount = 0; PercentComplete = 0
+                Phase = 'WinPE'; Status = 'Running'; ElapsedSecond = 5
+            }
+
+            { $display.DisplayHost.Update($progress) } | Should -Not -Throw 6>$null
+        }
+
         It 'never throws, whatever went wrong' -ForEach @('Missing', 'Malformed', 'NoWpf') {
             # THE RULE THIS COMMAND EXISTS FOR. A deployment that refused to run
             # because it could not draw a progress bar would be a worse toolkit
