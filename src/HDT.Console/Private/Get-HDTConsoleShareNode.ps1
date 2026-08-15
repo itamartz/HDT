@@ -285,73 +285,25 @@ function Get-HDTConsoleShareNode {
     #
     # DESIGN 12 lists it among the tree's categories, so an administrator looking
     # for what is running finds it where they find everything else about the
-    # share rather than having to know a command exists.
+    # share rather than having to know a command exists. It comes LAST because it
+    # is the share in use rather than another thing to build.
     #
-    # THE CATEGORY SAYS WHAT IT HOLDS WITHOUT BEING OPENED. "Monitoring" tells a
-    # technician nothing; "Monitoring (2 stalled, 1 running)" is the whole screen
-    # at a glance, and it is the row they were going to open anyway.
-    #
-    # EVERY JUDGEMENT HERE WAS Get-HDTConsoleMonitor'S. Nothing below re-reads a
-    # heartbeat or works out an age - a second implementation of that could
-    # disagree with the first, and the two would be read side by side.
+    # THE WHOLE SUBTREE IS Get-HDTConsoleMonitorNode'S, and that is not tidiness:
+    # the console rebuilds this branch on a timer while the window is open
+    # (ROADMAP M8, "tailing"), and the tree as first drawn has to be the same
+    # shape as the tree as refreshed. One builder, called from both, is the only
+    # arrangement in which they cannot drift.
 
-    $monitor = $Workspace.Monitor
-
-    $monitorCommand = "Get-HDTConsoleMonitor -Path '{0}'" -f $Workspace.Root
-
-    $monitorCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
-        -Text $monitor.Caption `
-        -Icon (Get-HDTConsoleIcon -Kind 'Category' -Status 'Ok') `
-        -Field @(
-        New-HDTConsoleField -Label 'Watching' -Value $monitor.ActivePath
-        New-HDTConsoleField -Label 'Running' -Value ([string] $monitor.LiveCount)
-        New-HDTConsoleField -Label 'Stalled' -Value ([string] $monitor.StalledCount)
-        New-HDTConsoleField -Label 'Finished' -Value ([string] $monitor.FinishedCount)
-        New-HDTConsoleField -Label 'Unreadable' -Value ([string] $monitor.UnreadableCount)
-    ) `
-        -Command $monitorCommand -Header $header
+    $monitorCategory = Get-HDTConsoleMonitorNode -Path $Workspace.Root -Header $header `
+        -Monitor $Workspace.Monitor
 
     [void] $node.Add($monitorCategory)
     [void] $shareNode.Children.Add($monitorCategory)
 
-    foreach ($current in @($monitor.Run)) {
-        # A stalled or unreadable run is drawn the way every other broken thing
-        # in this tree is drawn, which is what makes it findable by somebody who
-        # has never used this screen before.
-        $runStatus = 'Ok'
-        if ($current.Health -eq 'Stalled' -or $current.Health -eq 'Unreadable') { $runStatus = 'Error' }
-
-        $runRow = New-HDTConsoleNode -Depth 3 -Kind 'MonitorRun' -Status $runStatus `
-            -Text $current.Text -Name $current.RunId `
-            -Field @(
-            New-HDTConsoleField -Label 'Run' -Value $current.RunId
-            New-HDTConsoleField -Label 'Health' -Value $current.Health
-            New-HDTConsoleField -Label 'Phase' -Value (Get-HDTConsoleDisplayText -Text $current.Phase -Fallback '(unknown)')
-            New-HDTConsoleField -Label 'Status' -Value (Get-HDTConsoleDisplayText -Text $current.RunStatus -Fallback '(unknown)')
-            New-HDTConsoleField -Label 'Step' -Value (Get-HDTConsoleDisplayText -Text $current.StepName -Fallback '(no step yet)')
-            New-HDTConsoleField -Label 'Step type' -Value (Get-HDTConsoleDisplayText -Text $current.StepType -Fallback '(unknown)')
-            New-HDTConsoleField -Label 'Step number' -Value (Get-HDTConsoleDisplayText -Text $current.StepText -Fallback '(not started)')
-            New-HDTConsoleField -Label 'Last heartbeat' -Value (Get-HDTConsoleDisplayText -Text $current.SinceText -Fallback '(never)')
-            New-HDTConsoleField -Label 'Heartbeat file' -Value $current.Path
-        ) `
-            -Command $current.Command -Header $header
-
-        [void] $node.Add($runRow)
-        [void] $monitorCategory.Children.Add($runRow)
-    }
-
-    # An empty category reads as a broken one. This says which it is.
-    if (@($monitor.Run).Count -eq 0) {
-        $monitorEmpty = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' `
-            -Text $monitor.Summary `
-            -Field @(
-            New-HDTConsoleField -Label 'Watching' -Value $monitor.ActivePath
-            New-HDTConsoleField -Label '' -Value ('The engine writes a heartbeat here for each step of each running deployment (DESIGN 4.4.6). Nothing is running on this share, or nothing has run since this folder was last cleared.')
-        ) `
-            -Command $monitorCommand -Header $header
-
-        [void] $node.Add($monitorEmpty)
-        [void] $monitorCategory.Children.Add($monitorEmpty)
+    # The flat reading gets the run rows too - it is every row in display order,
+    # and a caller counting them must not find the branch missing from it.
+    foreach ($current in @($monitorCategory.Children)) {
+        [void] $node.Add($current)
     }
 
     return [pscustomobject[]] @($node)

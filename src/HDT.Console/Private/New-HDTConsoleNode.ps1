@@ -88,7 +88,7 @@ function New-HDTConsoleNode {
 
         [Parameter(Mandatory = $true)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step', 'MonitorRun')]
+            'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]
@@ -194,10 +194,14 @@ function New-HDTConsoleNode {
         # the moment the container is generated, and nothing afterwards.
         IsSelected       = $false
 
-        # An ArrayList rather than an array: the tree is assembled by adding to
-        # a parent that already exists, and a PowerShell array would be copied
-        # on every add, leaving the bound collection behind.
-        Children         = [System.Collections.ArrayList]::new()
+        # AN OBSERVABLE COLLECTION, NOT AN ARRAY AND NOT AN ArrayList. An array
+        # would be copied on every add while the tree is being assembled,
+        # leaving the bound collection behind; an ArrayList fixes that but is
+        # invisible to a binding afterwards, so a row added once the tree is on
+        # screen never appears. The monitoring view is refreshed while the
+        # window is open (ROADMAP M8: "tailing"), and this is what lets the new
+        # rows arrive.
+        Children         = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
 
         HeaderTitle      = [string] $Header.Title
         HeaderRoot       = [string] $Header.Root

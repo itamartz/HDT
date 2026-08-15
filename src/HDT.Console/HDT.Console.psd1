@@ -25,6 +25,7 @@
         'Get-HDTConsoleClosePrompt',
         'Get-HDTConsoleEditorState',
         'Get-HDTConsoleMonitor',
+        'Get-HDTConsoleMonitorNode',
         'Get-HDTConsoleSequenceEditor',
         'Get-HDTConsoleStepCatalog',
         'Get-HDTConsoleStepChange',

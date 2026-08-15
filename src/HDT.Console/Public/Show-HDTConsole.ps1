@@ -78,6 +78,14 @@ function Show-HDTConsole {
         .PARAMETER ConsoleHost
             An IConsoleHost. Defaults to the real adapter.
 
+        .PARAMETER RefreshSecond
+            How often the Monitoring branch re-reads Logs\_active\, in seconds.
+            Fifteen by default: short enough that a technician watching a build
+            sees it move, long enough that a console left open on somebody's
+            second monitor is not hammering an SMB share all afternoon. The
+            engine writes a heartbeat per STEP, so polling faster would mostly
+            re-read the same file.
+
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real adapter.
 
@@ -141,6 +149,10 @@ function Show-HDTConsole {
         [Parameter()]
         [AllowNull()]
         [object] $ConsoleHost,
+
+        [Parameter()]
+        [ValidateRange(2, 3600)]
+        [int] $RefreshSecond = 15,
 
         [Parameter()]
         [AllowNull()]
@@ -243,7 +255,7 @@ function Show-HDTConsole {
     $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment -Screen $Screen
 
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
-        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme)
+        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond)
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot

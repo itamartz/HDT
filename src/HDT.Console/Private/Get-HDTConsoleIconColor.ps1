@@ -58,7 +58,7 @@ function Get-HDTConsoleIconColor {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step', 'MonitorRun')]
+            'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -88,6 +88,7 @@ function Get-HDTConsoleIconColor {
         StepGroup       = '#FF8764B8'   # a group belongs to its sequence
         Step            = '#FF6E7781'   # grey-blue: many of them, and none is news
         MonitorRun      = '#FF107C10'   # green, and the only green here: it is running
+        MonitorCategory = '#FF0E639C'   # structure, like every other category
         Empty           = '#FF767676'   # a placeholder must not compete with content
     }
 

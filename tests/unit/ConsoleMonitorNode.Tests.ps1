@@ -140,7 +140,7 @@ Describe 'the Monitoring node' {
                             'C:\ws\Logs\_active\RUN-2.json' = (New-HDTTestBeat -RunId 'RUN-2' -Updated '2026-08-15T20:00:00.0000000Z')
                         })))
 
-            $script:category = @($script:node | Where-Object { $_.Kind -eq 'Category' -and $_.Text -like 'Monitoring*' })[0]
+            $script:category = @($script:node | Where-Object { $_.Kind -eq 'MonitorCategory' })[0]
         }
 
         It 'is a category in the tree, where DESIGN 12 puts it' {
@@ -200,14 +200,14 @@ Describe 'the Monitoring node' {
 
         It 'still shows the category, so the answer is where it was last time' {
             $node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @(New-HDTTestShare)))
-            $category = @($node | Where-Object { $_.Kind -eq 'Category' -and $_.Text -like 'Monitoring*' })[0]
+            $category = @($node | Where-Object { $_.Kind -eq 'MonitorCategory' })[0]
 
             $category | Should -Not -BeNullOrEmpty
         }
 
         It 'says so in a row rather than looking broken' {
             $node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @(New-HDTTestShare)))
-            $category = @($node | Where-Object { $_.Kind -eq 'Category' -and $_.Text -like 'Monitoring*' })[0]
+            $category = @($node | Where-Object { $_.Kind -eq 'MonitorCategory' })[0]
 
             @($category.Children).Count | Should -Be 1
             @($category.Children)[0].Kind | Should -BeExactly 'Empty'

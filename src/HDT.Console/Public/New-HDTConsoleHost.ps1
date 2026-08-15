@@ -152,12 +152,63 @@ function New-HDTConsoleHost {
                 [void] (Show-HDTSequenceEditor -Sequence $selected.Subject -Theme $ThemeName)
             }.GetNewClosure())
 
+        # THE MONITORING BRANCH TAILS Logs\_active\ WHILE THE WINDOW IS OPEN.
+        # ROADMAP M8 asks for a view that TAILS the directory: one that read it
+        # at startup and then showed an hour-old answer would be a report that
+        # looks like a monitor, which is how somebody comes to believe a machine
+        # is fine.
+        #
+        # ONLY THAT BRANCH IS REBUILT. Rebuilding the tree would re-read
+        # workspace.yaml, every sequence document and the boot image manifest -
+        # over SMB, every few seconds - and would throw away the expansion and
+        # the selection an administrator had arranged. Get-HDTConsoleMonitorNode
+        # reads one directory and hands back one node.
+        #
+        # THE NODE IS REPLACED RATHER THAN EDITED, because a PSCustomObject
+        # raises no change notification: editing Text on a row already on screen
+        # changes nothing anybody can see. Children is an ObservableCollection,
+        # so swapping the object in it is what makes WPF redraw the branch.
+        #
+        # A DispatcherTimer, NOT A BACKGROUND THREAD. It ticks on the UI thread,
+        # which is the only thread allowed to touch these collections, and it
+        # stops when the window closes without anything having to remember to
+        # stop it.
+        $refresh = New-Object -TypeName System.Windows.Threading.DispatcherTimer
+        $refresh.Interval = [timespan]::FromSeconds([double] $RefreshSecond)
+
+        $refresh.Add_Tick({
+                foreach ($root in @($Node)) {
+                    foreach ($share in @($root.Children)) {
+                        $at = -1
+
+                        for ($i = 0; $i -lt $share.Children.Count; $i++) {
+                            if ($share.Children[$i].Kind -eq 'MonitorCategory') { $at = $i }
+                        }
+
+                        if ($at -lt 0) { continue }
+
+                        $share.Children[$at] = Get-HDTConsoleMonitorNode `
+                            -Path $share.Children[$at].HeaderRoot `
+                            -Header ([pscustomobject] @{
+                                Title      = $share.Children[$at].HeaderTitle
+                                Root       = $share.Children[$at].HeaderRoot
+                                DeployRoot = $share.Children[$at].HeaderDeployRoot
+                            })
+                    }
+                }
+            }.GetNewClosure())
+
         # Selecting the root raises SelectedItemChanged, which is what fills the
         # two panes and the banner; the window is never shown blank.
         $window.Add_ContentRendered({
                 $first = $tree.ItemContainerGenerator.ContainerFromIndex(0)
                 $first.IsSelected = $true
+
+                $refresh.Start()
             }.GetNewClosure())
+
+        # A timer left running holds a reference to a window that has gone.
+        $window.Add_Closed({ $refresh.Stop() }.GetNewClosure())
 
         $close.Add_Click({
                 $consoleHost.Answer = 'Close'

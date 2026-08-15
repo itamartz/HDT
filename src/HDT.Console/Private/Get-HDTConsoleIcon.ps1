@@ -52,7 +52,7 @@ function Get-HDTConsoleIcon {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step', 'MonitorRun')]
+            'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -87,6 +87,7 @@ function Get-HDTConsoleIcon {
         # picturing when they scan the list. A stalled one takes the warning
         # sign at the top of this function, like everything else that is wrong.
         MonitorRun      = [char]::ConvertFromUtf32(0x1F5A5)   # desktop computer - one machine deploying
+        MonitorCategory = [char]::ConvertFromUtf32(0x1F4C1)   # folder - it is a category like the others
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 
