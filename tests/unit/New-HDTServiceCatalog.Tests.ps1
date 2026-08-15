@@ -100,20 +100,32 @@ Describe 'New-HDTServiceCatalog' {
         { New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock } | Should -Not -Throw
     }
 
-    It 'requires a filesystem' {
-        $record = $null
-        try { New-HDTServiceCatalog -Clock $script:clock } catch { $record = $_ }
+    # THESE ASSERT THE ATTRIBUTE, NOT THE BINDER'S REACTION TO IT, and the
+    # difference is not academic. Calling the command with the parameter left
+    # off asks PowerShell what it does about a missing mandatory parameter, and
+    # the answer depends on the HOST: a non-interactive one throws
+    # MissingMandatoryParameter, an interactive one STOPS AND PROMPTS -
+    # "Supply values for the following parameters: Clock:". So the suite passed
+    # in CI and hung on a prompt for anyone who ran Invoke-Pester at their own
+    # console, which is where the fact was noticed.
+    #
+    # The fact worth asserting was never the binder's behaviour anyway. It is
+    # that a catalog cannot be built without these two - PROJECT constraint 4 -
+    # and that is on the parameter, where it can be read without calling
+    # anything.
+    It 'requires a <Parameter>' -ForEach @(
+        @{ Parameter = 'FileSystem' }
+        @{ Parameter = 'Clock' }
+    ) {
+        $declared = (Get-Command -Name 'New-HDTServiceCatalog').Parameters[$Parameter]
 
-        $record | Should -Not -BeNullOrEmpty
-        $record.FullyQualifiedErrorId | Should -BeLike 'MissingMandatoryParameter*'
-    }
+        $declared | Should -Not -BeNullOrEmpty
 
-    It 'requires a clock' {
-        $record = $null
-        try { New-HDTServiceCatalog -FileSystem $script:fileSystem } catch { $record = $_ }
+        $mandatory = @($declared.Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                ForEach-Object { $_.Mandatory })
 
-        $record | Should -Not -BeNullOrEmpty
-        $record.FullyQualifiedErrorId | Should -BeLike 'MissingMandatoryParameter*'
+        $mandatory | Should -Contain $true
     }
 
     It 'returns the service GetRequired was asked for' {
