@@ -24,6 +24,7 @@
         'Remove-HDTConsoleStep',
         'Get-HDTConsoleClosePrompt',
         'Get-HDTConsoleEditorState',
+        'Get-HDTConsoleMonitor',
         'Get-HDTConsoleSequenceEditor',
         'Get-HDTConsoleStepCatalog',
         'Get-HDTConsoleStepChange',
