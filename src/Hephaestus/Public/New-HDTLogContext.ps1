@@ -129,6 +129,14 @@ function New-HDTLogContext {
         Level         = $Level
         Seq           = $Seq
         StepIndex     = 0
+
+        # HOW MANY STEPS THE RUN HAS, which is a fact about the SEQUENCE rather
+        # than about the step - so it is set once by Invoke-HDTTaskSequence and
+        # left alone by SetStep and ClearStep. It is here so the status heartbeat
+        # can carry it: "step 7" is a number nobody can act on, and the console
+        # tailing Logs\_active\ cannot work the total out from a share it is
+        # only reading.
+        StepCount     = 0
         StepName      = $null
         StepType      = $null
         StepLogPath   = $null

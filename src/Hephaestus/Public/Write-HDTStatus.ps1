@@ -16,7 +16,7 @@ function Write-HDTStatus {
             The document:
 
               { "schemaVersion": 1, "runId", "phase", "status", "stepIndex",
-                "stepName", "stepType", "updated" }
+                "stepCount", "stepName", "stepType", "updated" }
 
             THE TIMESTAMP IS A FORMATTED STRING. ConvertTo-Json renders a raw
             [datetime] as "\/Date(...)\/" under Windows PowerShell 5.1, which is
@@ -66,6 +66,11 @@ function Write-HDTStatus {
         phase         = $Context.Phase
         status        = $Status
         stepIndex     = $Context.StepIndex
+
+        # ALWAYS PRESENT, EVEN AS ZERO. A key that is sometimes absent is a key
+        # every reader has to test for, and this one is read by a console that
+        # may be looking at a share written by an older engine.
+        stepCount     = $Context.StepCount
         stepName      = $Context.StepName
         stepType      = $Context.StepType
         updated       = $updated

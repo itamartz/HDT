@@ -319,6 +319,11 @@ function Invoke-HDTTaskSequence {
             leg        = [int] $state.leg
         })
 
+    # HOW MANY STEPS THIS RUN HAS, set once and carried by every heartbeat from
+    # here on. The console tailing Logs\_active\ shows "step 7 of 12", and it
+    # cannot count them itself - it is reading a share, not running a sequence.
+    $log.StepCount = $stepList.Count
+
     Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Running'
 
     if ([string] $Context.Phase -ne [string] $state.phase) {
