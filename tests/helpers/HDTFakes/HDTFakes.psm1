@@ -4450,7 +4450,103 @@ function New-HDTFakeWizardHost {
     return $service
 }
 
+function New-HDTFakeProgressHost {
+    <#
+        .SYNOPSIS
+            Creates an IProgressHost that draws nothing and records what it was
+            asked to draw.
+
+        .DESCRIPTION
+            The hand-written double behind the progress window (DESIGN 12.2.3:
+            fake, don't mock). New-HDTProgressHost is the real one and is a
+            branch-free WPF adapter, so it is not unit tested; this is what lets
+            Start-HDTProgressDisplay's DECISIONS - suppress, draw, or fall back
+            to the console - be asserted with no display attached.
+
+            -FailOpen IS THE ONE THAT MATTERS. DESIGN 11.1 requires the console
+            fallback to be exercised by a test "because the fallback is exactly
+            the path nobody exercises until the night it matters", and a boot
+            image built without WinPE-NetFx has no PresentationFramework at all:
+            Add-Type throws where a window should have opened. This is that
+            machine, on a developer's desktop.
+
+        .PARAMETER FailOpen
+            Throw from Open, the way a machine with no WPF does.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal.
+
+        .OUTPUTS
+            A PSCustomObject with Open, Update and Close methods, an Operations
+            list, LastXaml and LastProgress.
+
+        .EXAMPLE
+            Start-HDTProgressDisplay -XamlPath $p -DisplayHost (New-HDTFakeProgressHost -FailOpen)
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter()]
+        [switch] $FailOpen,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Journal
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $service = [pscustomobject] @{
+        FailOpen     = [bool] $FailOpen
+        Operations   = (New-Object -TypeName System.Collections.ArrayList)
+        Journal      = $Journal
+        LastXaml     = ''
+        LastProgress = $null
+        IsOpen       = $false
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
+        param([string] $Operation)
+
+        [void] $this.Operations.Add($Operation)
+        if ($null -ne $this.Journal) { [void] $this.Journal.Add($Operation) }
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Open -Value {
+        param([string] $Xaml)
+
+        if ($this.FailOpen) {
+            # WHAT A MACHINE WITH NO WPF ACTUALLY DOES. Add-Type throws this
+            # shape when PresentationFramework is not there to load.
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not load file or assembly 'PresentationFramework'.")
+        }
+
+        $this.LastXaml = $Xaml
+        $this.IsOpen = $true
+        $this.Record('Open')
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Update -Value {
+        param([object] $Progress)
+
+        $this.LastProgress = $Progress
+        $this.Record('Update')
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Close -Value {
+        $this.IsOpen = $false
+        $this.Record('Close')
+    }
+
+    return $service
+}
+
 Export-ModuleMember -Function @(
+    'New-HDTFakeProgressHost',
     'New-HDTFakeBootImageService',
     'New-HDTFakeWizardHost',
     'New-HDTFakeCimProvider',

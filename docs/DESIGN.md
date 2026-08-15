@@ -1597,10 +1597,20 @@ working or hung.
 
 ### 11.1 The progress window
 
-Full-screen, borderless, shown from the moment the engine starts until it hands
-over to the full OS. It displays: computer name, task sequence name, the current
-step and its group, **step N of M**, a progress bar, elapsed time, and the
-current phase (WinPE or Full OS).
+**MDT's shape on a full-screen backdrop**, shown from the moment the engine
+starts until it hands over to the full OS. It displays: computer name, task
+sequence name, the current step and its group, **step N of M**, a progress bar,
+elapsed time, and the current phase (WinPE or Full OS).
+
+Both halves are load-bearing, and they come from different places. **The card is
+MDT's** — LiteTouch shows a modest centred "Installation Progress" dialog and an
+admin has watched it a thousand times; a full-screen takeover of numbers reads as
+a kiosk rather than as a deployment. **The backdrop is WinPE's**, and it is why
+an earlier draft of this section said "full-screen" outright: behind the window
+is the console the payload hid, and around a bare dialog a technician sees the
+black edges of a half-drawn `X:\Windows\system32>` prompt — the exact thing this
+section exists to stop them seeing. MDT solves that with a deployment wallpaper;
+HDT solves it with the window's own ground.
 
 **It is driven by the JSONL event stream, not by a parallel progress API.**
 The engine already emits `step.start`, `step.complete`, `step.fail`, `step.skip`
