@@ -50,6 +50,40 @@ steps:
     operatingSystem: Win11-LTSC-2024
 '@
 
+    # THE REAL SHAPE OF A DEPLOYMENT SEQUENCE: groups, an ordered run, a
+    # condition, a step that may fail, and per-type properties. DEMO-M4 on the
+    # lab share is this shape, which is why the tree has to render it rather
+    # than a flat list of names.
+    $script:groupedSequenceYaml = @'
+schemaVersion: 1
+id: DEMO-M4
+name: Deploy Windows 11 LTSC
+description: The M4 exit criterion, as a sequence.
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+      - name: Format and Partition
+        type: DiskPartition
+        layout: uefi-standard
+        wipe: true
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Apply OS
+        type: ApplyImage
+        os: Win11-LTSC-2024
+        index: 1
+        target: primary
+      - name: Prepare Boot
+        type: ConfigureBoot
+        continueOnError: true
+'@
+
     $script:osYaml = @'
 schemaVersion: 1
 id: Win11-LTSC-2024
@@ -104,6 +138,24 @@ images:
         }
 
         return Get-HDTConsoleWorkspace -Path $script:root -FileSystem (New-HDTFakeFileSystem -File $file)
+    }
+
+    # One share holding the GROUPED sequence, for the step rows.
+    function New-HDTConsoleStepTestModel {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a projection from an in-memory fake; it changes no state.')]
+        [CmdletBinding()]
+        [OutputType([pscustomobject])]
+        param(
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [string] $Root = 'C:\ws'
+        )
+
+        return Get-HDTConsoleWorkspace -Path $Root -FileSystem (New-HDTFakeFileSystem -File @{
+                ('{0}\workspace.yaml' -f $Root)                             = $script:workspaceYaml
+                ('{0}\TaskSequences\DEMO-M4\sequence.yaml' -f $Root)        = $script:groupedSequenceYaml
+            })
     }
 }
 
@@ -452,6 +504,81 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $boot.Status | Should -BeExactly 'Missing'
             $boot.Icon | Should -Not -BeExactly ([string] ([char] 0x26A0))
+        }
+    }
+
+    # THE BROWSER TREE STOPS AT THE TASK SEQUENCE, and that is Deployment
+    # Workbench's shape rather than an omission. MDT lists task sequences in the
+    # tree and edits their steps in a SEPARATE properties window; CLAUDE.md asks
+    # for a console "deliberately close to Deployment Workbench so muscle memory
+    # transfers", so the steps belong to Get-HDTConsoleSequenceEditor and not
+    # here.
+    #
+    # A browser that expanded every step of every sequence of every share would
+    # also be unusable at the size an administrator actually runs: four
+    # sequences on the lab share alone is over thirty rows before a single
+    # operating system.
+    Context 'the steps are NOT in the browser tree' {
+
+        BeforeAll {
+            $script:stepNode = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleStepTestModel))
+        }
+
+        It 'keeps the steps on the workspace, so the editor has something to open' {
+            # Get-HDTConsoleWorkspace recorded StepCount and threw the steps
+            # away, so no amount of work downstream could have shown them.
+            $sequence = @((New-HDTConsoleStepTestModel).TaskSequence)[0]
+
+            @($sequence.Step).Count | Should -Be 4
+            @($sequence.Step)[0].Name | Should -BeExactly 'Validate'
+        }
+
+        It 'puts no step row in the browser' {
+            @($script:stepNode | Where-Object { $_.Kind -eq 'Step' }) | Should -BeNullOrEmpty
+        }
+
+        It 'puts no group row in the browser' {
+            @($script:stepNode | Where-Object { $_.Kind -eq 'StepGroup' }) | Should -BeNullOrEmpty
+        }
+
+        It 'leaves the task sequence as a leaf' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Depth | Should -Be 3
+            @($sequence.Children) | Should -BeNullOrEmpty
+        }
+
+        It 'still says how many steps there are, since that is now the only hint' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            ($sequence.Detail -join "`n") | Should -Match '4'
+        }
+
+        # DOUBLE-CLICKING A TASK SEQUENCE OPENS THE EDITOR, which is what
+        # Deployment Workbench does and what an administrator will try first.
+        # The window may not work out for itself which rows those are - that is
+        # a decision, and decisions do not go in an adapter (CLAUDE.md rule 1) -
+        # so the row says whether it opens and carries the object the editor
+        # needs.
+        It 'marks a task sequence as a row that opens' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.CanOpen | Should -BeTrue
+        }
+
+        It 'carries the task sequence itself, because the editor takes the object and never an id' {
+            # Two shares commonly hold a sequence with the same id - both of
+            # this lab's do - so an editor opened by id could edit one share's
+            # document while showing the other's.
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Subject | Should -Not -BeNullOrEmpty
+            $sequence.Subject.Path | Should -BeExactly 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
+        }
+
+        It 'marks every other row as one that does not open' {
+            @($script:stepNode | Where-Object { $_.Kind -ne 'TaskSequence' -and $_.CanOpen }) |
+                Should -BeNullOrEmpty
         }
     }
 }

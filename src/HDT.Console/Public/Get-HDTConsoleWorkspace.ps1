@@ -64,7 +64,11 @@ function Get-HDTConsoleWorkspace {
               Root, WorkspacePath, SchemaVersion, Id, Name, DeployRoot,
               LogLevel, CredentialUser, Status, Error
               TaskSequence    [pscustomobject[]] Id, Name, Description,
-                              StepCount, GroupCount, Path, Status, Error
+                              StepCount, GroupCount, Step, Group, Path,
+                              Status, Error. Step is the engine's flat ordered
+                              step list, each carrying its GroupPath; Group is
+                              the group list. Both are empty when Status is
+                              'Error'.
               OperatingSystem [pscustomobject[]] Id, Name, Description, Type,
                               Architecture, DefaultIndex, ImageCount, Image,
                               SourcePath, ImagePath, Path, Status, Error
@@ -139,12 +143,19 @@ function Get-HDTConsoleWorkspace {
     foreach ($entry in @(Get-HDTConsoleCatalogEntry -Root $root -Kind TaskSequences `
                 -DocumentName 'sequence.yaml' -FileSystem $FileSystem)) {
 
+        # Step and Group carry the ENGINE'S OWN resolution of the document -
+        # a flat, ordered step list where each step knows its GroupPath. The
+        # console renders that; it does not re-parse the YAML and does not
+        # decide an order of its own, so what the tree shows is what
+        # Invoke-HDTTaskSequence would run.
         $row = [pscustomobject] @{
             Id          = $entry.Id
             Name        = $entry.Id
             Description = ''
             StepCount   = 0
             GroupCount  = 0
+            Step        = @()
+            Group       = @()
             Path        = $entry.DocumentPath
             Status      = 'Ok'
             Error       = ''
@@ -155,6 +166,8 @@ function Get-HDTConsoleWorkspace {
 
             $row.Name = [string] $sequence.Name
             $row.Description = [string] $sequence.Description
+            $row.Step = @($sequence.Step)
+            $row.Group = @($sequence.Group)
             $row.StepCount = @($sequence.Step).Count
             $row.GroupCount = @($sequence.Group).Count
         } catch {

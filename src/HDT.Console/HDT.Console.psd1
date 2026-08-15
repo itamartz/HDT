@@ -18,13 +18,30 @@
 
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
+        'Add-HDTConsoleStep',
+        'Copy-HDTConsoleStep',
+        'Move-HDTConsoleStep',
+        'Remove-HDTConsoleStep',
+        'Get-HDTConsoleClosePrompt',
+        'Get-HDTConsoleEditorState',
+        'Get-HDTConsoleSequenceEditor',
+        'Get-HDTConsoleStepCatalog',
+        'Get-HDTConsoleStepChange',
+        'Get-HDTConsoleStepOption',
         'Get-HDTConsoleSetting',
         'Get-HDTConsoleTheme',
         'Get-HDTConsoleTreeNode',
         'Get-HDTConsoleWorkspace',
         'New-HDTConsoleHost',
+        'New-HDTConsoleScreen',
+        'Resolve-HDTConsoleCloseAnswer',
+        'Save-HDTConsoleSequence',
         'Save-HDTConsoleSetting',
-        'Show-HDTConsole'
+        'Set-HDTConsoleStepCondition',
+        'Set-HDTConsoleStepFlag',
+        'Set-HDTConsoleStepProperty',
+        'Show-HDTConsole',
+        'Show-HDTSequenceEditor'
     )
 
     CmdletsToExport      = @()

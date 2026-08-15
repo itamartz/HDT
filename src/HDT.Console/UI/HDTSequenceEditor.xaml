@@ -1,0 +1,611 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Task Sequence Editor"
+    Height="760" Width="1180"
+    MinHeight="480" MinWidth="820"
+    WindowStartupLocation="CenterOwner"
+    Background="{DynamicResource HDTWindowBrush}">
+
+    <!--
+        THE TASK SEQUENCE EDITOR, opened from a task sequence in the browser.
+
+        WHY IT IS ITS OWN WINDOW. Deployment Workbench lists task sequences in
+        the tree and edits their steps in a properties dialog opened from one -
+        step tree on the left, properties on the right, the actions across the
+        top. CLAUDE.md asks for a console "deliberately close to Deployment
+        Workbench so muscle memory transfers", and DESIGN 12 repeats it.
+
+        IT IS ALSO THE ONLY WINDOW THAT WRITES. The browser opens a live share
+        and promises to write nothing to it; an editing surface nested inside it
+        would make that promise half-true, which is worse than either answer.
+
+        THE ACTIONS ARE A TOOLBAR, NOT A ROW OF FILLED BUTTONS. MDT and
+        ConfigMgr both draw them flat, and a row of solid blue pills is the one
+        part of this window that would not read as Workbench to somebody
+        arriving from it. HDTToolButton is that style; the Close button at the
+        bottom keeps the console's filled one, because it is a dialog button and
+        Workbench draws those filled too.
+
+        ADD OPENS A MENU. Workbench hangs a drop-down off Add - General, Disks,
+        Images - and an administrator picks 'Apply Operating System' rather than
+        typing a type name. HDTAddMenu is where those items go;
+        Get-HDTConsoleStepCatalog decides what they are, from the engine's own
+        registry, so a step type dropped into Modules\ appears in the menu
+        without this file being touched.
+
+        THE RIGHT-HAND PANE IS TWO TABS, WHICH IS ALSO MDT'S SPLIT. Properties
+        is what the step does; Options is whether it does it - the two
+        checkboxes and the condition that filters it. The split is worth copying
+        because the halves are read at different times: Properties when building
+        a sequence, Options when working out why a deployment did something
+        surprising.
+
+        NO x:Class AND NO CODE-BEHIND, as HDTConsole.xaml and HDTWizard.xaml.
+        Handlers are attached in PowerShell, by name, after the tree is loaded.
+
+        NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+        HDTEditorTitleText, HDTEditorPathText, HDTStepTree, HDTStepDetail,
+        HDTEditorCommandText, HDTAddButton, HDTAddMenu, HDTRemoveButton,
+        HDTUpButton, HDTDownButton, HDTCopyButton, HDTPasteButton,
+        HDTSaveButton, HDTOptionTab, HDTDisableCheck, HDTContinueCheck,
+        HDTConditionText, HDTConditionApplyButton, HDTConditionClearButton,
+        HDTRunInText and HDTEditorCloseButton. A test asserts every one of these
+        names is here, so renaming one fails on a developer machine rather than
+        in front of an administrator.
+
+        THE DOCUMENT PATH IS IN THE BANNER, not just the id. Both of this lab's
+        shares hold a DEMO-M4, so two editors opened at once would otherwise be
+        identical windows over different files - and the difference only shows
+        at the moment one of them saves.
+
+        THE PALETTE IS THE CONSOLE'S. Every colour is a DynamicResource under
+        the same keys HDTConsole.xaml declares, so Get-HDTConsoleTheme repaints
+        both windows from one decision.
+    -->
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFFAFAFA" />
+        <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTButtonHoverBrush"     Color="#FFCCE4F7" />
+        <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
+        <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
+
+        <!-- The console's button, template and all. See HDTConsole.xaml for why
+             the colours are Setters inside a ControlTemplate rather than local
+             values on the element. -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HDTButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonHoverBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <!-- A disabled action must LOOK disabled. Remove, Up,
+                                 Down, Copy and Save mean nothing until a row is
+                                 selected, and a bright button that does nothing
+                                 when pressed is how an administrator concludes
+                                 the window is broken. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTFooterBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            THE TOOLBAR BUTTON. Flat, transparent, text in the panel's own
+            colour, lighting up only under the pointer - which is what every
+            toolbar in Workbench, ConfigMgr and Explorer does, and what makes a
+            row of eight actions read as a toolbar rather than as eight
+            decisions of equal weight.
+        -->
+        <Style x:Key="HDTToolButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="11,5,11,5" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HDTToolSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTToolSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonHoverBrush}" />
+                                <Setter TargetName="HDTToolSurface" Property="BorderBrush"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HDTToolSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Checkboxes and labels take the panel's colour, so the Options tab
+             survives the theme swap along with everything else. -->
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,5,14,5" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- the banner: which task sequence, and which document -->
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="24,14,24,14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="HDTEditorTitleText"
+                           Text="Task Sequence"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontFamily="Segoe UI" FontSize="17" FontWeight="SemiBold" />
+
+                <TextBlock Grid.Row="1" x:Name="HDTEditorPathText"
+                           Text="(document)"
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontFamily="Consolas, Courier New" FontSize="11"
+                           Margin="0,4,0,0"
+                           TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
+
+        <!-- the actions, in Workbench's order and Workbench's weight -->
+        <Border Grid.Row="1" Background="{DynamicResource HDTFooterBrush}"
+                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,0,0,1"
+                Padding="18,6,18,6">
+            <StackPanel Orientation="Horizontal">
+
+                <!-- The drop-down is the whole point of Add: an administrator
+                     picks a step type from a list the engine's registry
+                     produced, rather than typing one. -->
+                <Button x:Name="HDTAddButton" Style="{StaticResource HDTToolButton}"
+                        Content="Add  &#x25BE;">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="HDTAddMenu" />
+                    </Button.ContextMenu>
+                </Button>
+
+                <Button x:Name="HDTRemoveButton" Style="{StaticResource HDTToolButton}"
+                        Content="Remove" IsEnabled="False" />
+
+                <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
+
+                <Button x:Name="HDTUpButton"   Style="{StaticResource HDTToolButton}"
+                        Content="&#x2191;  Up"   IsEnabled="False" />
+                <Button x:Name="HDTDownButton" Style="{StaticResource HDTToolButton}"
+                        Content="&#x2193;  Down" IsEnabled="False" />
+
+                <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
+
+                <Button x:Name="HDTCopyButton"  Style="{StaticResource HDTToolButton}"
+                        Content="Copy"  IsEnabled="False" />
+                <Button x:Name="HDTPasteButton" Style="{StaticResource HDTToolButton}"
+                        Content="Paste" IsEnabled="False" />
+
+                <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
+
+                <Button x:Name="HDTSaveButton" Style="{StaticResource HDTToolButton}"
+                        Content="Save" IsEnabled="False" />
+            </StackPanel>
+        </Border>
+
+        <!-- steps on the left, the two tabs on the right -->
+        <Grid Grid.Row="2" Margin="24,16,24,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="360" MinWidth="220" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" MinWidth="280" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Steps"
+                       Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
+
+            <TreeView Grid.Row="1" Grid.Column="0"
+                      x:Name="HDTStepTree"
+                      Background="{DynamicResource HDTPanelBrush}"
+                      Foreground="{DynamicResource HDTPanelTextBrush}"
+                      BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                      FontFamily="Segoe UI" FontSize="13"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+
+                        <!-- A splice rebuilds the tree, so the row that was
+                             selected no longer exists as an object. The rows
+                             carry their own selection and this binding puts it
+                             back - without it the highlight falls to the
+                             nearest container, which is why switching a step
+                             off used to leave its GROUP selected. -->
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                        <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+                        <Setter Property="Padding" Value="2,3,2,3" />
+                        <!-- Without this a row announces itself as a dump of the
+                             whole object to a screen reader. See HDTConsole.xaml. -->
+                        <Setter Property="AutomationProperties.Name" Value="{Binding Text}" />
+
+                        <!--
+                            A STEP IS A LEAF AND MUST NOT LOOK LIKE A BRANCH.
+                            The stock TreeViewItem template draws its expander
+                            for every row and merely hides the glyph on a
+                            childless one, which still leaves a clickable
+                            triangle-shaped gap - and in a window whose whole
+                            subject is "which of these contains which", a step
+                            that appears to open is a step an administrator
+                            clicks at and gets nothing from.
+
+                            The template below is the stock one with the
+                            ToggleButton bound to HasItems, so a group gets a
+                            triangle and a step gets flat indentation. Groups
+                            keep the same indent as before, because the column
+                            the toggle occupied is still reserved by the
+                            19-unit ColumnDefinition.
+                        -->
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TreeViewItem">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="19" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition />
+                                        </Grid.RowDefinitions>
+
+                                        <ToggleButton x:Name="HDTExpander"
+                                                      Grid.Row="0" Grid.Column="0"
+                                                      ClickMode="Press"
+                                                      Focusable="False"
+                                                      IsChecked="{Binding IsExpanded,
+                                                                  RelativeSource={RelativeSource TemplatedParent}}">
+                                            <ToggleButton.Template>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border Background="Transparent" Padding="5,4,5,4">
+                                                        <Path x:Name="HDTArrow"
+                                                              Data="M 0 0 L 4 4 L 0 8 Z"
+                                                              Fill="{DynamicResource HDTPanelTextBrush}" />
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="HDTArrow" Property="Data"
+                                                                    Value="M 0 4 L 8 4 L 4 8 Z" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </ToggleButton.Template>
+                                        </ToggleButton>
+
+                                        <Border x:Name="HDTRowSurface"
+                                                Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter x:Name="PART_Header"
+                                                              ContentSource="Header"
+                                                              HorizontalAlignment="Left" />
+                                        </Border>
+
+                                        <ItemsPresenter x:Name="HDTItems"
+                                                        Grid.Row="1" Grid.Column="1"
+                                                        Grid.ColumnSpan="2" />
+                                    </Grid>
+
+                                    <ControlTemplate.Triggers>
+                                        <!-- A leaf has no toggle at all. -->
+                                        <Trigger Property="HasItems" Value="False">
+                                            <Setter TargetName="HDTExpander" Property="Visibility"
+                                                    Value="Collapsed" />
+                                        </Trigger>
+                                        <Trigger Property="IsExpanded" Value="False">
+                                            <Setter TargetName="HDTItems" Property="Visibility"
+                                                    Value="Collapsed" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="HDTRowSurface" Property="Background"
+                                                    Value="{DynamicResource HDTButtonHoverBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TreeView.ItemContainerStyle>
+
+                <TreeView.ItemTemplate>
+                    <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Icon}"
+                                       FontFamily="Segoe UI Emoji, Segoe UI Symbol"
+                                       FontSize="13" Margin="0,0,7,0"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Text}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </HierarchicalDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+
+            <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                          x:Name="HDTEditorSplitter"
+                          Width="8" Margin="6,0,6,0"
+                          HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="{DynamicResource HDTBorderBrush}"
+                          ShowsPreview="False" />
+
+            <TabControl Grid.Row="0" Grid.RowSpan="2" Grid.Column="2"
+                        x:Name="HDTOptionTab"
+                        Background="{DynamicResource HDTPanelBrush}"
+                        BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+
+                <!--
+                    WHAT THE STEP DOES, AND THE ROWS THAT WRITE IT.
+
+                    A ROW DECIDES ITS OWN BOX. IsReadOnly is bound to the row's
+                    Editable, which Get-HDTConsoleStepNode set by naming the
+                    YAML key the row writes - so the window holds no list of
+                    which labels are typeable and cannot disagree with the
+                    splice about it. 'Type' and 'Runs' come through read-only:
+                    one is refused by Set-HDTConsoleStepProperty and the other
+                    is a position rather than anything in the file.
+
+                    A READ-ONLY BOX ALSO LOOKS READ-ONLY. A grey field that
+                    silently ignores typing is the same insult as a bright
+                    button that does nothing.
+
+                    Text IS TwoWay AND COMMITS ON EVERY KEYSTROKE, deliberately:
+                    the row object IS the edit buffer, Apply diffs it against
+                    Original, and LostFocus - the default for TextBox - would
+                    lose whatever was typed into the last box before the button
+                    was pressed, because pressing it is what moves the focus.
+                -->
+                <TabItem Header="Properties">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Padding="14,12,14,12">
+                            <ItemsControl x:Name="HDTStepDetail">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                       FontFamily="Segoe UI" FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,5,10,0" VerticalAlignment="Top" />
+
+                                            <TextBox x:Name="HDTFieldBox" Grid.Column="1"
+                                                     Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsReadOnly="{Binding ReadOnly}"
+                                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                                     Background="{DynamicResource HDTPanelBrush}"
+                                                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                     BorderBrush="{DynamicResource HDTBorderBrush}"
+                                                     BorderThickness="1"
+                                                     FontFamily="Consolas, Courier New" FontSize="12"
+                                                     Padding="6,4,6,4" />
+                                        </Grid>
+
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding ReadOnly}" Value="True">
+                                                <Setter TargetName="HDTFieldBox" Property="Background"
+                                                        Value="{DynamicResource HDTFieldBrush}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="1" Padding="14,10,14,12"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HDTPropertyApplyButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Apply properties" IsEnabled="False" />
+                                <Button x:Name="HDTPropertyRevertButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Revert" IsEnabled="False" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!-- WHETHER IT DOES IT. Workbench's Options tab: the two
+                     checkboxes, then the filter. -->
+                <TabItem Header="Options">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Padding="16,14,16,14">
+                        <StackPanel>
+
+                            <CheckBox x:Name="HDTDisableCheck"  Content="Disable this step" />
+                            <CheckBox x:Name="HDTContinueCheck" Content="Continue on error" />
+
+                            <Border Height="1" Margin="0,6,0,14"
+                                    Background="{DynamicResource HDTBorderBrush}" />
+
+                            <TextBlock Text="Conditions"
+                                       Foreground="{DynamicResource HDTLabelBrush}"
+                                       FontFamily="Segoe UI" FontSize="12"
+                                       Margin="0,0,0,4" />
+
+                            <TextBlock Text="This step runs only when the expression below is true. Leave it empty and the step always runs."
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       FontFamily="Segoe UI" FontSize="12"
+                                       TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                            <TextBox x:Name="HDTConditionText"
+                                     MinHeight="64"
+                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Background="{DynamicResource HDTFieldBrush}"
+                                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                                     BorderBrush="{DynamicResource HDTBorderBrush}"
+                                     BorderThickness="1"
+                                     FontFamily="Consolas, Courier New" FontSize="12"
+                                     Padding="7,5,7,5" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button x:Name="HDTConditionApplyButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Apply condition" IsEnabled="False" />
+                                <Button x:Name="HDTConditionClearButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Clear" IsEnabled="False" />
+                            </StackPanel>
+
+                            <Border Height="1" Margin="0,16,0,14"
+                                    Background="{DynamicResource HDTBorderBrush}" />
+
+                            <!-- The phase is a filter too, and running in the
+                                 wrong one is the commonest reason a step is
+                                 silently skipped. -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="Runs in"
+                                           Foreground="{DynamicResource HDTPanelTextBrush}"
+                                           FontFamily="Segoe UI" FontSize="12" />
+
+                                <TextBlock Grid.Column="1" x:Name="HDTRunInText"
+                                           Text="any phase"
+                                           Foreground="{DynamicResource HDTPanelTextBrush}"
+                                           FontFamily="Consolas, Courier New" FontSize="12" />
+                            </Grid>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
+        </Grid>
+
+        <!-- the cmdlet for the selected row, and the way out -->
+        <Grid Grid.Row="3" Margin="24,16,24,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{DynamicResource HDTCommandBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                    Padding="10,7,10,7">
+                <TextBox x:Name="HDTEditorCommandText"
+                         Text=""
+                         IsReadOnly="True" BorderThickness="0"
+                         Background="Transparent"
+                         Foreground="{DynamicResource HDTCommandTextBrush}"
+                         FontFamily="Consolas, Courier New" FontSize="12"
+                         TextWrapping="Wrap" />
+            </Border>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right"
+                        Margin="0,14,0,0">
+                <Button x:Name="HDTEditorCloseButton" Content="Close" MinWidth="96" Margin="0" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -24,6 +24,7 @@
         'New-HDTFakeProcessService',
         'New-HDTFakeRandomNumberGenerator',
         'New-HDTFakeRegistryService',
+        'New-HDTFakeScreen',
         'New-HDTFakeScriptInvoker',
         'New-HDTFakeSmbService',
         'New-HDTFakeWdsService',

@@ -45,14 +45,39 @@ function New-HDTConsoleField {
         [Parameter(Mandatory = $true, Position = 1)]
         [AllowEmptyString()]
         [AllowNull()]
-        [string] $Value
+        [string] $Value,
+
+        # THE YAML KEY THIS ROW WRITES, for the rows that write one. Most do
+        # not: the browser's rows are a report, and even in the editor 'Runs' is
+        # 'step 3 of 5', which is a position rather than anything in the file.
+        # A row with no Property is read-only, and the window reads that off the
+        # row rather than keeping its own list of which labels are typeable.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Property = ''
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     return [pscustomobject] @{
-        Label = $Label
-        Value = $Value
+        Label    = $Label
+        Value    = $Value
+        Property = $Property
+        Editable = (-not [string]::IsNullOrEmpty($Property))
+
+        # THE SAME FACT THE OTHER WAY UP, because the control that needs it is
+        # a TextBox and the property it exposes is IsReadOnly. XamlReader parses
+        # markup and nothing else - there is no code-behind to host a value
+        # converter and no assembly to point an xmlns at - so the inversion is
+        # done here, where it is one expression and a test can read it, rather
+        # than in a converter the window cannot load.
+        ReadOnly = [string]::IsNullOrEmpty($Property)
+
+        # WHAT IT SAID WHEN IT WAS BUILT. Value is bound two-way to a box an
+        # administrator types into, so it is the only copy of what they typed -
+        # and Original is what the diff is taken against when Apply is pressed.
+        # A row compared against itself would never look changed.
+        Original = $Value
     }
 }

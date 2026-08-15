@@ -86,7 +86,7 @@ function Assert-HDTSequenceDocument {
 
     $supportedSchemaVersion = 1
     $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'variables', 'steps')
-    $allowedGroupKey = @('group', 'condition', 'runIn', 'steps')
+    $allowedGroupKey = @('group', 'condition', 'disabled', 'runIn', 'steps')
     $allowedRetryKey = @('count', 'delaySeconds', 'backoff')
     $allowedRunIn = @('WinPE', 'FullOS', 'Any')
     $allowedBackoff = @('fixed', 'exponential')
@@ -323,7 +323,7 @@ function Assert-HDTSequenceDocument {
                         -Message ("{0}: '{1}' is not a step type. A type is a letter followed by letters and digits, and names the Invoke-HDT<Type>Step function that runs it." -f $locator, $type)))
         }
 
-        foreach ($flag in @('continueOnError', 'resumable')) {
+        foreach ($flag in @('continueOnError', 'disabled', 'resumable')) {
             if ($node.Contains($flag) -and -not ($node[$flag] -is [bool])) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                             -Message ("{0}: {1} must be true or false, but it is '{2}'." -f $locator, $flag, $node[$flag])))

@@ -28,9 +28,22 @@ $script:HDTConsoleMinimumHeight = 520
 #
 # Already-loaded wins, so a test that imported the engine with -Force keeps its
 # instance and nothing is reloaded underneath it.
+# -Global, AND IT IS LOAD-BEARING. A plain Import-Module here loads the engine
+# into THIS module's session state only, where Get-Module does not list it - and
+# Get-HDTStepType discovers step types by walking Get-Module (DESIGN 5.4, so
+# that a third-party type dropped into Modules\ is found the moment it is
+# imported). The console therefore came up with an Add menu offering 'New Group'
+# and none of the ten step types the engine ships, on the one path that matters:
+# an administrator running Start-HDTConsole.ps1, which imports this module and
+# nothing else. Every test passed, because a test imports the engine itself.
+#
+# It is also the honest arrangement. DESIGN 12 says the console may not do
+# anything the cmdlets can't and shows the invocation for everything it does;
+# an administrator who reads one out of the window and types it should find the
+# command there.
 if (-not (Get-Module -Name 'Hephaestus')) {
     $enginePath = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Hephaestus/Hephaestus.psd1'
-    Import-Module -Name $enginePath -ErrorAction Stop
+    Import-Module -Name $enginePath -Global -ErrorAction Stop
 }
 
 $privateFile = @(Get-ChildItem -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Private') -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue)

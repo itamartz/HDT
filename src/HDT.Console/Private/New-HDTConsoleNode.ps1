@@ -87,7 +87,8 @@ function New-HDTConsoleNode {
         [int] $Depth,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty')]
+        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
+            'DriverStore', 'StepGroup', 'Step')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]
@@ -113,6 +114,30 @@ function New-HDTConsoleNode {
         [Parameter()]
         [AllowEmptyString()]
         [string] $Icon = '',
+
+        # THE SUBJECT'S OWN NAME, WHICH IS NOT ITS ROW'S TEXT. Text is prose for
+        # a person - '3. Apply OS  (disabled)' - and every editing cmdlet takes
+        # the bare name. Carrying it here rather than having the window peel the
+        # decoration back off means the two can never drift, and a step
+        # legitimately called '2. Reboot' cannot be mis-parsed into 'Reboot'.
+        #
+        # It defaults to Text because most rows are their own name; only the
+        # editor's step rows decorate theirs.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Name = '',
+
+        # THE THING THE ROW IS ABOUT, for the rows that open something. A task
+        # sequence row carries its own sequence object so a double-click can
+        # hand it straight to Show-HDTSequenceEditor - which takes the OBJECT
+        # and never an id, because two shares commonly hold a sequence with the
+        # same id and an editor opened by id could write to the wrong one.
+        #
+        # A row without a subject does not open, and CanOpen says so rather than
+        # leaving the window to work out which Kinds are which.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Subject = $null,
 
         [Parameter()]
         [switch] $Collapsed
@@ -142,12 +167,27 @@ function New-HDTConsoleNode {
         Kind             = $Kind
         Status           = $Status
         Text             = $Text
+        Name             = $(if ([string]::IsNullOrEmpty($Name)) { $Text } else { $Name })
+        Subject          = $Subject
+        CanOpen          = ($null -ne $Subject)
         Display          = ((' ' * (4 * $Depth)) + $Text)
         Field            = [pscustomobject[]] @($Field)
         Detail           = (@($line) -join [System.Environment]::NewLine)
         Command          = $Command
         Icon             = $glyph
         IsExpanded       = (-not $Collapsed.IsPresent)
+
+        # WHETHER THIS ROW IS THE SELECTED ONE, carried the way IsExpanded is
+        # and bound the same way. A splice rebuilds the tree from scratch, so
+        # the row object that WAS selected no longer exists; without this the
+        # highlight falls back to the nearest container - the step's group -
+        # and the panes follow it, which is what an administrator saw after
+        # ticking "Disable this step".
+        #
+        # It is set before the tree is handed the rows, because a PSCustomObject
+        # raises no change notification: the binding takes the value it finds at
+        # the moment the container is generated, and nothing afterwards.
+        IsSelected       = $false
 
         # An ArrayList rather than an array: the tree is assembled by adding to
         # a parent that already exists, and a PowerShell array would be copied

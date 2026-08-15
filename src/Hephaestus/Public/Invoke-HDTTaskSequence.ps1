@@ -19,6 +19,7 @@ function Invoke-HDTTaskSequence {
               1. already Completed or Skipped on a previous leg  -> step.skip
               2. left Running by an interrupted leg              -> resumable:
                  true re-runs it, anything else FAILS THE RUN
+              2a. the administrator disabled the step             -> step.skip
               3. runIn does not match this leg's phase           -> step.skip
               4. a group condition is false, outermost first     -> step.skip,
                  naming THE GROUP
@@ -424,6 +425,18 @@ function Invoke-HDTTaskSequence {
                     $runStatus = 'Failed'
                     break
                 }
+            }
+
+            # 2a. SWITCHED OFF BY THE ADMINISTRATOR, which outranks every reason
+            #     below it. A disabled step is not evaluated for phase or
+            #     condition at all: those answer "would this apply here", and
+            #     somebody has already said it should not run anywhere. Reporting
+            #     a phase mismatch for a step that is switched off would send a
+            #     technician looking for the wrong thing.
+            if ([bool] $step.Disabled) {
+                & $skipStep $index $step ("step {0} '{1}' is disabled" -f $index, $stepName)
+
+                continue
             }
 
             # 3. The phase filter.

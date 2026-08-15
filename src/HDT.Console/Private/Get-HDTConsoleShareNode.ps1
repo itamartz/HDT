@@ -251,8 +251,15 @@ function Get-HDTConsoleShareNode {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
             -Text $text -Field $field `
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
-            -Header $header
+            -Header $header -Subject $sequence
 
+        # THE BROWSER STOPS HERE, and the steps are Get-HDTConsoleSequenceEditor's.
+        # Deployment Workbench lists task sequences in the tree and edits their
+        # steps in a properties window opened from one; CLAUDE.md asks for a
+        # console close enough to it that muscle memory transfers. Expanding
+        # every step of every sequence of every share would also be unusable at
+        # the size an administrator runs - the lab's own sample share is four
+        # sequences and over thirty step rows before a single operating system.
         [void] $node.Add($row)
         [void] $sequenceCategory.Children.Add($row)
     }
