@@ -92,7 +92,7 @@ function New-HDTConsoleNode {
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Ok', 'Error', 'Missing')]
+        [ValidateSet('Ok', 'Error', 'Missing', 'Warning')]
         [string] $Status,
 
         [Parameter(Mandatory = $true)]

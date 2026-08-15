@@ -56,7 +56,7 @@ function Get-HDTConsoleIcon {
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateSet('Ok', 'Error', 'Missing')]
+        [ValidateSet('Ok', 'Error', 'Missing', 'Warning')]
         [string] $Status
     )
 
@@ -65,6 +65,13 @@ function Get-HDTConsoleIcon {
 
     if ($Status -eq 'Error') {
         return [string] ([char] 0x26A0)          # warning sign
+    }
+
+    # A LINT FINDING GETS THE SAME GLYPH AND A DIFFERENT COLOUR. The shape says
+    # "look at this"; the colour says how much. Giving a warning its own picture
+    # would mean an administrator had to learn two symbols to be told one thing.
+    if ($Status -eq 'Warning') {
+        return [string] ([char] 0x26A0)
     }
 
     $glyph = @{

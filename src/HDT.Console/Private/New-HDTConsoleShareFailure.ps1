@@ -61,7 +61,7 @@ function New-HDTConsoleShareFailure {
         CredentialUser  = ''
         Status          = 'Error'
         Error           = $Message
-        TaskSequence    = [pscustomobject[]] @()
+        TaskSequence    = [pscustomobject[]] @()   # each would carry Finding, ErrorCount and WarningCount
         OperatingSystem = [pscustomobject[]] @()
 
         # THE SAME SHAPE, EMPTY. A share that could not be opened has nothing

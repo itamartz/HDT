@@ -62,7 +62,7 @@ function Get-HDTConsoleIconColor {
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateSet('Ok', 'Error', 'Missing')]
+        [ValidateSet('Ok', 'Error', 'Missing', 'Warning')]
         [string] $Status
     )
 
@@ -76,6 +76,12 @@ function Get-HDTConsoleIconColor {
     # do, not a fault to chase, and giving it red would send somebody looking
     # for a failure that never happened.
     if ($Status -eq 'Missing') { return '#FFB77400' }
+
+    # A LINT FINDING IS AMBER FOR THE SAME REASON MISSING IS. The sequence still
+    # imports and may well be correct - a %Var% this console cannot see might be
+    # supplied by a rules file it was not opened on. Red is for a document that
+    # cannot be READ, and spending it on a warning would spend it entirely.
+    if ($Status -eq 'Warning') { return '#FFB77400' }
 
     $colour = @{
         Root            = '#FF0E639C'   # the console's own blue - structure

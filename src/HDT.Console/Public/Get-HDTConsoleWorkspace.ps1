@@ -169,6 +169,15 @@ function Get-HDTConsoleWorkspace {
             Path        = $entry.DocumentPath
             Status      = 'Ok'
             Error       = ''
+
+            # WHAT THE LINT SAID, carried here so nothing downstream runs it
+            # again. Test-HDTTaskSequence answers the question a schema cannot -
+            # "would this sequence actually work on the machine you are about to
+            # deploy" - and its own header names the console as the place those
+            # findings are meant to surface (DESIGN 12: validation, inline).
+            Finding      = [pscustomobject[]] @()
+            ErrorCount   = 0
+            WarningCount = 0
         }
 
         try {
@@ -180,6 +189,21 @@ function Get-HDTConsoleWorkspace {
             $row.Group = @($sequence.Group)
             $row.StepCount = @($sequence.Step).Count
             $row.GroupCount = @($sequence.Group).Count
+
+            # THE LINT IS NOT ALLOWED TO TAKE THE SEQUENCE OFF THE SCREEN. It is
+            # a lint: it returns findings rather than throwing, but a step type
+            # registry that could not be read, or a rule that trips over an
+            # unusual document, must not turn a readable sequence into an
+            # unreadable one. A share full of task sequences is the console's
+            # whole subject.
+            try {
+                $row.Finding = [pscustomobject[]] @(Test-HDTTaskSequence -Sequence $sequence)
+            } catch {
+                $row.Finding = [pscustomobject[]] @()
+            }
+
+            $row.ErrorCount = @($row.Finding | Where-Object { $_.Severity -eq 'Error' }).Count
+            $row.WarningCount = @($row.Finding | Where-Object { $_.Severity -eq 'Warning' }).Count
         } catch {
             $row.Status = 'Error'
             $row.Error = [string] $_.Exception.Message

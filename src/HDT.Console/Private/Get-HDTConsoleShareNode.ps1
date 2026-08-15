@@ -234,16 +234,35 @@ function Get-HDTConsoleShareNode {
     [void] $shareNode.Children.Add($sequenceCategory)
 
     foreach ($sequence in @($Workspace.TaskSequence)) {
+        # DESIGN 12'S "VALIDATION, SURFACED INLINE". Test-HDTTaskSequence answers
+        # what a schema cannot - would this sequence actually work on the machine
+        # you are about to deploy - and Get-HDTConsoleWorkspace has already asked
+        # it. This puts the answer where somebody will see it before they boot a
+        # machine rather than after.
+        $lint = Get-HDTConsoleLintText -Finding $sequence.Finding
+
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value $sequence.Id
             New-HDTConsoleField -Label 'Name' -Value $sequence.Name
             New-HDTConsoleField -Label 'Description' -Value (Get-HDTConsoleDisplayText -Text $sequence.Description -Fallback '(none)')
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
             New-HDTConsoleField -Label 'Groups' -Value $sequence.GroupCount
+            New-HDTConsoleField -Label 'Validation' -Value $lint.Detail
             New-HDTConsoleField -Label 'Document' -Value $sequence.Path
         )
 
         $text = '{0} - {1}' -f $sequence.Id, $sequence.Name
+
+        # THE COUNT GOES ON THE ROW. A tree of thirty sequences is scanned, not
+        # read: the row has to say "this one" without being opened, and the pane
+        # is for somebody who has already decided to look.
+        $sequenceStatus = $sequence.Status
+
+        if ($sequence.Status -eq 'Ok' -and -not [string]::IsNullOrEmpty($lint.Caption)) {
+            $text = '{0} - {1}  ({2})' -f $sequence.Id, $sequence.Name, $lint.Caption
+            $sequenceStatus = $lint.Status
+        }
+
         if ($sequence.Status -eq 'Error') {
             $text = '{0} - (unreadable)' -f $sequence.Id
             $field = @(
@@ -253,7 +272,7 @@ function Get-HDTConsoleShareNode {
             )
         }
 
-        $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequenceStatus `
             -Text $text -Field $field `
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
             -Header $header -Subject $sequence
