@@ -1417,15 +1417,41 @@ Post-apply, in this order:
    password is written to any log at any level.
 
    **The computer name is validated here, and the run stops rather than the
-   name being quietly changed.** A `ComputerName` over 15 characters — the
-   NetBIOS limit — or holding anything but letters, digits and hyphens is
-   refused with `HDTConfigurationError`. SPIKES S9.11: the first real deployment
-   reported `Succeeded` on all five steps and produced a machine called
-   `WIN-N91191NN153`, because `rules.yaml`'s `PC-%HDTSerialNumber%` fallback
-   resolved to 35 characters on a VM and **Windows Setup discarded it without
-   complaint**. HDT does not truncate: a silently shortened name is the same
-   failure with a different spelling. Where one machine needs a name the rules
-   would not give it, that is what the per-machine override of §3.1 is for.
+   name being quietly changed.** The rule is `Test-HDTComputerName`, and it is
+   the *only* copy of it — the wizard's computer name page (§11.2) judges every
+   keystroke with the same command, so the two can never disagree about what a
+   legal name is.
+
+   | | |
+   |---|---|
+   | **Refused** | empty; over 15 characters; or containing `.` `\` `/` `:` `*` `?` `"` `<` `>` `\|` or a space |
+   | **Warned** | anything else outside letters, digits and hyphens — legal, but not a valid DNS name |
+   | **Clean** | letters, digits and hyphens, 1–15 characters |
+
+   A refusal is `HDTConfigurationError` and stops the run. **A warning does
+   not.** `HDT_01` is a legal computer name — underscore is not one of the ten
+   characters NetBIOS forbids — that DNS cannot carry, so domain join and DNS
+   registration may misbehave. Refusing it would stop a deployment over
+   something Windows itself permits; it is recorded as a `Warning` instead, so a
+   machine that later has trouble joining a domain has a log line written the
+   day it was built.
+
+   *This corrected an earlier, stricter rule that refused anything but letters,
+   digits and hyphens outright.* That conflated the NetBIOS rule with the DNS
+   one and refused legal names — and a wizard that refuses a name Microsoft's
+   own documentation permits is arguing with the documentation in front of the
+   technician reading it. The **space** is refused with the ten even though it
+   is not on that list: a computer name cannot contain one, and a trailing space
+   is invisible everywhere a technician would look for it.
+
+   The 15-character limit is the half that came from a real deployment. SPIKES
+   S9.11: the first real one reported `Succeeded` on all five steps and produced
+   a machine called `WIN-N91191NN153`, because `rules.yaml`'s
+   `PC-%HDTSerialNumber%` fallback resolved to 35 characters on a VM and
+   **Windows Setup discarded it without complaint**. HDT does not truncate: a
+   silently shortened name is the same failure with a different spelling. Where
+   one machine needs a name the rules would not give it, that is what the
+   per-machine override of §3.1 is for.
 
 5. **Recovery registration is not what makes WinRE work.** `SetRecoveryImage`
    runs the applied image's own `Reagentc.exe /setreimage` against an offline
@@ -1600,23 +1626,46 @@ the path nobody exercises until the night it matters.
 
 The wizard collects what the rules could not supply. It follows MDT's model
 exactly, because it is the model admins already know: **every page is
-individually skippable, and a page whose values are all supplied never appears.**
-Populate everything in `rules.yaml` (or a per-machine
-`Control\machines\<UUID>.yaml`) and the technician sees no wizard at all — the
-deployment goes straight to the progress window.
+individually skippable.** Populate the values *and their skip variables* in
+`rules.yaml` (or a per-machine `Control\machines\<UUID>.yaml`) and the
+technician sees no wizard at all — the deployment goes straight to the progress
+window. `Get-HDTWizardPage` is what decides, and `Get-HDTWizardSummary` prints
+the exact file to paste at the end of a manual run.
+
+**The skip variable decides, not the presence of a value.** This is MDT's
+behaviour — `OSDComputerName` being set does not hide the page, `SkipComputerName`
+does — and the difference is load-bearing: a *prefilled page the technician
+confirms* is a real workflow, and a rule-guessed name is precisely the one worth
+confirming. SPIKES S9.11's machine was named by a rule nobody checked. An earlier
+draft of this section also said "a page whose values are all supplied never
+appears", which contradicts the paragraph below and would have removed
+confirmation entirely; the skip variable is the rule.
 
 | Page | Collects | Skip variable | MDT |
 |---|---|---|---|
 | Task sequence | Which sequence to run | `HDTSkipTaskSequence` | `SkipTaskSequence` |
-| Computer name | `HDTComputerName` | `HDTSkipComputerName` | `SkipComputerName` |
-| Domain / workgroup | `HDTJoinDomain`, `HDTMachineObjectOU`, or `HDTJoinWorkgroup` | `HDTSkipDomainMembership` | `SkipDomainMembership` |
+| Computer details ¹ | `HDTComputerName` | `HDTSkipComputerName` | `SkipComputerName` |
+| ” same page ” | `HDTJoinDomain`, `HDTMachineObjectOU`, or `HDTJoinWorkgroup` | `HDTSkipDomainMembership` | `SkipDomainMembership` |
 | Credentials | Share credentials, when not embedded (§6.3) | `HDTSkipCredentials` | `SkipBDDWelcome` in part |
 | Applications | Which apps to install | `HDTSkipApplications` | `SkipApplications` |
 | Locale and time | `HDTTimeZoneName`, locale | `HDTSkipTimeZone`, `HDTSkipLocaleSelection` | same names |
 | Admin password | The local Administrator password policy (§10.3, §4.5.4) | `HDTSkipAdminPassword` | `SkipAdminPassword` |
 | Summary | Confirm before anything destructive | `HDTSkipSummary` | `SkipSummary` |
 
+¹ **Name and domain membership are one page**, as they are in MDT's "Computer
+Details" pane — one decision about a machine's identity, and the screen an MDT
+admin already knows. It keeps **both** skip variables, because MDT does: they
+hide the two halves independently, through the same pane-visibility mechanism
+`Get-HDTWizardSkip` already uses for the Welcome screen.
+
 `HDTSkipWizard: true` skips all pages at once — the unattended case.
+
+**The Welcome screen is not skippable from this file.** It runs *before* the
+share is reachable, so `HDTSkipWelcome` lives in `bootstrap.json` inside the boot
+image (§11.2's own correction, and MDT's split: `SkipBDDWelcome` is in
+`Bootstrap.ini`, every other `Skip*` in `CustomSettings.ini`). A `rules.yaml`
+that hides every wizard page still meets a Welcome screen unless the image was
+built with a credential and without `-PromptForCredential`.
 
 **A skipped page whose values are still missing is an error, not a prompt.**
 If `HDTSkipComputerName` is set and no rule supplies `HDTComputerName`, the

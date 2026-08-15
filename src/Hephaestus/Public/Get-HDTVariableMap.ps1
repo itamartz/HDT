@@ -173,6 +173,20 @@ function Get-HDTVariableMap {
         @{ HDTName = 'HDTDriverGroup'; MdtName = 'DriverGroup'; Origin = 'authored'
             Description = 'Driver store folder to inject from, commonly built from HDTMake and HDTModel by a rule.'
         }
+        # THE LOCALE AND TIME PAGE'S FOUR, and MDT asks for all four separately
+        # because Windows treats them separately: the language of the INSTALLED
+        # OS, the formats a USER sees, the KEYBOARD, and the clock. A machine
+        # deployed in English with a German keyboard is a perfectly ordinary
+        # request, and one setting could not express it.
+        @{ HDTName = 'HDTUILanguage'; MdtName = 'UILanguage'; Origin = 'authored'
+            Description = 'Language the operating system is installed in, as a culture name such as en-US.'
+        }
+        @{ HDTName = 'HDTUserLocale'; MdtName = 'UserLocale'; Origin = 'authored'
+            Description = 'Time, date, number and currency formats the user sees, as a culture name such as en-US.'
+        }
+        @{ HDTName = 'HDTKeyboardLocale'; MdtName = 'KeyboardLocale'; Origin = 'authored'
+            Description = 'Keyboard layout, as a culture name or an input locale pair such as 0409:00000409.'
+        }
         @{ HDTName = 'HDTTimeZoneName'; MdtName = 'TimeZoneName'; Origin = 'authored'
             Description = 'Windows time zone identifier applied to the deployed machine.'
         }

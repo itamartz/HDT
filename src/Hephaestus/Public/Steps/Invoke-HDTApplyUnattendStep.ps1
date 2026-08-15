@@ -178,18 +178,38 @@ function Invoke-HDTApplyUnattendStep {
     # Windows itself rejects; a name is otherwise left exactly as authored -
     # HDT does not truncate, because a silently shortened name is the same
     # failure with a different spelling.
+    #
+    # THE RULE ITSELF IS Test-HDTComputerName, AND IT IS NOT COPIED HERE. The
+    # wizard asks a technician for this same value and has to refuse the same
+    # names as they type, so the rule grew a second caller - and a rule with two
+    # copies is a rule that drifts. The advice about WHERE a bad name came from
+    # stays here, because it is true of a rules-built name and not of a typed
+    # one.
+    #
+    # AN EMPTY VALUE IS STILL SKIPPED HERE. Test-HDTComputerName refuses one,
+    # which is right in front of a technician looking at an empty box; in a
+    # sequence, a template that carries the token and a run that never set the
+    # variable is a different failure and not this step's to report.
     if ($text -match '%HDTComputerName%') {
         $computerName = [string] $Context.Variable['HDTComputerName']
 
         if (-not [string]::IsNullOrWhiteSpace($computerName)) {
-            if ($computerName.Length -gt 15) {
-                return (& $fail ("the computer name '{0}' is {1} characters. Windows Setup silently ignores a ComputerName over 15 and names the machine itself, so the deployment would appear to succeed and produce a machine nobody named. Shorten HDTComputerName - a rule that builds it from a serial number is the usual cause." -f
-                        $computerName, $computerName.Length) 'HDTConfigurationError')
+            $judgement = Test-HDTComputerName -Name $computerName
+
+            if (-not $judgement.IsValid) {
+                return (& $fail ("{0} Shorten HDTComputerName - a rule that builds it from a serial number is the usual cause." -f
+                        $judgement.Reason) 'HDTConfigurationError')
             }
 
-            if ($computerName -notmatch '^[A-Za-z0-9\-]+$') {
-                return (& $fail ("the computer name '{0}' contains a character Windows will not accept. A computer name may hold letters, digits and hyphens." -f
-                        $computerName) 'HDTConfigurationError')
+            # A WARNING IS NOT A REFUSAL. A name DNS cannot carry is still a
+            # legal computer name, and refusing one here would stop a deployment
+            # over something Windows itself permits. It is recorded instead, so
+            # the machine that later has trouble joining a domain has a log line
+            # that said so on the day it was built.
+            if ($judgement.Severity -eq 'Warning') {
+                Write-HDTLog -Context $Context.Log -Severity Warning -Component 'ApplyUnattend' `
+                    -Message ([string] $judgement.Reason) `
+                    -Data ([ordered] @{ computerName = $computerName; isDnsSafe = [bool] $judgement.IsDnsSafe })
             }
         }
     }
