@@ -1,0 +1,124 @@
+function Set-HDTConsoleStepCondition {
+    <#
+        .SYNOPSIS
+            Gives a step the expression that decides whether it runs, or takes
+            it away.
+
+        .DESCRIPTION
+            THE FILTER MDT PUTS ON THE OPTIONS TAB. Workbench lists conditions
+            under the two checkboxes and a step with none runs every time; HDT
+            carries the same idea as one expression on the step's `condition`
+            key, evaluated by the engine before the step is invoked. This is
+            that control, as a command - DESIGN 12: every button maps to a
+            cmdlet invocation, and the console shows the invocation.
+
+            ONE EXPRESSION, NOT A CLAUSE BUILDER. MDT's dialog composes an
+            if-statement tree out of variable tests, WMI queries and registry
+            reads, and stores it as XML nobody can read in a diff. HDT's
+            condition is a PowerShell expression over the rules' variables,
+            which is the same power in a form an administrator can also grep,
+            and which `rules.yaml` already gave them the vocabulary for.
+
+            CLEARING IT REMOVES THE LINE RATHER THAN EMPTYING IT. `condition:`
+            with nothing after it is a key whose value is null, which reads at a
+            glance like a condition somebody forgot to finish. A step that runs
+            every time should say so by carrying no condition at all, the way a
+            newly added step does.
+
+            IT SPLICES, LIKE EVERY EDIT HERE, and it quotes only when leaving
+            the expression bare would change what the engine reads back - a
+            colon-space inside it would otherwise turn one key into two.
+
+        .PARAMETER Line
+            The document, already split into lines.
+
+        .PARAMETER Name
+            The step or group to change. Ambiguous names are refused rather
+            than guessed - see Resolve-HDTConsoleStepBlock.
+
+        .PARAMETER Condition
+            The expression. Empty removes the condition.
+
+        .INPUTS
+            None. This command does not accept pipeline input.
+
+        .OUTPUTS
+            System.String[] - the document, with one line changed.
+
+        .EXAMPLE
+            Set-HDTConsoleStepCondition -Line $line -Name 'Apply Drivers' -Condition '$Make -eq "Dell Inc."'
+
+        .EXAMPLE
+            Set-HDTConsoleStepCondition -Line $line -Name 'Apply Drivers' -Condition ''
+
+            Takes the condition off, so the step runs every time.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
+    [OutputType([string[]])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [AllowEmptyCollection()]
+        [AllowEmptyString()]
+        [string[]] $Line,
+
+        [Parameter(Mandatory = $true, Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true, Position = 2)]
+        [AllowEmptyString()]
+        [string] $Condition
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $target = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+
+    $found = Get-HDTConsoleStepKey -Line $Line -Block $target -Key 'condition'
+
+    $clear = [string]::IsNullOrWhiteSpace($Condition)
+
+    # Nothing to remove and nothing to write.
+    if ($clear -and $found.Index -lt 0) {
+        return [string[]] @($Line)
+    }
+
+    $action = "Set the condition to {0}" -f $Condition
+    if ($clear) { $action = 'Remove the condition' }
+
+    if (-not $PSCmdlet.ShouldProcess($Name, $action)) {
+        return [string[]] @($Line)
+    }
+
+    # A plain scalar is what an administrator wants to read in a diff. It is
+    # only quoted when leaving it bare would be read back as something else: a
+    # colon-space splits the key, a leading # comments the value out, and a
+    # leading quote or indicator opens a construct the rest of the expression
+    # does not close.
+    $value = $Condition
+
+    if ($value -match ':\s' -or $value -match '\s#' -or $value -match '^["''\{\[\&\*\!\|\>\%\@\`\#]') {
+        $value = "'{0}'" -f ($Condition -replace "'", "''")
+    }
+
+    $written = '{0}condition: {1}' -f (' ' * $found.Indent), $value
+
+    $result = New-Object -TypeName System.Collections.ArrayList
+
+    for ($i = 0; $i -lt $Line.Count; $i++) {
+        if ($found.Index -ge 0 -and $i -eq $found.Index) {
+            # Cleared: the line goes, and the keys around it close up.
+            if (-not $clear) { [void] $result.Add($written) }
+            continue
+        }
+
+        [void] $result.Add($Line[$i])
+
+        if ($found.Index -lt 0 -and $i -eq $found.Insert) {
+            [void] $result.Add($written)
+        }
+    }
+
+    return [string[]] @($result)
+}

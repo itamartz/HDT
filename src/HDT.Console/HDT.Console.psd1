@@ -31,6 +31,8 @@
         'New-HDTConsoleScreen',
         'Save-HDTConsoleSequence',
         'Save-HDTConsoleSetting',
+        'Set-HDTConsoleStepCondition',
+        'Set-HDTConsoleStepFlag',
         'Show-HDTConsole',
         'Show-HDTSequenceEditor'
     )
