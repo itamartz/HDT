@@ -25,6 +25,7 @@
         'Get-HDTConsoleEditorState',
         'Get-HDTConsoleSequenceEditor',
         'Get-HDTConsoleStepCatalog',
+        'Get-HDTConsoleStepChange',
         'Get-HDTConsoleStepOption',
         'Get-HDTConsoleSetting',
         'Get-HDTConsoleTheme',
@@ -36,6 +37,7 @@
         'Save-HDTConsoleSetting',
         'Set-HDTConsoleStepCondition',
         'Set-HDTConsoleStepFlag',
+        'Set-HDTConsoleStepProperty',
         'Show-HDTConsole',
         'Show-HDTSequenceEditor'
     )

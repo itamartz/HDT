@@ -120,8 +120,24 @@ function Get-HDTConsoleStepNode {
                 $groupIndex = @($Sequence.Group).Count
                 $matched = @($Sequence.Group | Where-Object { (@($_.Path) -join "`u{001F}") -eq $key })
 
+                # A GROUP'S EDITABLE NAME IS ITS OWN LEG, NOT ITS PATH. The key
+                # on the line is `group:` and it holds this leg alone, so an
+                # editable box showing 'Install \ Drivers' would write that
+                # whole string as the name the moment anybody touched it. The
+                # path is still worth showing - it is what tells one 'Drivers'
+                # from another - so it gets a read-only row of its own, and only
+                # where there is a path to show.
                 $field = @(
-                    New-HDTConsoleField -Label 'Group' -Value ($walked -join ' \ ')
+                    New-HDTConsoleField -Label 'Group' -Value $name -Property 'group'
+                )
+
+                if ($walked.Count -gt 1) {
+                    $field = $field + @(
+                        New-HDTConsoleField -Label 'Path' -Value ($walked -join ' \ ')
+                    )
+                }
+
+                $field = $field + @(
                     New-HDTConsoleField -Label 'Task Sequence' -Value $Sequence.Id
                 )
 
@@ -154,8 +170,13 @@ function Get-HDTConsoleStepNode {
 
         # -- the step itself
 
+        # WHICH ROWS MAY BE TYPED INTO IS DECIDED HERE. A row that writes names
+        # the key it writes; a row that does not is a report. 'Type' is
+        # deliberately among the reports - a step's properties belong to its
+        # type, so retyping one leaves keys the new type has never heard of, and
+        # Set-HDTConsoleStepProperty refuses it for the same reason.
         $field = @(
-            New-HDTConsoleField -Label 'Name' -Value $current.Name
+            New-HDTConsoleField -Label 'Name' -Value $current.Name -Property 'name'
             New-HDTConsoleField -Label 'Type' -Value $current.Type
             New-HDTConsoleField -Label 'Runs' -Value ('step {0} of {1}' -f $current.Index, $step.Count)
             New-HDTConsoleField -Label 'Group' -Value (Get-HDTConsoleDisplayText -Text ($path -join ' \ ') -Fallback '(none)')
@@ -165,9 +186,12 @@ function Get-HDTConsoleStepNode {
             New-HDTConsoleField -Label 'Continue on error' -Value (Get-HDTConsoleFlagText -Value $current.ContinueOnError)
         )
 
+        # The per-type properties, each writing the key it is named after - the
+        # difference between "Apply OS" and "apply THAT image", and the reason
+        # the tab exists.
         foreach ($name in @($current.Property.Keys | Sort-Object)) {
             $field = $field + @(
-                New-HDTConsoleField -Label $name -Value ([string] $current.Property[$name])
+                New-HDTConsoleField -Label $name -Value ([string] $current.Property[$name]) -Property $name
             )
         }
 

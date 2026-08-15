@@ -91,18 +91,9 @@ function Set-HDTConsoleStepCondition {
         return [string[]] @($Line)
     }
 
-    # A plain scalar is what an administrator wants to read in a diff. It is
-    # only quoted when leaving it bare would be read back as something else: a
-    # colon-space splits the key, a leading # comments the value out, and a
-    # leading quote or indicator opens a construct the rest of the expression
-    # does not close.
-    $value = $Condition
-
-    if ($value -match ':\s' -or $value -match '\s#' -or $value -match '^["''\{\[\&\*\!\|\>\%\@\`\#]') {
-        $value = "'{0}'" -f ($Condition -replace "'", "''")
-    }
-
-    $written = '{0}condition: {1}' -f (' ' * $found.Indent), $value
+    # Bare wherever bare reads back the same, quoted where it would not - see
+    # Get-HDTConsoleScalarText, which Set-HDTConsoleStepProperty shares.
+    $written = '{0}condition: {1}' -f (' ' * $found.Indent), (Get-HDTConsoleScalarText -Value $Condition)
 
     $result = New-Object -TypeName System.Collections.ArrayList
 
