@@ -180,9 +180,41 @@ Describe 'the WinPE UI stack' {
             # FindName is how handlers are attached with no code-behind, so a
             # page whose buttons are anonymous cannot be wired at all.
             # WINDOWS ONLY. A ResourceDictionary has no buttons to name.
-            foreach ($row in $script:window) {
+            #
+            # A WINDOW THAT ASKS SOMETHING NEEDS BOTH ANSWERS. A window that
+            # asks nothing needs neither: HDTProgress.xaml is a STATUS BOARD,
+            # shown while a deployment runs, and there is nothing on it to
+            # approve or cancel. Giving it a Next would be giving a technician a
+            # button that does nothing, and a Cancel would be a corner that
+            # makes a running deployment's only screen disappear.
+            #
+            # THE TEST IS "DOES IT HAVE BUTTONS AT ALL", NOT "IS IT THE PROGRESS
+            # WINDOW". Naming the exception by file is the trap this context's
+            # own header warns about - the next status board would inherit the
+            # rule by being new. This way, the moment anything is given a
+            # button, it must have both of the ones the host wires.
+            $asking = @($script:window | Where-Object { $_.Code -match '<Button' })
+
+            @($asking).Count | Should -BeGreaterThan 0 -Because (
+                'the assertion below is vacuous if no window has any buttons')
+
+            foreach ($row in $asking) {
                 $row.Code | Should -BeLike '*HDTNextButton*' -Because $row.Relative
                 $row.Code | Should -BeLike '*HDTCancelButton*' -Because $row.Relative
+            }
+        }
+
+        It 'has at least one window that asks nothing, and it declares no buttons' {
+            # The other side of the rule above, so "no buttons" cannot quietly
+            # become the way every window opts out of it.
+            $silent = @($script:window | Where-Object { $_.Code -notmatch '<Button' })
+
+            @($silent).Count | Should -BeGreaterThan 0 -Because (
+                'HDTProgress.xaml is a status board and must stay one')
+
+            foreach ($row in $silent) {
+                $row.Code | Should -Not -BeLike '*HDTNextButton*' -Because $row.Relative
+                $row.Code | Should -Not -BeLike '*HDTCancelButton*' -Because $row.Relative
             }
         }
     }

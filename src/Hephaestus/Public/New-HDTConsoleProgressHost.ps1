@@ -44,6 +44,11 @@ function New-HDTConsoleProgressHost {
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]
+    # Open takes markup it has no use for, ON PURPOSE: the signature has to match
+    # New-HDTProgressHost's or the two are not interchangeable, and being
+    # interchangeable is the entire reason this object exists.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+        Justification = 'Open mirrors the WPF host signature so the two hosts are interchangeable; there is nothing to load.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param()

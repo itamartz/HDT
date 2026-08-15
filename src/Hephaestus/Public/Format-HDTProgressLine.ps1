@@ -48,6 +48,10 @@ function Format-HDTProgressLine {
 
             [ 3/8  25%] WinPE  Apply Windows 11 Enterprise LTSC 202  00:01:24
     #>
+    # $Progress IS used - inside the $valueOf closure below, which the analyzer
+    # does not follow. Removing it to satisfy the rule would remove the input.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+        Justification = 'Used inside a closure, which PSReviewUnusedParameter does not follow.')]
     [CmdletBinding()]
     [OutputType([string])]
     param(

@@ -126,6 +126,7 @@
         'Test-HDTStepCondition',
         'Test-HDTTaskSequence',
         'Update-HDTBootImage',
+        'Update-HDTProgressDisplay',
         'Update-HDTRunStateStep',
         'Write-HDTLog',
         'Write-HDTStatus',

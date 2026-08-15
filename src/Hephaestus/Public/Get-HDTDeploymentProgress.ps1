@@ -153,12 +153,12 @@ function Get-HDTDeploymentProgress {
         $phase = [string] (& $valueOf $row 'phase')
         if (-not [string]::IsNullOrWhiteSpace($phase)) { $result['Phase'] = $phase }
 
-        $event = [string] (& $valueOf $row 'event')
-        if ([string]::IsNullOrWhiteSpace($event)) { continue }
+        $eventName = [string] (& $valueOf $row 'event')
+        if ([string]::IsNullOrWhiteSpace($eventName)) { continue }
 
         $data = & $valueOf $row 'data'
 
-        switch ($event) {
+        switch ($eventName) {
 
             'run.start' {
                 $sequenceId = [string] (& $valueOf $data 'sequenceId')

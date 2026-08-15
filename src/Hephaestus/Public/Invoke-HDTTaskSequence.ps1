@@ -781,6 +781,15 @@ function Invoke-HDTTaskSequence {
 
         Write-HDTStatus -Context $log -Path $statusPathValue -Status $runStatus
 
+        # THE LAST THING THE SCREEN IS TOLD, and the only update that carries a
+        # verdict: run.end has just been written, so this is where Running
+        # becomes Succeeded or Failed on a technician's screen instead of
+        # staying on whichever step was last starting.
+        #
+        # IN THE finally, SO IT HAPPENS ON THE FAILING RUNS TOO - which are the
+        # runs somebody is standing in front of.
+        Update-HDTProgressDisplay -Context $Context
+
         if ($PSBoundParameters.ContainsKey('LogDestination')) {
             # DESIGN 4.4.1: copy-back happens on failure too. Copy-HDTLog is
             # documented never to throw and this catches anyway - nothing in a
