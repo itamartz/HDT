@@ -39,8 +39,23 @@
         <TextBox x:Name="HDTComputerNameBox" Text="" MaxLength="15"
                  Width="380" HorizontalAlignment="Left" />
 
-        <TextBlock Text="Up to 15 characters. Letters, digits and hyphens only."
-                   Foreground="#FF8A8A8A" FontSize="13" Margin="0,8,0,0" />
+        <!--
+            ONE LINE, NOT A PANEL. This page carried a three-row box explaining
+            the length limit, the ten forbidden characters and the DNS warning -
+            and it pushed the workgroup option off the bottom of the window,
+            which is the choice most machines take. A screen that explains a
+            rule at the cost of hiding a control has the trade backwards.
+
+            THE RULES STILL REACH THE TECHNICIAN, LATER AND ONLY WHEN THEY
+            MATTER: an illegal character cannot be typed at all, and a name that
+            is too long or not DNS-safe puts the reason on the message line at
+            the bottom of the shell, in red or amber. That is the moment the
+            explanation is worth reading. Before then it is a wall of text
+            between a technician and a text box.
+        -->
+        <TextBlock Foreground="#FF8A8A8A" FontSize="12" TextWrapping="Wrap"
+                   MaxWidth="560" HorizontalAlignment="Left" Margin="0,8,0,0"
+                   Text="1 to 15 characters. Letters, digits and hyphens are safest - anything else is allowed but is not a valid DNS name. These cannot be typed: . \ / : * ? &quot; &lt; &gt; | or spaces." />
     </StackPanel>
 
     <!-- ============ the domain or the workgroup ============ -->
@@ -268,48 +283,21 @@
         </Grid>
     </StackPanel>
 
-    <!-- ============ what a name may hold ============ -->
     <!--
-        WHAT A TECHNICIAN IS ALLOWED, ON THE SCREEN THEY ARE STANDING AT. A
-        refused keystroke with no explanation is a keyboard that has stopped
-        working; the rules have to be readable BEFORE the refusal.
+        THE THIRD ROW IS DELIBERATELY EMPTY. It used to hold a panel explaining
+        what a computer name may contain - three rows, a heading and a border -
+        and it pushed "Join a workgroup" off the bottom of the window, which is
+        the option most machines take.
+
+        A SCREEN THAT EXPLAINS A RULE AT THE COST OF HIDING A CONTROL HAS THE
+        TRADE BACKWARDS. The rules did not go anywhere: an illegal character
+        cannot be typed at all, a name that is too long or not DNS-safe puts the
+        reason on the shell's message line in red or amber, and the one-line
+        hint under the name box says the rest. Each of those arrives at the
+        moment it is worth reading, rather than as a wall of text between a
+        technician and a text box.
+
+        The row stays in the layout so the panes above it keep their spacing
+        when the window is taller than they are.
     -->
-    <Border Grid.Row="2" Background="#FF252526" BorderBrush="#FF3A3A3C" BorderThickness="1"
-            Padding="16,14" Margin="0,24,0,0" HorizontalAlignment="Left" MaxWidth="620"
-            VerticalAlignment="Top">
-        <StackPanel>
-            <TextBlock Text="What a computer name may hold"
-                       Foreground="White" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10" />
-
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="&#x2713;" Foreground="#FF89D185"
-                           FontSize="14" Margin="0,0,10,8" />
-                <TextBlock Grid.Row="0" Grid.Column="1" Foreground="#FFCCCCCC" FontSize="13"
-                           TextWrapping="Wrap" Margin="0,0,0,8"
-                           Text="1 to 15 characters. Windows silently ignores a longer name and picks its own, so 15 is enforced here rather than discovered afterwards." />
-
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="&#x2715;" Foreground="#FFF48771"
-                           FontSize="14" Margin="0,0,10,8" />
-                <TextBlock Grid.Row="1" Grid.Column="1" Foreground="#FFCCCCCC" FontSize="13"
-                           TextWrapping="Wrap" Margin="0,0,0,8"
-                           Text="These cannot be typed at all:   .   \   /   :   *   ?   &quot;   &lt;   &gt;   |   and spaces." />
-
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="&#x26A0;" Foreground="#FFE2C08D"
-                           FontSize="14" Margin="0,0,10,0" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Foreground="#FFCCCCCC" FontSize="13"
-                           TextWrapping="Wrap"
-                           Text="Anything else is allowed, but only letters, digits and hyphens are valid in DNS. An underscore makes a legal computer name that can misbehave on domain join - the wizard warns and lets you continue." />
-            </Grid>
-        </StackPanel>
-    </Border>
 </Grid>
