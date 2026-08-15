@@ -43,6 +43,7 @@
         'Get-HDTConfigureBootStepDescription',
         'Get-HDTStepDescription',
         'Get-HDTStepType',
+        'Get-HDTUsableAddress',
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
         'Get-HDTWizardField',

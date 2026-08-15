@@ -68,9 +68,45 @@ Describe 'the WinPE UI stack' {
 
     Context 'nothing that ships into the image reaches for WinForms' {
 
+        BeforeAll {
+            # CODE WITHOUT ITS COMMENTS, and the same lesson this file already
+            # learned for markup one context down: several of these files
+            # explain a rule by NAMING THE THING IT FORBIDS, which under a raw
+            # scan convicts the one file that had to say it.
+            #
+            # It happened here too. Start-HDTDeployment.ps1's header explains
+            # which assemblies it may not name - and naming them failed this
+            # rule, on a file that was correct.
+            #
+            # TOKENISED, NOT REGEXED. A '#' inside a string is not a comment, and
+            # a line-based stripper would eat half of one.
+            $script:codeOnly = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.ps1' -or $_.Relative -like '*.psm1' } |
+                    ForEach-Object {
+                        $token = $null
+                        $parseError = $null
+                        [void] [System.Management.Automation.Language.Parser]::ParseInput(
+                            $_.Text, [ref] $token, [ref] $parseError)
+
+                        $text = $_.Text
+                        foreach ($comment in @($token | Where-Object { $_.Kind -eq 'Comment' } |
+                                    Sort-Object { $_.Extent.StartOffset } -Descending)) {
+
+                            $text = $text.Remove($comment.Extent.StartOffset,
+                                $comment.Extent.EndOffset - $comment.Extent.StartOffset)
+                        }
+
+                        [pscustomobject] @{ Relative = $_.Relative; Text = $text }
+                    })
+        }
+
+        It 'stripped something, so the assertions below are not reading nothing' {
+            @($script:codeOnly).Count | Should -BeGreaterThan 50
+        }
+
         It 'references no <_>' -ForEach @('System.Windows.Forms', 'WindowsFormsIntegration') {
             $name = $PSItem
-            $offender = @($script:scanned |
+            $offender = @($script:codeOnly |
                     Where-Object { $_.Text -match [regex]::Escape($name) } |
                     ForEach-Object { $_.Relative })
 
@@ -80,7 +116,7 @@ Describe 'the WinPE UI stack' {
         }
 
         It 'pumps the message loop with the WPF dispatcher, not DoEvents' {
-            $offender = @($script:scanned |
+            $offender = @($script:codeOnly |
                     Where-Object { $_.Text -match 'DoEvents' } |
                     ForEach-Object { $_.Relative })
 

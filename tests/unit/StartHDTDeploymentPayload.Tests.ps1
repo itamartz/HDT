@@ -192,13 +192,36 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:codeOnly | Should -Not -Match 'XamlReader'
         }
 
-        It 'shows the wizard only through Show-HDTWizardShell' {
-            # ONE WINDOW COMMAND, AND IT IS THE ONE THAT REFUSES TO READ A
-            # DISMISSED WINDOW AS CONSENT. A payload that called the host
-            # directly would be a payload that could treat silence as Next.
+        It 'shows only the two windows DESIGN 11 defines' {
+            # BOTH REFUSE TO READ A DISMISSED WINDOW AS CONSENT, which is the
+            # property that matters: a payload calling a host directly could
+            # treat silence as Next.
+            #
+            # Show-HDTWizard is the WELCOME screen and runs BEFORE the share is
+            # reachable - a machine with no address is what it exists for.
+            # Show-HDTWizardShell is the multi-page wizard and runs after,
+            # against pages that live on the share.
             $shown = @($script:everyCommandName | Where-Object { $_ -like 'Show-*' } | Sort-Object -Unique)
 
-            $shown | Should -Be @('Show-HDTWizardShell')
+            $shown | Should -Be @('Show-HDTWizard', 'Show-HDTWizardShell')
+        }
+
+        It 'asks for a network rather than failing at the share' {
+            # THE PROCESS FAULT A LIVE RUN EXPOSED. With no address the payload
+            # used to warn and connect anyway, so the failure named a share when
+            # the problem was a network. The Welcome screen is what a machine
+            # with no address is for (WPF-FIRST W2) - and Set-HDTStaticAddress
+            # is how WinPE takes one, since it has no NetTCPIP.
+            @(& $script:commandNamed 'Get-HDTWizardSkip').Count | Should -BeGreaterThan 0
+            @(& $script:commandNamed 'Show-HDTWizard').Count | Should -BeGreaterThan 0
+        }
+
+        It 'decides what counts as an address with Get-HDTUsableAddress' {
+            # NEVER INLINE AGAIN. Inline, it cast a [string[]] to a string and
+            # split on commas, so a machine holding 192.168.2.39 waited the full
+            # timeout for an address it already had - and the payload's own test
+            # reads this file's shape, so nothing could catch it.
+            @(& $script:commandNamed 'Get-HDTUsableAddress').Count | Should -Be 1
         }
 
         It 'hides the console only in a pair' {

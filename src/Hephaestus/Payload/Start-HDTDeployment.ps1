@@ -40,12 +40,20 @@
         disk and the machine is about to power off. 05-05's zero-keystroke proof
         reads launchedBy out of that file.
 
-        DESIGN 11'S TECHNICIAN UI IS DELIBERATELY ABSENT. The progress window and
-        the wizard are a later milestone; a silent entry point is the honest v1,
-        and the AST test refuses a Show-* command or a WPF assembly here so that
-        this file does not quietly become the other thing.
+        DESIGN 11'S TECHNICIAN UI IS HERE NOW, AND IT STILL RUNS UNATTENDED.
+        This header used to say the UI was deliberately absent because it was a
+        later milestone. That milestone arrived: the Welcome screen appears when
+        this machine has no network, and the wizard appears when the SHARE
+        declares pages in Scripts\UI\wizard.yaml. A share that declares none has
+        no wizard, so every image built before this deploys with nobody present
+        exactly as it did.
 
-        THIRTEEN THINGS, IN THIS ORDER, AND NOTHING ELSE:
+        WHAT THE AST TEST STILL REFUSES is this file naming PresentationFramework,
+        System.Windows.Forms or XamlReader. Every window goes through an injected
+        host, which is why a machine that cannot draw one still deploys - the
+        progress display falls back to console lines rather than dying here.
+
+        FOURTEEN THINGS, IN THIS ORDER, AND NOTHING ELSE:
 
           1. StrictMode, ErrorActionPreference, InformationPreference.
           2. The module root on PSModulePath; powershell-yaml, then Hephaestus.
@@ -54,17 +62,22 @@
           5. The bootstrap document.
           6. Wait for an address - ONLY for an Smb provider. A Local provider
              does not wait, and that is the difference between a lab run starting
-             in five seconds and starting in two minutes.
+             in five seconds and starting in two minutes. NO ADDRESS IS WHAT THE
+             WELCOME SCREEN IS FOR: a static address is typed there and applied
+             through WMI, and only an image that SKIPS that screen fails instead.
           7. Resolve the deploy root from the volumes this machine has.
           8. The credential, or the one deliberate prompt.
           9. The content provider, and Connect().
-         10. Facts, the per-machine override, the rules, the resolution, the
-             sequence.
+         10. Facts, the per-machine override, the rules, the resolution.
+         10a. The wizard, if the share declares one - then resolve AGAIN with
+             what was typed, so DESIGN 3.1's precedence applies rather than
+             being patched around.
+         10b. The progress display, before the engine starts.
          11. The run state and the execution context.
          12. ONE call to Invoke-HDTTaskSequence.
-         13. The tail: RESULT.json where it will still exist tomorrow, the log
-             copy-back, Disconnect(), and wpeutil. All of it AFTER the catch,
-             never inside the try.
+         13. The tail: the progress window down, RESULT.json where it will still
+             exist tomorrow, the log copy-back, Disconnect(), and wpeutil. All of
+             it AFTER the catch, never inside the try.
 
     .PARAMETER BootstrapPath
         The document Update-HDTBootImage wrote into the image.
@@ -88,6 +101,10 @@
 
         What startnet.cmd runs.
 #>
+# $WelcomeXamlPath is used inside the $showWelcome closure, which the analyzer
+# does not follow.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+    Justification = 'Used inside a closure, which PSReviewUnusedParameter does not follow.')]
 [CmdletBinding()]
 param(
     [Parameter()]
@@ -124,7 +141,13 @@ param(
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [string] $ProgressXamlPath = 'X:\HDT\UI\HDTProgress.xaml'
+    [string] $ProgressXamlPath = 'X:\HDT\UI\HDTProgress.xaml',
+
+    # THE ONE SCREEN THAT RUNS BEFORE THE SHARE IS REACHABLE, so it cannot live
+    # on the share with the others (DESIGN 11.2's correction).
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $WelcomeXamlPath = 'X:\HDT\UI\HDTWelcome.xaml'
 )
 
 # -- 1. the preferences ------------------------------------------------------
@@ -260,6 +283,57 @@ try {
     # Get-HDTMachineFact in the whole file, and the last poll is the fact set the
     # rules are resolved against.
 
+    # THE WELCOME SCREEN, WHICH IS WHAT A MACHINE WITH NO NETWORK IS FOR.
+    # W2 built it - the network pane, the share box, the credential quartet -
+    # and nothing ever showed it. A static address is the answer to DHCP that
+    # never answered, and WinPE has no NetTCPIP, so it is applied through WMI
+    # (SPIKES S14) by Set-HDTStaticAddress.
+    #
+    # IT RETURNS Retry, NOT AN ADDRESS. What the technician did to the machine
+    # has already happened by then; the caller's job is to poll again and find
+    # out whether it worked, which is the only honest test of a static address.
+    $showWelcome = {
+
+        # IT TAKES NOTHING. The screen shows what the MACHINE reports, read
+        # fresh through Get-HDTNetworkConfiguration - a fact set gathered before
+        # the technician was asked is a fact set about the state they are being
+        # asked to change.
+        $skip = Get-HDTWizardSkip -Bootstrap $bootstrap
+        $network = $null
+
+        try {
+            $network = Get-HDTNetworkConfiguration
+        } catch {
+            & $say ("no network configuration could be read for the Welcome screen: {0}" -f $_.Exception.Message) 'Warning'
+        }
+
+        $field = @(Get-HDTWizardField -NetworkConfiguration $network -Bootstrap $bootstrap)
+
+        $hidden = $false
+        $answer = $null
+
+        try {
+            $hidden = [bool] (Hide-HDTShellWindow)
+            $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -Title 'Hephaestus Deployment Toolkit' `
+                -Field $field -Pane $skip.Pane
+        } finally {
+            if ($hidden) { [void] (Hide-HDTShellWindow -Restore) }
+        }
+
+        if ($null -eq $answer) { return [pscustomobject] @{ Retry = $false } }
+
+        & $say ("the Welcome screen answered: {0}" -f $answer.Action)
+
+        if ($answer.Action -eq 'CommandPrompt') {
+            $prompt = Start-HDTCommandPrompt
+            & $say ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
+
+            return [pscustomobject] @{ Retry = $false }
+        }
+
+        return [pscustomobject] @{ Retry = ($answer.Action -eq 'Next') }
+    }
+
     $needAddress = ([string] $bootstrap.Provider -eq 'Smb')
     $waited = [System.Diagnostics.Stopwatch]::StartNew()
     $attempt = 0
@@ -270,17 +344,12 @@ try {
         $attempt++
         $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $registry -EnvironmentProvider $environment
 
-        # The first IPv4 that is not APIPA. SPIKES S9.2 saw 169.254.* on the
-        # isolated lab switch, and an APIPA lease is exactly the case where the
-        # machine looks connected and can reach nothing.
-        $address = ''
-        foreach ($candidate in (([string] $fact['HDTIPAddress']) -split ',')) {
-            $trimmed = $candidate.Trim()
-            if ($trimmed -match '^\d+\.\d+\.\d+\.\d+$' -and -not $trimmed.StartsWith('169.254.')) {
-                $address = $trimmed
-                break
-            }
-        }
+        # THE DECISION IS Get-HDTUsableAddress'S, AND IT USED TO BE HERE. Inline,
+        # it cast a [string[]] to a string - which SPACE-joins - and then split
+        # on commas, so a machine holding 192.168.2.39 waited the whole timeout
+        # for an address it already had. A decision has to be a command before a
+        # test can find anything wrong with it.
+        $address = Get-HDTUsableAddress -Fact $fact
 
         if (-not $needAddress) {
             & $say ("{0} machine fact(s) gathered; a Local provider does not wait for the network" -f $fact.Count)
@@ -294,12 +363,45 @@ try {
         }
 
         if ($waited.Elapsed.TotalSeconds -ge $NetworkTimeoutSecond) {
-            & $say ("no usable IPv4 address after {0}s and {1} attempt(s); the last one seen was '{2}'. Connecting anyway, so the failure names the share rather than the wait." -f
-                $NetworkTimeoutSecond, $attempt, [string] $fact['HDTIPAddress']) 'Warning'
-            break
+
+            # A MACHINE WITH NO ADDRESS IS WHAT THE WELCOME SCREEN IS FOR, and
+            # ploughing on to fail at the share was the wrong answer: "a machine
+            # whose network is wrong is the commonest reason a technician is
+            # looking at this screen at all" (WPF-FIRST, W2). DHCP that never
+            # answered is a static address somebody has to type.
+            #
+            # UNLESS THE IMAGE SAID NOT TO ASK. HDTSkipWelcome - or an image
+            # built without -PromptForCredential, which is the same decision -
+            # means nobody is standing here, and then the honest outcome is a
+            # NAMED FAILURE rather than a connect that fails two steps later
+            # describing a share instead of a network.
+            $networkSkip = Get-HDTWizardSkip -Bootstrap $bootstrap
+
+            if ($networkSkip.Welcome) {
+                throw ("HDTNetworkError: no usable IPv4 address after {0}s and {1} attempt(s) - the addresses seen were '{2}'. This image skips the Welcome screen, so there is nobody to ask for a static address. Set one in the image, fix DHCP on this segment, or build with -PromptForCredential so the screen appears." -f
+                    $NetworkTimeoutSecond, $attempt, (@($fact['HDTIPAddress']) -join ', '))
+            }
+
+            & $say ("no usable IPv4 address after {0}s and {1} attempt(s); asking the technician." -f
+                $NetworkTimeoutSecond, $attempt) 'Warning'
+
+            $welcome = & $showWelcome
+            if (-not $welcome.Retry) {
+                throw 'HDTDeploymentCancelled: the technician left the Welcome screen without setting a network.'
+            }
+
+            # Round again with whatever they typed - a static address applies
+            # immediately, so the next poll is the honest test of it.
+            $waited.Restart()
+            $attempt = 0
+            continue
         }
 
-        & $say ("waiting for an address, attempt {0}: '{1}'" -f $attempt, [string] $fact['HDTIPAddress']) 'Debug'
+        # IT SAYS WHAT IT IS WAITING FOR. This used to read "waiting for an
+        # address" while printing the address the machine already had, which is
+        # how the bug above stayed invisible in a log somebody had read.
+        & $say ("no usable IPv4 address yet, attempt {0}; the adapter reports '{1}'" -f
+            $attempt, (@($fact['HDTIPAddress']) -join ', ')) 'Debug'
         $clock.Sleep(5000)
     }
 
