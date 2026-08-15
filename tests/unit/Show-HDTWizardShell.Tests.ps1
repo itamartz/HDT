@@ -530,6 +530,55 @@ Describe 'Show-HDTWizardShell' {
         }
     }
 
+    Context 'what the technician filled in' {
+
+        # THE ANSWER IS NOT THE POINT ON ITS OWN. A wizard that reported Next
+        # and dropped what was typed would be a wizard that asked a technician
+        # for a computer name and deployed the machine without it - which is
+        # exactly what this returned until now.
+        #
+        # THE VALUES COME BACK THROUGH THE HOST, because the host is what read
+        # them off the controls. Show-HDTWizardShell hands them on and
+        # interprets none of them; the payload puts them into the variable
+        # engine as the Wizard source (DESIGN 3.1).
+
+        It 'returns what was collected' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next' -Click @('Next') `
+                -Value @{ HDTComputerName = 'HDT-01' }
+
+            $result = Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem)
+
+            [string] $result.Value['HDTComputerName'] | Should -BeExactly 'HDT-01'
+        }
+
+        It 'returns an empty set when nothing was collected' {
+            $result = Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost (New-HDTFakeWizardHost -Action 'Cancel') `
+                -FileSystem (New-HDTShellTestFileSystem)
+
+            # An empty hashtable is 'empty' to Pester, so the assertion is that
+            # it is a SET WITH NOTHING IN IT rather than a null - a caller
+            # splatting it as -Wizard must not have to null-check first.
+            $result.Value -is [System.Collections.IDictionary] | Should -BeTrue
+            @($result.Value.Keys).Count | Should -Be 0
+        }
+
+        It 'returns what was collected even when the technician cancelled' {
+            # A CANCEL IS NOT AN ERASURE. What was typed before it is worth
+            # logging, and the caller decides what a cancel means - this
+            # reports rather than judging.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel' -Click @('Cancel') `
+                -Value @{ HDTComputerName = 'HDT-01' }
+
+            $result = Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem)
+
+            [string] $result.Action | Should -BeExactly 'Cancel'
+            [string] $result.Value['HDTComputerName'] | Should -BeExactly 'HDT-01'
+        }
+    }
+
     Context 'what it answers' {
 
         It 'returns <_> when that is what the technician chose' -ForEach @('Next', 'Cancel', 'CommandPrompt') {

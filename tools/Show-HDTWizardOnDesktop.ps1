@@ -53,7 +53,14 @@ param(
 
     [Parameter()]
     [AllowEmptyString()]
-    [string] $XamlPath = ''
+    [string] $XamlPath = '',
+
+    # THE RESOLVED VARIABLES, for 'Shell' mode. Pass a skip key to watch a page
+    # leave the rail: -Variable @{ HDTSkipLocaleSelection = $true }, which is
+    # exactly what a rule on the share would do to a real deployment.
+    [Parameter()]
+    [AllowNull()]
+    [hashtable] $Variable = @{}
 )
 
 Set-StrictMode -Version Latest
@@ -71,134 +78,38 @@ Import-Module -Name (Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/Hephae
 
 if ($Page -eq 'Shell') {
 
-    $previewRoot = Join-Path -Path $PSScriptRoot -ChildPath 'preview'
+    # THE SAMPLE SHARE, READ THE WAY WinPE READS IT. This used to carry its own
+    # copy of the page list - ids, titles, skip keys, what each collects - which
+    # meant the preview could agree with itself and disagree with the product.
+    # It now goes through Import-HDTWizardDocument against a real content
+    # provider, so what is on screen here is what Scripts\UI\wizard.yaml says,
+    # and a mistake in that file shows up on this desktop rather than on a VM.
+    $shareRoot = Join-Path -Path $repoRoot -ChildPath 'samples/workspace'
+    $provider = New-HDTLocalContentProvider -Root $shareRoot -FileSystem (New-HDTFileSystem)
 
-    # THE RAIL LISTS WHAT THIS DEPLOYMENT WILL ACTUALLY ASK. A skipped page is
-    # not in this list and does not appear in the rail either (DESIGN 11.2), so
-    # the list IS the wizard - there is no catalogue of pages to filter later.
-    # NOT $page. PowerShell variable names are case-insensitive, so $page IS the
-    # -Page parameter - and assigning a list to it runs the parameter's own
-    # ValidateSet against that list, which fails before the window is ever
-    # reached. It cost one silent launch to notice.
-    $previewPage = @(
-        [pscustomobject] @{
-            Id         = 'TaskSequence'
-            Title      = 'Task sequence'
-            Heading    = 'Choose a task sequence'
-            Subheading = 'What this machine will be deployed with.'
-            XamlPath   = (Join-Path -Path $previewRoot -ChildPath 'HDTPreviewTaskSequence.xaml')
+    $wizard = Import-HDTWizardDocument -Provider $provider
 
-            # WHAT THIS PAGE FILLS IN, AND WHERE TO READ IT FROM. Property is
-            # what lets one host serve a ListBox and a TextBox without knowing
-            # the difference: it reads the named property off the named control.
-            Collect    = [pscustomobject] @{ Control = 'HDTTaskSequenceList'; Variable = 'HDTTaskSequenceID'; Property = 'SelectedValue' }
-            Skip       = 'HDTSkipTaskSequence'
-        },
-        [pscustomobject] @{
-            Id         = 'ComputerDetail'
-            Title      = 'Computer details'
-            Heading    = 'Name this computer'
-            Subheading = 'The name it will carry after deployment, and what it joins.'
-            XamlPath   = (Join-Path -Path $previewRoot -ChildPath 'HDTPreviewComputerDetail.xaml')
+    if ($null -eq $wizard) {
+        Write-Information ("no Scripts\UI\wizard.yaml under {0} - nothing to show." -f $shareRoot) -InformationAction Continue
+        return
+    }
 
-            # THE PAGE NAMES A CONTROL AND A RULE, NEVER A COMMAND. Pages live
-            # on the share and are edited by administrators; one that could name
-            # a command would be one that could run one. Show-HDTWizardShell
-            # resolves 'ComputerName' to Test-HDTComputerName - the same single
-            # copy of the rule Invoke-HDTApplyUnattendStep enforces.
-            Validate   = [pscustomobject] @{ Control = 'HDTComputerNameBox'; Rule = 'ComputerName' }
+    # AND THE SAME FILTER THE PAYLOAD USES. Pass -Variable to watch a skip key
+    # take a page out: @{ HDTSkipLocaleSelection = $true } and the rail is three
+    # rows instead of four.
+    $ask = Get-HDTWizardPage -Page $wizard.Page -Variable $Variable
 
-            # MDT'S COMPUTER DETAILS PANE COLLECTS SEVERAL THINGS, so Collect is
-            # a list. The workgroup and the domain are both read: a machine
-            # joins one or the other, and the summary writes out only what was
-            # actually filled in - a rule setting the other to nothing would
-            # RESOLVE it and stop any later rule supplying a real value.
-            Collect    = @(
-                [pscustomobject] @{ Control = 'HDTComputerNameBox'; Variable = 'HDTComputerName' },
-                [pscustomobject] @{ Control = 'HDTJoinDomainBox'; Variable = 'HDTJoinDomain' },
-                [pscustomobject] @{ Control = 'HDTMachineObjectOuBox'; Variable = 'HDTMachineObjectOU' },
-                [pscustomobject] @{ Control = 'HDTJoinWorkgroupBox'; Variable = 'HDTJoinWorkgroup' },
-                # THE ACCOUNT DOMAIN BOX IS COLLECTED FIRST, ON PURPOSE. The
-                # account box below may also carry a domain - CORP\svc - and the
-                # split has to be able to see what this box held to decide
-                # whether to keep it. Collect is walked in order.
-                [pscustomobject] @{ Control = 'HDTDomainAdminDomainBox'; Variable = 'HDTDomainAdminDomain' },
+    Write-Information ("{0} page(s) to ask, {1} skipped" -f @($ask.Page).Count, @($ask.Skipped).Count) -InformationAction Continue
 
-                # ONE BOX THAT MAY FILL TWO VARIABLES. Both ways of saying it
-                # work: CORP\svc-hdt-join with the domain box empty, or
-                # svc-hdt-join with CORP in the box. Precedence, most specific
-                # first: the typed prefix, then the box, then the domain being
-                # joined - which is what SplitDefaultFrom names.
-                #
-                # AND IT IS NOT THE SHARE ACCOUNT. HDTUserID reaches the
-                # deployment share; HDTDomainAdmin has rights in the directory.
-                # Two accounts, two sets of variables, never shared.
-                [pscustomobject] @{
-                    Control          = 'HDTDomainAdminBox'
-                    Variable         = 'HDTDomainAdmin'
-                    Split            = 'AccountName'
-                    SplitVariable    = 'HDTDomainAdminDomain'
-                    SplitDefaultFrom = 'HDTJoinDomain'
-                },
-
-                # IsSecret KEEPS IT OFF THE SCREEN AND OUT OF THE FILE.
-                # Get-HDTVariableMap already says of this variable: "never
-                # written to a log", and a YAML block on a share is worse than
-                # one. Property is Password because a PasswordBox has no Text.
-                [pscustomobject] @{
-                    Control  = 'HDTPasswordBox'
-                    Variable = 'HDTDomainAdminPassword'
-                    Property = 'Password'
-                    IsSecret = $true
-                }
-            )
-            Skip       = 'HDTSkipComputerName'
-        },
-        [pscustomobject] @{
-            Id         = 'LocaleTime'
-            Title      = 'Locale and time'
-            Heading    = 'Specify locale and time preferences'
-            Subheading = 'What the deployed machine speaks, types and reads the clock in.'
-            XamlPath   = (Join-Path -Path $previewRoot -ChildPath 'HDTPreviewLocaleTime.xaml')
-
-            # FOUR SETTINGS, READ FROM SelectedValue SO THE TAG IS COLLECTED
-            # RATHER THAN THE LABEL. The deployed machine wants en-US and
-            # 'Israel Standard Time'; the technician reads 'English (United
-            # States)' and '(UTC+02:00) Jerusalem'.
-            Collect    = @(
-                [pscustomobject] @{ Control = 'HDTUILanguageBox'; Variable = 'HDTUILanguage'; Property = 'SelectedValue' },
-                [pscustomobject] @{ Control = 'HDTUserLocaleBox'; Variable = 'HDTUserLocale'; Property = 'SelectedValue' },
-                [pscustomobject] @{ Control = 'HDTKeyboardLocaleBox'; Variable = 'HDTKeyboardLocale'; Property = 'SelectedValue' },
-                [pscustomobject] @{ Control = 'HDTTimeZoneNameBox'; Variable = 'HDTTimeZoneName'; Property = 'SelectedValue' }
-            )
-
-            # MDT HAS TWO SKIP PROPERTIES FOR THIS ONE PANE, and so does DESIGN
-            # 11.2: HDTSkipLocaleSelection hides the language group,
-            # HDTSkipTimeZone the time group. Skip names the one that hides the
-            # WHOLE page; the panes are collapsed by name, as on the Welcome
-            # screen.
-            Skip       = 'HDTSkipLocaleSelection'
-        },
-        [pscustomobject] @{
-            Id         = 'Summary'
-            Title      = 'Summary'
-            Heading    = 'Ready to deploy'
-            Subheading = 'Check what was chosen - and what to set so nobody has to choose it again.'
-            XamlPath   = (Join-Path -Path $previewRoot -ChildPath 'HDTPreviewSummary.xaml')
-
-            # THE SUMMARY NAMES TWO CONTROLS AND AUTHORS NOTHING.
-            # Get-HDTWizardSummary builds every row and the snippet, on arrival,
-            # from what the earlier pages were actually filled in with.
-            Skip       = 'HDTSkipSummary'
-            Summary    = [pscustomobject] @{ RowControl = 'HDTSummaryList'; SnippetControl = 'HDTSummarySnippet' }
-        }
-    )
-
+    if (-not $ask.IsWizardNeeded) {
+        Write-Information 'every page is skipped - a deployment here would show no wizard at all.' -InformationAction Continue
+        return
+    }
     $shellAnswer = Show-HDTWizardShell `
         -ShellXamlPath (Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/UI/HDTWizardShell.xaml') `
         -ThemeXamlPath (Join-Path -Path $repoRoot -ChildPath 'src/Hephaestus/UI/HDTTheme.xaml') `
-        -Page $previewPage `
-        -Title 'Hephaestus Deployment Toolkit' `
+        -Page $ask.Page `
+        -Title $wizard.Title `
         -Field @([pscustomobject] @{ Name = 'HDTComputerNameBox'; Text = 'HDT-01' })
 
     Write-Information ("the technician chose: {0}" -f $shellAnswer.Action) -InformationAction Continue

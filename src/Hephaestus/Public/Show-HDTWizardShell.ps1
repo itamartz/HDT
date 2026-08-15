@@ -366,10 +366,28 @@ function Show-HDTWizardShell {
         }
     }
 
+    # WHAT WAS TYPED COMES BACK WITH THE ANSWER. A wizard that reported Next and
+    # dropped the values would be a wizard that asked a technician for a
+    # computer name and then deployed the machine without it.
+    #
+    # THE HOST READ THEM, SO THE HOST HANDS THEM BACK - it is the only thing
+    # that ever touched the controls. This forwards them and interprets none of
+    # them; the payload puts them into the variable engine as the Wizard source
+    # (DESIGN 3.1), where provenance records that they were typed.
+    #
+    # THEY COME BACK ON A CANCEL TOO. A cancel is not an erasure: what was typed
+    # before it is worth logging, and what a cancel MEANS is the caller's
+    # decision, not this command's.
+    $value = @{}
+    if ($null -ne $WizardHost.PSObject.Properties['Value'] -and $null -ne $WizardHost.Value) {
+        $value = $WizardHost.Value
+    }
+
     return [pscustomobject] @{
         Action        = $action
         Title         = $Title
         ShellXamlPath = $ShellXamlPath
         PageCount     = @($loaded).Count
+        Value         = $value
     }
 }

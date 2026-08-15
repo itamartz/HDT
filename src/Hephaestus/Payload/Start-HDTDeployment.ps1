@@ -108,7 +108,23 @@ param(
 
     [Parameter()]
     [ValidateRange(0, 3600)]
-    [int] $NetworkTimeoutSecond = 120
+    [int] $NetworkTimeoutSecond = 120,
+
+    # THE THREE WINDOWS, STAGED INTO THE IMAGE BY Update-HDTBootImage. The PAGES
+    # live on the share (DESIGN 11.2) and are named by Scripts\UI\wizard.yaml;
+    # the shell, the theme and the progress window ship in the boot image
+    # because they must exist before the share is reachable.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $WizardShellPath = 'X:\HDT\UI\HDTWizardShell.xaml',
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $WizardThemePath = 'X:\HDT\UI\HDTTheme.xaml',
+
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $ProgressXamlPath = 'X:\HDT\UI\HDTProgress.xaml'
 )
 
 # -- 1. the preferences ------------------------------------------------------
@@ -385,6 +401,99 @@ try {
 
     $resolved = Resolve-HDTVariable @resolveArgument
 
+    # -- 10a. the technician wizard, IF THIS SHARE DECLARES ONE ---------------
+    #
+    # MDT'S ORDER, AND FOR MDT'S REASON: connect, gather, rules, THEN ask. The
+    # wizard exists to collect what the rules could not supply, so it has to run
+    # after them - and its answers outrank them, because a technician standing
+    # at the machine outranks a guess (DESIGN 3.1).
+    #
+    # A SHARE WITH NO Scripts\UI\wizard.yaml HAS NO WIZARD, and that is what
+    # keeps every image built before this existed deploying with nobody present.
+    # Nothing here waits for a human who is not there: no definition, no pages
+    # left to ask, or HDTSkipWizard set - and this whole block is a few
+    # milliseconds of file test.
+    #
+    # THE ANSWERS ARE RE-RESOLVED RATHER THAN PATCHED IN. Resolve-HDTVariable is
+    # pure, so running it again with -Wizard is how the precedence in DESIGN 3.1
+    # actually applies - a typed name beats the rule that guessed one, a rule
+    # still wins where the technician left a box empty, and the provenance says
+    # which happened.
+    $wizardValue = @{}
+
+    $wizard = Import-HDTWizardDocument -Provider $content
+
+    if ($null -eq $wizard) {
+        & $say 'no Scripts\UI\wizard.yaml on this share; nothing is asked and nothing waits.'
+    } else {
+        $ask = Get-HDTWizardPage -Page $wizard.Page -Variable $resolved.Variable
+
+        & $say ("wizard: {0} page(s) to ask, {1} skipped" -f @($ask.Page).Count, @($ask.Skipped).Count)
+
+        foreach ($skipped in @($ask.Skipped)) {
+            & $say ("  {0} skipped by {1}" -f $skipped.Id, $skipped.Rule)
+        }
+
+        if ($ask.IsWizardNeeded) {
+
+            # THE CONSOLE GOES AWAY AND COMES BACK IN A finally. WinPE boots
+            # into cmd.exe running startnet.cmd, and that black window sits
+            # behind everything. Hidden is a presentation choice, never a place
+            # to get stuck: a hidden console plus a wizard that then throws
+            # leaves a technician staring at nothing.
+            $consoleHidden = $false
+
+            try {
+                $consoleHidden = [bool] (Hide-HDTShellWindow)
+
+                # WHAT GOES IN THE BOXES, worked out by the command that owns
+                # that question. A network read that fails leaves the boxes
+                # empty and the wizard still opens - a machine with no lease is
+                # exactly when a technician needs the screen.
+                $network = $null
+                try {
+                    $network = Get-HDTNetworkConfiguration
+                } catch {
+                    & $say ("no network configuration could be read for the wizard: {0}" -f $_.Exception.Message)
+                }
+
+                $field = @(Get-HDTWizardField -NetworkConfiguration $network -Bootstrap $bootstrap)
+
+                $answer = Show-HDTWizardShell -ShellXamlPath $WizardShellPath -ThemeXamlPath $WizardThemePath `
+                    -Page $ask.Page -Title $wizard.Title -Field $field
+
+                $result['wizardAction'] = [string] $answer.Action
+                & $say ("the technician chose: {0}" -f $answer.Action)
+
+                # MDT'S "EXIT TO COMMAND PROMPT": the window closes and the
+                # technician is left AT a prompt. Opening it is this caller's
+                # job - Show-HDTWizardShell reports and opens nothing.
+                if ($answer.Action -eq 'CommandPrompt') {
+                    $prompt = Start-HDTCommandPrompt
+                    & $say ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
+
+                    throw 'HDTDeploymentCancelled: the technician asked for a command prompt instead of a deployment.'
+                }
+
+                # A DISMISSED WIZARD IS NOT CONSENT TO PARTITION A DISK.
+                if ($answer.Action -ne 'Next') {
+                    throw 'HDTDeploymentCancelled: the technician cancelled the wizard.'
+                }
+
+                $wizardValue = $answer.Value
+                & $say ("the wizard supplied {0} value(s): {1}" -f
+                    @($wizardValue.Keys).Count, ((@($wizardValue.Keys) | Sort-Object) -join ', '))
+            } finally {
+                if ($consoleHidden) { [void] (Hide-HDTShellWindow -Restore) }
+            }
+        }
+    }
+
+    if (@($wizardValue.Keys).Count -gt 0) {
+        $resolveArgument['Wizard'] = $wizardValue
+        $resolved = Resolve-HDTVariable @resolveArgument
+    }
+
     $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($name in @($resolved.Variable.Keys)) {
         $variable[[string] $name] = $resolved.Variable[$name]
@@ -428,11 +537,34 @@ try {
     $result['computerName'] = [string] $variable['HDTComputerName']
     & $say ("HDTComputerName resolved to '{0}'" -f $result['computerName'])
 
+    # -- 10b. the progress window --------------------------------------------
+    #
+    # DESIGN 11.1. It goes up before the engine starts and comes down in the
+    # tail, so a technician sees what the machine is doing from the first step
+    # rather than a black X:\Windows\system32> prompt with a cursor on it.
+    #
+    # THREE OUTCOMES AND NONE OF THEM STOPS A DEPLOYMENT: a window, styled
+    # console lines when this machine cannot draw one, or nothing at all when
+    # HDTSkipProgress said so. Start-HDTProgressDisplay hands back a host either
+    # way, so the engine reports progress the same on every machine.
+    $display = Start-HDTProgressDisplay -XamlPath $ProgressXamlPath -Variable $variable
+
+    $result['progressMode'] = [string] $display.Mode
+    & $say ("progress display: {0} {1}" -f $display.Mode, $display.Reason)
+
+    if ($display.Mode -ne 'Suppressed') {
+        # NOT IN THE EVENT STREAM. Every other value on that screen is derived
+        # from the log; the machine's own name is a variable, and this is the
+        # only place that has it.
+        $display.DisplayHost.SetComputerName([string] $variable['HDTComputerName'])
+    }
+
     # -- 11. the context -----------------------------------------------------
 
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Lsa $lsa -Process $processService -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
-        -Environment $environment -Disk $diskService -Image $imageService -Content $content
+        -Environment $environment -Disk $diskService -Image $imageService -Content $content `
+        -Progress $display.DisplayHost
 
     $state = New-HDTRunState -SequenceId $sequence.Id -RunId $runId -Phase WinPE `
         -Clock $clock -Variable $variable -Step $sequence.Step
@@ -477,6 +609,15 @@ try {
 # ALL OF IT AFTER THE CATCH, NEVER INSIDE THE TRY. A run that died before the
 # loop never reached the loop's own copy-back, and that run is precisely the one
 # whose log is wanted.
+
+# THE PROGRESS WINDOW COMES DOWN HERE, AFTER THE CATCH, for the same reason
+# everything else in this block is here: a run that died is exactly the run
+# whose screen must not be left up over a machine that is about to power off.
+# It is full-screen and has no way out of it, so a payload that returned without
+# this would leave a technician looking at a frozen status board.
+if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
+    $display.DisplayHost.Close()
+}
 
 $result['elapsedSecond'] = [int] $started.Elapsed.TotalSeconds
 

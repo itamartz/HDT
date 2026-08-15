@@ -88,6 +88,13 @@ function New-HDTWizardHost {
 
     $service = [pscustomobject] @{
         Answer = ''
+
+        # WHAT THE TECHNICIAN FILLED IN, read off the controls as each page was
+        # left. Show-HDTWizardShell hands it back to the caller, which puts it
+        # into the variable engine as the Wizard source (DESIGN 3.1) - so a
+        # typed computer name reaches the deployment and the provenance says it
+        # was typed.
+        Value  = @{}
     }
 
     # EVERYTHING DONE BY NAME, IN ONE PLACE. Both Show and ShowShell fill boxes,
@@ -590,6 +597,15 @@ function New-HDTWizardHost {
         }
 
         [void] $window.ShowDialog()
+
+        # THE LAST PAGE IS HARVESTED ON THE WAY OUT. Cancel and Open CMD close
+        # the window without navigating, and Deploy closes it from inside the
+        # Next handler - so without this, whatever was typed on the page the
+        # technician was standing on when they left is read off a control that
+        # is about to stop existing, or not at all.
+        & $harvest
+
+        $this.Value = $trip.Value
 
         return [string] $this.Answer
     }

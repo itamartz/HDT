@@ -172,13 +172,42 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:codeOnly | Should -Not -Match '(?i)install\.wim'
         }
 
-        It 'contains no technician UI' {
-            # DESIGN 11's progress window and wizard are a later milestone. A
-            # silent entry point is the honest v1, and this is what stops this
-            # file quietly becoming the other thing.
-            @($script:everyCommandName | Where-Object { $_ -like 'Show-*' }) | Should -BeNullOrEmpty
+        It 'loads no UI framework and builds no window of its own' {
+            # THIS RULE USED TO FORBID Show-* ENTIRELY, and said so: "DESIGN 11's
+            # progress window and wizard are a later milestone. A silent entry
+            # point is the honest v1, and this is what stops this file quietly
+            # becoming the other thing." That milestone has arrived - the
+            # payload now shows DESIGN 11.2's wizard when the share declares one
+            # and DESIGN 11.1's progress window while the sequence runs - so the
+            # rule is narrowed rather than deleted.
+            #
+            # WHAT IT STILL FORBIDS IS THE PART THAT MATTERED: this file must
+            # not reach for WPF itself. Every window goes through the injected
+            # hosts, which are the only things in the engine that name an
+            # assembly - so the payload stays testable, and a machine that
+            # cannot draw still deploys through the console fallback rather than
+            # dying on an Add-Type here.
             $script:codeOnly | Should -Not -Match 'PresentationFramework'
             $script:codeOnly | Should -Not -Match 'System\.Windows\.Forms'
+            $script:codeOnly | Should -Not -Match 'XamlReader'
+        }
+
+        It 'shows the wizard only through Show-HDTWizardShell' {
+            # ONE WINDOW COMMAND, AND IT IS THE ONE THAT REFUSES TO READ A
+            # DISMISSED WINDOW AS CONSENT. A payload that called the host
+            # directly would be a payload that could treat silence as Next.
+            $shown = @($script:everyCommandName | Where-Object { $_ -like 'Show-*' } | Sort-Object -Unique)
+
+            $shown | Should -Be @('Show-HDTWizardShell')
+        }
+
+        It 'hides the console only in a pair' {
+            # A hidden console plus a wizard that then throws leaves a
+            # technician staring at a blank screen with nothing to read and
+            # nothing to type into. Hide-HDTShellWindow appears twice: the hide
+            # and the restore.
+            @($script:everyCommandName | Where-Object { $_ -eq 'Hide-HDTShellWindow' }).Count |
+                Should -BeGreaterOrEqual 2
         }
 
         It 'writes nothing with Write-Host' {
@@ -276,9 +305,43 @@ Describe 'Start-HDTDeployment.ps1' {
             @(& $script:commandNamed 'Get-HDTBootstrapConfiguration').Count | Should -Be 1
         }
 
-        It 'gathers facts and resolves variables exactly once each' {
+        It 'gathers facts exactly once' {
             @(& $script:commandNamed 'Get-HDTMachineFact').Count | Should -Be 1
-            @(& $script:commandNamed 'Resolve-HDTVariable').Count | Should -Be 1
+        }
+
+        It 'resolves twice at most, and the second time is the wizard' {
+            # IT USED TO BE ONCE, and the wizard is why it is two.
+            #
+            # The wizard cannot run before the first resolution: it needs the
+            # resolved variables to know which pages are skipped and what to
+            # prefill the boxes with. And its answers cannot be patched into the
+            # result afterwards - that would set values with no provenance and
+            # no precedence, which is the whole thing DESIGN 3.1 exists to
+            # prevent.
+            #
+            # SO IT RESOLVES AGAIN WITH -Wizard, and the second pass is how the
+            # precedence actually applies: a typed name beats the rule that
+            # guessed one, a rule still wins where a box was left empty, and the
+            # provenance says which happened. Resolve-HDTVariable is pure, so
+            # running it twice costs nothing but the time.
+            $resolve = @(& $script:commandNamed 'Resolve-HDTVariable')
+
+            @($resolve).Count | Should -BeLessOrEqual 2
+            @($resolve).Count | Should -BeGreaterOrEqual 1
+        }
+
+        It 'reads the wizard definition off the share rather than the file system' {
+            # DESIGN 11.2's pages live on the share, and standalone media is the
+            # same share with the provider swapped - so a payload that reached
+            # for the file system here would work on a share and not on media.
+            @(& $script:commandNamed 'Import-HDTWizardDocument').Count | Should -Be 1
+        }
+
+        It 'decides which pages to ask with Get-HDTWizardPage' {
+            # Never by showing every page and letting the technician skip them:
+            # a page skipped with no value behind it is an error rather than a
+            # prompt (DESIGN 11.2), and only that command knows it.
+            @(& $script:commandNamed 'Get-HDTWizardPage').Count | Should -Be 1
         }
 
         It 'looks for a per-machine override' {
