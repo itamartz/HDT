@@ -507,6 +507,48 @@ function New-HDTConsoleHost {
                 $window.Close()
             }.GetNewClosure())
 
+        # THE WAY OUT ASKS FIRST, WHICHEVER WAY OUT IT IS. Closing is on
+        # Closing rather than on the Close button because the title-bar X never
+        # runs a button's handler - which is how the editor came to discard
+        # every splice in silence while its own title said "unsaved changes".
+        #
+        # CLOSING IS STILL ONE OF THE ANSWERS. An editor that refused to close
+        # until the document was saved would be worse than one that discarded
+        # it: somebody who has made a mess of a sequence needs to leave without
+        # writing it, and that is exactly when they are least able to fix it
+        # first.
+        #
+        # WHAT IS ASKED AND WHAT THE ANSWER MEANS ARE BOTH DECIDED IN COMMANDS.
+        # This shows a dialog and acts on two booleans; which button writes to a
+        # deployment share is not an opinion an untested adapter should hold.
+        $window.Add_Closing({
+                param($closingWindow, $closing)
+
+                $prompt = Get-HDTConsoleClosePrompt -DocumentPath $Path -Dirty:$book.Dirty
+
+                if (-not $prompt.Ask) { return }
+
+                # Cast rather than dynamic member access: the command names the
+                # button set and the icon as strings, and a cast is what turns a
+                # name into the enum without this line knowing the list.
+                $answer = [System.Windows.MessageBox]::Show($window, $prompt.Message, $prompt.Title,
+                    ([System.Windows.MessageBoxButton] $prompt.Button),
+                    ([System.Windows.MessageBoxImage] $prompt.Icon))
+
+                $decision = Resolve-HDTConsoleCloseAnswer -Answer ([string] $answer)
+
+                if ($decision.Cancel) {
+                    $closing.Cancel = $true
+                    return
+                }
+
+                if ($decision.Save) {
+                    [void] (Save-HDTConsoleSequence -Path $Path -Line $book.Line `
+                            -FileSystem (New-HDTFileSystem) -Confirm:$false)
+                    $book.Dirty = $false
+                }
+            }.GetNewClosure())
+
         [void] $window.ShowDialog()
 
         return [string] $this.Answer
