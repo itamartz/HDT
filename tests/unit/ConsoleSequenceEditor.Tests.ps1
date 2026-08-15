@@ -152,7 +152,7 @@ Describe 'Get-HDTConsoleSequenceEditor' {
 
         It 'puts the steps in the order the engine would run them' {
             @($script:stepRow | ForEach-Object { $_.Text }) |
-                Should -Be @('1. Validate', '2. Format and Partition', '3. Apply OS', '4. Prepare Boot')
+                Should -Be @('1. Validate', '2. Format and Partition', '3. Apply OS', '4. Prepare Boot  (continues on error)')
         }
 
         It 'nests a step under its group, and hangs the groups off the root' {
@@ -276,5 +276,87 @@ steps:
 
             @($lab.Node)[0] | Should -Not -Be @($prod.Node)[0]
         }
+    }
+}
+
+# A STEP THAT IS ALLOWED TO FAIL LOOKS DIFFERENT FROM ONE THAT IS NOT.
+#
+# continueOnError changes what a red deployment MEANS: a sequence carrying one is
+# a sequence that can finish having done less than it says. That is a deliberate
+# choice an administrator made, and it is invisible in a step tree that draws
+# every step as the same grey gear - so it takes its own glyph and its own
+# colour, the way a disabled step does.
+#
+# AMBER, NOT RED. It is not a fault; it is a tolerance somebody chose on purpose,
+# and red is reserved for a document that cannot be read (see
+# Get-HDTConsoleIconColor). Amber is the console's "worth noticing".
+#
+# DISABLED WINS WHEN BOTH ARE SET. A step that never runs cannot fail, so
+# tolerating its failure is not a fact about this deployment.
+
+Describe 'a step that carries continueOnError' {
+
+    BeforeAll {
+        $script:tolerantYaml = @'
+schemaVersion: 1
+id: TOLERANT
+name: One tolerant step, one ordinary, one off
+steps:
+  - name: Ordinary
+    type: Validate
+
+  - name: Tolerant
+    type: CommandLine
+    continueOnError: true
+
+  - name: Off And Tolerant
+    type: CommandLine
+    continueOnError: true
+    disabled: true
+'@
+
+        $script:tolerantEditor = Get-HDTConsoleSequenceEditor -Sequence (New-HDTConsoleEditorTestSequence -Id 'TOLERANT' -Yaml $script:tolerantYaml)
+        $script:tolerantStep = @($script:tolerantEditor.Node | Where-Object { $_.Kind -eq 'Step' })
+    }
+
+    It 'gives it a glyph of its own, not the ordinary gear' {
+        $ordinary = @($script:tolerantStep | Where-Object { $_.Name -eq 'Ordinary' })[0]
+        $tolerant = @($script:tolerantStep | Where-Object { $_.Name -eq 'Tolerant' })[0]
+
+        $tolerant.Icon | Should -Not -BeExactly $ordinary.Icon
+        $tolerant.Icon | Should -Not -BeNullOrEmpty
+    }
+
+    It 'draws it amber, because a tolerance is worth noticing and is not a fault' {
+        $tolerant = @($script:tolerantStep | Where-Object { $_.Name -eq 'Tolerant' })[0]
+
+        $tolerant.IconColor | Should -BeExactly '#FFB77400'
+    }
+
+    It 'leaves an ordinary step exactly as it was' {
+        $ordinary = @($script:tolerantStep | Where-Object { $_.Name -eq 'Ordinary' })[0]
+
+        $ordinary.IconColor | Should -BeExactly '#FF6E7781'
+    }
+
+    It 'says so in words too, so the mark is not a symbol nobody can look up' {
+        $tolerant = @($script:tolerantStep | Where-Object { $_.Name -eq 'Tolerant' })[0]
+
+        $tolerant.Text | Should -BeLike '*continues on error*'
+    }
+
+    It 'lets disabled win, because a step that never runs cannot fail' {
+        $both = @($script:tolerantStep | Where-Object { $_.Name -eq 'Off And Tolerant' })[0]
+        $off = [string] ([char] 0x2298)
+
+        $both.Icon | Should -BeExactly $off
+        $both.Text | Should -BeLike '*(disabled)*'
+        $both.Text | Should -Not -BeLike '*continues on error*'
+    }
+
+    It 'draws a disabled step grey, because it is inert rather than interesting' {
+        $both = @($script:tolerantStep | Where-Object { $_.Name -eq 'Off And Tolerant' })[0]
+
+        $both.IconColor | Should -BeExactly '#FF767676'
     }
 }

@@ -115,6 +115,15 @@ function New-HDTConsoleNode {
         [AllowEmptyString()]
         [string] $Icon = '',
 
+        # A COLOUR TO USE INSTEAD OF THE ONE THE KIND WOULD GIVE IT, for the
+        # rows whose colour is about the ROW rather than about what kind of
+        # thing it is. A step that is switched off, or one that is allowed to
+        # fail, is still a Step; Get-HDTConsoleIconColor answers by Kind and
+        # Status and has nothing to say about either fact.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $IconColor = '',
+
         # THE SUBJECT'S OWN NAME, WHICH IS NOT ITS ROW'S TEXT. Text is prose for
         # a person - '3. Apply OS  (disabled)' - and every editing cmdlet takes
         # the bare name. Carrying it here rather than having the window peel the
@@ -179,7 +188,7 @@ function New-HDTConsoleNode {
         # THE COLOUR BESIDE THE GLYPH, so the window binds to it and decides
         # nothing. See Get-HDTConsoleIconColor for why this is a literal rather
         # than a theme resource key.
-        IconColor        = (Get-HDTConsoleIconColor -Kind $Kind -Status $Status)
+        IconColor        = $(if ([string]::IsNullOrEmpty($IconColor)) { Get-HDTConsoleIconColor -Kind $Kind -Status $Status } else { $IconColor })
         IsExpanded       = (-not $Collapsed.IsPresent)
 
         # WHETHER THIS ROW IS THE SELECTED ONE, carried the way IsExpanded is

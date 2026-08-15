@@ -195,23 +195,52 @@ function Get-HDTConsoleStepNode {
             )
         }
 
+        # TWO FACTS ABOUT A STEP ARE WORTH SEEING WITHOUT OPENING IT, and neither
+        # is what KIND of thing it is - which is all Get-HDTConsoleIcon and
+        # Get-HDTConsoleIconColor answer. So the row overrides both.
+        #
         # A DISABLED STEP HAS TO LOOK DISABLED AT A GLANCE. The reason to switch
         # one off is usually to run the sequence again and watch what changes,
         # and the tree is what an administrator checks before they do. The
         # engine skips it (Invoke-HDTTaskSequence branch 2a); this is the same
-        # fact, on the screen.
+        # fact, on the screen. Grey, because it is inert rather than
+        # interesting - it is not going to do anything at all.
+        #
+        # A STEP THAT IS ALLOWED TO FAIL CHANGES WHAT A GREEN DEPLOYMENT MEANS.
+        # A sequence carrying continueOnError can finish having done less than
+        # it says, which is a deliberate choice somebody made and is invisible
+        # in a tree that draws every step as the same grey gear. Amber, because
+        # it is a tolerance worth noticing and not a fault - red is for a
+        # document that cannot be read.
+        #
+        # DISABLED WINS WHEN BOTH ARE SET: a step that never runs cannot fail,
+        # so tolerating its failure is not a fact about this deployment.
         $text = '{0}. {1}' -f $current.Index, $current.Name
         $icon = ''
+        $iconColor = ''
+
+        if ([bool] $current.ContinueOnError) {
+            $text = '{0}. {1}  (continues on error)' -f $current.Index, $current.Name
+            # U+21B7, NOT U+21AA. The hooked arrow has an EMOJI presentation,
+            # so Windows renders it as a boxed pictograph in its own colours and
+            # ignores the Foreground this row asked for - the mark came out as an
+            # amber-ish tile rather than an amber arrow. A curve arrow has no
+            # emoji form and takes the colour it is given, the way the disabled
+            # step's U+2298 does.
+            $icon = [string] ([char] 0x21B7)     # clockwise top semicircle arrow - carries on past a failure
+            $iconColor = '#FFB77400'
+        }
 
         if ([bool] $current.Disabled) {
             $text = '{0}. {1}  (disabled)' -f $current.Index, $current.Name
             $icon = [string] ([char] 0x2298)     # circled division slash - switched off
+            $iconColor = '#FF767676'
         }
 
         $row = New-HDTConsoleNode -Depth $path.Count -Kind 'Step' -Status 'Ok' `
             -Text $text -Name $current.Name -Field $field `
             -Command ('{0}.Step[{1}]' -f $document, $index) `
-            -Header $Header -Icon $icon
+            -Header $Header -Icon $icon -IconColor $iconColor
 
         [void] $node.Add($row)
 
