@@ -82,4 +82,20 @@ $answer = Show-HDTWizard -XamlPath $XamlPath -Title 'Hephaestus Deployment Toolk
 
 Write-Information ("the technician chose: {0}" -f $answer.Action) -InformationAction Continue
 
+# OPEN CMD IS MDT'S "EXIT TO COMMAND PROMPT", and MDT's behaviour is what it
+# does: the wizard closes and the technician is left AT A PROMPT. In WinPE that
+# prompt is the console startnet.cmd is running in, which the payload hid to put
+# the wizard on screen - so restoring it is not decoration, it IS the feature.
+# Without this the window vanishes and a technician who asked for a prompt is
+# looking at nothing.
+#
+# ON THIS DESKTOP IT IS A NO-OP AND THAT IS CORRECT: Hide-HDTShellWindow answers
+# false when there is no console to act on, and the terminal this tool was
+# started from is already the prompt being asked for. The point of calling it
+# here is that the tool and the payload take the SAME path, which is the whole
+# reason this tool exists.
+if ($answer.Action -eq 'CommandPrompt') {
+    [void] (Hide-HDTShellWindow -Restore)
+}
+
 return $answer

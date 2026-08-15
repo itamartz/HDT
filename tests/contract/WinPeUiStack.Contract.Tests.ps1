@@ -239,4 +239,79 @@ Describe 'the WinPE UI stack' {
                     ($offender -join ', '))
         }
     }
+
+    Context 'every button a window offers is a button the engine wires' {
+
+        # THE OTHER DIRECTION, AND IT IS THE ONE THAT WAS ACTUALLY WRONG.
+        # The context above catches a name the engine reaches for and no window
+        # answers to. THIS catches the mirror image: a button a technician can
+        # SEE AND PRESS that no engine code mentions at all.
+        #
+        # HDTWizardShell.xaml shipped an "Open CMD" button named
+        # HDTCommandPromptButton while New-HDTWizardHost wired HDTOpenCmdButton.
+        # Both files were internally consistent and every existing assertion
+        # passed. The button was simply dead - it did not open a prompt, and it
+        # did not even close the window. The one place that failure is visible
+        # is in front of the machine, which is the one place there is no test.
+        #
+        # A DEAD BUTTON IS WORSE THAN A MISSING ONE. A wizard with no escape
+        # hatch tells a technician to find another way; a wizard with one that
+        # does nothing tells them the machine is hung.
+        #
+        # MATCHED ON MENTION, NOT ON FindName. The host reaches for its buttons
+        # through a table - FindName([string] $pair.Name) - so a scan for
+        # FindName('literal') sees none of them. What is being asserted is
+        # weaker and honest: the engine names this control SOMEWHERE. A name
+        # nothing in src/ even mentions cannot be wired by any route.
+
+        BeforeAll {
+            # COMPUTED HERE, NOT BORROWED. $script:window is built by another
+            # Context's BeforeAll, and a Context that only works because an
+            # earlier one ran is a Context that breaks the day someone runs this
+            # file with -FullNameFilter.
+            $script:buttonWindow = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.xaml' } |
+                    ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    } |
+                    Where-Object { ([xml] $_.Code).DocumentElement.LocalName -eq 'Window' })
+
+            $script:declaredButton = @($script:buttonWindow | ForEach-Object {
+                    $relative = $_.Relative
+                    $document = [xml] $_.Code
+
+                    @($document.SelectNodes('//*')) |
+                        Where-Object { $_.LocalName -eq 'Button' } |
+                        ForEach-Object {
+                            $name = $_.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml')
+                            if (-not [string]::IsNullOrEmpty($name)) {
+                                [pscustomobject] @{ Name = $name; Relative = $relative }
+                            }
+                        }
+                    })
+
+            $script:engineText = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.ps1' } |
+                    ForEach-Object { $_.Text })
+        }
+
+        It 'found buttons to judge' {
+            @($script:declaredButton).Count | Should -BeGreaterThan 3 -Because (
+                'the assertion below is vacuous with no buttons found, and every window ships at least Next and Cancel')
+        }
+
+        It 'names no button the engine never mentions' {
+            $offender = @($script:declaredButton | Where-Object {
+                    $name = $_.Name
+                    -not @($script:engineText | Where-Object { $_ -match [regex]::Escape($name) })
+                } | ForEach-Object { '{0} ({1})' -f $_.Name, $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'a button no engine code names is one a technician can press and nothing happens. Found: {0}' -f
+                    ($offender -join ', '))
+        }
+    }
 }
