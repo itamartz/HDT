@@ -131,6 +131,27 @@ Describe 'HDTSequenceEditor.xaml' {
         { [xml] $script:markup } | Should -Not -Throw
     }
 
+    It 'is loadable by WPF, which is a stricter reader than the XML parser' {
+        # [xml] only proves the angle brackets balance. XamlReader is what the
+        # host actually calls, and it is the one that rejects a binding to a
+        # converter the window cannot instantiate, a property a control does not
+        # have, or a StaticResource that was never declared - all of which parse
+        # as XML perfectly well and then produce a window that never opens.
+        #
+        # This was written after IsReadOnly was bound through a
+        # {StaticResource HDTNotConverter} that could not exist: the markup has
+        # no code-behind and no assembly to point an xmlns at, so there is
+        # nowhere for a converter to come from. Every name-and-shape assertion
+        # above passed on that file.
+        Add-Type -AssemblyName PresentationFramework
+        Add-Type -AssemblyName PresentationCore
+        Add-Type -AssemblyName WindowsBase
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $script:markup)
+
+        { [System.Windows.Markup.XamlReader]::Load($reader) } | Should -Not -Throw
+    }
+
     It 'declares <Name>, which the host finds by name' -ForEach @(
         @{ Name = 'HDTEditorTitleText' }
         @{ Name = 'HDTEditorPathText' }
@@ -155,8 +176,27 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTConditionApplyButton' }
         @{ Name = 'HDTConditionClearButton' }
         @{ Name = 'HDTRunInText' }
+
+        # The Properties tab, which now writes.
+        @{ Name = 'HDTPropertyApplyButton' }
+        @{ Name = 'HDTPropertyRevertButton' }
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
+    }
+
+    It 'lets each properties row decide its own box rather than keeping a list of labels' {
+        # Get-HDTConsoleStepNode named the YAML key each row writes, and set
+        # ReadOnly from that. A window with its own opinion about which labels
+        # are typeable is a window that can disagree with the splice.
+        $script:markup | Should -Match 'IsReadOnly="\{Binding ReadOnly\}"'
+    }
+
+    It 'commits typing to the row on the keystroke, not on losing focus' {
+        # The row object IS the edit buffer and Apply diffs it against Original.
+        # LostFocus - TextBox's default - would drop whatever was typed into the
+        # last box before Apply was pressed, because pressing it is what moves
+        # the focus.
+        $script:markup | Should -Match 'UpdateSourceTrigger=PropertyChanged'
     }
 
     It 'hangs a menu off Add rather than a plain button, which is how Workbench offers a step type' {

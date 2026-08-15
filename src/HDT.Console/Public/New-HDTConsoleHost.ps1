@@ -244,6 +244,9 @@ function New-HDTConsoleHost {
         $paste = $window.FindName('HDTPasteButton')
         $save = $window.FindName('HDTSaveButton')
 
+        $propertyApply = $window.FindName('HDTPropertyApplyButton')
+        $propertyRevert = $window.FindName('HDTPropertyRevertButton')
+
         $disableCheck = $window.FindName('HDTDisableCheck')
         $continueCheck = $window.FindName('HDTContinueCheck')
         $conditionText = $window.FindName('HDTConditionText')
@@ -300,6 +303,8 @@ function New-HDTConsoleHost {
             $conditionClear.IsEnabled = $state.CanRemove
             $disableCheck.IsEnabled = $state.CanRemove
             $continueCheck.IsEnabled = $state.CanRemove
+            $propertyApply.IsEnabled = $state.CanRemove
+            $propertyRevert.IsEnabled = $state.CanRemove
 
             $option = $state.Option
 
@@ -429,6 +434,37 @@ function New-HDTConsoleHost {
                 $book.Line = @(Set-HDTConsoleStepFlag -Line $book.Line -Name $book.Selected `
                         -Flag ContinueOnError -Value ([bool] $continueCheck.IsChecked))
                 $book.Dirty = $true
+                & $rebuild
+            }.GetNewClosure())
+
+        # THE PROPERTIES TAB, WHICH IS SEVERAL BOXES AND ONE PRESS. The rows are
+        # the edit buffer - Text is bound TwoWay - so Apply asks
+        # Get-HDTConsoleStepChange which of them were typed into and splices
+        # exactly those. A rename comes back last, so the earlier changes still
+        # find the step by the name it had when the tab was filled.
+        $propertyApply.Add_Click({
+                $subject = $book.Selected
+
+                foreach ($one in @(Get-HDTConsoleStepChange -Field $detail.ItemsSource -Name $subject)) {
+                    $book.Line = @(Set-HDTConsoleStepProperty -Line $book.Line -Name $subject `
+                            -Property $one.Property -Value $one.Value)
+
+                    $command.Text = [string] $one.Command
+                    $book.Dirty = $true
+
+                    # What it answers to from here on. Only a rename moves it,
+                    # and the change says so - the window does not carry its own
+                    # idea of which properties are names.
+                    $subject = [string] $one.NameAfter
+                }
+
+                $book.Selected = $subject
+                & $rebuild
+            }.GetNewClosure())
+
+        # REVERT IS A REBUILD, because the rows are rebuilt from the lines and
+        # the lines are what has not been typed into.
+        $propertyRevert.Add_Click({
                 & $rebuild
             }.GetNewClosure())
 

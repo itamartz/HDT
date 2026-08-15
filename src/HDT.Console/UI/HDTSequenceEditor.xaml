@@ -420,45 +420,88 @@
                         Background="{DynamicResource HDTPanelBrush}"
                         BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
 
-                <!-- WHAT THE STEP DOES. Read-only: the per-type properties are
-                     the next piece of work, and a box that took typing and threw
-                     it away would be worse than one that plainly does not. The
-                     two things an administrator changes most - whether a step
-                     runs at all, and what decides that - are on the other tab
-                     and are fully wired. -->
+                <!--
+                    WHAT THE STEP DOES, AND THE ROWS THAT WRITE IT.
+
+                    A ROW DECIDES ITS OWN BOX. IsReadOnly is bound to the row's
+                    Editable, which Get-HDTConsoleStepNode set by naming the
+                    YAML key the row writes - so the window holds no list of
+                    which labels are typeable and cannot disagree with the
+                    splice about it. 'Type' and 'Runs' come through read-only:
+                    one is refused by Set-HDTConsoleStepProperty and the other
+                    is a position rather than anything in the file.
+
+                    A READ-ONLY BOX ALSO LOOKS READ-ONLY. A grey field that
+                    silently ignores typing is the same insult as a bright
+                    button that does nothing.
+
+                    Text IS TwoWay AND COMMITS ON EVERY KEYSTROKE, deliberately:
+                    the row object IS the edit buffer, Apply diffs it against
+                    Original, and LostFocus - the default for TextBox - would
+                    lose whatever was typed into the last box before the button
+                    was pressed, because pressing it is what moves the focus.
+                -->
                 <TabItem Header="Properties">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Padding="14,12,14,12">
-                        <ItemsControl x:Name="HDTStepDetail">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                                        <TextBlock Grid.Column="0" Text="{Binding Label}"
-                                                   Foreground="{DynamicResource HDTPanelTextBrush}"
-                                                   FontFamily="Segoe UI" FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   Margin="0,5,10,0" VerticalAlignment="Top" />
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Padding="14,12,14,12">
+                            <ItemsControl x:Name="HDTStepDetail">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
 
-                                        <TextBox Grid.Column="1" Text="{Binding Value}"
-                                                 IsReadOnly="True"
-                                                 AcceptsReturn="True" TextWrapping="Wrap"
-                                                 Background="{DynamicResource HDTFieldBrush}"
-                                                 Foreground="{DynamicResource HDTPanelTextBrush}"
-                                                 BorderBrush="{DynamicResource HDTBorderBrush}"
-                                                 BorderThickness="1"
-                                                 FontFamily="Consolas, Courier New" FontSize="12"
-                                                 Padding="6,4,6,4" />
-                                    </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                            <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                       FontFamily="Segoe UI" FontSize="12"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,5,10,0" VerticalAlignment="Top" />
+
+                                            <TextBox x:Name="HDTFieldBox" Grid.Column="1"
+                                                     Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsReadOnly="{Binding ReadOnly}"
+                                                     AcceptsReturn="True" TextWrapping="Wrap"
+                                                     Background="{DynamicResource HDTPanelBrush}"
+                                                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                     BorderBrush="{DynamicResource HDTBorderBrush}"
+                                                     BorderThickness="1"
+                                                     FontFamily="Consolas, Courier New" FontSize="12"
+                                                     Padding="6,4,6,4" />
+                                        </Grid>
+
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding ReadOnly}" Value="True">
+                                                <Setter TargetName="HDTFieldBox" Property="Background"
+                                                        Value="{DynamicResource HDTFieldBrush}" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="1" Padding="14,10,14,12"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HDTPropertyApplyButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Apply properties" IsEnabled="False" />
+                                <Button x:Name="HDTPropertyRevertButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Revert" IsEnabled="False" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
                 </TabItem>
 
                 <!-- WHETHER IT DOES IT. Workbench's Options tab: the two
