@@ -135,7 +135,7 @@ function Get-HDTConsoleStepNode {
                 }
 
                 $row = New-HDTConsoleNode -Depth ($walked.Count - 1) -Kind 'StepGroup' -Status 'Ok' `
-                    -Text $name -Field $field `
+                    -Text $name -Name $name -Field $field `
                     -Command ('{0}.Group[{1}]' -f $document, $groupIndex) `
                     -Header $Header
 
@@ -185,7 +185,7 @@ function Get-HDTConsoleStepNode {
         }
 
         $row = New-HDTConsoleNode -Depth $path.Count -Kind 'Step' -Status 'Ok' `
-            -Text $text -Field $field `
+            -Text $text -Name $current.Name -Field $field `
             -Command ('{0}.Step[{1}]' -f $document, $index) `
             -Header $Header -Icon $icon
 

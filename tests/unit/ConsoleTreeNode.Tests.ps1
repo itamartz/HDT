@@ -553,5 +553,32 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             ($sequence.Detail -join "`n") | Should -Match '4'
         }
+
+        # DOUBLE-CLICKING A TASK SEQUENCE OPENS THE EDITOR, which is what
+        # Deployment Workbench does and what an administrator will try first.
+        # The window may not work out for itself which rows those are - that is
+        # a decision, and decisions do not go in an adapter (CLAUDE.md rule 1) -
+        # so the row says whether it opens and carries the object the editor
+        # needs.
+        It 'marks a task sequence as a row that opens' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.CanOpen | Should -BeTrue
+        }
+
+        It 'carries the task sequence itself, because the editor takes the object and never an id' {
+            # Two shares commonly hold a sequence with the same id - both of
+            # this lab's do - so an editor opened by id could edit one share's
+            # document while showing the other's.
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Subject | Should -Not -BeNullOrEmpty
+            $sequence.Subject.Path | Should -BeExactly 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
+        }
+
+        It 'marks every other row as one that does not open' {
+            @($script:stepNode | Where-Object { $_.Kind -ne 'TaskSequence' -and $_.CanOpen }) |
+                Should -BeNullOrEmpty
+        }
     }
 }

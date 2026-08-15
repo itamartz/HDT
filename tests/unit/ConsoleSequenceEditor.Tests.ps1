@@ -163,6 +163,36 @@ Describe 'Get-HDTConsoleSequenceEditor' {
                 Should -Be @('1. Validate', '2. Format and Partition')
         }
 
+        It 'carries the bare name beside the row''s text, which is what the editing cmdlets take' {
+            # Text is prose for a person - a number in front, '(disabled)'
+            # behind. Every editing cmdlet takes the NAME, so the row carries it
+            # separately rather than making the window peel the decoration back
+            # off with a regex it would have to keep in step with this file.
+            @($script:stepRow | ForEach-Object { $_.Name }) |
+                Should -Be @('Validate', 'Format and Partition', 'Apply OS', 'Prepare Boot')
+        }
+
+        It 'names a group by the leg of the path it is, not by the whole path' {
+            @($script:groupRow | ForEach-Object { $_.Name }) | Should -Be @('Preinstall', 'Install')
+        }
+
+        It 'keeps the name clean on a step that is switched off' {
+            $off = Get-HDTConsoleSequenceEditor -Sequence (New-HDTConsoleEditorTestSequence -Id 'OFF' -Yaml @'
+schemaVersion: 1
+id: OFF
+name: One step, switched off
+steps:
+  - name: Apply OS
+    type: ApplyImage
+    disabled: true
+'@)
+
+            $row = @($off.Node | Where-Object { $_.Kind -eq 'Step' })[0]
+
+            $row.Text | Should -BeLike '*(disabled)*'
+            $row.Name | Should -BeExactly 'Apply OS'
+        }
+
         It 'hangs an ungrouped step straight off the root' {
             $flat = Get-HDTConsoleSequenceEditor -Sequence (New-HDTConsoleEditorTestSequence -Id 'FLAT' -Yaml $script:flatSequenceYaml)
 

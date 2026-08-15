@@ -115,6 +115,30 @@ function New-HDTConsoleNode {
         [AllowEmptyString()]
         [string] $Icon = '',
 
+        # THE SUBJECT'S OWN NAME, WHICH IS NOT ITS ROW'S TEXT. Text is prose for
+        # a person - '3. Apply OS  (disabled)' - and every editing cmdlet takes
+        # the bare name. Carrying it here rather than having the window peel the
+        # decoration back off means the two can never drift, and a step
+        # legitimately called '2. Reboot' cannot be mis-parsed into 'Reboot'.
+        #
+        # It defaults to Text because most rows are their own name; only the
+        # editor's step rows decorate theirs.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Name = '',
+
+        # THE THING THE ROW IS ABOUT, for the rows that open something. A task
+        # sequence row carries its own sequence object so a double-click can
+        # hand it straight to Show-HDTSequenceEditor - which takes the OBJECT
+        # and never an id, because two shares commonly hold a sequence with the
+        # same id and an editor opened by id could write to the wrong one.
+        #
+        # A row without a subject does not open, and CanOpen says so rather than
+        # leaving the window to work out which Kinds are which.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Subject = $null,
+
         [Parameter()]
         [switch] $Collapsed
     )
@@ -143,6 +167,9 @@ function New-HDTConsoleNode {
         Kind             = $Kind
         Status           = $Status
         Text             = $Text
+        Name             = $(if ([string]::IsNullOrEmpty($Name)) { $Text } else { $Name })
+        Subject          = $Subject
+        CanOpen          = ($null -ne $Subject)
         Display          = ((' ' * (4 * $Depth)) + $Text)
         Field            = [pscustomobject[]] @($Field)
         Detail           = (@($line) -join [System.Environment]::NewLine)

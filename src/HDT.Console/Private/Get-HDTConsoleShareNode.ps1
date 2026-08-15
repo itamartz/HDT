@@ -251,7 +251,7 @@ function Get-HDTConsoleShareNode {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
             -Text $text -Field $field `
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
-            -Header $header
+            -Header $header -Subject $sequence
 
         # THE BROWSER STOPS HERE, and the steps are Get-HDTConsoleSequenceEditor's.
         # Deployment Workbench lists task sequences in the tree and edits their
