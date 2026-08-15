@@ -282,7 +282,35 @@ function New-HDTWizardHost {
         # have to see the CURRENT page, not the one that was current when they
         # were attached - and a closed-over [int] would be frozen at 0 forever,
         # so Next would walk from page one every time.
-        $trip = @{ State = $State }
+        #
+        # Closing IS THE WIZARD SAYING "THIS ONE IS MINE". See the Closing
+        # handler below: every close this window did not ask for is refused.
+        # Value IS WHAT THE TECHNICIAN HAS FILLED IN SO FAR, and Root is the
+        # page it is currently on screen in - the only place those controls can
+        # be read from, because a loaded page has its own name scope.
+        $trip = @{ State = $State; Closing = $false; Value = @{}; Root = $null }
+
+        # ALT+F4 IS THE ONLY WAY OUT LEFT, AND IT IS NOT ONE. WindowStyle=None
+        # already took the title bar and its X away - right for WinPE, where a
+        # deployment wizard should not have a corner that makes it disappear -
+        # but Alt+F4 still closed it, and a technician who does that in WinPE
+        # lands on the console the payload hid behind the window.
+        #
+        # IT WAS NEVER DANGEROUS: Show-HDTWizardShell reads a window that
+        # answered nothing as Cancel and never as Next, so a dismissed wizard
+        # could not start a deployment. What it was is UNACCOUNTABLE - a window
+        # that vanished with nothing anywhere recording why. Now it can only
+        # leave through Cancel, Open CMD or Deploy, each of which reports an
+        # answer the payload acts on.
+        #
+        # ONLY THE SHELL. Show above still closes on WM_CLOSE, deliberately:
+        # tests/e2e/payload/Start-HDTWizardProbe.ps1 dismisses the Welcome
+        # screen exactly that way in an unattended lab run, and asserts the
+        # answer is Cancel. Refusing it there would hang the probe rather than
+        # protect anything.
+        $window.Add_Closing({
+                if (-not $trip.Closing) { $_.Cancel = $true }
+            }.GetNewClosure())
 
         $heading = $window.FindName('HDTPageHeading')
         $subheading = $window.FindName('HDTPageSubheading')
@@ -290,6 +318,7 @@ function New-HDTWizardHost {
         $pageList = $window.FindName('HDTPageList')
         $backButton = $window.FindName('HDTBackButton')
         $nextButton = $window.FindName('HDTNextButton')
+        $messageText = $window.FindName('HDTMessageText')
 
         # RENDER ONE STATE. Everything it touches was decided by the navigator;
         # nothing here chooses what to show, only where to put it.
@@ -301,6 +330,14 @@ function New-HDTWizardHost {
             if ($null -ne $pageList) { $pageList.ItemsSource = @($Current.Rail) }
             if ($null -ne $backButton) { $backButton.IsEnabled = [bool] $Current.BackEnabled }
             if ($null -ne $nextButton) { $nextButton.Content = [string] $Current.NextCaption }
+
+            # EVERY PAGE STARTS CLEAN. A message left over from the page before
+            # would accuse this one of a fault it does not have, and a Next left
+            # disabled by an earlier page's refusal would strand the technician
+            # on a page with nothing wrong with it - with no way to fix it,
+            # because the box that was refused is on a different page.
+            if ($null -ne $messageText) { $messageText.Text = '' }
+            if ($null -ne $nextButton) { $nextButton.IsEnabled = $true }
 
             if ($null -eq $pageHost -or $null -eq $Current.Page) { return }
 
@@ -314,6 +351,180 @@ function New-HDTWizardHost {
             $wizardHost.Apply($pageRoot, $Field, $Pane)
 
             $pageHost.Content = $pageRoot
+            $trip.Root = $pageRoot
+
+            # THE SUMMARY'S ROWS ARE COMPUTED BY THE NAVIGATOR, NOT HERE. This
+            # puts them where the page said to put them and nothing else - the
+            # same ItemsSource mechanism the rail uses, for the same reason.
+            if ($null -ne $Current.Page.Summary) {
+
+                $rowControl = $pageRoot.FindName([string] $Current.Page.Summary.RowControl)
+                if ($null -ne $rowControl) { $rowControl.ItemsSource = @($Current.SummaryRow) }
+
+                $snippetControl = $pageRoot.FindName([string] $Current.Page.Summary.SnippetControl)
+                if ($null -ne $snippetControl) { $snippetControl.Text = [string] $Current.SummarySnippet }
+            }
+
+            # WHAT THE PAGE SAID IT VALIDATES. The page named a control and a
+            # rule; Show-HDTWizardShell resolved the rule to this scriptblock.
+            # This runs it and paints the answer, and knows nothing about
+            # computer names, lengths or legal characters.
+            #
+            # ON EVERY KEYSTROKE, AND ONCE BEFORE ANY. A box that is wrong the
+            # moment the page opens - empty, or prefilled from a rule that built
+            # too long a name - must say so then, not after the technician has
+            # typed and deleted a character to find out.
+            $validator = $null
+            if ($null -ne $Current.Page.PSObject.Properties['Validator']) { $validator = $Current.Page.Validator }
+
+            if ($null -eq $validator -or $null -eq $Current.Page.Validate) { return }
+
+            $watched = $pageRoot.FindName([string] $Current.Page.Validate.Control)
+            if ($null -eq $watched) { return }
+
+            $judge = {
+                $judgement = & $validator ([string] $watched.Text)
+
+                if ($null -ne $messageText) {
+                    # THE SEVERITY GOES IN Tag AND THE MARKUP PAINTS IT. A
+                    # warning is not a refusal and must not be the same red;
+                    # deciding that here would put the palette back in the
+                    # engine, which is the thing the rail template exists to
+                    # avoid.
+                    $messageText.Tag = [string] $judgement.Severity
+                    $messageText.Text = [string] $judgement.Reason
+                }
+
+                # NEXT IS THE GATE, AND ONLY A REFUSAL CLOSES IT. IsValid is
+                # false only for a real refusal - a name DNS cannot carry is
+                # still a legal computer name, and blocking it here would stop a
+                # deployment over something Windows itself permits.
+                if ($null -ne $nextButton) { $nextButton.IsEnabled = [bool] $judgement.IsValid }
+            }.GetNewClosure()
+
+            $watched.Add_TextChanged($judge)
+            & $judge
+
+            # A CHARACTER THAT CANNOT BE IN THE ANSWER CANNOT BE TYPED INTO THE
+            # BOX. The page said RestrictInput, which means "judge a keystroke
+            # with the same rule" - and the rule is the only place the legal
+            # characters are written down, so the keyboard is not checking
+            # against a second list that could disagree with the first.
+            #
+            # PreviewTextInput IS BEFORE THE CHARACTER LANDS, which is the whole
+            # point: Handled = true and it never appears. TextChanged would fire
+            # after, leaving the technician to watch the wizard delete what they
+            # just typed.
+            #
+            # IT COVERS PASTE TOO, because a pasted block is judged whole - one
+            # illegal character refuses the paste rather than half-applying it.
+            if (-not $Current.Page.RestrictInput) { return }
+
+            $watched.Add_PreviewTextInput({
+                    $_.Handled = -not [bool] (& $validator ([string] $_.Text)).IsValid
+                }.GetNewClosure())
+
+            # SPACE ARRIVES AS A KEY, NOT AS TEXT INPUT, on a TextBox - it is
+            # handled by the control before PreviewTextInput sees it, so a space
+            # would be the one illegal character that still got in.
+            $watched.Add_PreviewKeyDown({
+                    if ($_.Key -eq [System.Windows.Input.Key]::Space) { $_.Handled = $true }
+                }.GetNewClosure())
+        }.GetNewClosure()
+
+        # WHAT THIS PAGE WAS FILLED IN WITH, READ BEFORE LEAVING IT. The page
+        # declared the control, the property to read and the variable it fills,
+        # so a ListBox and a TextBox are the same thing here - a named property
+        # on a named control. Nothing in this adapter knows what a task sequence
+        # or a computer name is.
+        #
+        # ON THE WAY OUT, NOT ON EVERY KEYSTROKE: the page is about to be
+        # replaced and its controls are about to stop existing, and a value
+        # captured then is the one the technician settled on.
+        $harvest = {
+            if ($null -eq $trip.Root -or $null -eq $trip.State.Page) { return }
+
+            $collect = $trip.State.Page.Collect
+            if ($null -eq $collect) { return }
+
+            # ONE PAGE, SEVERAL VARIABLES. MDT's Computer Details pane collects
+            # a name, a domain or a workgroup, an OU and the account that joins.
+            foreach ($declaration in @($collect)) {
+
+                $control = $trip.Root.FindName([string] $declaration.Control)
+                if ($null -eq $control) { continue }
+
+                # A DISABLED CONTROL COLLECTS NOTHING, and this is not a
+                # nicety. The Computer Details page offers a domain OR a
+                # workgroup and disables whichever was not chosen; without this,
+                # a machine joining corp.contoso.com also wrote
+                # HDTJoinWorkgroup: WORKGROUP into the summary - the box's own
+                # default, which the technician never saw, never chose and could
+                # not have removed. A rules.yaml carrying both is a rules.yaml
+                # that says two contradictory things about one machine.
+                #
+                # AND IT NEEDS NO NEW DECLARATION. The markup already disables
+                # the half that was not chosen, declaratively, off the radio -
+                # so the fact is already on the page and this reads it rather
+                # than restating it in PowerShell.
+                if (-not $control.IsEnabled) { continue }
+
+                $property = 'Text'
+                if (-not [string]::IsNullOrWhiteSpace([string] $declaration.Property)) { $property = [string] $declaration.Property }
+
+                $raw = [string] $control.$property
+
+                # ONE BOX, TWO VARIABLES. The join account is typed as
+                # CORP\svc-hdt-join and DESIGN 4.5.3 wants HDTDomainAdmin and
+                # HDTDomainAdminDomain out of it. The splitting is
+                # Split-HDTAccountName's, resolved by Show-HDTWizardShell; this
+                # calls it and puts the parts where the declaration says.
+                $splitter = $null
+                if ($null -ne $declaration.PSObject.Properties['Splitter']) { $splitter = $declaration.Splitter }
+
+                if ($null -ne $splitter) {
+                    $part = & $splitter $raw
+
+                    $domain = [string] $part.Domain
+
+                    # WHERE THE ACCOUNT'S DOMAIN COMES FROM, MOST SPECIFIC
+                    # FIRST:
+                    #
+                    #   1. a DOMAIN\ prefix the technician typed. It wins over
+                    #      the box below, following the rule
+                    #      Get-HDTWizardCredential already set: "a UserID that
+                    #      already carries a domain is left alone", so
+                    #      'CORP\svc' never becomes 'CORP\CORP\svc'.
+                    #   2. what the account-domain box was filled in with. It
+                    #      is collected first, so it is already in the bag.
+                    #   3. the domain being joined - because a bare account
+                    #      belongs to it, and that fact is on this same page.
+                    #
+                    # EMPTY NEVER OVERWRITES A REAL ANSWER. Without the check
+                    # against the bag, a technician who filled the box and typed
+                    # a bare account would have their box erased by the split.
+                    if ([string]::IsNullOrWhiteSpace($domain)) {
+
+                        $already = ''
+                        if ($trip.Value.ContainsKey([string] $declaration.SplitVariable)) {
+                            $already = [string] $trip.Value[[string] $declaration.SplitVariable]
+                        }
+
+                        if (-not [string]::IsNullOrWhiteSpace($already)) {
+                            $domain = $already
+                        } elseif (-not [string]::IsNullOrWhiteSpace([string] $declaration.SplitDefaultFrom)) {
+                            $from = [string] $declaration.SplitDefaultFrom
+                            if ($trip.Value.ContainsKey($from)) { $domain = [string] $trip.Value[$from] }
+                        }
+                    }
+
+                    $trip.Value[[string] $declaration.Variable] = [string] $part.User
+                    $trip.Value[[string] $declaration.SplitVariable] = $domain
+                    continue
+                }
+
+                $trip.Value[[string] $declaration.Variable] = $raw
+            }
         }.GetNewClosure()
 
         & $render $trip.State
@@ -340,7 +551,8 @@ function New-HDTWizardHost {
             $action = [string] $pair.Action
 
             $button.Add_Click({
-                    $moved = & $Navigator $trip.State.Index $action
+                    & $harvest
+                    $moved = & $Navigator $trip.State.Index $action $trip.Value
 
                     # DONE IS THE ONLY WAY THIS WINDOW REPORTS 'Next', and the
                     # navigator is the only thing that says Done. A shell that
@@ -348,6 +560,7 @@ function New-HDTWizardHost {
                     # a deployment from page one.
                     if ($moved.Done) {
                         $wizardHost.Answer = 'Next'
+                        $trip.Closing = $true
                         $window.Close()
                         return
                     }
@@ -371,6 +584,7 @@ function New-HDTWizardHost {
 
             $button.Add_Click({
                     $wizardHost.Answer = $answer
+                    $trip.Closing = $true
                     $window.Close()
                 }.GetNewClosure())
         }

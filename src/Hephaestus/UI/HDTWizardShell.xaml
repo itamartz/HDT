@@ -157,18 +157,83 @@
                 and drops it in here, which is what lets DESIGN 11.2's eight
                 pages live on the SHARE under Scripts\UI and be redesigned
                 without rebuilding a boot image.
+
+                IT SCROLLS, AND THE PAGE THAT PROVED IT WAS COMPUTER DETAILS. A
+                name, a domain-or-workgroup choice with five boxes under it, and
+                the panel explaining what a computer name may hold do not fit in
+                this window - and the half that fell off the bottom was the
+                workgroup, which is the option most machines take. A page host
+                that clips is a page host that hides whichever control was added
+                last.
+
+                THE SHELL SCROLLS, NOT THE PAGES. Every page would otherwise
+                have to carry its own ScrollViewer and remember to, and the one
+                that forgot would be the one that grew. Pages live on the SHARE
+                and are edited by administrators who cannot be expected to know
+                the window is 700px tall.
+
+                HORIZONTAL IS DISABLED ON PURPOSE. A page wide enough to scroll
+                sideways is a layout fault to fix rather than a thing to give a
+                technician a second scrollbar for.
             -->
-            <ContentControl Grid.Row="2" x:Name="HDTPageHost" Margin="0,24,0,0" />
+            <ScrollViewer Grid.Row="2" Margin="0,24,0,0"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          Padding="0,0,12,0">
+                <ContentControl x:Name="HDTPageHost" /></ScrollViewer>
         </Grid>
 
         <!-- ============ the buttons ============ -->
         <Border Grid.Row="1" Grid.Column="1" Background="#FF252526">
-            <Grid Margin="36,0,36,0">
-                <TextBlock x:Name="HDTMessageText" Text="" HorizontalAlignment="Left"
-                           VerticalAlignment="Center" Foreground="#FFF48771"
-                           FontSize="15" TextWrapping="Wrap" MaxWidth="300" />
+            <!--
+                TWO COLUMNS, NOT TWO THINGS IN ONE CELL. The message and the
+                buttons used to share a single cell, the message pinned left
+                with MaxWidth="300" to keep it off them - so a refusal long
+                enough to be useful was CLIPPED, and the technician could see
+                that something was wrong but not what. A message nobody can
+                finish reading is the same as no message.
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                The message now takes the width the buttons do not, and wraps
+                inside it.
+            -->
+            <Grid Margin="36,0,36,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!--
+                    A WARNING IS NOT A REFUSAL, AND MUST NOT LOOK LIKE ONE.
+                    HDT_01 is a legal computer name that DNS cannot carry: the
+                    wizard lets it through and says so, and painting that in the
+                    same red as a refusal would make a technician go looking for
+                    what they had done wrong.
+
+                    THE SEVERITY ARRIVES IN Tag, and the colour is decided here.
+                    Test-HDTComputerName returns 'None', 'Warning' or 'Error';
+                    the host sets Tag and paints nothing, which is the same
+                    split as the rail - the engine states what a thing IS and
+                    the markup decides what that looks like.
+
+                    NO LOCAL Foreground. A local value beats a Style trigger, so
+                    the attribute that used to be here would have won over both
+                    triggers and made the warning red anyway.
+                -->
+                <TextBlock Grid.Column="0" x:Name="HDTMessageText" Text="" HorizontalAlignment="Left"
+                           VerticalAlignment="Center" FontSize="14" TextWrapping="Wrap" Margin="0,0,24,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="#FFF48771" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Warning">
+                                    <Setter Property="Foreground" Value="#FFE2C08D" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <!--
                         OPEN CMD IS NOT A WAY OUT, it is the diagnostic door -
                         and it stays on every page because the page a technician

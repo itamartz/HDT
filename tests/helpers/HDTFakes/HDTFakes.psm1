@@ -1475,6 +1475,11 @@ class HDTFakeProcessService {
     # Normalised command line -> the result Start returns.
     [hashtable] $Result
 
+    # Makes StartInteractive throw the way Process.Start does when the shell is
+    # not there. The path a wizard takes when the prompt it just promised the
+    # technician does not open is one nobody exercises by accident.
+    [bool] $FailInteractive
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -1571,6 +1576,28 @@ class HDTFakeProcessService {
             DurationMs     = $durationMs
         }
     }
+
+    # A SEPARATE VERB, AND THE DIFFERENCE IS THE POINT. Start redirects both
+    # pipes, hides the window and waits for exit. An interactive prompt has no
+    # output to capture, must HAVE a window, and must not block the thread that
+    # opened it - so it cannot be Start with different flags.
+    #
+    # NOTHING IS SEEDED HERE. Start refuses a command line no test seeded
+    # because a typo must not look like success; there is no result to seed for
+    # a process nobody waits on, so this records and answers.
+    [object] StartInteractive([string] $FilePath, [string] $Argument, [string] $WorkingDirectory) {
+        $this.Record('StartInteractive', @($FilePath, $Argument, $WorkingDirectory))
+
+        if ($this.FailInteractive) {
+            throw [System.ComponentModel.Win32Exception]::new(
+                "The system cannot find the file specified: '$FilePath'.")
+        }
+
+        return [pscustomobject] @{
+            ProcessId = 4242
+            FilePath  = $FilePath
+        }
+    }
 }
 
 function New-HDTFakeProcessService {
@@ -1624,12 +1651,16 @@ function New-HDTFakeProcessService {
         [hashtable] $Result,
 
         [Parameter()]
+        [switch] $FailInteractive,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeProcessService]::new()
     $fake.Journal = $Journal
+    $fake.FailInteractive = [bool] $FailInteractive
 
     if ($PSBoundParameters.ContainsKey('Result')) {
         foreach ($commandLine in @($Result.Keys)) {
@@ -4301,6 +4332,10 @@ function New-HDTFakeWizardHost {
 
         [Parameter()]
         [AllowNull()]
+        [hashtable] $Value,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Journal
     )
 
@@ -4314,9 +4349,13 @@ function New-HDTFakeWizardHost {
     # method, so there is one place the list is a list.
     $press = @(@($Click) | Where-Object { -not [string]::IsNullOrEmpty($_) })
 
+    $bag = $Value
+    if ($null -eq $bag) { $bag = @{} }
+
     $service = [pscustomobject] @{
         Action         = $Action
         Click          = $press
+        Value          = $bag
         Operations     = (New-Object -TypeName System.Collections.ArrayList)
         Journal        = $Journal
         LastXaml       = ''
@@ -4382,7 +4421,17 @@ function New-HDTFakeWizardHost {
                 return $press
             }
 
-            $current = & $Navigator $current.Index $press
+            # THE COLLECTED VALUES GO WITH EVERY MOVE. The real host reads them
+            # off the page it is leaving; this fake has no controls, so a test
+            # seeds them with -Value. The summary page is built from them, so a
+            # fake that passed nothing could never exercise it.
+            $current = & $Navigator $current.Index $press $this.Value
+
+            # THE LATEST STATE, NOT THE FIRST. LastState used to be written once
+            # on entry, so a test could only ever assert what the wizard opened
+            # with - and anything a later page carries, the summary rows above
+            # all, was invisible to every assertion.
+            $this.LastState = $current
 
             if ($current.Done) {
                 $this.Record('press Next -> Done')

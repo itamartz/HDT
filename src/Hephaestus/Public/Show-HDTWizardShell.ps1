@@ -52,6 +52,12 @@ function Show-HDTWizardShell {
             XamlPath; the markup at XamlPath is read here and handed over, so the
             host never touches the file system.
 
+            A page may also carry Validate - a Control name and a Rule name -
+            and the rule is resolved to a validator here. The page names a RULE
+            and never a command, because pages live on the share: one that could
+            name a command would be one that could run one. A rule this engine
+            does not implement is refused rather than ignored.
+
         .PARAMETER Title
             The window title.
 
@@ -142,6 +148,47 @@ function Show-HDTWizardShell {
                     -Message ('the wizard has no pages to show. Every page being skipped means NOT SHOWING THE WIZARD, which is the caller''s decision - see DESIGN 11.2 and HDTSkipWizard.')))
     }
 
+    # THE CLOSED SET OF VALIDATION RULES a page may name. Each one wraps a
+    # command that already exists and is tested where it lives - this is a
+    # lookup, not a second implementation.
+    #
+    # RestrictInput MEANS "JUDGE A KEYSTROKE WITH THE SAME RULE". A character is
+    # typeable when a name consisting of just that character would be accepted -
+    # which is exactly true for this rule, because its character set is a
+    # per-character test. So an unusable character CANNOT BE TYPED, and there is
+    # still only ONE copy of what the legal characters are: nothing anywhere
+    # holds a second list for the keyboard to check against.
+    #
+    # That mattered the moment a technician asked why the wizard let them type an
+    # underscore at all. Refusing it after the fact is a message; refusing the
+    # keystroke is an answer.
+    # ONE CONTROL, MORE THAN ONE VARIABLE. A page may declare Split on a Collect
+    # entry: the typed string is put through the named splitter and the parts
+    # land in the variables the declaration names. The join account is the case
+    # that needed it - a technician types CORP\svc-hdt-join in one box, and
+    # DESIGN 4.5.3 wants HDTDomainAdmin and HDTDomainAdminDomain out of it.
+    #
+    # A CLOSED SET, LIKE THE RULES BELOW. A page on the share names a splitter
+    # and never a command.
+    $knownSplit = @{
+        AccountName = {
+            param([string] $Value)
+
+            return Split-HDTAccountName -Name $Value
+        }
+    }
+
+    $knownRule = @{
+        ComputerName = [pscustomobject] @{
+            Validator     = {
+                param([string] $Value)
+
+                return Test-HDTComputerName -Name $Value
+            }
+            RestrictInput = $true
+        }
+    }
+
     # -- every file, before anything is shown ------------------------------
     #
     # See the header: a wizard that opens and then dies on page four is worse
@@ -186,13 +233,89 @@ function Show-HDTWizardShell {
         foreach ($current in @($Page)) {
             $id = [string] $current.Id
 
+            # A PAGE DECLARES WHAT IT VALIDATES; IT DOES NOT CARRY THE RULE.
+            # Pages live on the SHARE (DESIGN 11.2) and are edited by
+            # administrators, so a page that could name a command would be a
+            # page that could run one. It names a control and a RULE, and the
+            # closed set below is what those names may be.
+            #
+            # AN UNKNOWN RULE IS REFUSED RATHER THAN IGNORED. A control that
+            # silently never validates looks, on a bench, like a wizard that
+            # accepts anything - and the value on the other side of it is a
+            # machine's identity.
+            $validate = $null
+            $validator = $null
+            $restrictInput = $false
+
+            if ($null -ne $current.PSObject.Properties['Validate'] -and $null -ne $current.Validate) {
+                $validate = $current.Validate
+                $ruleName = [string] $validate.Rule
+
+                if (-not $knownRule.Contains($ruleName)) {
+                    throw (New-HDTErrorRecord -Category InvalidArgument `
+                            -Message ('wizard page ''{0}'' declares the validation rule ''{1}'', which this engine does not implement. Known rules: {2}.' -f
+                                $id, $ruleName, ((@($knownRule.Keys) | Sort-Object) -join ', ')))
+                }
+
+                $validator = $knownRule[$ruleName].Validator
+                $restrictInput = [bool] $knownRule[$ruleName].RestrictInput
+            }
+
+            # WHAT THIS PAGE FILLS IN, AND WHAT HIDES IT. Collect names a
+            # control, the variable it fills and the property to read it from -
+            # so a ListBox and a TextBox are the same to the host, which reads
+            # the named property and knows nothing about either. Skip is the
+            # variable that suppresses this page, and exists so the summary can
+            # TELL a technician what it is (DESIGN 11.2's skip model was
+            # documented and undiscoverable).
+            $collect = $null
+            if ($null -ne $current.PSObject.Properties['Collect']) { $collect = $current.Collect }
+
+            # A DECLARATION THAT SPLITS gets its splitter attached here, for the
+            # same reason a validation rule does: the page names one, and an
+            # unknown name is refused rather than silently doing nothing.
+            $resolvedCollect = @()
+            foreach ($declaration in @($collect)) {
+                if ($null -eq $declaration) { continue }
+
+                $splitName = ''
+                if ($null -ne $declaration.PSObject.Properties['Split']) { $splitName = [string] $declaration.Split }
+
+                if (-not [string]::IsNullOrWhiteSpace($splitName)) {
+                    if (-not $knownSplit.Contains($splitName)) {
+                        throw (New-HDTErrorRecord -Category InvalidArgument `
+                                -Message ('wizard page ''{0}'' declares the splitter ''{1}'', which this engine does not implement. Known splitters: {2}.' -f
+                                    $id, $splitName, ((@($knownSplit.Keys) | Sort-Object) -join ', ')))
+                    }
+
+                    $declaration | Add-Member -MemberType NoteProperty -Name 'Splitter' `
+                        -Value $knownSplit[$splitName] -Force
+                }
+
+                $resolvedCollect += $declaration
+            }
+
+            if (@($resolvedCollect).Count -gt 0) { $collect = $resolvedCollect }
+
+            $skip = ''
+            if ($null -ne $current.PSObject.Properties['Skip']) { $skip = [string] $current.Skip }
+
+            $summary = $null
+            if ($null -ne $current.PSObject.Properties['Summary']) { $summary = $current.Summary }
+
             $loaded += [pscustomobject] @{
                 Id         = $id
                 Title      = [string] $current.Title
                 Heading    = [string] $current.Heading
                 Subheading = [string] $current.Subheading
+                Collect    = $collect
+                Skip       = $skip
+                Summary    = $summary
                 XamlPath   = [string] $current.XamlPath
-                Xaml       = (& $read ([string] $current.XamlPath) ('wizard page ''{0}''' -f $id))
+                Xaml          = (& $read ([string] $current.XamlPath) ('wizard page ''{0}''' -f $id))
+                Validate      = $validate
+                Validator     = $validator
+                RestrictInput = $restrictInput
             }
         }
     } catch {
@@ -201,16 +324,34 @@ function Show-HDTWizardShell {
 
     # -- show it -----------------------------------------------------------
 
-    $state = Step-HDTWizardPage -Page $loaded -Index 0 -Action 'Start'
-
     # THE NAVIGATOR THE HOST CALLS ON EVERY CLICK. GetNewClosure captures
     # $loaded, so the host is handed a question it can ask rather than a list it
     # would have to reason about.
+    #
+    # IT TAKES WHAT HAS BEEN COLLECTED SO FAR, because one page is not like the
+    # others: the summary has to state what every EARLIER page ended up holding,
+    # and it has to be right at the moment it is shown rather than at the moment
+    # the wizard opened. A technician who presses Back, changes the name and
+    # comes forward again must see the new one.
     $navigator = {
-        param([int] $Index, [string] $Action)
+        param([int] $Index, [string] $Action, [hashtable] $Value)
 
-        return Step-HDTWizardPage -Page $loaded -Index $Index -Action $Action
+        $next = Step-HDTWizardPage -Page $loaded -Index $Index -Action $Action
+
+        if ($null -ne $next.Page -and $null -ne $next.Page.Summary) {
+            $built = Get-HDTWizardSummary -Page $loaded -Value $Value
+
+            # ADDED TO THE STATE, NOT BAKED INTO THE PAGE. The page object is
+            # reused every time it is reached; writing onto it would leave the
+            # previous visit's rows behind on a Back that changed nothing.
+            $next | Add-Member -MemberType NoteProperty -Name 'SummaryRow' -Value $built.Row -Force
+            $next | Add-Member -MemberType NoteProperty -Name 'SummarySnippet' -Value $built.Snippet -Force
+        }
+
+        return $next
     }.GetNewClosure()
+
+    $state = & $navigator 0 'Start' @{}
 
     $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state, @($Field), @($Pane), $navigator)
 

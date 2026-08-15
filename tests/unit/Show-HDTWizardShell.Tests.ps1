@@ -323,6 +323,213 @@ Describe 'Show-HDTWizardShell' {
         }
     }
 
+    Context 'a page that validates what is typed into it' {
+
+        # THE RULE IS NOT IN THE SHELL AND NOT IN THE HOST. A page DECLARES
+        # which control it validates and by which rule; this command resolves
+        # that name to a validator and hands it over. The host runs it on every
+        # keystroke and knows nothing about computer names.
+
+        BeforeAll {
+            $script:validatingPage = @(
+                [pscustomobject] @{
+                    Id         = 'ComputerName'
+                    Title      = 'ComputerName'
+                    Heading    = 'Name this computer'
+                    Subheading = ''
+                    XamlPath   = 'X:\HDT\UI\ComputerName.xaml'
+                    Validate   = [pscustomobject] @{ Control = 'HDTComputerNameBox'; Rule = 'ComputerName' }
+                })
+        }
+
+        It 'hands the host a validator for a page that declares one' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:validatingPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            $wizardHost.LastState.Page.Validator | Should -Not -BeNullOrEmpty
+        }
+
+        It 'hands over the control name to watch' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:validatingPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            [string] $wizardHost.LastState.Page.Validate.Control | Should -BeExactly 'HDTComputerNameBox'
+        }
+
+        It 'hands over a validator that actually judges the name' {
+            # The point of resolving it here rather than naming a command in the
+            # page: what the host receives is a question it can ask, and the
+            # rule behind it is Test-HDTComputerName's single copy.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:validatingPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            $validator = $wizardHost.LastState.Page.Validator
+
+            [bool] (& $validator 'HDT-01').IsValid | Should -BeTrue
+            [bool] (& $validator 'HDT.01').IsValid | Should -BeFalse
+            [bool] (& $validator 'ABCDEFGHIJKLMNOP').IsValid | Should -BeFalse
+
+            # A LEGAL NAME DNS CANNOT CARRY IS NOT A REFUSAL. It comes back
+            # valid, with a warning - and the Next button is gated on IsValid,
+            # so the technician is told and not stopped.
+            $underscore = & $validator 'HDT_01'
+            [bool] $underscore.IsValid | Should -BeTrue
+            [string] $underscore.Severity | Should -BeExactly 'Warning'
+        }
+
+        It 'tells the host the keystrokes may be judged too' {
+            # WHY A KEYSTROKE AND NOT ONLY A VALUE. A technician asked why the
+            # wizard let them type an underscore at all when it was going to
+            # refuse it afterwards - and they were right. Refusing after the
+            # fact is a message; refusing the keystroke is an answer.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:validatingPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            [bool] $wizardHost.LastState.Page.RestrictInput | Should -BeTrue
+        }
+
+        It 'judges a single character with the same rule, so there is no second list of legal characters' {
+            # THE PROPERTY THAT MAKES KEYSTROKE FILTERING SAFE: a character is
+            # typeable exactly when a one-character name of it would be
+            # accepted. Nothing anywhere holds a keyboard's own copy of what a
+            # computer name may contain.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:validatingPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            $validator = $wizardHost.LastState.Page.Validator
+
+            foreach ($allowed in @('A', 'z', '0', '9', '-', '_', '@', '!', '+', ',')) {
+                [bool] (& $validator $allowed).IsValid | Should -BeTrue -Because ("'{0}' is legal in a computer name" -f $allowed)
+            }
+
+            # THE TEN NetBIOS FORBIDS, AND A SPACE.
+            foreach ($refused in @('.', '\', '/', ':', '*', '?', '"', '<', '>', '|', ' ')) {
+                [bool] (& $validator $refused).IsValid | Should -BeFalse -Because ("'{0}' is not legal in a computer name" -f $refused)
+            }
+        }
+
+        It 'hands over no validator for a page that declares none' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            $wizardHost.LastState.Page.Validator | Should -BeNullOrEmpty
+        }
+
+        It 'refuses a rule nobody implements, naming it and the page' {
+            # A page on the SHARE can name any rule it likes, so the failure has
+            # to be a refusal here rather than a control that silently never
+            # validates - which on a bench looks like a wizard that accepts
+            # anything.
+            $page = @(
+                [pscustomobject] @{
+                    Id         = 'ComputerName'
+                    Title      = 'ComputerName'
+                    Heading    = ''
+                    Subheading = ''
+                    XamlPath   = 'X:\HDT\UI\ComputerName.xaml'
+                    Validate   = [pscustomobject] @{ Control = 'HDTComputerNameBox'; Rule = 'NoSuchRule' }
+                })
+
+            $record = $null
+            try {
+                Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $page `
+                    -WizardHost (New-HDTFakeWizardHost -Action 'Cancel') `
+                    -FileSystem (New-HDTShellTestFileSystem)
+            } catch {
+                $record = $_
+            }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.Exception.Message | Should -BeLike '*NoSuchRule*'
+            $record.Exception.Message | Should -BeLike '*ComputerName*'
+        }
+    }
+
+    Context 'the summary page, built on arrival' {
+
+        # WHY THE NAVIGATOR BUILDS IT AND NOT THIS COMMAND. The summary states
+        # what every earlier page ended up holding, and it has to be right at
+        # the moment it is SHOWN - a technician who presses Back, changes the
+        # name and comes forward again must see the new one. Built once when the
+        # wizard opened, it would show what was true before they typed anything.
+
+        BeforeAll {
+            $script:summaryPage = @(
+                [pscustomobject] @{
+                    Id         = 'ComputerName'
+                    Title      = 'Computer name'
+                    Heading    = ''
+                    Subheading = ''
+                    XamlPath   = 'X:\HDT\UI\ComputerName.xaml'
+                    Collect    = [pscustomobject] @{ Control = 'HDTComputerNameBox'; Variable = 'HDTComputerName' }
+                    Skip       = 'HDTSkipComputerName'
+                },
+                [pscustomobject] @{
+                    Id         = 'Summary'
+                    Title      = 'Summary'
+                    Heading    = ''
+                    Subheading = ''
+                    XamlPath   = 'X:\HDT\UI\Summary.xaml'
+                    Summary    = [pscustomobject] @{ RowControl = 'HDTSummaryList'; SnippetControl = 'HDTSummarySnippet' }
+                })
+        }
+
+        It 'hands the host the rows once the summary page is reached' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel' -Click @('Next') `
+                -Value @{ HDTComputerName = 'HDT-01' }
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:summaryPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            @($wizardHost.LastState.SummaryRow).Count | Should -Be 1
+            [string] @($wizardHost.LastState.SummaryRow)[0].Variable | Should -BeExactly 'HDTComputerName'
+            [string] @($wizardHost.LastState.SummaryRow)[0].Value | Should -BeExactly 'HDT-01'
+        }
+
+        It 'hands over the rules.yaml an administrator would paste' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel' -Click @('Next') `
+                -Value @{ HDTComputerName = 'HDT-01' }
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:summaryPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            [string] $wizardHost.LastState.SummarySnippet | Should -BeLike '*HDTComputerName: HDT-01*'
+            [string] $wizardHost.LastState.SummarySnippet | Should -BeLike '*HDTSkipWizard: true*'
+        }
+
+        It 'names the control the page said to put them in' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel' -Click @('Next')
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:summaryPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            [string] $wizardHost.LastState.Page.Summary.RowControl | Should -BeExactly 'HDTSummaryList'
+        }
+
+        It 'builds no summary for a page that is not one' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $script:summaryPage `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            # The wizard opens on the computer name page, which summarises
+            # nothing.
+            $wizardHost.LastState.PSObject.Properties['SummaryRow'] | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'what it answers' {
 
         It 'returns <_> when that is what the technician chose' -ForEach @('Next', 'Cancel', 'CommandPrompt') {
