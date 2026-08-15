@@ -102,13 +102,23 @@ function Get-HDTConsoleWorkspace {
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # THE MONITOR NEEDS ONE, AND IT COMES IN HERE so a share can be opened
+        # at a known instant. "How long since this deployment said anything" is
+        # the only thing on this screen that changes without anything being
+        # written, and a share read against the real wall clock could only be
+        # tested by sleeping.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Clock
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+    if ($null -eq $Clock) { $Clock = New-HDTClock }
 
     # A trailing separator would put a doubled one in every path built below and
     # in every path shown on screen. 'C:\' is three characters and its separator
@@ -262,5 +272,10 @@ function Get-HDTConsoleWorkspace {
         OperatingSystem = [pscustomobject[]] @($osRow)
         Driver          = $driver
         BootImage       = $bootImage
+
+        # WHAT IS RUNNING ON IT, right now. DESIGN 12 lists Monitoring among the
+        # tree's categories, so it is part of what a share IS rather than a
+        # separate command an administrator has to know exists.
+        Monitor         = (Get-HDTConsoleMonitor -Path $root -FileSystem $FileSystem -Clock $Clock)
     }
 }

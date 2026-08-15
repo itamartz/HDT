@@ -155,6 +155,12 @@ function Get-HDTConsoleMonitor {
         Run             = [pscustomobject[]] @($ordered)
         Summary         = (Get-HDTConsoleMonitorSummary -Live @($live).Count -Stalled @($stalled).Count `
                 -Finished @($finished).Count -Unreadable @($unreadable).Count)
+
+        # The same fact in the form a tree row wears it - see the -Caption note
+        # on Get-HDTConsoleMonitorSummary for why the quiet case is not a
+        # sentence in brackets.
+        Caption         = (Get-HDTConsoleMonitorSummary -Live @($live).Count -Stalled @($stalled).Count `
+                -Finished @($finished).Count -Unreadable @($unreadable).Count -Caption)
         LiveCount       = @($live).Count
         StalledCount    = @($stalled).Count
         FinishedCount   = @($finished).Count

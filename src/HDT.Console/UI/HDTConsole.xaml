@@ -251,7 +251,14 @@
                 <TreeView.ItemTemplate>
                     <HierarchicalDataTemplate ItemsSource="{Binding Children}">
                         <StackPanel Orientation="Horizontal">
+                            <!-- COLOURED, AND THE COLOUR IS THE ROW'S. Bound rather than
+                                 themed: see Get-HDTConsoleIconColor for why a
+                                 per-row DynamicResource key is not possible in
+                                 markup XamlReader loads. WPF converts the
+                                 string to a Brush through the target property's
+                                 own type converter. -->
                             <TextBlock Text="{Binding Icon}"
+                                       Foreground="{Binding IconColor}"
                                        FontFamily="Segoe UI Emoji, Segoe UI Symbol"
                                        FontSize="13" Margin="0,0,7,0"
                                        VerticalAlignment="Center" />

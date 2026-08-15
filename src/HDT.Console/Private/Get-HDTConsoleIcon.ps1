@@ -52,7 +52,7 @@ function Get-HDTConsoleIcon {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step')]
+            'DriverStore', 'StepGroup', 'Step', 'MonitorRun')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -81,6 +81,12 @@ function Get-HDTConsoleIcon {
         # appeared to be a branch that would not open. An action gets an action's
         # icon, the way Deployment Workbench gives each step type one.
         Step            = [string] ([char] 0x2699)            # gear - one thing that runs
+
+        # A MACHINE, NOT A CLOCK. A monitoring row is a computer somewhere
+        # partway through a deployment, and that is what a technician is
+        # picturing when they scan the list. A stalled one takes the warning
+        # sign at the top of this function, like everything else that is wrong.
+        MonitorRun      = [char]::ConvertFromUtf32(0x1F5A5)   # desktop computer - one machine deploying
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 

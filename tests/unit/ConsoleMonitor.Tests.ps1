@@ -42,6 +42,8 @@ BeforeAll {
     # THE SHAPE IS Write-HDTStatus'S, not one invented here. If that document
     # changes, this fixture is wrong in the same way the console would be.
     function New-HDTTestHeartbeat {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Returns a JSON string in memory; it changes no state.')]
         [CmdletBinding()]
         [OutputType([string])]
         param(
@@ -50,6 +52,7 @@ BeforeAll {
             [Parameter()] [string] $Phase = 'WinPE',
             [Parameter()] [string] $Status = 'Running',
             [Parameter()] [int] $StepIndex = 3,
+            [Parameter()] [int] $StepCount = 12,
             [Parameter()] [string] $StepName = 'Apply OS',
             [Parameter()] [string] $StepType = 'ApplyImage'
         )
@@ -60,6 +63,7 @@ BeforeAll {
                     phase         = $Phase
                     status        = $Status
                     stepIndex     = $StepIndex
+                    stepCount     = $StepCount
                     stepName      = $StepName
                     stepType      = $StepType
                     updated       = $Updated
@@ -138,6 +142,34 @@ Describe 'Get-HDTConsoleMonitor' {
             $script:monitor.Run[0].StepIndex | Should -Be 3
             $script:monitor.Run[0].StepName | Should -BeExactly 'Apply OS'
             $script:monitor.Run[0].StepType | Should -BeExactly 'ApplyImage'
+        }
+
+        It 'says how far through the sequence it is, not only which step' {
+            # "step 3" is a number nobody can act on. The count travels in the
+            # heartbeat because the console is reading a share, not running a
+            # sequence, and cannot work the total out for itself.
+            $script:monitor.Run[0].StepCount | Should -Be 12
+            $script:monitor.Run[0].StepText | Should -BeExactly '3 of 12'
+        }
+
+        It 'says what it knows when an older engine wrote no count' {
+            $monitor = Get-HDTConsoleMonitor -Path $script:root `
+                -FileSystem (New-HDTTestMonitorFileSystem -File @{
+                        'C:\ws\Logs\_active\RUN-OLD.json' = (ConvertTo-Json -Depth 4 -InputObject ([ordered] @{
+                                    schemaVersion = 1
+                                    runId         = 'RUN-OLD'
+                                    phase         = 'WinPE'
+                                    status        = 'Running'
+                                    stepIndex     = 3
+                                    stepName      = 'Apply OS'
+                                    stepType      = 'ApplyImage'
+                                    updated       = '2026-08-15T21:59:00.0000000Z'
+                                }))
+                    }) `
+                -Clock (New-HDTFakeClock -UtcNow $script:now)
+
+            $monitor.Run[0].StepCount | Should -Be 0
+            $monitor.Run[0].StepText | Should -BeExactly '3'
         }
 
         It 'says which phase it is in, because that is half of where it has got to' {

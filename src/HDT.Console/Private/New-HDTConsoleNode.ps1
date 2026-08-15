@@ -88,7 +88,7 @@ function New-HDTConsoleNode {
 
         [Parameter(Mandatory = $true)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step')]
+            'DriverStore', 'StepGroup', 'Step', 'MonitorRun')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]
@@ -175,6 +175,11 @@ function New-HDTConsoleNode {
         Detail           = (@($line) -join [System.Environment]::NewLine)
         Command          = $Command
         Icon             = $glyph
+
+        # THE COLOUR BESIDE THE GLYPH, so the window binds to it and decides
+        # nothing. See Get-HDTConsoleIconColor for why this is a literal rather
+        # than a theme resource key.
+        IconColor        = (Get-HDTConsoleIconColor -Kind $Kind -Status $Status)
         IsExpanded       = (-not $Collapsed.IsPresent)
 
         # WHETHER THIS ROW IS THE SELECTED ONE, carried the way IsExpanded is

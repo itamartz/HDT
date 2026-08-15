@@ -29,6 +29,13 @@ function Get-HDTConsoleMonitorSummary {
         .PARAMETER Unreadable
             Heartbeats that could not be parsed.
 
+        .PARAMETER Caption
+            Return the short form instead: what belongs in brackets after a tree
+            row's name. A row reading "Monitoring (2 stalled, 1 running)" is the
+            whole screen at a glance; one reading "Monitoring (There is no
+            deployment running on this share)" is a sentence somebody has to
+            read to learn nothing, so the quiet case is just "Monitoring".
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -44,13 +51,18 @@ function Get-HDTConsoleMonitorSummary {
         [Parameter(Mandatory = $true)] [int] $Live,
         [Parameter(Mandatory = $true)] [int] $Stalled,
         [Parameter(Mandatory = $true)] [int] $Finished,
-        [Parameter(Mandatory = $true)] [int] $Unreadable
+        [Parameter(Mandatory = $true)] [int] $Unreadable,
+
+        [Parameter()]
+        [switch] $Caption
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     if (($Live + $Stalled + $Finished + $Unreadable) -eq 0) {
+        if ($Caption) { return 'Monitoring' }
+
         return 'There is no deployment running on this share.'
     }
 
@@ -60,6 +72,10 @@ function Get-HDTConsoleMonitorSummary {
     if ($Unreadable -gt 0) { [void] $part.Add(('{0} unreadable' -f $Unreadable)) }
     if ($Live -gt 0) { [void] $part.Add(('{0} running' -f $Live)) }
     if ($Finished -gt 0) { [void] $part.Add(('{0} finished' -f $Finished)) }
+
+    if ($Caption) {
+        return 'Monitoring ({0})' -f ($part -join ', ')
+    }
 
     return ($part -join ', ')
 }

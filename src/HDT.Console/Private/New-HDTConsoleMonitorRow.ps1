@@ -84,6 +84,8 @@ function New-HDTConsoleMonitorRow {
             Phase       = ''
             RunStatus   = ''
             StepIndex   = 0
+            StepCount   = 0
+            StepText    = ''
             StepName    = ''
             StepType    = ''
             Updated     = $null
@@ -109,6 +111,7 @@ function New-HDTConsoleMonitorRow {
     $phase = [string] (& $read 'phase' '')
     $runStatus = [string] (& $read 'status' '')
     $stepIndex = [int] (& $read 'stepIndex' 0)
+    $stepCount = [int] (& $read 'stepCount' 0)
     $stepName = [string] (& $read 'stepName' '')
     $stepType = [string] (& $read 'stepType' '')
 
@@ -181,11 +184,21 @@ function New-HDTConsoleMonitorRow {
         $text = '{0} - {1}  ({2} ago)' -f $RunId, $step, $sinceText
     }
 
+    # "STEP 7" IS A NUMBER NOBODY CAN ACT ON; "step 7 of 12" is a progress bar.
+    # The count comes from the heartbeat because the console cannot work it out
+    # from a share it is only reading - and a heartbeat written by an older
+    # engine carries no count at all, so that case says what it knows rather
+    # than inventing a total.
+    $stepText = [string] $stepIndex
+    if ($stepCount -gt 0) { $stepText = '{0} of {1}' -f $stepIndex, $stepCount }
+
     return [pscustomobject] @{
         RunId       = $RunId
         Phase       = $phase
         RunStatus   = $runStatus
         StepIndex   = $stepIndex
+        StepCount   = $stepCount
+        StepText    = $stepText
         StepName    = $stepName
         StepType    = $stepType
         Updated     = $updated
