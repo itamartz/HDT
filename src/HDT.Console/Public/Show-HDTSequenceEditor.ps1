@@ -66,6 +66,10 @@ function Show-HDTSequenceEditor {
         [object] $ConsoleHost,
 
         [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem,
+
+        [Parameter()]
         [ValidateSet('Light', 'Dark')]
         [string] $Theme = 'Light'
     )
@@ -74,6 +78,7 @@ function Show-HDTSequenceEditor {
     $ErrorActionPreference = 'Stop'
 
     if ($null -eq $ConsoleHost) { $ConsoleHost = New-HDTConsoleHost }
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     if (-not (Test-Path -LiteralPath $XamlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $XamlPath `
@@ -85,8 +90,23 @@ function Show-HDTSequenceEditor {
 
     $xaml = [System.IO.File]::ReadAllText($XamlPath)
 
+    # THE DOCUMENT'S OWN LINES, WHICH ARE WHAT THE EDITOR EDITS. Every editing
+    # cmdlet splices a string array, and the whole reason for that (see
+    # ConsoleStepEdit.Tests.ps1) is that the comments survive - so the text is
+    # read once, here, and never round-tripped through the parser.
+    #
+    # A sequence that would not parse still opens: its rows are empty and the
+    # engine's message is already on its row in the browser, but the file's
+    # lines are the one thing that might let an administrator fix it.
+    $line = [string[]] @()
+
+    if ($FileSystem.TestPath($editor.DocumentPath)) {
+        $line = [string[]] @([string] $FileSystem.ReadAllText($editor.DocumentPath) -split "`r?`n")
+    }
+
     $answer = [string] $ConsoleHost.ShowEditor($xaml, $editor.Title, $editor.DocumentPath,
-        [object[]] @($editor.Root), (Get-HDTConsoleTheme -Name $Theme))
+        [object[]] @($editor.Root), $line,
+        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme))
 
     $action = 'Close'
     if (-not [string]::IsNullOrWhiteSpace($answer)) { $action = $answer }
