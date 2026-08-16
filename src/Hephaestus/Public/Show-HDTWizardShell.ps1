@@ -134,7 +134,19 @@ function Show-HDTWizardShell {
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # WHAT F8 RUNS, AND IT IS PASSED IN FOR THE SAME REASON THE NAVIGATOR IS.
+        # The host is an adapter no Pester test can open a window against, so
+        # anything decided inside it is decided where nothing can check it. The
+        # decision here is small and worth checking anyway: F8 opens a prompt
+        # OVER the wizard and the wizard stays - MDT's "Enable command support",
+        # which every technician who has debugged a deployment already knows.
+        # The Open CMD button is the other thing: an EXIT to a prompt, answered
+        # back to the caller.
+        [Parameter()]
+        [AllowNull()]
+        [scriptblock] $CommandPrompt
     )
 
     Set-StrictMode -Version Latest
@@ -142,6 +154,11 @@ function Show-HDTWizardShell {
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
     if ($null -eq $WizardHost) { $WizardHost = New-HDTWizardHost }
+
+    # THE DEFAULT IS THE REAL PROMPT, so a caller that says nothing still gets
+    # F8. Start-HDTCommandPrompt already refuses to throw - a prompt that will
+    # not open must not take the wizard with it - so nothing here needs a guard.
+    if ($null -eq $CommandPrompt) { $CommandPrompt = { [void] (Start-HDTCommandPrompt) } }
 
     if (@($Page).Count -eq 0) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Category InvalidArgument `
@@ -353,7 +370,7 @@ function Show-HDTWizardShell {
 
     $state = & $navigator 0 'Start' @{}
 
-    $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state, @($Field), @($Pane), $navigator)
+    $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state, @($Field), @($Pane), $navigator, $CommandPrompt)
 
     # THE ALLOW-LIST, and it is the same one Show-HDTWizard holds for the same
     # reason. Matched case-sensitively, and the ALLOW-LIST's spelling is what is

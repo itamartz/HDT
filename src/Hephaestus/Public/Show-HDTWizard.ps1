@@ -119,7 +119,15 @@ function Show-HDTWizard {
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # F8, THE SAME AS EVERY OTHER WINDOW IN THIS IMAGE. The Welcome screen
+        # is the first thing on the machine and the one shown when the share
+        # cannot be reached - which is exactly when a technician wants a prompt.
+        # A key that works on two of the three windows is a key nobody trusts.
+        [Parameter()]
+        [AllowNull()]
+        [scriptblock] $CommandPrompt
     )
 
     Set-StrictMode -Version Latest
@@ -127,6 +135,7 @@ function Show-HDTWizard {
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
     if ($null -eq $WizardHost) { $WizardHost = New-HDTWizardHost }
+    if ($null -eq $CommandPrompt) { $CommandPrompt = { [void] (Start-HDTCommandPrompt) } }
 
     # -- the window file, before anything is shown -------------------------
 
@@ -147,7 +156,7 @@ function Show-HDTWizard {
 
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane))
+    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt)
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these three exactly is a Cancel.

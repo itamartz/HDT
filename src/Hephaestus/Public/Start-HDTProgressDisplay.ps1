@@ -87,7 +87,16 @@ function Start-HDTProgressDisplay {
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # FOR F8, AND ONLY FOR F8. The window opens a command prompt on that key
+        # - MDT's "Enable command support" - and it runs in a runspace with no
+        # Hephaestus module in it, so it cannot resolve ComSpec for itself. The
+        # path is worked out here, where a provider can be injected, and handed
+        # over with the markup.
+        [Parameter()]
+        [AllowNull()]
+        [object] $EnvironmentProvider
     )
 
     Set-StrictMode -Version Latest
@@ -167,8 +176,11 @@ function Start-HDTProgressDisplay {
     # without WinPE-NetFx has no PresentationFramework, and the adapter throws
     # here rather than returning anything. It is caught because a deployment
     # that will not run without a progress bar is worse than one with none.
+    if (-not $PSBoundParameters.ContainsKey('EnvironmentProvider')) { $EnvironmentProvider = New-HDTEnvironmentProvider }
+    $commandPromptPath = Get-HDTCommandPromptPath -Environment $EnvironmentProvider
+
     try {
-        $DisplayHost.Open($xaml)
+        $DisplayHost.Open($xaml, $commandPromptPath)
     } catch {
         return (& $fallback ("the progress window could not be opened, so the deployment will report progress to the console instead: {0}" -f
                 [string] $_.Exception.Message))

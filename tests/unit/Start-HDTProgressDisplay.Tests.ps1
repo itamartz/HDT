@@ -83,6 +83,35 @@ Describe 'Start-HDTProgressDisplay' {
             [string] $displayHost.LastXaml | Should -BeLike '*HDTProgressBar*'
         }
 
+        It 'hands the host a command prompt path, because F8 has to work here too' {
+            # THE CASE MDT IS ACTUALLY KNOWN FOR. A technician hits F8 while the
+            # deployment is running, not while the wizard is up. This window
+            # lives in its own STA runspace with no Hephaestus module in it, so
+            # it cannot call Start-HDTCommandPrompt - it is handed the path.
+            $displayHost = New-HDTFakeProgressHost
+
+            Start-HDTProgressDisplay -XamlPath $script:xamlPath `
+                -DisplayHost $displayHost -FileSystem (New-HDTProgressTestFileSystem) | Out-Null
+
+            [string] $displayHost.LastCommandPromptPath | Should -Not -BeNullOrEmpty
+        }
+
+        It 'uses the environment it was given to find it' {
+            $environment = [pscustomobject] @{}
+            $environment | Add-Member -MemberType ScriptMethod -Name GetVariable -Value {
+                param([string] $Name)
+                if ($Name -eq 'ComSpec') { return 'X:\Windows\System32\cmd.exe' }
+                return ''
+            }
+
+            $displayHost = New-HDTFakeProgressHost
+
+            Start-HDTProgressDisplay -XamlPath $script:xamlPath -DisplayHost $displayHost `
+                -FileSystem (New-HDTProgressTestFileSystem) -EnvironmentProvider $environment | Out-Null
+
+            [string] $displayHost.LastCommandPromptPath | Should -BeExactly 'X:\Windows\System32\cmd.exe'
+        }
+
         It 'says nothing went wrong' {
             $display = Start-HDTProgressDisplay -XamlPath $script:xamlPath `
                 -DisplayHost (New-HDTFakeProgressHost) -FileSystem (New-HDTProgressTestFileSystem)

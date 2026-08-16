@@ -70,7 +70,7 @@ function New-HDTProgressHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Open -Value {
-        param([string] $Xaml)
+        param([string] $Xaml, [string] $CommandPromptPath)
 
         $runspace = [runspacefactory]::CreateRunspace()
 
@@ -82,6 +82,12 @@ function New-HDTProgressHost {
 
         $runspace.SessionStateProxy.SetVariable('HDTShared', $this.Shared)
         $runspace.SessionStateProxy.SetVariable('HDTXaml', $Xaml)
+
+        # THE PATH, NOT THE COMMAND. This runspace has no Hephaestus module in
+        # it - importing one on a RAM disk to answer a keypress would cost the
+        # deployment seconds it does not owe - so F8 below starts a file, and
+        # Get-HDTCommandPromptPath decided which file on the engine's side.
+        $runspace.SessionStateProxy.SetVariable('HDTCommandPromptPath', $CommandPromptPath)
 
         $shell = [powershell]::Create()
         $shell.Runspace = $runspace
@@ -143,6 +149,37 @@ function New-HDTProgressHost {
                         [int] $span.TotalHours, $span.Minutes, $span.Seconds
                     }.GetNewClosure())
                 $timer.Start()
+
+                # F8, AND THIS IS THE ONE THAT MATTERS. MDT's "Enable command
+                # support (testing only)" is remembered for exactly this moment:
+                # a deployment is running, something is wrong, and a technician
+                # wants a prompt to go and look at a log WITHOUT stopping it.
+                #
+                # THIS WINDOW HAS NO BUTTONS BY DESIGN - it is a status board,
+                # not a dialog - so F8 is the only way in and out is closing the
+                # prompt. The deployment is untouched either way: nothing here
+                # cancels, answers or closes the window.
+                #
+                # SWALLOWED, ALWAYS. This runs on the UI thread of a window the
+                # engine cannot see; an exception here would take the progress
+                # display down mid-deployment over a keystroke, and the machine
+                # would finish deploying behind a dead screen.
+                $window.Add_PreviewKeyDown({
+                        if ($_.Key -ne [System.Windows.Input.Key]::F8) { return }
+
+                        $_.Handled = $true
+
+                        try {
+                            [void] (Start-Process -FilePath $HDTCommandPromptPath -ErrorAction Stop)
+                        } catch {
+                            # Nothing to tell anybody with: this window has no
+                            # message line, and the log belongs to the engine.
+                            # The reason is kept where a debugger can reach it
+                            # rather than thrown away, because an empty catch is
+                            # how a key that never worked stays a mystery.
+                            $HDTShared['CommandPromptError'] = [string] $_.Exception.Message
+                        }
+                    })
 
                 [void] $window.ShowDialog()
             })

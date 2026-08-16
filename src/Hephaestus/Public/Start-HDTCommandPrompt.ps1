@@ -91,11 +91,11 @@ function Start-HDTCommandPrompt {
     if ($null -eq $Process) { $Process = New-HDTProcessService }
     if (-not $PSBoundParameters.ContainsKey('Environment')) { $Environment = New-HDTEnvironmentProvider }
 
-    $filePath = 'cmd.exe'
-    if ($null -ne $Environment) {
-        $comSpec = [string] $Environment.GetVariable('ComSpec')
-        if (-not [string]::IsNullOrWhiteSpace($comSpec)) { $filePath = $comSpec }
-    }
+    # THE RULE IS Get-HDTCommandPromptPath'S AND IT USED TO BE HERE. F8 in the
+    # progress window needs the same answer and cannot call this command - that
+    # window runs in a runspace with no module in it - so the rule moved to
+    # where both can ask.
+    $filePath = Get-HDTCommandPromptPath -Environment $Environment
 
     # NO ARGUMENTS. cmd.exe /c would run nothing and close again immediately,
     # which from the technician's side is the same dead button this replaces.

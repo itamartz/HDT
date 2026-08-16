@@ -168,7 +168,7 @@ function New-HDTWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane)
+        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane, [scriptblock] $CommandPrompt)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -237,6 +237,19 @@ function New-HDTWizardHost {
                 }.GetNewClosure())
         }
 
+        # F8 - see ShowShell below for why this key exists at all. It is here as
+        # well because the Welcome screen is the window shown when the SHARE
+        # CANNOT BE REACHED, which is the single most likely moment in a
+        # deployment for a technician to want a prompt.
+        if ($null -ne $CommandPrompt) {
+            $window.Add_PreviewKeyDown({
+                    if ($_.Key -ne [System.Windows.Input.Key]::F8) { return }
+
+                    $_.Handled = $true
+                    & $CommandPrompt
+                }.GetNewClosure())
+        }
+
         [void] $window.ShowDialog()
 
         return [string] $this.Answer
@@ -261,7 +274,8 @@ function New-HDTWizardHost {
             [object] $State,
             [object[]] $Field,
             [object[]] $Pane,
-            [scriptblock] $Navigator)
+            [scriptblock] $Navigator,
+            [scriptblock] $CommandPrompt)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -574,6 +588,31 @@ function New-HDTWizardHost {
 
                     $trip.State = $moved
                     & $render $moved
+                }.GetNewClosure())
+        }
+
+        # F8, AND IT IS NOT A BUTTON. MDT's boot image has "Enable command
+        # support (testing only)" and F8 is what it buys: a command prompt ON
+        # TOP of what is running. Nothing in WinPE provides that key - ConfigMgr's
+        # boot shell implements it and so does MDT's, so this one does too.
+        #
+        # PreviewKeyDown ON THE WINDOW, so it fires wherever the focus is. A
+        # technician who needs a prompt is halfway through typing in a box, and
+        # a handler on the page would never see the key.
+        #
+        # HANDLED, SO NOTHING ELSE SEES IT. Left unhandled, F8 keeps travelling
+        # and a control that has its own meaning for it acts as well.
+        #
+        # THE WINDOW DOES NOT CLOSE, which is the whole difference from the Open
+        # CMD button below. F8 opens a prompt beside the wizard; the technician
+        # closes the prompt and is still on the same page with everything they
+        # had typed. A key that ended the deployment would be a trap.
+        if ($null -ne $CommandPrompt) {
+            $window.Add_PreviewKeyDown({
+                    if ($_.Key -ne [System.Windows.Input.Key]::F8) { return }
+
+                    $_.Handled = $true
+                    & $CommandPrompt
                 }.GetNewClosure())
         }
 

@@ -383,6 +383,49 @@ Describe 'the WinPE UI stack' {
         }
     }
 
+    Context 'F8 opens a command prompt from every window in the image' {
+
+        # MDT's boot image has "Enable command support (testing only)" and every
+        # technician who has debugged a deployment knows what F8 does. Nothing in
+        # WinPE provides that key - ConfigMgr's boot shell implements it, MDT's
+        # implements it, and so does this - so it has to be wired once per host,
+        # and a host that forgot is a key that silently does nothing.
+        #
+        # A KEY THAT WORKS ON TWO WINDOWS OUT OF THREE IS A KEY NOBODY TRUSTS,
+        # which is why this is a rule and not three separate assertions written
+        # when each window happened to be built.
+
+        It 'wires F8 in <_>' -ForEach @(
+            'New-HDTWizardHost.ps1',      # the Welcome screen AND the shell
+            'New-HDTProgressHost.ps1') {  # the status board, where it matters most
+
+            $path = Join-Path -Path $script:sourceRoot -ChildPath ('Public/{0}' -f $PSItem)
+
+            Test-Path -LiteralPath $path | Should -BeTrue
+            (Get-Content -LiteralPath $path -Raw) | Should -Match 'Key\]::F8' -Because (
+                '{0} draws a window a technician looks at in WinPE' -f $PSItem)
+        }
+
+        It 'hands the progress window a path rather than making it resolve one' {
+            # That window runs in its own runspace with no Hephaestus module in
+            # it, so it cannot call Start-HDTCommandPrompt. Importing a module on
+            # a RAM disk to answer a keypress is not the fix.
+            $path = Join-Path -Path $script:sourceRoot -ChildPath 'Public/New-HDTProgressHost.ps1'
+
+            (Get-Content -LiteralPath $path -Raw) | Should -Match 'HDTCommandPromptPath'
+        }
+
+        It 'never lets a keystroke take a window down with it' {
+            # Both handlers run on a UI thread the engine cannot see. An
+            # exception in one would leave a machine deploying behind a dead
+            # screen, which is strictly worse than a key that did nothing.
+            $progress = Get-Content -LiteralPath (
+                Join-Path -Path $script:sourceRoot -ChildPath 'Public/New-HDTProgressHost.ps1') -Raw
+
+            $progress | Should -Match '(?s)Key\]::F8.*?try\s*\{'
+        }
+    }
+
     Context 'no page sets a member the theme has already claimed for a style' {
 
         # FOUND ON A LIVE MACHINE, AND ONLY THERE. A WinPE VM reached the Ready

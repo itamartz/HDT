@@ -289,6 +289,73 @@ Describe 'Show-HDTWizardShell' {
         }
     }
 
+    Context 'F8, the way MDT means it' {
+
+        # MDT's boot image has "Enable command support (testing only)" and every
+        # technician who has ever debugged a deployment knows what F8 does: it
+        # puts a command prompt ON TOP of what is running. It does not cancel
+        # the deployment, it does not answer the wizard, and when the prompt is
+        # closed the wizard is still there on the same page.
+        #
+        # THAT IS THE WHOLE DIFFERENCE FROM THE Open CMD BUTTON, which is an
+        # EXIT to a prompt: it answers 'CommandPrompt' and the window closes.
+        # Two different things that both open cmd.exe, and the one a technician
+        # hits mid-deployment must not be the one that ends it.
+        #
+        # NOTHING IN WinPE PROVIDES F8. It is not a WinPE feature - ConfigMgr's
+        # boot shell implements it, and so does MDT's. So does this.
+
+        It 'hands the host something to run when F8 is pressed' {
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next' -Click @('Next', 'Next', 'Next')
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            $wizardHost.LastCommandPrompt | Should -Not -BeNullOrEmpty
+            $wizardHost.LastCommandPrompt | Should -BeOfType ([scriptblock])
+        }
+
+        It 'runs what the caller gave it, rather than reaching for cmd itself' {
+            # The wizard host is an adapter and cannot be unit tested; passing
+            # the prompt IN is what makes the decision testable at all, and is
+            # the same shape the navigator already uses.
+            $script:f8Count = 0
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next' -Click @('F8', 'Next', 'Next', 'Next')
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) `
+                -CommandPrompt { $script:f8Count++ } | Out-Null
+
+            $opened = $script:f8Count
+            $opened | Should -Be 1
+        }
+
+        It 'does not end the wizard, and does not lose the page it was on' {
+            $script:f8Count = 0
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next' -Click @('Next', 'F8', 'Next', 'Next')
+
+            $result = Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) `
+                -CommandPrompt { $script:f8Count++ }
+
+            $result.Action | Should -BeExactly 'Next' -Because 'F8 is not an answer'
+            (@($wizardHost.Visited) -join ' > ') | Should -BeExactly 'TaskSequence > ComputerName > Summary' -Because (
+                'the technician came back to the page they were standing on')
+        }
+
+        It 'is not the Open CMD button, which still leaves' {
+            $script:f8Count = 0
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next' -Click @('CommandPrompt')
+
+            $result = Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page (New-HDTTestShellPage) `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) `
+                -CommandPrompt { $script:f8Count++ }
+
+            $result.Action | Should -BeExactly 'CommandPrompt'
+            $script:f8Count | Should -Be 0 -Because 'the button answers, and the CALLER opens the prompt'
+        }
+    }
+
     Context 'the technician walking the wizard' {
 
         It 'visits every page in order when Next is pressed through' {

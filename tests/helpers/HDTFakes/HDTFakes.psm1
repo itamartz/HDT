@@ -4365,6 +4365,7 @@ function New-HDTFakeWizardHost {
         LastField      = @()
         LastPane       = @()
         LastState      = $null
+        LastCommandPrompt = $null
         Visited        = (New-Object -TypeName System.Collections.ArrayList)
     }
 
@@ -4399,7 +4400,8 @@ function New-HDTFakeWizardHost {
             [object] $State,
             [object[]] $Field,
             [object[]] $Pane,
-            [scriptblock] $Navigator)
+            [scriptblock] $Navigator,
+            [scriptblock] $CommandPrompt)
 
         $this.LastShellXaml = $ShellXaml
         $this.LastThemeXaml = $ThemeXaml
@@ -4407,6 +4409,7 @@ function New-HDTFakeWizardHost {
         $this.LastState = $State
         $this.LastField = @($Field)
         $this.LastPane = @($Pane)
+        $this.LastCommandPrompt = $CommandPrompt
         $this.Record(('ShowShell({0})' -f $Title))
 
         $current = $State
@@ -4419,6 +4422,16 @@ function New-HDTFakeWizardHost {
             if ($press -eq 'Cancel' -or $press -eq 'CommandPrompt') {
                 $this.Record(('press {0}' -f $press))
                 return $press
+            }
+
+            # F8 IS NOT LEAVING EITHER, and that is the point of replaying it.
+            # MDT's F8 puts a prompt on top of the wizard; the technician closes
+            # it and is still on the same page. So the loop does not return, the
+            # navigator is not called, and the page does not change.
+            if ($press -eq 'F8') {
+                $this.Record('press F8')
+                if ($null -ne $CommandPrompt) { & $CommandPrompt }
+                continue
             }
 
             # THE COLLECTED VALUES GO WITH EVERY MOVE. The real host reads them
@@ -4504,6 +4517,7 @@ function New-HDTFakeProgressHost {
         Operations   = (New-Object -TypeName System.Collections.ArrayList)
         Journal      = $Journal
         LastXaml     = ''
+        LastCommandPromptPath = ''
         LastProgress = $null
         IsOpen       = $false
     }
@@ -4516,7 +4530,9 @@ function New-HDTFakeProgressHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Open -Value {
-        param([string] $Xaml)
+        param([string] $Xaml, [string] $CommandPromptPath)
+
+        $this.LastCommandPromptPath = $CommandPromptPath
 
         if ($this.FailOpen) {
             # WHAT A MACHINE WITH NO WPF ACTUALLY DOES. Add-Type throws this
