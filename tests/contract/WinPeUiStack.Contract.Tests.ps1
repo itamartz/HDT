@@ -382,4 +382,104 @@ Describe 'the WinPE UI stack' {
                     ($offender -join ', '))
         }
     }
+
+    Context 'no page sets a member the theme has already claimed for a style' {
+
+        # FOUND ON A LIVE MACHINE, AND ONLY THERE. A WinPE VM reached the Ready
+        # to Deploy page and died with
+        #
+        #     Cannot set unknown member 'System.Windows.Controls.TextBox.IsReadOnly'
+        #
+        # on a page that loads perfectly well on a desktop, and perfectly well in
+        # WinPE ON ITS OWN. Bisecting the theme inside WinPE found the cause:
+        # once HDTTheme.xaml's `<Style x:Key="HDTAddressBox" TargetType="TextBox">`
+        # has been parsed, WPF's XAML schema context stops recognising
+        # TextBox.IsReadOnly AS AN ATTRIBUTE for every later XamlReader::Load in
+        # the process. The theme is merged before every page, so every page
+        # afterwards is in the poisoned process.
+        #
+        # THE .NET VERSION IS NOT THE DIFFERENCE - WinPE carries the same
+        # PresentationFramework 4.8 the host does. LOAD ORDER is: a desktop probe
+        # that loads one page in a fresh runspace never sees it, which is exactly
+        # why this reached a booted machine.
+        #
+        # SO THE MEMBER LIVES IN THE THEME, where a Setter still resolves it, and
+        # a page asks for the style by name. That is where the wizard's look
+        # belongs anyway; this is the reason it is not merely a preference.
+        #
+        # THE SAMPLE PAGES ARE SCANNED TOO. The offending file was
+        # samples/workspace/Scripts/UI/Summary.xaml - a SHARE page, outside
+        # src/Hephaestus, and therefore outside every other rule in this file.
+        # A rule that could not see the file that broke a deployment is not a
+        # rule.
+
+        BeforeAll {
+            $script:pageRoot = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/Scripts/UI'
+
+            $script:everyMarkup = @($script:scanned | Where-Object { $_.Relative -like '*.xaml' })
+
+            if (Test-Path -LiteralPath $script:pageRoot) {
+                $script:everyMarkup += @(Get-ChildItem -LiteralPath $script:pageRoot -Recurse -File -Filter '*.xaml' |
+                        ForEach-Object {
+                            [pscustomobject] @{
+                                Relative = $_.FullName.Substring($script:repoRoot.Length).TrimStart('\', '/')
+                                Text     = [System.IO.File]::ReadAllText($_.FullName)
+                            }
+                        })
+            }
+
+            # COMMENTS STRIPPED, for the reason the whole file already knows: the
+            # markup below explains the trap in prose, and a raw scan convicts
+            # the file that documented it.
+            $script:everyCode = @($script:everyMarkup | ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    })
+        }
+
+        It 'scanned the share pages as well as the module markup' {
+            # Anti-vacuity, and it is the point of the whole context: the file
+            # that broke a live deployment lives under samples/, not src/.
+            @($script:everyCode | Where-Object { $_.Relative -like '*samples*' }).Count |
+                Should -BeGreaterThan 0 -Because 'the wizard pages on the share are markup this rule must see'
+        }
+
+        It 'sets IsReadOnly nowhere as a direct attribute' {
+            $offender = @($script:everyCode |
+                    Where-Object { $_.Code -match '<[A-Za-z][^>]*\sIsReadOnly\s*=' } |
+                    ForEach-Object { $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'HDTTheme.xaml poisons TextBox.IsReadOnly as an attribute for every later XamlReader::Load in WinPE - ' +
+                'ask the theme for a style instead. Found: {0}' -f ($offender -join ', '))
+        }
+
+        It 'asks the theme for nothing with StaticResource on a share page' {
+            # A SHARE PAGE IS PARSED ON ITS OWN. New-HDTWizardHost loads the page
+            # and only then puts it inside the shell, so at parse time there is
+            # no dictionary above it: a StaticResource throws "Provide value on
+            # 'System.Windows.StaticResourceExtension' threw an exception" and
+            # the page never appears. A DynamicResource is resolved once the page
+            # is attached, which is the only form that can work here.
+            #
+            # THE MODULE'S OWN MARKUP IS EXEMPT - the shell and the theme are
+            # loaded as whole documents and may resolve their own keys.
+            $offender = @($script:everyCode |
+                    Where-Object { $_.Relative -like '*samples*' -and $_.Code -match '\{\s*StaticResource' } |
+                    ForEach-Object { $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'a share page is parsed detached, so StaticResource cannot resolve. Found: {0}' -f ($offender -join ', '))
+        }
+
+        It 'still offers a style that carries it, so the rule above is not a ban on read-only boxes' {
+            $theme = @($script:everyCode | Where-Object { $_.Relative -like '*HDTTheme.xaml' })
+
+            @($theme).Count | Should -Be 1
+            $theme[0].Code | Should -Match 'x:Key="HDTSnippetBox"' -Because (
+                'the Ready to Deploy page needs a selectable read-only box and may no longer say so itself')
+        }
+    }
 }

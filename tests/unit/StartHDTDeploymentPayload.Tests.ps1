@@ -436,6 +436,91 @@ Describe 'Start-HDTDeployment.ps1' {
             }
         }
 
+        It 'assigns every variable its tail reads OUTSIDE the try, so a run that died still gets a tail' {
+            # FOUND ON A LIVE MACHINE. The wizard threw, the catch recorded it -
+            # and then the tail said
+            #
+            #     The variable '$display' cannot be retrieved because it has not
+            #     been set.
+            #
+            # because `$display` is assigned at step 10b, INSIDE the try, and the
+            # run never reached it. Under Set-StrictMode even `$null -ne $display`
+            # throws. So the last thing a technician saw was a second error about
+            # the tail, on top of the first one about the wizard - and the tail is
+            # the part that writes RESULT.json.
+            #
+            # THE RULE IS THE WHOLE CLASS, NOT THE ONE VARIABLE. Every future
+            # step that puts something in a variable and cleans it up in the tail
+            # has the same hole; the guard is that the tail may only read
+            # variables the script assigns where a failed run still reaches.
+
+            $script:ast | Should -Not -BeNullOrEmpty
+
+            $body = $script:ast.EndBlock.Statements
+            # THE FIRST top-level try - the one the deployment runs in. The
+            # payload has a second one further down, in the tail itself; taking
+            # the last would leave the whole tail unjudged.
+            $tryIndex = -1
+            for ($i = 0; $i -lt $body.Count; $i++) {
+                if ($tryIndex -lt 0 -and $body[$i] -is [System.Management.Automation.Language.TryStatementAst]) { $tryIndex = $i }
+            }
+            $tryIndex | Should -BeGreaterThan 0 -Because 'the payload wraps its work in one top-level try'
+
+            # ASSIGNED WHERE A FAILED RUN STILL REACHES: before the try, or in
+            # the tail itself. Anything assigned only inside the try is exactly
+            # the trap above.
+            $safe = New-Object System.Collections.Generic.HashSet[string] ([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($name in @($script:ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })) {
+                [void] $safe.Add($name)
+            }
+
+            $outside = @($body[0..($tryIndex - 1)]) + @($body[($tryIndex + 1)..($body.Count - 1)])
+            foreach ($statement in $outside) {
+                foreach ($assignment in $statement.FindAll({
+                            param($node) $node -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+
+                    if ($assignment.Left -is [System.Management.Automation.Language.VariableExpressionAst]) {
+                        [void] $safe.Add($assignment.Left.VariablePath.UserPath)
+                    }
+                }
+
+                foreach ($loop in $statement.FindAll({
+                            param($node) $node -is [System.Management.Automation.Language.ForEachStatementAst] }, $true)) {
+
+                    [void] $safe.Add($loop.Variable.VariablePath.UserPath)
+                }
+            }
+
+            # PowerShell's own, plus the ones a scriptblock parameter binds.
+            $automatic = @('_', 'PSItem', 'null', 'true', 'false', 'PSScriptRoot', 'PSCommandPath',
+                'ErrorActionPreference', 'InformationPreference', 'PSVersionTable', 'Error', 'args', 'this')
+
+            $offender = @()
+            foreach ($statement in @($body[($tryIndex + 1)..($body.Count - 1)])) {
+
+                # A scriptblock in the tail brings its own parameters; judging
+                # its body here would convict them.
+                foreach ($read in $statement.FindAll({
+                            param($node)
+                            $node -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                            $null -eq ($node.Parent -as [System.Management.Automation.Language.AssignmentStatementAst])
+                        }, $true)) {
+
+                    $name = $read.VariablePath.UserPath
+
+                    if ($read.VariablePath.IsGlobal -or $name -like 'env:*') { continue }
+                    if ($automatic -contains $name) { continue }
+                    if ($safe.Contains($name)) { continue }
+
+                    $offender += '${0} (line {1})' -f $name, $read.Extent.StartLineNumber
+                }
+            }
+
+            @($offender).Count | Should -Be 0 -Because (
+                'the tail runs after a failure and may only read variables a failed run has. Found: {0}' -f
+                    (($offender | Select-Object -Unique) -join ', '))
+        }
+
         It 'records endedWith' {
             # ROADMAP M2 left "does WinPE need wpeutil reboot rather than
             # shutdown.exe" open, and this is the first run that can answer it.

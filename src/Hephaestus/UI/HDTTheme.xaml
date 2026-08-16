@@ -179,6 +179,52 @@
     </Style>
 
     <!--
+        THE READ-ONLY SNIPPET BOX - Ready to Deploy's rules.yaml, and anything
+        later that shows a file rather than asks for a value.
+
+        IT IS HERE, AND NOT ON THE PAGE, BECAUSE OF A DEFECT FOUND ON A BOOTED
+        MACHINE. Summary.xaml carried `IsReadOnly="True"` as a plain attribute
+        and died in WinPE with
+
+            Cannot set unknown member 'System.Windows.Controls.TextBox.IsReadOnly'
+
+        on a page that loads perfectly on a desktop, and perfectly in WinPE ON
+        ITS OWN. Bisecting this dictionary inside WinPE found the cause: once
+        HDTAddressBox above has been parsed, WPF's XAML schema context stops
+        recognising TextBox.IsReadOnly AS AN ATTRIBUTE for every later
+        XamlReader::Load in the process - and the host merges this file before
+        every page, so every page is in that process. Qualifying the setter as
+        TextBoxBase.IsReadOnly does not help; the Style itself is what does it.
+
+        A SETTER STILL RESOLVES IT, which is the whole reason this style exists:
+        the member the pages may no longer name, named once, here.
+
+        READ-ONLY, NOT DISABLED, AND SELECTABLE - a technician with a phone
+        camera or a USB stick has to be able to get this text off the machine,
+        and a disabled box greys its text out and cannot be selected.
+
+        Height IS EXPLICITLY Auto. The field boxes are 32px tall by design;
+        without this a page-sized snippet would be one line with the rest
+        scrolled out of sight.
+    -->
+    <Style x:Key="HDTSnippetBox" TargetType="TextBox">
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="Height" Value="Auto" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Top" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="{StaticResource HDTHintSize}" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldReadOnlyBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HDTBorderBrush}" />
+    </Style>
+
+    <!--
         THE BUTTON TEMPLATE, and it is here because of a real defect: WPF's
         DEFAULT button template paints its own light hover chrome UNDERNEATH
         the content, so white text on a dark button becomes unreadable the

@@ -165,6 +165,18 @@ $transcript = New-Object -TypeName System.Collections.ArrayList
 $log = $null
 $content = $null
 
+# DECLARED HERE BECAUSE THE TAIL READS IT, and the tail runs after a failure.
+# FOUND ON A LIVE MACHINE: the wizard threw, the catch recorded it, and then the
+# tail added a second error of its own -
+#
+#     The variable '$display' cannot be retrieved because it has not been set.
+#
+# - because step 10b, which assigns it, is inside the try the run never finished.
+# Under Set-StrictMode even `$null -ne $display` throws. The tail is the part
+# that writes RESULT.json, so the run whose evidence matters most was the one
+# that lost it.
+$display = $null
+
 # One sentence, to the console and to LAUNCHER.log, and - once there is a log
 # context - to the engine's own stream as well. Step 5's failure is logged
 # rather than printed and lost precisely because step 4 built that context

@@ -30,20 +30,24 @@
                Text="Everything this deployment was told, as rules.yaml. Put it on the deployment share and the next machine like this one deploys with no wizard at all - set only part of it and only those pages disappear." />
 
     <!--
-        READ-ONLY, NOT DISABLED, AND SELECTABLE. A technician with a phone
-        camera or a USB stick has to be able to get this text off the machine,
-        and a disabled box greys its text out and cannot be selected.
+        A TextBox RATHER THAN A TextBlock so the text can be selected: a
+        technician with a phone camera or a USB stick has to be able to get this
+        off the machine.
 
-        A TextBox RATHER THAN A TextBlock FOR EXACTLY THAT REASON.
+        EVERYTHING ABOUT HOW IT LOOKS IS HDTSnippetBox, in HDTTheme.xaml, AND
+        THAT IS NOT A PREFERENCE. This page used to set IsReadOnly="True" itself
+        and killed a real deployment in WinPE with "Cannot set unknown member
+        'System.Windows.Controls.TextBox.IsReadOnly'" - the theme is merged
+        before this page loads, and parsing its HDTAddressBox style makes that
+        member unsettable as an attribute for the rest of the process. The
+        theme's own Setter still resolves it. See the comment on HDTSnippetBox.
 
-        Height="Auto" IS DELIBERATE. HDTTheme.xaml's TextBox style sets
-        Height="32" for field boxes; without overriding it this block would be
-        one line tall with the rest scrolled out of sight.
+        DynamicResource, NOT StaticResource, AND THAT IS ALSO NOT A PREFERENCE.
+        New-HDTWizardHost parses this file ON ITS OWN and only then puts the
+        result inside the shell, so at parse time there is no dictionary above
+        it to look in - a StaticResource here throws "Provide value on
+        'System.Windows.StaticResourceExtension' threw an exception" before the
+        page is ever attached. A DynamicResource is resolved once it is.
     -->
-    <TextBox Grid.Row="1" x:Name="HDTSummarySnippet" IsReadOnly="True"
-             Height="Auto" VerticalAlignment="Stretch"
-             Background="#FF1B1B1C" Foreground="#FFCCCCCC" BorderBrush="#FF3A3A3C"
-             FontFamily="Consolas" FontSize="13" Padding="14,12"
-             AcceptsReturn="True" TextWrapping="NoWrap"
-             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" />
+    <TextBox Grid.Row="1" x:Name="HDTSummarySnippet" Style="{DynamicResource HDTSnippetBox}" />
 </Grid>
