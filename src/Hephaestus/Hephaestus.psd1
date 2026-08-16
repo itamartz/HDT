@@ -114,6 +114,7 @@
         'New-HDTWdsService',
         'New-HDTServiceCatalog',
         'New-HDTStepResult',
+        'New-HDTWorkspace',
         'Resolve-HDTDeployRoot',
         'Resolve-HDTImageIndex',
         'Resolve-HDTVariable',

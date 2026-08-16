@@ -1,0 +1,382 @@
+# DESIGN 2.1 fixes the workspace layout, and until now nothing in HDT could
+# produce one. The engine could READ a deployment share - Get-HDTWorkspacePath
+# knew the folder names, Import-HDTWorkspaceDocument and Import-HDTRuleDocument
+# read the two root documents, Get-HDTConsoleWorkspace reported on the whole
+# thing - but every one of those needed a share somebody else had made by hand.
+# That is the opposite of the Deployment Workbench, whose FIRST action is "New
+# Deployment Share".
+#
+# The two assertions that matter most here:
+#
+#   1. THE LAYOUT IS READ OUT OF Get-HDTWorkspacePath, not restated. This file
+#      pulls the ValidateSet off that command's -Kind parameter and demands a
+#      folder for every value in it, so a folder added to the layout and
+#      forgotten here turns this red rather than silently going uncreated.
+#
+#   2. WHAT IT WRITES IS WHAT THE ENGINE READS. The round trip goes back through
+#      Import-HDTWorkspaceDocument and Import-HDTRuleDocument, not through a
+#      second opinion about YAML.
+#
+# Nothing here touches a real disk: every call takes the hand-written fake
+# filesystem, and one test proves the workspace root was never created for real.
+
+BeforeAll {
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+    $script:workspaceRoot = 'C:\HDTLab\does-not-exist\NewShare'
+    $script:workspacePath = 'C:\HDTLab\does-not-exist\NewShare\workspace.yaml'
+    $script:rulePath = 'C:\HDTLab\does-not-exist\NewShare\rules.yaml'
+
+    # The layout, taken from the one place it is written down in code.
+    $script:layoutKind = @(
+        (Get-Command -Name Get-HDTWorkspacePath -ErrorAction Stop).Parameters['Kind'].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+            ForEach-Object { $_.ValidValues })
+}
+
+Describe 'New-HDTWorkspace' {
+
+    BeforeEach {
+        $script:fileSystem = New-HDTFakeFileSystem
+    }
+
+    Context 'the share tree' {
+
+        It 'creates the workspace root' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $script:fileSystem.TestPath($script:workspaceRoot) | Should -BeTrue
+        }
+
+        It 'knows the layout has folders to create' {
+            # A test that scans nothing passes for the wrong reason.
+            @($script:layoutKind).Count | Should -BeGreaterThan 5
+            $script:layoutKind | Should -Contain 'Control'
+            $script:layoutKind | Should -Contain 'Logs'
+            $script:layoutKind | Should -Contain 'Boot'
+        }
+
+        It 'creates a folder for every kind the workspace layout defines' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            foreach ($kind in $script:layoutKind) {
+                $expected = Get-HDTWorkspacePath -Root $script:workspaceRoot -Kind $kind
+                $script:fileSystem.TestPath($expected) | Should -BeTrue -Because ("the layout defines {0}\" -f $kind)
+            }
+        }
+
+        It 'creates Control\machines, where a per-machine override lands' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $machine = Get-HDTWorkspacePath -Root $script:workspaceRoot -Kind Control -ChildPath 'machines'
+            $script:fileSystem.TestPath($machine) | Should -BeTrue
+        }
+
+        It 'creates every folder through the injected filesystem' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $script:fileSystem.GetOperationName() | Should -Contain 'CreateDirectory'
+        }
+
+        It 'creates nothing on the real disk' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            Test-Path -LiteralPath $script:workspaceRoot | Should -BeFalse
+        }
+    }
+
+    Context 'the documents it writes' {
+
+        It 'writes workspace.yaml at the root of the share' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $script:fileSystem.TestPath($script:workspacePath) | Should -BeTrue
+        }
+
+        It 'writes rules.yaml at the root of the share' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $script:fileSystem.TestPath($script:rulePath) | Should -BeTrue
+        }
+
+        It 'writes a workspace document the engine reads back' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' `
+                -Name 'HDT lab deployment share' -DeployRoot '\\HDT-HOST\HdtShare' `
+                -FileSystem $script:fileSystem
+
+            $document = Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $script:fileSystem
+
+            $document.SchemaVersion | Should -Be 1
+            $document.Id | Should -BeExactly 'HDT-LAB'
+            $document.Name | Should -BeExactly 'HDT lab deployment share'
+            $document.DeployRoot | Should -BeExactly '\\HDT-HOST\HdtShare'
+        }
+
+        It 'names the share after its id when no name is given' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            (Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $script:fileSystem).Name |
+                Should -BeExactly 'HDT-LAB'
+        }
+
+        It 'leaves deployRoot unstated when the share does not know its own address yet' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            (Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $script:fileSystem).DeployRoot |
+                Should -BeExactly ''
+        }
+
+        It 'says nothing about the boot image, so the importer defaults stay the only answer' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $document = Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $script:fileSystem
+
+            $document.BootImage.Architecture | Should -BeExactly 'amd64'
+            $document.BootImage.OptionalComponent | Should -Contain 'WinPE-SecureStartup'
+        }
+
+        It 'writes a rules document the engine reads back' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $document = Import-HDTRuleDocument -Path $script:rulePath -FileSystem $script:fileSystem
+
+            $document.SchemaVersion | Should -Be 1
+            @($document.Rule).Count | Should -BeGreaterThan 0
+        }
+
+        It 'starts the administrator off with a fallback rule, not an empty stub' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $document = Import-HDTRuleDocument -Path $script:rulePath -FileSystem $script:fileSystem
+            $fallback = @($document.Rule)[-1]
+
+            # A rule with no when: always applies, which is what makes it the
+            # fallback (DESIGN 3.3).
+            @($fallback.When.Keys).Count | Should -Be 0
+            @($fallback.Set.Keys) | Should -Contain 'HDTComputerName'
+        }
+
+        It 'resolves a computer name from the rule it wrote' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $document = Import-HDTRuleDocument -Path $script:rulePath -FileSystem $script:fileSystem
+            $resolved = Resolve-HDTVariable -RuleDocument $document -Fact @{ HDTSerialNumber = 'ABC123' }
+
+            $resolved.Variable['HDTComputerName'] | Should -BeExactly 'PC-ABC123'
+        }
+
+        It 'writes both documents through the injected filesystem' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            @($script:fileSystem.Operations | Where-Object { $_.Operation -eq 'WriteAllText' }).Count |
+                Should -Be 2
+        }
+
+        It 'reports the paths it wrote' {
+            $result = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
+
+            $result.Root | Should -BeExactly $script:workspaceRoot
+            $result.Path | Should -BeExactly $script:workspacePath
+            $result.RulePath | Should -BeExactly $script:rulePath
+            $result.Id | Should -BeExactly 'HDT-LAB'
+        }
+    }
+
+    Context 'refusing to overwrite' {
+
+        It 'refuses a directory that already holds a workspace, naming the file it found' {
+            $existing = New-HDTFakeFileSystem -File @{ $script:workspacePath = 'schemaVersion: 1' }
+
+            $record = $null
+            try { New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $existing } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+            $record.TargetObject | Should -BeExactly $script:workspacePath
+            $record.Exception.Message | Should -BeLike '*workspace.yaml*'
+        }
+
+        It 'refuses a directory that already holds a rules file, naming it' {
+            $existing = New-HDTFakeFileSystem -File @{ $script:rulePath = 'schemaVersion: 1' }
+
+            $record = $null
+            try { New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $existing } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+            $record.TargetObject | Should -BeExactly $script:rulePath
+        }
+
+        It 'writes nothing when it refuses' {
+            $existing = New-HDTFakeFileSystem -File @{ $script:workspacePath = 'schemaVersion: 1' }
+
+            try { New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $existing } catch { $null = $_ }
+
+            $existing.GetOperationName() | Should -Not -Contain 'WriteAllText'
+            $existing.GetOperationName() | Should -Not -Contain 'CreateDirectory'
+            $existing.ReadAllText($script:workspacePath) | Should -BeExactly 'schemaVersion: 1'
+        }
+
+        It 'deletes nothing, ever' {
+            $existing = New-HDTFakeFileSystem -File @{ $script:workspacePath = 'schemaVersion: 1' }
+
+            try { New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $existing } catch { $null = $_ }
+
+            $existing.GetOperationName() | Should -Not -Contain 'RemoveItem'
+        }
+
+        It 'adds a workspace to a directory that merely exists' {
+            $seeded = New-HDTFakeFileSystem
+            $seeded.SeedDirectory($script:workspaceRoot)
+
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $seeded
+
+            $seeded.TestPath($script:workspacePath) | Should -BeTrue
+        }
+    }
+
+    Context 'the id' {
+
+        It 'refuses an id that is not a legal workspace id: <_>' -ForEach @('HDT LAB', 'HDT/LAB', '..', '') {
+            $id = $_
+
+            $record = $null
+            try {
+                New-HDTWorkspace -Path $script:workspaceRoot -Id $id -FileSystem $script:fileSystem
+            } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+        }
+
+        It 'names the offending id rather than a file' {
+            $record = $null
+            try {
+                New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT LAB' -FileSystem $script:fileSystem
+            } catch { $record = $_ }
+
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+            $record.TargetObject | Should -BeExactly 'HDT LAB'
+        }
+    }
+
+    Context '-WhatIf' {
+
+        It 'writes nothing' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem -WhatIf
+
+            $script:fileSystem.TestPath($script:workspacePath) | Should -BeFalse
+            $script:fileSystem.GetOperationName() | Should -Not -Contain 'WriteAllText'
+        }
+
+        It 'creates no folder' {
+            $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem -WhatIf
+
+            $script:fileSystem.GetOperationName() | Should -Not -Contain 'CreateDirectory'
+        }
+
+        It 'returns nothing' {
+            $result = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem -WhatIf
+
+            $result | Should -BeNullOrEmpty
+        }
+
+        It 'still refuses an existing workspace' {
+            $existing = New-HDTFakeFileSystem -File @{ $script:workspacePath = 'schemaVersion: 1' }
+
+            { New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $existing -WhatIf } |
+                Should -Throw -ExpectedMessage '*workspace.yaml*'
+        }
+    }
+
+    Context 'the command surface' {
+
+        It 'is exported by the module' {
+            (Get-Module -Name Hephaestus).ExportedFunctions.Keys | Should -Contain 'New-HDTWorkspace'
+        }
+
+        It 'declares SupportsShouldProcess' {
+            (Get-Command -Name New-HDTWorkspace -ErrorAction Stop).Parameters.Keys | Should -Contain 'WhatIf'
+        }
+
+        # An administrator types this command; the engine's hot path does not
+        # call it. So -FileSystem defaults to the real adapter and
+        # 'New-HDTWorkspace -Path ... -Id ...' is a complete call. The default is
+        # read off the AST rather than invoked: running it would build a real
+        # filesystem service, and a test that creates a share on a real disk is
+        # the one thing this file must never do.
+        It 'does not make -FileSystem mandatory' {
+            $parameter = (Get-Command -Name New-HDTWorkspace -ErrorAction Stop).Parameters['FileSystem']
+
+            @($parameter.Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                    ForEach-Object { $_.Mandatory }) | Should -Not -Contain $true
+        }
+
+        It 'defaults -FileSystem to the real adapter' {
+            $default = (Get-Command -Name New-HDTWorkspace -ErrorAction Stop).ScriptBlock.Ast.Body.ParamBlock.Parameters |
+                Where-Object { $_.Name.VariablePath.UserPath -eq 'FileSystem' }
+
+            $default.DefaultValue.Extent.Text | Should -BeLike '*New-HDTFileSystem*'
+        }
+
+        It 'has comment-based help with a synopsis and an example' {
+            $help = Get-Help -Name New-HDTWorkspace -ErrorAction Stop
+
+            $help.Synopsis | Should -Not -BeNullOrEmpty
+            $help.Synopsis | Should -Not -BeLike '*New-HDTWorkspace*[[]*'
+            @($help.Examples.Example).Count | Should -BeGreaterThan 0
+        }
+
+        It 'cites no internal document an administrator does not have' {
+            $help = Get-Help -Name New-HDTWorkspace -ErrorAction Stop
+            $text = ($help | Out-String)
+
+            $text | Should -Not -Match 'DESIGN \d'
+            $text | Should -Not -Match 'SPIKES'
+            $text | Should -Not -Match 'ROADMAP'
+            $text | Should -Not -Match 'CLAUDE\.md'
+        }
+    }
+}
+
+# The schema is the gate the console, an editor and CI use; the engine's own
+# Assert-* validators are what run in WinPE. What this command writes has to pass
+# both, or an administrator gets a share their editor rejects. Test-Json does not
+# exist under Windows PowerShell 5.1, so this skips there rather than silently
+# passing - the same arrangement the schema contracts use.
+$script:HDTNewWorkspaceSchemaSkip = -not [bool](Get-Command -Name Test-Json -ErrorAction SilentlyContinue)
+
+Describe 'New-HDTWorkspace writes documents that validate against the schemas' -Skip:$script:HDTNewWorkspaceSchemaSkip {
+
+    BeforeAll {
+        $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+        Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+        Import-Module -Name powershell-yaml -ErrorAction Stop
+
+        $script:schemaRoot = Join-Path -Path $script:repoRoot -ChildPath 'schemas'
+        $script:root = 'C:\HDTLab\does-not-exist\NewShare'
+
+        $script:schemaFileSystem = New-HDTFakeFileSystem
+        $null = New-HDTWorkspace -Path $script:root -Id 'HDT-LAB' -Name 'HDT lab deployment share' `
+            -DeployRoot '\\HDT-HOST\HdtShare' -FileSystem $script:schemaFileSystem
+    }
+
+    It 'validates workspace.yaml against schemas/workspace.schema.json' {
+        $schema = Get-Content -LiteralPath (Join-Path -Path $script:schemaRoot -ChildPath 'workspace.schema.json') -Raw
+        $yaml = $script:schemaFileSystem.ReadAllText((Join-Path -Path $script:root -ChildPath 'workspace.yaml'))
+        $json = (ConvertFrom-Yaml -Yaml $yaml -Ordered) | ConvertTo-Json -Depth 10
+
+        Test-Json -Json $json -Schema $schema | Should -BeTrue
+    }
+
+    It 'validates rules.yaml against schemas/rules.schema.json' {
+        $schema = Get-Content -LiteralPath (Join-Path -Path $script:schemaRoot -ChildPath 'rules.schema.json') -Raw
+        $yaml = $script:schemaFileSystem.ReadAllText((Join-Path -Path $script:root -ChildPath 'rules.yaml'))
+        $json = (ConvertFrom-Yaml -Yaml $yaml -Ordered) | ConvertTo-Json -Depth 10
+
+        Test-Json -Json $json -Schema $schema | Should -BeTrue
+    }
+}
