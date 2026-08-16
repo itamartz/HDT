@@ -25,7 +25,22 @@ rules:
     when: { HDTIsLaptop: true }
     setFrom: Scripts\Get-ComputerName.ps1
 
+  # MDT's [Default] section. Anything here is what a machine gets when nothing
+  # above matched it, so it is where a workspace-wide default belongs.
   - name: Fallback
     set:
       HDTComputerName: "PC-%HDTSerialNumber%"
       HDTJoinWorkgroup: WORKGROUP
+
+      # THE DEFAULT LOCAL ADMINISTRATOR PASSWORD (DESIGN 4.5.2). It is here, in
+      # the lowest-priority rule, rather than anywhere else: a per-machine
+      # override or the wizard's admin password page beats it through the
+      # ordinary DESIGN 3.1 precedence, and the provenance log says which one
+      # won. It is READABLE ON PURPOSE - DESIGN 4.5.2 argues at length why
+      # encrypting it would buy obfuscation and a key-management surface rather
+      # than security, since WinPE must use it with no human present.
+      #
+      # CHANGE THIS BEFORE DEPLOYING ANYTHING. It is a sample value in a public
+      # repository, and it is worth exactly what a freshly-built machine is
+      # worth. Treat the workspace and the boot media as credentials (DESIGN 6.3).
+      HDTAdminPassword: "P@ssw0rd-CHANGE-ME"

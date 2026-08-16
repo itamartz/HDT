@@ -752,9 +752,19 @@ The credential is the cheaper problem to solve.
 These are the reasons to reimplement rather than copy:
 
 - **The administrator sets the password; HDT does not invent one.**
-  `HDTAdminPassword` is configured — in `workspace.yaml`, a rule, a per-machine
-  override, or the wizard's admin password page — and that is the password the
-  deployed machine ends up with.
+  `HDTAdminPassword` is configured — in a rule, a per-machine override, or the
+  wizard's admin password page — and that is the password the deployed machine
+  ends up with.
+
+  **The workspace-wide default is the fallback rule in `rules.yaml`**, which is
+  MDT's `[Default]` section exactly. An earlier draft of this paragraph said
+  `workspace.yaml`; that was wrong, and §3.1 is the reason — `workspace.yaml`
+  holds share identity and boot-image configuration, and is not one of the six
+  variable sources. A default that lived there would resolve through no
+  precedence and record no provenance, which is the opposite of what §3.1 exists
+  to guarantee. Putting it in the fallback rule means it loses to a per-machine
+  override and to the wizard exactly as any other variable does, and the log says
+  it came from the rules.
 
   An earlier draft generated a random per-deployment password and rotated it at
   the end. That is better in isolation and worse in practice: when a deployment

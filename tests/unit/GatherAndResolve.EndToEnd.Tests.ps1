@@ -117,6 +117,15 @@ Describe 'Gather and resolve, end to end' {
             $script:result.Variable['HDTJoinWorkgroup'] | Should -BeExactly 'WORKGROUP'
         }
 
+        It 'resolves HDTAdminPassword from the Fallback rule' {
+            # DESIGN 4.5.2: the workspace-wide default local Administrator
+            # password is the fallback rule, which is MDT's [Default] section.
+            # NOT workspace.yaml - that is not one of DESIGN 3.1's six variable
+            # sources, so a default living there would resolve through no
+            # precedence and record no provenance.
+            $script:result.Variable['HDTAdminPassword'] | Should -BeExactly 'P@ssw0rd-CHANGE-ME'
+        }
+
         It 'resolves HDTDiskLayout from the sequence default' {
             $script:result.Variable['HDTDiskLayout'] | Should -BeExactly 'uefi-standard'
         }
@@ -173,6 +182,18 @@ Describe 'Gather and resolve, end to end' {
             $record.Source | Should -BeExactly 'Rule'
             $record.Rule | Should -BeExactly 'Lab subnet'
             $record.RuleIndex | Should -Be 1
+            $record.File | Should -BeExactly $script:rulesPath
+        }
+
+        It 'explains HDTAdminPassword as Rule, naming the Fallback rule' {
+            # The point of putting the default in a rule rather than in a file of
+            # its own: an administrator asking "why does this machine have THAT
+            # password" gets an answer, and a per-machine override or a wizard
+            # answer would show here instead.
+            $record = $script:result.Provenance['HDTAdminPassword']
+
+            $record.Source | Should -BeExactly 'Rule'
+            $record.Rule | Should -BeExactly 'Fallback'
             $record.File | Should -BeExactly $script:rulesPath
         }
 

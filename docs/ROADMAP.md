@@ -398,14 +398,22 @@ PnP fallback.
   previously specified a `SetAdminPassword` step type; **DESIGN §4.5.2 and §4.5.4
   already settle it the other way and they win.** The password is
   `HDTAdminPassword`, resolved through the §3.1 precedence like any other
-  variable, defaulted in `workspace.yaml`, and the teardown deliberately does
-  **not** change the account — the machine keeps the password the administrator
-  configured, so a technician can log into a deployment that *failed*, which is
-  the case that matters. A sequence wanting a different end state declares
-  `HDTAdminPasswordPolicy`: `keep` (default), `rotate`, `laps`, or `disable`.
-  What M6 owes is the *policy* half — `keep` needs no code, and the other three
-  are what remains. This is MDT's `AdminPassword`, and it removes a step type
-  rather than adding one.
+  variable and defaulted in **the fallback rule of `rules.yaml`** — MDT's
+  `[Default]` section. *Not* `workspace.yaml`: DESIGN §4.5.2 said so in passing
+  and was wrong, because `workspace.yaml` is not one of §3.1's six variable
+  sources, so a default living there would resolve through no precedence and
+  record no provenance. Both documents are corrected.
+
+  The teardown deliberately does **not** change the account — the machine keeps
+  the password the administrator configured, so a technician can log into a
+  deployment that *failed*, which is the case that matters. This is MDT's
+  `AdminPassword`, and it removes a step type rather than adding one.
+
+  **Still outstanding:** `HDTAdminPasswordPolicy` — `keep` (the default) needs no
+  code and is what v1 does today; `rotate`, `laps` and `disable` are DESIGN
+  §4.5.4's way for a sequence to declare a different end state, and none of the
+  three is built. They need a local-account service, so they are a plan of their
+  own rather than a loose end of this one.
 - Server task sequence in `samples/`.
 - **`WindowsUpdate` is deferred to v2** — see below.
 
