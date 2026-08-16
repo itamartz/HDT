@@ -1,0 +1,106 @@
+# A Windows Server 2025 build, and the sample that exercises everything phase 07
+# added: InstallApplications, InstallRoles and EnableBitLocker.
+#
+# ROADMAP M6 asked for "at least one server task sequence in samples/". This is
+# it. What it deliberately does NOT come with is a Windows Server VM in the E2E
+# matrix - that was scheduled out on 2026-08-16, so this sequence is proven by
+# import, by schema validation and by the console round-trip that covers every
+# sample, not by a Hyper-V run.
+#
+# THE ROLES GO IN BEFORE THE APPLICATIONS. A line-of-business application on a
+# server routinely needs IIS or .NET already present, and an installer that finds
+# neither fails in a way that reads like a broken package rather than a sequence
+# in the wrong order.
+#
+# BITLOCKER IS LAST, and it is the only step here that would be wrong to move.
+# Encryption runs in the background for as long as the disk takes; putting it
+# ahead of anything means every step after it competes with it for the same
+# spindle. wait: false is what lets the sequence finish while the disk carries on.
+#
+# Index 2 of the staged WS2025 media is Standard with Desktop Experience
+# (PROJECT.md). Server Core is index 1 and would not run the console.
+
+schemaVersion: 1
+id: STD-SERVER
+name: Standard Windows Server 2025
+description: Bare-metal server build with roles, applications and BitLocker
+variables:
+  HDTOSImage: WS2025-Std
+  HDTDiskLayout: uefi-standard
+  HDTJoinWorkgroup: WORKGROUP
+
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 8192
+        minDiskGB: 120
+
+      - name: Format and Partition
+        type: DiskPartition
+        layout: "%HDTDiskLayout%"
+        wipe: true
+
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Apply OS
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: 2
+        target: primary
+        timeoutMinutes: 90
+
+      - name: Apply Unattend
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Prepare Boot
+        type: ConfigureBoot
+
+      - name: Reboot Into Windows
+        type: Restart
+
+  - group: State Restore
+    condition: '"%_HDTPhase%" == "FullOS"'
+    steps:
+      # A role that needs side-by-side source names it here. The path is
+      # relative, so it resolves through the content provider and works the same
+      # from the share and from media (DESIGN 6, DESIGN 10.2).
+      - name: Install Roles and Features
+        type: InstallRoles
+        features:
+          - Web-Server
+          - Web-Mgmt-Console
+          - NET-Framework-45-Core
+        includeManagementTools: true
+        timeoutMinutes: 60
+
+      - name: Restart After Roles
+        type: Restart
+
+      - name: Install Applications
+        type: InstallApplications
+        selection: "%HDTApplications%"
+        timeoutMinutes: 120
+
+      - name: Corporate Baseline
+        type: PowerShell
+        script: Scripts\Set-CorpBaseline.ps1
+        log: CorpBaseline.log
+
+      # Last, and running in the background from here on. escrow: ad means this
+      # step fails rather than encrypting if the key cannot be recovered - which
+      # is the behaviour you want on the one machine in the building nobody can
+      # reimage casually.
+      - name: Enable BitLocker
+        type: EnableBitLocker
+        drive: "%HDTOSVolume%"
+        scope: usedSpaceOnly
+        method: XtsAes256
+        protector: tpm
+        recoveryPassword: true
+        escrow: ad
+        wait: false

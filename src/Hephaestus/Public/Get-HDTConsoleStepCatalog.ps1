@@ -93,15 +93,20 @@ function Get-HDTConsoleStepCatalog {
         'Validate'      = @{ Text = 'Validate'; Category = 'General'; Order = 4 }
         'Restart'       = @{ Text = 'Restart Computer'; Category = 'General'; Order = 5 }
         'NoOp'          = @{ Text = 'Do Nothing'; Category = 'General'; Order = 6 }
+        'InstallApplications' = @{ Text = 'Install Applications'; Category = 'General'; Order = 7 }
         'DiskPartition' = @{ Text = 'Format and Partition Disk'; Category = 'Disks'; Order = 1 }
         'ApplyImage'    = @{ Text = 'Apply Operating System'; Category = 'Images'; Order = 1 }
         'ApplyUnattend' = @{ Text = 'Apply Windows Settings'; Category = 'Images'; Order = 2 }
         'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 3 }
+        'EnableBitLocker' = @{ Text = 'Enable BitLocker'; Category = 'Disks'; Order = 2 }
+        'InstallRoles'  = @{ Text = 'Install Roles and Features'; Category = 'Roles'; Order = 1 }
     }
 
     # Workbench's order, and Custom last because it is whatever this particular
     # installation added.
-    $shelf = @('General', 'Disks', 'Images', 'Custom')
+    # Roles sits after Images and before Custom: a server sequence is mostly that
+    # one menu, and Workbench gives it a folder of its own for the same reason.
+    $shelf = @('General', 'Disks', 'Images', 'Roles', 'Custom')
 
     $entry = New-Object -TypeName System.Collections.ArrayList
 
