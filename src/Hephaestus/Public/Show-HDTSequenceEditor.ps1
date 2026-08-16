@@ -23,6 +23,16 @@ function Show-HDTSequenceEditor {
 
             IT TAKES THE SEQUENCE OBJECT, NEVER AN ID, for the same reason.
 
+            IT OPENS AT THE SIZE OF THE WINDOW IT WAS OPENED FROM. An
+            administrator who has dragged the browser out to fill a monitor has
+            said how big a window on this machine should be, and a second window
+            that ignores that reads as a different application. The caller passes
+            what the owner MEASURES, not what its markup says, so a maximised
+            console opens a maximised-size editor - and
+            Resolve-HDTConsoleEditorSize decides what to do with it, including
+            when there is no owner at all, because the host that assigns it is
+            not unit tested and must decide nothing.
+
         .PARAMETER Sequence
             One task sequence row from Get-HDTConsoleWorkspace's TaskSequence
             collection.
@@ -36,6 +46,18 @@ function Show-HDTSequenceEditor {
 
         .PARAMETER Theme
             Light or Dark. Light by default, matching the console.
+
+        .PARAMETER OwnerWidth
+            The current width of the window the editor was opened from - the
+            console's ActualWidth. Left at zero when it was run on its own, and
+            the editor then opens at its own size.
+
+        .PARAMETER OwnerHeight
+            The current height of the window the editor was opened from.
+
+        .PARAMETER Screen
+            An IScreen - the real adapter by default. Injected so a size that
+            does not fit a 1280 x 800 laptop can be proven from any desk.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -71,7 +93,19 @@ function Show-HDTSequenceEditor {
 
         [Parameter()]
         [ValidateSet('Light', 'Dark')]
-        [string] $Theme = 'Light'
+        [string] $Theme = 'Light',
+
+        [Parameter()]
+        [ValidateRange(0, 100000)]
+        [int] $OwnerWidth = 0,
+
+        [Parameter()]
+        [ValidateRange(0, 100000)]
+        [int] $OwnerHeight = 0,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Screen
     )
 
     Set-StrictMode -Version Latest
@@ -79,6 +113,7 @@ function Show-HDTSequenceEditor {
 
     if ($null -eq $ConsoleHost) { $ConsoleHost = New-HDTConsoleHost }
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+    if ($null -eq $Screen) { $Screen = New-HDTConsoleScreen }
 
     if (-not (Test-Path -LiteralPath $XamlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath `
@@ -104,9 +139,13 @@ function Show-HDTSequenceEditor {
         $line = [string[]] @([string] $FileSystem.ReadAllText($editor.DocumentPath) -split "`r?`n")
     }
 
+    # THE SIZE OF THE WINDOW THIS WAS OPENED FROM, FITTED TO THE DESKTOP. The
+    # host assigns the two numbers and works out neither of them.
+    $size = Resolve-HDTConsoleEditorSize -OwnerWidth $OwnerWidth -OwnerHeight $OwnerHeight -Screen $Screen
+
     $answer = [string] $ConsoleHost.ShowEditor($xaml, $editor.Title, $editor.DocumentPath,
         [object[]] @($editor.Root), $line,
-        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme))
+        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme), $size)
 
     $action = 'Close'
     if (-not [string]::IsNullOrWhiteSpace($answer)) { $action = $answer }

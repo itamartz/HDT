@@ -16,6 +16,19 @@ $script:HDTConsoleDefaultHeight = 900
 $script:HDTConsoleMinimumWidth = 900
 $script:HDTConsoleMinimumHeight = 520
 
+# THE SAME FOUR NUMBERS FOR THE TASK SEQUENCE EDITOR, and they must match
+# UI\Console\HDTSequenceEditor.xaml's Height, Width, MinHeight and MinWidth for
+# the same reason - a test asserts that too.
+#
+# THE EDITOR NORMALLY IGNORES THESE, because it opens at the size of the console
+# it was double-clicked in. They are what Resolve-HDTConsoleEditorSize answers
+# with when there is no console: Show-HDTSequenceEditor is a command, and it can
+# be run on a share with no window open anywhere.
+$script:HDTConsoleEditorDefaultWidth = 1180
+$script:HDTConsoleEditorDefaultHeight = 760
+$script:HDTConsoleEditorMinimumWidth = 820
+$script:HDTConsoleEditorMinimumHeight = 480
+
 $privateFile = @(Get-ChildItem -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Private') -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue)
 $publicFile = @(Get-ChildItem -Path (Join-Path -Path $PSScriptRoot -ChildPath 'Public') -Filter '*.ps1' -Recurse -ErrorAction SilentlyContinue)
 

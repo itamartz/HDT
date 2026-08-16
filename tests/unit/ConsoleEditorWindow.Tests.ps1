@@ -65,12 +65,18 @@ steps:
             Line      = @()
             Catalog   = @()
             Theme     = $null
+
+            # The size the window was told to open at. The real adapter assigns
+            # it to Width and Height and nothing else, so recording it here is
+            # what proves the decision reached the window without one existing.
+            Size      = $null
         }
 
         $fake | Add-Member -MemberType ScriptMethod -Name ShowEditor -Value {
             param(
                 [string] $Xaml, [string] $Title, [string] $Path,
-                [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme
+                [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme,
+                [object] $Size
             )
 
             $this.ShowCount = $this.ShowCount + 1
@@ -81,6 +87,7 @@ steps:
             $this.Line = $Line
             $this.Catalog = $Catalog
             $this.Theme = $Theme
+            $this.Size = $Size
 
             return [string] $this.Action
         }
@@ -230,6 +237,32 @@ Describe 'HDTSequenceEditor.xaml' {
         # panel in an otherwise dark window.
         $script:markup | Should -Not -Match 'Background="#'
     }
+
+    It 'declares the same size the module falls back to when nothing opened it' {
+        # Two files hold these numbers - the markup, for a window loaded on its
+        # own, and the module, because Resolve-HDTConsoleEditorSize has to
+        # answer with a size when there is no console to copy. Drift between
+        # them is invisible: the editor would open at one size from the browser
+        # and another from the command line.
+        $document = [xml] $script:markup
+        $module = Get-Module -Name 'Hephaestus'
+
+        [double] $document.DocumentElement.GetAttribute('Width') |
+            Should -Be (& $module { $script:HDTConsoleEditorDefaultWidth })
+        [double] $document.DocumentElement.GetAttribute('Height') |
+            Should -Be (& $module { $script:HDTConsoleEditorDefaultHeight })
+        [double] $document.DocumentElement.GetAttribute('MinWidth') |
+            Should -Be (& $module { $script:HDTConsoleEditorMinimumWidth })
+        [double] $document.DocumentElement.GetAttribute('MinHeight') |
+            Should -Be (& $module { $script:HDTConsoleEditorMinimumHeight })
+    }
+
+    It 'still centres on the window that opened it' {
+        # The editor is opened from a row in the browser, so the console is
+        # where the administrator is looking. CenterScreen would put it over
+        # whichever monitor Windows calls the primary one.
+        $script:markup | Should -Match 'WindowStartupLocation="CenterOwner"'
+    }
 }
 
 Describe 'Show-HDTSequenceEditor' {
@@ -309,5 +342,122 @@ Describe 'Show-HDTSequenceEditor' {
 
         $answer.Action | Should -BeExactly 'Close'
         $answer.Id | Should -BeExactly 'DEMO-M4'
+    }
+
+    It 'opens the editor at the size of the console that opened it' {
+        # The window the administrator is looking at, not the number in the
+        # markup: a console dragged wide to read a long step name opens an
+        # editor just as wide.
+        $editorHost = New-HDTFakeEditorHost
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -OwnerWidth 1600 -OwnerHeight 1000 -Screen (New-HDTFakeScreen -Width 2560 -Height 1400))
+
+        [int] $editorHost.Size.Width | Should -Be 1600
+        [int] $editorHost.Size.Height | Should -Be 1000
+    }
+
+    It 'opens at its own size when nothing opened it' {
+        # Show-HDTSequenceEditor is a command an administrator can run on its
+        # own, with no console anywhere. There is no owner to copy then, and the
+        # markup's own numbers are the answer.
+        $editorHost = New-HDTFakeEditorHost
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -Screen (New-HDTFakeScreen -Width 2560 -Height 1400))
+
+        [int] $editorHost.Size.Width | Should -Be 1180
+        [int] $editorHost.Size.Height | Should -Be 760
+    }
+
+    It 'never opens the editor larger than the desktop it has to appear on' {
+        $editorHost = New-HDTFakeEditorHost
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -OwnerWidth 2400 -OwnerHeight 1300 -Screen (New-HDTFakeScreen -Width 1280 -Height 770))
+
+        [int] $editorHost.Size.Width | Should -Be 1280
+        [int] $editorHost.Size.Height | Should -Be 770
+    }
+}
+
+Describe 'Resolve-HDTConsoleEditorSize' {
+
+    # WHY THE DECISION IS NOT IN THE ADAPTER. New-HDTConsoleHost is exempt from
+    # TDD only while it stays branch-free, so "how big should this window be" -
+    # which has a fallback, a floor and a ceiling in it - cannot live there. The
+    # host assigns two numbers this command worked out.
+
+    It 'takes the owner''s size, which is what the administrator can see' {
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 2560 -Height 1400) } {
+            param($Screen)
+
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 1600 -OwnerHeight 1000 -Screen $Screen
+
+            [int] $size.Width | Should -Be 1600
+            [int] $size.Height | Should -Be 1000
+        }
+    }
+
+    It 'answers with the editor''s own first-run size when there is no owner' {
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 2560 -Height 1400) } {
+            param($Screen)
+
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 0 -OwnerHeight 0 -Screen $Screen
+
+            [int] $size.Width | Should -Be 1180
+            [int] $size.Height | Should -Be 760
+        }
+    }
+
+    It 'falls back one dimension at a time' {
+        # A window can report a width and not a height while it is still being
+        # laid out, and half an answer must not throw away the other half.
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 2560 -Height 1400) } {
+            param($Screen)
+
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 1600 -OwnerHeight 0 -Screen $Screen
+
+            [int] $size.Width | Should -Be 1600
+            [int] $size.Height | Should -Be 760
+        }
+    }
+
+    It 'lowers a size the desktop cannot show, which is the console''s own rule' {
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 1280 -Height 770) } {
+            param($Screen)
+
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 2400 -OwnerHeight 1300 -Screen $Screen
+
+            [int] $size.Width | Should -Be 1280
+            [int] $size.Height | Should -Be 770
+        }
+    }
+
+    It 'never answers below the minimum the editor markup declares' {
+        # WPF enforces MinWidth and MinHeight whatever it is told, so a smaller
+        # number would be one that lies about the window it produces.
+        InModuleScope Hephaestus {
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 300 -OwnerHeight 200 -Screen $null
+
+            [int] $size.Width | Should -Be 820
+            [int] $size.Height | Should -Be 480
+        }
+    }
+
+    It 'leaves the size alone when the desktop cannot be measured' {
+        # A display query throws in a session with no desktop. That may never be
+        # the reason a window fails to open.
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Throw) } {
+            param($Screen)
+
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 1600 -OwnerHeight 1000 -Screen $Screen
+
+            [int] $size.Width | Should -Be 1600
+            [int] $size.Height | Should -Be 1000
+        }
     }
 }

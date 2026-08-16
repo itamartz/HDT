@@ -149,7 +149,14 @@ function New-HDTConsoleHost {
                 if ($null -eq $selected) { return }
                 if (-not $selected.CanOpen) { return }
 
-                [void] (Show-HDTSequenceEditor -Sequence $selected.Subject -Theme $ThemeName)
+                # AND IT COMES UP THE SIZE OF THIS WINDOW. ActualWidth, not the
+                # markup and not RestoreBounds: what was asked for is the size
+                # the administrator is looking at, so a maximised console opens
+                # an editor the size of the maximised console. What to do with
+                # those two numbers - the floor, the desktop, and the case where
+                # there is no console at all - is Resolve-HDTConsoleEditorSize's.
+                [void] (Show-HDTSequenceEditor -Sequence $selected.Subject -Theme $ThemeName `
+                        -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
             }.GetNewClosure())
 
         # THE MONITORING BRANCH TAILS Logs\_active\ WHILE THE WINDOW IS OPEN.
@@ -257,7 +264,8 @@ function New-HDTConsoleHost {
     $service | Add-Member -MemberType ScriptMethod -Name ShowEditor -Value {
         param(
             [string] $Xaml, [string] $Title, [string] $Path,
-            [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme
+            [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme,
+            [object] $Size
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -268,6 +276,11 @@ function New-HDTConsoleHost {
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
         $window.Title = $Title
+
+        # The size of the console this was opened from, over the markup's own
+        # numbers. Resolve-HDTConsoleEditorSize decided these; this applies them.
+        $window.Width = [double] $Size.Width
+        $window.Height = [double] $Size.Height
 
         $converter = New-Object -TypeName System.Windows.Media.BrushConverter
         foreach ($key in @($Theme.Keys)) {
