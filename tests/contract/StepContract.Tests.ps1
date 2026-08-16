@@ -207,7 +207,8 @@ Describe 'the step contract' {
         # This list is what notices.
         It 'discovered <_>' -ForEach @(
             'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
-            'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ConfigureBoot') {
+            'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ConfigureBoot',
+            'InstallApplications') {
 
             @(Get-HDTStepType -Name $_).Count | Should -Be 1
         }

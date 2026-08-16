@@ -1301,6 +1301,28 @@ runIn: FullOS
   authoring time, not a hang at deploy time.
 - **Reboot handling** is explicit: a `3010` return suspends the app list,
   reboots, and resumes at the next app.
+
+  The mechanism is §4.3's `-Reenter`. The step checkpoints the ids it has
+  installed into `_HDTApplicationInstalled` and returns
+  `RebootRequested -Reenter`, so the engine records it `Pending`, the step index
+  does not advance, and the next leg runs the step again — skipping what is
+  already done. **The application that returned `3010` is checkpointed as
+  installed**, because `3010` means "installed, reboot required"; re-running it
+  would install it twice. The two ways this is normally got wrong are worth
+  naming: without `-Reenter` every application after the reboot is silently
+  skipped while the run reports success, and without the checkpoint the step
+  reinstalls the whole list ahead of the reboot on every leg.
+- **An install command is a shell line**, run through `%ComSpec% /c` exactly as
+  the `CommandLine` step's `command:` is — quoting, chaining and redirection are
+  routine in what a vendor documents as their silent install. The working
+  directory is the application's `source\` folder, so a relative installer path
+  resolves. The comspec comes from the injected `IEnvironmentProvider`.
+- **A failure stops the list.** An application returning a code in neither its
+  `successCodes` nor its `rebootCodes` fails the step naming the application and
+  the code, and the applications after it do not run — installing software on top
+  of a failed dependency is how a machine ends up subtly broken. A sequence that
+  wants otherwise says so with `continueOnError` on the step, which belongs to
+  the engine loop rather than to the step.
 - **Selection** comes from the `Applications` variable (rules or wizard), or a
   fixed list in the step. Both resolve to the same ordered install plan, which
   is logged before execution.

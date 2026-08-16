@@ -33,6 +33,10 @@ BeforeAll {
         function Invoke-HDTContosoBatchStep {
             param($Step, $Context)
 
+            # The step contract requires -Step; this double reads only the
+            # context, which is where the progress lives.
+            $null = $Step
+
             $done = 0
             if ($Context.Variable.Contains('ContosoBatchDone')) {
                 $done = [int] $Context.Variable['ContosoBatchDone']

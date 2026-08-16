@@ -245,6 +245,9 @@ function Get-HDTVariableMap {
         @{ HDTName = '_HDTVersion'; MdtName = $null; Origin = 'engine'
             Description = 'Engine version executing this deployment.'
         }
+        @{ HDTName = '_HDTApplicationInstalled'; MdtName = $null; Origin = 'engine'
+            Description = 'Application ids this run has already installed. The InstallApplications step checkpoints it so a reboot mid-list resumes at the next application rather than restarting the list.'
+        }
     )
 
     foreach ($entry in $map) {
