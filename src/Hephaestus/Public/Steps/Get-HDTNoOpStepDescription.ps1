@@ -4,7 +4,7 @@ function Get-HDTNoOpStepDescription {
             Describes a NoOp step for the log and the progress display.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. A NoOp's message is what
+            The optional third of the step contract's triple. A NoOp's message is what
             the sequence author wrote it to say, so it makes a better one-line
             description than the step's name; without one, the dispatcher's own
             '<Type>: <name>' shape is kept so the two never disagree.

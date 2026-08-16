@@ -1,7 +1,7 @@
 function Assert-HDTSequenceDocument {
     <#
         .SYNOPSIS
-            Validates a parsed sequence.yaml against the DESIGN 4.1 authoring
+            Validates a parsed sequence.yaml against the authoring
             rules.
 
         .DESCRIPTION

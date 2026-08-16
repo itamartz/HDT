@@ -6,7 +6,7 @@ function Invoke-HDTTaskSequence {
             safe.
 
         .DESCRIPTION
-            DESIGN 4.3's execution loop. It takes an imported sequence and an
+            The execution loop. It takes an imported sequence and an
             execution context and returns:
 
               Status      Succeeded | Failed | RebootPending
@@ -67,7 +67,7 @@ function Invoke-HDTTaskSequence {
             TEARDOWN RUNS FROM finally, NOT FROM A STEP. MDT's
             cleanup is a task sequence step, so a failure before it leaves
             autologon armed. Here every terminal outcome - success, failure, a
-            thrown exception, even a failed checkpoint - runs the DESIGN 4.5.3
+            thrown exception, even a failed checkpoint - runs the autologon
             checklist. The one outcome that does NOT tear down is RebootPending:
             the machine has to stay armed to come back.
 
@@ -76,7 +76,7 @@ function Invoke-HDTTaskSequence {
             teardown comes before run.end so the copied-back log carries its
             record, and so run.end is genuinely the last line of the run.
 
-            PAUSEONERROR DOES NOT PROMPT. DESIGN 4.3's LTISuspend equivalent is
+            PAUSEONERROR DOES NOT PROMPT. The LTISuspend equivalent is
             read from the state document; when it is set and a step fails
             terminally, the loop logs at Error that the run is paused, writes the
             heartbeat and RETURNS with the state loaded. Dropping to a live
@@ -107,8 +107,8 @@ function Invoke-HDTTaskSequence {
 
         .PARAMETER StatePath
             Where to checkpoint. Defaults to state.json in the log directory,
-            which is where DESIGN 4.4.2's directory listing puts it. A caller
-            that follows DESIGN 4.3's X:\HDT\state.json - Start-HDTResume.ps1
+            which is where the log directory listing puts it. A caller
+            that follows the X:\HDT\state.json convention - Start-HDTResume.ps1
             does - passes it explicitly.
 
         .PARAMETER MirrorStatePath
@@ -121,7 +121,7 @@ function Invoke-HDTTaskSequence {
             once per run and hands the same registry to every dispatch.
 
         .PARAMETER StatusPath
-            Where to write DESIGN 4.4.6's status.json heartbeat. Defaults to
+            Where to write the status.json heartbeat. Defaults to
             status.json in the log directory.
 
         .PARAMETER LogDestination
@@ -131,7 +131,7 @@ function Invoke-HDTTaskSequence {
 
         .PARAMETER AutoLogonUserName
             The account the reboot ceremony arms autologon for. Defaults to
-            Administrator, the DESIGN 4.5 model.
+            Administrator, MDT's model.
 
         .PARAMETER AutoLogonDomainName
             That account's domain. Empty for a workgroup machine, which is what a

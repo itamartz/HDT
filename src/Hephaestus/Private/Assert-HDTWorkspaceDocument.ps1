@@ -1,8 +1,7 @@
 function Assert-HDTWorkspaceDocument {
     <#
         .SYNOPSIS
-            Validates a parsed workspace.yaml against the DESIGN 2.1, 5.1 and 6.3
-            authoring rules.
+            Validates a parsed workspace.yaml against the authoring rules.
 
         .DESCRIPTION
             The engine's own validator, and the one that actually runs in WinPE:
@@ -13,7 +12,7 @@ function Assert-HDTWorkspaceDocument {
             It throws on the first violation and returns nothing otherwise. Every
             failure is a terminating HDTConfigurationError built by
             New-HDTErrorRecord, so it names the file, carries the file as its
-            TargetObject, and says which key is wrong - DESIGN 12.1's "fail fast
+            TargetObject, and says which key is wrong - "fail fast
             and point at the file".
 
             The authoring rules, in the order they are checked:

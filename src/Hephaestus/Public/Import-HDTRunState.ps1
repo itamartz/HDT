@@ -1,7 +1,7 @@
 function Import-HDTRunState {
     <#
         .SYNOPSIS
-            Reads and validates DESIGN 4.3's state document, for a resume.
+            Reads and validates the state document, for a resume.
 
         .DESCRIPTION
             Reads state.json through the injected IFileSystem, parses it, holds

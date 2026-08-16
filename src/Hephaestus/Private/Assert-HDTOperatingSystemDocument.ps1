@@ -1,7 +1,7 @@
 function Assert-HDTOperatingSystemDocument {
     <#
         .SYNOPSIS
-            Validates a parsed os.yaml against the DESIGN 2.1 and 9.2 authoring
+            Validates a parsed os.yaml against the authoring
             rules.
 
         .DESCRIPTION
@@ -13,7 +13,7 @@ function Assert-HDTOperatingSystemDocument {
             It throws on the first violation and returns nothing otherwise. Every
             failure is a terminating error built by New-HDTErrorRecord, so it
             names the file, carries the file as its TargetObject and reports
-            HDTConfigurationError - DESIGN 12.1's "fail fast and point at the
+            HDTConfigurationError - "fail fast and point at the
             file".
 
             The authoring rules, in the order they are checked:

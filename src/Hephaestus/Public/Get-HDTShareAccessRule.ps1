@@ -5,8 +5,8 @@ function Get-HDTShareAccessRule {
             Test-HDTShareAcl judges.
 
         .DESCRIPTION
-            A THIN ADAPTER, AND DELIBERATELY DUMB (DESIGN 12.2.3, CLAUDE.md hard
-            rule 1). It is the only file in HDT that calls Get-Acl, and it
+            A THIN ADAPTER, AND DELIBERATELY DUMB. It is the only file in HDT
+            that calls Get-Acl, and it
             contains no judgement at all: every decision about whether an access
             rule is acceptable lives in Test-HDTShareAcl, which is pure logic and
             is unit tested against hand-written rows.

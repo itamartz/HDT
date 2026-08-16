@@ -4,7 +4,7 @@ function Get-HDTPowerShellStepDescription {
             Describes a PowerShell step by the script it will run.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. The script path is the
+            The optional third of the step contract's triple. The script path is the
             thing a technician wants to see next to a step called 'Custom'.
 
         .PARAMETER Step

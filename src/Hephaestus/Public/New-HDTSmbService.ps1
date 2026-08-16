@@ -4,8 +4,8 @@ function New-HDTSmbService {
             Creates the real ISmbService adapter over the SmbShare module.
 
         .DESCRIPTION
-            A THIN ADAPTER, AND DELIBERATELY DUMB (DESIGN 12.2.3, CLAUDE.md hard
-            rule 1). It constructs arguments for four SmbShare cmdlets and
+            A THIN ADAPTER, AND DELIBERATELY DUMB. It constructs arguments for
+            four SmbShare cmdlets and
             projects what they return; every decision that could be got wrong -
             whether the identity that came back is a guest, whether the dialect
             is acceptable, whether a credential was supplied at all - lives in

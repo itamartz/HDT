@@ -4,7 +4,7 @@ function Test-HDTRuleMatch {
             Tests whether a rule's when conditions all match the current scope.
 
         .DESCRIPTION
-            DESIGN 3.3: "rules are walked top to bottom; a rule applies if every
+            Rules are walked top to bottom; a rule applies if every
             when key matches". This is that test, and the four decisions it
             encodes are deliberate:
 

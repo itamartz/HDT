@@ -1,7 +1,7 @@
 function ConvertTo-HDTCmTraceLine {
     <#
         .SYNOPSIS
-            Renders one DESIGN 4.4.2 CMTrace line.
+            Renders one CMTrace line.
 
         .DESCRIPTION
             The second of the two formats every Write-HDTLog call emits. MDT

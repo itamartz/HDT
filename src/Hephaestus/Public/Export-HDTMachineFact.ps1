@@ -1,7 +1,7 @@
 function Export-HDTMachineFact {
     <#
         .SYNOPSIS
-            Writes gathered facts to DESIGN 4.4's Gather\facts.json.
+            Writes gathered facts to Gather\facts.json.
 
         .DESCRIPTION
             DESIGN 4.4 puts "facts.json - resolved facts (3.2)" beside

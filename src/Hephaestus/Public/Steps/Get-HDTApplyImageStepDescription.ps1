@@ -4,7 +4,7 @@ function Get-HDTApplyImageStepDescription {
             Describes an ApplyImage step by the image and index it will apply.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. This is the step a
+            The optional third of the step contract's triple. This is the step a
             technician watches for four minutes, so the line names what is being
             applied and which index of it - the two facts that distinguish a
             correct build from one that just installed the N edition.

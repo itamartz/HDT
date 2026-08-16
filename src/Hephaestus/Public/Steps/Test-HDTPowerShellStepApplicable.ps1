@@ -4,7 +4,7 @@ function Test-HDTPowerShellStepApplicable {
             Reports whether a PowerShell step has a script to run.
 
         .DESCRIPTION
-            The optional second of DESIGN 4.2's triple. A PowerShell step with no
+            The optional second of the step contract's triple. A PowerShell step with no
             `script:` has nothing to do, and saying so through applicability lets
             the loop record a step.skip naming the step rather than a failure that
             reads like the script itself went wrong.

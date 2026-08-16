@@ -4,7 +4,7 @@ function Get-HDTStepType {
             Discovers every step type in the session, by convention.
 
         .DESCRIPTION
-            DESIGN 4.2: "third-party step types can be dropped into Modules\ -
+            Third-party step types can be dropped into Modules\ -
             the engine discovers them by convention, so extending HDT does not
             mean forking it". This is that discovery, and it is the whole
             registry: there is no list of step types anywhere in the engine.

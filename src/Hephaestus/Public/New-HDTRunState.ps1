@@ -1,7 +1,7 @@
 function New-HDTRunState {
     <#
         .SYNOPSIS
-            Builds DESIGN 4.3's state document for a new deployment run.
+            Builds the state document for a new deployment run.
 
         .DESCRIPTION
             "The engine maintains a state document (state.json): resolved

@@ -4,7 +4,7 @@ function Resolve-HDTImageIndex {
             Chooses the one image to apply, or refuses to choose.
 
         .DESCRIPTION
-            DESIGN 9.2: "Index selectable by number, name, or edition." This is
+            Index selectable by number, name, or edition. This is
             that selection, and its refusal: TWO IMAGES MATCHING ONE REQUEST IS A
             REFUSAL, NOT A COIN TOSS. It is the same rule DESIGN 9.1 makes about
             disks, applied to what gets applied to them - and it matters on real

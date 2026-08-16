@@ -5,7 +5,7 @@ function Import-HDTBootImageToWds {
             replacing an image of the same name rather than adding a second one.
 
         .DESCRIPTION
-            DESIGN 6.1: "HDT does not ship a PXE server. WDS serves the WIM."
+            HDT does not ship a PXE server; WDS serves the WIM.
             This is the command that puts it there, and REPLACE-IN-PLACE IS THE
             WHOLE POINT OF IT ("WDS import replacing rather than
             duplicating an existing image").

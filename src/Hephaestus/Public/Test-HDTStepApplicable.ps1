@@ -4,7 +4,7 @@ function Test-HDTStepApplicable {
             Asks a step type whether this step applies to this machine.
 
         .DESCRIPTION
-            The optional half of DESIGN 4.2's triple. A step type may declare
+            The optional half of the step contract's triple. A step type may declare
 
               Test-HDT<Type>StepApplicable -Step -Context
 

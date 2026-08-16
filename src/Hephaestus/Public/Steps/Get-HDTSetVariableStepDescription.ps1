@@ -4,7 +4,7 @@ function Get-HDTSetVariableStepDescription {
             Describes a SetVariable step by the names it will assign.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. "Set HDTStage,
+            The optional third of the step contract's triple. "Set HDTStage,
             HDTComputerName" tells a technician reading the progress display
             which variables are about to change; the step's own name usually does
             not.

@@ -1,7 +1,7 @@
 function Write-HDTStatus {
     <#
         .SYNOPSIS
-            Writes DESIGN 4.4.6's status.json heartbeat.
+            Writes the status.json heartbeat.
 
         .DESCRIPTION
             "The engine writes a small status.json heartbeat each step. The

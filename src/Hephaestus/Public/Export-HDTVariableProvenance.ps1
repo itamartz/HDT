@@ -1,8 +1,7 @@
 function Export-HDTVariableProvenance {
     <#
         .SYNOPSIS
-            Writes a resolution's provenance to DESIGN 4.4's
-            Gather\provenance.json.
+            Writes a resolution's provenance to Gather\provenance.json.
 
         .DESCRIPTION
             DESIGN 4.4 puts "provenance.json - every variable + which source set

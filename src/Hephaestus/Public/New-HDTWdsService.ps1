@@ -4,8 +4,8 @@ function New-HDTWdsService {
             Creates the real IWdsService adapter over the WDS module.
 
         .DESCRIPTION
-            A THIN ADAPTER, AND DELIBERATELY DUMB (DESIGN 12.2.3, CLAUDE.md hard
-            rule 1). It constructs arguments for three WDS cmdlets and projects
+            A THIN ADAPTER, AND DELIBERATELY DUMB. It constructs arguments for
+            three WDS cmdlets and projects
             what they return; every decision that could be got wrong - whether an
             image of that name already exists, whether it has to be removed
             first, what to call it - lives in Import-HDTBootImageToWds, where it

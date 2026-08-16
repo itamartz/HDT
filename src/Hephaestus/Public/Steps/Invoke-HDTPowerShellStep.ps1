@@ -4,7 +4,7 @@ function Invoke-HDTPowerShellStep {
             Runs a user PowerShell script from the workspace.
 
         .DESCRIPTION
-            DESIGN 4.4.4's extensibility point:
+            The extensibility point:
 
               - name: Vendor BIOS Update
                 type: PowerShell

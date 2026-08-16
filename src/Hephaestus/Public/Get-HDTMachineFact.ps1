@@ -1,7 +1,7 @@
 function Get-HDTMachineFact {
     <#
         .SYNOPSIS
-            Gathers the DESIGN 3.2 machine facts through injected services.
+            Gathers the machine facts through injected services.
 
         .DESCRIPTION
             HDT's replacement for ZTIGather.wsf. It produces the gathered-facts

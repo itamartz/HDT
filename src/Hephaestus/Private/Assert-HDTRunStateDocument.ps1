@@ -1,7 +1,7 @@
 function Assert-HDTRunStateDocument {
     <#
         .SYNOPSIS
-            Validates a parsed state.json against DESIGN 4.3's state document.
+            Validates a parsed state.json against the state document contract.
 
         .DESCRIPTION
             The engine's own validator, and the one that actually runs in WinPE:
@@ -14,7 +14,7 @@ function Assert-HDTRunStateDocument {
             It throws on the first violation and returns nothing otherwise. Every
             failure is a terminating error built by New-HDTErrorRecord, so it
             names the file, carries the file as its TargetObject and reports
-            HDTConfigurationError - DESIGN 12.1's "fail fast and point at the
+            HDTConfigurationError - "fail fast and point at the
             file".
 
             The rules, in the order they are checked:

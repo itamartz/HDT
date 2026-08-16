@@ -4,7 +4,7 @@ function Select-HDTTargetDisk {
             Chooses the one disk a deployment may wipe, or refuses to choose.
 
         .DESCRIPTION
-            DESIGN 9.1: "the engine refuses to guess when the disk is unexpected
+            The engine refuses to guess when the disk is unexpected
             (multiple disks, existing data volumes, USB source disk in range).
             DiskPartition requires either an unambiguous target or an explicit
             diskNumber. Wiping the wrong disk is the single most destructive

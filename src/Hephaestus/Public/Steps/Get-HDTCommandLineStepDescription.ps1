@@ -4,7 +4,7 @@ function Get-HDTCommandLineStepDescription {
             Describes a CommandLine step by the executable it will run.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. It names the FILE and not
+            The optional third of the step contract's triple. It names the FILE and not
             the arguments: this string goes to the progress display and to the
             master log at Info, and arguments routinely carry credentials.
 

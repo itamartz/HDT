@@ -1,7 +1,7 @@
 function Clear-HDTAutoLogon {
     <#
         .SYNOPSIS
-            Runs the DESIGN 4.5.3 teardown checklist, item by item, best effort.
+            Runs the autologon teardown checklist, item by item, best effort.
 
         .DESCRIPTION
             "At sequence end - success or failure - the engine clears:
