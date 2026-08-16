@@ -382,45 +382,68 @@ PnP fallback.
 ## M6 — Applications and full-OS steps
 
 - `app.yaml` schema; `InstallApplications` step.
-- Detection rules (`msiProduct`, `file`, `registry`, `script`).
+- Detection rules (`msiProduct`, `file`, `registry`, `script`) — **optional**.
+  An `app.yaml` that declares no `detect:` installs every time the step reaches
+  it, which is what an unconditional installer or a script wrapper wants. MDT has
+  no detection at all, so omitting it lands exactly on MDT's behaviour; declaring
+  it is the improvement, not the requirement. The engine never invents a
+  detection rule for an app that declined to declare one.
 - Dependency topological sort with cycle detection at authoring time.
 - Exit-code classification, `3010` reboot-and-resume.
-- **`WindowsUpdate`** (DESIGN §10.1): WUA COM API, WSUS target, category and
-  exclusion filters, multi-pass loop with reboots.
 - **`InstallRoles`** (DESIGN §10.2): `Install-WindowsFeature` wrapper, feature
   name validation, SxS source through the content provider.
 - **`EnableBitLocker`** (DESIGN §10.3): `scope: usedSpaceOnly | full`, protector
   and method selection, AD/Entra escrow verified before encryption starts.
-- **`SetAdminPassword`** — the last item of DESIGN §4.5.3's teardown checklist,
-  which M2 does **not** ship: after deployment the local Administrator account is
-  left holding the per-deployment random secret, and the sequence must declare
-  what happens to it — rotate to a configured value, hand off to LAPS, or disable
-  the account. Until this exists, a machine HDT built has a working local
-  Administrator password that only the (now-deleted) state document ever knew,
-  which is safe but not finished. The final state of the account is **explicit in
-  the sequence**, never left as whatever deployment happened to leave behind.
-- Server task sequence in `samples/`; a Windows Server VM added to the E2E
-  matrix.
+- **The local Administrator password is a variable, not a step.** This bullet
+  previously specified a `SetAdminPassword` step type; **DESIGN §4.5.2 and §4.5.4
+  already settle it the other way and they win.** The password is
+  `HDTAdminPassword`, resolved through the §3.1 precedence like any other
+  variable, defaulted in `workspace.yaml`, and the teardown deliberately does
+  **not** change the account — the machine keeps the password the administrator
+  configured, so a technician can log into a deployment that *failed*, which is
+  the case that matters. A sequence wanting a different end state declares
+  `HDTAdminPasswordPolicy`: `keep` (default), `rotate`, `laps`, or `disable`.
+  What M6 owes is the *policy* half — `keep` needs no code, and the other three
+  are what remains. This is MDT's `AdminPassword`, and it removes a step type
+  rather than adding one.
+- Server task sequence in `samples/`.
+- **`WindowsUpdate` is deferred to v2** — see below.
 
-**Tests first (full-OS steps):** the WU loop terminating on a clean pass *and*
-on `maxPasses`, and resuming correctly across a mid-loop reboot — a WU step that
-runs once and declares victory is the classic MDT bug; exclusion patterns
-filtering as written; WUA rejected in the WinPE phase. `InstallRoles` failing
-fast on an unknown feature name with valid alternatives listed, and resolving
-SxS source identically under `Smb` and `Local`. BitLocker: **escrow verified
-before encryption begins** (a machine encrypted with no recoverable key is worse
-than an unencrypted one — this gets a dedicated test), `scope` mapping to
-`-UsedSpaceOnly`, `escrow: none` warning, `wait: false` returning without
-blocking.
+### Deferred out of M6 to v2
 
-**Tests first (admin password):** the account left with the configured password
-and not the deployment secret; LAPS hand-off leaving the account enrolled rather
-than rotated; `disable` leaving it disabled; and the step refusing to run at all
-when the sequence declares none of the three, because "whatever deployment left
-behind" is not an outcome.
+**`WindowsUpdate`** (DESIGN §10.1): WUA COM API, WSUS target, category and
+exclusion filters, multi-pass loop with reboots. **Scheduled out of v1 at the
+user's direction on 2026-08-16; the design section stays in full.**
+
+What deferring it costs, stated so it is not discovered later: **a machine HDT
+builds leaves the bench with exactly the patches its source image carried.**
+There is no in-sequence patching, so currency is whatever the media has plus
+whatever Windows Update does on its own schedule after the technician hands the
+machine over. The sample sequences do not run it, and DESIGN §10.1's "run it
+twice, once before applications and once after" describes v2. Nothing in v1 is
+built in a way that assumes the step is absent: it is a step type like any other,
+and adding it later adds files rather than changing them.
+
+**No Windows Server VM in the E2E matrix** either. `InstallRoles` still ships and
+still gets a server sample sequence; only the Hyper-V leg is scheduled out.
+
+**Tests first (full-OS steps):** `InstallRoles` failing fast on an unknown
+feature name with valid alternatives listed, and resolving SxS source identically
+under `Smb` and `Local`. BitLocker: **escrow verified before encryption begins**
+(a machine encrypted with no recoverable key is worse than an unencrypted one —
+this gets a dedicated test), `scope` mapping to `-UsedSpaceOnly`, `escrow: none`
+warning, `wait: false` returning without blocking.
+
+**Tests first (admin password policy):** `keep` leaving the configured password
+in place and the autologon torn down around it; `rotate` landing on the second
+configured value; `laps` leaving the account enrolled rather than rotated;
+`disable` leaving it disabled; an unknown policy value rejected at validation
+rather than at deploy time; and no policy path writing the password into a log
+line or into `state.json`.
 
 **Tests first (applications):** dependency sort determinism; cycle detected as a validation
-error; detection short-circuiting an already-installed app; reboot mid-list
+error; detection short-circuiting an already-installed app **when one is
+declared**, and an app declaring none installing every time; reboot mid-list
 resuming at the next app, not restarting the list; success vs. reboot vs. failure
 code classification.
 

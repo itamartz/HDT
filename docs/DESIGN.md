@@ -45,6 +45,10 @@ They are simply not in v1:
   sysprep and capture its own, and it does not project a workspace onto a USB
   stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
   same thing as offline media carrying the OS and applications.
+- **§10.1 Windows Update.** No `WindowsUpdate` step. A machine HDT builds leaves
+  the bench with exactly the patches its source image carried; currency after
+  that is whatever Windows Update does on its own schedule. The other two
+  full-OS steps, §10.2 `InstallRoles` and §10.3 `EnableBitLocker`, **are** in v1.
 
 ### Non-goals (v1)
 
@@ -1260,7 +1264,7 @@ install: msiexec.exe /i "7z2409-x64.msi" /qn
 uninstall: msiexec.exe /x "{GUID}" /qn
 successCodes: [0, 3010]
 rebootCodes: [3010]
-detect:
+detect:                            # OPTIONAL
   type: msiProduct
   productCode: "{GUID}"
 dependencies: [VCRedist-2015-2022]
@@ -1270,6 +1274,17 @@ runIn: FullOS
 - **Detection rules** (`msiProduct`, `file`, `registry`, `script`) let the
   engine skip already-installed apps — MDT has no first-class detection, so
   reruns reinstall everything.
+
+  **`detect:` is optional.** An `app.yaml` that declares none installs every
+  time the step reaches it, which is the right behaviour for an unconditional
+  installer, a script wrapper, or a payload whose "installed" state is not
+  observable. Omitting it lands exactly on MDT's behaviour; declaring it is the
+  improvement, not the entry fee. **The engine never infers a detection rule for
+  an app that declined to declare one** — a guessed rule that reports an app
+  installed when it is not is worse than no rule, because the step then silently
+  skips work the sequence asked for. An app with no `detect:` is therefore not
+  idempotent, and that is the author's stated choice rather than an engine
+  limitation.
 - **Dependencies** are topologically sorted; a cycle is a validation error at
   authoring time, not a hang at deploy time.
 - **Reboot handling** is explicit: a `3010` return suspends the app list,
@@ -1483,7 +1498,12 @@ its own reference images rather than depending on another tool.
 Three steps that run after the image is applied and the machine has rebooted
 into Windows. All are `runIn: FullOS`.
 
-### 10.1 Windows Update
+### 10.1 Windows Update  ·  **DEFERRED TO v2**
+
+> **v2, not cut.** Scheduled out of v1 on 2026-08-16 at the user's direction.
+> The section is kept in full so v2 starts from a written plan rather than a
+> memory, and the step type is additive — bringing it back adds files rather
+> than changing them. What deferring it costs is in §1's deferred list.
 
 **Decision: online updating during deployment**, against WSUS or Windows Update
 — MDT's `ZTIWindowsUpdate` model. Machines leave the bench current without HDT

@@ -25,9 +25,10 @@ Milestone → phase directory mapping:
 and the zero-keystroke boot path, 05.5 technician UI, 07 applications and full-OS
 steps, 09 admin console.
 
-**v2:** 06 drivers and 08 capture + standalone media. Both keep their full design
-and roadmap entries below — they are scheduled out, not cut, and nothing in v1
-was built in a way that assumes they are absent.
+**v2:** 06 drivers, 08 capture + standalone media, and — added 2026-08-16 — the
+`WindowsUpdate` step out of 07. All keep their full design and roadmap entries
+below; they are scheduled out, not cut, and nothing in v1 was built in a way that
+assumes they are absent.
 
 What deferring them actually costs, stated so it is not discovered later:
 
@@ -44,6 +45,11 @@ What deferring them actually costs, stated so it is not discovered later:
   boot ISO. `New-HDTBootIso` (phase 05) still produces a bootable WinPE ISO —
   what moves to v2 is `New-HDTMedia`, the full content projection that puts the
   OS, applications and sequences on a USB stick for a site with no server.
+- **No in-sequence patching.** A machine HDT builds leaves the bench with exactly
+  the patches its source image carried. There is no `WindowsUpdate` step, so
+  currency after deployment is whatever Windows Update does on its own schedule
+  once the technician hands the machine over. The step type is additive — v2
+  brings it back by adding files, not by changing them.
 - **The console (09) will show Drivers and Captures nodes with nothing behind
   them** unless it hides them; it should read the workspace and omit what is not
   present rather than showing empty branches.
@@ -284,10 +290,32 @@ and a live progress window; removing one value surfaces exactly that page.
 ranked by specificity → version → date, coverage reporting.
 *Exit:* an unrecognized model deploys with working network and storage.
 
-**07 — Apps and full-OS steps.** Application catalog with detection and
-dependencies, plus `WindowsUpdate` (multi-pass), `InstallRoles`, `EnableBitLocker`.
-*Exit:* a dependency chain installs across a reboot, idempotently; a Server 2025
-VM deploys with roles.
+**07 — Apps and full-OS steps.** Application catalog with **optional** detection
+and with dependencies, plus `InstallRoles`, `EnableBitLocker`, and the
+`HDTAdminPasswordPolicy` half of DESIGN 4.5.4. `WindowsUpdate` is **deferred to
+v2** (2026-08-16), and no Server VM joins the E2E matrix — `InstallRoles` still
+ships with a server sample sequence.
+*Exit:* a dependency chain installs across a reboot, idempotently.
+
+**Plans:** 6 plans in 6 waves.
+
+- [ ] `07-01-PLAN.md` — the application catalog, all pure logic: `app.schema.json`,
+      `Assert-HDTApplicationDocument`, `Get-HDTApplication`, the four detection
+      rules behind `Test-HDTApplicationDetection`, and `Resolve-HDTApplicationOrder`
+      (topological sort, cycle detection at authoring time)
+- [ ] `07-02-PLAN.md` — the `InstallApplications` step: selection from the
+      `Applications` variable or a fixed list collapsing to one logged plan,
+      exit-code classification, `3010` suspending and resuming at the next app
+- [ ] `07-03-PLAN.md` — `InstallRoles` and `IFeatureService`: fail fast on an
+      unknown feature name listing valid alternatives, SxS `source` through the
+      content provider with `Local`/`Smb` operation-list equality
+- [ ] `07-04-PLAN.md` — `EnableBitLocker` and `IBitLockerService`: escrow verified
+      before encryption begins, `scope` mapping, `escrow: none` warning,
+      `wait: false`
+- [ ] `07-05-PLAN.md` — `HDTAdminPasswordPolicy`: `rotate`, `laps` and `disable`
+      in the existing teardown; `keep` stays the default and needs no code
+- [ ] `07-06-PLAN.md` — wiring and samples: schema step-type enum, manifest
+      exports, console step catalog, a server sequence in `samples/`
 
 **08 — Capture and media.** Sysprep + capture back into the OS catalog;
 `New-HDTMedia` content projection to ISO/USB.
