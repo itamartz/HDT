@@ -21,7 +21,7 @@ function Assert-HDTSequenceDocument {
                         ^[A-Za-z0-9][A-Za-z0-9_-]*$; a non-empty name; steps
                         present, a list and not empty
               variables every name matching ^HDT[A-Za-z0-9_]*$ and no _HDT* name,
-                        which is engine-owned and cannot be assigned (DESIGN 3.2)
+                        which is engine-owned and cannot be assigned
               group     a mapping declaring steps; a non-empty group name; no key
                         outside group/condition/runIn/steps; a non-empty steps
                         list; a parseable condition; a runIn in the set
@@ -43,7 +43,7 @@ function Assert-HDTSequenceDocument {
             authoring rather than a deployment at 3 a.m.
 
             STEP TYPES ARE DELIBERATELY NOT VALIDATED. Types are pluggable and
-            discovered at runtime (DESIGN 4.2), so a sequence authored for a
+            discovered at runtime, so a sequence authored for a
             workspace whose Modules\ carries a third-party step must still import
             on a machine that does not have it. An unknown type fails the STEP,
             at execution, naming the types that are known.

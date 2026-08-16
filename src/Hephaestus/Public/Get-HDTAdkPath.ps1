@@ -108,13 +108,13 @@ function Get-HDTAdkPath {
         .EXAMPLE
             Get-HDTAdkPath -Asset Oscdimg
 
-            The oscdimg.exe that builds the ISO (DESIGN 5.2).
+            The oscdimg.exe that builds the ISO.
 
         .EXAMPLE
             Get-HDTAdkPath -Asset EfiSysNoPrompt
 
             The El Torito image that removes "Press any key to boot from CD or
-            DVD" (SPIKES S3). Under Oscdimg, not under Media\EFI.
+            DVD". Under Oscdimg, not under Media\EFI.
 
         .EXAMPLE
             Get-HDTAdkPath -Asset WinPeWim -Language en-us

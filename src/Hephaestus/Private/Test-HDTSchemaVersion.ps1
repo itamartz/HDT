@@ -5,7 +5,7 @@ function Test-HDTSchemaVersion {
 
         .DESCRIPTION
             Workspace content carries a schemaVersion. The module refuses to operate
-            on a workspace newer than it understands (DESIGN 12.3); older workspaces
+            on a workspace newer than it understands; older workspaces
             are readable and are upgraded separately.
 
             Returns $true when SchemaVersion is less than or equal to Supported.

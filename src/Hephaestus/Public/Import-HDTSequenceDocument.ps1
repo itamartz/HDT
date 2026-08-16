@@ -5,10 +5,10 @@ function Import-HDTSequenceDocument {
             order.
 
         .DESCRIPTION
-            The public front door to sequence.yaml (DESIGN 4.1). It reads the
+            The public front door to sequence.yaml. It reads the
             file through an injected IFileSystem - never Get-Content - so the
             whole authoring path is provable under Pester with no share, no media
-            and no disk (PROJECT constraint 4, DESIGN 12.2.1).
+            and no disk.
 
             Four steps, and a failure at any of them is a terminating
             HDTConfigurationError naming the file:
@@ -46,7 +46,7 @@ function Import-HDTSequenceDocument {
               Retry            Count / DelaySecond / Backoff, default 0/0/fixed
               Resumable        [bool], default $false - DESIGN 4.3's "re-runs the
                                interrupted step only if it declares resumable"
-              Log              a per-step log file name (DESIGN 4.4.4), or $null
+              Log              a per-step log file name, or $null
               Property         ordered, case-insensitive: every key that is NOT a
                                common property, i.e. the step type's own arguments
 
@@ -56,7 +56,7 @@ function Import-HDTSequenceDocument {
 
             STEP TYPES ARE NOT RESOLVED HERE. A sequence referencing a type this
             engine does not implement still imports, because a workspace's
-            Modules\ may carry it and the authoring machine may not (DESIGN 4.2).
+            Modules\ may carry it and the authoring machine may not.
 
         .PARAMETER Path
             The sequence.yaml to read. Interpreted by the filesystem service, so
@@ -71,7 +71,6 @@ function Import-HDTSequenceDocument {
 
               Path, SchemaVersion, Id, Name, Description
               Variable  ordered, case-insensitive: the sequence defaults
-                        (DESIGN 3.1 source 5)
               Step      [object[]] flattened into execution order
               Group     [object[]] one per group node: Path, Condition, RunIn
 

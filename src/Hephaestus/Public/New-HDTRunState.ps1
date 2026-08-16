@@ -5,8 +5,8 @@ function New-HDTRunState {
 
         .DESCRIPTION
             "The engine maintains a state document (state.json): resolved
-            variables, the step index, per-step results, and a run ID"
-            (DESIGN 4.3). This builds it, in memory. It has NO -FileSystem
+            variables, the step index, per-step results, and a run ID".
+This builds it, in memory. It has NO -FileSystem
             parameter and reads nothing: only Save-HDTRunState writes.
 
             The document, in this key order:

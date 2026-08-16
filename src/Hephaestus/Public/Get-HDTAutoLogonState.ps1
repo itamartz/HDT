@@ -1,7 +1,7 @@
 function Get-HDTAutoLogonState {
     <#
         .SYNOPSIS
-            Reports the machine's current autologon state (DESIGN 4.5.1).
+            Reports the machine's current autologon state.
 
         .DESCRIPTION
             Reads the Winlogon values, the RunOnce entry and whether the LSA
@@ -25,7 +25,7 @@ function Get-HDTAutoLogonState {
             another tool, may carry it, and Clear-HDTAutoLogon has to clear both.
 
             Armed is false for AutoAdminLogon='0', which is precisely what
-            Windows leaves behind when AutoLogonCount runs out (SPIKES.md S8), so
+            Windows leaves behind when AutoLogonCount runs out, so
             that state reads as disarmed rather than as armed-with-a-zero.
 
         .PARAMETER Registry

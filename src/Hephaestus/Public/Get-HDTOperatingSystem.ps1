@@ -7,7 +7,7 @@ function Get-HDTOperatingSystem {
             The read half of DESIGN 9.3's catalog. It reads
             OperatingSystems\<id>\os.yaml through an injected IFileSystem - never
             Get-Content - so the whole authoring path is provable under Pester
-            with no share, no media and no disk (PROJECT constraint 4).
+            with no share, no media and no disk.
 
             Four steps, and a failure at any of them is a terminating
             HDTConfigurationError naming the file:
@@ -33,7 +33,7 @@ function Get-HDTOperatingSystem {
 
             A rooted sourcePath is kept as it is, provider or no provider,
             because media too large to bring into the share is registered where
-            it stands (DESIGN 9.3).
+            it stands.
 
         .PARAMETER WorkspaceRoot
             The workspace root - a local path or a UNC share.

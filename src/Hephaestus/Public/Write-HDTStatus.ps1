@@ -6,7 +6,7 @@ function Write-HDTStatus {
         .DESCRIPTION
             "The engine writes a small status.json heartbeat each step. The
             console tails that directory. No web service, no SQL, no MDT
-            Monitoring dependency" (DESIGN 4.4.6).
+            Monitoring dependency".
 
             It OVERWRITES rather than appends, which makes it the one log-adjacent
             writer that uses WriteAllText: a heartbeat is the current state of a

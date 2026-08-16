@@ -9,8 +9,8 @@ function New-HDTCimProvider {
             and everything after it receives this object and can be swapped for
             New-HDTFakeCimProvider in a test with no machine attached.
 
-            Adapters stay branch-free because they are not unit tested
-            (DESIGN 12.2.3). The two branches here are not logic: one dispatches
+            Adapters stay branch-free because they are not unit tested.
+The two branches here are not logic: one dispatches
             the contract's two overloads, which a ScriptMethod must do positionally
             because it cannot be overloaded, and the other attaches the class name
             to an error message Get-CimInstance leaves out. Neither inspects data.
@@ -37,7 +37,7 @@ function New-HDTCimProvider {
             $cim.GetInstance('root/cimv2/security/microsofttpm', 'Win32_Tpm')[0].SpecVersion
 
             The two-argument form, which fact gathering needs because Win32_Tpm
-            lives outside root/cimv2 (DESIGN 3.2.1).
+            lives outside root/cimv2.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

@@ -5,7 +5,7 @@ function Get-HDTWizardField {
             window.
 
         .DESCRIPTION
-            W2 of the WPF-first direction (.planning/WPF-FIRST.md), and the
+            W2 of the WPF-first direction, and the
             reason it is a command rather than code inside the window host.
 
             NEW-HDTWIZARDHOST'S TDD EXEMPTION IS CONDITIONAL. CLAUDE.md rule 1

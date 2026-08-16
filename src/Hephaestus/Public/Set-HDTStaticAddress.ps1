@@ -4,7 +4,7 @@ function Set-HDTStaticAddress {
             Configures an adapter with a static IPv4 address, through WMI.
 
         .DESCRIPTION
-            W2's static IP pane, behind the glass (.planning/WPF-FIRST.md), and
+            W2's static IP pane, behind the glass, and
             MDT's "Configure with Static IP Address" rebuilt.
 
             WMI, NOT NetTCPIP, AND THAT IS NOT A STYLE CHOICE. SPIKES S14:
@@ -25,7 +25,7 @@ function Set-HDTStaticAddress {
             A gateway set before the address exists is a gateway on a subnet the
             machine is not on yet, and WMI refuses it.
 
-            IT REFUSES TO GUESS WHICH ADAPTER (CLAUDE.md rule 6). One IP-enabled
+            IT REFUSES TO GUESS WHICH ADAPTER. One IP-enabled
             adapter is the WinPE case and needs no choosing; two is a coin toss
             with the machine's own network as the stake, so it stops and names
             them both. -InterfaceIndex is how a caller settles it.

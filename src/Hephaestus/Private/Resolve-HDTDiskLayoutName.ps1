@@ -8,7 +8,7 @@ function Resolve-HDTDiskLayoutName {
             sequence pins one". Precedence, highest first:
 
               1  the step's layout: property   (-Layout)
-              2  the HDTDiskLayout variable    (DESIGN 3.2)
+              2  the HDTDiskLayout variable
               3  firmware - HDTIsUEFI true means uefi-standard
 
             A MACHINE WHOSE FIRMWARE WAS NEVER GATHERED IS NOT A UEFI MACHINE BY

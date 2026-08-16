@@ -112,7 +112,7 @@ function New-HDTBootIso {
                 -Path 'C:\HDTLab\Share\Boot\HDTPE_x64.iso' -NoPromptForKey
 
             The debugging ISO: mount it into a Generation 2 VM and it boots
-            straight into WinPE with no keypress (SPIKES S3).
+            straight into WinPE with no keypress.
 
         .EXAMPLE
             New-HDTBootIso -MediaRoot $media -Path $iso -Firmware Both

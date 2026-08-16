@@ -8,7 +8,7 @@ function Resolve-HDTVariable {
             The variable engine: DESIGN 3.1's five sources in precedence order,
             DESIGN 3.3's first-match-wins rule evaluation, %Var% expansion, and
             setFrom: script rules - with a provenance record for every resolved
-            variable, which is the whole point (DESIGN 3.1: "the single biggest
+            variable, which is the whole point ("the single biggest
             debugging pain in MDT is not knowing why HDTComputerName ended up as
             it did").
 
@@ -44,7 +44,7 @@ function Resolve-HDTVariable {
             execution: the rule document and the machine override are loaded by
             their own functions and handed in, and a setFrom rule reaches its
             script only through -ScriptInvoker. That is what lets the whole engine
-            run under Pester against fakes (DESIGN 12.2.1) and is why phase 03 can
+            run under Pester against fakes and is why phase 03 can
             swap in the real invoker unchanged.
 
         .PARAMETER CommandLine

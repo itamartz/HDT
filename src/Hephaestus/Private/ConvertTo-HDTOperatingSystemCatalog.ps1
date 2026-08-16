@@ -29,11 +29,11 @@ function ConvertTo-HDTOperatingSystemCatalog {
             tests/unit/Invoke-HDTApplyImageStep.Tests.ps1 asserts by running the
             same step through the Local and the Smb providers and comparing the
             ordered list of every service call: the arguments differ, the
-            operations do not (DESIGN 6.2).
+            operations do not.
 
             A ROOTED sourcePath IS KEPT AS IT IS, provider or no provider. Media
-            too large to bring into the share is registered where it stands
-            (DESIGN 9.3), and a catalog that silently re-rooted it would send the
+            too large to bring into the share is registered where it stands,
+and a catalog that silently re-rooted it would send the
             apply step to a path with nothing in it.
 
         .PARAMETER Document

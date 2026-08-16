@@ -14,7 +14,7 @@ function Invoke-HDTRestartStep {
               arm autologon -> save state -> log reboot.arm -> restart
 
             and a failure between any two of those must leave a machine that can
-            still be recovered (DESIGN 4.3, 4.5). That ordering belongs to the
+            still be recovered. That ordering belongs to the
             loop, which owns the state document; a step that rebooted itself
             could not be checkpointed, so the sequence would resume at the wrong
             index or not at all.

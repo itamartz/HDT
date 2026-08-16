@@ -34,7 +34,7 @@ function Resolve-HDTImageIndex {
 
             HDTAmbiguousImageError is classified Configuration by
             Get-HDTFailureClass, so a refusal ends the run rather than being
-            retried three times (DESIGN 12.1).
+            retried three times.
 
         .PARAMETER Image
             The image rows, as IImageService.GetImageInfo returns them or as

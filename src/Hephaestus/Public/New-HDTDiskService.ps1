@@ -45,7 +45,7 @@ function New-HDTDiskService {
             Initialize-Disk, and then ESP / Windows / Recovery - with no MSR
             created by us. Mine PSD for its GUIDs, not for its sequence.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             there is no way to unit test the destructive half that does not
             write to a physical disk. Its contract row is opt-in - elevated AND
             $env:HDT_ALLOW_DISK_TEST -eq '1' - and even then read-only; the

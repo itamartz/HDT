@@ -6,8 +6,7 @@ function Copy-HDTContentTree {
         .DESCRIPTION
             What -Copy on Import-HDTOperatingSystem does: bring a media tree into
             the workspace. It goes through IFileSystem and nothing else, so
-            importing 4 GB of media is provable under Pester with nothing on disk
-            (PROJECT constraint 4).
+            importing 4 GB of media is provable under Pester with nothing on disk.
 
             IT REFUSES TO COPY A TREE INTO ITSELF. A destination underneath the
             source is the loop that fills a disk: every pass copies what the

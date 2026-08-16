@@ -19,7 +19,7 @@ function Invoke-HDTStepAttempt {
             so an exponential policy with delaySeconds: 1 waits 1s, 2s, 4s. The
             wait is taken through the injected IClock, never Start-Sleep, which
             is what lets a twenty-minute backoff policy be proven in
-            milliseconds (PROJECT constraint 4).
+            milliseconds.
 
             A CONFIGURATION FAILURE IS NEVER RETRIED. Retrying bad authoring
             spends a deployment's time three times over and buries the message

@@ -18,7 +18,7 @@ function Hide-HDTShellWindow {
             its failure path - hidden is a presentation choice, not a place to
             get stuck.
 
-            AN ADAPTER, AND THEREFORE BRANCH-FREE (CLAUDE.md rule 1). It wraps
+            AN ADAPTER, AND THEREFORE BRANCH-FREE. It wraps
             two Win32 calls and has nothing to decide; whether to hide at all is
             the payload's decision. It is also SAFE OUTSIDE WinPE: a process
             with no console gets a null handle and this does nothing, so the

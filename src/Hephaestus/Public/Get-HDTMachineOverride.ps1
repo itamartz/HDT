@@ -15,7 +15,7 @@ function Get-HDTMachineOverride {
             asks before it necessarily knows the UUID.
 
             A file that EXISTS but is wrong is a different matter and fails fast,
-            naming the file (DESIGN 12.1). An override that silently does nothing
+            naming the file. An override that silently does nothing
             is precisely the MDT-database debugging problem HDT exists to end, so
             an unknown key, a variable outside the HDT namespace or an attempt to
             assign an engine-owned _HDT* variable are all refused rather than
@@ -32,7 +32,7 @@ function Get-HDTMachineOverride {
 
         .PARAMETER WorkspaceRoot
             The workspace root. The override is at
-            <WorkspaceRoot>\Control\machines\<Uuid>.yaml (DESIGN 2.1).
+            <WorkspaceRoot>\Control\machines\<Uuid>.yaml.
 
         .PARAMETER Uuid
             The machine UUID, as HDTUUID reports it. Empty or $null returns $null.

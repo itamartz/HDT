@@ -23,7 +23,7 @@ function Invoke-HDTApplyUnattendStep {
 
               1. an HDTAdminPassword variable the rules resolved - used;
               2. otherwise $Context.State.deploymentPassword, when the state
-                 carries one (DESIGN 4.5.1: the oobeSystem AutoLogon block is
+                 carries one (the oobeSystem AutoLogon block is
                  what arms the first logon);
               3. otherwise ONE IS MINTED, written back to
                  $Context.State.deploymentPassword and used.

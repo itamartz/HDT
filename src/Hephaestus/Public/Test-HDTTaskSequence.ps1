@@ -19,7 +19,7 @@ function Test-HDTTaskSequence {
               engine can run listed. Import deliberately does not check this - a
               sequence authored for a workspace whose Modules\ carries a
               third-party step must still import on a machine that does not
-              (DESIGN 4.2) - so this is where an author finds out.
+ - so this is where an author finds out.
 
             Three Warnings:
 

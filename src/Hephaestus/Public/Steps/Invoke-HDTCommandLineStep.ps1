@@ -43,7 +43,7 @@ function Invoke-HDTCommandLineStep {
             Debug, because arguments routinely carry credentials and a log that
             leaked them by default would be worse than no log. Captured output
             goes through Write-HDTLog, which places it in the step's own file
-            (DESIGN 4.4.3) as well as the master.
+ as well as the master.
 
         .PARAMETER Step
             A flattened step from Import-HDTSequenceDocument. Its TimeoutMinutes

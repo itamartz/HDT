@@ -35,7 +35,7 @@ function Get-HDTBootImageComponent {
               - a declared component that is already required is dropped from the
                 tail rather than applied twice, and does not reorder the six;
               - the remaining declarations keep the order they were written in
-                (DESIGN 5.1: "merged with the required set below, order
+                ("merged with the required set below, order
                 preserved");
               - comparison is case-insensitive throughout.
 
@@ -62,7 +62,7 @@ function Get-HDTBootImageComponent {
               - LanguageCabPath is PROBED. Absent, the property is '' and one
                 warning names the component. Twelve of this ADK's 33 components
                 have no en-us pack - WinPE-FMAPI among them - so this must never
-                be an error (DESIGN 5.1: "the builder must probe rather than
+                be an error ("the builder must probe rather than
                 assume").
 
         .PARAMETER OptionalComponent

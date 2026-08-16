@@ -1,8 +1,7 @@
 function Invoke-HDTBootReconciliation {
     <#
         .SYNOPSIS
-            Decides on every boot whether to resume the run or disarm the machine
-            (DESIGN 4.5.2).
+            Decides on every boot whether to resume the run or disarm the machine.
 
         .DESCRIPTION
             "Start-HDTResume.ps1 reconciles on every boot: if the state document

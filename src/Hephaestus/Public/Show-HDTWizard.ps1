@@ -4,7 +4,7 @@ function Show-HDTWizard {
             Shows the technician wizard and returns what the technician chose.
 
         .DESCRIPTION
-            W1 of the WPF-first direction (.planning/WPF-FIRST.md), and MDT's
+            W1 of the WPF-first direction, and MDT's
             LiteTouch wizard is what it grows into: the window a technician sees
             when a machine boots the deployment image and nothing has been
             decided for it in advance.
@@ -12,7 +12,7 @@ function Show-HDTWizard {
             THE WINDOW IS NOT IN THIS FUNCTION. An injected IWizardHost owns
             everything WPF - Add-Type, XamlReader, ShowDialog - and this function
             owns the decisions. That is the same split every other service in
-            this engine uses (DESIGN 12.2.1), and it is what lets the wizard be
+            this engine uses, and it is what lets the wizard be
             asserted on a developer machine with no display and no WinPE.
             New-HDTWizardHost is the real one, and it is branch-free BECAUSE it
             is not unit tested.

@@ -19,7 +19,7 @@ function Invoke-HDTStep {
             third-party step must still import on a machine that does not.
 
             IT DOES NOT CATCH. Classifying a thrown exception as Transient,
-            Configuration or Environment (DESIGN 12.1), deciding whether to
+            Configuration or Environment, deciding whether to
             retry, and honouring continueOnError all belong to the loop, which
             owns the retry policy and the state document. Swallowing an exception
             here would hide it from both.

@@ -20,7 +20,7 @@ function New-HDTProcessService {
 
             It is a ProcessStartInfo + WaitForExit(timeout) adapter and nothing
             more - no branching on what the tool was or what it returned, which
-            is what keeps the untested surface bounded (DESIGN 12.2.3). Deciding
+            is what keeps the untested surface bounded. Deciding
             whether an exit code means success belongs to the CommandLine step,
             which is unit tested against the fake.
 

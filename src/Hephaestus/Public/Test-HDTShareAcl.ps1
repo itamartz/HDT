@@ -12,7 +12,7 @@ function Test-HDTShareAcl {
             boot image is a domain compromise, and that is the failure worth
             catching."
 
-            THE EXPECTED POSTURE (DESIGN 2.1 and 6.3):
+            THE EXPECTED POSTURE:
 
               workspace root   Read only
               Logs\            Write (or Modify)

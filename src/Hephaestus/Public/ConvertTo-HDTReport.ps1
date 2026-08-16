@@ -26,7 +26,7 @@ function ConvertTo-HDTReport {
             report that breaks on it is worse than no report.
 
             THE DEPLOYMENT PASSWORD NEVER APPEARS. The report is built from the
-            JSONL, which never carries it (DESIGN 4.5.2), and from -State, from
+            JSONL, which never carries it, and from -State, from
             which it reads only status, leg and the step records. A report gets
             emailed; that is the whole reason this is a rule rather than a
             preference.

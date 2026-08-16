@@ -64,7 +64,7 @@ function Update-HDTBootImage {
             runs from the catch, so a failed build leaves no half-applied image
             mounted and no artifact on the share.
 
-            THE ACL CHECK WARNS AND NEVER REFUSES (DESIGN 6.3). An administrator
+            THE ACL CHECK WARNS AND NEVER REFUSES. An administrator
             whose boot image build died because of an ACL check is an
             administrator who turns the check off, and then nobody is told about
             the domain admin credential either.
@@ -90,7 +90,7 @@ function Update-HDTBootImage {
             is still written, with the ISO recorded as skipped.
 
         .PARAMETER PromptForCredential
-            Build an image with no embedded credential (DESIGN 6.3). The booted
+            Build an image with no embedded credential. The booted
             machine stops for a human. Available, not the default.
 
         .PARAMETER PromptForKey
@@ -161,7 +161,7 @@ function Update-HDTBootImage {
             Update-HDTBootImage -WorkspaceRoot '\\HDT-HOST\HdtShare' -PromptForCredential
 
             An image carrying no share password - for a shared lab or media
-            going offsite. The booted machine stops for a human (DESIGN 6.3).
+            going offsite. The booted machine stops for a human.
 
         .EXAMPLE
             Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' -OptionalComponent 'WinPE-FMAPI'

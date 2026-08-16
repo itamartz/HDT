@@ -17,7 +17,7 @@ function Get-HDTVariableMap {
               * translated variables - the DESIGN 3.2 pairs;
               * HDT-specific additions with no MDT equivalent, whose MdtName is
                 $null;
-              * engine variables (DESIGN 4.4.1), named _HDT* and never writable.
+              * engine variables, named _HDT* and never writable.
                 A rule or a sequence that assigns one is a validation error, not
                 a silent override, which is what Assert-HDTRuleDocument enforces.
 

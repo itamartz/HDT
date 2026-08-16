@@ -2,7 +2,7 @@ function Set-HDTLogPath {
     <#
         .SYNOPSIS
             Moves the live log to the target volume, mirroring everything already
-            written (DESIGN 4.4.1).
+            written.
 
         .DESCRIPTION
             A DEPLOYMENT THAT DIES IN WinPE LOSES ITS LOG AT THE REBOOT, AND
@@ -60,7 +60,7 @@ function Set-HDTLogPath {
             The live variable dictionary. When supplied, _HDTLogPath is set in
             it. The engine variable is read-only TO SEQUENCES AND RULES; the
             engine itself is what sets it, which is what the leading underscore
-            means (DESIGN 4.4.1).
+            means.
 
         .INPUTS
             None. This command does not accept pipeline input.

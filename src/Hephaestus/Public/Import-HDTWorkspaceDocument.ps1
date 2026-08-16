@@ -15,7 +15,7 @@ function Import-HDTWorkspaceDocument {
 
               1. read through IFileSystem - never Get-Content, so the whole
                  authoring path is provable under Pester with no share and no
-                 disk (PROJECT constraint 4);
+                 disk;
               2. parse with ConvertFrom-HDTYaml, which turns a parser exception
                  into an error naming the file and the LINE;
               3. validate with Assert-HDTWorkspaceDocument, which names the file

@@ -64,7 +64,7 @@ function Invoke-HDTTaskSequence {
             AutoLogonCount backstop stays the third line of defence rather than
             the first.
 
-            TEARDOWN RUNS FROM finally, NOT FROM A STEP (DESIGN 4.5.2). MDT's
+            TEARDOWN RUNS FROM finally, NOT FROM A STEP. MDT's
             cleanup is a task sequence step, so a failure before it leaves
             autologon armed. Here every terminal outcome - success, failure, a
             thrown exception, even a failed checkpoint - runs the DESIGN 4.5.3
@@ -127,7 +127,7 @@ function Invoke-HDTTaskSequence {
         .PARAMETER LogDestination
             The share's log root. When given, the log directory is copied back at
             the end of the run - on failure too, because a deployment that dies
-            is exactly when the logs matter (DESIGN 4.4.1).
+            is exactly when the logs matter.
 
         .PARAMETER AutoLogonUserName
             The account the reboot ceremony arms autologon for. Defaults to

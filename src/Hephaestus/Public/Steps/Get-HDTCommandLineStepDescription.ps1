@@ -6,8 +6,7 @@ function Get-HDTCommandLineStepDescription {
         .DESCRIPTION
             The optional third of DESIGN 4.2's triple. It names the FILE and not
             the arguments: this string goes to the progress display and to the
-            master log at Info, and arguments routinely carry credentials
-            (DESIGN 4.4.5, which keeps the full command line to Debug).
+            master log at Info, and arguments routinely carry credentials.
 
         .PARAMETER Step
             A flattened step from Import-HDTSequenceDocument.

@@ -14,7 +14,7 @@ function Invoke-HDTPowerShellStep {
             The script runs through the injected IScriptInvoker - never with a
             bare call operator and never by launching a process - so a sequence
             carrying a PowerShell step is provable under Pester with nothing
-            executed (PROJECT constraint 4). The step contract test greps this
+            executed. The step contract test greps this
             file for the cmdlet names that would break that, which is why they do
             not appear even in prose.
             It receives the LIVE variable dictionary as -Variable, so a script may

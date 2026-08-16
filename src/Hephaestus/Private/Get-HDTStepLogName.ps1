@@ -6,7 +6,7 @@ function Get-HDTStepLogName {
         .DESCRIPTION
             "Step files are numbered in execution order, so the directory listing
             itself tells you the sequence and where it stopped - the thing you
-            want first when a deployment fails" (DESIGN 4.4.2):
+            want first when a deployment fails":
 
               Steps\001-Validate.log
               Steps\002-DiskPartition.log

@@ -5,18 +5,18 @@ function Write-HDTLog {
 
         .DESCRIPTION
             "Every log call emits both, from a single Write-HDTLog invocation"
-            (DESIGN 4.4.2):
+:
 
               <_HDTLogPath>\HDT.jsonl   JSON Lines, the structured source of truth
               <_HDTLogPath>\HDT.log     CMTrace, what an administrator already reads
 
             and, when the context has a step log, the same CMTrace line goes to
-            that per-step file as well (DESIGN 4.4.3). Nothing else in HDT writes
-            a log anywhere (DESIGN 4.4.1).
+            that per-step file as well. Nothing else in HDT writes
+            a log anywhere.
 
             Both writes go through the context's injected IFileSystem, and the
             timestamp through its injected IClock, so the whole of DESIGN 4.4 is
-            provable with nothing on disk and no wall clock (DESIGN 12.2.1). The
+            provable with nothing on disk and no wall clock. The
             adapter writes UTF-8 without a byte order mark; the PowerShell
             file-writing cmdlets are banned here for that reason and are absent
             from this file.
@@ -36,7 +36,7 @@ function Write-HDTLog {
             well - a test asserts the exact list.
 
             Verbosity order is Error < Warning < Info < Debug, so Level = Warning
-            emits Error and Warning only (DESIGN 4.4.5).
+            emits Error and Warning only.
 
         .PARAMETER Context
             A New-HDTLogContext result.

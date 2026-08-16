@@ -11,8 +11,7 @@ function Get-HDTShareCredential {
             New-HDTSmbContentProvider.
 
             It reads through an injected IFileSystem, never Get-Content, so the
-            whole path is provable under Pester with no share and no boot image
-            (PROJECT constraint 4).
+            whole path is provable under Pester with no share and no boot image.
 
             A missing file is an HDTConfigurationError naming the file AND the
             command that writes it, because "no credential" is the single most

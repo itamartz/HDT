@@ -15,7 +15,7 @@
 
         which is the command Set-HDTAutoLogon writes into RunOnce.
 
-        THE RECONCILE RUNS FIRST, BEFORE ANYTHING ELSE (DESIGN 4.5.2): "if the
+        THE RECONCILE RUNS FIRST, BEFORE ANYTHING ELSE: "if the
         state document says the run is finished, failed, or missing, it clears
         autologon, the LSA secret, the RunOnce entry, and C:\HDT\state.json
         before doing anything else." A machine that boots with a finished or

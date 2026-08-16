@@ -6,7 +6,7 @@ function New-HDTPowerService {
 
         .DESCRIPTION
             The one place in HDT that reboots anything, behind an interface so
-            the whole reboot ceremony (DESIGN 4.3, 4.5) is provable under Pester
+            the whole reboot ceremony is provable under Pester
             against New-HDTFakePowerService with nothing restarted.
 
               Restart($DelaySecond)

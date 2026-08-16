@@ -1,8 +1,7 @@
 function Get-HDTFailureClass {
     <#
         .SYNOPSIS
-            Classifies a failure as Transient, Configuration or Environment
-            (DESIGN 12.1).
+            Classifies a failure as Transient, Configuration or Environment.
 
         .DESCRIPTION
             "Engine code wraps each step in a single try/catch that classifies

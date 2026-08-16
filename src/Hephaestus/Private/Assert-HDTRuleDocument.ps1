@@ -26,16 +26,16 @@ function Assert-HDTRuleDocument {
                          set and setFrom
               when       at least one condition; every value a scalar - a nested
                          mapping is not a condition language, and HDT
-                         deliberately does not have one (DESIGN 3.3)
+                         deliberately does not have one
               set        at least one variable; every name matching
                          ^HDT[A-Za-z0-9_]*$; no _HDT* name, which is engine-owned
-                         and cannot be assigned (DESIGN 3.2); every value a
+                         and cannot be assigned; every value a
                          scalar or a list
               setFrom    a non-empty script path
 
             Two of those deserve their reason stated. Duplicate rule NAMES are
-            rejected because provenance records which rule set a variable
-            (DESIGN 3.1), and two rules called Fallback make that answer
+            rejected because provenance records which rule set a variable,
+and two rules called Fallback make that answer
             ambiguous. An unknown key is rejected rather than ignored because the
             INI dialect HDT replaces let 'Priority' and friends look meaningful
             while doing nothing - a typo that silently does nothing is worse than

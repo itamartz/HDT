@@ -81,7 +81,7 @@ function New-HDTServiceCatalog {
 
         .PARAMETER Content
             An IContentProvider, or nothing - New-HDTLocalContentProvider or
-            New-HDTSmbContentProvider (DESIGN 6). ApplyImage resolves the
+            New-HDTSmbContentProvider. ApplyImage resolves the
             catalog's image through it when the run was started with one, which
             is the whole of DESIGN 6.2's "a provider swap, not a parallel code
             path" as far as a step is concerned.

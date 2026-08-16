@@ -6,7 +6,7 @@ function New-HDTLocalContentProvider {
 
         .DESCRIPTION
             DESIGN 6's provider interface, over a path on this machine. It is what
-            standalone media runs on (DESIGN 6.2), and it is what the lab runs on:
+            standalone media runs on, and it is what the lab runs on:
             SPIKES S6 records that a VM on the isolated 'HDT Lab' switch cannot
             reach a share on the host, so every end-to-end run in this repository
             reaches its content locally.
@@ -52,8 +52,8 @@ function New-HDTLocalContentProvider {
 
             ResolveContent DOES NOT CHECK EXISTENCE - TestContent is that
             question and a step asks it when it wants the answer. Everything that
-            does touch the disk goes through the injected IFileSystem
-            (PROJECT constraint 4), which is what makes this whole file provable
+            does touch the disk goes through the injected IFileSystem,
+which is what makes this whole file provable
             with no media attached.
 
         .PARAMETER Root

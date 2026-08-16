@@ -7,7 +7,7 @@ function Import-HDTBootImageToWds {
         .DESCRIPTION
             DESIGN 6.1: "HDT does not ship a PXE server. WDS serves the WIM."
             This is the command that puts it there, and REPLACE-IN-PLACE IS THE
-            WHOLE POINT OF IT (ROADMAP M4: "WDS import replacing rather than
+            WHOLE POINT OF IT ("WDS import replacing rather than
             duplicating an existing image").
 
             An MDT operator who has run Update-MDTDeploymentShare a dozen times
@@ -34,7 +34,7 @@ function Import-HDTBootImageToWds {
                  away. No match: ImportBootImage alone;
               5. return ImageName, Architecture, Path, Replaced, PreviousVersion.
 
-            SupportsShouldProcess, and not as decoration (CLAUDE.md hard rule 6):
+            SupportsShouldProcess, and not as decoration:
             step 4 deletes a boot image a fleet PXE boots from. Under -WhatIf
             NOTHING is called, including the read.
 

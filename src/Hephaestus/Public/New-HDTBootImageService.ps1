@@ -37,8 +37,8 @@ function New-HDTBootImageService {
               GetImageInfo(imagePath)
                   Get-WindowsImage -ImagePath, projected to Index / Name /
                   SizeBytes. The ADK's winpe.wim has one index and is
-                  340 134 390 bytes; a finished HDT boot image is about 480 MB
-                  (SPIKES S1), and the difference is how "the build applied
+                  340 134 390 bytes; a finished HDT boot image is about 480 MB,
+and the difference is how "the build applied
                   nothing" is spotted.
 
               ExportImage(sourcePath, index, destinationPath)
@@ -61,7 +61,7 @@ function New-HDTBootImageService {
             $LASTEXITCODE. That division is the whole of DESIGN 12.2.3 in one
             method.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             eight of its nine methods mount a WIM, write into a mounted image,
             export half a gigabyte or burn an ISO, and every one of them needs
             elevation. Its contract row calls GetImageInfo and nothing else; the

@@ -42,7 +42,7 @@ function New-HDTSmbContentProvider {
                 legitimate and refusing it would be HDT deciding a fleet's
                 infrastructure for it;
               - an unencrypted connection -> WARN once, naming the server
-                (DESIGN 6.3: signing and encryption "where the server supports
+                (signing and encryption "where the server supports
                 them").
 
             Connect is re-entrant: calling it twice maps once.

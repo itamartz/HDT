@@ -15,7 +15,7 @@ function New-HDTLsaService {
             The secret name is DefaultPassword with no L$ or M$ prefix. HDT
             writes only that one.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             there is no way to unit test it that does not write an LSA secret on
             the machine running the suite. Its contract row is opt-in - elevated
             AND $env:HDT_ALLOW_LSA_TEST -eq '1' - and even then only reads. The

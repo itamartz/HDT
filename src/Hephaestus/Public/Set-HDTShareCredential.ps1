@@ -4,7 +4,7 @@ function Set-HDTShareCredential {
             Writes the deployment account credential a boot image will carry.
 
         .DESCRIPTION
-            THE ONLY WRITER OF THE DEPLOYMENT SECRET (DESIGN 6.3). It writes
+            THE ONLY WRITER OF THE DEPLOYMENT SECRET. It writes
             Control\share-credential.json inside the workspace, and 05-01 made a
             password: key in workspace.yaml a validation error that names this
             command - because workspace.yaml is the document an administrator

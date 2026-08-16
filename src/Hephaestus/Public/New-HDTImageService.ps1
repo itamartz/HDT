@@ -20,7 +20,7 @@ function New-HDTImageService {
                   summary form does not carry.
 
               ApplyImage(imagePath, index, applyPath)
-                  Expand-WindowsImage -ImagePath -Index -ApplyPath (DESIGN 9.2).
+                  Expand-WindowsImage -ImagePath -Index -ApplyPath.
 
               InstallBootFile(osRoot, systemVolume, firmware)
                   bcdboot.exe "<OsRoot>\Windows" /s <systemVolume> /f <firmware>,
@@ -54,7 +54,7 @@ function New-HDTImageService {
             hosting it. Building the path from $OsRoot is argument construction,
             not a branch, so the adapter stays dumb.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             four of its five methods write to a disk or reorder this machine's
             firmware boot entries. Its contract row calls GetImageInfo and
             nothing else; the rest is proven in tests/integration (04-04)

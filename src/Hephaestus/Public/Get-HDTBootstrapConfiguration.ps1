@@ -44,7 +44,7 @@ function Get-HDTBootstrapConfiguration {
                 is refused, because that image cannot authenticate and the fact
                 is decidable at build time;
               - promptForCredential true means the credential block may be
-                absent, and the caller stops for a human (DESIGN 6.3);
+                absent, and the caller stops for a human;
               - provider Local with a VOLUME-RELATIVE deployRoot (\Share) is
                 legal, and it is the form a boot image should carry. SPIKES S9.1:
                 WinPE gave the content disk C: and the RAM disk X:, so a letter
@@ -67,8 +67,7 @@ function Get-HDTBootstrapConfiguration {
             by GetCredential(), from a value closed over rather than carried.
 
             It reads through an injected IFileSystem, never Get-Content, so the
-            whole path is provable under Pester with no boot image
-            (PROJECT constraint 4).
+            whole path is provable under Pester with no boot image.
 
         .PARAMETER Path
             The bootstrap document. X:\HDT\bootstrap.json in WinPE.

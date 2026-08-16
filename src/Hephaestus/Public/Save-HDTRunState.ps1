@@ -20,7 +20,7 @@ function Save-HDTRunState {
             The write goes through IFileSystem.WriteAllText, never a
             file-writing cmdlet: the adapter writes UTF-8 without a byte order
             mark, and the whole checkpoint path has to be provable with nothing
-            on disk (PROJECT constraint 4).
+            on disk.
 
         .PARAMETER State
             A New-HDTRunState or Import-HDTRunState result. Its updatedUtc is

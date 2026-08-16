@@ -51,7 +51,7 @@ function Select-HDTTargetDisk {
             HDTAmbiguousTargetError, HDTUnsafeTargetError and
             HDTNoTargetDiskError - and Get-HDTFailureClass classifies all three
             as Configuration, so a refusal to wipe ends the run instead of being
-            retried three times (DESIGN 12.1).
+            retried three times.
 
         .PARAMETER Disk
             Every disk on the machine, as IDiskService.GetDisk() returns them.

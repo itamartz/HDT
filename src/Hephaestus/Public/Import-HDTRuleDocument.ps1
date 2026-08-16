@@ -4,10 +4,10 @@ function Import-HDTRuleDocument {
             Reads, parses, validates and normalises a rules.yaml.
 
         .DESCRIPTION
-            The public front door to rules.yaml (DESIGN 3.3). It reads the file
+            The public front door to rules.yaml. It reads the file
             through an injected IFileSystem - never Get-Content - so the whole
             authoring path is provable under Pester with no share, no media and
-            no disk (PROJECT constraint 4, DESIGN 12.2.1).
+            no disk.
 
             Four steps, and a failure at any of them is a terminating
             HDTConfigurationError naming the file:

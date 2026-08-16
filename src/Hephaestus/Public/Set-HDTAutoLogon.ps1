@@ -1,7 +1,7 @@
 function Set-HDTAutoLogon {
     <#
         .SYNOPSIS
-            Arms autologon for the next n reboots (DESIGN 4.5.1).
+            Arms autologon for the next n reboots.
 
         .DESCRIPTION
             Writes, in this order, through the injected services:

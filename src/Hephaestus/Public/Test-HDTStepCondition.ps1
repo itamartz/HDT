@@ -5,7 +5,7 @@ function Test-HDTStepCondition {
 
         .DESCRIPTION
             The runtime half of the closed grammar ConvertFrom-HDTStepCondition
-            defines (DESIGN 4.1, DESIGN 3.3). It expands %Var% on BOTH operands
+            defines. It expands %Var% on BOTH operands
             against the live variable dictionary, renders both through
             ConvertTo-HDTComparableString so a boolean is 'True' and an integer is
             its invariant text, and compares CASE-INSENSITIVELY.

@@ -41,7 +41,7 @@ function Add-HDTResolvedVariable {
 
         .PARAMETER Name
             The variable to assign. A name starting with an underscore is
-            refused: _HDT* is engine-owned (DESIGN 3.2). Assert-HDTRuleDocument
+            refused: _HDT* is engine-owned. Assert-HDTRuleDocument
             holds that rule for rules.yaml, but the command line, a machine
             override and a setFrom script never pass through that validator, so
             the single writer holds it too.
