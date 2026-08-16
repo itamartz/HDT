@@ -1,0 +1,12 @@
+# Script detection - the escape hatch for a product whose installed state is only
+# knowable by asking it. The script is a path under Scripts\ on the share and its
+# TRUTHY OUTPUT means installed; a non-zero exit is "not installed", never a
+# deployment failure, because a detection script that throws must not scrap a
+# build over a question it could not answer.
+schemaVersion: 1
+id: Contoso-Line-Of-Business
+name: Contoso line-of-business application
+install: setup.exe /verysilent
+detect:
+  type: script
+  path: 'Detect-ContosoLob.ps1'

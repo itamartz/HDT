@@ -1,0 +1,12 @@
+# An application that depends on itself. JSON Schema draft-07 cannot see this -
+# it has no cross-field reference from dependencies back to id - so it is one of
+# the two blind spots the contract test lists rather than quietly excludes.
+#
+# Left to the topological sort it is a cycle of length one, which is a hang or a
+# stack overflow depending on how the sort is written. It is cheaper to reject
+# here, at authoring time, where the message can name the file.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+install: setup.exe /S
+dependencies: [Contoso-Agent]

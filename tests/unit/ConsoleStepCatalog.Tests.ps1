@@ -166,6 +166,17 @@ Describe 'Get-HDTConsoleStepCatalog' {
             $byType['Restart'].Text | Should -BeExactly 'Restart Computer'
         }
 
+        It 'gives the 07 step types the names MDT uses for the same jobs' {
+            # An administrator arriving from Workbench looks for the words they
+            # already use: 'Install Roles and Features', not 'InstallRoles'.
+            $byType = @{}
+            foreach ($entry in $script:item) { if ($entry.Kind -eq 'Step') { $byType[$entry.Type] = $entry } }
+
+            $byType['InstallApplications'].Text | Should -BeExactly 'Install Applications'
+            $byType['InstallRoles'].Text | Should -BeExactly 'Install Roles and Features'
+            $byType['EnableBitLocker'].Text | Should -BeExactly 'Enable BitLocker'
+        }
+
         It 'files them under the categories those names live in' {
             $categoryOf = @{}
             foreach ($category in $script:catalog) {
@@ -175,6 +186,33 @@ Describe 'Get-HDTConsoleStepCatalog' {
             $categoryOf['DiskPartition'] | Should -BeExactly 'Disks'
             $categoryOf['ApplyImage'] | Should -BeExactly 'Images'
             $categoryOf['CommandLine'] | Should -BeExactly 'General'
+        }
+
+        It 'files the 07 step types where Workbench files them' {
+            # BitLocker is a Disks job in Workbench, not a Settings one, and Roles
+            # is its own shelf - a server sequence is mostly that one menu.
+            $categoryOf = @{}
+            foreach ($category in $script:catalog) {
+                foreach ($entry in @($category.Item)) { $categoryOf[[string] $entry.Type] = $category.Category }
+            }
+
+            $categoryOf['InstallApplications'] | Should -BeExactly 'General'
+            $categoryOf['EnableBitLocker'] | Should -BeExactly 'Disks'
+            $categoryOf['InstallRoles'] | Should -BeExactly 'Roles'
+        }
+
+        It 'offers none of them under Custom' {
+            # Custom is the shelf for a type this file has never heard of. A step
+            # type HDT ships and forgot to name would land there and look like a
+            # third-party one.
+            $custom = @($script:catalog | Where-Object { $_.Category -eq 'Custom' })
+
+            $offered = @()
+            if ($custom.Count -gt 0) { $offered = @($custom[0].Item | ForEach-Object { [string] $_.Type }) }
+
+            foreach ($type in @('InstallApplications', 'InstallRoles', 'EnableBitLocker')) {
+                $offered | Should -Not -Contain $type
+            }
         }
 
         It 'offers a type it has never heard of, under Custom' {

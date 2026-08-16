@@ -1,0 +1,18 @@
+# The DESIGN 8 example as a real catalog entry, and the sample that shows what a
+# detection rule buys you: run this sequence twice and 7-Zip installs once.
+#
+# The payload goes in source\ next to this file. It is not in the repository -
+# an installer is not source - so a workspace built from these samples needs
+# 7z2409-x64.msi copied into Applications\7Zip-24.09\source\.
+schemaVersion: 1
+id: 7Zip-24.09
+name: 7-Zip 24.09 x64
+description: Open-source file archiver
+install: msiexec.exe /i "7z2409-x64.msi" /qn /norestart
+uninstall: msiexec.exe /x "{23170F69-40C1-2702-2409-000001000000}" /qn /norestart
+successCodes: [0, 3010]
+rebootCodes: [3010]
+detect:
+  type: msiProduct
+  productCode: '{23170F69-40C1-2702-2409-000001000000}'
+runIn: FullOS

@@ -1,0 +1,6 @@
+# 'installCommand' is what an administrator coming from another toolkit types.
+# The engine names the key and lists the ones it accepts.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+installCommand: setup.exe /S

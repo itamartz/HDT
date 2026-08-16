@@ -21,6 +21,7 @@ Test data. Two kinds live here, and they follow opposite rules:
 | `scripts/` | `setFrom:` extension scripts the `IScriptInvoker` contract runs for real (DESIGN 3.3) | captured shape |
 | `rules/` | `rules.yaml` documents, three that must load and ten that must be rejected (DESIGN 3.3) | authored, see below |
 | `os/` | `os.yaml` documents, three that must load and eleven that must be rejected (DESIGN 2.1, 9.2) | authored, see below |
+| `apps/` | `app.yaml` documents, seven that must load and nine that must be rejected (DESIGN 2.1, 8) | authored, see below |
 | `unattend/` | The unattend SPIKES S7 actually deployed, tokenised | captured, see below |
 | `naming/` | Source that breaks — and source that keeps — the `Verb-HDTNoun` rule (DESIGN 15.1), plus a class fixture proving class members are not commands | deliberately invalid |
 | `compat/` | One file per PowerShell 7-only construct the 5.1 compatibility scanner must reject, plus a clean 5.1 control | deliberately invalid |
@@ -414,6 +415,48 @@ validators, `invalid-` parses and fails the engine, `unparseable-` does not pars
 The engine rejects all three. If a future schema gains either ability, the
 blind-spot test goes red and the file must be moved out of the list rather than
 quietly forgotten.
+
+## Application fixtures
+
+`apps/` is the test data for the application catalog: `app.yaml` documents read by
+`Assert-HDTApplicationDocument`, `Get-HDTApplication` and
+`tests/contract/AppSchema.Contract.Tests.ps1`. **Authored, not captured** — an
+`app.yaml` is what an administrator writes.
+
+The prefix contract is the same as `os/`: `valid-` parses and passes both
+validators, `invalid-` parses and fails the engine.
+
+The seven valid fixtures exist to cover what is **optional**, which is where this
+schema differs from every other one in the workspace. `valid-no-detect.yaml` is
+the important one: DESIGN 8 makes `detect:` optional, so an application declaring
+none must load, and it installs every time the step reaches it. It is also the
+minimal legal document, so it doubles as proof that `successCodes`, `rebootCodes`
+and `runIn` default in the engine rather than in the file.
+
+| File | The one mistake |
+|---|---|
+| `invalid-empty.yaml` | no document at all |
+| `invalid-unknown-key.yaml` | `installCommand:`, what an administrator coming from another toolkit types |
+| `invalid-missing-install.yaml` | no `install`, and there is no default command to guess |
+| `invalid-bad-id.yaml` | `id: ../../Windows/System32` — the id becomes a folder name |
+| `invalid-detect-unknown-type.yaml` | `type: wmi`, a detection rule HDT cannot run |
+| `invalid-detect-missing-field.yaml` | `msiProduct` with no `productCode` |
+| `invalid-runin.yaml` | `runIn: Windows`, which is not one of the three phases |
+| `invalid-success-code-not-integer.yaml` | `successCodes: ['0', 'reboot']` — a string matches no exit code |
+| `invalid-dependency-self.yaml` | an application that depends on itself |
+
+**One schema blind spot**, listed in `$script:HDTSchemaBlindSpot` in the contract
+file: `invalid-dependency-self.yaml`. Draft-07 has no cross-field reference from
+the `dependencies` array back to `id`, so the schema cannot see the cycle. The
+engine rejects it at authoring time, which is why `Resolve-HDTApplicationOrder`
+never has to survive a cycle of length one.
+
+`invalid-empty.yaml` is worth one note: an empty YAML document parses to `$null`,
+and `ConvertTo-Json` emits nothing for it, which `Test-Json` refuses to bind. The
+contract file converts it to the JSON literal `null` — the honest representation
+of "the file held no document" — and the schema rejects it because the root must
+be an object. Both gates therefore reject it for the same reason rather than one
+of them erroring on the way to an answer.
 
 ## Unattend fixtures
 

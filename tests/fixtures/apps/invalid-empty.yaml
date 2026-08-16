@@ -1,0 +1,2 @@
+# An empty file. The parser returns nothing and the validator must say so rather
+# than crash reaching into $null.

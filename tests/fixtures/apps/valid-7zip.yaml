@@ -1,0 +1,22 @@
+# The DESIGN 8 example, verbatim in shape: everything an app.yaml may declare,
+# so the validator and the schema are exercised against a full document rather
+# than against a minimal one that happens to avoid every optional key.
+#
+# The product code follows 7-Zip's real ProductCode scheme - 23170F69-40C1 is the
+# family, 2702 is the MSI x64 package kind and 2409 is the version - so it has the
+# shape and the length a detection rule will actually be handed. It has NOT been
+# read off an installed machine; nothing here asserts it is that exact string, and
+# no test depends on the value beyond its shape.
+schemaVersion: 1
+id: 7Zip-24.09
+name: 7-Zip 24.09 x64
+description: Open-source file archiver
+install: msiexec.exe /i "7z2409-x64.msi" /qn
+uninstall: msiexec.exe /x "{23170F69-40C1-2702-2409-000001000000}" /qn
+successCodes: [0, 3010]
+rebootCodes: [3010]
+detect:
+  type: msiProduct
+  productCode: '{23170F69-40C1-2702-2409-000001000000}'
+dependencies: [VCRedist-2015-2022]
+runIn: FullOS

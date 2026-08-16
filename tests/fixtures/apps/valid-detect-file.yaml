@@ -1,0 +1,12 @@
+# File detection with a version floor. The version is the half that matters: a
+# path test alone reports "installed" for a stale build that the sequence is
+# meant to replace, which is the silent-skip failure DESIGN 8 warns about.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+install: msiexec.exe /i "agent.msi" /qn
+detect:
+  type: file
+  path: '%ProgramFiles%\Contoso\Agent\agent.exe'
+  version: 4.2.0.0
+runIn: FullOS

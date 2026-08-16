@@ -1,0 +1,6 @@
+# THE ID BECOMES A FOLDER NAME under Applications\, so a separator in it is a
+# directory traversal into the share.
+schemaVersion: 1
+id: ../../Windows/System32
+name: Not an application
+install: setup.exe /S

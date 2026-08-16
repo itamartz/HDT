@@ -1,7 +1,9 @@
 # DESIGN 4.1's sequence, as an administrator would actually write it.
 #
-# THREE OF THESE STEP TYPES STILL DO NOT EXIST. ApplyDrivers arrives in M5;
-# InstallApplications and WindowsUpdate in M6; JoinDomain with them. That is
+# TWO OF THESE STEP TYPES STILL DO NOT EXIST, and one has moved to v2.
+# ApplyDrivers and JoinDomain are not built; WindowsUpdate was scheduled out of
+# v1 on 2026-08-16 and is commented out below rather than left to fail forever.
+# InstallApplications IS now real (07-02). That the unbuilt ones remain is
 # deliberate: this file imports and schema-validates TODAY, and
 # `Test-HDTTaskSequence` reports each missing type as an Error finding - which is
 # the authoring lint doing exactly what it exists to do.
@@ -92,10 +94,14 @@ steps:
         type: InstallApplications
         selection: "%HDTApplications%"
 
-      - name: Windows Update
-        type: WindowsUpdate
-        continueOnError: true
-        timeoutMinutes: 120
+      # Windows Update is v2 (DESIGN 10.1, deferred 2026-08-16). Until then a
+      # machine leaves the bench with exactly the patches its source image
+      # carried. Uncomment when the step type ships.
+      #
+      # - name: Windows Update
+      #   type: WindowsUpdate
+      #   continueOnError: true
+      #   timeoutMinutes: 120
 
       - name: Corporate Baseline
         type: PowerShell

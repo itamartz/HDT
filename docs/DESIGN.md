@@ -45,6 +45,10 @@ They are simply not in v1:
   sysprep and capture its own, and it does not project a workspace onto a USB
   stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
   same thing as offline media carrying the OS and applications.
+- **§10.1 Windows Update.** No `WindowsUpdate` step. A machine HDT builds leaves
+  the bench with exactly the patches its source image carried; currency after
+  that is whatever Windows Update does on its own schedule. The other two
+  full-OS steps, §10.2 `InstallRoles` and §10.3 `EnableBitLocker`, **are** in v1.
 
 ### Non-goals (v1)
 
@@ -407,6 +411,18 @@ one where the OS changes out from under you.
 - Every step is **idempotent or checkpointed**. On resume the engine skips
   completed steps by index and re-runs the interrupted one only if the step
   declares `resumable: true`.
+- **A step that owns a list can ask to be re-entered.** A step returning
+  `RebootRequested` is normally recorded `Completed`, which advances the step
+  index past it — correct for a `Restart` step, and wrong for an
+  `InstallApplications` step (§8) that receives a `3010` halfway down its list:
+  the applications after it would be silently skipped and the run would report
+  success having installed half the software. Such a step returns
+  `New-HDTStepResult -Reenter`, and the engine records it **`Pending`** instead,
+  leaving the step index where it is. The reboot ceremony is otherwise
+  unchanged; the next leg runs the step again, and the step resumes from
+  progress it checkpointed into a variable — variables being part of the state
+  document. It is opt-in because the default is right for every other step: a
+  `Restart` step that re-entered would reboot forever.
 - Failure ends the sequence, writes a failure report, and — if
   `PauseOnError` — leaves the state loaded so the technician can inspect it on
   the machine that failed. This is the MDT `LTISuspend` idea, generalized.
@@ -736,9 +752,19 @@ The credential is the cheaper problem to solve.
 These are the reasons to reimplement rather than copy:
 
 - **The administrator sets the password; HDT does not invent one.**
-  `HDTAdminPassword` is configured — in `workspace.yaml`, a rule, a per-machine
-  override, or the wizard's admin password page — and that is the password the
-  deployed machine ends up with.
+  `HDTAdminPassword` is configured — in a rule, a per-machine override, or the
+  wizard's admin password page — and that is the password the deployed machine
+  ends up with.
+
+  **The workspace-wide default is the fallback rule in `rules.yaml`**, which is
+  MDT's `[Default]` section exactly. An earlier draft of this paragraph said
+  `workspace.yaml`; that was wrong, and §3.1 is the reason — `workspace.yaml`
+  holds share identity and boot-image configuration, and is not one of the six
+  variable sources. A default that lived there would resolve through no
+  precedence and record no provenance, which is the opposite of what §3.1 exists
+  to guarantee. Putting it in the fallback rule means it loses to a per-machine
+  override and to the wizard exactly as any other variable does, and the log says
+  it came from the rules.
 
   An earlier draft generated a random per-deployment password and rotated it at
   the end. That is better in isolation and worse in practice: when a deployment
@@ -1260,7 +1286,7 @@ install: msiexec.exe /i "7z2409-x64.msi" /qn
 uninstall: msiexec.exe /x "{GUID}" /qn
 successCodes: [0, 3010]
 rebootCodes: [3010]
-detect:
+detect:                            # OPTIONAL
   type: msiProduct
   productCode: "{GUID}"
 dependencies: [VCRedist-2015-2022]
@@ -1270,10 +1296,43 @@ runIn: FullOS
 - **Detection rules** (`msiProduct`, `file`, `registry`, `script`) let the
   engine skip already-installed apps — MDT has no first-class detection, so
   reruns reinstall everything.
+
+  **`detect:` is optional.** An `app.yaml` that declares none installs every
+  time the step reaches it, which is the right behaviour for an unconditional
+  installer, a script wrapper, or a payload whose "installed" state is not
+  observable. Omitting it lands exactly on MDT's behaviour; declaring it is the
+  improvement, not the entry fee. **The engine never infers a detection rule for
+  an app that declined to declare one** — a guessed rule that reports an app
+  installed when it is not is worse than no rule, because the step then silently
+  skips work the sequence asked for. An app with no `detect:` is therefore not
+  idempotent, and that is the author's stated choice rather than an engine
+  limitation.
 - **Dependencies** are topologically sorted; a cycle is a validation error at
   authoring time, not a hang at deploy time.
 - **Reboot handling** is explicit: a `3010` return suspends the app list,
   reboots, and resumes at the next app.
+
+  The mechanism is §4.3's `-Reenter`. The step checkpoints the ids it has
+  installed into `_HDTApplicationInstalled` and returns
+  `RebootRequested -Reenter`, so the engine records it `Pending`, the step index
+  does not advance, and the next leg runs the step again — skipping what is
+  already done. **The application that returned `3010` is checkpointed as
+  installed**, because `3010` means "installed, reboot required"; re-running it
+  would install it twice. The two ways this is normally got wrong are worth
+  naming: without `-Reenter` every application after the reboot is silently
+  skipped while the run reports success, and without the checkpoint the step
+  reinstalls the whole list ahead of the reboot on every leg.
+- **An install command is a shell line**, run through `%ComSpec% /c` exactly as
+  the `CommandLine` step's `command:` is — quoting, chaining and redirection are
+  routine in what a vendor documents as their silent install. The working
+  directory is the application's `source\` folder, so a relative installer path
+  resolves. The comspec comes from the injected `IEnvironmentProvider`.
+- **A failure stops the list.** An application returning a code in neither its
+  `successCodes` nor its `rebootCodes` fails the step naming the application and
+  the code, and the applications after it do not run — installing software on top
+  of a failed dependency is how a machine ends up subtly broken. A sequence that
+  wants otherwise says so with `continueOnError` on the step, which belongs to
+  the engine loop rather than to the step.
 - **Selection** comes from the `Applications` variable (rules or wizard), or a
   fixed list in the step. Both resolve to the same ordered install plan, which
   is logged before execution.
@@ -1483,7 +1542,12 @@ its own reference images rather than depending on another tool.
 Three steps that run after the image is applied and the machine has rebooted
 into Windows. All are `runIn: FullOS`.
 
-### 10.1 Windows Update
+### 10.1 Windows Update  ·  **DEFERRED TO v2**
+
+> **v2, not cut.** Scheduled out of v1 on 2026-08-16 at the user's direction.
+> The section is kept in full so v2 starts from a written plan rather than a
+> memory, and the step type is additive — bringing it back adds files rather
+> than changing them. What deferring it costs is in §1's deferred list.
 
 **Decision: online updating during deployment**, against WSUS or Windows Update
 — MDT's `ZTIWindowsUpdate` model. Machines leave the bench current without HDT

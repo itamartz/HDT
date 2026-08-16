@@ -1,0 +1,8 @@
+# msiProduct with no productCode. The rule cannot run, and finding that out at
+# deploy time - after the disk is wiped - is the wrong moment.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+install: setup.exe /S
+detect:
+  type: msiProduct

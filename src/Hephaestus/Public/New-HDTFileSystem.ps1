@@ -9,9 +9,10 @@ function New-HDTFileSystem {
             state document and every step receive this object and can be swapped
             for New-HDTFakeFileSystem in a test.
 
-            It implements the nine IFileSystem methods - TestPath, ReadAllText,
+            It implements the eleven IFileSystem methods - TestPath, ReadAllText,
             WriteAllText, AppendAllText, CreateDirectory, RemoveItem, CopyItem,
-            GetChildItem, GetLength - and lets System.IO throw its own exception
+            GetChildItem, GetLength, GetHash, GetVersion - and lets System.IO
+            throw its own exception
             types, because those types are what the contract asserts and what the
             fake reproduces.
 
@@ -245,6 +246,28 @@ function New-HDTFileSystem {
         }
 
         return [string] (Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name GetVersion -Value {
+        param([string] $Path)
+
+        $this.Record('GetVersion', @($Path))
+        $full = $this.NormalizePath($Path)
+
+        if (-not [System.IO.File]::Exists($full)) {
+            throw (New-Object -TypeName System.IO.FileNotFoundException -ArgumentList "Could not find file '$full'.", $full)
+        }
+
+        # THE FOUR PARTS, NOT THE FileVersion STRING. FileVersion is free text a
+        # vendor fills in and regularly holds things like '4.2.0.0 (release)',
+        # which no version comparison can parse. The four integer parts are the
+        # numbers Windows itself compares, and a file with no version resource
+        # reports 0.0.0.0 through them rather than $null - so the caller casts to
+        # [version] with no special case.
+        $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($full)
+
+        return [string] ('{0}.{1}.{2}.{3}' -f $info.FileMajorPart, $info.FileMinorPart,
+            $info.FileBuildPart, $info.FilePrivatePart)
     }
 
     return $service

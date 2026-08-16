@@ -42,13 +42,26 @@ function Invoke-HDTTaskSequence {
             THE REBOOT CEREMONY IS ORDERED, and the order is an argument rather
             than a preference:
 
-              1. mark the step Completed, advancing stepIndex past it
+              1. mark the step Completed, advancing stepIndex past it - or
+                 Pending, leaving it, when the step asked to be re-entered
               2. SAVE
               3. take (or generate) the deployment password
               4. Set-HDTAutoLogon for 1 + the Restart steps still ahead
               5. SAVE again, so autoLogon.armed is durable
               6. status heartbeat
               7. IPowerService.Restart
+
+            STEP 1'S SECOND HALF IS 07-02's. A step that owns a LIST - the
+            InstallApplications step, which gets a 3010 halfway through and needs
+            the reboot to come back to it - returns
+            New-HDTStepResult -Reenter. Recording it Completed would advance
+            stepIndex past it and silently skip every application after the one
+            that asked for the restart, so the run would report success having
+            installed half the software. Pending leaves stepIndex where it is:
+            the next leg runs the step again, and the step picks up from the
+            progress it checkpointed into a variable. Everything else about the
+            ceremony is identical, which is why Reenter changes one assignment
+            rather than adding a branch to the ceremony.
 
             If arming succeeded and the save then failed, the machine would
             reboot, autologon, and resume at the OLD index - re-running the
@@ -509,6 +522,18 @@ function Invoke-HDTTaskSequence {
             $recordedStatus = 'Failed'
             if (@('Completed', 'RebootRequested') -contains [string] $attempt.Status) {
                 $recordedStatus = 'Completed'
+            }
+
+            # A STEP THAT OWNS A LIST ASKS TO BE COME BACK TO. Recording a
+            # RebootRequested step Completed advances stepIndex past it, which is
+            # right for a Restart step and wrong for an InstallApplications step
+            # that got a 3010 halfway down its list - the applications after it
+            # would be silently skipped and the run would report success having
+            # installed half the software. Pending leaves stepIndex where it is,
+            # so the next leg runs the step again and it picks up from the
+            # progress it checkpointed into a variable.
+            if ([string] $attempt.Status -eq 'RebootRequested' -and [bool] $attempt.Reenter) {
+                $recordedStatus = 'Pending'
             }
 
             Update-HDTRunStateStep -State $state -Index $index -Status $recordedStatus `

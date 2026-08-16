@@ -1,0 +1,21 @@
+# THE OTHER HALF OF DESIGN 8: an application with no detection rule, which is
+# legal and installs every time the step reaches it.
+#
+# That is the right shape here. What "installed" means for a baseline script is
+# not observable - there is no product code, no versioned file and no registry
+# key that reliably says the current policy set has been applied - so the honest
+# answer is to run it on every deployment rather than to invent a rule that would
+# sometimes skip it. An app.yaml that declared a rule it could not really check
+# would silently stop applying the baseline the day that rule went stale.
+#
+# It also depends on 7-Zip, which is what makes the sample exercise the
+# topological sort: selecting Corp-Baseline alone installs 7-Zip first.
+schemaVersion: 1
+id: Corp-Baseline
+name: Corporate baseline configuration
+description: Applies the corporate policy set; safe to re-run
+install: powershell.exe -ExecutionPolicy Bypass -NoProfile -File "Apply-Baseline.ps1"
+successCodes: [0, 3010]
+rebootCodes: [3010]
+dependencies: [7Zip-24.09]
+runIn: FullOS

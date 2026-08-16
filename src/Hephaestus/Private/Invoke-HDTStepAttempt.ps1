@@ -176,6 +176,15 @@ function Invoke-HDTStepAttempt {
             $failureClass = Get-HDTFailureClass -ErrorRecord $thrown -ResultData $result.Data -TimedOut:$timedOut
         }
 
+        # READ DEFENSIVELY. The engine's own steps return New-HDTStepResult, which
+        # always carries Reenter - but a third-party step type dot-sourced from
+        # Modules\ may return a bare object, and reading a missing property under
+        # Set-StrictMode -Version Latest throws.
+        $reenter = $false
+        if ($null -ne $result.PSObject.Properties['Reenter']) {
+            $reenter = [bool] $result.Reenter
+        }
+
         $outcome = [pscustomobject] ([ordered] @{
                 Status       = [string] $result.Status
                 ExitCode     = [int] $result.ExitCode
@@ -185,6 +194,7 @@ function Invoke-HDTStepAttempt {
                 DurationMs   = $durationMillisecond
                 TimedOut     = $timedOut
                 FailureClass = $failureClass
+                Reenter      = $reenter
             })
 
         if ([string] $result.Status -ne 'Failed') {
