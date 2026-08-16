@@ -133,6 +133,7 @@
         'Start-HDTCommandPrompt',
         'Start-HDTProgressDisplay',
         'Step-HDTWizardPage',
+        'Test-HDTApplicationDetection',
         'Test-HDTComputerName',
         'Test-HDTRunStateAbandoned',
         'Test-HDTShareAcl',
