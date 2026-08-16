@@ -116,7 +116,7 @@ function Get-HDTMachineOverride {
 
     if (-not $document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $document['schemaVersion']
@@ -163,12 +163,12 @@ function Get-HDTMachineOverride {
 
         if ($name.StartsWith('_')) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $name)))
+                        -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $name)))
         }
 
         if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $name)))
+                        -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $name)))
         }
 
         $variable[$name] = $declared[$key]

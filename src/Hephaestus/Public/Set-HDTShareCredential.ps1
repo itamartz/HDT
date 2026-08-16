@@ -86,14 +86,14 @@ function Set-HDTShareCredential {
 
     if ([string]::IsNullOrEmpty($plain)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message ("the credential for '{0}' has an empty password. An empty password is an anonymous logon, and the Smb content provider refuses one at Connect (DESIGN 6.3)." -f $Credential.UserName)))
+                    -Message ("the credential for '{0}' has an empty password. An empty password is an anonymous logon, and the Smb content provider refuses one at Connect." -f $Credential.UserName)))
     }
 
     $document = [ordered] @{
         schemaVersion = 1
         username      = [string] $Credential.UserName
         password      = (Protect-HDTShareSecret -Secret $plain)
-        warning       = 'This password is obfuscated, not encrypted: the key is a constant in the Hephaestus module, so anyone who can read this file - or the boot image, the ISO or the Boot folder that carry it - can recover the password. Treat all of them as credentials, and keep the account least-privileged (DESIGN 6.3, docs/share-account.md).'
+        warning       = 'This password is obfuscated, not encrypted: the key is a constant in the Hephaestus module, so anyone who can read this file - or the boot image, the ISO or the Boot folder that carry it - can recover the password. Treat all of them as credentials, and keep the account least-privileged (docs/share-account.md).'
     }
 
     # ConvertTo-Json, then IFileSystem: the adapter writes UTF-8 with no BOM on

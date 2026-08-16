@@ -118,11 +118,11 @@ function New-HDTContentProvider {
 
     if ($Provider -eq 'Http') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                    -Message ("provider 'Http' is not implemented in v1. DESIGN 6 defines IContentProvider so that a cloud transport can land later without a second code path; today the transports HDT builds are Smb and Local.") `
+                    -Message ("provider 'Http' is not implemented in v1. IContentProvider exists so that a cloud transport can land later without a second code path; today the transports HDT builds are Smb and Local.") `
                     -TargetObject $Provider))
     }
 
     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                -Message ("provider '{0}' is not a transport HDT can build. The providers are Smb and Local (DESIGN 6)." -f $Provider) `
+                -Message ("provider '{0}' is not a transport HDT can build. The providers are Smb and Local." -f $Provider) `
                 -TargetObject $Provider))
 }

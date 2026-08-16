@@ -104,7 +104,7 @@ function Assert-HDTOperatingSystemDocument {
 
     if (-not $Document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $Document['schemaVersion']
@@ -154,7 +154,7 @@ function Assert-HDTOperatingSystemDocument {
 
     if ($allowedType -notcontains $type) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message ("type '{0}' is not an image type HDT applies. The types are {1}: a wim is applied with Expand-WindowsImage and an ffu with DISM /Apply-Ffu (DESIGN 9.2), and there is no third apply path." -f $type, ($allowedType -join ', '))))
+                    -Message ("type '{0}' is not an image type HDT applies. The types are {1}: a wim is applied with Expand-WindowsImage and an ffu with DISM /Apply-Ffu, and there is no third apply path." -f $type, ($allowedType -join ', '))))
     }
 
     if ($Document.Contains('architecture')) {
@@ -238,7 +238,7 @@ function Assert-HDTOperatingSystemDocument {
 
         if ([string]::IsNullOrWhiteSpace($imageName)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("{0}: name is missing. An image is selectable by name (DESIGN 9.2), so every image declares one." -f $locator)))
+                        -Message ("{0}: name is missing. An image is selectable by name, so every image declares one." -f $locator)))
         }
     }
 

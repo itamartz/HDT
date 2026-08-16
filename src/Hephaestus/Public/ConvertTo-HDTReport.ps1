@@ -122,7 +122,7 @@ function ConvertTo-HDTReport {
 
     if (-not $FileSystem.TestPath($JsonlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $JsonlPath `
-                    -Message 'the log stream does not exist. A report is rendered from the HDT.jsonl a run wrote (DESIGN 4.4.2).' `
+                    -Message 'the log stream does not exist. A report is rendered from the HDT.jsonl a run wrote.' `
                     -ErrorId 'HDTLogNotFound' -Category ObjectNotFound))
     }
 

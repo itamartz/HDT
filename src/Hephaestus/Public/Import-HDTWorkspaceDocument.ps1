@@ -118,7 +118,7 @@ function Import-HDTWorkspaceDocument {
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'there is no workspace document here. A workspace declares its identity and its deployRoot in workspace.yaml at the root of the share (DESIGN 2.1).' `
+                    -Message 'there is no workspace document here. A workspace declares its identity and its deployRoot in workspace.yaml at the root of the share.' `
                     -Category ObjectNotFound))
     }
 

@@ -101,7 +101,7 @@ function Import-HDTSequenceDocument {
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'the sequence file does not exist. Every sequence is a sequence.yaml under the workspace Sequences directory (DESIGN 2.1).' `
+                    -Message 'the sequence file does not exist. Every sequence is a sequence.yaml under the workspace Sequences directory.' `
                     -Category ObjectNotFound))
     }
 

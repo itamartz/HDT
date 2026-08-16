@@ -126,7 +126,7 @@ function Import-HDTBootImageToWds {
 
     if ([System.IO.Path]::GetExtension($Path) -ne '.wim') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message ("that is not a .wim, and Windows Deployment Services serves boot images as WIMs. Import the file Update-HDTBootImage wrote to <workspace>\Boot\<name>.wim; the .iso beside it is the debugging vehicle (DESIGN 6.1.1), not something WDS can serve.")))
+                    -Message ("that is not a .wim, and Windows Deployment Services serves boot images as WIMs. Import the file Update-HDTBootImage wrote to <workspace>\Boot\<name>.wim; the .iso beside it is the debugging vehicle, not something WDS can serve.")))
     }
 
     if (-not $FileSystem.TestPath($Path)) {

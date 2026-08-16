@@ -101,7 +101,7 @@ and two rules called Fallback make that answer
 
     if (-not $Document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $Document['schemaVersion']
@@ -237,12 +237,12 @@ and two rules called Fallback make that answer
 
                 if ($variable.StartsWith('_')) {
                     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                                -Message ("{0}: '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $locator, $variable)))
+                                -Message ("{0}: '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $locator, $variable)))
                 }
 
                 if ($variable -cnotmatch '^HDT[A-Za-z0-9_]*$') {
                     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                                -Message ("{0}: '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $locator, $variable)))
+                                -Message ("{0}: '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $locator, $variable)))
                 }
 
                 $value = $set[$key]

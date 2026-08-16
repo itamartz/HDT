@@ -332,11 +332,11 @@ function New-HDTSmbContentProvider {
 
             if ([string]::IsNullOrEmpty($password)) {
                 throw (New-Object System.Security.SecurityException (
-                        "HDTSecurityError: the credential for '$userName' has an empty password. An empty password is an anonymous logon with a name on it, and HDT does not deploy from a share it authenticated to as nobody (DESIGN 6.3)."))
+                        "HDTSecurityError: the credential for '$userName' has an empty password. An empty password is an anonymous logon with a name on it, and HDT does not deploy from a share it authenticated to as nobody."))
             }
         } elseif (-not $this.AllowAnonymous) {
             throw (New-Object System.Security.SecurityException (
-                    "HDTSecurityError: no credential was supplied for '$($this.Root)'. Not supplying one is exactly the guest fallback DESIGN 6.3 refuses. Pass -Credential, or pass -AllowAnonymous to connect as this machine's own identity on purpose."))
+                    "HDTSecurityError: no credential was supplied for '$($this.Root)'. Not supplying one is exactly the guest fallback HDT refuses. Pass -Credential, or pass -AllowAnonymous to connect as this machine's own identity on purpose."))
         } else {
             $configuration = $this.SmbService.GetClientConfiguration()
 
@@ -376,7 +376,7 @@ function New-HDTSmbContentProvider {
         if ($this.TestGuestIdentity([string] $row.UserName)) {
             $this.SafeRemoveMapping()
             throw (New-Object System.Security.SecurityException (
-                    ("HDTSecurityError: the connection to '{0}' came back as '{1}' - it fell back to guest, and HDT will not deploy from a share it did not authenticate to (DESIGN 6.3). The mapping has been removed. Check that the deployment account is enabled and that its password matches the one Set-HDTShareCredential wrote." -f $server, [string] $row.UserName)))
+                    ("HDTSecurityError: the connection to '{0}' came back as '{1}' - it fell back to guest, and HDT will not deploy from a share it did not authenticate to. The mapping has been removed. Check that the deployment account is enabled and that its password matches the one Set-HDTShareCredential wrote." -f $server, [string] $row.UserName)))
         }
 
         $dialect = [string] $row.Dialect
@@ -384,7 +384,7 @@ function New-HDTSmbContentProvider {
         if ($dialect.StartsWith('1.')) {
             $this.SafeRemoveMapping()
             throw (New-Object System.Security.SecurityException (
-                    "HDTSecurityError: the connection to '$server' negotiated SMB dialect '$dialect'. SMB1 is refused outright (DESIGN 6.3), and the mapping has been removed."))
+                    "HDTSecurityError: the connection to '$server' negotiated SMB dialect '$dialect'. SMB1 is refused outright, and the mapping has been removed."))
         }
 
         $major = 0
@@ -396,7 +396,7 @@ function New-HDTSmbContentProvider {
         }
 
         if (-not $row.Encrypted) {
-            Write-Warning ("The connection to '{0}' is not encrypted. DESIGN 6.3 uses SMB signing and encryption where the server supports them; this one does not, so the deployment credential and every file it reads cross the network in clear." -f $server)
+            Write-Warning ("The connection to '{0}' is not encrypted. HDT uses SMB signing and encryption where the server supports them; this one does not, so the deployment credential and every file it reads cross the network in clear." -f $server)
         }
 
         $this.IsConnected = $true

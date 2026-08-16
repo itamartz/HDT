@@ -195,7 +195,7 @@ function Resolve-HDTDeployRoot {
     # RULE 4's warning. A boot image that was right yesterday should not be
     # unbootable because a disk was added, but the drift is worth a line.
     if ($isRooted) {
-        Write-Warning ("bootstrap.json names deployRoot '{0}', and '{1}' is not there. The content was found at '{2}' instead - the volume letters this machine was given are not the ones the boot image was built with (SPIKES S9.1)." -f
+        Write-Warning ("bootstrap.json names deployRoot '{0}', and '{1}' is not there. The content was found at '{2}' instead - the volume letters this machine was given are not the ones the boot image was built with." -f
             $DeployRoot, [System.IO.Path]::Combine($DeployRoot, $Marker), $chosen)
     }
 

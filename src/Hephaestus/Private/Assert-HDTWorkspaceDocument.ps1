@@ -228,7 +228,7 @@ function Assert-HDTWorkspaceDocument {
             # the sentence that has to be read: it says where the secret goes.
             if ($keyName -eq 'password') {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message "credential declares a password. The share password does not belong in this file: this is the document an administrator hand-edits and commits (DESIGN 6.3). Remove the key and run Set-HDTShareCredential, which writes the secret to Control\share-credential.json instead."))
+                            -Message "credential declares a password. The share password does not belong in this file: this is the document an administrator hand-edits and commits. Remove the key and run Set-HDTShareCredential, which writes the secret to Control\share-credential.json instead."))
             }
 
             if ($allowedCredentialKey -notcontains $keyName) {
@@ -256,7 +256,7 @@ function Assert-HDTWorkspaceDocument {
 
     if (-not ($bootImage -is [System.Collections.IDictionary])) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'bootImage must be a mapping. Its keys are the boot image build settings of DESIGN 5.1.'))
+                    -Message 'bootImage must be a mapping. Its keys are the boot image build settings.'))
     }
 
     foreach ($key in @($bootImage.Keys)) {

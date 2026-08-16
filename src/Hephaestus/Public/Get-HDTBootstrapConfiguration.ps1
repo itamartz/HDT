@@ -195,7 +195,7 @@ function Get-HDTBootstrapConfiguration {
 
     if (@('Smb', 'Local') -notcontains $provider) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message ("provider '{0}' is not a transport HDT can build. The provider must be Smb or Local (DESIGN 6)." -f $provider)))
+                    -Message ("provider '{0}' is not a transport HDT can build. The provider must be Smb or Local." -f $provider)))
     }
 
     if ([string]::IsNullOrWhiteSpace($deployRoot)) {
@@ -221,7 +221,7 @@ function Get-HDTBootstrapConfiguration {
 
     if ($provider -eq 'Smb' -and -not $hasCredential -and -not $prompt) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'this boot image was built without a credential and without promptForCredential, so a machine booting it can neither authenticate to the share nor ask anybody. Rebuild it with Set-HDTShareCredential, or with -PromptForCredential if the image is meant to stop for a human (DESIGN 6.3).' `
+                    -Message 'this boot image was built without a credential and without promptForCredential, so a machine booting it can neither authenticate to the share nor ask anybody. Rebuild it with Set-HDTShareCredential, or with -PromptForCredential if the image is meant to stop for a human.' `
                     -Category AuthenticationError))
     }
 

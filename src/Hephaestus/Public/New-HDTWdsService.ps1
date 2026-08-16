@@ -88,7 +88,7 @@ function New-HDTWdsService {
     if (@(Get-Module -ListAvailable -Name 'WDS' -ErrorAction SilentlyContinue).Count -eq 0) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -ErrorId 'HDTDependencyError' -Category NotInstalled `
                     -TargetObject 'WDS' `
-                    -Message ("the WDS PowerShell module is not available on this machine, so HDT cannot import a boot image into Windows Deployment Services. WDS is a Windows Server role: install it with Install-WindowsFeature WDS -IncludeManagementTools on a Windows Server, and run HDT's import from there. HDT does not ship a PXE server (DESIGN 6.1); for a site with an existing TFTP or HTTP stack instead, use New-HDTPxePayload.")))
+                    -Message ("the WDS PowerShell module is not available on this machine, so HDT cannot import a boot image into Windows Deployment Services. WDS is a Windows Server role: install it with Install-WindowsFeature WDS -IncludeManagementTools on a Windows Server, and run HDT's import from there. HDT does not ship a PXE server; for a site with an existing TFTP or HTTP stack instead, use New-HDTPxePayload.")))
     }
 
     $service = [pscustomobject] @{

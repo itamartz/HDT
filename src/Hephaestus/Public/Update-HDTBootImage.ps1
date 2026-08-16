@@ -324,7 +324,7 @@ function Update-HDTBootImage {
     # oscdimg's -bootdata: cannot carry a quoted path.
     if ($scratch -match '\s') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $scratch `
-                    -Message ("the scratch path '{0}' contains a space. The boot bits for the ISO are staged in <scratch>\bootbits, and oscdimg's -bootdata: argument cannot carry a quoted path - SPIKES S2 verified that a quoted one arrives doubled and produces `"Could not open boot sector file`" / Error 123. A staging directory under a path with a space solves nothing. Choose a scratch path without one, such as C:\HDTLab\scratch\bootimage." -f $scratch)))
+                    -Message ("the scratch path '{0}' contains a space. The boot bits for the ISO are staged in <scratch>\bootbits, and oscdimg's -bootdata: argument cannot carry a quoted path - a quoted one arrives doubled and produces `"Could not open boot sector file`" / Error 123. A staging directory under a path with a space solves nothing. Choose a scratch path without one, such as C:\HDTLab\scratch\bootimage." -f $scratch)))
     }
 
     $workspaceFull = [System.IO.Path]::GetFullPath($WorkspaceRoot).TrimEnd('\', '/')
@@ -382,7 +382,7 @@ function Update-HDTBootImage {
     if ([string]::IsNullOrWhiteSpace($yamlPath) -or -not $FileSystem.TestPath($yamlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -ErrorId 'HDTDependencyError' -Category NotInstalled `
                     -TargetObject $yamlPath `
-                    -Message ("powershell-yaml could not be found, so this boot image would have no YAML parser. SPIKES S9.1 proved it is the dependency the whole engine rests on inside WinPE: ConvertFrom-HDTYaml goes through it, and every document HDT reads goes through that. Run Install-Module powershell-yaml -Scope AllUsers, or pass -YamlModulePath to name a staged copy. Looked at: '{0}'." -f $yamlPath)))
+                    -Message ("powershell-yaml could not be found, so this boot image would have no YAML parser. It is the dependency the whole engine rests on inside WinPE: ConvertFrom-HDTYaml goes through it, and every document HDT reads goes through that. Run Install-Module powershell-yaml -Scope AllUsers, or pass -YamlModulePath to name a staged copy. Looked at: '{0}'." -f $yamlPath)))
     }
 
     $deploymentPayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Start-HDTDeployment.ps1')
@@ -408,7 +408,7 @@ function Update-HDTBootImage {
 
         if (-not $FileSystem.TestPath($secretPath)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $secretPath -Category ObjectNotFound `
-                        -Message ("workspace.yaml declares the deployment account '{0}' but no secret has been written for it, so this boot image could not authenticate to the share. Run Set-HDTShareCredential, or build with -PromptForCredential if the image is meant to stop for a human (DESIGN 6.3)." -f $credentialUserName)))
+                        -Message ("workspace.yaml declares the deployment account '{0}' but no secret has been written for it, so this boot image could not authenticate to the share. Run Set-HDTShareCredential, or build with -PromptForCredential if the image is meant to stop for a human." -f $credentialUserName)))
         }
 
         $secret = Get-HDTShareCredential -WorkspaceRoot $WorkspaceRoot -FileSystem $FileSystem
@@ -439,7 +439,7 @@ function Update-HDTBootImage {
 
         $promptForCredentialEffective = $true
 
-        Write-Warning ("deployRoot '{0}' is a share and no credential is embedded, so this image will ASK THE TECHNICIAN for the deployment account when it boots - MDT's behaviour when Bootstrap.ini carries no UserID. To make it run unattended instead, declare the account in workspace.yaml's credential block and write its secret with Set-HDTShareCredential (DESIGN 6.3)." -f
+        Write-Warning ("deployRoot '{0}' is a share and no credential is embedded, so this image will ASK THE TECHNICIAN for the deployment account when it boots - MDT's behaviour when Bootstrap.ini carries no UserID. To make it run unattended instead, declare the account in workspace.yaml's credential block and write its secret with Set-HDTShareCredential." -f
             [string] $workspace.DeployRoot)
     }
 

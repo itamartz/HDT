@@ -209,7 +209,7 @@ function Set-HDTStaticAddress {
 
     if ($adapter.Count -eq 0) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Category ObjectNotFound `
-                    -Message 'this machine has no IP-enabled network adapter to configure. In WinPE that usually means the NIC driver is not in the boot image (DESIGN 5.1).'))
+                    -Message 'this machine has no IP-enabled network adapter to configure. In WinPE that usually means the NIC driver is not in the boot image.'))
     }
 
     if ($adapter.Count -gt 1) {

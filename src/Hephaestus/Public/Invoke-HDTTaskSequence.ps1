@@ -280,7 +280,7 @@ function Invoke-HDTTaskSequence {
         }
 
         Write-HDTLog -Context $log -Severity Warning `
-            -Message ("{0} names {1} variable token(s) nothing has supplied: {2}. The token is left literal and the comparison is false (DESIGN 3.3)." -f
+            -Message ("{0} names {1} variable token(s) nothing has supplied: {2}. The token is left literal and the comparison is false." -f
                 $Where, @($Unresolved).Count, (@($Unresolved) -join ', ')) `
             -Data ([ordered] @{ unresolved = [string[]] @($Unresolved) })
     }
@@ -404,7 +404,7 @@ function Invoke-HDTTaskSequence {
                         -Message ("step {0} '{1}' was interrupted on an earlier leg and declares resumable: true, so it is being run again" -f $index, $stepName) `
                         -Data ([ordered] @{ index = $index; name = $stepName; resumable = $true })
                 } else {
-                    $reason = "step {0} '{1}' was interrupted and does not declare resumable: true, so HDT will not run it again. Half-applied work is not silently repeated (DESIGN 4.3)." -f $index, $stepName
+                    $reason = "step {0} '{1}' was interrupted and does not declare resumable: true, so HDT will not run it again. Half-applied work is not silently repeated." -f $index, $stepName
 
                     Update-HDTRunStateStep -State $state -Index $index -Status Failed -Message $reason -Leg ([int] $state.leg) | Out-Null
                     & $saveState
@@ -766,7 +766,7 @@ function Invoke-HDTTaskSequence {
 
             if ($null -eq $registryService -or $null -eq $lsaService) {
                 Write-HDTLog -Context $log -Severity Warning `
-                    -Message 'Autologon teardown was skipped: this run was started without a registry service or an LSA service, and the DESIGN 4.5.3 checklist cannot run without both.'
+                    -Message 'Autologon teardown was skipped: this run was started without a registry service or an LSA service, and the teardown checklist cannot run without both.'
             } else {
                 $teardown = Clear-HDTAutoLogon -Registry $registryService -Lsa $lsaService `
                     -FileSystem $fileSystem -State $state -StatePath $statePathValue -Clock $clock -LogContext $log

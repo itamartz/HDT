@@ -130,7 +130,7 @@ function Set-HDTLogPath {
         # THE OLD CONTEXT, DELIBERATELY. It is the one that still works, and this
         # record is the only evidence the relocation was tried.
         Write-HDTLog -Context $Context -Severity Warning -Component 'Logging' `
-            -Message ("The deployment log could not be relocated from '{0}' to '{1}': {2}. Logging continues on the RAM disk, which means this log does not survive the next reboot (DESIGN 4.4.1)." -f
+            -Message ("The deployment log could not be relocated from '{0}' to '{1}': {2}. Logging continues on the RAM disk, which means this log does not survive the next reboot." -f
                 $current, $destination, $_.Exception.Message) `
             -Data ([ordered] @{ from = $current; to = $destination })
 
@@ -159,7 +159,7 @@ function Set-HDTLogPath {
     # Through the ALREADY REPOINTED context, so the first line in the new file
     # says why the file exists. Seq carries straight on from the old one.
     Write-HDTLog -Context $Context -Component 'Logging' `
-        -Message ("_HDTLogPath moved from '{0}' to '{1}'. Everything written so far was mirrored, and the copy on the RAM disk is left in place (DESIGN 4.4.1)." -f
+        -Message ("_HDTLogPath moved from '{0}' to '{1}'. Everything written so far was mirrored, and the copy on the RAM disk is left in place." -f
             $current, $destination) `
         -Data ([ordered] @{ from = $current; to = $destination })
 

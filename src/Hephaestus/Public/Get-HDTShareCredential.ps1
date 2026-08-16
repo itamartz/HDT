@@ -70,7 +70,7 @@ function Get-HDTShareCredential {
 
     if (-not $FileSystem.TestPath($path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'there is no deployment credential in this workspace. Write one with Set-HDTShareCredential; a booted machine has no other way to authenticate to the share (DESIGN 6.3).' `
+                    -Message 'there is no deployment credential in this workspace. Write one with Set-HDTShareCredential; a booted machine has no other way to authenticate to the share.' `
                     -Category ObjectNotFound))
     }
 

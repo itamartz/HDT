@@ -118,7 +118,7 @@ function Add-HDTResolvedVariable {
 
     if ($Name.StartsWith('_')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $File `
-                    -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $Name)))
+                    -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $Name)))
     }
 
     # First writer wins. Checked BEFORE expansion, so a value that was never

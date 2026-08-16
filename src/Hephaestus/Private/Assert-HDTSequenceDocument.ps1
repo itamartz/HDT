@@ -112,7 +112,7 @@ function Assert-HDTSequenceDocument {
 
     if (-not $Document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $Document['schemaVersion']
@@ -170,12 +170,12 @@ function Assert-HDTSequenceDocument {
 
             if ($name.StartsWith('_')) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $name)))
+                            -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $name)))
             }
 
             if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $name)))
+                            -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $name)))
             }
         }
     }
@@ -249,7 +249,7 @@ function Assert-HDTSequenceDocument {
 
             $stepIndex++
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("step {0} ('{1}'): every step declares a type, which names the Invoke-HDT<Type>Step function that runs it (DESIGN 4.2)." -f $stepIndex, $label)))
+                        -Message ("step {0} ('{1}'): every step declares a type, which names the Invoke-HDT<Type>Step function that runs it." -f $stepIndex, $label)))
         }
 
         # -- a group ----------------------------------------------------------
@@ -347,7 +347,7 @@ function Assert-HDTSequenceDocument {
 
         if ($node.Contains('log') -and [string]::IsNullOrWhiteSpace([string] $node['log'])) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("{0}: log must be a file name in the log directory (DESIGN 4.4.4)." -f $locator)))
+                        -Message ("{0}: log must be a file name in the log directory." -f $locator)))
         }
 
         if ($node.Contains('retry')) {

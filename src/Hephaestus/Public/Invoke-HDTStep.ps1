@@ -78,7 +78,7 @@ function Invoke-HDTStep {
         }
 
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                    -Message ("step '{0}' declares the type '{1}', which no loaded module implements. A step type is a function named Invoke-HDT<Type>Step (DESIGN 4.2). The types this engine can run are: {2}." -f $Step.Name, $type, $known)))
+                    -Message ("step '{0}' declares the type '{1}', which no loaded module implements. A step type is a function named Invoke-HDT<Type>Step. The types this engine can run are: {2}." -f $Step.Name, $type, $known)))
     }
 
     return (& $entry[0].InvokeCommand -Step $Step -Context $Context)

@@ -72,7 +72,7 @@ function Import-HDTRuleDocument {
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'the rules file does not exist. Every workspace declares one at its root (DESIGN 2.1).' `
+                    -Message 'the rules file does not exist. Every workspace declares one at its root.' `
                     -Category ObjectNotFound))
     }
 

@@ -205,7 +205,7 @@ function Invoke-HDTConfigureBootStep {
             $bootOrderSet = $true
         } catch {
             Write-HDTLog -Context $Context.Log -Severity Warning -Component 'ConfigureBoot' `
-                -Message ("the firmware boot order could not be changed: {0}. Windows is installed and bootable, but this machine will boot the installation media again unless it is removed or demoted by hand (SPIKES S6)." -f
+                -Message ("the firmware boot order could not be changed: {0}. Windows is installed and bootable, but this machine will boot the installation media again unless it is removed or demoted by hand." -f
                     [string] $_.Exception.Message)
         }
     }

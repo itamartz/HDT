@@ -68,7 +68,7 @@ function ConvertFrom-HDTStepCondition {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $grammar = 'A condition is <operand> <operator> <operand>, where an operand is a double-quoted string or a token with no whitespace, and an operator is one of == != -eq -ne -like -notlike. HDT has no condition language (DESIGN 3.3).'
+    $grammar = 'A condition is <operand> <operator> <operand>, where an operand is a double-quoted string or a token with no whitespace, and an operator is one of == != -eq -ne -like -notlike. HDT has no condition language.'
 
     if ([string]::IsNullOrWhiteSpace($Condition)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `

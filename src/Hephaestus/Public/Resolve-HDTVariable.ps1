@@ -243,7 +243,7 @@ function Resolve-HDTVariable {
 
                     if ($name.StartsWith('_')) {
                         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $RuleDocument.Path `
-                                    -Message ("{0}: the setFrom script '{1}' returned '{2}', which is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $locator, $rule.SetFrom, $name)))
+                                    -Message ("{0}: the setFrom script '{1}' returned '{2}', which is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $locator, $rule.SetFrom, $name)))
                     }
 
                     $null = Add-HDTResolvedVariable -Resolution $resolution -Scope $scope `

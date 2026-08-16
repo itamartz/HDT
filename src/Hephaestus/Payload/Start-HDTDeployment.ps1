@@ -319,7 +319,7 @@ try {
             # THE ONE PATH IN THIS FILE THAT STOPS FOR A HUMAN, and it says so.
             # DESIGN 6.3 offers that build for a shared lab or for media going
             # offsite; the E2E never uses it.
-            Write-Warning 'This boot image was built with promptForCredential, so it DELIBERATELY STOPS FOR A HUMAN: the deployment waits here until somebody types the deployment account and its password (DESIGN 6.3). An image meant to run with nobody present carries an embedded credential instead.'
+            Write-Warning 'This boot image was built with promptForCredential, so it DELIBERATELY STOPS FOR A HUMAN: the deployment waits here until somebody types the deployment account and its password. An image meant to run with nobody present carries an embedded credential instead.'
             & $say 'prompting for the deployment credential - this image deliberately stops for a human' 'Warning'
 
             $credential = Get-Credential -Message 'The HDT deployment account for the content share'
@@ -397,7 +397,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) { $wantedSequence = [string] $variable['HDTTaskSequenceID'] }
 
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) {
-        throw ("HDTConfigurationError: no task sequence was named. -SequenceId was not given, bootstrap.json at '{0}' carries an empty sequenceId, and nothing in the rules resolved HDTTaskSequenceID for this machine (DESIGN 3)." -f $BootstrapPath)
+        throw ("HDTConfigurationError: no task sequence was named. -SequenceId was not given, bootstrap.json at '{0}' carries an empty sequenceId, and nothing in the rules resolved HDTTaskSequenceID for this machine." -f $BootstrapPath)
     }
 
     $result['sequenceId'] = $wantedSequence

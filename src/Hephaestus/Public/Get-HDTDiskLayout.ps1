@@ -186,7 +186,7 @@ function Get-HDTDiskLayout {
                 # 'Reserved' lands here on purpose: SPIKES S6's duplicate MSR
                 # started as a partition somebody declared.
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $layoutName `
-                            -Message ("disk layout '{0}': '{1}' is not a partition role HDT creates. The roles are {2}; the Microsoft Reserved partition is created by initialisation and must not be declared (SPIKES S6)." -f $layoutName, $role, ($allowedRole -join ', '))))
+                            -Message ("disk layout '{0}': '{1}' is not a partition role HDT creates. The roles are {2}; the Microsoft Reserved partition is created by initialisation and must not be declared." -f $layoutName, $role, ($allowedRole -join ', '))))
             }
 
             $fileSystem = ''

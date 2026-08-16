@@ -141,7 +141,7 @@ function Test-HDTShareAcl {
 
     if ($bareIdentity -match $adminGroupPattern) {
         & $add $WorkspaceRoot 'Critical' (
-            ("The deployment account is '{0}', which is an administrative group. A domain admin credential in a boot image is a domain compromise, and that is the failure worth catching (DESIGN 6.3). Use a dedicated account - docs/share-account.md has the steps." -f $Identity))
+            ("The deployment account is '{0}', which is an administrative group. A domain admin credential in a boot image is a domain compromise, and that is the failure worth catching. Use a dedicated account - docs/share-account.md has the steps." -f $Identity))
     }
 
     # -- the workspace root ---------------------------------------------------
@@ -204,13 +204,13 @@ function Test-HDTShareAcl {
 
             if ($rights -match 'FullControl') {
                 & $add $path 'Critical' (
-                    ("'{0}' has FullControl on '{1}'. FullControl carries ChangePermissions and TakeOwnership, so the account in the boot image can rewrite the share's own security (DESIGN 6.3)." -f $Identity, $path))
+                    ("'{0}' has FullControl on '{1}'. FullControl carries ChangePermissions and TakeOwnership, so the account in the boot image can rewrite the share's own security." -f $Identity, $path))
                 continue
             }
 
             if (($rights -match 'Write|Modify|Delete|ChangePermissions|TakeOwnership') -and (-not $mayWrite)) {
                 & $add $path 'Warning' (
-                    ("'{0}' can write to '{1}' ({2}). The deployment account is expected to be read-only everywhere except {3} (DESIGN 6.3)." -f
+                    ("'{0}' can write to '{1}' ({2}). The deployment account is expected to be read-only everywhere except {3}." -f
                         $Identity, $path, $rights, ($writableFolder -join '\ and ')))
             }
         }

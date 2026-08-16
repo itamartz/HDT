@@ -113,7 +113,7 @@ function Get-HDTBootIsoArgument {
 
     if ($bits -match '\s') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $bits `
-                    -Message ("the boot bit path '{0}' contains a space, and oscdimg's -bootdata: argument cannot carry one. SPIKES S2 verified this: a quoted path arrives doubled and oscdimg answers `"ERROR: Could not open boot sector file `"`"...`"`" / Error 123: The filename, directory name, or volume label syntax is incorrect.`" Quoting is not the fix - stage etfsboot.com and efisys*.bin into a directory whose full path has no space (New-HDTBootIso does this) and pass that." -f $bits)))
+                    -Message ("the boot bit path '{0}' contains a space, and oscdimg's -bootdata: argument cannot carry one. A quoted path arrives doubled and oscdimg answers `"ERROR: Could not open boot sector file `"`"...`"`" / Error 123: The filename, directory name, or volume label syntax is incorrect.`" Quoting is not the fix - stage etfsboot.com and efisys*.bin into a directory whose full path has no space (New-HDTBootIso does this) and pass that." -f $bits)))
     }
 
     if ($Label -match '\s') {

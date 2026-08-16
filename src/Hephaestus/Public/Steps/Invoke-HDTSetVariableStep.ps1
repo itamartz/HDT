@@ -100,12 +100,12 @@ and a name outside ^HDT[A-Za-z0-9_]*$ - both as
     foreach ($name in @($assignment.Keys)) {
         if ($name.StartsWith('_')) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                        -Message ("step '{0}': '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $Step.Name, $name)))
+                        -Message ("step '{0}': '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $Step.Name, $name)))
         }
 
         if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                        -Message ("step '{0}': '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $Step.Name, $name)))
+                        -Message ("step '{0}': '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $Step.Name, $name)))
         }
     }
 

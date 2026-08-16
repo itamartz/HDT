@@ -132,7 +132,7 @@ function Test-HDTTaskSequence {
         $type = [string] $step.Type
 
         if ($knownType -notcontains $type) {
-            & $add 'Error' $index $name ("the step type '{0}' is not implemented by any loaded module. A step type is a function named Invoke-HDT<Type>Step (DESIGN 4.2). The types this engine can run are: {1}." -f $type, $knownTypeText)
+            & $add 'Error' $index $name ("the step type '{0}' is not implemented by any loaded module. A step type is a function named Invoke-HDT<Type>Step. The types this engine can run are: {1}." -f $type, $knownTypeText)
         }
 
         if ($type -eq 'Restart' -and [bool] $step.ContinueOnError) {
