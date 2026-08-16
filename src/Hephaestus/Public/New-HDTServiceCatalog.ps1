@@ -22,6 +22,7 @@ function New-HDTServiceCatalog {
               Environment    IEnvironmentProvider
               Disk           IDiskService
               Image          IImageService
+              Feature        IFeatureService
               Content        IContentProvider
 
             EVERY PROPERTY IS DEFINED EVEN WHERE IT IS $null. Engine code runs
@@ -78,6 +79,9 @@ function New-HDTServiceCatalog {
         .PARAMETER Image
             An IImageService, or nothing. ApplyImage and ConfigureBoot ask for
             it by name.
+
+        .PARAMETER Feature
+            An IFeatureService, or nothing. InstallRoles asks for it by name.
 
         .PARAMETER Content
             An IContentProvider, or nothing - New-HDTLocalContentProvider or
@@ -150,6 +154,10 @@ function New-HDTServiceCatalog {
 
         [Parameter()]
         [AllowNull()]
+        [object] $Feature = $null,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Content = $null,
 
         # NULL IS THE NORMAL CASE, AND IT COSTS NOTHING. A run with no progress
@@ -176,6 +184,7 @@ function New-HDTServiceCatalog {
         Environment   = $Environment
         Disk          = $Disk
         Image         = $Image
+        Feature       = $Feature
         Content       = $Content
         Progress      = $Progress
     }

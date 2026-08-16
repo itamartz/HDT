@@ -1863,6 +1863,226 @@ function New-HDTFakeProcessService {
     return $fake
 }
 
+class HDTFakeFeatureService {
+
+    # Feature name -> InstallState: Installed, Available or Removed. Ordinal
+    # case-insensitive, because Install-WindowsFeature matches names that way.
+    [hashtable] $Feature
+
+    # Feature name -> the result InstallFeature answers with for a call naming
+    # it. THE ONE CONDITION SEEDED STATE CANNOT EXPRESS: an install that reaches
+    # the OS and comes back refused - a feature blocked by policy, a source path
+    # the servicing stack would not accept. Without it a test can only prove the
+    # happy path, and the interesting half of DESIGN 10.2 is the other one.
+    [hashtable] $Outcome
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeFeatureService() {
+        $this.Feature = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Outcome = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'FeatureService'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding -----------------------------------------------------------
+
+    [void] SeedFeature([string] $Name, [string] $InstallState) {
+        $this.Feature[$Name] = $InstallState
+    }
+
+    [void] SeedOutcome([string] $Name, [hashtable] $Result) {
+        $this.Outcome[$Name] = $Result
+    }
+
+    # -- IFeatureService ---------------------------------------------------
+
+    # FLAT AND UNFILTERED, for the reason IDiskService's listings are: deciding
+    # whether a name is real, whether it is already installed and which ones are
+    # left is pure logic that can be tested, rather than an adapter argument that
+    # cannot.
+    [object[]] GetFeature() {
+        $this.Record('GetFeature', @())
+
+        $row = [System.Collections.ArrayList]::new()
+
+        $name = [string[]] @($this.Feature.Keys)
+        [array]::Sort($name, [System.StringComparer]::Ordinal)
+
+        foreach ($current in $name) {
+            [void] $row.Add([pscustomobject] @{
+                    Name         = $current
+                    DisplayName  = ('{0} display name' -f $current)
+                    InstallState = [string] $this.Feature[$current]
+                })
+        }
+
+        return [object[]] @($row)
+    }
+
+    [object] InstallFeature([string[]] $Name, [bool] $IncludeManagementTools, [string] $Source) {
+        $this.Record('InstallFeature', @($Name, $IncludeManagementTools, $Source))
+
+        # A seeded outcome for ANY of the names wins: Install-WindowsFeature takes
+        # the whole list in one call and reports one result for it, so one blocked
+        # feature is one failed call.
+        foreach ($current in @($Name)) {
+            if ($this.Outcome.ContainsKey($current)) {
+                $seeded = $this.Outcome[$current]
+
+                $success = $true
+                if ($seeded.ContainsKey('Success')) { $success = [bool] $seeded['Success'] }
+
+                $restart = $false
+                if ($seeded.ContainsKey('RestartNeeded')) { $restart = [bool] $seeded['RestartNeeded'] }
+
+                $exitCode = 0
+                if ($seeded.ContainsKey('ExitCode')) { $exitCode = [int] $seeded['ExitCode'] }
+
+                $message = ''
+                if ($seeded.ContainsKey('Message')) { $message = [string] $seeded['Message'] }
+
+                return [pscustomobject] @{
+                    Success       = $success
+                    RestartNeeded = $restart
+                    ExitCode      = $exitCode
+                    Message       = $message
+                    FeatureResult = [string[]] @($Name)
+                }
+            }
+        }
+
+        foreach ($current in @($Name)) {
+            $this.Feature[$current] = 'Installed'
+        }
+
+        return [pscustomobject] @{
+            Success       = $true
+            RestartNeeded = $false
+            ExitCode      = 0
+            Message       = ''
+            FeatureResult = [string[]] @($Name)
+        }
+    }
+}
+
+function New-HDTFakeFeatureService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IFeatureService that records every call.
+
+        .DESCRIPTION
+            The hand-written double for DESIGN 10.2's Install-WindowsFeature
+            wrapper. It implements the two IFeatureService methods - GetFeature
+            and InstallFeature - and it is where every behavioural assertion about
+            the interface lives, because the real adapter needs the ServerManager
+            module and this repository is developed on a client SKU.
+
+            InstallFeature MUTATES THE SEEDED STATE: a feature it installs reports
+            Installed on the next GetFeature. That is what makes "the step does
+            not reinstall what is already there" provable across two calls rather
+            than only within one.
+
+            Every call appends a record to $Operations - Sequence (1-based),
+            Operation, Arguments - including GetFeature, because query-order
+            assertions need them.
+
+        .PARAMETER Feature
+            Seed features. Keys are feature names, values are the install state:
+            Installed, Available or Removed.
+
+        .PARAMETER Outcome
+            Seed install results. Keys are feature names, values are hashtables
+            with any of Success, RestartNeeded, ExitCode and Message. A call
+            naming a seeded feature answers with that result and installs
+            nothing - the refusal an install can come back with, which seeded
+            state alone cannot express.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeFeatureService. Never write the class name as a type literal in
+            a test: it binds to whichever dynamic assembly loaded first and breaks
+            across a module reload. Use this factory.
+
+        .EXAMPLE
+            $feature = New-HDTFakeFeatureService -Feature @{ 'Web-Server' = 'Available' }
+            $feature.InstallFeature([string[]] @('Web-Server'), $true, '')
+
+        .EXAMPLE
+            New-HDTFakeFeatureService -Feature @{ 'Web-Server' = 'Available' } -Outcome @{ 'Web-Server' = @{ Success = $false; ExitCode = 1 } }
+
+            An install the OS refuses.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Feature,
+
+        [Parameter()]
+        [hashtable] $Outcome,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeFeatureService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Feature')) {
+        foreach ($key in @($Feature.Keys)) {
+            $fake.SeedFeature([string] $key, [string] $Feature[$key])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Outcome')) {
+        foreach ($key in @($Outcome.Keys)) {
+            $fake.SeedOutcome([string] $key, $Outcome[$key])
+        }
+    }
+
+    return $fake
+}
+
 class HDTFakePowerService {
 
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
@@ -4761,6 +4981,7 @@ Export-ModuleMember -Function @(
     'New-HDTFakeClock',
     'New-HDTFakeContentProvider',
     'New-HDTFakeDiskService',
+    'New-HDTFakeFeatureService',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',
     'New-HDTFakeImageService',

@@ -16,6 +16,7 @@
         'New-HDTFakeClock',
         'New-HDTFakeContentProvider',
         'New-HDTFakeDiskService',
+        'New-HDTFakeFeatureService',
         'New-HDTFakeEnvironmentProvider',
         'New-HDTFakeFileSystem',
         'New-HDTFakeImageService',
