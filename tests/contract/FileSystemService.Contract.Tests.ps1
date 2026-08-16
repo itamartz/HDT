@@ -75,10 +75,50 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $method = @($script:fs | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
-                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetLength',
-                    'GetHash', 'GetVersion')) {
+                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetDirectory',
+                    'GetLength', 'GetHash', 'GetVersion')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
+        }
+
+        # GetDirectory EXISTS BECAUSE GetChildItem CANNOT ANSWER THE QUESTION.
+        # A driver group is a FOLDER under Drivers\, and a caller handed a flat
+        # list of paths has no way to tell one from a readme.txt beside it
+        # without guessing from the name - and 'Dell Latitude 7450 v2.1' has a
+        # dot in it.
+        It 'lists only the directories under a path' {
+            $script:fs.CreateDirectory((Join-Path -Path $script:root -ChildPath 'boot-critical'))
+            $script:fs.CreateDirectory((Join-Path -Path $script:root -ChildPath 'Dell Latitude 7450 v2.1'))
+            $script:fs.WriteAllText((Join-Path -Path $script:root -ChildPath 'readme.txt'), 'not a group')
+
+            $found = @($script:fs.GetDirectory($script:root) | ForEach-Object { Split-Path -Path $_ -Leaf })
+
+            @($found).Count | Should -Be 2
+            $found | Should -Contain 'boot-critical'
+            $found | Should -Contain 'Dell Latitude 7450 v2.1'
+            $found | Should -Not -Contain 'readme.txt'
+        }
+
+        It 'answers an empty list for a directory with no folders in it' {
+            $script:fs.WriteAllText((Join-Path -Path $script:root -ChildPath 'only.txt'), 'x')
+
+            @($script:fs.GetDirectory($script:root)).Count | Should -Be 0
+        }
+
+        It 'throws for a path that is not there, as GetChildItem does' {
+            $record = $null
+            try { $script:fs.GetDirectory((Join-Path -Path $script:root -ChildPath 'missing')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+        }
+
+        It 'returns an array even for one directory' {
+            # The unary-comma trap: a ScriptMethod collapses a single-element
+            # array to a scalar, and a caller doing .Count then reads the length
+            # of a string.
+            $script:fs.CreateDirectory((Join-Path -Path $script:root -ChildPath 'only-one'))
+
+            $script:fs.GetDirectory($script:root) -is [System.Array] | Should -BeTrue
         }
 
         It 'reports a written file as existing' {

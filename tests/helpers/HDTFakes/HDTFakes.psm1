@@ -308,6 +308,28 @@ class HDTFakeFileSystem {
         return $result
     }
 
+    # The folders only. See New-HDTFileSystem's GetDirectory for why the caller
+    # cannot filter GetChildItem's answer back down to folders itself.
+    [string[]] GetDirectory([string] $Path) {
+        $this.Record('GetDirectory', @($Path))
+        $full = $this.Normalize($Path)
+
+        if (-not $this.Directory.ContainsKey($full)) {
+            throw [System.IO.DirectoryNotFoundException]::new("Could not find a part of the path '$full'.")
+        }
+
+        $child = [System.Collections.ArrayList]::new()
+        foreach ($item in @($this.Directory.Keys)) {
+            if ([System.IO.Path]::GetDirectoryName($item) -eq $full) {
+                [void] $child.Add($item)
+            }
+        }
+
+        $result = [string[]] @($child)
+        [array]::Sort($result, [System.StringComparer]::Ordinal)
+        return $result
+    }
+
     [long] GetLength([string] $Path) {
         $this.Record('GetLength', @($Path))
         $full = $this.Normalize($Path)

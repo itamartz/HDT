@@ -211,6 +211,22 @@ function New-HDTFileSystem {
         return , ([string[]] $child)
     }
 
+    # THE FOLDERS ONLY, because a caller frequently means folders. A driver
+    # group is a FOLDER under Drivers\, and a flat list of paths cannot be
+    # filtered back down to folders without guessing from the name - which fails
+    # on 'Dell Latitude 7450 v2.1' the first time somebody names one after a
+    # driver version.
+    $service | Add-Member -MemberType ScriptMethod -Name GetDirectory -Value {
+        param([string] $Path)
+
+        $this.Record('GetDirectory', @($Path))
+
+        $child = [string[]] @([System.IO.Directory]::GetDirectories($this.NormalizePath($Path)))
+        [array]::Sort($child, [System.StringComparer]::Ordinal)
+
+        return , ([string[]] $child)
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name GetLength -Value {
         param([string] $Path)
 
