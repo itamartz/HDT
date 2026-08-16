@@ -8,7 +8,7 @@ function Invoke-HDTStepAttempt {
             Between the loop and Invoke-HDTStep sits everything that is true of
             EVERY step and of no step type in particular: how many attempts it
             took, how long it took, whether it overran its timeout, and which of
-            DESIGN 12.1's three classes its failure belongs to.
+            the three failure classes its failure belongs to.
 
             ATTEMPTS run from 1 to 1 + the step's retry count. The delay before
             attempt N is

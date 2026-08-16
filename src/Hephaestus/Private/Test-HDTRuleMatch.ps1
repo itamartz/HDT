@@ -9,7 +9,7 @@ function Test-HDTRuleMatch {
             encodes are deliberate:
 
             NO CONDITION MATCHES. A rule with no when, or an empty when, applies
-            to every machine. That is the Fallback rule of DESIGN 3.3.
+            to every machine. That is the Fallback rule.
 
             AN ABSENT OR NULL VALUE NEVER MATCHES. A rule keyed on a fact this
             machine does not have must not fire, including against an empty

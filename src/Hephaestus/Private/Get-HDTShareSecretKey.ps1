@@ -4,10 +4,10 @@ function Get-HDTShareSecretKey {
             The AES key the share credential is obfuscated with.
 
         .DESCRIPTION
-            A CONSTANT IN THE MODULE, AND THAT IS NOT AN OVERSIGHT. DESIGN 6.3:
-            "obfuscation is not claimed as security ... the boot image contains
-            everything needed to reverse it, so the docs say so plainly rather
-            than implying the image is safe to hand out."
+            A CONSTANT IN THE MODULE, AND THAT IS NOT AN OVERSIGHT. Obfuscation
+            is not claimed as security: the boot image contains everything
+            needed to reverse it, so HDT says so plainly rather than implying
+            the image is safe to hand out.
 
             The value has to be recoverable inside WinPE, on a machine that has
             never seen the one that built the image, with no user profile and no

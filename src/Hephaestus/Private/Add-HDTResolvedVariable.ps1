@@ -5,13 +5,13 @@ function Add-HDTResolvedVariable {
             the value came from.
 
         .DESCRIPTION
-            The single writer of a resolution result, and the place DESIGN 3.1's
+            The single writer of a resolution result, and the place the
             precedence is actually enforced.
 
             The precedence is not a comparison anywhere in the engine.
             Resolve-HDTVariable applies the five sources in order and this
             function refuses to overwrite a variable that is already resolved.
-            First writer wins, so applying the sources in the DESIGN 3.1 order IS
+            First writer wins, so applying the sources in precedence order IS
             the precedence, and a later fallback rule can only fill what nothing
             above it set. One rule, held in one place, rather than a priority
             comparison repeated at five call sites.
@@ -27,7 +27,7 @@ function Add-HDTResolvedVariable {
               condition and an unattend.xml will actually use.
 
             The provenance record carries both, plus the source, the rule and its
-            index, the file, and a 1-based Order, so DESIGN 3.1's "every variable
+            index, the file, and a 1-based Order, so the rule "every variable
             resolution records which source set it" survives the call rather than
             being a log line that scrolled past.
 
@@ -51,7 +51,7 @@ function Add-HDTResolvedVariable {
             element; a boolean, a number and anything else pass through untouched.
 
         .PARAMETER Source
-            Which of the five DESIGN 3.1 sources supplied the value. A closed set:
+            Which of the five sources supplied the value. A closed set:
             CommandLine, MachineOverride, Rule, RuleScript, GatheredFact,
             SequenceDefault. Closed because provenance is machine-readable - the
             console and ConvertTo-HDTReport switch on it.

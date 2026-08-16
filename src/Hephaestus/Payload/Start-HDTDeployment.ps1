@@ -18,7 +18,7 @@
         no step function, and calls Invoke-HDTTaskSequence exactly once.
 
         X: IS THE ONLY DRIVE LETTER THIS FILE MAY ASSUME, and the same test
-        asserts that too. SPIKES S9.1 measured WinPE handing the CONTENT DISK
+        asserts that too. A lab test measured WinPE handing the CONTENT DISK
         the letter a developer's machine calls its system drive, and the RAM disk
         X:. A deployRoot baked into bootstrap.json at build time therefore cannot
         know what this machine will be given - so the volume carrying the content
@@ -40,7 +40,7 @@
         disk and the machine is about to power off. 05-05's zero-keystroke proof
         reads launchedBy out of that file.
 
-        DESIGN 11'S TECHNICIAN UI IS DELIBERATELY ABSENT. The progress window and
+        THE TECHNICIAN UI IS DELIBERATELY ABSENT. The progress window and
         the wizard are a later milestone; a silent entry point is the honest v1,
         and the AST test refuses a Show-* command or a WPF assembly here so that
         this file does not quietly become the other thing.

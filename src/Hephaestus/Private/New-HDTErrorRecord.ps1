@@ -4,7 +4,7 @@ function New-HDTErrorRecord {
             Builds the ErrorRecord every HDT configuration failure is thrown as.
 
         .DESCRIPTION
-            DESIGN 12.1 classifies a failure as Transient, Configuration or
+            HDT classifies a failure as Transient, Configuration or
             Environment, and requires a Configuration failure to fail fast and
             point at the file and the line. This builds that record so every
             caller produces the same shape:
@@ -44,7 +44,7 @@ function New-HDTErrorRecord {
             in ConvertFrom-HDTYaml uses HDTDependencyError.
 
         .PARAMETER TargetObject
-            The thing at fault, when it is not a file. DESIGN 9.1's refusals are
+            The thing at fault, when it is not a file. The refusals are
             about a DISK, so Select-HDTTargetDisk carries the disk number here
             and a console recovers it without parsing prose. Supplied, it wins
             over -Path; omitted, -Path is still the target.

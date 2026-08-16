@@ -4,10 +4,10 @@ function New-HDTBootImageManifest {
             Builds the boot image build manifest as JSON text.
 
         .DESCRIPTION
-            DESIGN 5.1's ANSWER TO BOOT IMAGE DRIFT: "the build is deterministic
-            and repeatable ... and records a manifest of exactly what went in.
+            THE ANSWER TO BOOT IMAGE DRIFT: the build is deterministic
+            and repeatable, and records a manifest of exactly what went in.
             Boot image drift - where nobody remembers what's in the WIM - is a
-            real MDT operational problem."
+            real MDT operational problem.
 
             It is written to <workspace>\Boot\<name>.manifest.json LAST, after
             both artifacts exist, so a manifest that is there describes a build
@@ -23,13 +23,14 @@ function New-HDTBootImageManifest {
             SUITE, AND THAT IS THE POINT OF RECORDING THEM:
 
               artifacts.isoBootWimSha256 === artifacts.wim.sha256
-                  DESIGN 6.1.1 written into the artifact. The WIM inside the ISO
+                  The one-build-two-artifacts guarantee, written into the file
+                  it is a guarantee about. The WIM inside the ISO
                   and the standalone WIM are one file copied, not two exports, so
                   "a bug reproduced from the ISO is a bug in the PXE path" is
                   checkable by anyone holding this file.
 
               credential.username, and NEVER the secret
-                  DESIGN 6.3. The manifest sits in Boot\ beside the WIM. It says
+                  The manifest sits in Boot\ beside the WIM. It says
                   WHICH account the image carries so an operator can audit it,
                   and it carries nothing that would let them use it.
 

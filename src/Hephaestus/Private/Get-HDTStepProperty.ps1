@@ -4,7 +4,7 @@ function Get-HDTStepProperty {
             Reads one property off a flattened step, expanded and coerced.
 
         .DESCRIPTION
-            DESIGN 4.2's step contract says a step is "a name, a type and a
+            The step contract says a step is "a name, a type and a
             property bag". This is the one reader every HDT step type uses to
             get a value out of that bag, so "what does an absent property mean"
             has one answer rather than one per step type.

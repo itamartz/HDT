@@ -3,9 +3,9 @@
         The RunOnce payload: reconcile the boot, then resume the task sequence.
 
     .DESCRIPTION
-        DESIGN 4.5.1: "the engine is launched at logon by a RunOnce entry
-        re-registered each leg, pointing at C:\HDT\Start-HDTResume.ps1, which
-        loads state.json and continues at the next step."
+        The engine is launched at logon by a RunOnce entry re-registered each
+        leg, pointing at C:\HDT\Start-HDTResume.ps1, which loads state.json and
+        continues at the next step.
 
         THIS IS NOT A MODULE FILE. The loader dot-sources Private\ and Public\
         only, so Payload\ ships as a script, is staged to C:\HDT\, and is
@@ -42,7 +42,7 @@
         machine; a test points it elsewhere.
 
     .PARAMETER StatePath
-        The run state document. DESIGN 4.3 puts it at C:\HDT\state.json in the
+        The run state document. It lives at C:\HDT\state.json in the
         full OS.
 
     .PARAMETER WorkspaceRoot

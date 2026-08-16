@@ -4,7 +4,7 @@ function Get-HDTPowerCommand {
             Decides which executable ends the machine, and with what arguments.
 
         .DESCRIPTION
-            ROADMAP M2 deferred one question to phase 05: "does WinPE need
+            One question was deferred to phase 05: "does WinPE need
             wpeutil reboot rather than shutdown.exe". A read-only mount of the
             boot image Update-HDTBootImage builds answers it, and the answer is
             not a preference:
@@ -24,7 +24,7 @@ function Get-HDTPowerCommand {
 
             THIS FUNCTION IS THE ONLY PLACE THAT BRANCHES ON IT. The adapter
             New-HDTPowerService is a shell-out with no `if` in it at all, which
-            is what earns it CLAUDE.md rule 1's exemption from TDD; every
+            is what earns it the exemption from TDD; every
             decision it would otherwise have made is here, pure, and asserted as
             an exact argument array.
 

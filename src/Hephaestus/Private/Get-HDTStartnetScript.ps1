@@ -42,7 +42,7 @@ function Get-HDTStartnetScript {
                   X:\HDT\Start-HDTDeployment.ps1
 
             X: IS WRITTEN LITERALLY, AND IT IS THE ONLY DRIVE LETTER ALLOWED
-            HERE. The RAM disk is the one letter WinPE guarantees - SPIKES S9.1
+            HERE. The RAM disk is the one letter WinPE guarantees - a lab test
             recorded WinPE giving the content disk C: while the RAM disk was X:.
             Any other letter here would be a guess about a machine that has not
             booted yet. Where the CONTENT is, is bootstrap.json's business and

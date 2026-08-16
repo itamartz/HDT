@@ -4,8 +4,8 @@ function ConvertFrom-HDTStepCondition {
             Parses a step condition into Left, Operator and Right.
 
         .DESCRIPTION
-            DESIGN 3.3 says HDT deliberately has no condition language, and
-            DESIGN 4.1 uses exactly one shape - '"%_HDTPhase%" == "FullOS"' - so
+            HDT deliberately has no condition language, and an authored
+            sequence uses exactly one shape - '"%_HDTPhase%" == "FullOS"' - so
             the grammar is CLOSED and tiny:
 
               <condition> := <operand> <operator> <operand>
@@ -35,7 +35,7 @@ function ConvertFrom-HDTStepCondition {
 
               condition: '"%_HDTPhase%" == "FullOS"'
 
-            The unquoted form DESIGN 4.1 prints is not parseable YAML at all.
+            The unquoted form is not parseable YAML at all.
 
         .PARAMETER Condition
             The condition text, exactly as the document carried it.

@@ -11,7 +11,7 @@ function ConvertTo-HDTOperatingSystemCatalog {
             authors agreeing.
 
             IT RESOLVES ImagePath, AND THAT PATH IS THE SEAM 04-02 MARKED AND
-            05-02 CLOSED. DESIGN 6 abstracts content access behind a provider,
+            05-02 CLOSED. Content access is abstracted behind a provider,
             and -Content is where one arrives:
 
               with -Content     ImagePath is what the provider answered for the

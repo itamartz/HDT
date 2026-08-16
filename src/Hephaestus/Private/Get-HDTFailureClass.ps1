@@ -15,7 +15,7 @@ function Get-HDTFailureClass {
 
               a timeout                                            Environment
               FullyQualifiedErrorId starting HDTConfigurationError  Configuration
-              one of the DESIGN 9.1 refusal ids                     Configuration
+              one of the named refusal ids                          Configuration
               System.IO.*, Win32Exception, TimeoutException         Environment
               a result whose Data carries one of those ids          Configuration
               anything else, including a Failed result with an
@@ -39,7 +39,7 @@ function Get-HDTFailureClass {
             THE THROWN ERROR OUTRANKS THE RESULT DATA. An exception says what
             actually went wrong; the data says what the step believed.
 
-            THE REFUSAL IDS ARE A NAMED LIST, NOT A WILDCARD. DESIGN 9.1's
+            THE REFUSAL IDS ARE A NAMED LIST, NOT A WILDCARD. The
             refusal to guess which disk to wipe, and 9.2's refusal to guess
             which image index to apply, are bad authoring rather than bad luck -
             a refusal that got retried three times would spend a deployment's

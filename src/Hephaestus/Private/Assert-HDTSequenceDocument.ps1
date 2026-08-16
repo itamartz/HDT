@@ -32,7 +32,7 @@ function Assert-HDTSequenceDocument {
                         and a known backoff; a parseable condition
 
             A NODE IS A GROUP WHEN IT DECLARES steps, not when it declares group.
-            DESIGN 4.1's own ApplyDrivers step carries `group: "%HDTDriverGroup%"`
+            The reference ApplyDrivers step carries `group: "%HDTDriverGroup%"`
             as a type-specific property, so keying off `group` would reject the
             document the design prints. A node declaring BOTH steps and type is
             the error, and it is the one case JSON Schema draft-07 cannot express

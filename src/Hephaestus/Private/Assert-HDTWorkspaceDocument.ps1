@@ -31,17 +31,13 @@ function Assert-HDTWorkspaceDocument {
                           carrying source and destination, destination rooted and
                           free of '..'
 
-            THE DESIGN 6.3 CORRECTION, AND IT IS A CORRECTION RATHER THAN AN
-            OMISSION. DESIGN 6.3 shows a "password: <set by
-            Set-HDTShareCredential>" line inside workspace.yaml and then says the
-            value "never appears in a file an admin hand-edits, so it does not
-            end up in git". Both cannot be true of the same file: workspace.yaml
-            IS the file an admin hand-edits and commits. So a password key here
-            is a validation error whose message names Set-HDTShareCredential and
-            says where the secret does live - Control\share-credential.json,
-            written by that command (05-02). The message deliberately does not
-            echo the value back: a validator that quotes the secret it is
-            refusing has just written it to the log.
+            A PASSWORD KEY HERE IS AN ERROR, NOT AN OVERSIGHT. workspace.yaml is
+            the file an administrator hand-edits and commits, so a share
+            password in it is a share password in git. The refusal names
+            Set-HDTShareCredential and says where the secret does live -
+            Control\share-credential.json, written by that command. The message
+            deliberately does not echo the value back: a validator that quotes
+            the secret it is refusing has just written it to the log.
 
             deployRoot HAS THREE LEGAL FORMS and the third is not decoration:
 
@@ -50,7 +46,7 @@ function Assert-HDTWorkspaceDocument {
                                   inside a boot image
               \Share              VOLUME-RELATIVE - the volume is discovered at
                                   boot, and it is the only form a Local boot
-                                  image may carry, because SPIKES S9.1 recorded
+                                  image may carry, because a lab test recorded
                                   WinPE handing the content disk C: while the RAM
                                   disk was X:
 

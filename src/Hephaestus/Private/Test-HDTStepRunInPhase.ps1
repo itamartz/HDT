@@ -4,7 +4,7 @@ function Test-HDTStepRunInPhase {
             Decides whether a step's runIn allows it to run in this leg's phase.
 
         .DESCRIPTION
-            DESIGN 4.2's runIn, in one place. A step declares WinPE, FullOS or
+            The step contract's runIn, in one place. A step declares WinPE, FullOS or
             Any; a leg is running in WinPE or in FullOS; a step runs when it
             declares Any or names the phase it is in.
 
