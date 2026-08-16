@@ -5,7 +5,7 @@ function Get-HDTStepDescription {
             progress display.
 
         .DESCRIPTION
-            The third of DESIGN 4.2's triple, and the only optional one that has
+            The third of the step contract's triple, and the only optional one that has
             a useful default. A step type may declare
 
               Get-HDT<Type>StepDescription -Step

@@ -1,28 +1,28 @@
 function Write-HDTLog {
     <#
         .SYNOPSIS
-            Writes one log entry in both DESIGN 4.4.2 formats, from one call.
+            Writes one log entry in both formats, from one call.
 
         .DESCRIPTION
             "Every log call emits both, from a single Write-HDTLog invocation"
-            (DESIGN 4.4.2):
+:
 
               <_HDTLogPath>\HDT.jsonl   JSON Lines, the structured source of truth
               <_HDTLogPath>\HDT.log     CMTrace, what an administrator already reads
 
             and, when the context has a step log, the same CMTrace line goes to
-            that per-step file as well (DESIGN 4.4.3). Nothing else in HDT writes
-            a log anywhere (DESIGN 4.4.1).
+            that per-step file as well. Nothing else in HDT writes
+            a log anywhere.
 
             Both writes go through the context's injected IFileSystem, and the
-            timestamp through its injected IClock, so the whole of DESIGN 4.4 is
-            provable with nothing on disk and no wall clock (DESIGN 12.2.1). The
+            timestamp through its injected IClock, so the whole of the logging path is
+            provable with nothing on disk and no wall clock. The
             adapter writes UTF-8 without a byte order mark; the PowerShell
             file-writing cmdlets are banned here for that reason and are absent
             from this file.
 
             SEQ IS MONOTONIC AND RESUMABLE. The counter lives on the context and
-            is seeded from state.json on resume, so DESIGN 4.4.2's "seq survives
+            is seeded from state.json on resume, so "seq survives
             reboots" holds across a leg boundary. A message dropped by verbosity
             does NOT consume a number and does not touch the filesystem: a hole in
             the numbering would turn a legitimate verbosity setting into evidence
@@ -30,13 +30,13 @@ function Write-HDTLog {
 
             EVENT IS A CONTROLLED VOCABULARY, enforced by ValidateSet, so the
             report renderer and the console filter on a known set rather than
-            regexing prose. Thirteen names: DESIGN 4.4.2's eleven, plus
-            reboot.teardown for the DESIGN 4.5.3 failsafe and message for a custom
-            step's bare call. Adding a fourteenth means editing DESIGN 4.4.2 as
+            regexing prose. Thirteen names: the base eleven, plus
+            reboot.teardown for the autologon failsafe and message for a custom
+            step's bare call. Adding a fourteenth means editing the vocabulary as
             well - a test asserts the exact list.
 
             Verbosity order is Error < Warning < Info < Debug, so Level = Warning
-            emits Error and Warning only (DESIGN 4.4.5).
+            emits Error and Warning only.
 
         .PARAMETER Context
             A New-HDTLogContext result.
@@ -48,7 +48,7 @@ function Write-HDTLog {
 
         .PARAMETER Severity
             Error, Warning, Info or Debug. Defaults to Info, which is what
-            DESIGN 4.4.4's bare Write-HDTLog "Checking vendor BIOS level"
+            a bare Write-HDTLog "Checking vendor BIOS level"
             produces.
 
         .PARAMETER Event
@@ -75,7 +75,7 @@ function Write-HDTLog {
         .EXAMPLE
             Write-HDTLog -Context $context -Message 'Checking vendor BIOS level'
 
-            DESIGN 4.4.4's extensibility point: a custom step logs into the same
+            The extensibility point: a custom step logs into the same
             stream, with the step name attached automatically.
 
         .EXAMPLE
@@ -83,7 +83,7 @@ function Write-HDTLog {
                 -Event step.complete -Component ImageService -DurationMs 95120 `
                 -Data ([ordered] @{ index = 1; target = 'W:\' })
 
-            The full DESIGN 4.4.2 record.
+            A full record, with every optional field populated.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidAssignmentToAutomaticVariable', 'Event',
         Justification = 'DESIGN 4.4.2 names this field event; it is never PowerShell eventing''s automatic variable.')]

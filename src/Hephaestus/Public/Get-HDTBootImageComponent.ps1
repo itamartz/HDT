@@ -12,21 +12,21 @@ function Get-HDTBootImageComponent {
             whether each one is actually on disk, and whether the admin's
             declaration is internally consistent.
 
-            THE REQUIRED SET, AND ITS ORDER, IS SPIKES S1's:
+            THE REQUIRED SET, AND ITS ORDER, IS THE BOOT-VERIFIED ONE:
 
                 WinPE-WMI -> WinPE-NetFx -> WinPE-Scripting -> WinPE-PowerShell
                   -> WinPE-StorageWMI -> WinPE-DismCmdlets
 
             THAT ORDER WAS VERIFIED BY A MACHINE THAT BOOTED. DO NOT SORT IT and
             do not "tidy" it alphabetically. Note WinPE-NetFx - LOWERCASE x.
-            DESIGN 5.1 records that an earlier draft capitalised that x and that
+            An earlier draft capitalised that x, and
             no cab of the capitalised name exists. The misspelling is written
             nowhere in this repository's source, deliberately, so that a grep for
             it stays a usable check.
 
             UNSET AND SET-TO-NOTHING ARE DIFFERENT INSTRUCTIONS. Omitting
-            -OptionalComponent means "the admin did not say", and takes DESIGN
-            5.1's defaults - WinPE-SecureStartup, WinPE-EnhancedStorage,
+            -OptionalComponent means "the admin did not say", and takes the
+            defaults - WinPE-SecureStartup, WinPE-EnhancedStorage,
             WinPE-WDS-Tools. Passing an explicit empty array means "the six and
             nothing else", and is honoured.
 
@@ -35,14 +35,14 @@ function Get-HDTBootImageComponent {
               - a declared component that is already required is dropped from the
                 tail rather than applied twice, and does not reorder the six;
               - the remaining declarations keep the order they were written in
-                (DESIGN 5.1: "merged with the required set below, order
+                ("merged with the required set below, order
                 preserved");
               - comparison is case-insensitive throughout.
 
             DEPENDENCY VALIDATION comes from Get-HDTBootImageComponentDependency,
             whose every row is transcribed from the component's own package
             manifest inside the ADK cab. A component NOT in that table is allowed
-            with no dependencies and no warning - the point of DESIGN 5.1 is that
+            with no dependencies and no warning - the point is that
             a fleet needs components this project never anticipated. A component
             IN the table whose dependency is absent from the final list is
             REFUSED, naming both and telling the admin to add it. HDT does not
@@ -62,13 +62,13 @@ function Get-HDTBootImageComponent {
               - LanguageCabPath is PROBED. Absent, the property is '' and one
                 warning names the component. Twelve of this ADK's 33 components
                 have no en-us pack - WinPE-FMAPI among them - so this must never
-                be an error (DESIGN 5.1: "the builder must probe rather than
+                be an error ("the builder must probe rather than
                 assume").
 
         .PARAMETER OptionalComponent
             The components declared in workspace.yaml, or on
-            Update-HDTBootImage -OptionalComponent. Omit for the DESIGN 5.1
-            defaults; pass @() for none.
+            Update-HDTBootImage -OptionalComponent. Omit for the defaults;
+            pass @() for none.
 
         .PARAMETER ComponentRoot
             The WinPE_OCs folder, from Get-HDTAdkPath -Asset

@@ -5,10 +5,10 @@ function Import-HDTSequenceDocument {
             order.
 
         .DESCRIPTION
-            The public front door to sequence.yaml (DESIGN 4.1). It reads the
+            The public front door to sequence.yaml. It reads the
             file through an injected IFileSystem - never Get-Content - so the
             whole authoring path is provable under Pester with no share, no media
-            and no disk (PROJECT constraint 4, DESIGN 12.2.1).
+            and no disk.
 
             Four steps, and a failure at any of them is a terminating
             HDTConfigurationError naming the file:
@@ -22,7 +22,7 @@ function Import-HDTSequenceDocument {
 
             FLATTENING IS THE DESIGN DECISION HERE. A group is not an execution
             unit; it is a naming and condition device. Flattening nested groups
-            into one linear, 1-based list means DESIGN 4.3's "skips completed
+            into one linear, 1-based list means "skips completed
             steps by index" works unchanged with nesting, and a group whose
             condition is false produces one step.skip record per contained step
             naming the group - which is what a technician reading a log needs,
@@ -37,23 +37,26 @@ function Import-HDTSequenceDocument {
               GroupCondition   [object[]] of Group/Condition, outermost first,
                                only for ancestors that declare one
               ContinueOnError  [bool], default $false
+              Disabled         [bool], default $false - the step is skipped
+                               without being removed. A step inside a disabled
+                               group is disabled whatever it says about itself
               TimeoutMinutes   [int], 0 = unbounded, default 0
               RunIn            WinPE | FullOS | Any; a step with none inherits its
                                nearest ancestor group's runIn, default Any
               Retry            Count / DelaySecond / Backoff, default 0/0/fixed
-              Resumable        [bool], default $false - DESIGN 4.3's "re-runs the
-                               interrupted step only if it declares resumable"
-              Log              a per-step log file name (DESIGN 4.4.4), or $null
+              Resumable        [bool], default $false - an interrupted step is
+                               re-run only if it declares resumable
+              Log              a per-step log file name, or $null
               Property         ordered, case-insensitive: every key that is NOT a
                                common property, i.e. the step type's own arguments
 
-            A NODE IS A GROUP WHEN IT DECLARES steps. DESIGN 4.1's ApplyDrivers
+            A NODE IS A GROUP WHEN IT DECLARES steps. The reference ApplyDrivers
             step carries `group: "%HDTDriverGroup%"` as a type-specific property,
             so `group` cannot be the discriminator - it stays in Property.
 
             STEP TYPES ARE NOT RESOLVED HERE. A sequence referencing a type this
             engine does not implement still imports, because a workspace's
-            Modules\ may carry it and the authoring machine may not (DESIGN 4.2).
+            Modules\ may carry it and the authoring machine may not.
 
         .PARAMETER Path
             The sequence.yaml to read. Interpreted by the filesystem service, so
@@ -68,7 +71,6 @@ function Import-HDTSequenceDocument {
 
               Path, SchemaVersion, Id, Name, Description
               Variable  ordered, case-insensitive: the sequence defaults
-                        (DESIGN 3.1 source 5)
               Step      [object[]] flattened into execution order
               Group     [object[]] one per group node: Path, Condition, RunIn
 
@@ -99,7 +101,7 @@ function Import-HDTSequenceDocument {
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'the sequence file does not exist. Every sequence is a sequence.yaml under the workspace Sequences directory (DESIGN 2.1).' `
+                    -Message 'the sequence file does not exist. Every sequence is a sequence.yaml under the workspace Sequences directory.' `
                     -Category ObjectNotFound))
     }
 
@@ -110,7 +112,7 @@ function Import-HDTSequenceDocument {
 
     # The common properties. Everything else on a step node is that step type's
     # own argument and goes into Property untouched.
-    $commonKey = @('name', 'type', 'condition', 'continueOnError', 'timeoutMinutes', 'runIn', 'retry', 'resumable', 'log')
+    $commonKey = @('name', 'type', 'condition', 'continueOnError', 'disabled', 'timeoutMinutes', 'runIn', 'retry', 'resumable', 'log')
 
     $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
     if ($document.Contains('variables')) {
@@ -138,6 +140,7 @@ function Import-HDTSequenceDocument {
                 GroupPath      = [string[]] @()
                 GroupCondition = [object[]] @()
                 RunIn          = 'Any'
+                Disabled       = $false
             })
     }
 
@@ -169,10 +172,20 @@ function Import-HDTSequenceDocument {
                 $groupRunIn = [string] $node['runIn']
             }
 
+            # A DISABLED GROUP DISABLES EVERYTHING UNDER IT, and a group inside a
+            # disabled group cannot switch itself back on. Turning off a group of
+            # six is one edit, and re-enabling one step inside it by hand would be
+            # a document that says two contradictory things.
+            $groupDisabled = [bool] $frame.Disabled
+            if (-not $groupDisabled -and $node.Contains('disabled')) {
+                $groupDisabled = [bool] $node['disabled']
+            }
+
             [void] $group.Add([pscustomobject] @{
                     Path      = $groupPath
                     Condition = $groupCondition
                     RunIn     = $groupRunIn
+                    Disabled  = $groupDisabled
                 })
 
             $childNode = @($node['steps'])
@@ -182,6 +195,7 @@ function Import-HDTSequenceDocument {
                         GroupPath      = $groupPath
                         GroupCondition = $inheritedCondition
                         RunIn          = $groupRunIn
+                        Disabled       = $groupDisabled
                     })
             }
 
@@ -198,6 +212,15 @@ function Import-HDTSequenceDocument {
         $continueOnError = $false
         if ($node.Contains('continueOnError')) {
             $continueOnError = [bool] $node['continueOnError']
+        }
+
+        # ABSENT MEANS ENABLED, and a step inside a disabled group is disabled
+        # whatever it says about itself. Every sequence written before this key
+        # existed has no 'disabled' anywhere in it, and all of their steps must
+        # still run.
+        $disabled = [bool] $frame.Disabled
+        if (-not $disabled -and $node.Contains('disabled')) {
+            $disabled = [bool] $node['disabled']
         }
 
         $resumable = $false
@@ -250,6 +273,7 @@ function Import-HDTSequenceDocument {
                 Condition       = $condition
                 GroupCondition  = [object[]] @($frame.GroupCondition)
                 ContinueOnError = $continueOnError
+                Disabled        = $disabled
                 TimeoutMinutes  = $timeoutMinutes
                 RunIn           = $runIn
                 Retry           = [pscustomobject] @{

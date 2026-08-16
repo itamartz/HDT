@@ -1,12 +1,12 @@
 function New-HDTRunState {
     <#
         .SYNOPSIS
-            Builds DESIGN 4.3's state document for a new deployment run.
+            Builds the state document for a new deployment run.
 
         .DESCRIPTION
             "The engine maintains a state document (state.json): resolved
-            variables, the step index, per-step results, and a run ID"
-            (DESIGN 4.3). This builds it, in memory. It has NO -FileSystem
+            variables, the step index, per-step results, and a run ID".
+This builds it, in memory. It has NO -FileSystem
             parameter and reads nothing: only Save-HDTRunState writes.
 
             The document, in this key order:
@@ -17,7 +17,7 @@ function New-HDTRunState {
               status         Running | Succeeded | Failed
               phase          WinPE | FullOS
               leg            1-based, incremented on every resume
-              seq            the last JSONL seq written - how DESIGN 4.4.2's
+              seq            the last JSONL seq written - how the
                              monotonic counter survives a reboot
               startedUtc     formatted string
               updatedUtc     formatted string
@@ -65,7 +65,7 @@ function New-HDTRunState {
             what the flattener actually emits.
 
         .PARAMETER PauseOnError
-            DESIGN 4.3's LTISuspend equivalent: on failure, drop to a PowerShell
+            The LTISuspend equivalent: on failure, drop to a PowerShell
             prompt with the state loaded rather than ending the sequence.
 
         .OUTPUTS

@@ -1,8 +1,7 @@
 function Invoke-HDTBootReconciliation {
     <#
         .SYNOPSIS
-            Decides on every boot whether to resume the run or disarm the machine
-            (DESIGN 4.5.2).
+            Decides on every boot whether to resume the run or disarm the machine.
 
         .DESCRIPTION
             "Start-HDTResume.ps1 reconciles on every boot: if the state document
@@ -18,7 +17,7 @@ function Invoke-HDTBootReconciliation {
               Running but stale past -MaxAgeHour     Teardown  'run abandoned'
               otherwise                              Resume    'resuming at step n'
 
-            Teardown runs the full DESIGN 4.5.3 checklist through
+            Teardown runs the full autologon checklist through
             Clear-HDTAutoLogon and then removes the state file - in that order,
             so a crash between the two leaves a disarmed machine rather than an
             armed one with no state to reconcile against next time. It does not

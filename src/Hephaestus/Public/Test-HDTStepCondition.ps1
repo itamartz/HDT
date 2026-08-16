@@ -5,7 +5,7 @@ function Test-HDTStepCondition {
 
         .DESCRIPTION
             The runtime half of the closed grammar ConvertFrom-HDTStepCondition
-            defines (DESIGN 4.1, DESIGN 3.3). It expands %Var% on BOTH operands
+            defines. It expands %Var% on BOTH operands
             against the live variable dictionary, renders both through
             ConvertTo-HDTComparableString so a boolean is 'True' and an integer is
             its invariant text, and compares CASE-INSENSITIVELY.
@@ -52,8 +52,7 @@ function Test-HDTStepCondition {
         .EXAMPLE
             Test-HDTStepCondition -Condition '"%_HDTPhase%" == "FullOS"' -Variable $context.Variable
 
-            DESIGN 4.1's own condition, corrected: the design prints == "OS", but
-            DESIGN 4.4.1 defines _HDTPhase as WinPE or FullOS.
+            The phase condition. _HDTPhase is WinPE or FullOS, never "OS".
 
         .EXAMPLE
             $unresolved = New-Object System.Collections.ArrayList

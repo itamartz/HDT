@@ -52,11 +52,11 @@ function Get-HDTConsoleIcon {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore')]
+            'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateSet('Ok', 'Error', 'Missing')]
+        [ValidateSet('Ok', 'Error', 'Missing', 'Warning')]
         [string] $Status
     )
 
@@ -67,6 +67,13 @@ function Get-HDTConsoleIcon {
         return [string] ([char] 0x26A0)          # warning sign
     }
 
+    # A LINT FINDING GETS THE SAME GLYPH AND A DIFFERENT COLOUR. The shape says
+    # "look at this"; the colour says how much. Giving a warning its own picture
+    # would mean an administrator had to learn two symbols to be told one thing.
+    if ($Status -eq 'Warning') {
+        return [string] ([char] 0x26A0)
+    }
+
     $glyph = @{
         Root            = [char]::ConvertFromUtf32(0x1F5C4)   # file cabinet - every share
         Share           = [char]::ConvertFromUtf32(0x1F5C2)   # dividers - one share
@@ -75,6 +82,19 @@ function Get-HDTConsoleIcon {
         OperatingSystem = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
+        StepGroup       = [char]::ConvertFromUtf32(0x1F4C2)   # open folder - a group holds steps, it does not do anything
+        # A GEAR, NOT A TRIANGLE. The first version used a small right triangle,
+        # which in a TreeView is what an expander looks like - so every step
+        # appeared to be a branch that would not open. An action gets an action's
+        # icon, the way Deployment Workbench gives each step type one.
+        Step            = [string] ([char] 0x2699)            # gear - one thing that runs
+
+        # A MACHINE, NOT A CLOCK. A monitoring row is a computer somewhere
+        # partway through a deployment, and that is what a technician is
+        # picturing when they scan the list. A stalled one takes the warning
+        # sign at the top of this function, like everything else that is wrong.
+        MonitorRun      = [char]::ConvertFromUtf32(0x1F5A5)   # desktop computer - one machine deploying
+        MonitorCategory = [char]::ConvertFromUtf32(0x1F4C1)   # folder - it is a category like the others
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 

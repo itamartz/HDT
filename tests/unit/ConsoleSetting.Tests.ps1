@@ -21,6 +21,24 @@ BeforeAll {
     $script:appData = 'C:\Users\tech\AppData\Roaming'
     $script:settingPath = 'C:\Users\tech\AppData\Roaming\HDT\console.json'
 
+    # A DESKTOP BIG ENOUGH TO BE OUT OF THE WAY, passed to every test that is
+    # about the FILE rather than about the screen.
+    #
+    # Without it those tests read the real monitor, and a test that asserts
+    # "answers what was written" would pass at this desk and fail on a laptop -
+    # the size having been clamped by a rule the test was not written to
+    # exercise. A remembered size is only machine-independent when the machine
+    # is stated.
+    function New-HDTConsoleTestScreen {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory test double; it changes no state.')]
+        [CmdletBinding()]
+        [OutputType([object])]
+        param()
+
+        return New-HDTFakeScreen -Width 3840 -Height 2160
+    }
+
     function New-HDTConsoleSettingTestEnvironment {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Builds an in-memory test double; it changes no state.')]
@@ -62,7 +80,8 @@ Describe 'Get-HDTConsoleSetting' {
 
         It 'puts it under the user profile, never on a deployment share' {
             $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
-                -Environment (New-HDTConsoleSettingTestEnvironment)
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTConsoleTestScreen)
 
             $setting.Path | Should -BeExactly $script:settingPath
         }
@@ -72,7 +91,8 @@ Describe 'Get-HDTConsoleSetting' {
 
         It 'answers the default size when there is no file' {
             $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
-                -Environment (New-HDTConsoleSettingTestEnvironment)
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTConsoleTestScreen)
 
             $setting.Width | Should -Be 1800
             $setting.Height | Should -Be 900
@@ -80,7 +100,8 @@ Describe 'Get-HDTConsoleSetting' {
 
         It 'answers the default when the profile has no APPDATA at all' {
             $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
-                -Environment (New-HDTConsoleSettingTestEnvironment -Unset)
+                -Environment (New-HDTConsoleSettingTestEnvironment -Unset) `
+                -Screen (New-HDTConsoleTestScreen)
 
             $setting.Width | Should -Be 1800
             $setting.Height | Should -Be 900
@@ -94,7 +115,9 @@ Describe 'Get-HDTConsoleSetting' {
                 $script:settingPath = '{ "width": 1440, "height": 820 }'
             }
 
-            $setting = Get-HDTConsoleSetting -FileSystem $fs -Environment (New-HDTConsoleSettingTestEnvironment)
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTConsoleTestScreen)
 
             $setting.Width | Should -Be 1440
             $setting.Height | Should -Be 820
@@ -112,7 +135,9 @@ Describe 'Get-HDTConsoleSetting' {
         ) {
             $fs = New-HDTFakeFileSystem -File @{ $script:settingPath = $Content }
 
-            $setting = Get-HDTConsoleSetting -FileSystem $fs -Environment (New-HDTConsoleSettingTestEnvironment)
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTConsoleTestScreen)
 
             $setting.Width | Should -Be 1800
             $setting.Height | Should -Be 900
@@ -124,10 +149,109 @@ Describe 'Get-HDTConsoleSetting' {
             # the window.
             $fs = New-HDTFakeFileSystem -File @{ $script:settingPath = '{ "width": 200, "height": 100 }' }
 
-            $setting = Get-HDTConsoleSetting -FileSystem $fs -Environment (New-HDTConsoleSettingTestEnvironment)
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTConsoleTestScreen)
 
             $setting.Width | Should -Be 900
             $setting.Height | Should -Be 520
+        }
+    }
+
+    # THE SAME ARGUMENT AS THE MINIMUM, FROM THE OTHER END. A window too small to
+    # use and a window too big to reach are one defect: the administrator cannot
+    # fix either, because the thing they would fix it with is the window. A size
+    # bigger than the screen is worse, in fact - WindowStartupLocation is
+    # CenterScreen, so a window taller than the desktop is centred with its title
+    # bar ABOVE the top edge, and a title bar off the top cannot be dragged back.
+    # The window is then open, focusable and invisible, which reads to the person
+    # who launched it as "the console did not start".
+    #
+    # THIS IS NOT HYPOTHETICAL. A 1800x900 console.json - the shipped default -
+    # opened on a 1280x800 laptop is exactly the case that produced it.
+    Context 'a size the screen cannot show' {
+
+        It 'takes an injected screen, so it can be proven on one desk' {
+            (Get-Command -Name 'Get-HDTConsoleSetting').Parameters.ContainsKey('Screen') | Should -BeTrue
+        }
+
+        It 'lowers a remembered size to the screen that has to show it' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:settingPath = '{ "width": 1800, "height": 900 }' }
+
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 1280 -Height 770)
+
+            $setting.Width | Should -Be 1280
+            $setting.Height | Should -Be 770
+        }
+
+        It 'lowers the DEFAULT size too, because a first run on a small screen is the same trap' {
+            # No file at all, so this is 1800x900 straight from the constants -
+            # and it must still fit.
+            $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 1280 -Height 770)
+
+            $setting.Width | Should -Be 1280
+            $setting.Height | Should -Be 770
+        }
+
+        It 'leaves a size that already fits exactly alone' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:settingPath = '{ "width": 1440, "height": 820 }' }
+
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 2560 -Height 1400)
+
+            $setting.Width | Should -Be 1440
+            $setting.Height | Should -Be 820
+        }
+
+        It 'clamps only the dimension that does not fit' {
+            # A tall narrow desktop, or a very wide short one, is not a reason to
+            # forget the other half of a remembered size.
+            $fs = New-HDTFakeFileSystem -File @{ $script:settingPath = '{ "width": 1800, "height": 700 }' }
+
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 1280 -Height 1400)
+
+            $setting.Width | Should -Be 1280
+            $setting.Height | Should -Be 700
+        }
+
+        It 'never goes below the minimum, even on a screen smaller than the minimum' {
+            # The floor wins. MinWidth/MinHeight in the markup would override
+            # anything lower anyway, so reporting a size WPF will refuse would be
+            # a number that lies about the window it produces.
+            $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 640 -Height 480)
+
+            $setting.Width | Should -Be 900
+            $setting.Height | Should -Be 520
+        }
+
+        It 'opens at the remembered size rather than not opening, when the screen cannot be read' -ForEach @(
+            @{ Name = 'a screen that throws'; Screen = $null }
+            @{ Name = 'a screen reporting nothing'; Screen = $null }
+        ) {
+            # Same rule as the preference file: a convenience must never be the
+            # reason a window fails to open. Built per-case below because a
+            # -ForEach table cannot hold a live object.
+            $screen = switch ($Name) {
+                'a screen that throws' { New-HDTFakeScreen -Throw }
+                default { New-HDTFakeScreen -Width 0 -Height 0 }
+            }
+
+            $fs = New-HDTFakeFileSystem -File @{ $script:settingPath = '{ "width": 1800, "height": 900 }' }
+
+            $setting = Get-HDTConsoleSetting -FileSystem $fs `
+                -Environment (New-HDTConsoleSettingTestEnvironment) -Screen $screen
+
+            $setting.Width | Should -Be 1800
+            $setting.Height | Should -Be 900
         }
     }
 }
@@ -145,7 +269,8 @@ Describe 'Save-HDTConsoleSetting' {
 
         [void] (Save-HDTConsoleSetting -Width 1620 -Height 940 -FileSystem $fs -Environment $environment)
 
-        $setting = Get-HDTConsoleSetting -FileSystem $fs -Environment $environment
+        $setting = Get-HDTConsoleSetting -FileSystem $fs -Environment $environment `
+            -Screen (New-HDTConsoleTestScreen)
 
         $setting.Width | Should -Be 1620
         $setting.Height | Should -Be 940

@@ -1,7 +1,7 @@
 function Assert-HDTSequenceDocument {
     <#
         .SYNOPSIS
-            Validates a parsed sequence.yaml against the DESIGN 4.1 authoring
+            Validates a parsed sequence.yaml against the authoring
             rules.
 
         .DESCRIPTION
@@ -21,7 +21,7 @@ function Assert-HDTSequenceDocument {
                         ^[A-Za-z0-9][A-Za-z0-9_-]*$; a non-empty name; steps
                         present, a list and not empty
               variables every name matching ^HDT[A-Za-z0-9_]*$ and no _HDT* name,
-                        which is engine-owned and cannot be assigned (DESIGN 3.2)
+                        which is engine-owned and cannot be assigned
               group     a mapping declaring steps; a non-empty group name; no key
                         outside group/condition/runIn/steps; a non-empty steps
                         list; a parseable condition; a runIn in the set
@@ -32,7 +32,7 @@ function Assert-HDTSequenceDocument {
                         and a known backoff; a parseable condition
 
             A NODE IS A GROUP WHEN IT DECLARES steps, not when it declares group.
-            DESIGN 4.1's own ApplyDrivers step carries `group: "%HDTDriverGroup%"`
+            The reference ApplyDrivers step carries `group: "%HDTDriverGroup%"`
             as a type-specific property, so keying off `group` would reject the
             document the design prints. A node declaring BOTH steps and type is
             the error, and it is the one case JSON Schema draft-07 cannot express
@@ -43,7 +43,7 @@ function Assert-HDTSequenceDocument {
             authoring rather than a deployment at 3 a.m.
 
             STEP TYPES ARE DELIBERATELY NOT VALIDATED. Types are pluggable and
-            discovered at runtime (DESIGN 4.2), so a sequence authored for a
+            discovered at runtime, so a sequence authored for a
             workspace whose Modules\ carries a third-party step must still import
             on a machine that does not have it. An unknown type fails the STEP,
             at execution, naming the types that are known.
@@ -86,7 +86,7 @@ function Assert-HDTSequenceDocument {
 
     $supportedSchemaVersion = 1
     $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'variables', 'steps')
-    $allowedGroupKey = @('group', 'condition', 'runIn', 'steps')
+    $allowedGroupKey = @('group', 'condition', 'disabled', 'runIn', 'steps')
     $allowedRetryKey = @('count', 'delaySeconds', 'backoff')
     $allowedRunIn = @('WinPE', 'FullOS', 'Any')
     $allowedBackoff = @('fixed', 'exponential')
@@ -112,7 +112,7 @@ function Assert-HDTSequenceDocument {
 
     if (-not $Document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $Document['schemaVersion']
@@ -170,12 +170,12 @@ function Assert-HDTSequenceDocument {
 
             if ($name.StartsWith('_')) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $name)))
+                            -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $name)))
             }
 
             if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $name)))
+                            -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $name)))
             }
         }
     }
@@ -249,7 +249,7 @@ function Assert-HDTSequenceDocument {
 
             $stepIndex++
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("step {0} ('{1}'): every step declares a type, which names the Invoke-HDT<Type>Step function that runs it (DESIGN 4.2)." -f $stepIndex, $label)))
+                        -Message ("step {0} ('{1}'): every step declares a type, which names the Invoke-HDT<Type>Step function that runs it." -f $stepIndex, $label)))
         }
 
         # -- a group ----------------------------------------------------------
@@ -323,7 +323,7 @@ function Assert-HDTSequenceDocument {
                         -Message ("{0}: '{1}' is not a step type. A type is a letter followed by letters and digits, and names the Invoke-HDT<Type>Step function that runs it." -f $locator, $type)))
         }
 
-        foreach ($flag in @('continueOnError', 'resumable')) {
+        foreach ($flag in @('continueOnError', 'disabled', 'resumable')) {
             if ($node.Contains($flag) -and -not ($node[$flag] -is [bool])) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                             -Message ("{0}: {1} must be true or false, but it is '{2}'." -f $locator, $flag, $node[$flag])))
@@ -347,7 +347,7 @@ function Assert-HDTSequenceDocument {
 
         if ($node.Contains('log') -and [string]::IsNullOrWhiteSpace([string] $node['log'])) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("{0}: log must be a file name in the log directory (DESIGN 4.4.4)." -f $locator)))
+                        -Message ("{0}: log must be a file name in the log directory." -f $locator)))
         }
 
         if ($node.Contains('retry')) {

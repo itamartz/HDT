@@ -9,12 +9,12 @@ function New-HDTContentProvider {
             factory in between, and it is nothing else.
 
             It exists so that Start-HDTDeployment.ps1 does not carry a switch of
-            its own. DESIGN 6 says the interface exists so a cloud transport can
+            its own. The interface exists so a cloud transport can
             land later - and a later Http provider should be a third branch in
             one file rather than an edit to every caller.
 
             Http IS NAMED RATHER THAN LUMPED IN WITH A TYPO. Somebody asking for
-            it has read DESIGN 6 and is entitled to "not in v1", not to "unknown
+            it is entitled to "not in v1", not to "unknown
             provider".
 
             Every argument beyond -Provider and -Root is passed straight through
@@ -36,7 +36,7 @@ function New-HDTContentProvider {
             to authenticate to.
 
         .PARAMETER AllowAnonymous
-            Connect with no credential. DESIGN 6.3's refusal to fall back to
+            Connect with no credential. The refusal to fall back to
             guest starts at "no credential is exactly the fallback", so this is
             explicit or it does not happen.
 
@@ -118,11 +118,11 @@ function New-HDTContentProvider {
 
     if ($Provider -eq 'Http') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                    -Message ("provider 'Http' is not implemented in v1. DESIGN 6 defines IContentProvider so that a cloud transport can land later without a second code path; today the transports HDT builds are Smb and Local.") `
+                    -Message ("provider 'Http' is not implemented in v1. IContentProvider exists so that a cloud transport can land later without a second code path; today the transports HDT builds are Smb and Local.") `
                     -TargetObject $Provider))
     }
 
     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                -Message ("provider '{0}' is not a transport HDT can build. The providers are Smb and Local (DESIGN 6)." -f $Provider) `
+                -Message ("provider '{0}' is not a transport HDT can build. The providers are Smb and Local." -f $Provider) `
                 -TargetObject $Provider))
 }

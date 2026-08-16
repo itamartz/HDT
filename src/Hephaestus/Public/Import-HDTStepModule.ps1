@@ -5,14 +5,14 @@ function Import-HDTStepModule {
             directory.
 
         .DESCRIPTION
-            DESIGN 4.2's "third-party step types can be dropped into Modules\".
+            Third-party step types can be dropped into Modules\.
             This is the drop-in half; Get-HDTStepType is the discovery half, and
             the two are deliberately separate so discovery can be proven against
             a module created in memory with no file written anywhere.
 
             A THIN, BRANCH-FREE ADAPTER over Import-Module, and therefore not
             unit tested beyond "it imports what it is given"
-            (tests/helpers/README.md section 10, DESIGN 12.2.3). It enumerates
+            (tests/helpers/README.md section 10). It enumerates
             the .psd1 and .psm1 files directly under -Path and imports each. A
             missing directory yields nothing, because a workspace without
             third-party steps is the normal case, not an error.

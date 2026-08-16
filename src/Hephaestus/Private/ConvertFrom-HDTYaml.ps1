@@ -7,9 +7,8 @@ function ConvertFrom-HDTYaml {
         .DESCRIPTION
             This is the ONLY place in the engine that mentions ConvertFrom-Yaml.
             Everything else asks for a document and gets either an ordered
-            dictionary or a pointed error, which is what ROADMAP M1 means by
-            "malformed YAML producing a pointed configuration error, not a
-            crash".
+            dictionary or a pointed error: malformed YAML produces a pointed
+            configuration error, not a crash.
 
             Three behaviours are deliberate:
 

@@ -5,17 +5,17 @@ function Get-HDTShareAccessRule {
             Test-HDTShareAcl judges.
 
         .DESCRIPTION
-            A THIN ADAPTER, AND DELIBERATELY DUMB (DESIGN 12.2.3, CLAUDE.md hard
-            rule 1). It is the only file in HDT that calls Get-Acl, and it
+            A THIN ADAPTER, AND DELIBERATELY DUMB. It is the only file in HDT
+            that calls Get-Acl, and it
             contains no judgement at all: every decision about whether an access
             rule is acceptable lives in Test-HDTShareAcl, which is pure logic and
             is unit tested against hand-written rows.
 
             Four properties per row - Identity, Rights, Type, IsInherited -
-            because those are the four the least-privilege check in DESIGN 6.3
+            because those are the four the least-privilege check
             needs and nothing else is wanted.
 
-            AN ACL IT CANNOT READ IS $null, NOT AN EXCEPTION. DESIGN 6.3 says
+            AN ACL IT CANNOT READ IS $null, NOT AN EXCEPTION. HDT says
             Update-HDTBootImage warns; a UNC the builder has no rights to
             enumerate must produce an Information finding, not a failed boot
             image build. Test-HDTShareAcl takes $null for a folder to mean

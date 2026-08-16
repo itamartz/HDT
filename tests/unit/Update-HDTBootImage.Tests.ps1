@@ -770,7 +770,7 @@ Describe 'Update-HDTBootImage' {
 
             $record | Should -Not -BeNullOrEmpty
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
-            $record.Exception.Message | Should -BeLike '*S2*'
+            $record.Exception.Message | Should -BeLike '*-bootdata*'
         }
 
         It 'refuses a scratch path inside the workspace' {

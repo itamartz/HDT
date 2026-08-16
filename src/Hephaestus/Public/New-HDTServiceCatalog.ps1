@@ -5,7 +5,7 @@ function New-HDTServiceCatalog {
             through.
 
         .DESCRIPTION
-            PROJECT constraint 4 and DESIGN 12.2.1 in one object: "a step
+            The injection rule in one object: "a step
             implementation may not call DISM, CIM, the filesystem or the network
             directly - it receives those through injected service objects". The
             catalog is the single thing a step is handed, and the single thing a
@@ -81,9 +81,9 @@ function New-HDTServiceCatalog {
 
         .PARAMETER Content
             An IContentProvider, or nothing - New-HDTLocalContentProvider or
-            New-HDTSmbContentProvider (DESIGN 6). ApplyImage resolves the
+            New-HDTSmbContentProvider. ApplyImage resolves the
             catalog's image through it when the run was started with one, which
-            is the whole of DESIGN 6.2's "a provider swap, not a parallel code
+            is the whole of "a provider swap, not a parallel code
             path" as far as a step is concerned.
 
         .OUTPUTS

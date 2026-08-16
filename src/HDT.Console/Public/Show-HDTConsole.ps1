@@ -4,7 +4,7 @@ function Show-HDTConsole {
             Opens the HDT admin console on one or more deployment shares.
 
         .DESCRIPTION
-            C1 of the WPF-first direction (.planning/WPF-FIRST.md): the
+            The
             Deployment Workbench equivalent, showing what is on a share - its
             deployRoot, its task sequences, its operating systems, and the boot
             image with its build date and hashes.
@@ -78,12 +78,24 @@ function Show-HDTConsole {
         .PARAMETER ConsoleHost
             An IConsoleHost. Defaults to the real adapter.
 
+        .PARAMETER RefreshSecond
+            How often the Monitoring branch re-reads Logs\_active\, in seconds.
+            Fifteen by default: short enough that a technician watching a build
+            sees it move, long enough that a console left open on somebody's
+            second monitor is not hammering an SMB share all afternoon. The
+            engine writes a heartbeat per STEP, so polling faster would mostly
+            re-read the same file.
+
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real adapter.
 
         .PARAMETER Environment
             An IEnvironmentProvider, used to find the remembered window size
             under the user profile. Defaults to the real adapter.
+
+        .PARAMETER Screen
+            An IScreen, used to fit the remembered size to the desktop the
+            window has to open on. Defaults to the real adapter.
 
         .PARAMETER ApartmentState
             The apartment the window would be created on. Defaults to the
@@ -139,12 +151,20 @@ function Show-HDTConsole {
         [object] $ConsoleHost,
 
         [Parameter()]
+        [ValidateRange(2, 3600)]
+        [int] $RefreshSecond = 15,
+
+        [Parameter()]
         [AllowNull()]
         [object] $FileSystem,
 
         [Parameter()]
         [AllowNull()]
         [object] $Environment,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Screen,
 
         [Parameter()]
         [ValidateSet('Light', 'Dark')]
@@ -228,10 +248,14 @@ function Show-HDTConsole {
 
     # -- show it -----------------------------------------------------------
 
-    $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment
+    # THE SIZE IT WAS LEFT AT, FITTED TO THE SCREEN IT HAS TO OPEN ON. The window
+    # is centred by the markup, so a remembered size larger than this desktop
+    # would put the title bar off the top edge - open, focusable, and impossible
+    # to drag back into view.
+    $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment -Screen $Screen
 
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
-        (Get-HDTConsoleTheme -Name $Theme), $size)
+        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond)
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot

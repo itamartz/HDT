@@ -1,7 +1,7 @@
 function Assert-HDTRuleDocument {
     <#
         .SYNOPSIS
-            Validates a parsed rules.yaml against the DESIGN 3.3 authoring rules.
+            Validates a parsed rules.yaml against the authoring rules.
 
         .DESCRIPTION
             The engine's own validator, and the one that actually runs in WinPE:
@@ -12,7 +12,7 @@ function Assert-HDTRuleDocument {
             It throws on the first violation and returns nothing otherwise. Every
             failure is a terminating error built by New-HDTErrorRecord, so it
             names the file, carries the file as its TargetObject and reports
-            HDTConfigurationError - DESIGN 12.1's "fail fast and point at the
+            HDTConfigurationError - "fail fast and point at the
             file".
 
             The authoring rules, in the order they are checked:
@@ -26,16 +26,16 @@ function Assert-HDTRuleDocument {
                          set and setFrom
               when       at least one condition; every value a scalar - a nested
                          mapping is not a condition language, and HDT
-                         deliberately does not have one (DESIGN 3.3)
+                         deliberately does not have one
               set        at least one variable; every name matching
                          ^HDT[A-Za-z0-9_]*$; no _HDT* name, which is engine-owned
-                         and cannot be assigned (DESIGN 3.2); every value a
+                         and cannot be assigned; every value a
                          scalar or a list
               setFrom    a non-empty script path
 
             Two of those deserve their reason stated. Duplicate rule NAMES are
-            rejected because provenance records which rule set a variable
-            (DESIGN 3.1), and two rules called Fallback make that answer
+            rejected because provenance records which rule set a variable,
+and two rules called Fallback make that answer
             ambiguous. An unknown key is rejected rather than ignored because the
             INI dialect HDT replaces let 'Priority' and friends look meaningful
             while doing nothing - a typo that silently does nothing is worse than
@@ -101,7 +101,7 @@ function Assert-HDTRuleDocument {
 
     if (-not $Document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $Document['schemaVersion']
@@ -237,12 +237,12 @@ function Assert-HDTRuleDocument {
 
                 if ($variable.StartsWith('_')) {
                     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                                -Message ("{0}: '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $locator, $variable)))
+                                -Message ("{0}: '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $locator, $variable)))
                 }
 
                 if ($variable -cnotmatch '^HDT[A-Za-z0-9_]*$') {
                     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                                -Message ("{0}: '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $locator, $variable)))
+                                -Message ("{0}: '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $locator, $variable)))
                 }
 
                 $value = $set[$key]

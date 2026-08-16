@@ -5,8 +5,8 @@ function Get-HDTConsoleWorkspace {
             shows about it.
 
         .DESCRIPTION
-            C1 of the WPF-first direction (.planning/WPF-FIRST.md), backend half,
-            and the whole of what the window knows. DESIGN 12's rule is that the
+            The backend half of the console,
+            and the whole of what the window knows. The rule is that the
             console may not do anything the cmdlets can't, so this reads the
             share through the SAME commands an administrator would type:
 
@@ -41,7 +41,7 @@ function Get-HDTConsoleWorkspace {
             Update-HDTBootImage writes Boot\<name>.manifest.json beside the .wim
             and the .iso, and it records the build date, the machine, the engine
             version and the SHA-256 of both artifacts. Reading it is how the
-            console can state DESIGN 6.1.1's claim - that the WIM inside the ISO
+            console can state the ISO claim - that the WIM inside the ISO
             hashes equal to the standalone WIM - instead of hashing 500 MB twice
             to re-derive it. A share whose image has never been built says so and
             names Update-HDTBootImage, rather than showing an image with empty
@@ -64,12 +64,16 @@ function Get-HDTConsoleWorkspace {
               Root, WorkspacePath, SchemaVersion, Id, Name, DeployRoot,
               LogLevel, CredentialUser, Status, Error
               TaskSequence    [pscustomobject[]] Id, Name, Description,
-                              StepCount, GroupCount, Path, Status, Error
+                              StepCount, GroupCount, Step, Group, Path,
+                              Status, Error. Step is the engine's flat ordered
+                              step list, each carrying its GroupPath; Group is
+                              the group list. Both are empty when Status is
+                              'Error'.
               OperatingSystem [pscustomobject[]] Id, Name, Description, Type,
                               Architecture, DefaultIndex, ImageCount, Image,
                               SourcePath, ImagePath, Path, Status, Error
               Driver          Folder, Present - the folder only; the engine has
-                              no driver catalog to read (DESIGN 7 is unbuilt)
+                              no driver catalog to read
               BootImage       Name, Architecture, Language, ManifestPath,
                               Status ('Ok', 'Missing' or 'Error'), Error,
                               BuildId, BuiltUtc, BuiltOn, EngineVersion,
@@ -87,7 +91,7 @@ function Get-HDTConsoleWorkspace {
                 Format-Table Id, Name, StepCount, Status
 
             The same answer without a window - the console shows nothing the
-            command line cannot (DESIGN 12).
+            command line cannot.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -98,13 +102,23 @@ function Get-HDTConsoleWorkspace {
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # THE MONITOR NEEDS ONE, AND IT COMES IN HERE so a share can be opened
+        # at a known instant. "How long since this deployment said anything" is
+        # the only thing on this screen that changes without anything being
+        # written, and a share read against the real wall clock could only be
+        # tested by sleeping.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Clock
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+    if ($null -eq $Clock) { $Clock = New-HDTClock }
 
     # A trailing separator would put a doubled one in every path built below and
     # in every path shown on screen. 'C:\' is three characters and its separator
@@ -119,7 +133,7 @@ function Get-HDTConsoleWorkspace {
     if (-not $FileSystem.TestPath($workspacePath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $workspacePath `
                     -Category ObjectNotFound `
-                    -Message ("there is no workspace document here, so '{0}' is not a deployment share. A share declares its identity and its deployRoot in workspace.yaml at its root (DESIGN 2.1)." -f $root)))
+                    -Message ("there is no workspace document here, so '{0}' is not a deployment share. A share declares its identity and its deployRoot in workspace.yaml at its root." -f $root)))
     }
 
     # Deliberately NOT wrapped: a workspace.yaml that does not parse is a share
@@ -139,15 +153,31 @@ function Get-HDTConsoleWorkspace {
     foreach ($entry in @(Get-HDTConsoleCatalogEntry -Root $root -Kind TaskSequences `
                 -DocumentName 'sequence.yaml' -FileSystem $FileSystem)) {
 
+        # Step and Group carry the ENGINE'S OWN resolution of the document -
+        # a flat, ordered step list where each step knows its GroupPath. The
+        # console renders that; it does not re-parse the YAML and does not
+        # decide an order of its own, so what the tree shows is what
+        # Invoke-HDTTaskSequence would run.
         $row = [pscustomobject] @{
             Id          = $entry.Id
             Name        = $entry.Id
             Description = ''
             StepCount   = 0
             GroupCount  = 0
+            Step        = @()
+            Group       = @()
             Path        = $entry.DocumentPath
             Status      = 'Ok'
             Error       = ''
+
+            # WHAT THE LINT SAID, carried here so nothing downstream runs it
+            # again. Test-HDTTaskSequence answers the question a schema cannot -
+            # "would this sequence actually work on the machine you are about to
+            # deploy" - and its own header names the console as the place those
+            # findings are meant to surface (DESIGN 12: validation, inline).
+            Finding      = [pscustomobject[]] @()
+            ErrorCount   = 0
+            WarningCount = 0
         }
 
         try {
@@ -155,8 +185,25 @@ function Get-HDTConsoleWorkspace {
 
             $row.Name = [string] $sequence.Name
             $row.Description = [string] $sequence.Description
+            $row.Step = @($sequence.Step)
+            $row.Group = @($sequence.Group)
             $row.StepCount = @($sequence.Step).Count
             $row.GroupCount = @($sequence.Group).Count
+
+            # THE LINT IS NOT ALLOWED TO TAKE THE SEQUENCE OFF THE SCREEN. It is
+            # a lint: it returns findings rather than throwing, but a step type
+            # registry that could not be read, or a rule that trips over an
+            # unusual document, must not turn a readable sequence into an
+            # unreadable one. A share full of task sequences is the console's
+            # whole subject.
+            try {
+                $row.Finding = [pscustomobject[]] @(Test-HDTTaskSequence -Sequence $sequence)
+            } catch {
+                $row.Finding = [pscustomobject[]] @()
+            }
+
+            $row.ErrorCount = @($row.Finding | Where-Object { $_.Severity -eq 'Error' }).Count
+            $row.WarningCount = @($row.Finding | Where-Object { $_.Severity -eq 'Warning' }).Count
         } catch {
             $row.Status = 'Error'
             $row.Error = [string] $_.Exception.Message
@@ -249,5 +296,10 @@ function Get-HDTConsoleWorkspace {
         OperatingSystem = [pscustomobject[]] @($osRow)
         Driver          = $driver
         BootImage       = $bootImage
+
+        # WHAT IS RUNNING ON IT, right now. DESIGN 12 lists Monitoring among the
+        # tree's categories, so it is part of what a share IS rather than a
+        # separate command an administrator has to know exists.
+        Monitor         = (Get-HDTConsoleMonitor -Path $root -FileSystem $FileSystem -Clock $Clock)
     }
 }

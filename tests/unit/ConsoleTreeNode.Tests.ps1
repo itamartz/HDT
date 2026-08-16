@@ -50,6 +50,40 @@ steps:
     operatingSystem: Win11-LTSC-2024
 '@
 
+    # THE REAL SHAPE OF A DEPLOYMENT SEQUENCE: groups, an ordered run, a
+    # condition, a step that may fail, and per-type properties. DEMO-M4 on the
+    # lab share is this shape, which is why the tree has to render it rather
+    # than a flat list of names.
+    $script:groupedSequenceYaml = @'
+schemaVersion: 1
+id: DEMO-M4
+name: Deploy Windows 11 LTSC
+description: The M4 exit criterion, as a sequence.
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+      - name: Format and Partition
+        type: DiskPartition
+        layout: uefi-standard
+        wipe: true
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Apply OS
+        type: ApplyImage
+        os: Win11-LTSC-2024
+        index: 1
+        target: primary
+      - name: Prepare Boot
+        type: ConfigureBoot
+        continueOnError: true
+'@
+
     $script:osYaml = @'
 schemaVersion: 1
 id: Win11-LTSC-2024
@@ -105,6 +139,106 @@ images:
 
         return Get-HDTConsoleWorkspace -Path $script:root -FileSystem (New-HDTFakeFileSystem -File $file)
     }
+
+    # One share holding the GROUPED sequence, for the step rows.
+    function New-HDTConsoleStepTestModel {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a projection from an in-memory fake; it changes no state.')]
+        [CmdletBinding()]
+        [OutputType([pscustomobject])]
+        param(
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [string] $Root = 'C:\ws'
+        )
+
+        return Get-HDTConsoleWorkspace -Path $Root -FileSystem (New-HDTFakeFileSystem -File @{
+                ('{0}\workspace.yaml' -f $Root)                             = $script:workspaceYaml
+                ('{0}\TaskSequences\DEMO-M4\sequence.yaml' -f $Root)        = $script:groupedSequenceYaml
+            })
+    }
+}
+
+# A COLOURED ICON IS THE ONE THING ON THIS SCREEN READ WITHOUT READING. The tree
+# is a wall of near-identical rows; colour is what lets somebody find the broken
+# one from across a desk, and it is why every console that shows machine state
+# has some.
+#
+# THE COLOURS ARE LITERALS, NOT THEME RESOURCES, and that is deliberate. Every
+# other colour in these windows is a DynamicResource so Get-HDTConsoleTheme can
+# repaint it; these cannot be, because WPF resolves a DynamicResource by key at
+# parse time and a per-ROW key would need a converter the markup has nowhere to
+# load from (see the note in New-HDTConsoleField about IsReadOnly). They are
+# therefore chosen to read on both palettes: mid-tone and saturated, dark enough
+# for white and light enough for the dark panel.
+#
+# MEANING BEFORE DECORATION. Red is the only colour that means something is
+# wrong, and nothing else is allowed to use it - a screen where four things are
+# red is a screen where red means nothing.
+
+# PRIVATE, SO EVERY ASSERTION RUNS INSIDE THE MODULE'S OWN SCOPE - and InModuleScope
+# goes INSIDE each It, not around the Describes. Pester expands the file during
+# DISCOVERY, before any BeforeAll has run, so a module-scoped block at file level
+# is entered before the module has been imported: the whole file then discovers
+# nothing and reports a green run of zero tests.
+Describe 'Get-HDTConsoleIconColor' {
+
+    It 'gives anything broken the same red, whatever kind it is' {
+      InModuleScope 'HDT.Console' {
+        # A technician scanning for trouble must not have to learn a palette.
+        foreach ($kind in @('Share', 'TaskSequence', 'OperatingSystem', 'BootImage', 'MonitorRun')) {
+            Get-HDTConsoleIconColor -Kind $kind -Status 'Error' | Should -BeExactly '#FFC42B1C'
+        }
+      }
+    }
+
+    It 'gives a missing thing amber rather than red, because absent is not broken' {
+      InModuleScope 'HDT.Console' {
+          Get-HDTConsoleIconColor -Kind 'BootImage' -Status 'Missing' | Should -BeExactly '#FFB77400'
+      }
+    }
+
+    It 'gives a healthy deployment green, which is the only place green is used' {
+      InModuleScope 'HDT.Console' {
+          Get-HDTConsoleIconColor -Kind 'MonitorRun' -Status 'Ok' | Should -BeExactly '#FF107C10'
+      }
+    }
+
+    It 'gives the structural rows the console blue' {
+      InModuleScope 'HDT.Console' {
+        Get-HDTConsoleIconColor -Kind 'Root' -Status 'Ok' | Should -BeExactly '#FF0E639C'
+        Get-HDTConsoleIconColor -Kind 'Share' -Status 'Ok' | Should -BeExactly '#FF0E639C'
+        Get-HDTConsoleIconColor -Kind 'Category' -Status 'Ok' | Should -BeExactly '#FF0E639C'
+      }
+    }
+
+    It 'leaves an empty row grey, so a placeholder does not compete with content' {
+      InModuleScope 'HDT.Console' {
+          Get-HDTConsoleIconColor -Kind 'Empty' -Status 'Ok' | Should -BeExactly '#FF767676'
+      }
+    }
+
+    It 'answers for every kind a node can be, so no row is left without one' {
+      InModuleScope 'HDT.Console' {
+        $kind = @((Get-Command -Name 'New-HDTConsoleNode').Parameters['Kind'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }).ValidValues
+
+        foreach ($current in @($kind)) {
+            Get-HDTConsoleIconColor -Kind $current -Status 'Ok' | Should -Match '^#FF[0-9A-F]{6}$'
+        }
+      }
+    }
+}
+
+Describe 'a node and its icon colour' {
+
+    It 'carries the colour beside the glyph, so the window binds and decides nothing' {
+        $node = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleNodeTestModel))
+
+        foreach ($row in $node) {
+            $row.IconColor | Should -Match '^#FF[0-9A-F]{6}$'
+        }
+    }
 }
 
 Describe 'Get-HDTConsoleTreeNode' {
@@ -127,19 +261,19 @@ Describe 'Get-HDTConsoleTreeNode' {
             $script:node = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleNodeTestModel))
         }
 
-        It 'opens with the Deployment Shares root, then the share, then the four categories' {
+        It 'opens with the Deployment Shares root, then the share, then the five categories' {
             # Workbench's shape: the root is there with one share as well as with
             # six, so the console does not change layout as shares are added.
             @($script:node | Where-Object { $_.Depth -le 2 } | ForEach-Object { $_.Kind }) |
-                Should -Be @('Root', 'Share', 'Category', 'Category', 'Category', 'Category')
+                Should -Be @('Root', 'Share', 'Category', 'Category', 'Category', 'Category', 'MonitorCategory')
         }
 
         It 'orders the categories the way a share is built, not alphabetically' {
             # Boot image, then the OS to lay down, then the drivers that make it
             # work on the hardware, then the task sequence that ties the three
             # together - which is the only one that cannot be written first.
-            @($script:node | Where-Object { $_.Kind -eq 'Category' } | ForEach-Object { $_.Text }) |
-                Should -Be @('Boot Image', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)')
+            @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' } | ForEach-Object { $_.Text }) |
+                Should -Be @('Boot Image', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Monitoring')
         }
 
         It 'counts the shares on the root row' {
@@ -148,7 +282,7 @@ Describe 'Get-HDTConsoleTreeNode' {
         }
 
         It 'counts what is under each category that has a count' {
-            $category = @($script:node | Where-Object { $_.Kind -eq 'Category' } | ForEach-Object { $_.Text })
+            $category = @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' } | ForEach-Object { $_.Text })
 
             $category | Should -Contain 'Task Sequences (1)'
             $category | Should -Contain 'Operating Systems (1)'
@@ -195,10 +329,11 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $share.Kind | Should -BeExactly 'Share'
             @($share.Children | ForEach-Object { $_.Text }) |
-                Should -Be @('Boot Image', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)')
+                Should -Be @('Boot Image', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Monitoring')
 
             @($share.Children)[0].Children[0].Kind | Should -BeExactly 'BootImage'
             @($share.Children)[3].Children[0].Kind | Should -BeExactly 'TaskSequence'
+            @($share.Children)[4].Children[0].Kind | Should -BeExactly 'Empty'          # Monitoring, with nothing running
         }
 
         It 'opens every branch that has one, because C1 is one screen and not a search' {
@@ -342,14 +477,14 @@ Describe 'Get-HDTConsoleTreeNode' {
             $script:node = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleNodeTestModel -Empty))
         }
 
-        It 'still shows the share and all four categories' {
-            @($script:node | Where-Object { $_.Kind -eq 'Category' }).Count | Should -Be 4
+        It 'still shows the share and all five categories' {
+            @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' }).Count | Should -Be 5
         }
 
         It 'says a category is empty rather than showing nothing under it' {
             # Two '(none)' rows for the two catalogs, plus the drivers row that
             # says why there is nothing there at all.
-            @($script:node | Where-Object { $_.Kind -eq 'Empty' }).Count | Should -Be 3
+            @($script:node | Where-Object { $_.Kind -eq 'Empty' }).Count | Should -Be 4
             @($script:node | Where-Object { $_.Text -eq '(none)' }).Count | Should -Be 2
         }
 
@@ -389,7 +524,7 @@ Describe 'Get-HDTConsoleTreeNode' {
         }
 
         It 'gives each share its own categories rather than merging them' {
-            @($script:many | Where-Object { $_.Kind -eq 'Category' }).Count | Should -Be 8
+            @($script:many | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' }).Count | Should -Be 10
         }
 
         It 'banners each row with ITS OWN share, which is the point of carrying it on the row' {
@@ -452,6 +587,81 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $boot.Status | Should -BeExactly 'Missing'
             $boot.Icon | Should -Not -BeExactly ([string] ([char] 0x26A0))
+        }
+    }
+
+    # THE BROWSER TREE STOPS AT THE TASK SEQUENCE, and that is Deployment
+    # Workbench's shape rather than an omission. MDT lists task sequences in the
+    # tree and edits their steps in a SEPARATE properties window; CLAUDE.md asks
+    # for a console "deliberately close to Deployment Workbench so muscle memory
+    # transfers", so the steps belong to Get-HDTConsoleSequenceEditor and not
+    # here.
+    #
+    # A browser that expanded every step of every sequence of every share would
+    # also be unusable at the size an administrator actually runs: four
+    # sequences on the lab share alone is over thirty rows before a single
+    # operating system.
+    Context 'the steps are NOT in the browser tree' {
+
+        BeforeAll {
+            $script:stepNode = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleStepTestModel))
+        }
+
+        It 'keeps the steps on the workspace, so the editor has something to open' {
+            # Get-HDTConsoleWorkspace recorded StepCount and threw the steps
+            # away, so no amount of work downstream could have shown them.
+            $sequence = @((New-HDTConsoleStepTestModel).TaskSequence)[0]
+
+            @($sequence.Step).Count | Should -Be 4
+            @($sequence.Step)[0].Name | Should -BeExactly 'Validate'
+        }
+
+        It 'puts no step row in the browser' {
+            @($script:stepNode | Where-Object { $_.Kind -eq 'Step' }) | Should -BeNullOrEmpty
+        }
+
+        It 'puts no group row in the browser' {
+            @($script:stepNode | Where-Object { $_.Kind -eq 'StepGroup' }) | Should -BeNullOrEmpty
+        }
+
+        It 'leaves the task sequence as a leaf' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Depth | Should -Be 3
+            @($sequence.Children) | Should -BeNullOrEmpty
+        }
+
+        It 'still says how many steps there are, since that is now the only hint' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            ($sequence.Detail -join "`n") | Should -Match '4'
+        }
+
+        # DOUBLE-CLICKING A TASK SEQUENCE OPENS THE EDITOR, which is what
+        # Deployment Workbench does and what an administrator will try first.
+        # The window may not work out for itself which rows those are - that is
+        # a decision, and decisions do not go in an adapter (CLAUDE.md rule 1) -
+        # so the row says whether it opens and carries the object the editor
+        # needs.
+        It 'marks a task sequence as a row that opens' {
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.CanOpen | Should -BeTrue
+        }
+
+        It 'carries the task sequence itself, because the editor takes the object and never an id' {
+            # Two shares commonly hold a sequence with the same id - both of
+            # this lab's do - so an editor opened by id could edit one share's
+            # document while showing the other's.
+            $sequence = @($script:stepNode | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Subject | Should -Not -BeNullOrEmpty
+            $sequence.Subject.Path | Should -BeExactly 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
+        }
+
+        It 'marks every other row as one that does not open' {
+            @($script:stepNode | Where-Object { $_.Kind -ne 'TaskSequence' -and $_.CanOpen }) |
+                Should -BeNullOrEmpty
         }
     }
 }

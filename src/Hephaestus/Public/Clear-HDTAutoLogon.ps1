@@ -1,7 +1,7 @@
 function Clear-HDTAutoLogon {
     <#
         .SYNOPSIS
-            Runs the DESIGN 4.5.3 teardown checklist, item by item, best effort.
+            Runs the autologon teardown checklist, item by item, best effort.
 
         .DESCRIPTION
             "At sequence end - success or failure - the engine clears:
@@ -34,7 +34,7 @@ function Clear-HDTAutoLogon {
             empty Failed. Cleared lists only what was actually there, which is
             why each item is read before it is removed.
 
-            OUT OF SCOPE, DELIBERATELY. DESIGN 4.5.3 continues: "It then applies
+            OUT OF SCOPE, DELIBERATELY. The checklist continues: "It then applies
             the final Administrator password policy: rotate, hand off to LAPS, or
             disable the account - whichever the sequence declares." That needs a
             step type M2 does not ship. It is a phase 07 item, and it is said out
@@ -61,7 +61,7 @@ function Clear-HDTAutoLogon {
 
         .PARAMETER UnattendPath
             Where a staged unattend might be. Defaults to the three locations
-            DESIGN 4.5.3 names.
+            the teardown checklist names.
 
         .PARAMETER LogContext
             A log context. One reboot.teardown record is written when supplied.

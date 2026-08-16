@@ -5,7 +5,7 @@ function ConvertTo-HDTReport {
             report.
 
         .DESCRIPTION
-            DESIGN 4.4.2: HDT.jsonl is the structured source of truth, and this
+            HDT.jsonl is the structured source of truth, and this
             is what turns it into the thing a technician actually opens. Two
             operational facts shape every decision in here.
 
@@ -26,7 +26,7 @@ function ConvertTo-HDTReport {
             report that breaks on it is worse than no report.
 
             THE DEPLOYMENT PASSWORD NEVER APPEARS. The report is built from the
-            JSONL, which never carries it (DESIGN 4.5.2), and from -State, from
+            JSONL, which never carries it, and from -State, from
             which it reads only status, leg and the step records. A report gets
             emailed; that is the whole reason this is a rule rather than a
             preference.
@@ -34,7 +34,7 @@ function ConvertTo-HDTReport {
             Sections, in order: the header (run, sequence, computer, phases,
             start, end, duration, outcome), the summary (counts, and the failing
             step called out), the steps in index order, the reboot legs as a
-            timeline, the variable resolutions with their source - DESIGN 3.1's
+            timeline, the variable resolutions with their source - the
             "explains every value" surfacing in the report - and every log
             record.
 
@@ -122,7 +122,7 @@ function ConvertTo-HDTReport {
 
     if (-not $FileSystem.TestPath($JsonlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $JsonlPath `
-                    -Message 'the log stream does not exist. A report is rendered from the HDT.jsonl a run wrote (DESIGN 4.4.2).' `
+                    -Message 'the log stream does not exist. A report is rendered from the HDT.jsonl a run wrote.' `
                     -ErrorId 'HDTLogNotFound' -Category ObjectNotFound))
     }
 

@@ -5,7 +5,7 @@ function Get-HDTConfigureBootStepDescription {
             files for.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. It names the firmware
+            The optional third of the step contract's triple. It names the firmware
             because that is the field failure this step has: BIOS boot files on a
             UEFI machine produce a disk that does not boot, and the message a
             technician needs is which one HDT thought it was building.

@@ -1,16 +1,16 @@
 function Get-HDTMachineFact {
     <#
         .SYNOPSIS
-            Gathers the DESIGN 3.2 machine facts through injected services.
+            Gathers the machine facts through injected services.
 
         .DESCRIPTION
             HDT's replacement for ZTIGather.wsf. It produces the gathered-facts
-            layer of the variable model (DESIGN 3.1 source 4) - hardware,
+            layer of the variable model - hardware,
             firmware, chassis and network - as an ordered, case-insensitive
             dictionary keyed by HDT variable name.
 
             It touches nothing itself. Every value arrives through one of three
-            injected services (PROJECT constraint 4, DESIGN 12.2.1), which is why
+            injected services, which is why
             the whole fact table can be proven under Pester against captured
             fixtures with no machine attached, and why a BIOS machine, an ARM
             machine and a machine with no TPM are all testable from a desk that
@@ -32,15 +32,15 @@ function Get-HDTMachineFact {
             machine with no IP enabled adapter are all normal in the field.
 
             Network facts come from Win32_NetworkAdapterConfiguration rather than
-            Get-NetIPAddress because WinPE has no NetTCPIP module (DESIGN 3.2.1,
-            SPIKES S1). The IPEnabled filtering is done here, not by the
+            Get-NetIPAddress because WinPE has no NetTCPIP module, which a boot
+            test confirmed. The IPEnabled filtering is done here, not by the
             provider: ICimProvider has no -Filter, so every implementation
             returns the unfiltered set.
 
             What this deliberately does NOT produce: HDTBootMode, which only the
             boot path knows (phase 05); HDTComputerName and HDTTimeZoneName,
             which rules decide rather than hardware; and anything named _HDT*,
-            which is engine-owned (DESIGN 3.2).
+            which is engine-owned.
 
         .PARAMETER CimProvider
             An ICimProvider - New-HDTCimProvider in production,

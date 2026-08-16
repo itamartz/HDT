@@ -18,7 +18,7 @@
         no step function, and calls Invoke-HDTTaskSequence exactly once.
 
         X: IS THE ONLY DRIVE LETTER THIS FILE MAY ASSUME, and the same test
-        asserts that too. SPIKES S9.1 measured WinPE handing the CONTENT DISK
+        asserts that too. A lab test measured WinPE handing the CONTENT DISK
         the letter a developer's machine calls its system drive, and the RAM disk
         X:. A deployRoot baked into bootstrap.json at build time therefore cannot
         know what this machine will be given - so the volume carrying the content
@@ -29,8 +29,8 @@
         POWERSHELL-YAML IS IMPORTED FIRST, and its version is logged.
         ConvertFrom-HDTYaml imports it lazily and reports HDTDependencyError
         without it, so the engine cannot read one YAML document - not a sequence,
-        not a rule, not an image catalog - until that import has happened. SPIKES
-        S9.1 proved it loads inside WinPE from a staged copy; the log line is how
+        not a rule, not an image catalog - until that import has happened. A lab
+        test proved it loads inside WinPE from a staged copy; the log line is how
         the next run proves it again.
 
         IT ENDS THE MACHINE IN EVERY PATH, because a VM left at a WinPE prompt
@@ -40,12 +40,12 @@
         disk and the machine is about to power off. 05-05's zero-keystroke proof
         reads launchedBy out of that file.
 
-        DESIGN 11'S TECHNICIAN UI IS HERE NOW, AND IT STILL RUNS UNATTENDED.
-        This header used to say the UI was deliberately absent because it was a
-        later milestone. That milestone arrived: the Welcome screen appears when
-        this machine has no network, and the wizard appears when the SHARE
-        declares pages in Scripts\UI\wizard.yaml. A share that declares none has
-        no wizard, so every image built before this deploys with nobody present
+        THE TECHNICIAN UI IS HERE NOW, AND IT STILL RUNS UNATTENDED. This header
+        used to say the UI was deliberately absent because it was a later
+        milestone. That milestone arrived: the Welcome screen appears when this
+        machine has no network, and the wizard appears when the SHARE declares
+        pages in Scripts\UI\wizard.yaml. A share that declares none has no
+        wizard, so every image built before this deploys with nobody present
         exactly as it did.
 
         WHAT THE AST TEST STILL REFUSES is this file naming PresentationFramework,
@@ -449,7 +449,7 @@ try {
             # THE ONE PATH IN THIS FILE THAT STOPS FOR A HUMAN, and it says so.
             # DESIGN 6.3 offers that build for a shared lab or for media going
             # offsite; the E2E never uses it.
-            Write-Warning 'This boot image was built with promptForCredential, so it DELIBERATELY STOPS FOR A HUMAN: the deployment waits here until somebody types the deployment account and its password (DESIGN 6.3). An image meant to run with nobody present carries an embedded credential instead.'
+            Write-Warning 'This boot image was built with promptForCredential, so it DELIBERATELY STOPS FOR A HUMAN: the deployment waits here until somebody types the deployment account and its password. An image meant to run with nobody present carries an embedded credential instead.'
             & $say 'prompting for the deployment credential - this image deliberately stops for a human' 'Warning'
 
             $credential = Get-Credential -Message 'The HDT deployment account for the content share'
@@ -620,7 +620,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) { $wantedSequence = [string] $variable['HDTTaskSequenceID'] }
 
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) {
-        throw ("HDTConfigurationError: no task sequence was named. -SequenceId was not given, bootstrap.json at '{0}' carries an empty sequenceId, and nothing in the rules resolved HDTTaskSequenceID for this machine (DESIGN 3)." -f $BootstrapPath)
+        throw ("HDTConfigurationError: no task sequence was named. -SequenceId was not given, bootstrap.json at '{0}' carries an empty sequenceId, and nothing in the rules resolved HDTTaskSequenceID for this machine." -f $BootstrapPath)
     }
 
     $result['sequenceId'] = $wantedSequence

@@ -37,14 +37,14 @@ function New-HDTBootImageService {
               GetImageInfo(imagePath)
                   Get-WindowsImage -ImagePath, projected to Index / Name /
                   SizeBytes. The ADK's winpe.wim has one index and is
-                  340 134 390 bytes; a finished HDT boot image is about 480 MB
-                  (SPIKES S1), and the difference is how "the build applied
+                  340 134 390 bytes; a finished HDT boot image is about 480 MB,
+and the difference is how "the build applied
                   nothing" is spotted.
 
               ExportImage(sourcePath, index, destinationPath)
                   Export-WindowsImage -SourceImagePath -SourceIndex
                       -DestinationImagePath -CompressionType Max
-                  which is DESIGN 5.1's /Compress:max.
+                  which is /Compress:max.
 
               SetScratchSpace(mountPath, megabyte)
                   dism.exe /Image:<mount> /Set-ScratchSpace:<mb>. THERE IS NO
@@ -55,13 +55,13 @@ function New-HDTBootImageService {
                   oscdimg.exe @argument <mediaRoot> <isoPath>
 
             NewIso TAKES THE ARGUMENT ARRAY ALREADY BUILT. Every decision -
-            firmware, -NoPromptForKey, the space-free staging SPIKES S2 requires
+            firmware, -NoPromptForKey, the space-free staging oscdimg requires
             - lives in Get-HDTBootIsoArgument, which is pure string logic and is
             therefore fully tested. This method runs the process and checks
-            $LASTEXITCODE. That division is the whole of DESIGN 12.2.3 in one
+            $LASTEXITCODE. That division is the whole adapter rule in one
             method.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             eight of its nine methods mount a WIM, write into a mounted image,
             export half a gigabyte or burn an ISO, and every one of them needs
             elevation. Its contract row calls GetImageInfo and nothing else; the
@@ -109,7 +109,7 @@ function New-HDTBootImageService {
             $boot.AddPackage('C:\scratch\mount', 'C:\Adk\WinPE_OCs\WinPE-WMI.cab')
             $boot.DismountImage('C:\scratch\mount', $true)
 
-            The mount/apply/commit cycle DESIGN 5.1 specifies, as three calls.
+            The mount/apply/commit cycle, as three calls.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state. The destructive methods it exposes are called by Update-HDTBootImage and New-HDTBootIso, which carry SupportsShouldProcess.')]

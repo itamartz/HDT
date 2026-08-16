@@ -4,7 +4,7 @@ function Get-HDTDiskPartitionStepDescription {
             Describes a DiskPartition step by the layout it will apply.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. This is the step that
+            The optional third of the step contract's triple. This is the step that
             destroys a disk, so the line a technician sees on the progress
             display names the layout and, where the sequence pinned one, the disk
             number - the two facts that decide what is about to be lost.

@@ -5,7 +5,7 @@ function Get-HDTVariableProvenance {
             variable name.
 
         .DESCRIPTION
-            DESIGN 3.1 requires that "every variable resolution records which
+            HDT requires that "every variable resolution records which
             source set it", because "the single biggest debugging pain in MDT is
             not knowing why HDTComputerName ended up as it did".
 

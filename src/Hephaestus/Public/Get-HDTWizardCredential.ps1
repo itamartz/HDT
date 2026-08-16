@@ -5,7 +5,7 @@ function Get-HDTWizardCredential {
             connecting.
 
         .DESCRIPTION
-            W2 of the WPF-first direction (.planning/WPF-FIRST.md). The four
+            W2 of the WPF-first direction. The four
             fields MDT's Bootstrap.ini carries, and what HDT does with each:
 
               DeployRoot     the share, and therefore THE SERVER

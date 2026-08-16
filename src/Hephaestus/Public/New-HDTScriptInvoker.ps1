@@ -5,8 +5,8 @@ function New-HDTScriptInvoker {
             and returns its output object.
 
         .DESCRIPTION
-            The one place in HDT that executes a user extension script. DESIGN
-            3.3: when a rule needs real logic it calls a script -
+            The one place in HDT that executes a user extension script. When a
+            rule needs real logic it calls a script -
             "setFrom: Scripts\Get-ComputerName.ps1" - whose output object becomes
             the variable set. PROJECT constraint 4 keeps that behind an interface
             so the rule engine can be proven without executing anything.
@@ -19,7 +19,7 @@ function New-HDTScriptInvoker {
 
             EVERYTHING IT WROTE IS KEPT, and GetTranscript() returns it - the
             captured output of the LAST Invoke, replaced on the next one. That is
-            DESIGN 4.4.4's hard requirement: "an existing script that only uses
+            A hard requirement: "an existing script that only uses
             Write-Host still lands in the log without modification, since real
             fleets carry years of such scripts". Telling a transcript line from a
             result is a type test, not a guess: an InformationRecord, ErrorRecord,

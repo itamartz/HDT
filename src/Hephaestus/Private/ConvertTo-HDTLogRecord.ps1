@@ -1,7 +1,7 @@
 function ConvertTo-HDTLogRecord {
     <#
         .SYNOPSIS
-            Builds one DESIGN 4.4.2 JSONL record as an ordered dictionary.
+            Builds one JSONL record as an ordered dictionary.
 
         .DESCRIPTION
             The structured half of "two formats, one write". HDT.jsonl is the
@@ -38,7 +38,7 @@ function ConvertTo-HDTLogRecord {
             Error, Warning, Info or Debug.
 
         .PARAMETER Event
-            One of DESIGN 4.4.2's controlled vocabulary names.
+            One of the controlled vocabulary names.
 
         .PARAMETER Component
             The component the entry came from.

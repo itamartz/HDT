@@ -357,9 +357,13 @@ Describe 'Show-HDTConsole' {
             }
             $consoleHost = New-HDTFakeConsoleHost
 
+            # A DESKTOP BIG ENOUGH TO BE OUT OF THE WAY. Without it this reads the
+            # real monitor and asserts a remembered size that a small screen would
+            # legitimately have clamped - passing at one desk and failing at another.
             [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
                     -ConsoleHost $consoleHost -FileSystem $fs `
-                    -Environment (New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }))
+                    -Environment (New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }) `
+                    -Screen (New-HDTFakeScreen -Width 3840 -Height 2160))
 
             $consoleHost.OpenedSize.Width | Should -Be 1440
             $consoleHost.OpenedSize.Height | Should -Be 820
@@ -373,10 +377,13 @@ Describe 'Show-HDTConsole' {
             $consoleHost = New-HDTFakeConsoleHost
             $environment = New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }
 
-            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
-                    -ConsoleHost $consoleHost -FileSystem $fs -Environment $environment)
+            $roomy = New-HDTFakeScreen -Width 3840 -Height 2160
 
-            $saved = Get-HDTConsoleSetting -FileSystem $fs -Environment $environment
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
+                    -ConsoleHost $consoleHost -FileSystem $fs -Environment $environment `
+                    -Screen $roomy)
+
+            $saved = Get-HDTConsoleSetting -FileSystem $fs -Environment $environment -Screen $roomy
 
             $saved.Width | Should -Be 1640
             $saved.Height | Should -Be 880

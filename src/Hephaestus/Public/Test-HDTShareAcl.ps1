@@ -5,14 +5,14 @@ function Test-HDTShareAcl {
             workspace.
 
         .DESCRIPTION
-            DESIGN 6.3's mitigation, as a command rather than a paragraph:
+            The least-privilege mitigation, as a command rather than a paragraph:
             "least privilege is the mitigation, and it is enforced, not just
             documented ... Update-HDTBootImage runs this check and warns loudly
             when the account is over-privileged - a domain admin credential in a
             boot image is a domain compromise, and that is the failure worth
             catching."
 
-            THE EXPECTED POSTURE (DESIGN 2.1 and 6.3):
+            THE EXPECTED POSTURE:
 
               workspace root   Read only
               Logs\            Write (or Modify)
@@ -29,7 +29,7 @@ function Test-HDTShareAcl {
 
             Compliant is $true only when there is no finding above Information.
 
-            IT NEVER THROWS AND IT NEVER BLOCKS A BUILD. DESIGN 6.3 says warn.
+            IT NEVER THROWS AND IT NEVER BLOCKS A BUILD. It warns.
             An administrator whose boot image build died because the checker
             could not read one ACL is an administrator who turns the checker off,
             and then nobody is told about the domain admin credential either.
@@ -40,7 +40,7 @@ function Test-HDTShareAcl {
             attached.
 
             The folder list it recognises is Get-HDTWorkspacePath's closed set,
-            read at run time rather than repeated here, so the DESIGN 2.1 layout
+            read at run time rather than repeated here, so the workspace layout
             is written down once. docs/share-account.md names the same folders,
             and a test asserts that rather than leaving a reader to check.
 
@@ -141,7 +141,7 @@ function Test-HDTShareAcl {
 
     if ($bareIdentity -match $adminGroupPattern) {
         & $add $WorkspaceRoot 'Critical' (
-            ("The deployment account is '{0}', which is an administrative group. A domain admin credential in a boot image is a domain compromise, and that is the failure worth catching (DESIGN 6.3). Use a dedicated account - docs/share-account.md has the steps." -f $Identity))
+            ("The deployment account is '{0}', which is an administrative group. A domain admin credential in a boot image is a domain compromise, and that is the failure worth catching. Use a dedicated account - docs/share-account.md has the steps." -f $Identity))
     }
 
     # -- the workspace root ---------------------------------------------------
@@ -204,13 +204,13 @@ function Test-HDTShareAcl {
 
             if ($rights -match 'FullControl') {
                 & $add $path 'Critical' (
-                    ("'{0}' has FullControl on '{1}'. FullControl carries ChangePermissions and TakeOwnership, so the account in the boot image can rewrite the share's own security (DESIGN 6.3)." -f $Identity, $path))
+                    ("'{0}' has FullControl on '{1}'. FullControl carries ChangePermissions and TakeOwnership, so the account in the boot image can rewrite the share's own security." -f $Identity, $path))
                 continue
             }
 
             if (($rights -match 'Write|Modify|Delete|ChangePermissions|TakeOwnership') -and (-not $mayWrite)) {
                 & $add $path 'Warning' (
-                    ("'{0}' can write to '{1}' ({2}). The deployment account is expected to be read-only everywhere except {3} (DESIGN 6.3)." -f
+                    ("'{0}' can write to '{1}' ({2}). The deployment account is expected to be read-only everywhere except {3}." -f
                         $Identity, $path, $rights, ($writableFolder -join '\ and ')))
             }
         }

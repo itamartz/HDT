@@ -4,7 +4,7 @@ function Invoke-HDTPowerShellStep {
             Runs a user PowerShell script from the workspace.
 
         .DESCRIPTION
-            DESIGN 4.4.4's extensibility point:
+            The extensibility point:
 
               - name: Vendor BIOS Update
                 type: PowerShell
@@ -14,7 +14,7 @@ function Invoke-HDTPowerShellStep {
             The script runs through the injected IScriptInvoker - never with a
             bare call operator and never by launching a process - so a sequence
             carrying a PowerShell step is provable under Pester with nothing
-            executed (PROJECT constraint 4). The step contract test greps this
+            executed. The step contract test greps this
             file for the cmdlet names that would break that, which is why they do
             not appear even in prose.
             It receives the LIVE variable dictionary as -Variable, so a script may
@@ -28,14 +28,14 @@ function Invoke-HDTPowerShellStep {
             EVERYTHING THE SCRIPT WROTE IS LOGGED. GetTranscript() returns what
             the invoker captured, and each line is written through Write-HDTLog,
             which puts it in HDT.jsonl, HDT.log and the executing step's own log
-            at once. That is DESIGN 4.4.4's hard requirement - "an existing script
+            at once. That is a hard requirement - "an existing script
             that only uses Write-Host still lands in the log without
             modification" - and it is why IScriptInvoker has a transcript at all.
 
             A SCRIPT THAT THREW IS A FAILED STEP, NOT A FAILED RUN. The exception
             is caught, logged and returned as Failed with its message.
-            continueOnError, the retry policy and the classification in
-            DESIGN 12.1 all belong to the loop, which cannot make any of those
+            continueOnError, the retry policy and the failure classification
+            all belong to the loop, which cannot make any of those
             decisions about an exception that flew past it.
 
         .PARAMETER Step

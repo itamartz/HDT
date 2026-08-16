@@ -5,9 +5,9 @@ function Import-HDTBootImageToWds {
             replacing an image of the same name rather than adding a second one.
 
         .DESCRIPTION
-            DESIGN 6.1: "HDT does not ship a PXE server. WDS serves the WIM."
+            HDT does not ship a PXE server; WDS serves the WIM.
             This is the command that puts it there, and REPLACE-IN-PLACE IS THE
-            WHOLE POINT OF IT (ROADMAP M4: "WDS import replacing rather than
+            WHOLE POINT OF IT ("WDS import replacing rather than
             duplicating an existing image").
 
             An MDT operator who has run Update-MDTDeploymentShare a dozen times
@@ -34,7 +34,7 @@ function Import-HDTBootImageToWds {
                  away. No match: ImportBootImage alone;
               5. return ImageName, Architecture, Path, Replaced, PreviousVersion.
 
-            SupportsShouldProcess, and not as decoration (CLAUDE.md hard rule 6):
+            SupportsShouldProcess, and not as decoration:
             step 4 deletes a boot image a fleet PXE boots from. Under -WhatIf
             NOTHING is called, including the read.
 
@@ -126,7 +126,7 @@ function Import-HDTBootImageToWds {
 
     if ([System.IO.Path]::GetExtension($Path) -ne '.wim') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message ("that is not a .wim, and Windows Deployment Services serves boot images as WIMs. Import the file Update-HDTBootImage wrote to <workspace>\Boot\<name>.wim; the .iso beside it is the debugging vehicle (DESIGN 6.1.1), not something WDS can serve.")))
+                    -Message ("that is not a .wim, and Windows Deployment Services serves boot images as WIMs. Import the file Update-HDTBootImage wrote to <workspace>\Boot\<name>.wim; the .iso beside it is the debugging vehicle, not something WDS can serve.")))
     }
 
     if (-not $FileSystem.TestPath($Path)) {

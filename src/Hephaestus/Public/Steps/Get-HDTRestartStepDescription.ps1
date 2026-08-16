@@ -4,7 +4,7 @@ function Get-HDTRestartStepDescription {
             Describes a Restart step by the delay it will ask for.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. "Restart in 30 second(s)"
+            The optional third of the step contract's triple. "Restart in 30 second(s)"
             is what a technician watching the progress display needs, because the
             delay is the difference between a machine that appears to have hung
             and one that is about to reboot.

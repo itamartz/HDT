@@ -4,7 +4,7 @@ function Get-HDTValidateStepDescription {
             Describes a Validate step by the bounds it will check.
 
         .DESCRIPTION
-            The optional third of DESIGN 4.2's triple. A technician watching the
+            The optional third of the step contract's triple. A technician watching the
             progress display wants to know which bound a machine failed, so the
             description names them: "Validate: 2048 MB memory, 60 GB disk, UEFI".
 

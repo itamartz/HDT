@@ -1,10 +1,10 @@
 function Export-HDTMachineFact {
     <#
         .SYNOPSIS
-            Writes gathered facts to DESIGN 4.4's Gather\facts.json.
+            Writes gathered facts to Gather\facts.json.
 
         .DESCRIPTION
-            DESIGN 4.4 puts "facts.json - resolved facts (3.2)" beside
+            facts.json - the resolved machine facts - sits beside
             provenance.json in the log directory of every deployment. This writes
             it, through the injected IFileSystem rather than a file-writing
             cmdlet, so the whole path is provable with nothing on disk (PROJECT

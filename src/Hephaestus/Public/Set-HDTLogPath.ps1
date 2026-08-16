@@ -2,12 +2,12 @@ function Set-HDTLogPath {
     <#
         .SYNOPSIS
             Moves the live log to the target volume, mirroring everything already
-            written (DESIGN 4.4.1).
+            written.
 
         .DESCRIPTION
             A DEPLOYMENT THAT DIES IN WinPE LOSES ITS LOG AT THE REBOOT, AND
             DYING IN WinPE IS EXACTLY WHEN THE LOG IS WANTED. X: is a RAM disk;
-            it is gone the moment the machine restarts. DESIGN 4.4.1 says
+            it is gone the moment the machine restarts. HDT says
             _HDTLogPath follows the deployment:
 
               WinPE, before a disk exists            X:\HDT\Logs
@@ -27,7 +27,7 @@ function Set-HDTLogPath {
               4. MIRRORS everything already written, preserving the tree -
                  HDT.log, HDT.jsonl, status.json, Steps\, Gather\, Native\;
               5. repoints LogPath, JsonlPath, MasterLogPath and - when a step is
-                 mid-flight - StepLogPath. Seq IS NOT TOUCHED: DESIGN 4.4.2's
+                 mid-flight - StepLogPath. Seq IS NOT TOUCHED: the
                  counter is monotonic across the whole run and a reset here would
                  be exactly the ambiguity it exists to prevent;
               6. sets _HDTLogPath in the variable dictionary when one is given;
@@ -60,7 +60,7 @@ function Set-HDTLogPath {
             The live variable dictionary. When supplied, _HDTLogPath is set in
             it. The engine variable is read-only TO SEQUENCES AND RULES; the
             engine itself is what sets it, which is what the leading underscore
-            means (DESIGN 4.4.1).
+            means.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -130,7 +130,7 @@ function Set-HDTLogPath {
         # THE OLD CONTEXT, DELIBERATELY. It is the one that still works, and this
         # record is the only evidence the relocation was tried.
         Write-HDTLog -Context $Context -Severity Warning -Component 'Logging' `
-            -Message ("The deployment log could not be relocated from '{0}' to '{1}': {2}. Logging continues on the RAM disk, which means this log does not survive the next reboot (DESIGN 4.4.1)." -f
+            -Message ("The deployment log could not be relocated from '{0}' to '{1}': {2}. Logging continues on the RAM disk, which means this log does not survive the next reboot." -f
                 $current, $destination, $_.Exception.Message) `
             -Data ([ordered] @{ from = $current; to = $destination })
 
@@ -159,7 +159,7 @@ function Set-HDTLogPath {
     # Through the ALREADY REPOINTED context, so the first line in the new file
     # says why the file exists. Seq carries straight on from the old one.
     Write-HDTLog -Context $Context -Component 'Logging' `
-        -Message ("_HDTLogPath moved from '{0}' to '{1}'. Everything written so far was mirrored, and the copy on the RAM disk is left in place (DESIGN 4.4.1)." -f
+        -Message ("_HDTLogPath moved from '{0}' to '{1}'. Everything written so far was mirrored, and the copy on the RAM disk is left in place." -f
             $current, $destination) `
         -Data ([ordered] @{ from = $current; to = $destination })
 

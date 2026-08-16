@@ -5,9 +5,9 @@ function New-HDTLocalContentProvider {
             booted from.
 
         .DESCRIPTION
-            DESIGN 6's provider interface, over a path on this machine. It is what
-            standalone media runs on (DESIGN 6.2), and it is what the lab runs on:
-            SPIKES S6 records that a VM on the isolated 'HDT Lab' switch cannot
+            The provider interface, over a path on this machine. It is what
+            standalone media runs on, and it is what the lab runs on:
+            A lab test records that a VM on the isolated 'HDT Lab' switch cannot
             reach a share on the host, so every end-to-end run in this repository
             reaches its content locally.
 
@@ -20,7 +20,7 @@ function New-HDTLocalContentProvider {
               Connect()                    -> the root that is now reachable
               Disconnect()
 
-            DESIGN 6.2 says media generation is "a content projection plus a
+            Media generation is "a content projection plus a
             provider swap, not a parallel code path". A provider where one
             implementation carries two extra methods is a provider a step has to
             branch on, and a step that branches on its transport is the parallel
@@ -33,7 +33,7 @@ function New-HDTLocalContentProvider {
             THE RESOLUTION RULES, IDENTICAL IN EVERY IMPLEMENTATION:
 
               - a relative path is combined with Root;
-              - a ROOTED path is returned unchanged - DESIGN 9.3's media too
+              - a ROOTED path is returned unchanged - the media case too
                 large to bring into the share, registered where it stands;
               - a '..' that escapes Root is refused;
               - an empty path is refused.
@@ -52,8 +52,8 @@ function New-HDTLocalContentProvider {
 
             ResolveContent DOES NOT CHECK EXISTENCE - TestContent is that
             question and a step asks it when it wants the answer. Everything that
-            does touch the disk goes through the injected IFileSystem
-            (PROJECT constraint 4), which is what makes this whole file provable
+            does touch the disk goes through the injected IFileSystem,
+which is what makes this whole file provable
             with no media attached.
 
         .PARAMETER Root

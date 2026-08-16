@@ -5,7 +5,7 @@ function New-HDTPxePayload {
             boot image, and verifies every copy by hash.
 
         .DESCRIPTION
-            DESIGN 6.1: "For sites with an existing TFTP/HTTP stack instead of
+            For sites with an existing TFTP/HTTP stack instead of
             WDS, New-HDTPxePayload stages bootmgr, bootmgfw.efi, boot.sdi, the
             BCD, and the boot WIM into a directory to point that server at."
 
@@ -40,9 +40,8 @@ function New-HDTPxePayload {
             repository - there is no WDS on this host and PROJECT.md forbids
             standing one up beside CM01's PXE responder - so claiming staging
             completeness is honest and claiming bootability would not be.
-            ROADMAP M4 and 05-05-SUMMARY.md say the same thing in the same
-            words, and tests/integration/PxePayload.Integration.Tests.ps1
-            asserts that this sentence is still here.
+            tests/integration/PxePayload.Integration.Tests.ps1 asserts that this
+            sentence is still here.
 
             EVERY COPY IS VERIFIED BY HASH AND A MISMATCH IS A FAILURE, NOT A
             WARNING. A truncated boot.sdi on a TFTP server is a machine that

@@ -1,0 +1,325 @@
+# The Add menu, and the Options tab.
+#
+# THE ADD BUTTON IS A MENU, WHICH IS DEPLOYMENT WORKBENCH'S SHAPE. MDT and
+# ConfigMgr both put a drop-down on Add that lists the step types by category -
+# General, Disks, Images - and an administrator picks the step they want rather
+# than typing a type name. CLAUDE.md asks for a console close enough that muscle
+# memory transfers, so the menu is built here and asserted here; the window only
+# hangs the items off a button.
+#
+# THE LIST COMES FROM Get-HDTStepType, NOT FROM A LITERAL. That cmdlet is the
+# engine's registry and it discovers third-party step types dropped into
+# Modules\ (DESIGN 5.4). A hard-coded menu would offer nine of them and quietly
+# omit the tenth that somebody had just installed - which is the failure that is
+# hardest to notice, because the menu still looks complete.
+#
+# A TYPE THE CATALOG HAS NO ENTRY FOR IS STILL OFFERED. It lands under Custom,
+# named by its own type. Being absent from a curated list is not a reason to be
+# unbuildable.
+#
+# THE OPTIONS TAB IS THE SECOND HALF. MDT puts "Disable this step", "Continue on
+# error" and the condition list on a tab beside Properties;
+# Get-HDTConsoleStepOption decides every row of it, so the checkbox states and
+# the cmdlet each one shows can be asserted without a window.
+
+BeforeAll {
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+}
+
+Describe 'Get-HDTConsoleStepCatalog' {
+
+    BeforeAll {
+        $script:catalog = @(Get-HDTConsoleStepCatalog)
+        $script:item = @($script:catalog | ForEach-Object { $_.Item })
+    }
+
+    Context 'the shape of the menu' {
+
+        It 'returns categories, each holding items' {
+            $script:catalog.Count | Should -BeGreaterThan 1
+
+            foreach ($category in $script:catalog) {
+                $category.Category | Should -Not -BeNullOrEmpty
+                @($category.Item).Count | Should -BeGreaterThan 0
+            }
+        }
+
+        It 'opens with New Group, the way Workbench does' {
+            $script:catalog[0].Item[0].Text | Should -BeExactly 'New Group'
+            $script:catalog[0].Item[0].Kind | Should -BeExactly 'Group'
+        }
+
+        It 'gives every item the YAML it would insert, so the window branches on nothing' {
+            # The handler behind the menu calls Add-HDTConsoleStep -Block for
+            # every item, group and step alike. If the item carried only a type,
+            # the window would have to choose a parameter set - which is a
+            # decision, and decisions do not go in an adapter (CLAUDE.md rule 1).
+            foreach ($entry in $script:item) {
+                @($entry.Block).Count | Should -BeGreaterThan 1
+                $entry.Block[0] | Should -BeLike '- *'
+            }
+        }
+
+        It 'writes a step block the engine reads back as that step' {
+            $entry = @($script:item | Where-Object { $_.Type -eq 'CommandLine' })[0]
+
+            $entry.Block[0] | Should -BeExactly '- name: Run Command Line'
+            $entry.Block[1] | Should -BeExactly '  type: CommandLine'
+        }
+
+        It 'writes a group block with somewhere to put steps' {
+            $entry = $script:catalog[0].Item[0]
+
+            $entry.Block[0] | Should -BeExactly '- group: New Group'
+            $entry.Block[1] | Should -BeExactly '  steps:'
+        }
+
+        It 'puts a step in the new group, because this engine has no empty ones' {
+            # An empty `steps:` is rejected with "steps must be a list of steps
+            # and groups", which leaves the editor holding a document it cannot
+            # re-read: no tree, every button dark, and no way back except
+            # closing the window and losing the rest of the session's edits.
+            $entry = $script:catalog[0].Item[0]
+
+            @($entry.Block).Count | Should -Be 4
+            $entry.Block[2] | Should -BeExactly '    - name: New Step'
+            $entry.Block[3] | Should -BeExactly '      type: NoOp'
+        }
+
+        It 'produces a document the engine still reads after the group is added' {
+            # The benchmark for every item in this menu: press it and the editor
+            # can still draw a tree.
+            $line = [string[]] @(
+                'schemaVersion: 1'
+                'id: DEMO'
+                'name: Demo'
+                'steps:'
+                '  - name: Apply OS'
+                '    type: ApplyImage'
+            )
+
+            foreach ($entry in $script:item) {
+                $edited = @(Add-HDTConsoleStep -Line $line -After 'Apply OS' -Block $entry.Block)
+                $state = Get-HDTConsoleEditorState -Line $edited -Path 'C:\ws\TaskSequences\DEMO\sequence.yaml'
+
+                $state.Status | Should -BeExactly 'Ok' -Because ("adding '{0}' must leave a readable document, and it said: {1}" -f $entry.Text, $state.Message)
+            }
+        }
+
+        It 'gives every step item a type, a display name and the cmdlet that adds it' {
+            foreach ($entry in @($script:item | Where-Object { $_.Kind -eq 'Step' })) {
+                $entry.Type | Should -Not -BeNullOrEmpty
+                $entry.Text | Should -Not -BeNullOrEmpty
+                $entry.Command | Should -BeLike 'Add-HDTConsoleStep *'
+                $entry.Command | Should -BeLike ('*-Type {0}*' -f $entry.Type)
+            }
+        }
+    }
+
+    Context 'every type the engine has' {
+
+        It 'offers all of them and invents none' {
+            $known = @(Get-HDTStepType | ForEach-Object { $_.Type } | Sort-Object)
+
+            # NOT A VACUOUS COMPARISON. Get-HDTStepType discovers step types by
+            # walking Get-Module, so in a session where the engine is not listed
+            # it returns nothing - and an empty list matches an empty list,
+            # which is how the first version of this test passed while the Add
+            # menu on screen offered New Group and nothing else. The floor is
+            # the ten types the engine ships.
+            @($known).Count | Should -BeGreaterOrEqual 10
+
+            $offered = @($script:item | Where-Object { $_.Kind -eq 'Step' } |
+                    ForEach-Object { $_.Type } | Sort-Object)
+
+            $offered | Should -Be $known
+        }
+
+        It 'offers them to a session that loaded only the console' {
+            # THE REGRESSION. An administrator runs Start-HDTConsole.ps1, which
+            # imports HDT.Console and nothing else; the console imports the
+            # engine for its own use. Get-HDTStepType walks Get-Module, and a
+            # nested import is not listed there - so the menu came up empty on
+            # the one path that matters and full under every test, which import
+            # the engine themselves.
+            $consoleManifest = Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1'
+
+            $count = & powershell.exe -NoProfile -Command (
+                "Import-Module '$consoleManifest' -Force; " +
+                '@(Get-HDTConsoleStepCatalog).Count')
+
+            [int] $count | Should -BeGreaterThan 1
+        }
+
+        It 'gives the common ones the name an MDT administrator already knows' {
+            $byType = @{}
+            foreach ($entry in $script:item) { if ($entry.Kind -eq 'Step') { $byType[$entry.Type] = $entry } }
+
+            $byType['ApplyImage'].Text | Should -BeExactly 'Apply Operating System'
+            $byType['DiskPartition'].Text | Should -BeExactly 'Format and Partition Disk'
+            $byType['CommandLine'].Text | Should -BeExactly 'Run Command Line'
+            $byType['PowerShell'].Text | Should -BeExactly 'Run PowerShell Script'
+            $byType['SetVariable'].Text | Should -BeExactly 'Set Task Sequence Variable'
+            $byType['Restart'].Text | Should -BeExactly 'Restart Computer'
+        }
+
+        It 'files them under the categories those names live in' {
+            $categoryOf = @{}
+            foreach ($category in $script:catalog) {
+                foreach ($entry in @($category.Item)) { $categoryOf[[string] $entry.Type] = $category.Category }
+            }
+
+            $categoryOf['DiskPartition'] | Should -BeExactly 'Disks'
+            $categoryOf['ApplyImage'] | Should -BeExactly 'Images'
+            $categoryOf['CommandLine'] | Should -BeExactly 'General'
+        }
+
+        It 'offers a type it has never heard of, under Custom' {
+            $registry = @(
+                [pscustomobject] @{ Type = 'CommandLine'; Source = 'Hephaestus' }
+                [pscustomobject] @{ Type = 'ContosoBitLocker'; Source = 'Contoso.Steps' }
+            )
+
+            $result = @(Get-HDTConsoleStepCatalog -StepType $registry)
+
+            $custom = @($result | Where-Object { $_.Category -eq 'Custom' })
+            @($custom).Count | Should -Be 1
+            $custom[0].Item[0].Type | Should -BeExactly 'ContosoBitLocker'
+            $custom[0].Item[0].Text | Should -BeExactly 'ContosoBitLocker'
+            $custom[0].Item[0].Source | Should -BeExactly 'Contoso.Steps'
+        }
+
+        It 'drops a category that has nothing in it rather than showing it empty' {
+            $registry = @([pscustomobject] @{ Type = 'CommandLine'; Source = 'Hephaestus' })
+
+            $result = @(Get-HDTConsoleStepCatalog -StepType $registry)
+
+            @($result | Where-Object { $_.Category -eq 'Disks' }).Count | Should -Be 0
+            @($result | Where-Object { $_.Category -eq 'Images' }).Count | Should -Be 0
+        }
+    }
+}
+
+Describe 'Get-HDTConsoleStepOption' {
+
+    BeforeAll {
+        $script:step = [pscustomobject] @{
+            Index           = 3
+            Name            = 'Apply OS'
+            Type            = 'ApplyImage'
+            GroupPath       = @('Install')
+            Condition       = '$Model -like ''Virtual*'''
+            ContinueOnError = $false
+            Disabled        = $true
+            RunIn           = 'WinPE'
+            Property        = @{ index = 1 }
+        }
+
+        $script:group = [pscustomobject] @{
+            Path      = @('Install')
+            Condition = ''
+            RunIn     = 'WinPE'
+            Disabled  = $false
+        }
+    }
+
+    Context 'a step' {
+
+        BeforeAll { $script:option = Get-HDTConsoleStepOption -Step $script:step }
+
+        It 'names the step and calls it a step' {
+            $script:option.Name | Should -BeExactly 'Apply OS'
+            $script:option.Kind | Should -BeExactly 'Step'
+        }
+
+        It 'carries both checkboxes, in Workbench''s wording and order' {
+            @($script:option.Flag).Count | Should -Be 2
+            $script:option.Flag[0].Label | Should -BeExactly 'Disable this step'
+            $script:option.Flag[1].Label | Should -BeExactly 'Continue on error'
+        }
+
+        It 'has the disable box ticked, because this step is off' {
+            $script:option.Flag[0].Checked | Should -BeTrue
+            $script:option.Flag[1].Checked | Should -BeFalse
+        }
+
+        It 'shows the cmdlet each box would run, naming the step and the flag' {
+            $script:option.Flag[0].Command | Should -BeLike '*Set-HDTConsoleStepFlag*'
+            $script:option.Flag[0].Command | Should -BeLike "*-Name 'Apply OS'*"
+            $script:option.Flag[0].Command | Should -BeLike '*-Flag Disabled*'
+            $script:option.Flag[1].Command | Should -BeLike '*-Flag ContinueOnError*'
+        }
+
+        It 'unticking is what the command says, so pressing it twice is not the same press' {
+            $script:option.Flag[0].Command | Should -BeLike '*-Value $false*'
+            $script:option.Flag[1].Command | Should -BeLike '*-Value $true*'
+        }
+    }
+
+    Context 'the condition, which is the filter that decides whether it runs' {
+
+        It 'shows the expression the step actually carries' {
+            $option = Get-HDTConsoleStepOption -Step $script:step
+
+            $option.Condition | Should -BeExactly '$Model -like ''Virtual*'''
+            $option.ConditionText | Should -BeExactly '$Model -like ''Virtual*'''
+            $option.HasCondition | Should -BeTrue
+        }
+
+        It 'says so plainly when there is none, rather than showing an empty box' {
+            $bare = [pscustomobject] @{
+                Name = 'Prepare Boot'; Type = 'ConfigureBoot'; Condition = ''
+                ContinueOnError = $false; Disabled = $false; RunIn = ''; GroupPath = @()
+            }
+
+            $option = Get-HDTConsoleStepOption -Step $bare
+
+            $option.HasCondition | Should -BeFalse
+            $option.ConditionText | Should -BeExactly '(none - this step always runs)'
+        }
+
+        It 'shows the cmdlet that would set it' {
+            $option = Get-HDTConsoleStepOption -Step $script:step
+
+            $option.ConditionCommand | Should -BeLike '*Set-HDTConsoleStepCondition*'
+            $option.ConditionCommand | Should -BeLike "*-Name 'Apply OS'*"
+        }
+
+        It 'reports the phase the step is restricted to, because that filters it too' {
+            $option = Get-HDTConsoleStepOption -Step $script:step
+
+            $option.RunIn | Should -BeExactly 'WinPE'
+            $option.RunInText | Should -BeExactly 'WinPE'
+        }
+
+        It 'says any phase when the step names none' {
+            $bare = [pscustomobject] @{
+                Name = 'Prepare Boot'; Type = 'ConfigureBoot'; Condition = ''
+                ContinueOnError = $false; Disabled = $false; RunIn = ''; GroupPath = @()
+            }
+
+            (Get-HDTConsoleStepOption -Step $bare).RunInText | Should -BeExactly 'any phase'
+        }
+    }
+
+    Context 'a group, which has no continue-on-error to offer' {
+
+        BeforeAll { $script:groupOption = Get-HDTConsoleStepOption -Step $script:group }
+
+        It 'takes its name from the last leg of its path' {
+            $script:groupOption.Name | Should -BeExactly 'Install'
+            $script:groupOption.Kind | Should -BeExactly 'Group'
+        }
+
+        It 'offers the disable box and nothing else' {
+            @($script:groupOption.Flag).Count | Should -Be 1
+            $script:groupOption.Flag[0].Label | Should -BeExactly 'Disable this group'
+        }
+
+        It 'still offers a condition, because a group carries one' {
+            $script:groupOption.ConditionCommand | Should -BeLike "*-Name 'Install'*"
+        }
+    }
+}

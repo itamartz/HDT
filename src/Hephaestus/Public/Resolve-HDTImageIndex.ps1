@@ -4,9 +4,9 @@ function Resolve-HDTImageIndex {
             Chooses the one image to apply, or refuses to choose.
 
         .DESCRIPTION
-            DESIGN 9.2: "Index selectable by number, name, or edition." This is
+            Index selectable by number, name, or edition. This is
             that selection, and its refusal: TWO IMAGES MATCHING ONE REQUEST IS A
-            REFUSAL, NOT A COIN TOSS. It is the same rule DESIGN 9.1 makes about
+            REFUSAL, NOT A COIN TOSS. It is the same rule HDT makes about
             disks, applied to what gets applied to them - and it matters on real
             media, where the staged Server 2025 WIM carries two images whose
             names differ only by "(Desktop Experience)" and two more that share
@@ -34,7 +34,7 @@ function Resolve-HDTImageIndex {
 
             HDTAmbiguousImageError is classified Configuration by
             Get-HDTFailureClass, so a refusal ends the run rather than being
-            retried three times (DESIGN 12.1).
+            retried three times.
 
         .PARAMETER Image
             The image rows, as IImageService.GetImageInfo returns them or as

@@ -4,22 +4,21 @@ function Get-HDTShareCredential {
             Reads the deployment account credential back out of the workspace.
 
         .DESCRIPTION
-            The read half of DESIGN 6.3's embedded credential. It is what runs
+            The read half of the embedded credential. It is what runs
             inside WinPE: the booted machine reads
             Control\share-credential.json out of the boot image or the share,
             recovers the password, and hands it to
             New-HDTSmbContentProvider.
 
             It reads through an injected IFileSystem, never Get-Content, so the
-            whole path is provable under Pester with no share and no boot image
-            (PROJECT constraint 4).
+            whole path is provable under Pester with no share and no boot image.
 
             A missing file is an HDTConfigurationError naming the file AND the
             command that writes it, because "no credential" is the single most
             likely reason a PXE-booted machine cannot reach its share.
 
             THE PASSWORD IT RETURNS IS PLAIN TEXT. That is what New-SmbMapping
-            takes, and DESIGN 6.3 is explicit that the value is recoverable by
+            takes, and HDT is explicit that the value is recoverable by
             anyone holding the boot image; wrapping it in a SecureString here
             would unwrap one call later and protect nothing.
 
@@ -71,7 +70,7 @@ function Get-HDTShareCredential {
 
     if (-not $FileSystem.TestPath($path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'there is no deployment credential in this workspace. Write one with Set-HDTShareCredential; a booted machine has no other way to authenticate to the share (DESIGN 6.3).' `
+                    -Message 'there is no deployment credential in this workspace. Write one with Set-HDTShareCredential; a booted machine has no other way to authenticate to the share.' `
                     -Category ObjectNotFound))
     }
 

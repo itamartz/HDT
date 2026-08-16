@@ -6,7 +6,7 @@ function New-HDTWizardHost {
 
         .DESCRIPTION
             THIS IS AN ADAPTER OVER AN EXTERNAL TOOL AND IS DELIBERATELY THIN.
-            CLAUDE.md rule 1's only exception to TDD is a thin adapter over
+            HDT's only exception to TDD is a thin adapter over
             something that cannot be faked - here WPF itself - and THE PRICE OF
             THAT EXEMPTION IS THAT THE ADAPTER MUST HAVE NOTHING IN IT WORTH
             TESTING. That is a condition, not a description, and this file

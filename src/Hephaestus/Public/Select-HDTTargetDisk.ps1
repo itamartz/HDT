@@ -4,7 +4,7 @@ function Select-HDTTargetDisk {
             Chooses the one disk a deployment may wipe, or refuses to choose.
 
         .DESCRIPTION
-            DESIGN 9.1: "the engine refuses to guess when the disk is unexpected
+            The engine refuses to guess when the disk is unexpected
             (multiple disks, existing data volumes, USB source disk in range).
             DiskPartition requires either an unambiguous target or an explicit
             diskNumber. Wiping the wrong disk is the single most destructive
@@ -43,7 +43,7 @@ function Select-HDTTargetDisk {
             -AllowExistingData. Naming the disk explicitly is not the same
             statement as declaring that its contents are expendable.
 
-            NO RULE FILTERS ON BUS TYPE EXPECTING A VIRTUAL VALUE. SPIKES S6: a
+            NO RULE FILTERS ON BUS TYPE EXPECTING A VIRTUAL VALUE. In the lab, a
             Generation 2 VM's own system disk reports BusType = SAS, not SCSI
             and not Virtual. USB is the only bus type that excludes anything.
 
@@ -51,7 +51,7 @@ function Select-HDTTargetDisk {
             HDTAmbiguousTargetError, HDTUnsafeTargetError and
             HDTNoTargetDiskError - and Get-HDTFailureClass classifies all three
             as Configuration, so a refusal to wipe ends the run instead of being
-            retried three times (DESIGN 12.1).
+            retried three times.
 
         .PARAMETER Disk
             Every disk on the machine, as IDiskService.GetDisk() returns them.

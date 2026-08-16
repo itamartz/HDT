@@ -1,12 +1,12 @@
 function Get-HDTLogPath {
     <#
         .SYNOPSIS
-            Returns DESIGN 4.4.1's _HDTLogPath for a phase.
+            Returns _HDTLogPath for a phase.
 
         .DESCRIPTION
             _HDTLogPath is the single canonical log directory, set by the engine
             and available to every step, every condition and every user script.
-            Nothing writes a log anywhere else (DESIGN 4.4.1).
+            Nothing writes a log anywhere else.
 
             It follows the deployment rather than staying put:
 

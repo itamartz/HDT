@@ -4,7 +4,7 @@ function Update-HDTRunStateStep {
             Records the outcome of one step in the run state document.
 
         .DESCRIPTION
-            DESIGN 4.3: "every step is idempotent or checkpointed. On resume the
+            Every step is idempotent or checkpointed. On resume the
             engine skips completed steps by index and re-runs the interrupted one
             only if the step declares resumable: true."
 

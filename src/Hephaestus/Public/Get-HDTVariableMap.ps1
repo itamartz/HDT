@@ -4,7 +4,7 @@ function Get-HDTVariableMap {
             Returns the HDT variable namespace and its MDT translation table.
 
         .DESCRIPTION
-            DESIGN 3.2 gives HDT the same variable set MDT has, meaning for
+            HDT has the same variable set MDT has, meaning for
             meaning, under an HDT prefix, so an existing runbook converts by
             search-and-replace. That table is data here rather than prose in a
             document: "Get-HDTVariableMap prints this table at runtime, and a
@@ -14,10 +14,10 @@ function Get-HDTVariableMap {
 
             Three families live in one table:
 
-              * translated variables - the DESIGN 3.2 pairs;
+              * translated variables - the MDT-to-HDT pairs;
               * HDT-specific additions with no MDT equivalent, whose MdtName is
                 $null;
-              * engine variables (DESIGN 4.4.1), named _HDT* and never writable.
+              * engine variables, named _HDT* and never writable.
                 A rule or a sequence that assigns one is a validation error, not
                 a silent override, which is what Assert-HDTRuleDocument enforces.
 
@@ -45,7 +45,7 @@ function Get-HDTVariableMap {
         .EXAMPLE
             Get-HDTVariableMap | Format-Table -AutoSize
 
-            Prints the whole DESIGN 3.2 translation table.
+            Prints the whole translation table.
 
         .EXAMPLE
             Get-HDTVariableMap -Name 'HDTIs*'
@@ -58,7 +58,7 @@ function Get-HDTVariableMap {
             The engine-owned variables a rules.yaml may not assign.
 
         .NOTES
-            DESIGN 3.2's printed table carried '| HDTComputerName |
+            An early draft of this table carried '| HDTComputerName |
             HDTComputerName |' in a column pair whose left side is the MDT name.
             MDT's name is OSDComputerName; the document was corrected rather than
             worked around, and the contract test 'never puts an HDT name in the

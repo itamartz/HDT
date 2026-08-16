@@ -13,7 +13,7 @@ function New-HDTDiskService {
             anywhere else in HDT, because the developer machine is the disk most
             likely to be in front of this code.
 
-            The Storage module is present in WinPE (DESIGN 5.1, proven by
+            The Storage module is present in WinPE (proven by
             SPIKES.md S1's WinPE-StorageWMI image).
 
             NINE METHODS, THREE OF THEM READ-ONLY:
@@ -45,7 +45,7 @@ function New-HDTDiskService {
             Initialize-Disk, and then ESP / Windows / Recovery - with no MSR
             created by us. Mine PSD for its GUIDs, not for its sequence.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             there is no way to unit test the destructive half that does not
             write to a physical disk. Its contract row is opt-in - elevated AND
             $env:HDT_ALLOW_DISK_TEST -eq '1' - and even then read-only; the
@@ -80,7 +80,7 @@ function New-HDTDiskService {
             $disk = New-HDTDiskService
             @($disk.GetDisk() | Where-Object { -not $_.IsBoot -and -not $_.IsSystem })
 
-            Every disk that is not the one this machine booted from. DESIGN 9.1
+            Every disk that is not the one this machine booted from. HDT
             requires exactly one candidate before anything is wiped.
 
         .EXAMPLE

@@ -1,8 +1,7 @@
 function Assert-HDTWorkspaceDocument {
     <#
         .SYNOPSIS
-            Validates a parsed workspace.yaml against the DESIGN 2.1, 5.1 and 6.3
-            authoring rules.
+            Validates a parsed workspace.yaml against the authoring rules.
 
         .DESCRIPTION
             The engine's own validator, and the one that actually runs in WinPE:
@@ -13,7 +12,7 @@ function Assert-HDTWorkspaceDocument {
             It throws on the first violation and returns nothing otherwise. Every
             failure is a terminating HDTConfigurationError built by
             New-HDTErrorRecord, so it names the file, carries the file as its
-            TargetObject, and says which key is wrong - DESIGN 12.1's "fail fast
+            TargetObject, and says which key is wrong - "fail fast
             and point at the file".
 
             The authoring rules, in the order they are checked:
@@ -32,17 +31,13 @@ function Assert-HDTWorkspaceDocument {
                           carrying source and destination, destination rooted and
                           free of '..'
 
-            THE DESIGN 6.3 CORRECTION, AND IT IS A CORRECTION RATHER THAN AN
-            OMISSION. DESIGN 6.3 shows a "password: <set by
-            Set-HDTShareCredential>" line inside workspace.yaml and then says the
-            value "never appears in a file an admin hand-edits, so it does not
-            end up in git". Both cannot be true of the same file: workspace.yaml
-            IS the file an admin hand-edits and commits. So a password key here
-            is a validation error whose message names Set-HDTShareCredential and
-            says where the secret does live - Control\share-credential.json,
-            written by that command (05-02). The message deliberately does not
-            echo the value back: a validator that quotes the secret it is
-            refusing has just written it to the log.
+            A PASSWORD KEY HERE IS AN ERROR, NOT AN OVERSIGHT. workspace.yaml is
+            the file an administrator hand-edits and commits, so a share
+            password in it is a share password in git. The refusal names
+            Set-HDTShareCredential and says where the secret does live -
+            Control\share-credential.json, written by that command. The message
+            deliberately does not echo the value back: a validator that quotes
+            the secret it is refusing has just written it to the log.
 
             deployRoot HAS THREE LEGAL FORMS and the third is not decoration:
 
@@ -51,7 +46,7 @@ function Assert-HDTWorkspaceDocument {
                                   inside a boot image
               \Share              VOLUME-RELATIVE - the volume is discovered at
                                   boot, and it is the only form a Local boot
-                                  image may carry, because SPIKES S9.1 recorded
+                                  image may carry, because a lab test recorded
                                   WinPE handing the content disk C: while the RAM
                                   disk was X:
 
@@ -237,7 +232,7 @@ function Assert-HDTWorkspaceDocument {
             # the sentence that has to be read: it says where the secret goes.
             if ($keyName -eq 'password') {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message "credential declares a password. The share password does not belong in this file: this is the document an administrator hand-edits and commits (DESIGN 6.3). Remove the key and run Set-HDTShareCredential, which writes the secret to Control\share-credential.json instead."))
+                            -Message "credential declares a password. The share password does not belong in this file: this is the document an administrator hand-edits and commits. Remove the key and run Set-HDTShareCredential, which writes the secret to Control\share-credential.json instead."))
             }
 
             if ($allowedCredentialKey -notcontains $keyName) {
@@ -265,7 +260,7 @@ function Assert-HDTWorkspaceDocument {
 
     if (-not ($bootImage -is [System.Collections.IDictionary])) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'bootImage must be a mapping. Its keys are the boot image build settings of DESIGN 5.1.'))
+                    -Message 'bootImage must be a mapping. Its keys are the boot image build settings.'))
     }
 
     foreach ($key in @($bootImage.Keys)) {

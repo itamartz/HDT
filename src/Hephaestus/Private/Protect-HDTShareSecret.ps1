@@ -11,7 +11,7 @@ function Protect-HDTShareSecret {
             IT IS OBFUSCATION AND IT IS NOT CLAIMED AS SECURITY. The key is in
             the module, the module is in the boot image, and the boot image is
             handed to whichever machine PXE boots - so anyone who can read either
-            can recover the password. DESIGN 6.3 says exactly that, the file this
+            can recover the password. HDT says exactly that: the file this
             writes carries a warning sentence saying it, and docs/share-account.md
             says it again in prose. What this buys is that the password is not
             sitting in plain text in a JSON file on a share, which is a real if

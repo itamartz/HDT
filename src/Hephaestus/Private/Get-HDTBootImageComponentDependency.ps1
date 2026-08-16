@@ -44,7 +44,7 @@ function Get-HDTBootImageComponentDependency {
             2. A dependency satisfied by the REQUIRED SIX can never refuse
                anything either, because those six are always present and always
                first - but the rows are kept anyway, because they are what proves
-               SPIKES S1's boot-verified order agrees with Microsoft's declared
+               The boot-verified order agrees with Microsoft's declared
                one (see the test of that name).
             3. Components whose manifest declares no parent at all. Note in
                particular that `WinPE-Setup-Server` and `WinPE-Setup-ASZ` declare

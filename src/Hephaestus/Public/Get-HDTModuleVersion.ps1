@@ -7,7 +7,7 @@ function Get-HDTModuleVersion {
             Reports the ModuleVersion declared in Hephaestus.psd1 for the instance
             of the module that is currently loaded.
 
-            Boot images record the engine version they contain (DESIGN 12.3); a
+            Boot images record the engine version they contain; a
             mismatch between the version staged in a boot image and the version in
             the deployment share is a common cause of confusing failures, so the
             version has to be readable at runtime, including from inside WinPE.

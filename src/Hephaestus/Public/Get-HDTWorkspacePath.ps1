@@ -4,7 +4,7 @@ function Get-HDTWorkspacePath {
             Builds a path to a folder inside an HDT workspace.
 
         .DESCRIPTION
-            The workspace layout in DESIGN 2.1 is fixed, and every component that
+            The workspace layout is fixed, and every component that
             reads or writes the share has to agree on it. This command is the one
             place the folder names are written down in code.
 
@@ -23,7 +23,7 @@ function Get-HDTWorkspacePath {
             The workspace root - a local path or a UNC share.
 
         .PARAMETER Kind
-            The top-level folder, from the DESIGN 2.1 layout.
+            The top-level folder, from the workspace layout.
 
         .PARAMETER ChildPath
             Further segments beneath the folder, appended in order.

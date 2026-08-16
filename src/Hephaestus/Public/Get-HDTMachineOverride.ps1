@@ -4,7 +4,7 @@ function Get-HDTMachineOverride {
             Reads the per-machine variable override for a UUID, if one exists.
 
         .DESCRIPTION
-            DESIGN 3.1 source 2: Control\machines\<UUID>.yaml, "the MDT-database
+            Source 2 of five: Control\machines\<UUID>.yaml, "the MDT-database
             equivalent, but file-based; a SQL or REST provider can be plugged in
             later behind the same interface". This is that provider's file
             implementation.
@@ -15,7 +15,7 @@ function Get-HDTMachineOverride {
             asks before it necessarily knows the UUID.
 
             A file that EXISTS but is wrong is a different matter and fails fast,
-            naming the file (DESIGN 12.1). An override that silently does nothing
+            naming the file. An override that silently does nothing
             is precisely the MDT-database debugging problem HDT exists to end, so
             an unknown key, a variable outside the HDT namespace or an attempt to
             assign an engine-owned _HDT* variable are all refused rather than
@@ -23,7 +23,7 @@ function Get-HDTMachineOverride {
 
             The file is read through the injected IFileSystem, never Get-Content,
             so the whole path is provable with no share and no disk (PROJECT
-            constraint 4, DESIGN 12.2.1).
+            constraint 4).
 
             The returned variables are re-materialised into an ordered,
             case-insensitive dictionary for the same reason Import-HDTRuleDocument
@@ -32,7 +32,7 @@ function Get-HDTMachineOverride {
 
         .PARAMETER WorkspaceRoot
             The workspace root. The override is at
-            <WorkspaceRoot>\Control\machines\<Uuid>.yaml (DESIGN 2.1).
+            <WorkspaceRoot>\Control\machines\<Uuid>.yaml.
 
         .PARAMETER Uuid
             The machine UUID, as HDTUUID reports it. Empty or $null returns $null.
@@ -116,7 +116,7 @@ function Get-HDTMachineOverride {
 
     if (-not $document.Contains('schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $document['schemaVersion']
@@ -163,12 +163,12 @@ function Get-HDTMachineOverride {
 
         if ($name.StartsWith('_')) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $name)))
+                        -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $name)))
         }
 
         if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path `
-                        -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $name)))
+                        -Message ("'{0}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $name)))
         }
 
         $variable[$name] = $declared[$key]

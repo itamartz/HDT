@@ -5,13 +5,13 @@ function Write-HDTVariableLog {
             records.
 
         .DESCRIPTION
-            DESIGN 3.1: "the single biggest debugging pain in MDT is not knowing
+            The single biggest debugging pain in MDT is not knowing
             why HDTComputerName ended up as it did". Export-HDTVariableProvenance
             answers that from a file; this puts the same answer into the log
             STREAM, one var.resolve record per variable, which is what the report
             renderer and the console's monitoring view read.
 
-            Records are emitted at Debug, because DESIGN 4.4.5 puts variable
+            Records are emitted at Debug, because variable
             resolution there: "Debug adds every variable resolution with its
             provenance and every native command line executed in full - the two
             things most often needed to explain a deployment that went wrong, and

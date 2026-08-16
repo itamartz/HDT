@@ -4,7 +4,7 @@ function Get-HDTPxePayloadRow {
             The declared table of files a non-WDS PXE payload contains.
 
         .DESCRIPTION
-            DESIGN 6.1's list, as data rather than as prose: bootmgr,
+            The PXE payload list, as data rather than as prose: bootmgr,
             bootmgfw.efi, boot.sdi, the BCD, the fonts, the boot WIM and its
             manifest.
 

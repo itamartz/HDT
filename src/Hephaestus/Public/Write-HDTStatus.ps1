@@ -1,12 +1,12 @@
 function Write-HDTStatus {
     <#
         .SYNOPSIS
-            Writes DESIGN 4.4.6's status.json heartbeat.
+            Writes the status.json heartbeat.
 
         .DESCRIPTION
             "The engine writes a small status.json heartbeat each step. The
             console tails that directory. No web service, no SQL, no MDT
-            Monitoring dependency" (DESIGN 4.4.6).
+            Monitoring dependency".
 
             It OVERWRITES rather than appends, which makes it the one log-adjacent
             writer that uses WriteAllText: a heartbeat is the current state of a
@@ -16,7 +16,7 @@ function Write-HDTStatus {
             The document:
 
               { "schemaVersion": 1, "runId", "phase", "status", "stepIndex",
-                "stepName", "stepType", "updated" }
+                "stepCount", "stepName", "stepType", "updated" }
 
             THE TIMESTAMP IS A FORMATTED STRING. ConvertTo-Json renders a raw
             [datetime] as "\/Date(...)\/" under Windows PowerShell 5.1, which is
@@ -66,6 +66,11 @@ function Write-HDTStatus {
         phase         = $Context.Phase
         status        = $Status
         stepIndex     = $Context.StepIndex
+
+        # ALWAYS PRESENT, EVEN AS ZERO. A key that is sometimes absent is a key
+        # every reader has to test for, and this one is read by a console that
+        # may be looking at a share written by an older engine.
+        stepCount     = $Context.StepCount
         stepName      = $Context.StepName
         stepType      = $Context.StepType
         updated       = $updated

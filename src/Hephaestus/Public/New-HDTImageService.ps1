@@ -20,7 +20,7 @@ function New-HDTImageService {
                   summary form does not carry.
 
               ApplyImage(imagePath, index, applyPath)
-                  Expand-WindowsImage -ImagePath -Index -ApplyPath (DESIGN 9.2).
+                  Expand-WindowsImage -ImagePath -Index -ApplyPath.
 
               InstallBootFile(osRoot, systemVolume, firmware)
                   bcdboot.exe "<OsRoot>\Windows" /s <systemVolume> /f <firmware>,
@@ -41,7 +41,8 @@ function New-HDTImageService {
 
             SetRecoveryImage CALLS THE APPLIED IMAGE'S OWN Reagentc.exe, BY FULL
             PATH, AND USES /setreimage. Two reasons, both checked on this
-            machine rather than remembered. First, THE VERB DESIGN 9.2 NAMES
+            machine rather than remembered. First, THE VERB THIS WAS FIRST
+            WRITTEN AGAINST
             DOES NOT EXIST: reagentc on Windows 11 24H2 lists /info,
             /setreimage, /enable, /disable, /boottore, /setbootshelllink and the
             quick-machine-recovery verbs, and nothing else. The tool wins and
@@ -54,7 +55,7 @@ function New-HDTImageService {
             hosting it. Building the path from $OsRoot is argument construction,
             not a branch, so the adapter stays dumb.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             four of its five methods write to a disk or reorder this machine's
             firmware boot entries. Its contract row calls GetImageInfo and
             nothing else; the rest is proven in tests/integration (04-04)

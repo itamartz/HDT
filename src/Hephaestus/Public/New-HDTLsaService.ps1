@@ -4,7 +4,7 @@ function New-HDTLsaService {
             Creates the real ILsaService adapter over LSA private data.
 
         .DESCRIPTION
-            The one place in HDT that touches LSA private data. DESIGN 4.5.2: the
+            The one place in HDT that touches LSA private data. The
             deployment password is stored as an LSA secret named DefaultPassword,
             not as registry cleartext, because Winlogon reads it from there and a
             registry hive can be lifted by any local read, a registry backup or a
@@ -15,7 +15,7 @@ function New-HDTLsaService {
             The secret name is DefaultPassword with no L$ or M$ prefix. HDT
             writes only that one.
 
-            THIS IS AN UNTESTED ADAPTER (DESIGN 12.2.3), and deliberately so:
+            THIS IS AN UNTESTED ADAPTER, and deliberately so:
             there is no way to unit test it that does not write an LSA secret on
             the machine running the suite. Its contract row is opt-in - elevated
             AND $env:HDT_ALLOW_LSA_TEST -eq '1' - and even then only reads. The

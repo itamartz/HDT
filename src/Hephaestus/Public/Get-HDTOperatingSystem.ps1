@@ -4,10 +4,10 @@ function Get-HDTOperatingSystem {
             Reads an operating system out of the workspace catalog.
 
         .DESCRIPTION
-            The read half of DESIGN 9.3's catalog. It reads
+            The read half of the OS catalog. It reads
             OperatingSystems\<id>\os.yaml through an injected IFileSystem - never
             Get-Content - so the whole authoring path is provable under Pester
-            with no share, no media and no disk (PROJECT constraint 4).
+            with no share, no media and no disk.
 
             Four steps, and a failure at any of them is a terminating
             HDTConfigurationError naming the file:
@@ -19,7 +19,7 @@ function Get-HDTOperatingSystem {
                  file and the offending key;
               4. project, resolving ImagePath.
 
-            ImagePath IS THE SEAM 04-02 MARKED AND 05-02 CLOSED. DESIGN 6
+            ImagePath IS THE SEAM 04-02 MARKED AND 05-02 CLOSED. HDT
             abstracts content access behind a provider, and -Content is where one
             arrives: given one, ImagePath is what the provider answered; given
             none, it is resolved from the workspace root exactly as before, which
@@ -29,11 +29,11 @@ function Get-HDTOperatingSystem {
             passing $Context.Service.Content, and NO STEP LOGIC MOVED - asserted
             by running the same step through the Local and the Smb providers and
             comparing the ordered list of every service call
-            (tests/unit/Invoke-HDTApplyImageStep.Tests.ps1, DESIGN 6.2).
+            (tests/unit/Invoke-HDTApplyImageStep.Tests.ps1).
 
             A rooted sourcePath is kept as it is, provider or no provider,
             because media too large to bring into the share is registered where
-            it stands (DESIGN 9.3).
+            it stands.
 
         .PARAMETER WorkspaceRoot
             The workspace root - a local path or a UNC share.

@@ -4,12 +4,12 @@ function Test-HDTRuleMatch {
             Tests whether a rule's when conditions all match the current scope.
 
         .DESCRIPTION
-            DESIGN 3.3: "rules are walked top to bottom; a rule applies if every
+            Rules are walked top to bottom; a rule applies if every
             when key matches". This is that test, and the four decisions it
             encodes are deliberate:
 
             NO CONDITION MATCHES. A rule with no when, or an empty when, applies
-            to every machine. That is the Fallback rule of DESIGN 3.3.
+            to every machine. That is the Fallback rule.
 
             AN ABSENT OR NULL VALUE NEVER MATCHES. A rule keyed on a fact this
             machine does not have must not fire, including against an empty

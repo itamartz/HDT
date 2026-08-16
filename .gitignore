@@ -10,6 +10,11 @@
 /lab/
 C:/HDTLab/
 
+# Git worktrees live inside the repo so they share the same drive and tooling.
+# Their contents are checkouts of other branches - tracked by their own worktree,
+# never staged into this one.
+/.claude/worktrees/
+
 # The deployment share secret (DESIGN 6.3). Set-HDTShareCredential writes it,
 # it is obfuscated rather than encrypted, and it never belongs in git.
 Control/share-credential.json

@@ -4,11 +4,11 @@ function Resolve-HDTDiskLayoutName {
             Decides which named disk layout a machine gets.
 
         .DESCRIPTION
-            DESIGN 9.1: "the engine selects a layout by firmware unless the
+            The engine selects a layout by firmware unless the
             sequence pins one". Precedence, highest first:
 
               1  the step's layout: property   (-Layout)
-              2  the HDTDiskLayout variable    (DESIGN 3.2)
+              2  the HDTDiskLayout variable
               3  firmware - HDTIsUEFI true means uefi-standard
 
             A MACHINE WHOSE FIRMWARE WAS NEVER GATHERED IS NOT A UEFI MACHINE BY

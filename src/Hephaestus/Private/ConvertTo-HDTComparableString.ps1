@@ -8,7 +8,7 @@ function ConvertTo-HDTComparableString {
             The single rendering the variable engine uses, so that a value which
             arrived as a [bool] from CIM, as a [bool] from the YAML parser, or as
             a [string] from a command line all compare on the same terms
-            (DESIGN 3.3: `when: { HDTIsLaptop: true }` must match the gathered
+            (`when: { HDTIsLaptop: true }` must match the gathered
             fact).
 
             Booleans render as True and False - PowerShell's own rendering - and

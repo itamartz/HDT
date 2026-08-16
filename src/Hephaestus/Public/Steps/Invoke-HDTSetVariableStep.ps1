@@ -34,8 +34,8 @@ function Invoke-HDTSetVariableStep {
             resolution: an authored mid-sequence assignment is a decision
             somebody made, not a derivation.
 
-            IT REFUSES an _HDT* name, which is engine-owned and read-only
-            (DESIGN 3.2), and a name outside ^HDT[A-Za-z0-9_]*$ - both as
+            IT REFUSES an _HDT* name, which is engine-owned and read-only,
+and a name outside ^HDT[A-Za-z0-9_]*$ - both as
             terminating configuration errors, because a sequence that assigns the
             wrong namespace is broken authoring rather than a failed operation.
             A step with no assignment at all is a FAILED step rather than a
@@ -100,12 +100,12 @@ function Invoke-HDTSetVariableStep {
     foreach ($name in @($assignment.Keys)) {
         if ($name.StartsWith('_')) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                        -Message ("step '{0}': '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $Step.Name, $name)))
+                        -Message ("step '{0}': '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $Step.Name, $name)))
         }
 
         if ($name -cnotmatch '^HDT[A-Za-z0-9_]*$') {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
-                        -Message ("step '{0}': '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT (DESIGN 3.2); run Get-HDTVariableMap for the MDT translation." -f $Step.Name, $name)))
+                        -Message ("step '{0}': '{1}' is not an HDT variable name. Every deployment variable is prefixed HDT; run Get-HDTVariableMap for the MDT translation." -f $Step.Name, $name)))
         }
     }
 

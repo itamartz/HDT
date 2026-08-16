@@ -5,9 +5,9 @@ function New-HDTBootIso {
             the boot bits somewhere oscdimg can actually read them.
 
         .DESCRIPTION
-            DESIGN 5.2: "The ISO is a first-class debugging artifact, not a
-            byproduct. Mounting it into a VM is the fastest loop for testing a
-            sequence: no PXE stack, no DHCP scope, no WDS."
+            The ISO is a first-class debugging artifact, not a byproduct.
+            Mounting it into a VM is the fastest loop for testing a sequence:
+            no PXE stack, no DHCP scope, no WDS.
 
             Update-HDTBootImage calls this as its last step, but it is a command
             in its own right - point it at any WinPE media tree and it produces a
@@ -20,7 +20,7 @@ function New-HDTBootIso {
                  moved between ADK releases."
 
               2. STAGE the boot bits it needs into -BootBitPath. THIS EXISTS
-                 BECAUSE OF SPIKES S2, NOT FOR TIDINESS. The ADK lives under
+                 BECAUSE oscdimg REQUIRES IT, NOT FOR TIDINESS. The ADK lives under
                  'C:\Program Files (x86)\...', and oscdimg's -bootdata: cannot
                  take a quoted path: a quoted path arrives doubled and oscdimg
                  answers "ERROR: Could not open boot sector file
@@ -48,16 +48,15 @@ function New-HDTBootIso {
             until an unattended VM sits at the prompt until it times out.
 
             -NoPromptForKey DEFAULTS OFF HERE and Update-HDTBootImage passes it
-            ON unless -PromptForKey was given. DESIGN 5.2: "on for New-HDTBootIso
-            invoked by Update-HDTBootImage, because a boot image you mount to
-            test something should just boot." A direct caller building media for
+            ON unless -PromptForKey was given, because a boot image you mount to
+            test something should just boot. A direct caller building media for
             a shelf gets the Microsoft default.
 
             THERE IS NO NO-PROMPT etfsboot. The Oscdimg folder holds
             oscdimg.exe, etfsboot.com, efisys.bin, efisys_noprompt.bin and the
             two _EX variants and nothing else, so -NoPromptForKey with
-            -Firmware BIOS warns and builds an ISO that will prompt. DESIGN 5.2:
-            "HDT states this rather than pretending otherwise."
+            -Firmware BIOS warns and builds an ISO that will prompt. HDT states
+            this rather than pretending otherwise.
 
         .PARAMETER MediaRoot
             The WinPE media tree to burn - the ADK's Media template with
@@ -112,7 +111,7 @@ function New-HDTBootIso {
                 -Path 'C:\HDTLab\Share\Boot\HDTPE_x64.iso' -NoPromptForKey
 
             The debugging ISO: mount it into a Generation 2 VM and it boots
-            straight into WinPE with no keypress (SPIKES S3).
+            straight into WinPE with no keypress.
 
         .EXAMPLE
             New-HDTBootIso -MediaRoot $media -Path $iso -Firmware Both

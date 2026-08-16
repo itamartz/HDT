@@ -4,8 +4,8 @@ function New-HDTSmbService {
             Creates the real ISmbService adapter over the SmbShare module.
 
         .DESCRIPTION
-            A THIN ADAPTER, AND DELIBERATELY DUMB (DESIGN 12.2.3, CLAUDE.md hard
-            rule 1). It constructs arguments for four SmbShare cmdlets and
+            A THIN ADAPTER, AND DELIBERATELY DUMB. It constructs arguments for
+            four SmbShare cmdlets and
             projects what they return; every decision that could be got wrong -
             whether the identity that came back is a guest, whether the dialect
             is acceptable, whether a credential was supplied at all - lives in
@@ -18,7 +18,7 @@ function New-HDTSmbService {
               GetClientConfiguration()                    Get-SmbClientConfiguration
 
             THE SmbShare MODULE IS THE MECHANISM BECAUSE IT IS PRESENT IN WinPE.
-            DESIGN 5.1's contents table records SmbShare as present and NetTCPIP,
+            The boot image contents table records SmbShare as present and NetTCPIP,
             NetAdapter and DnsClient as absent, so nothing here may reach for
             those - and 'net use' is not needed as a fallback.
 

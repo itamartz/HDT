@@ -60,10 +60,9 @@ function Get-HDTAdkPath {
               WinPeOptionalComponent          <winPeRoot>\WinPE_OCs
               WinPeOptionalComponentLanguage  <winPeRoot>\WinPE_OCs\<language>
 
-            SPIKES S3: efisys_noprompt.bin lives under Deployment Tools\<arch>\
-            Oscdimg, NOT under the WinPE add-on's Media\EFI tree, which carries
-            bootloaders and no El Torito boot image. DESIGN 5.2 was corrected to
-            match, and this table is where that correction is now enforced.
+            efisys_noprompt.bin lives under Deployment Tools\<arch>\Oscdimg, NOT
+            under the WinPE add-on's Media\EFI tree, which carries bootloaders
+            and no El Torito boot image. This table is where that is enforced.
 
         .PARAMETER Asset
             The ADK asset to resolve. Closed set; see the table above.
@@ -108,13 +107,13 @@ function Get-HDTAdkPath {
         .EXAMPLE
             Get-HDTAdkPath -Asset Oscdimg
 
-            The oscdimg.exe that builds the ISO (DESIGN 5.2).
+            The oscdimg.exe that builds the ISO.
 
         .EXAMPLE
             Get-HDTAdkPath -Asset EfiSysNoPrompt
 
             The El Torito image that removes "Press any key to boot from CD or
-            DVD" (SPIKES S3). Under Oscdimg, not under Media\EFI.
+            DVD". Under Oscdimg, not under Media\EFI.
 
         .EXAMPLE
             Get-HDTAdkPath -Asset WinPeWim -Language en-us

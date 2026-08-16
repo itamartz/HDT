@@ -198,7 +198,7 @@ Describe 'New-HDTBootIso' {
             } catch { $record = $_ }
 
             $record | Should -Not -BeNullOrEmpty
-            $record.Exception.Message | Should -BeLike '*S2*'
+            $record.Exception.Message | Should -BeLike '*-bootdata*'
         }
 
         It 'runs oscdimg zero times when it refuses' {

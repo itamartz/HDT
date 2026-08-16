@@ -1470,6 +1470,144 @@ function New-HDTFakeEnvironmentProvider {
     return $fake
 }
 
+class HDTFakeScreen {
+
+    # The usable desktop, excluding the taskbar - what a window has to fit in.
+    [int] $Width
+    [int] $Height
+
+    # When true, GetWorkArea throws the way a display query can when the session
+    # has no desktop at all: a service, a remote session being torn down, or a
+    # console started before the shell.
+    [bool] $Fail
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeScreen() {
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'Screen'
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- the interface -----------------------------------------------------
+
+    [pscustomobject] GetWorkArea() {
+        $this.Record('GetWorkArea', @())
+
+        if ($this.Fail) {
+            throw 'the display configuration could not be read.'
+        }
+
+        return [pscustomobject] @{
+            Width  = $this.Width
+            Height = $this.Height
+        }
+    }
+}
+
+function New-HDTFakeScreen {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IScreen reporting a desktop of a chosen size.
+
+        .DESCRIPTION
+            The hand-written double behind every test about a window fitting the
+            screen it has to open on. It implements the single method
+            GetWorkArea, which answers the usable desktop - the screen minus the
+            taskbar - as Width and Height.
+
+            SEEDING A SIZE IS WHAT MAKES THE 1280x800 LAPTOP TESTABLE FROM THE
+            2560x1440 DESK, and the other way round. The console's remembered
+            size is clamped to this, so a test that could only run on the machine
+            with the offending monitor would not be a test.
+
+            A screen reporting zero is a display that answered without answering,
+            and -Throw is a display query that failed outright. Both exist because
+            neither may stop a window opening.
+
+        .PARAMETER Width
+            The usable desktop width.
+
+        .PARAMETER Height
+            The usable desktop height.
+
+        .PARAMETER Throw
+            Make GetWorkArea throw, as it can in a session with no desktop.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeScreen. Never write the class name as a type literal in a
+            test: it binds to whichever dynamic assembly loaded first and breaks
+            across a module reload. Use this factory.
+
+        .EXAMPLE
+            $screen = New-HDTFakeScreen -Width 1280 -Height 770
+
+            The laptop that produced the defect, on any machine.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [int] $Width,
+
+        [Parameter()]
+        [int] $Height,
+
+        [Parameter()]
+        [switch] $Throw,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeScreen]::new()
+    $fake.Width = $Width
+    $fake.Height = $Height
+    $fake.Fail = [bool] $Throw
+    $fake.Journal = $Journal
+
+    return $fake
+}
+
 class HDTFakeProcessService {
 
     # Normalised command line -> the result Start returns.
@@ -4577,6 +4715,7 @@ Export-ModuleMember -Function @(
     'New-HDTFakeProcessService',
     'New-HDTFakeRandomNumberGenerator',
     'New-HDTFakeRegistryService',
+    'New-HDTFakeScreen',
     'New-HDTFakeScriptInvoker',
     'New-HDTFakeSmbService',
     'New-HDTFakeWdsService'

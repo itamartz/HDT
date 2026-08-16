@@ -4,7 +4,7 @@ function Unprotect-HDTShareSecret {
             Recovers the share password Protect-HDTShareSecret stored.
 
         .DESCRIPTION
-            The other half of the obfuscation DESIGN 6.3 describes: base64 in,
+            The other half of the obfuscation: base64 in,
             the first 16 bytes are the IV, the rest is AES-CBC ciphertext under
             the module constant from Get-HDTShareSecretKey.
 

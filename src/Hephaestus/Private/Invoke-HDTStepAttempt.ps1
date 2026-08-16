@@ -8,7 +8,7 @@ function Invoke-HDTStepAttempt {
             Between the loop and Invoke-HDTStep sits everything that is true of
             EVERY step and of no step type in particular: how many attempts it
             took, how long it took, whether it overran its timeout, and which of
-            DESIGN 12.1's three classes its failure belongs to.
+            the three failure classes its failure belongs to.
 
             ATTEMPTS run from 1 to 1 + the step's retry count. The delay before
             attempt N is
@@ -19,7 +19,7 @@ function Invoke-HDTStepAttempt {
             so an exponential policy with delaySeconds: 1 waits 1s, 2s, 4s. The
             wait is taken through the injected IClock, never Start-Sleep, which
             is what lets a twenty-minute backoff policy be proven in
-            milliseconds (PROJECT constraint 4).
+            milliseconds.
 
             A CONFIGURATION FAILURE IS NEVER RETRIED. Retrying bad authoring
             spends a deployment's time three times over and buries the message

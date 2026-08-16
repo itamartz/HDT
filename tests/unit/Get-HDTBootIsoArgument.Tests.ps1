@@ -157,9 +157,11 @@ Describe 'Get-HDTBootIsoArgument' {
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
         }
 
-        It 'names SPIKES S2 in the refusal' {
+        It 'explains the cause in the refusal' {
             # The message has to say WHY, or the next person "fixes" it by adding
-            # quotes, which is precisely what does not work.
+            # quotes, which is precisely what does not work. It names the oscdimg
+            # argument rather than the lab note (SPIKES S2) that found it: the
+            # administrator reading this has oscdimg, not our SPIKES.md.
             $record = $null
             try {
                 InModuleScope Hephaestus {
@@ -167,7 +169,7 @@ Describe 'Get-HDTBootIsoArgument' {
                 }
             } catch { $record = $_ }
 
-            $record.Exception.Message | Should -BeLike '*S2*'
+            $record.Exception.Message | Should -BeLike '*-bootdata*'
             $record.Exception.Message | Should -BeLike '*boot sector file*'
         }
 

@@ -5,13 +5,13 @@ function Add-HDTResolvedVariable {
             the value came from.
 
         .DESCRIPTION
-            The single writer of a resolution result, and the place DESIGN 3.1's
+            The single writer of a resolution result, and the place the
             precedence is actually enforced.
 
             The precedence is not a comparison anywhere in the engine.
             Resolve-HDTVariable applies the five sources in order and this
             function refuses to overwrite a variable that is already resolved.
-            First writer wins, so applying the sources in the DESIGN 3.1 order IS
+            First writer wins, so applying the sources in precedence order IS
             the precedence, and a later fallback rule can only fill what nothing
             above it set. One rule, held in one place, rather than a priority
             comparison repeated at five call sites.
@@ -27,7 +27,7 @@ function Add-HDTResolvedVariable {
               condition and an unattend.xml will actually use.
 
             The provenance record carries both, plus the source, the rule and its
-            index, the file, and a 1-based Order, so DESIGN 3.1's "every variable
+            index, the file, and a 1-based Order, so the rule "every variable
             resolution records which source set it" survives the call rather than
             being a log line that scrolled past.
 
@@ -41,7 +41,7 @@ function Add-HDTResolvedVariable {
 
         .PARAMETER Name
             The variable to assign. A name starting with an underscore is
-            refused: _HDT* is engine-owned (DESIGN 3.2). Assert-HDTRuleDocument
+            refused: _HDT* is engine-owned. Assert-HDTRuleDocument
             holds that rule for rules.yaml, but the command line, a machine
             override and a setFrom script never pass through that validator, so
             the single writer holds it too.
@@ -51,7 +51,7 @@ function Add-HDTResolvedVariable {
             element; a boolean, a number and anything else pass through untouched.
 
         .PARAMETER Source
-            Which of the five DESIGN 3.1 sources supplied the value. A closed set:
+            Which of the five sources supplied the value. A closed set:
             CommandLine, MachineOverride, Rule, RuleScript, GatheredFact,
             SequenceDefault. Closed because provenance is machine-readable - the
             console and ConvertTo-HDTReport switch on it.
@@ -124,7 +124,7 @@ function Add-HDTResolvedVariable {
 
     if ($Name.StartsWith('_')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $File `
-                    -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only (DESIGN 3.2)." -f $Name)))
+                    -Message ("'{0}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $Name)))
     }
 
     # First writer wins. Checked BEFORE expansion, so a value that was never

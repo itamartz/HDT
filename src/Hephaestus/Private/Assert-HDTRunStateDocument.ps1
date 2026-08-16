@@ -1,7 +1,7 @@
 function Assert-HDTRunStateDocument {
     <#
         .SYNOPSIS
-            Validates a parsed state.json against DESIGN 4.3's state document.
+            Validates a parsed state.json against the state document contract.
 
         .DESCRIPTION
             The engine's own validator, and the one that actually runs in WinPE:
@@ -14,7 +14,7 @@ function Assert-HDTRunStateDocument {
             It throws on the first violation and returns nothing otherwise. Every
             failure is a terminating error built by New-HDTErrorRecord, so it
             names the file, carries the file as its TargetObject and reports
-            HDTConfigurationError - DESIGN 12.1's "fail fast and point at the
+            HDTConfigurationError - "fail fast and point at the
             file".
 
             The rules, in the order they are checked:
@@ -103,7 +103,7 @@ function Assert-HDTRunStateDocument {
 
     if (-not (& $hasProperty $Document 'schemaVersion')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'schemaVersion is missing. Every HDT document declares one (DESIGN 2.2); this engine understands schemaVersion 1.'))
+                    -Message 'schemaVersion is missing. Every HDT document declares one; this engine understands schemaVersion 1.'))
     }
 
     $schemaVersion = $Document.schemaVersion
@@ -190,7 +190,7 @@ function Assert-HDTRunStateDocument {
 
     if (-not (& $hasProperty $Document 'pauseOnError')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'pauseOnError is missing. It records whether a failure drops to a prompt (DESIGN 4.3).'))
+                    -Message 'pauseOnError is missing. It records whether a failure drops to a prompt.'))
     }
 
     if (-not ($Document.pauseOnError -is [bool])) {
@@ -236,7 +236,7 @@ function Assert-HDTRunStateDocument {
 
         if (-not (& $hasProperty $step 'index')) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("{0}: index is missing. The index is how a resume finds the next step to run (DESIGN 4.3)." -f $locator)))
+                        -Message ("{0}: index is missing. The index is how a resume finds the next step to run." -f $locator)))
         }
 
         if (-not (& $isInteger $step.index) -or ([long] $step.index -lt 1)) {
@@ -280,7 +280,7 @@ function Assert-HDTRunStateDocument {
 
         if (-not (& $hasProperty $step 'resumable')) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                        -Message ("{0}: resumable is missing. DESIGN 4.3 re-runs an interrupted step only if it declares one." -f $locator)))
+                        -Message ("{0}: resumable is missing. An interrupted step is re-run only if it declares one." -f $locator)))
         }
 
         if (-not ($step.resumable -is [bool])) {
@@ -293,7 +293,7 @@ function Assert-HDTRunStateDocument {
 
     if (-not (& $hasProperty $Document 'autoLogon')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'autoLogon is missing. The boot reconcile tears down exactly what this block records was armed (DESIGN 4.5.3).'))
+                    -Message 'autoLogon is missing. The boot reconcile tears down exactly what this block records was armed.'))
     }
 
     if (-not (& $hasProperty $Document.autoLogon 'armed')) {

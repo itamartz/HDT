@@ -93,6 +93,11 @@ function Get-HDTConsoleShareNode {
     # of you; the task sequence is what finally ties them together, and it is
     # the thing that can only be written once the other three exist. Reading top
     # to bottom is reading the order the work happens in.
+    #
+    # MONITORING COMES LAST, AFTER ALL OF IT, for the same reason: it is what
+    # happens once the share has been built, not another thing to build. The
+    # four categories above are a share's contents; this one is the share in
+    # use.
 
     # -- the boot image ----------------------------------------------------
 
@@ -171,7 +176,7 @@ function Get-HDTConsoleShareNode {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
             -Field @(
             New-HDTConsoleField -Label 'Folder' -Value $osFolder
-            New-HDTConsoleField -Label '' -Value 'There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under the folder above with an os.yaml in it (DESIGN 9.3).'
+            New-HDTConsoleField -Label '' -Value 'There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under the folder above with an os.yaml in it.'
         ) `
             -Command $osCommand -Header $header
 
@@ -205,7 +210,7 @@ function Get-HDTConsoleShareNode {
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $Workspace.Driver.Folder
         New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)
-        New-HDTConsoleField -Label '' -Value ('The engine has no driver catalog yet: there is no command that reads this folder and no step that injects from it, so nothing here would reach a deployed machine. DESIGN 7 describes the store; the console will list it as soon as the engine can read it.')
+        New-HDTConsoleField -Label '' -Value ('The engine has no driver catalog yet: there is no command that reads this folder and no step that injects from it, so nothing here would reach a deployed machine. The console will list it as soon as the engine can read it.')
     ) `
         -Command $driverCommand -Header $header
 
@@ -229,16 +234,35 @@ function Get-HDTConsoleShareNode {
     [void] $shareNode.Children.Add($sequenceCategory)
 
     foreach ($sequence in @($Workspace.TaskSequence)) {
+        # DESIGN 12'S "VALIDATION, SURFACED INLINE". Test-HDTTaskSequence answers
+        # what a schema cannot - would this sequence actually work on the machine
+        # you are about to deploy - and Get-HDTConsoleWorkspace has already asked
+        # it. This puts the answer where somebody will see it before they boot a
+        # machine rather than after.
+        $lint = Get-HDTConsoleLintText -Finding $sequence.Finding
+
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value $sequence.Id
             New-HDTConsoleField -Label 'Name' -Value $sequence.Name
             New-HDTConsoleField -Label 'Description' -Value (Get-HDTConsoleDisplayText -Text $sequence.Description -Fallback '(none)')
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
             New-HDTConsoleField -Label 'Groups' -Value $sequence.GroupCount
+            New-HDTConsoleField -Label 'Validation' -Value $lint.Detail
             New-HDTConsoleField -Label 'Document' -Value $sequence.Path
         )
 
         $text = '{0} - {1}' -f $sequence.Id, $sequence.Name
+
+        # THE COUNT GOES ON THE ROW. A tree of thirty sequences is scanned, not
+        # read: the row has to say "this one" without being opened, and the pane
+        # is for somebody who has already decided to look.
+        $sequenceStatus = $sequence.Status
+
+        if ($sequence.Status -eq 'Ok' -and -not [string]::IsNullOrEmpty($lint.Caption)) {
+            $text = '{0} - {1}  ({2})' -f $sequence.Id, $sequence.Name, $lint.Caption
+            $sequenceStatus = $lint.Status
+        }
+
         if ($sequence.Status -eq 'Error') {
             $text = '{0} - (unreadable)' -f $sequence.Id
             $field = @(
@@ -248,11 +272,18 @@ function Get-HDTConsoleShareNode {
             )
         }
 
-        $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequence.Status `
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequenceStatus `
             -Text $text -Field $field `
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
-            -Header $header
+            -Header $header -Subject $sequence
 
+        # THE BROWSER STOPS HERE, and the steps are Get-HDTConsoleSequenceEditor's.
+        # Deployment Workbench lists task sequences in the tree and edits their
+        # steps in a properties window opened from one; CLAUDE.md asks for a
+        # console close enough to it that muscle memory transfers. Expanding
+        # every step of every sequence of every share would also be unusable at
+        # the size an administrator runs - the lab's own sample share is four
+        # sequences and over thirty step rows before a single operating system.
         [void] $node.Add($row)
         [void] $sequenceCategory.Children.Add($row)
     }
@@ -261,12 +292,37 @@ function Get-HDTConsoleShareNode {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
             -Field @(
             New-HDTConsoleField -Label 'Folder' -Value $sequenceFolder
-            New-HDTConsoleField -Label '' -Value 'There is no task sequence on this share yet. A task sequence is a folder under the folder above with a sequence.yaml in it (DESIGN 2.1).'
+            New-HDTConsoleField -Label '' -Value 'There is no task sequence on this share yet. A task sequence is a folder under the folder above with a sequence.yaml in it.'
         ) `
             -Command $sequenceCommand -Header $header
 
         [void] $node.Add($row)
         [void] $sequenceCategory.Children.Add($row)
+    }
+
+    # -- monitoring --------------------------------------------------------
+    #
+    # DESIGN 12 lists it among the tree's categories, so an administrator looking
+    # for what is running finds it where they find everything else about the
+    # share rather than having to know a command exists. It comes LAST because it
+    # is the share in use rather than another thing to build.
+    #
+    # THE WHOLE SUBTREE IS Get-HDTConsoleMonitorNode'S, and that is not tidiness:
+    # the console rebuilds this branch on a timer while the window is open
+    # (ROADMAP M8, "tailing"), and the tree as first drawn has to be the same
+    # shape as the tree as refreshed. One builder, called from both, is the only
+    # arrangement in which they cannot drift.
+
+    $monitorCategory = Get-HDTConsoleMonitorNode -Path $Workspace.Root -Header $header `
+        -Monitor $Workspace.Monitor
+
+    [void] $node.Add($monitorCategory)
+    [void] $shareNode.Children.Add($monitorCategory)
+
+    # The flat reading gets the run rows too - it is every row in display order,
+    # and a caller counting them must not find the branch missing from it.
+    foreach ($current in @($monitorCategory.Children)) {
+        [void] $node.Add($current)
     }
 
     return [pscustomobject[]] @($node)

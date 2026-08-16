@@ -61,8 +61,25 @@ function New-HDTConsoleShareFailure {
         CredentialUser  = ''
         Status          = 'Error'
         Error           = $Message
-        TaskSequence    = [pscustomobject[]] @()
+        TaskSequence    = [pscustomobject[]] @()   # each would carry Finding, ErrorCount and WarningCount
         OperatingSystem = [pscustomobject[]] @()
+
+        # THE SAME SHAPE, EMPTY. A share that could not be opened has nothing
+        # running on it as far as anybody can tell, and a caller that had to
+        # check which kind of share it was holding before reading Monitor is a
+        # caller that will one day forget.
+        Monitor         = [pscustomobject] @{
+            Status          = 'Ok'
+            Message         = ''
+            Run             = [pscustomobject[]] @()
+            Summary         = 'There is no deployment running on this share.'
+            Caption         = 'Monitoring'
+            LiveCount       = 0
+            StalledCount    = 0
+            FinishedCount   = 0
+            UnreadableCount = 0
+            ActivePath      = [System.IO.Path]::Combine($Path, 'Logs\_active')
+        }
         Driver          = [pscustomobject] @{
             Folder  = [System.IO.Path]::Combine($Path, 'Drivers')
             Present = $false

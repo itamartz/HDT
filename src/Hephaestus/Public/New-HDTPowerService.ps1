@@ -6,14 +6,14 @@ function New-HDTPowerService {
 
         .DESCRIPTION
             The one place in HDT that reboots anything, behind an interface so
-            the whole reboot ceremony (DESIGN 4.3, 4.5) is provable under Pester
+            the whole reboot ceremony is provable under Pester
             against New-HDTFakePowerService with nothing restarted.
 
               Restart($DelaySecond)
               Stop($DelaySecond)
 
-            ROADMAP M2 deferred one question to phase 05, and 05-06 answered it
-            by mounting the boot image this repository builds:
+            One question was answered by mounting the boot image this repository
+            builds:
 
                 Windows\System32\shutdown.exe   ABSENT
                 Windows\System32\wpeutil.exe    PRESENT
@@ -32,8 +32,8 @@ function New-HDTPowerService {
             Start-HDTResume.ps1 runs from RunOnce in the deployed OS.
 
             IT REMAINS BRANCH-FREE, which is what earns a thin adapter its
-            exemption from TDD (CLAUDE.md rule 1, tests/helpers/README.md
-            section 10). Every decision lives in Get-HDTPowerCommand, which is
+            exemption from TDD (tests/helpers/README.md section 10). Every
+            decision lives in Get-HDTPowerCommand, which is
             pure and unit tested; this file asks, sleeps and invokes. The sleep
             is unconditional because Start-Sleep -Seconds 0 is a no-op and a
             guard would be a branch - the WinPE plan carries the delay there

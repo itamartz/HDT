@@ -6,7 +6,7 @@ function Invoke-HDTTaskSequence {
             safe.
 
         .DESCRIPTION
-            DESIGN 4.3's execution loop. It takes an imported sequence and an
+            The execution loop. It takes an imported sequence and an
             execution context and returns:
 
               Status      Succeeded | Failed | RebootPending
@@ -19,6 +19,7 @@ function Invoke-HDTTaskSequence {
               1. already Completed or Skipped on a previous leg  -> step.skip
               2. left Running by an interrupted leg              -> resumable:
                  true re-runs it, anything else FAILS THE RUN
+              2a. the administrator disabled the step             -> step.skip
               3. runIn does not match this leg's phase           -> step.skip
               4. a group condition is false, outermost first     -> step.skip,
                  naming THE GROUP
@@ -63,10 +64,10 @@ function Invoke-HDTTaskSequence {
             AutoLogonCount backstop stays the third line of defence rather than
             the first.
 
-            TEARDOWN RUNS FROM finally, NOT FROM A STEP (DESIGN 4.5.2). MDT's
+            TEARDOWN RUNS FROM finally, NOT FROM A STEP. MDT's
             cleanup is a task sequence step, so a failure before it leaves
             autologon armed. Here every terminal outcome - success, failure, a
-            thrown exception, even a failed checkpoint - runs the DESIGN 4.5.3
+            thrown exception, even a failed checkpoint - runs the autologon
             checklist. The one outcome that does NOT tear down is RebootPending:
             the machine has to stay armed to come back.
 
@@ -75,7 +76,7 @@ function Invoke-HDTTaskSequence {
             teardown comes before run.end so the copied-back log carries its
             record, and so run.end is genuinely the last line of the run.
 
-            PAUSEONERROR DOES NOT PROMPT. DESIGN 4.3's LTISuspend equivalent is
+            PAUSEONERROR DOES NOT PROMPT. The LTISuspend equivalent is
             read from the state document; when it is set and a step fails
             terminally, the loop logs at Error that the run is paused, writes the
             heartbeat and RETURNS with the state loaded. Dropping to a live
@@ -106,8 +107,8 @@ function Invoke-HDTTaskSequence {
 
         .PARAMETER StatePath
             Where to checkpoint. Defaults to state.json in the log directory,
-            which is where DESIGN 4.4.2's directory listing puts it. A caller
-            that follows DESIGN 4.3's X:\HDT\state.json - Start-HDTResume.ps1
+            which is where the log directory listing puts it. A caller
+            that follows the X:\HDT\state.json convention - Start-HDTResume.ps1
             does - passes it explicitly.
 
         .PARAMETER MirrorStatePath
@@ -120,17 +121,17 @@ function Invoke-HDTTaskSequence {
             once per run and hands the same registry to every dispatch.
 
         .PARAMETER StatusPath
-            Where to write DESIGN 4.4.6's status.json heartbeat. Defaults to
+            Where to write the status.json heartbeat. Defaults to
             status.json in the log directory.
 
         .PARAMETER LogDestination
             The share's log root. When given, the log directory is copied back at
             the end of the run - on failure too, because a deployment that dies
-            is exactly when the logs matter (DESIGN 4.4.1).
+            is exactly when the logs matter.
 
         .PARAMETER AutoLogonUserName
             The account the reboot ceremony arms autologon for. Defaults to
-            Administrator, the DESIGN 4.5 model.
+            Administrator, MDT's model.
 
         .PARAMETER AutoLogonDomainName
             That account's domain. Empty for a workgroup machine, which is what a
@@ -279,7 +280,7 @@ function Invoke-HDTTaskSequence {
         }
 
         Write-HDTLog -Context $log -Severity Warning `
-            -Message ("{0} names {1} variable token(s) nothing has supplied: {2}. The token is left literal and the comparison is false (DESIGN 3.3)." -f
+            -Message ("{0} names {1} variable token(s) nothing has supplied: {2}. The token is left literal and the comparison is false." -f
                 $Where, @($Unresolved).Count, (@($Unresolved) -join ', ')) `
             -Data ([ordered] @{ unresolved = [string[]] @($Unresolved) })
     }
@@ -317,6 +318,11 @@ function Invoke-HDTTaskSequence {
             stepCount  = $stepList.Count
             leg        = [int] $state.leg
         })
+
+    # HOW MANY STEPS THIS RUN HAS, set once and carried by every heartbeat from
+    # here on. The console tailing Logs\_active\ shows "step 7 of 12", and it
+    # cannot count them itself - it is reading a share, not running a sequence.
+    $log.StepCount = $stepList.Count
 
     Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Running'
 
@@ -398,7 +404,7 @@ function Invoke-HDTTaskSequence {
                         -Message ("step {0} '{1}' was interrupted on an earlier leg and declares resumable: true, so it is being run again" -f $index, $stepName) `
                         -Data ([ordered] @{ index = $index; name = $stepName; resumable = $true })
                 } else {
-                    $reason = "step {0} '{1}' was interrupted and does not declare resumable: true, so HDT will not run it again. Half-applied work is not silently repeated (DESIGN 4.3)." -f $index, $stepName
+                    $reason = "step {0} '{1}' was interrupted and does not declare resumable: true, so HDT will not run it again. Half-applied work is not silently repeated." -f $index, $stepName
 
                     Update-HDTRunStateStep -State $state -Index $index -Status Failed -Message $reason -Leg ([int] $state.leg) | Out-Null
                     & $saveState
@@ -424,6 +430,18 @@ function Invoke-HDTTaskSequence {
                     $runStatus = 'Failed'
                     break
                 }
+            }
+
+            # 2a. SWITCHED OFF BY THE ADMINISTRATOR, which outranks every reason
+            #     below it. A disabled step is not evaluated for phase or
+            #     condition at all: those answer "would this apply here", and
+            #     somebody has already said it should not run anywhere. Reporting
+            #     a phase mismatch for a step that is switched off would send a
+            #     technician looking for the wrong thing.
+            if ([bool] $step.Disabled) {
+                & $skipStep $index $step ("step {0} '{1}' is disabled" -f $index, $stepName)
+
+                continue
             }
 
             # 3. The phase filter.
@@ -748,7 +766,7 @@ function Invoke-HDTTaskSequence {
 
             if ($null -eq $registryService -or $null -eq $lsaService) {
                 Write-HDTLog -Context $log -Severity Warning `
-                    -Message 'Autologon teardown was skipped: this run was started without a registry service or an LSA service, and the DESIGN 4.5.3 checklist cannot run without both.'
+                    -Message 'Autologon teardown was skipped: this run was started without a registry service or an LSA service, and the teardown checklist cannot run without both.'
             } else {
                 $teardown = Clear-HDTAutoLogon -Registry $registryService -Lsa $lsaService `
                     -FileSystem $fileSystem -State $state -StatePath $statePathValue -Clock $clock -LogContext $log

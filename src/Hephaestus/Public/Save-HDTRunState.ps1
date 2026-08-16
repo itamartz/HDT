@@ -4,7 +4,7 @@ function Save-HDTRunState {
             Checkpoints the run state document through the injected IFileSystem.
 
         .DESCRIPTION
-            DESIGN 4.3 puts state.json at X:\HDT\state.json in WinPE and
+            state.json lives at X:\HDT\state.json in WinPE and
             C:\HDT\state.json in the full OS, and requires it to be "mirrored to
             the target disk's \HDT\ as soon as a formatted volume exists. The
             mirror is what makes the WinPE to OS transition survivable" - the
@@ -20,7 +20,7 @@ function Save-HDTRunState {
             The write goes through IFileSystem.WriteAllText, never a
             file-writing cmdlet: the adapter writes UTF-8 without a byte order
             mark, and the whole checkpoint path has to be provable with nothing
-            on disk (PROJECT constraint 4).
+            on disk.
 
         .PARAMETER State
             A New-HDTRunState or Import-HDTRunState result. Its updatedUtc is

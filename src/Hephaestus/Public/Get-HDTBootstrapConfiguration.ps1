@@ -44,9 +44,9 @@ function Get-HDTBootstrapConfiguration {
                 is refused, because that image cannot authenticate and the fact
                 is decidable at build time;
               - promptForCredential true means the credential block may be
-                absent, and the caller stops for a human (DESIGN 6.3);
+                absent, and the caller stops for a human;
               - provider Local with a VOLUME-RELATIVE deployRoot (\Share) is
-                legal, and it is the form a boot image should carry. SPIKES S9.1:
+                legal, and it is the form a boot image should carry. In the lab
                 WinPE gave the content disk C: and the RAM disk X:, so a letter
                 written at build time is a guess about a machine that has not
                 booted yet. Resolve-HDTDeployRoot turns it into a real path at
@@ -55,9 +55,9 @@ function Get-HDTBootstrapConfiguration {
                 a build host uses - and it is not an error for it to be absent at
                 boot, because the resolver falls back to the probe;
               - sequenceId empty is legal: the sequence then comes from the rules,
-                which is DESIGN 3's answer to "which task sequence does this
+                which is the answer to "which task sequence does this
                 machine get";
-              - contentMarker defaults to rules.yaml, DESIGN 3.3's file, which is
+              - contentMarker defaults to rules.yaml, the rules file, which is
                 what identifies a workspace root when the volume is discovered
                 rather than configured.
 
@@ -67,8 +67,7 @@ function Get-HDTBootstrapConfiguration {
             by GetCredential(), from a value closed over rather than carried.
 
             It reads through an injected IFileSystem, never Get-Content, so the
-            whole path is provable under Pester with no boot image
-            (PROJECT constraint 4).
+            whole path is provable under Pester with no boot image.
 
         .PARAMETER Path
             The bootstrap document. X:\HDT\bootstrap.json in WinPE.
@@ -200,7 +199,7 @@ function Get-HDTBootstrapConfiguration {
 
     if (@('Smb', 'Local') -notcontains $provider) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message ("provider '{0}' is not a transport HDT can build. The provider must be Smb or Local (DESIGN 6)." -f $provider)))
+                    -Message ("provider '{0}' is not a transport HDT can build. The provider must be Smb or Local." -f $provider)))
     }
 
     # A MISSING deployRoot IS A QUESTION, NOT A MALFORMED DOCUMENT, and this
@@ -272,7 +271,7 @@ function Get-HDTBootstrapConfiguration {
 
     if ($provider -eq 'Smb' -and -not $hasCredential -and -not $prompt) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'this boot image was built without a credential and without promptForCredential, so a machine booting it can neither authenticate to the share nor ask anybody. Rebuild it with Set-HDTShareCredential, or with -PromptForCredential if the image is meant to stop for a human (DESIGN 6.3).' `
+                    -Message 'this boot image was built without a credential and without promptForCredential, so a machine booting it can neither authenticate to the share nor ask anybody. Rebuild it with Set-HDTShareCredential, or with -PromptForCredential if the image is meant to stop for a human.' `
                     -Category AuthenticationError))
     }
 

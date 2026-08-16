@@ -11,7 +11,7 @@ function New-HDTLogContext {
             exists and hand the same object to every step afterwards.
 
             THE SEQ COUNTER LIVES HERE rather than in a module variable because it
-            is seeded from state.json on resume. DESIGN 4.4.2 requires seq to
+            is seeded from state.json on resume. seq is required to
             survive reboots, "so the ordering of a multi-leg deployment is
             unambiguous even when timestamps skew across a clock change during
             specialize" - and a counter that reset on every leg would be exactly
@@ -27,7 +27,7 @@ function New-HDTLogContext {
               ClearStep()
               NextSeq()
 
-            SetStep is what makes DESIGN 4.4.4 true - "entries carry the step name
+            SetStep is what makes this true - "entries carry the step name
             automatically, so a custom step's output is attributable without the
             author doing anything".
 
@@ -129,6 +129,14 @@ function New-HDTLogContext {
         Level         = $Level
         Seq           = $Seq
         StepIndex     = 0
+
+        # HOW MANY STEPS THE RUN HAS, which is a fact about the SEQUENCE rather
+        # than about the step - so it is set once by Invoke-HDTTaskSequence and
+        # left alone by SetStep and ClearStep. It is here so the status heartbeat
+        # can carry it: "step 7" is a number nobody can act on, and the console
+        # tailing Logs\_active\ cannot work the total out from a share it is
+        # only reading.
+        StepCount     = 0
         StepName      = $null
         StepType      = $null
         StepLogPath   = $null

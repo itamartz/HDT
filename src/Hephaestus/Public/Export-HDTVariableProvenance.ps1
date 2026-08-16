@@ -1,14 +1,13 @@
 function Export-HDTVariableProvenance {
     <#
         .SYNOPSIS
-            Writes a resolution's provenance to DESIGN 4.4's
-            Gather\provenance.json.
+            Writes a resolution's provenance to Gather\provenance.json.
 
         .DESCRIPTION
-            DESIGN 4.4 puts "provenance.json - every variable + which source set
+            provenance.json - every variable and which source set
             it (3.1)" in the log directory of every deployment. This writes it,
             through the injected IFileSystem rather than Set-Content, so the whole
-            path is provable with nothing on disk (PROJECT constraint 4).
+            path is provable with nothing on disk.
 
             THE TIMESTAMP IS FORMATTED BEFORE SERIALISATION, and that is not a
             style choice. ConvertTo-Json renders a raw [datetime] as an ISO 8601

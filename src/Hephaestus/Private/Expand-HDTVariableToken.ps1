@@ -4,7 +4,7 @@ function Expand-HDTVariableToken {
             Expands %Var% tokens in a value against the resolution scope.
 
         .DESCRIPTION
-            DESIGN 3.3's "%Var% expands against already-resolved variables",
+            The rule "%Var% expands against already-resolved variables",
             with the three behaviours that make it safe to hand to an
             administrator:
 
@@ -16,7 +16,7 @@ function Expand-HDTVariableToken {
             CYCLE-SAFE. Recursion is bounded by the CHAIN of variable names
             currently being expanded, not by a depth counter. A token already on
             the chain is a cycle and raises a terminating HDTConfigurationError
-            whose message names the whole cycle - ROADMAP M1's "cyclic %Var%
+            whose message names the whole cycle - the "cyclic %Var%
             expansion detected and reported, not hang". A depth counter would
             report "too deep" for both a cycle and a legitimately long chain, and
             would name neither.

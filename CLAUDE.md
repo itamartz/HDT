@@ -227,3 +227,9 @@ tests/fixtures/     Real .inf headers, captured CIM shapes, sample workspaces
   for the adapter boundary.
 - Atomic commits, one logical unit each.
 - Comment-based help on every public cmdlet.
+
+## Working with me
+
+- **Do exactly what I said — no extensions.** Nothing extra, no scope I did not
+  ask for.
+- **Keep answers short.** Relevant data only. If I want details, I will ask.

@@ -2,7 +2,7 @@ function Get-HDTBootIsoArgument {
     <#
         .SYNOPSIS
             Builds the oscdimg argument list for a bootable ISO, and refuses the
-            one input SPIKES S2 proved cannot work.
+            one input a lab test proved cannot work.
 
         .DESCRIPTION
             PURE STRING LOGIC, AND THAT IS THE POINT. New-HDTBootIso runs
@@ -11,7 +11,7 @@ function Get-HDTBootIsoArgument {
             where all six combinations are asserted as exact strings in a suite
             that takes milliseconds and burns nothing.
 
-            SPIKES S2 LIVES HERE, VERBATIM AND LOAD-BEARING:
+            ONE LAB-VERIFIED FACT LIVES HERE, VERBATIM AND LOAD-BEARING:
 
               -bootdata: CANNOT TAKE A QUOTED PATH.
 
@@ -27,12 +27,12 @@ function Get-HDTBootIsoArgument {
             caller does the staging; this function REFUSES to build an argument
             for a path that has a space in it. That refusal is the only thing
             keeping the staging from being quietly skipped by a future caller who
-            "simplified" it, and it is why the message names S2 and quotes the
-            error - otherwise the next person fixes it by adding quotes, which is
+            "simplified" it, and it is why the message quotes the error verbatim
+            - otherwise the next person fixes it by adding quotes, which is
             precisely what does not work.
 
-            THE FIXED HEAD IS -m -o -u2 -udfver102, the four SPIKES S2 verified
-            at 100% completion:
+            THE FIXED HEAD IS -m -o -u2 -udfver102, the four flags verified in
+            the lab to burn an image at 100% completion:
 
               -m          ignore the maximum image size
               -o          de-duplicate identical files
@@ -52,8 +52,8 @@ function Get-HDTBootIsoArgument {
             carries "Press any key to boot from CD or DVD..." in its boot sector
             and Microsoft ships no no-prompt variant - the Oscdimg folder holds
             oscdimg.exe, etfsboot.com, efisys.bin, efisys_noprompt.bin and the two
-            _EX variants, and nothing else. DESIGN 5.2: "HDT states this rather
-            than pretending otherwise."
+            _EX variants, and nothing else. HDT states this rather than
+            pretending otherwise.
 
         .PARAMETER Firmware
             UEFI, BIOS or Both. UEFI is what Generation 2 and every modern
@@ -113,7 +113,7 @@ function Get-HDTBootIsoArgument {
 
     if ($bits -match '\s') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $bits `
-                    -Message ("the boot bit path '{0}' contains a space, and oscdimg's -bootdata: argument cannot carry one. SPIKES S2 verified this: a quoted path arrives doubled and oscdimg answers `"ERROR: Could not open boot sector file `"`"...`"`" / Error 123: The filename, directory name, or volume label syntax is incorrect.`" Quoting is not the fix - stage etfsboot.com and efisys*.bin into a directory whose full path has no space (New-HDTBootIso does this) and pass that." -f $bits)))
+                    -Message ("the boot bit path '{0}' contains a space, and oscdimg's -bootdata: argument cannot carry one. A quoted path arrives doubled and oscdimg answers `"ERROR: Could not open boot sector file `"`"...`"`" / Error 123: The filename, directory name, or volume label syntax is incorrect.`" Quoting is not the fix - stage etfsboot.com and efisys*.bin into a directory whose full path has no space (New-HDTBootIso does this) and pass that." -f $bits)))
     }
 
     if ($Label -match '\s') {

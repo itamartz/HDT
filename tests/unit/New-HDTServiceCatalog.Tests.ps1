@@ -100,36 +100,32 @@ Describe 'New-HDTServiceCatalog' {
         { New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock } | Should -Not -Throw
     }
 
-    # THESE TWO ARE ASSERTED FROM METADATA, NOT BY CALLING THE COMMAND WITHOUT
-    # THE PARAMETER, and the difference is not academic: PowerShell only turns a
-    # missing mandatory parameter into a MissingMandatoryParameter error when
-    # the host is NON-INTERACTIVE. Against an interactive host it does the other
-    # thing it is allowed to do - it PROMPTS:
+    # THESE ASSERT THE ATTRIBUTE, NOT THE BINDER'S REACTION TO IT, and the
+    # difference is not academic. Calling the command with the parameter left
+    # off asks PowerShell what it does about a missing mandatory parameter, and
+    # the answer depends on the HOST: a non-interactive one throws
+    # MissingMandatoryParameter, an interactive one STOPS AND PROMPTS -
+    # "Supply values for the following parameters: Clock:". So the suite passed
+    # in CI and hung on a prompt for anyone who ran Invoke-Pester at their own
+    # console, which is where the fact was noticed.
     #
-    #     cmdlet New-HDTServiceCatalog at command pipeline position 1
-    #     Supply values for the following parameters:
-    #     Clock:
-    #
-    # which stops the whole run dead, waiting on a keystroke, in the middle of
-    # a test suite nobody is watching. The earlier version of these tests did
-    # exactly that.
-    #
-    # Whether the binder enforces Mandatory is PowerShell's business and not
-    # worth re-proving; that the parameter IS declared mandatory is ours.
-    It 'requires a filesystem' {
-        $parameter = (Get-Command -Name 'New-HDTServiceCatalog' -Module 'Hephaestus').Parameters['FileSystem']
+    # The fact worth asserting was never the binder's behaviour anyway. It is
+    # that a catalog cannot be built without these two - PROJECT constraint 4 -
+    # and that is on the parameter, where it can be read without calling
+    # anything.
+    It 'requires a <Parameter>' -ForEach @(
+        @{ Parameter = 'FileSystem' }
+        @{ Parameter = 'Clock' }
+    ) {
+        $declared = (Get-Command -Name 'New-HDTServiceCatalog').Parameters[$Parameter]
 
-        @($parameter.Attributes |
+        $declared | Should -Not -BeNullOrEmpty
+
+        $mandatory = @($declared.Attributes |
                 Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                ForEach-Object { [bool] $_.Mandatory }) | Should -Contain $true
-    }
+                ForEach-Object { $_.Mandatory })
 
-    It 'requires a clock' {
-        $parameter = (Get-Command -Name 'New-HDTServiceCatalog' -Module 'Hephaestus').Parameters['Clock']
-
-        @($parameter.Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                ForEach-Object { [bool] $_.Mandatory }) | Should -Contain $true
+        $mandatory | Should -Contain $true
     }
 
     It 'returns the service GetRequired was asked for' {

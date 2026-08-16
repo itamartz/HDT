@@ -5,17 +5,17 @@ function Import-HDTWorkspaceDocument {
             applied.
 
         .DESCRIPTION
-            DESIGN 2.1 puts workspace.yaml at the root of the share - "share
-            identity, version, defaults" - and DESIGN 5.1 makes the boot image's
-            optional-component list live in it, which is what turns that list
-            from a constant into configuration.
+            workspace.yaml sits at the root of the share and carries the share's
+            identity, its version and its defaults. The boot image's
+            optional-component list lives in it too, which is what turns that
+            list from a constant into configuration.
 
             Four steps, and a failure at any of them is a terminating
             HDTConfigurationError naming the file:
 
               1. read through IFileSystem - never Get-Content, so the whole
                  authoring path is provable under Pester with no share and no
-                 disk (PROJECT constraint 4);
+                 disk;
               2. parse with ConvertFrom-HDTYaml, which turns a parser exception
                  into an error naming the file and the LINE;
               3. validate with Assert-HDTWorkspaceDocument, which names the file
@@ -30,18 +30,17 @@ function Import-HDTWorkspaceDocument {
               bootImage.language          en-us
               bootImage.scratchSpaceMB    512
               bootImage.name              HDTPE_x64 for amd64, HDTPE_arm64 for
-                                          arm64 - DESIGN 2.1 and DESIGN 5 both
-                                          name the artifacts HDTPE_x64.wim and
-                                          HDTPE_x64.iso, so the amd64 folder name
-                                          maps to the x64 artifact name rather
-                                          than producing an HDTPE_amd64.wim the
-                                          design never mentions
-              bootImage.optionalComponent DESIGN 5.1's three defaults, WHEN THE
-                                          KEY IS ABSENT
+                                          arm64 - the artifacts are named
+                                          HDTPE_x64.wim and HDTPE_x64.iso, so
+                                          the amd64 folder name maps to the x64
+                                          artifact name rather than producing an
+                                          HDTPE_amd64.wim nothing else refers to
+              bootImage.optionalComponent SecureStartup, EnhancedStorage and
+                                          WDS-Tools, WHEN THE KEY IS ABSENT
 
             UNSET AND SET-TO-NOTHING ARE DIFFERENT INSTRUCTIONS. An absent
             optionalComponents key means "the admin did not say", and takes
-            DESIGN 5.1's SecureStartup / EnhancedStorage / WDS-Tools. An explicit
+            those three defaults. An explicit
             empty list means "the required set and nothing else", and is
             honoured. Get-HDTBootImageComponent makes the same distinction, and
             this is where it starts.
@@ -53,12 +52,11 @@ function Import-HDTWorkspaceDocument {
             THE CREDENTIAL CARRIES A USERNAME AND NOTHING ELSE. The share
             password is not in this file and there is no property here for it to
             arrive in; Set-HDTShareCredential writes it to
-            Control\share-credential.json (DESIGN 6.3, corrected - see
-            Assert-HDTWorkspaceDocument).
+            Control\share-credential.json (see Assert-HDTWorkspaceDocument).
 
             deployRoot IS PROJECTED VERBATIM, including the volume-relative form
             (\Share). Resolving that is Resolve-HDTDeployRoot's job, inside
-            WinPE, where the volume can actually be probed for - SPIKES S9.1
+            WinPE, where the volume can actually be probed for - a lab test
             recorded WinPE giving the content disk C: while the RAM disk was X:,
             which is exactly why a boot image cannot carry a drive letter.
 
@@ -118,7 +116,7 @@ function Import-HDTWorkspaceDocument {
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'there is no workspace document here. A workspace declares its identity and its deployRoot in workspace.yaml at the root of the share (DESIGN 2.1).' `
+                    -Message 'there is no workspace document here. A workspace declares its identity and its deployRoot in workspace.yaml at the root of the share.' `
                     -Category ObjectNotFound))
     }
 

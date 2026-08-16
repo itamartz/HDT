@@ -5,7 +5,7 @@ function Update-HDTBootImage {
             saying exactly what went into them.
 
         .DESCRIPTION
-            DESIGN 5: "Like MDT's Update-MDTDeploymentShare, one build produces
+            Like MDT's Update-MDTDeploymentShare, one build produces
             two artifacts from the same source ... Both come from a single
             mount/inject/commit cycle. They are never built separately, so the
             ISO you debug with is byte-for-byte the WinPE you PXE boot - which is
@@ -37,14 +37,14 @@ function Update-HDTBootImage {
                   media tree
               17  build the ISO, then write the manifest LAST
 
-            STEP 16's COPY IS THE WHOLE OF DESIGN 6.1.1. The ISO is built from
+            STEP 16'S COPY IS THE WHOLE HASH-IDENTITY GUARANTEE. The ISO is built from
             the exported WIM copied into the media tree, not from a second
             export. One file, two homes, same bytes - and the manifest records
             isoBootWimSha256 so an operator can check that without this test
             suite.
 
-            STEP 4 REFUSES A SCRATCH PATH WITH A SPACE IN IT, and that is SPIKES
-            S2 rather than fussiness: <scratch>\bootbits is what step 17 hands
+            STEP 4 REFUSES A SCRATCH PATH WITH A SPACE IN IT, and that is a
+            lab-proven limit rather than fussiness: <scratch>\bootbits is what step 17 hands
             New-HDTBootIso as -BootBitPath, oscdimg's -bootdata: cannot take a
             quoted path, and a space-free staging directory that is itself under
             a path with a space solves nothing. It also refuses a scratch inside
@@ -55,7 +55,7 @@ function Update-HDTBootImage {
             deployRoot AND contentMarker GO INTO THE IMAGE VERBATIM, including
             the volume-relative form (\Share). That form is the whole reason a
             Local boot image works on a machine whose drive letters WinPE has not
-            assigned yet - SPIKES S9.1 recorded WinPE giving the content disk C:
+            assigned yet - a lab test recorded WinPE giving the content disk C:
             while the RAM disk was X: - and a builder that "helpfully" expanded
             it to the letter it sees on the build host would bake in the one
             value that is certainly wrong.
@@ -64,7 +64,7 @@ function Update-HDTBootImage {
             runs from the catch, so a failed build leaves no half-applied image
             mounted and no artifact on the share.
 
-            THE ACL CHECK WARNS AND NEVER REFUSES (DESIGN 6.3). An administrator
+            THE ACL CHECK WARNS AND NEVER REFUSES. An administrator
             whose boot image build died because of an ACL check is an
             administrator who turns the check off, and then nobody is told about
             the domain admin credential either.
@@ -84,13 +84,13 @@ function Update-HDTBootImage {
             Overrides workspace.yaml. The language pack folder, en-us by default.
 
         .PARAMETER SkipIso
-            Build the WIM and skip the ISO. DESIGN 5.1: matching MDT's
+            Build the WIM and skip the ISO, matching MDT's
             per-platform ISO checkbox - generating the ISO is the slow half, and
             during iteration on a WDS lab you often do not need it. The manifest
             is still written, with the ISO recorded as skipped.
 
         .PARAMETER PromptForCredential
-            Build an image with no embedded credential (DESIGN 6.3). The booted
+            Build an image with no embedded credential. The booted
             machine stops for a human. Available, not the default.
 
         .PARAMETER PromptForKey
@@ -113,7 +113,7 @@ function Update-HDTBootImage {
         .PARAMETER YamlModulePath
             The powershell-yaml to stage. Resolved with Get-Module -ListAvailable
             when omitted, and REFUSED WITH A NAMED ERROR when it cannot be found:
-            SPIKES S9.1 makes it the dependency the whole engine rests on inside
+            It is the dependency the whole engine rests on inside
             WinPE.
 
         .PARAMETER AccessRule
@@ -161,7 +161,7 @@ function Update-HDTBootImage {
             Update-HDTBootImage -WorkspaceRoot '\\HDT-HOST\HdtShare' -PromptForCredential
 
             An image carrying no share password - for a shared lab or media
-            going offsite. The booted machine stops for a human (DESIGN 6.3).
+            going offsite. The booted machine stops for a human.
 
         .EXAMPLE
             Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' -OptionalComponent 'WinPE-FMAPI'
@@ -324,7 +324,7 @@ function Update-HDTBootImage {
     # oscdimg's -bootdata: cannot carry a quoted path.
     if ($scratch -match '\s') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $scratch `
-                    -Message ("the scratch path '{0}' contains a space. The boot bits for the ISO are staged in <scratch>\bootbits, and oscdimg's -bootdata: argument cannot carry a quoted path - SPIKES S2 verified that a quoted one arrives doubled and produces `"Could not open boot sector file`" / Error 123. A staging directory under a path with a space solves nothing. Choose a scratch path without one, such as C:\HDTLab\scratch\bootimage." -f $scratch)))
+                    -Message ("the scratch path '{0}' contains a space. The boot bits for the ISO are staged in <scratch>\bootbits, and oscdimg's -bootdata: argument cannot carry a quoted path - a quoted one arrives doubled and produces `"Could not open boot sector file`" / Error 123. A staging directory under a path with a space solves nothing. Choose a scratch path without one, such as C:\HDTLab\scratch\bootimage." -f $scratch)))
     }
 
     $workspaceFull = [System.IO.Path]::GetFullPath($WorkspaceRoot).TrimEnd('\', '/')
@@ -382,7 +382,7 @@ function Update-HDTBootImage {
     if ([string]::IsNullOrWhiteSpace($yamlPath) -or -not $FileSystem.TestPath($yamlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -ErrorId 'HDTDependencyError' -Category NotInstalled `
                     -TargetObject $yamlPath `
-                    -Message ("powershell-yaml could not be found, so this boot image would have no YAML parser. SPIKES S9.1 proved it is the dependency the whole engine rests on inside WinPE: ConvertFrom-HDTYaml goes through it, and every document HDT reads goes through that. Run Install-Module powershell-yaml -Scope AllUsers, or pass -YamlModulePath to name a staged copy. Looked at: '{0}'." -f $yamlPath)))
+                    -Message ("powershell-yaml could not be found, so this boot image would have no YAML parser. It is the dependency the whole engine rests on inside WinPE: ConvertFrom-HDTYaml goes through it, and every document HDT reads goes through that. Run Install-Module powershell-yaml -Scope AllUsers, or pass -YamlModulePath to name a staged copy. Looked at: '{0}'." -f $yamlPath)))
     }
 
     $deploymentPayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Start-HDTDeployment.ps1')
@@ -408,7 +408,7 @@ function Update-HDTBootImage {
 
         if (-not $FileSystem.TestPath($secretPath)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $secretPath -Category ObjectNotFound `
-                        -Message ("workspace.yaml declares the deployment account '{0}' but no secret has been written for it, so this boot image could not authenticate to the share. Run Set-HDTShareCredential, or build with -PromptForCredential if the image is meant to stop for a human (DESIGN 6.3)." -f $credentialUserName)))
+                        -Message ("workspace.yaml declares the deployment account '{0}' but no secret has been written for it, so this boot image could not authenticate to the share. Run Set-HDTShareCredential, or build with -PromptForCredential if the image is meant to stop for a human." -f $credentialUserName)))
         }
 
         $secret = Get-HDTShareCredential -WorkspaceRoot $WorkspaceRoot -FileSystem $FileSystem
@@ -439,7 +439,7 @@ function Update-HDTBootImage {
 
         $promptForCredentialEffective = $true
 
-        Write-Warning ("deployRoot '{0}' is a share and no credential is embedded, so this image will ASK THE TECHNICIAN for the deployment account when it boots - MDT's behaviour when Bootstrap.ini carries no UserID. To make it run unattended instead, declare the account in workspace.yaml's credential block and write its secret with Set-HDTShareCredential (DESIGN 6.3)." -f
+        Write-Warning ("deployRoot '{0}' is a share and no credential is embedded, so this image will ASK THE TECHNICIAN for the deployment account when it boots - MDT's behaviour when Bootstrap.ini carries no UserID. To make it run unattended instead, declare the account in workspace.yaml's credential block and write its secret with Set-HDTShareCredential." -f
             [string] $workspace.DeployRoot)
     }
 

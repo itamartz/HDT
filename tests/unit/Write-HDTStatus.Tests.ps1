@@ -38,6 +38,27 @@ Describe 'Write-HDTStatus' {
         @($script:fs.ReadAllText($script:statusPath) | ConvertFrom-Json).Count | Should -Be 1
     }
 
+    It 'writes how many steps there are, not only which one this is' {
+        # "step 7" is a number nobody can act on. "step 7 of 12" is a progress
+        # bar, and it is what the console's monitoring row shows - so the count
+        # has to travel in the heartbeat, because the console cannot work it out
+        # from a share it is only reading.
+        $script:context.StepCount = 12
+
+        Write-HDTStatus -Context $script:context -Path $script:statusPath
+
+        (ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:statusPath))).stepCount | Should -Be 12
+    }
+
+    It 'writes a count of zero rather than omitting it when the run has not started stepping' {
+        # A key that is sometimes absent is a key every reader has to test for.
+        Write-HDTStatus -Context $script:context -Path $script:statusPath
+
+        $status = ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:statusPath))
+        $status.PSObject.Properties.Name | Should -Contain 'stepCount'
+        $status.stepCount | Should -Be 0
+    }
+
     It 'writes valid JSON' {
         Write-HDTStatus -Context $script:context -Path $script:statusPath
 
