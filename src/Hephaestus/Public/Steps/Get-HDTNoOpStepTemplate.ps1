@@ -14,8 +14,11 @@ function Get-HDTNoOpStepTemplate {
             how deep in the group tree the step is landing.
 
             NoOp IS THE PLACEHOLDER STEP, so its template is the smallest legal
-            one: a name, a type and a message. It is what a new group arrives
-            holding, because this engine has no such thing as an empty group.
+            one there is: a name and a type. It carries no message: the step logs
+            its own name when it has none, so a message here would only be the
+            name written twice for an author to keep in step. This is what a new
+            group arrives holding, because this engine has no such thing as an
+            empty group.
 
         .PARAMETER Name
             The step's name. Defaults to the name this type is offered under.
@@ -46,6 +49,5 @@ function Get-HDTNoOpStepTemplate {
     return [string[]] @(
         ('- name: {0}' -f $Name)
         '  type: NoOp'
-        ('  message: {0}' -f $Name)
     )
 }

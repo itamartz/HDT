@@ -21,15 +21,27 @@ function Get-HDTConsoleStepCatalog {
             morning - a failure that is hard to notice precisely because the
             menu still looks complete.
 
+            THE YAML IS THE ENGINE'S TOO, AND THAT IS THE POINT OF THIS COMMAND.
+            The console is a wrapper around the HDT command line, so a menu item
+            can only exist where a command exists to carry it out. Each item's
+            Block comes from that type's own Get-HDT<Type>StepTemplate; a type
+            the engine cannot author reports CanAdd false and is LEFT OUT, even
+            though it is a real type that runs. An earlier version wrote a
+            two-line block here for anything in the registry, which made this
+            window the only thing in HDT that could create a step and meant it
+            was guessing the file format on the engine's behalf.
+
             THE CATALOG ONLY ADDS THE NAME AND THE SHELF. A type the catalog has
             never heard of is still offered, under Custom, named by its own
             type: being absent from a curated list is not a reason to be
-            unbuildable. That is also why the categories are filtered to what is
-            actually registered rather than drawn from the catalog - an engine
-            with no imaging steps should not show an empty Images submenu.
+            unbuildable, as long as the engine can build it. That is also why
+            the categories are filtered to what is actually registered rather
+            than drawn from the catalog - an engine with no imaging steps should
+            not show an empty Images submenu.
 
-            'NEW GROUP' COMES FIRST AND IS NOT A STEP TYPE. It is a block of
-            YAML rather than a registered type, so it is added through
+            'NEW GROUP' COMES FIRST AND IS NOT A STEP TYPE. It has no Invoke
+            command and never appears in the registry, so its YAML comes from
+            Get-HDTGroupTemplate rather than from a type. It is added through
             Add-HDTConsoleStep's -Block route, which is the same paste path the
             Copy button uses. Its Kind says Group so the window can tell the two
             apart without inspecting the command string.
@@ -96,6 +108,14 @@ function Get-HDTConsoleStepCatalog {
     foreach ($type in $registry) {
         $name = [string] $type.Type
 
+        # A TYPE THE ENGINE CANNOT AUTHOR IS NOT ON THE MENU. It still runs -
+        # a sequence naming it executes exactly as before - but nothing here
+        # knows what to write for a new one, and inventing it is what this
+        # command was changed to stop doing.
+        $template = Get-HDTConsoleStepTemplateCommand -StepType $type
+
+        if ($null -eq $template) { continue }
+
         $text = $name
         $category = 'Custom'
         $order = 0
@@ -106,6 +126,12 @@ function Get-HDTConsoleStepCatalog {
             $order = [int] $known[$name].Order
         }
 
+        # The display name goes to the template as -Name, so the label an
+        # administrator picked and the name written into the file are the same
+        # string. The type keeps its own default for anything not in the table
+        # above, which is the vendor's wording rather than ours.
+        $block = [string[]] @(& $template -Name $text)
+
         [void] $entry.Add([pscustomobject] @{
                 Text     = $text
                 Type     = $name
@@ -115,14 +141,11 @@ function Get-HDTConsoleStepCatalog {
                 Order    = $order
                 Command  = ("Add-HDTConsoleStep -Line `$line -After '<the selected step>' -Name '{0}' -Type {1}" -f $text, $name)
 
-                # The lines the menu item actually splices in. Every item
-                # carries one, group and step alike, so the handler behind the
-                # menu calls Add-HDTConsoleStep -Block and never has to choose a
-                # parameter set - see the note on New Group below.
-                Block    = [string[]] @(
-                    ('- name: {0}' -f $text)
-                    ('  type: {0}' -f $name)
-                )
+                # The lines the menu item actually splices in, straight from the
+                # step type. Every item carries one, group and step alike, so the
+                # handler behind the menu calls Add-HDTConsoleStep -Block and
+                # never has to choose a parameter set.
+                Block    = $block
             })
     }
 
@@ -138,26 +161,14 @@ function Get-HDTConsoleStepCatalog {
                     Type    = ''
                     Kind    = 'Group'
                     Source  = 'HDT.Console'
-                    Command = "Add-HDTConsoleStep -Line `$line -After '<the selected step>' -Block @('- group: New Group', '  steps:')"
+                    Command = "Add-HDTConsoleStep -Line `$line -After '<the selected step>' -Block (Get-HDTGroupTemplate)"
 
-                    # A NEW GROUP ARRIVES WITH A STEP IN IT, because this engine
-                    # has no such thing as an empty one: `steps:` with nothing
-                    # under it is rejected by Import-HDTSequenceDocument with
-                    # "steps must be a list of steps and groups", and the editor
-                    # would then be holding a document it could not re-read - no
-                    # tree, every button dark, and no way back except closing
-                    # the window and losing the other edits.
-                    #
-                    # NoOp is the right passenger: it is a real registered step
-                    # type that does nothing, so the group is valid the moment
-                    # it exists and the administrator replaces the placeholder
-                    # rather than working around a broken document.
-                    Block   = [string[]] @(
-                        '- group: New Group'
-                        '  steps:'
-                        '    - name: New Step'
-                        '      type: NoOp'
-                    )
+                    # Straight from the engine, including the placeholder step
+                    # it comes with - this window does not get to decide what a
+                    # group looks like on disk any more than it decides what a
+                    # step looks like. Get-HDTGroupTemplate carries the reason
+                    # the placeholder is there.
+                    Block   = [string[]] @(Get-HDTGroupTemplate)
                 }
             )
         })

@@ -28,7 +28,7 @@ BeforeAll {
     # a sequence's steps:. This wraps one into the smallest legal document and
     # seeds it into a fake filesystem, so Import-HDTSequenceDocument can be
     # pointed at it without touching a disk.
-    function New-HDTTemplateProbe {
+    function Get-HDTTemplateProbe {
         param([string[]] $Line)
 
         $text = New-Object -TypeName System.Collections.ArrayList
@@ -93,7 +93,7 @@ Describe 'the step template contract' {
 
         It 'reads back through Import-HDTSequenceDocument as one step of that type' {
             foreach ($type in $script:shipped) {
-                $document = New-HDTTemplateProbe -Line @(& $type.TemplateCommand)
+                $document = Get-HDTTemplateProbe -Line @(& $type.TemplateCommand)
 
                 @($document.Step).Count | Should -Be 1 -Because ('{0} must emit exactly one step' -f $type.Type)
                 $document.Step[0].Type | Should -Be $type.Type
@@ -102,7 +102,7 @@ Describe 'the step template contract' {
 
         It 'gives the step a non-empty name' {
             foreach ($type in $script:shipped) {
-                $document = New-HDTTemplateProbe -Line @(& $type.TemplateCommand)
+                $document = Get-HDTTemplateProbe -Line @(& $type.TemplateCommand)
 
                 $document.Step[0].Name | Should -Not -BeNullOrEmpty -Because ('{0} must name its step' -f $type.Type)
             }
@@ -110,7 +110,7 @@ Describe 'the step template contract' {
 
         It 'takes an overriding name' {
             foreach ($type in $script:shipped) {
-                $document = New-HDTTemplateProbe -Line @(& $type.TemplateCommand -Name 'Chosen name')
+                $document = Get-HDTTemplateProbe -Line @(& $type.TemplateCommand -Name 'Chosen name')
 
                 $document.Step[0].Name | Should -Be 'Chosen name' -Because ('{0} must honour -Name' -f $type.Type)
             }
@@ -118,7 +118,7 @@ Describe 'the step template contract' {
 
         It 'produces a step the validator accepts' {
             foreach ($type in $script:shipped) {
-                $document = New-HDTTemplateProbe -Line @(& $type.TemplateCommand)
+                $document = Get-HDTTemplateProbe -Line @(& $type.TemplateCommand)
                 $finding = @(Test-HDTTaskSequence -Sequence $document |
                         Where-Object { $_.Severity -eq 'Error' })
 

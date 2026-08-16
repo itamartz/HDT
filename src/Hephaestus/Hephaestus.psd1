@@ -53,6 +53,7 @@
         'Get-HDTConfigureBootStepTemplate',
         'Get-HDTStepDescription',
         'Get-HDTStepType',
+        'Get-HDTGroupTemplate',
         'Get-HDTUsableAddress',
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
