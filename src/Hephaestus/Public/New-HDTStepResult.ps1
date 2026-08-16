@@ -4,7 +4,7 @@ function New-HDTStepResult {
             Builds the one result shape every step type returns.
 
         .DESCRIPTION
-            DESIGN 4.2 gives every step type the same Test-Applicable /
+            Every step type has the same Test-Applicable /
             Invoke-Step / Get-StepDescription shape. This is the other half of
             that contract: whatever a step did, it says so in the same four
             properties, and the loop (03-04) branches on Status and nothing else.

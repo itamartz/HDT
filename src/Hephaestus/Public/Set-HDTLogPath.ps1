@@ -7,7 +7,7 @@ function Set-HDTLogPath {
         .DESCRIPTION
             A DEPLOYMENT THAT DIES IN WinPE LOSES ITS LOG AT THE REBOOT, AND
             DYING IN WinPE IS EXACTLY WHEN THE LOG IS WANTED. X: is a RAM disk;
-            it is gone the moment the machine restarts. DESIGN 4.4.1 says
+            it is gone the moment the machine restarts. HDT says
             _HDTLogPath follows the deployment:
 
               WinPE, before a disk exists            X:\HDT\Logs
@@ -27,7 +27,7 @@ function Set-HDTLogPath {
               4. MIRRORS everything already written, preserving the tree -
                  HDT.log, HDT.jsonl, status.json, Steps\, Gather\, Native\;
               5. repoints LogPath, JsonlPath, MasterLogPath and - when a step is
-                 mid-flight - StepLogPath. Seq IS NOT TOUCHED: DESIGN 4.4.2's
+                 mid-flight - StepLogPath. Seq IS NOT TOUCHED: the
                  counter is monotonic across the whole run and a reset here would
                  be exactly the ambiguity it exists to prevent;
               6. sets _HDTLogPath in the variable dictionary when one is given;

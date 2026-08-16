@@ -5,7 +5,7 @@ function Test-HDTShareAcl {
             workspace.
 
         .DESCRIPTION
-            DESIGN 6.3's mitigation, as a command rather than a paragraph:
+            The least-privilege mitigation, as a command rather than a paragraph:
             "least privilege is the mitigation, and it is enforced, not just
             documented ... Update-HDTBootImage runs this check and warns loudly
             when the account is over-privileged - a domain admin credential in a
@@ -29,7 +29,7 @@ function Test-HDTShareAcl {
 
             Compliant is $true only when there is no finding above Information.
 
-            IT NEVER THROWS AND IT NEVER BLOCKS A BUILD. DESIGN 6.3 says warn.
+            IT NEVER THROWS AND IT NEVER BLOCKS A BUILD. It warns.
             An administrator whose boot image build died because the checker
             could not read one ACL is an administrator who turns the checker off,
             and then nobody is told about the domain admin credential either.
@@ -40,7 +40,7 @@ function Test-HDTShareAcl {
             attached.
 
             The folder list it recognises is Get-HDTWorkspacePath's closed set,
-            read at run time rather than repeated here, so the DESIGN 2.1 layout
+            read at run time rather than repeated here, so the workspace layout
             is written down once. docs/share-account.md names the same folders,
             and a test asserts that rather than leaving a reader to check.
 

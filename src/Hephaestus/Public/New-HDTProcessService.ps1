@@ -5,7 +5,7 @@ function New-HDTProcessService {
             process and returns its exit code and output.
 
         .DESCRIPTION
-            The one place in HDT that starts a process. DESIGN 12.1: "native tool
+            The one place in HDT that starts a process. A native tool
             exit codes are checked explicitly; $LASTEXITCODE is never assumed to
             be zero" - so the exit code comes back as DATA on a result object
             rather than being left in an automatic variable somebody has to

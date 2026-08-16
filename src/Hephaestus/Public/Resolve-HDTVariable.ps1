@@ -5,8 +5,8 @@ function Resolve-HDTVariable {
             where every value came from.
 
         .DESCRIPTION
-            The variable engine: DESIGN 3.1's five sources in precedence order,
-            DESIGN 3.3's first-match-wins rule evaluation, %Var% expansion, and
+            The variable engine: five sources in precedence order,
+            first-match-wins rule evaluation, %Var% expansion, and
             setFrom: script rules - with a provenance record for every resolved
             variable, which is the whole point ("the single biggest
             debugging pain in MDT is not knowing why HDTComputerName ended up as

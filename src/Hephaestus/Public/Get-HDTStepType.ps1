@@ -15,6 +15,18 @@ function Get-HDTStepType {
               Test-HDT<Type>StepApplicable -Step -Context    optional, default true
               Get-HDT<Type>StepDescription -Step             optional, default
                                                              '<Type>: <name>'
+              Get-HDT<Type>StepTemplate -Name                optional; without
+                                                             it the type can be
+                                                             run but not created
+
+            THE TEMPLATE IS WHAT MAKES A TYPE CREATABLE, AND ITS ABSENCE IS A
+            REAL ANSWER RATHER THAN AN OVERSIGHT. Running a step needs only the
+            Invoke command: the YAML is already on disk and the engine dispatches
+            to it. Creating one needs somebody to say what to write, and only the
+            step type knows. A vendor who ships the runner alone gets a type that
+            executes in an existing sequence and is reported as CanAdd false, so
+            every authoring surface - Add-HDTStep, and the console's Add menu
+            through it - leaves it out instead of writing YAML it guessed.
 
             It enumerates every function named Invoke-HDT*Step in the session and
             keeps the ones matching ^Invoke-HDT(?<type>[A-Za-z0-9]+)Step$, so a
@@ -45,6 +57,9 @@ function Get-HDTStepType {
               InvokeCommand       the CommandInfo for Invoke-HDT<Type>Step
               TestCommand         the CommandInfo, or $null
               DescriptionCommand  the CommandInfo, or $null
+              TemplateCommand     the CommandInfo, or $null
+              CanAdd              [bool] - whether a new step of this type can
+                                  be created, which is TemplateCommand present
               Source              the module that exported it, or an empty string
 
         .EXAMPLE
@@ -88,7 +103,8 @@ function Get-HDTStepType {
         foreach ($commandName in @($module.ExportedFunctions.Keys)) {
             if (($commandName -notlike 'Invoke-HDT*Step') -and
                 ($commandName -notlike 'Test-HDT*StepApplicable') -and
-                ($commandName -notlike 'Get-HDT*StepDescription')) {
+                ($commandName -notlike 'Get-HDT*StepDescription') -and
+                ($commandName -notlike 'Get-HDT*StepTemplate')) {
                 continue
             }
 
@@ -105,7 +121,7 @@ function Get-HDTStepType {
     # Discovery runs once per step dispatch when the loop does not pass a
     # registry, so it may not do that.
     foreach ($command in @(Get-Command -CommandType Function -ListImported -ErrorAction SilentlyContinue `
-                -Name 'Invoke-HDT*Step', 'Test-HDT*StepApplicable', 'Get-HDT*StepDescription')) {
+                -Name 'Invoke-HDT*Step', 'Test-HDT*StepApplicable', 'Get-HDT*StepDescription', 'Get-HDT*StepTemplate')) {
 
         if (-not [string]::IsNullOrWhiteSpace([string] $command.ModuleName)) {
             continue
@@ -156,11 +172,22 @@ function Get-HDTStepType {
             }
         }
 
+        $template = $null
+        $templateName = 'Get-HDT{0}StepTemplate' -f $type
+        if ($byName.Contains($templateName)) {
+            $candidate = @($byName[$templateName] | Where-Object { $_.Source -eq $source })
+            if ($candidate.Count -gt 0) {
+                $template = $candidate[0].Command
+            }
+        }
+
         [void] $registry.Add([pscustomobject] @{
                 Type               = $type
                 InvokeCommand      = $entry[0].Command
                 TestCommand        = $test
                 DescriptionCommand = $description
+                TemplateCommand    = $template
+                CanAdd             = ($null -ne $template)
                 Source             = $source
             })
     }

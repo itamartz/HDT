@@ -12,8 +12,8 @@ function Remove-HDTConsoleStep {
             dictionary and a dictionary has no comments in it; the lab's DEMO-M4
             is 107 lines of which 51 are a header recording lab findings. An
             edit that round-tripped through the parser would hand back a file
-            with every comment gone and every key reordered - the thing DESIGN
-            12 forbids, because "a UI that reformats the file breaks git review".
+            with every comment gone and every key reordered - which HDT forbids,
+            because a UI that reformats the file breaks git review.
 
             THE COMMENT ABOVE A STEP GOES WITH IT. A comment left behind
             attaches itself to whatever now sits beneath it, so the file ends up

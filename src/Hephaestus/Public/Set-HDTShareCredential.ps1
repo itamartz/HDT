@@ -13,7 +13,7 @@ function Set-HDTShareCredential {
             THE STORED VALUE IS OBFUSCATED AND IS NOT CLAIMED TO BE SECURE, and
             the file says so itself: it carries a 'warning' field whose sentence
             states that anyone who can read this file or the boot image can
-            recover the password. DESIGN 6.3 - "obfuscation is not claimed as
+            recover the password - "obfuscation is not claimed as
             security ... the docs say so plainly rather than implying the image
             is safe to hand out". docs/share-account.md says it again in prose,
             with the least-privilege setup that makes the account worth as
@@ -25,7 +25,7 @@ function Set-HDTShareCredential {
             at all.
 
             The path is built with Get-HDTWorkspacePath, never a literal: the
-            layout in DESIGN 2.1 is written down in exactly one place, and
+            workspace layout is written down in exactly one place, and
             Start-HDTResume once built a path from the literal 'Sequences' while
             everything else said 'TaskSequences'.
 

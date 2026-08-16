@@ -5,7 +5,7 @@ function Resolve-HDTDeployRoot {
 
         .DESCRIPTION
             THE DIFFERENCE BETWEEN A BOOT IMAGE THAT DEPLOYS AND ONE THAT SITS
-            THERE. SPIKES S9.1 recorded that WinPE assigned the CONTENT DISK C:
+            THERE. A lab test recorded WinPE assigning the CONTENT DISK C:
             and the RAM disk X:, so a deployRoot baked into bootstrap.json at
             build time cannot know what a machine that has not booted yet will
             hand out. This turns what the image says into a path that exists on
@@ -39,7 +39,7 @@ function Resolve-HDTDeployRoot {
                  names all of them. Refusing would strand a machine over a stale
                  second copy; silence would hide the ambiguity.
 
-            The marker defaults to rules.yaml, DESIGN 3.3's file, which sits at
+            The marker defaults to rules.yaml, the rules file, which sits at
             the root of every workspace.
 
             Candidate on the returned row is what it considered, so RESULT.json

@@ -11,7 +11,7 @@ function New-HDTLogContext {
             exists and hand the same object to every step afterwards.
 
             THE SEQ COUNTER LIVES HERE rather than in a module variable because it
-            is seeded from state.json on resume. DESIGN 4.4.2 requires seq to
+            is seeded from state.json on resume. seq is required to
             survive reboots, "so the ordering of a multi-leg deployment is
             unambiguous even when timestamps skew across a clock change during
             specialize" - and a counter that reset on every leg would be exactly
@@ -27,7 +27,7 @@ function New-HDTLogContext {
               ClearStep()
               NextSeq()
 
-            SetStep is what makes DESIGN 4.4.4 true - "entries carry the step name
+            SetStep is what makes this true - "entries carry the step name
             automatically, so a custom step's output is attributable without the
             author doing anything".
 

@@ -18,7 +18,7 @@ function New-HDTDiskLayoutPlan {
               bios-standard
                 windows = UseMaximumSize after a 500MB system partition
 
-            THE 16 MB IS SUBTRACTED AND NEVER PLANNED. SPIKES S6:
+            THE 16 MB IS SUBTRACTED AND NEVER PLANNED.
             Initialize-Disk -PartitionStyle GPT creates the Microsoft Reserved
             partition itself. A plan that also created one produces a duplicate;
             a plan that forgot to subtract it sizes Windows 16 MB too large and

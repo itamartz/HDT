@@ -5,7 +5,7 @@
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
     Copyright            = '(c) 2026 Itamartz. All rights reserved.'
-    Description          = 'HDT admin console - the Deployment Workbench equivalent. A thin WPF client over the Hephaestus module (DESIGN 12).'
+    Description          = 'HDT admin console - the Deployment Workbench equivalent. A thin WPF client over the Hephaestus module.'
 
     # THE CONSOLE RUNS ON AN ADMINISTRATOR'S DESKTOP, NOT IN WinPE, so pwsh 7 is
     # available to it and the wizard's constraint does not apply here. It is

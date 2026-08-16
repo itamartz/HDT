@@ -25,8 +25,8 @@ function Get-HDTBootImageComponent {
             it stays a usable check.
 
             UNSET AND SET-TO-NOTHING ARE DIFFERENT INSTRUCTIONS. Omitting
-            -OptionalComponent means "the admin did not say", and takes DESIGN
-            5.1's defaults - WinPE-SecureStartup, WinPE-EnhancedStorage,
+            -OptionalComponent means "the admin did not say", and takes the
+            defaults - WinPE-SecureStartup, WinPE-EnhancedStorage,
             WinPE-WDS-Tools. Passing an explicit empty array means "the six and
             nothing else", and is honoured.
 

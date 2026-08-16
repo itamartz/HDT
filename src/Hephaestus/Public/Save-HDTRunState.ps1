@@ -4,7 +4,7 @@ function Save-HDTRunState {
             Checkpoints the run state document through the injected IFileSystem.
 
         .DESCRIPTION
-            DESIGN 4.3 puts state.json at X:\HDT\state.json in WinPE and
+            state.json lives at X:\HDT\state.json in WinPE and
             C:\HDT\state.json in the full OS, and requires it to be "mirrored to
             the target disk's \HDT\ as soon as a formatted volume exists. The
             mirror is what makes the WinPE to OS transition survivable" - the

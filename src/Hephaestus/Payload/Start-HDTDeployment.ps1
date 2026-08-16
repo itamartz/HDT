@@ -29,8 +29,8 @@
         POWERSHELL-YAML IS IMPORTED FIRST, and its version is logged.
         ConvertFrom-HDTYaml imports it lazily and reports HDTDependencyError
         without it, so the engine cannot read one YAML document - not a sequence,
-        not a rule, not an image catalog - until that import has happened. SPIKES
-        S9.1 proved it loads inside WinPE from a staged copy; the log line is how
+        not a rule, not an image catalog - until that import has happened. A lab
+        test proved it loads inside WinPE from a staged copy; the log line is how
         the next run proves it again.
 
         IT ENDS THE MACHINE IN EVERY PATH, because a VM left at a WinPE prompt

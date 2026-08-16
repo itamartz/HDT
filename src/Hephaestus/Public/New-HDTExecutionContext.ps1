@@ -18,15 +18,15 @@ function New-HDTExecutionContext {
 
               SetStep($index, $name, $type [, $stepLogPath])
 
-            IT SEEDS DESIGN 4.4.1'S ENGINE VARIABLES into the live dictionary:
+            IT SEEDS THE ENGINE VARIABLES into the live dictionary:
             _HDTRunId, _HDTPhase, _HDTLogPath, _HDTDeployRoot, _HDTVersion, and
             per step _HDTStepName and _HDTStepType. They are readable by
             conditions and by user scripts and are never assignable from a
             sequence - Assert-HDTSequenceDocument refuses a variables: block that
             names one, exactly as Assert-HDTRuleDocument does.
 
-            SETSTEP FORWARDS TO THE LOG CONTEXT, which is what makes DESIGN
-            4.4.4's "entries carry the step name automatically, so a custom
+            SETSTEP FORWARDS TO THE LOG CONTEXT, which is what makes
+            "entries carry the step name automatically, so a custom
             step's output is attributable without the author doing anything"
             true. One call updates the variables and the log at once, so the two
             cannot drift.

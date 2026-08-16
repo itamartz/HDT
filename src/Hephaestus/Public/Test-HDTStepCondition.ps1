@@ -52,8 +52,7 @@ function Test-HDTStepCondition {
         .EXAMPLE
             Test-HDTStepCondition -Condition '"%_HDTPhase%" == "FullOS"' -Variable $context.Variable
 
-            DESIGN 4.1's own condition, corrected: the design prints == "OS", but
-            DESIGN 4.4.1 defines _HDTPhase as WinPE or FullOS.
+            The phase condition. _HDTPhase is WinPE or FullOS, never "OS".
 
         .EXAMPLE
             $unresolved = New-Object System.Collections.ArrayList

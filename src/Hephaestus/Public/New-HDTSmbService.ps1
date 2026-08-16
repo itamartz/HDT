@@ -18,7 +18,7 @@ function New-HDTSmbService {
               GetClientConfiguration()                    Get-SmbClientConfiguration
 
             THE SmbShare MODULE IS THE MECHANISM BECAUSE IT IS PRESENT IN WinPE.
-            DESIGN 5.1's contents table records SmbShare as present and NetTCPIP,
+            The boot image contents table records SmbShare as present and NetTCPIP,
             NetAdapter and DnsClient as absent, so nothing here may reach for
             those - and 'net use' is not needed as a fallback.
 

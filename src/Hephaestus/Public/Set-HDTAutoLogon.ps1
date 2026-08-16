@@ -19,7 +19,7 @@ function Set-HDTAutoLogon {
               HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\RunOnce
                 HDTResume         = -ResumeCommand String
 
-            THE PASSWORD GOES TO LSA AND NOWHERE ELSE. DESIGN 4.5.2: Winlogon
+            THE PASSWORD GOES TO LSA AND NOWHERE ELSE. Winlogon
             reads DefaultPassword from LSA private data as well as from the
             registry, so there is no plaintext in a hive that any local read can
             lift, in a registry backup, or in a captured image. SPIKES.md S7
@@ -43,7 +43,7 @@ function Set-HDTAutoLogon {
 
             ARMING TWICE LEAVES WHAT ARMING ONCE LEFT. Every write is a set, not
             an append, so a run that re-arms before each Restart step - which is
-            what DESIGN 4.5.1 requires, since RunOnce is consumed each leg -
+            what a multi-leg deployment requires, since RunOnce is consumed each leg -
             converges rather than accumulating.
 
             It updates -State but does NOT save it: the caller owns the write

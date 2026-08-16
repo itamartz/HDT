@@ -17,7 +17,7 @@ This builds it, in memory. It has NO -FileSystem
               status         Running | Succeeded | Failed
               phase          WinPE | FullOS
               leg            1-based, incremented on every resume
-              seq            the last JSONL seq written - how DESIGN 4.4.2's
+              seq            the last JSONL seq written - how the
                              monotonic counter survives a reboot
               startedUtc     formatted string
               updatedUtc     formatted string
@@ -65,7 +65,7 @@ This builds it, in memory. It has NO -FileSystem
             what the flattener actually emits.
 
         .PARAMETER PauseOnError
-            DESIGN 4.3's LTISuspend equivalent: on failure, drop to a PowerShell
+            The LTISuspend equivalent: on failure, drop to a PowerShell
             prompt with the state loaded rather than ending the sequence.
 
         .OUTPUTS

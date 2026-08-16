@@ -4,7 +4,7 @@ function New-HDTDeploymentPassword {
             Generates the per-deployment local Administrator password.
 
         .DESCRIPTION
-            DESIGN 4.5.2: "The Administrator password used during deployment is
+            The Administrator password used during deployment is
             generated at run start (high entropy, stored only in the state
             document on the machine being built), not a fixed corporate password
             reused across the fleet. If it leaks it is worth one machine,

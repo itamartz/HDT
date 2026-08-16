@@ -4,7 +4,7 @@ function Test-HDTRunStateAbandoned {
             Reports whether a state document describes a run that is over or dead.
 
         .DESCRIPTION
-            DESIGN 4.5.2's boot reconcile: "Start-HDTResume.ps1 reconciles on
+            The boot reconcile: Start-HDTResume.ps1 reconciles on
             every boot: if the state document says the run is finished, failed,
             or missing, it clears autologon, the LSA secret, the RunOnce entry
             and C:\HDT\state.json before doing anything else." This is the

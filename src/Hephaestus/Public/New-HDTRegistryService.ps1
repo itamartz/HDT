@@ -10,11 +10,11 @@ function New-HDTRegistryService {
             New-HDTFakeRegistryService in a test.
 
             Six methods. TestPath and GetValue are the read subset the fact
-            gatherer needs, which today is the SecureBoot state key of DESIGN
-            3.2.1. NewKey, SetValue, RemoveValue and RemoveKey are the write half
-            the autologon lifecycle of DESIGN 4.5 runs on.
+            gatherer needs, which today is the SecureBoot state key.
+            NewKey, SetValue, RemoveValue and RemoveKey are the write half
+            the autologon lifecycle runs on.
 
-            REMOVING SOMETHING THAT IS NOT THERE IS NOT AN ERROR. DESIGN 4.5.3's
+            REMOVING SOMETHING THAT IS NOT THERE IS NOT AN ERROR. The
             teardown runs on machines in unknown states - an image that already
             carried a DefaultPassword, a run that died between two writes - and a
             teardown that throws on the first absent value is a teardown that
@@ -69,7 +69,7 @@ function New-HDTRegistryService {
             $registry = New-HDTRegistryService
             $registry.SetValue('HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon', 'AutoLogonCount', 3, 'DWord')
 
-            Three more autologons, as DESIGN 4.5.1 arms them. SPIKES.md S8
+            Three more autologons, as the reboot ceremony arms them. A lab test
             observed the count reading 2, 1, 0 across those three legs.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',

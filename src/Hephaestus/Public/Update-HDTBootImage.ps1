@@ -5,7 +5,7 @@ function Update-HDTBootImage {
             saying exactly what went into them.
 
         .DESCRIPTION
-            DESIGN 5: "Like MDT's Update-MDTDeploymentShare, one build produces
+            Like MDT's Update-MDTDeploymentShare, one build produces
             two artifacts from the same source ... Both come from a single
             mount/inject/commit cycle. They are never built separately, so the
             ISO you debug with is byte-for-byte the WinPE you PXE boot - which is
@@ -37,14 +37,14 @@ function Update-HDTBootImage {
                   media tree
               17  build the ISO, then write the manifest LAST
 
-            STEP 16's COPY IS THE WHOLE OF DESIGN 6.1.1. The ISO is built from
+            STEP 16'S COPY IS THE WHOLE HASH-IDENTITY GUARANTEE. The ISO is built from
             the exported WIM copied into the media tree, not from a second
             export. One file, two homes, same bytes - and the manifest records
             isoBootWimSha256 so an operator can check that without this test
             suite.
 
-            STEP 4 REFUSES A SCRATCH PATH WITH A SPACE IN IT, and that is SPIKES
-            S2 rather than fussiness: <scratch>\bootbits is what step 17 hands
+            STEP 4 REFUSES A SCRATCH PATH WITH A SPACE IN IT, and that is a
+            lab-proven limit rather than fussiness: <scratch>\bootbits is what step 17 hands
             New-HDTBootIso as -BootBitPath, oscdimg's -bootdata: cannot take a
             quoted path, and a space-free staging directory that is itself under
             a path with a space solves nothing. It also refuses a scratch inside
@@ -55,7 +55,7 @@ function Update-HDTBootImage {
             deployRoot AND contentMarker GO INTO THE IMAGE VERBATIM, including
             the volume-relative form (\Share). That form is the whole reason a
             Local boot image works on a machine whose drive letters WinPE has not
-            assigned yet - SPIKES S9.1 recorded WinPE giving the content disk C:
+            assigned yet - a lab test recorded WinPE giving the content disk C:
             while the RAM disk was X: - and a builder that "helpfully" expanded
             it to the letter it sees on the build host would bake in the one
             value that is certainly wrong.
@@ -84,7 +84,7 @@ function Update-HDTBootImage {
             Overrides workspace.yaml. The language pack folder, en-us by default.
 
         .PARAMETER SkipIso
-            Build the WIM and skip the ISO. DESIGN 5.1: matching MDT's
+            Build the WIM and skip the ISO, matching MDT's
             per-platform ISO checkbox - generating the ISO is the slow half, and
             during iteration on a WDS lab you often do not need it. The manifest
             is still written, with the ISO recorded as skipped.
@@ -113,7 +113,7 @@ function Update-HDTBootImage {
         .PARAMETER YamlModulePath
             The powershell-yaml to stage. Resolved with Get-Module -ListAvailable
             when omitted, and REFUSED WITH A NAMED ERROR when it cannot be found:
-            SPIKES S9.1 makes it the dependency the whole engine rests on inside
+            It is the dependency the whole engine rests on inside
             WinPE.
 
         .PARAMETER AccessRule

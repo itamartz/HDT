@@ -59,8 +59,8 @@ function Invoke-HDTDiskPartitionStep {
             Configuration - so a refusal to wipe ends the run instead of being
             retried three times.
 
-            THIS STEP PUBLISHES HDTOSVolume; THE LOOP MOVES THE LOG. DESIGN
-            4.4.1 says _HDTLogPath moves to <target>\HDT\Logs once the target
+            THIS STEP PUBLISHES HDTOSVolume; THE LOOP MOVES THE LOG.
+            _HDTLogPath moves to <target>\HDT\Logs once the target
             volume is formatted, and from 05-03 it does: Invoke-HDTTaskSequence
             calls Set-HDTLogPath after any step completes in the WinPE phase
             having left HDTOSVolume non-empty, mirroring the whole log tree onto

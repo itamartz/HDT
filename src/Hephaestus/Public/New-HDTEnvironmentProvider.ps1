@@ -12,7 +12,7 @@ function New-HDTEnvironmentProvider {
             machine, a BIOS machine and a machine with firmware_type unset can
             all be proven from one desk.
 
-            DESIGN 3.2.1 reads firmware_type for HDTIsUEFI, and
+            The fact gatherer reads firmware_type for HDTIsUEFI, and
             PROCESSOR_ARCHITEW6432 / PROCESSOR_ARCHITECTURE for HDTArchitecture.
 
             GetVariable returns $null for a variable that is not set, which

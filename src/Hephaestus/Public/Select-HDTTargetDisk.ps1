@@ -43,7 +43,7 @@ function Select-HDTTargetDisk {
             -AllowExistingData. Naming the disk explicitly is not the same
             statement as declaring that its contents are expendable.
 
-            NO RULE FILTERS ON BUS TYPE EXPECTING A VIRTUAL VALUE. SPIKES S6: a
+            NO RULE FILTERS ON BUS TYPE EXPECTING A VIRTUAL VALUE. In the lab, a
             Generation 2 VM's own system disk reports BusType = SAS, not SCSI
             and not Virtual. USB is the only bus type that excludes anything.
 

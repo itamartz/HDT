@@ -9,12 +9,12 @@ function New-HDTContentProvider {
             factory in between, and it is nothing else.
 
             It exists so that Start-HDTDeployment.ps1 does not carry a switch of
-            its own. DESIGN 6 says the interface exists so a cloud transport can
+            its own. The interface exists so a cloud transport can
             land later - and a later Http provider should be a third branch in
             one file rather than an edit to every caller.
 
             Http IS NAMED RATHER THAN LUMPED IN WITH A TYPO. Somebody asking for
-            it has read DESIGN 6 and is entitled to "not in v1", not to "unknown
+            it is entitled to "not in v1", not to "unknown
             provider".
 
             Every argument beyond -Provider and -Root is passed straight through
@@ -36,7 +36,7 @@ function New-HDTContentProvider {
             to authenticate to.
 
         .PARAMETER AllowAnonymous
-            Connect with no credential. DESIGN 6.3's refusal to fall back to
+            Connect with no credential. The refusal to fall back to
             guest starts at "no credential is exactly the fallback", so this is
             explicit or it does not happen.
 

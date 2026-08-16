@@ -5,7 +5,7 @@ function New-HDTSmbContentProvider {
             the deployment account, and refused when it comes back as a guest.
 
         .DESCRIPTION
-            DESIGN 6's provider interface over a UNC share, and DESIGN 6.3's
+            The provider interface over a UNC share, and the
             refusals in the one place they can be enforced: the moment the
             mapping is made.
 
@@ -17,7 +17,7 @@ function New-HDTSmbContentProvider {
                  HDTSecurityError: an empty password is an anonymous logon
                  wearing a name.
               3. NO CREDENTIAL AT ALL is an HDTSecurityError unless
-                 -AllowAnonymous was passed explicitly. DESIGN 6.3's refusal to
+                 -AllowAnonymous was passed explicitly. The refusal to
                  fall back to guest starts here - not supplying a credential IS
                  the fallback, and a provider that shrugged would deploy from
                  whatever the server felt like handing over.
@@ -51,7 +51,7 @@ function New-HDTSmbContentProvider {
             throws is a teardown that does not finish.
 
             THE RESOLUTION RULES ARE IDENTICAL TO THE LOCAL PROVIDER'S, which is
-            DESIGN 6.2's "a content projection plus a provider swap, not a
+            "A content projection plus a provider swap, not a
             parallel code path" as far as a step is concerned - asserted by
             tests/contract/ContentProvider.Contract.Tests.ps1 over all three
             implementations, and by the operation-list equality test in

@@ -7,7 +7,7 @@ function Set-HDTStaticAddress {
             W2's static IP pane, behind the glass, and
             MDT's "Configure with Static IP Address" rebuilt.
 
-            WMI, NOT NetTCPIP, AND THAT IS NOT A STYLE CHOICE. SPIKES S14:
+            WMI, NOT NetTCPIP, AND THAT IS NOT A STYLE CHOICE.
             Get-NetIPAddress does not exist in a WinPE image built from the ADK -
             the NetTCPIP module is simply not there, and it is what killed the
             first SMB probe. Win32_NetworkAdapterConfiguration is present by

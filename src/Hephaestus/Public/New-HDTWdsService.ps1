@@ -34,9 +34,8 @@ function New-HDTWdsService {
             tests/unit/Import-HDTBootImageToWds.Tests.ps1, against this function
             rather than a simulation of it: on a host with no WDS module, the
             constructor refuses with a named HDTDependencyError. Everything else
-            about the WDS path is asserted against the fake, and 05-05-SUMMARY.md
-            and ROADMAP M4 both say so in plain sentences rather than implying it
-            away.
+            about the WDS path is asserted against the fake, and that is said
+            here in a plain sentence rather than implied away.
 
             THE CONSTRUCTOR IS THE ONLY BRANCH, for the same reason
             Get-HDTAdkPath's existence check is: an adapter that is not unit
