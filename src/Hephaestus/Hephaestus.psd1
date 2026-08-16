@@ -14,6 +14,16 @@
     # Explicit, never a wildcard - the export list is a contract (DESIGN 15.1).
     FunctionsToExport    = @(
         'Clear-HDTAutoLogon',
+        'Add-HDTBootImageComponent',
+        'Add-HDTBootImageContent',
+        'Add-HDTBootImageStartCommand',
+        'Remove-HDTBootImageComponent',
+        'Remove-HDTBootImageContent',
+        'Remove-HDTBootImageStartCommand',
+        'Set-HDTBootImageDriver',
+        'Set-HDTWorkspaceProperty',
+        'Save-HDTWorkspaceDocument',
+        'Get-HDTAdkComponent',
         'Get-HDTAdkPath',
         'Get-HDTBootImageComponent',
         'Get-HDTBootstrapConfiguration',

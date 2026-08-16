@@ -102,7 +102,7 @@ function Assert-HDTWorkspaceDocument {
         'credential', 'bootImage')
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
-        'optionalComponents', 'extraContent', 'drivers', 'entryCommand', 'skip')
+        'optionalComponents', 'extraContent', 'drivers', 'entryCommand', 'startCommand', 'skip')
     $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
@@ -335,6 +335,50 @@ function Assert-HDTWorkspaceDocument {
         if (([string] $entryCommand).IndexOfAny([char[]] @("`r", "`n")) -ge 0) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message 'bootImage: entryCommand must be one command on one line. A line break here becomes a second command inside startnet.cmd that nobody reading this document would see.'))
+        }
+    }
+
+    # -- the start commands ---------------------------------------------------
+    #
+    # WHAT MAKES A COPIED TOOL A RUNNING TOOL. extraContent puts BGInfo or a VNC
+    # server inside the image and nothing starts it; entryCommand is one slot,
+    # already holding the deployment payload, and that payload does not return.
+    # So these run between the two, after wpeinit has brought the network up.
+    #
+    # Each one is written into startnet.cmd verbatim, which is why the two things
+    # checked are the two that make the written file mean something other than
+    # what this document says: nothing to run, and more than one thing to run on
+    # a line that claims to be one.
+
+    if ($bootImage.Contains('startCommand')) {
+        $startCommand = $bootImage['startCommand']
+
+        # An explicit empty list is legal and means "run nothing extra", which is
+        # the same build as omitting the key.
+        if ($null -ne $startCommand -and -not ($startCommand -is [System.Collections.IList])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: startCommand must be a list of commands, run in the order they are written. One command on its own is still a list of one.'))
+        }
+
+        $position = 0
+
+        foreach ($current in @($startCommand)) {
+            $position++
+
+            if ($null -ne $current -and -not ($current -is [string])) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                            -Message ("bootImage: startCommand {0} must be a command to run, but it is '{1}'." -f $position, $current)))
+            }
+
+            if ([string]::IsNullOrWhiteSpace([string] $current)) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                            -Message ("bootImage: startCommand {0} is empty. Name the command to run, or remove the entry." -f $position)))
+            }
+
+            if (([string] $current).IndexOfAny([char[]] @("`r", "`n")) -ge 0) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                            -Message ("bootImage: startCommand {0} must be one command on one line. A line break here becomes a second command inside startnet.cmd that nobody reading this document would see." -f $position)))
+            }
         }
     }
 

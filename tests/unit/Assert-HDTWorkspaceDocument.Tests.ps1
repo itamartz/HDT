@@ -420,6 +420,59 @@ bootImage:
         }
     }
 
+    Context 'startCommand' {
+
+        It 'accepts a list of commands to run before the entry command' {
+            # WHAT MAKES A COPIED TOOL A RUNNING TOOL. extraContent puts BGInfo
+            # in the image; without this nothing ever starts it, and an image
+            # full of tools nobody launched is an image that looks unchanged.
+            Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  startCommand:`n    - X:\HDT\Tools\bginfo.exe /timer:0`n    - X:\HDT\Tools\winvnc.exe -service" |
+                Should -BeNullOrEmpty
+        }
+
+        It 'accepts a document with no startCommand at all' {
+            Get-HDTWorkspaceRejection -Yaml $script:fixture['valid-minimal.yaml'] | Should -BeNullOrEmpty
+        }
+
+        It 'accepts an explicit empty list, which runs nothing extra' {
+            Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  startCommand: []" |
+                Should -BeNullOrEmpty
+        }
+
+        It 'rejects a startCommand that is not a list' {
+            $record = Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  startCommand: X:\HDT\Tools\bginfo.exe"
+
+            $record.Exception.Message | Should -BeLike '*startCommand*'
+            $record.Exception.Message | Should -BeLike '*list*'
+        }
+
+        It 'rejects an empty command in the list rather than writing a blank startnet line' {
+            $record = Get-HDTWorkspaceRejection -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  startCommand:`n    - ''"
+
+            $record.Exception.Message | Should -BeLike '*startCommand*'
+        }
+
+        It 'rejects a command carrying a newline, which would be a command nobody could see' {
+            # The same reason entryCommand is checked: the value is written into
+            # startnet.cmd verbatim, so an embedded newline is a second command
+            # executing inside WinPE that no reader of this document would see.
+            $yaml = @'
+schemaVersion: 1
+id: A
+name: A
+deployRoot: \\s\h
+bootImage:
+  startCommand:
+    - "wpeutil shutdown\nformat C: /y"
+'@
+
+            $record = Get-HDTWorkspaceRejection -Yaml $yaml
+
+            $record.Exception.Message | Should -BeLike '*startCommand*'
+            $record.Exception.Message | Should -BeLike '*one command*'
+        }
+    }
+
     Context 'unparseable YAML' {
 
         It 'names the file and the line' {

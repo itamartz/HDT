@@ -97,6 +97,14 @@
           "description": "What startnet.cmd launches. Empty means the builder's default deployment payload.",
           "type": "string"
         },
+        "startCommand": {
+          "description": "Commands startnet.cmd runs in order AFTER wpeinit and BEFORE the entry command. This is what makes extraContent useful: copying BGInfo or a VNC server into the image starts nothing, and the entry command is the deployment, which does not return. After wpeinit, so a tool that needs the network has one.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "skip": {
           "description": "MDT's Skip* properties for the Welcome screen. These four live in the boot image, not in rules.yaml, because the Welcome screen runs before the share is reachable. An omitted rule means the workspace said nothing, which is NOT the same as false: Get-HDTWizardSkip's defaults are what keep an unattended image unattended.",
           "type": "object",

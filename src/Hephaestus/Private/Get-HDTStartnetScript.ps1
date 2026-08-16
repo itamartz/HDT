@@ -60,44 +60,82 @@ function Get-HDTStartnetScript {
             IFileSystem.WriteAllText, which is BOM-free on both engines
             (tests/helpers/README.md F11).
 
+            THE START COMMANDS GO BETWEEN wpeinit AND THE ENTRY COMMAND, and
+            both halves of that are load-bearing. AFTER wpeinit, because a tool
+            started before it has no network - which is the whole reason a VNC
+            server or a BGInfo background is in the image at all. BEFORE the
+            entry command, because the entry command is the deployment and it
+            does not return; anything queued after it never runs.
+
+            Each one is written verbatim on its own line, in the order it was
+            given. cmd.exe runs them synchronously, so a tool that has to stay up
+            is launched with `start` by the administrator who declared it -
+            deciding that here would be deciding it for every image.
+
         .PARAMETER Command
             The last line, for a caller that wants a different entry point -
             standalone media, a diagnostic image. The default is the engine.
             wpeinit and the environment variable are kept whatever this says: a
             different entry point is still a WinPE boot.
 
+        .PARAMETER StartCommand
+            Commands to run after wpeinit and before the entry command, in
+            order. Empty produces the same five lines as before.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.String - five CRLF-terminated lines.
+            System.String - five CRLF-terminated lines, plus one per start
+            command.
 
         .EXAMPLE
             Get-HDTStartnetScript
 
         .EXAMPLE
             Get-HDTStartnetScript -Command 'powershell.exe -NoProfile -File X:\HDT\Start-HDTDiagnostic.ps1'
+
+        .EXAMPLE
+            Get-HDTStartnetScript -StartCommand @('X:\HDT\Tools\BGInfo\bginfo.exe X:\HDT\Tools\BGInfo\hdt.bgi /timer:0 /nolicprompt')
+
+            A boot image that shows the machine's own details on the desktop
+            before the deployment starts.
     #>
     [CmdletBinding()]
     [OutputType([string])]
     param(
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string] $Command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTDeployment.ps1'
+        [string] $Command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Start-HDTDeployment.ps1',
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]] $StartCommand = @()
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $line = @(
-        '@echo off'
-        'rem Written by Update-HDTBootImage. Do not edit inside the image; edit HDT.'
-        'set HDT_LAUNCHED_BY=startnet'
-        'wpeinit'
-        $Command
-    )
+    $line = New-Object -TypeName System.Collections.ArrayList
+
+    [void] $line.Add('@echo off')
+    [void] $line.Add('rem Written by Update-HDTBootImage. Do not edit inside the image; edit HDT.')
+    [void] $line.Add('set HDT_LAUNCHED_BY=startnet')
+    [void] $line.Add('wpeinit')
+
+    # After wpeinit and before the entry command. A blank entry is skipped rather
+    # than written: a blank line in a .cmd is harmless, and this text is compared
+    # byte for byte against a mounted image.
+    foreach ($current in @($StartCommand)) {
+        if ([string]::IsNullOrWhiteSpace([string] $current)) { continue }
+
+        [void] $line.Add([string] $current)
+    }
+
+    [void] $line.Add($Command)
 
     # Joined with CRLF and terminated with one, so every line ends the way
     # cmd.exe expects. -join alone would leave the last line unterminated.
-    return (($line -join "`r`n") + "`r`n")
+    return ((@($line) -join "`r`n") + "`r`n")
 }

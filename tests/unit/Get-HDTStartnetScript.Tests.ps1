@@ -113,6 +113,52 @@ Describe 'Get-HDTStartnetScript' {
         $custom | Should -BeLike '*set HDT_LAUNCHED_BY=startnet*'
     }
 
+    It 'runs the start commands after wpeinit and before the entry command' {
+        # THE ORDER IS THE WHOLE POINT. A tool started before wpeinit has no
+        # network, and one started after the entry command never starts at all -
+        # the entry command is the deployment and it does not return.
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @(
+                'X:\HDT\Tools\BGInfo\bginfo.exe /timer:0',
+                'X:\HDT\Tools\VNC\winvnc.exe -service')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine.Count | Should -Be 7
+        $startLine[3] | Should -BeExactly 'wpeinit'
+        $startLine[4] | Should -BeExactly 'X:\HDT\Tools\BGInfo\bginfo.exe /timer:0'
+        $startLine[5] | Should -BeExactly 'X:\HDT\Tools\VNC\winvnc.exe -service'
+        $startLine[6] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+    }
+
+    It 'writes the five lines and nothing else when there are no start commands' {
+        # An empty list is not a blank line in a .cmd. AN EMPTY LINE IS HARMLESS
+        # and a stray one is confusing, but the real reason is the integration
+        # test: it compares this text byte for byte against a mounted image.
+        $empty = InModuleScope Hephaestus { Get-HDTStartnetScript -StartCommand @() }
+
+        $empty | Should -BeExactly $script:startnet
+    }
+
+    It 'keeps the start commands under a custom entry command' {
+        $both = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -Command 'cmd.exe /k' -StartCommand @('X:\HDT\Tools\bginfo.exe')
+        }
+        $bothLine = @($both.TrimEnd("`r", "`n") -split "`r`n")
+
+        $bothLine[4] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe'
+        $bothLine[5] | Should -BeExactly 'cmd.exe /k'
+    }
+
+    It 'ends every start command line with CRLF too' {
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('X:\HDT\Tools\bginfo.exe')
+        }
+
+        @([regex]::Matches($withStart, "`r`n")).Count | Should -Be 6
+        @([regex]::Matches($withStart, "(?<!`r)`n")).Count | Should -Be 0
+    }
+
     It 'is private to the module' {
         # It is an implementation detail of Update-HDTBootImage, not a command
         # an administrator runs. BOTH HALVES ARE ASSERTED: a test that only

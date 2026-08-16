@@ -30,7 +30,8 @@ function Update-HDTBootImage {
               10  inject the boot driver group, if there is one
               11  stage the engine, powershell-yaml and both payload scripts
               12  write bootstrap.json
-              13  write startnet.cmd
+              13  write startnet.cmd - wpeinit, the workspace's startCommand
+                  list, then the entry command
               14  copy extraContent
               15  check the share ACL and warn
               16  dismount saving, export, and COPY the exported WIM into the
@@ -523,11 +524,17 @@ function Update-HDTBootImage {
     # An empty EntryCommand means the workspace did not say, so the default in
     # Get-HDTStartnetScript's parameter decides. Passing the empty string through
     # would trip its ValidateNotNullOrEmpty and turn "did not say" into an error.
-    $startnet = if ([string]::IsNullOrWhiteSpace([string] $workspace.BootImage.EntryCommand)) {
-        Get-HDTStartnetScript
-    } else {
-        Get-HDTStartnetScript -Command ([string] $workspace.BootImage.EntryCommand)
+    #
+    # The start commands are the OTHER half of extraContent: step 14 copies a
+    # tool into the image and nothing there starts it. They go in whatever the
+    # entry command is - a diagnostic image wants its background too.
+    $startnetSplat = @{ StartCommand = [string[]] @($workspace.BootImage.StartCommand) }
+
+    if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.EntryCommand)) {
+        $startnetSplat['Command'] = [string] $workspace.BootImage.EntryCommand
     }
+
+    $startnet = Get-HDTStartnetScript @startnetSplat
 
     try {
         # -- 7. mount -------------------------------------------------------

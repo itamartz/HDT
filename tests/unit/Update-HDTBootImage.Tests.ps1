@@ -449,6 +449,23 @@ Describe 'Update-HDTBootImage' {
             $startnet | Should -BeLike '*wpeinit*'
         }
 
+        It 'runs the workspace startCommand list after wpeinit and before the payload' {
+            # COPYING A TOOL IN IS NOT RUNNING IT. extraContent gets BGInfo into
+            # the image at step 14; this is what makes the booted machine start
+            # it - after wpeinit, so it has a network, and before the payload,
+            # which does not return.
+            $yaml = $script:workspaceYaml + "`n  startCommand:`n    - X:\HDT\Tools\bginfo.exe /timer:0"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $startnet = $context.FileSystem.ReadAllText($script:mountPath + '\Windows\System32\startnet.cmd')
+            $line = @($startnet.TrimEnd("`r", "`n") -split "`r`n")
+
+            $line[3] | Should -BeExactly 'wpeinit'
+            $line[4] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe /timer:0'
+            $line[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+        }
+
         It 'still launches the deployment payload when no entryCommand is declared' {
             $script:contentContext.FileSystem.ReadAllText(
                 $script:mountPath + '\Windows\System32\startnet.cmd') | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1*'

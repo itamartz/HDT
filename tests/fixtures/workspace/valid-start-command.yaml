@@ -1,0 +1,22 @@
+# A boot image that carries two tools AND STARTS THEM. extraContent copies
+# BGInfo and a VNC server into the image; startCommand is what makes the booted
+# machine run them. Content that is copied in and never launched is content
+# nobody sees, which is what this pair exists to prevent.
+#
+# The commands run after wpeinit, so they have a network, and before the entry
+# command, which is the deployment and does not return.
+schemaVersion: 1
+id: HDT-LAB
+name: HDT lab deployment share
+deployRoot: \\HDT-HOST\HdtShare
+
+bootImage:
+  extraContent:
+    - source: Tools\BGInfo
+      destination: \HDT\Tools\BGInfo
+    - source: Tools\VNC
+      destination: \HDT\Tools\VNC
+
+  startCommand:
+    - X:\HDT\Tools\BGInfo\bginfo.exe X:\HDT\Tools\BGInfo\hdt.bgi /timer:0 /nolicprompt
+    - X:\HDT\Tools\VNC\winvnc.exe -service

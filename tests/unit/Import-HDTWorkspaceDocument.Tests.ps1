@@ -208,6 +208,23 @@ Describe 'Import-HDTWorkspaceDocument' {
                 Should -BeExactly 'powershell.exe -NoProfile -File X:\HDT\Start-HDTProbe.ps1'
         }
 
+        It 'returns StartCommand empty when none were declared' {
+            $filesystem = New-HDTWorkspaceTestFileSystem -Yaml $script:fixture['valid-minimal.yaml']
+
+            @((Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $filesystem).BootImage.StartCommand).Count |
+                Should -Be 0
+        }
+
+        It 'carries the declared startCommand list through in order' {
+            # THE ORDER IS THE INSTRUCTION. They are written into startnet.cmd
+            # one after another, so a reordering here would silently start a tool
+            # before the one it depends on.
+            $filesystem = New-HDTWorkspaceTestFileSystem -Yaml "schemaVersion: 1`nid: A`nname: A`ndeployRoot: \\s\h`nbootImage:`n  startCommand:`n    - X:\HDT\Tools\bginfo.exe /timer:0`n    - X:\HDT\Tools\winvnc.exe -service"
+
+            (Import-HDTWorkspaceDocument -Path $script:workspacePath -FileSystem $filesystem).BootImage.StartCommand |
+                Should -Be @('X:\HDT\Tools\bginfo.exe /timer:0', 'X:\HDT\Tools\winvnc.exe -service')
+        }
+
         It 'returns Drivers empty when none were declared' {
             $filesystem = New-HDTWorkspaceTestFileSystem -Yaml $script:fixture['valid-minimal.yaml']
 

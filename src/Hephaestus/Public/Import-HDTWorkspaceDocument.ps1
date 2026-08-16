@@ -78,7 +78,7 @@ function Import-HDTWorkspaceDocument {
               BootImage   -> { Name, Architecture, Language, ScratchSpaceMB,
                                OptionalComponent [string[]],
                                ExtraContent [rows of { Source, Destination }],
-                               Drivers, EntryCommand }
+                               Drivers, EntryCommand, StartCommand [string[]] }
 
         .EXAMPLE
             Import-HDTWorkspaceDocument -Path 'X:\Deploy\workspace.yaml' -FileSystem (New-HDTFileSystem)
@@ -172,6 +172,15 @@ function Import-HDTWorkspaceDocument {
         $entryCommand = [string] $bootImage['entryCommand']
     }
 
+    # The tools that have to RUN rather than merely be copied in. Empty is the
+    # ordinary case: startnet.cmd is wpeinit and then the payload.
+    $startCommand = New-Object -TypeName System.Collections.ArrayList
+    if ($null -ne $bootImage -and $bootImage.Contains('startCommand')) {
+        foreach ($current in @($bootImage['startCommand'])) {
+            [void] $startCommand.Add([string] $current)
+        }
+    }
+
     # Unset takes the defaults; set-to-nothing is honoured as nothing.
     $optionalComponent = $defaultOptionalComponent
     if ($null -ne $bootImage -and $bootImage.Contains('optionalComponents')) {
@@ -240,6 +249,7 @@ function Import-HDTWorkspaceDocument {
             ExtraContent      = [pscustomobject[]] @($extraContent)
             Drivers           = $drivers
             EntryCommand      = $entryCommand
+            StartCommand      = [string[]] @($startCommand)
             SkipWelcome       = $skip['SkipWelcome']
             SkipStaticIp      = $skip['SkipStaticIp']
             SkipDeployRoot    = $skip['SkipDeployRoot']
