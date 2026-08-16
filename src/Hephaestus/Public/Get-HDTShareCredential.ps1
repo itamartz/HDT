@@ -4,7 +4,7 @@ function Get-HDTShareCredential {
             Reads the deployment account credential back out of the workspace.
 
         .DESCRIPTION
-            The read half of DESIGN 6.3's embedded credential. It is what runs
+            The read half of the embedded credential. It is what runs
             inside WinPE: the booted machine reads
             Control\share-credential.json out of the boot image or the share,
             recovers the password, and hands it to
@@ -18,7 +18,7 @@ function Get-HDTShareCredential {
             likely reason a PXE-booted machine cannot reach its share.
 
             THE PASSWORD IT RETURNS IS PLAIN TEXT. That is what New-SmbMapping
-            takes, and DESIGN 6.3 is explicit that the value is recoverable by
+            takes, and HDT is explicit that the value is recoverable by
             anyone holding the boot image; wrapping it in a SecureString here
             would unwrap one call later and protect nothing.
 

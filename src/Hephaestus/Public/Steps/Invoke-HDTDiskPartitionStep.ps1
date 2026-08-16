@@ -5,7 +5,8 @@ function Invoke-HDTDiskPartitionStep {
             wipe.
 
         .DESCRIPTION
-            The destructive step, and the one DESIGN 9.1 was written about:
+            The destructive step, and the one the refusal rules were written
+            about:
             "wiping the wrong disk is the single most destructive failure mode in
             this class of tool."
 
@@ -28,7 +29,7 @@ function Invoke-HDTDiskPartitionStep {
                  disk it is reading its own instructions from or writing its log
                  to. That guard is not conditional on anything an author typed.
 
-            THE ORDER IS SPIKES S6's VERIFIED RECIPE, and it is asserted from the
+            THE ORDER IS A LAB-VERIFIED RECIPE, and it is asserted from the
             fake's journal rather than described here and hoped for:
 
               GetDisk / GetPartition / GetVolume
@@ -38,7 +39,7 @@ function Invoke-HDTDiskPartitionStep {
               per partition: NewPartition -> SetPartitionDriveLetter ->
                              FormatVolume -> SetPartitionType where it differs
 
-            NO MICROSOFT RESERVED PARTITION IS EVER CREATED HERE. SPIKES S6:
+            NO MICROSOFT RESERVED PARTITION IS EVER CREATED HERE.
             Initialize-Disk -PartitionStyle GPT creates the MSR itself.
             PSD's PSDPartition.ps1 (line 116) initialises GPT and then creates an
             MSR by hand a few lines later, which is how the spike ended up with a

@@ -5,7 +5,7 @@ function ConvertTo-HDTReport {
             report.
 
         .DESCRIPTION
-            DESIGN 4.4.2: HDT.jsonl is the structured source of truth, and this
+            HDT.jsonl is the structured source of truth, and this
             is what turns it into the thing a technician actually opens. Two
             operational facts shape every decision in here.
 
@@ -34,7 +34,7 @@ function ConvertTo-HDTReport {
             Sections, in order: the header (run, sequence, computer, phases,
             start, end, duration, outcome), the summary (counts, and the failing
             step called out), the steps in index order, the reboot legs as a
-            timeline, the variable resolutions with their source - DESIGN 3.1's
+            timeline, the variable resolutions with their source - the
             "explains every value" surfacing in the report - and every log
             record.
 

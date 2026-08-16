@@ -21,7 +21,7 @@ function Invoke-HDTCommandLineStep {
             IEnvironmentProvider where the catalog has one, and defaults to
             cmd.exe otherwise - never from $env:, which a step may not read.
 
-            EXIT CODES ARE CLASSIFIED AS DATA, which is DESIGN 12.1's "native tool
+            EXIT CODES ARE CLASSIFIED AS DATA, which is the rule "native tool
             exit codes are checked explicitly; $LASTEXITCODE is never assumed to
             be zero" made into a property of the step:
 
@@ -38,7 +38,7 @@ function Invoke-HDTCommandLineStep {
             service kills the process, reports TimedOut and returns -1, and this
             step says so in the message.
 
-            LOGGING FOLLOWS DESIGN 4.4.5. The native.exec record carries the file
+            LOGGING IS THE STANDARD SHAPE. The native.exec record carries the file
             and the exit code at Info; the FULL command line is logged only at
             Debug, because arguments routinely carry credentials and a log that
             leaked them by default would be worse than no log. Captured output

@@ -32,8 +32,8 @@ function Get-HDTMachineFact {
             machine with no IP enabled adapter are all normal in the field.
 
             Network facts come from Win32_NetworkAdapterConfiguration rather than
-            Get-NetIPAddress because WinPE has no NetTCPIP module (DESIGN 3.2.1,
-            SPIKES S1). The IPEnabled filtering is done here, not by the
+            Get-NetIPAddress because WinPE has no NetTCPIP module, which a boot
+            test confirmed. The IPEnabled filtering is done here, not by the
             provider: ICimProvider has no -Filter, so every implementation
             returns the unfiltered set.
 

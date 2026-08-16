@@ -4,7 +4,7 @@ function Invoke-HDTApplyUnattendStep {
             Stages the unattend where Windows Setup consumes it.
 
         .DESCRIPTION
-            SPIKES S7, as a step:
+            Staging an unattend, as a step:
 
               - name: Apply Unattend
                 type: ApplyUnattend

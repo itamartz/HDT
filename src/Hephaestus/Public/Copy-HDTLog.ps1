@@ -5,7 +5,7 @@ function Copy-HDTLog {
             failure.
 
         .DESCRIPTION
-            DESIGN 4.4.1: on phase end and on failure the log directory is copied
+            On phase end and on failure the log directory is copied
             to <share>\Logs\<ComputerName>-<RunId>\. "Copy-back happens on failure
             too - a deployment that dies is exactly when the logs matter, and
             MDT's habit of stranding them on a wiped machine is a real operational

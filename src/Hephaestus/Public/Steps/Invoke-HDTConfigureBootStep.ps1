@@ -4,7 +4,7 @@ function Invoke-HDTConfigureBootStep {
             Makes the machine boot the Windows it was just given.
 
         .DESCRIPTION
-            DESIGN 9.2's post-apply work, as a step:
+            The post-apply work, as a step:
 
               - name: Prepare Boot
                 type: ConfigureBoot
@@ -21,7 +21,7 @@ function Invoke-HDTConfigureBootStep {
                  SetRecoveryImage.
               3. SetBootOrderFirst().
 
-            STEP 3 IS SPIKES S6's FOURTH FINDING AND IT IS NOT OPTIONAL POLISH.
+            STEP 3 CAME OUT OF A LAB TEST AND IT IS NOT OPTIONAL POLISH.
             After apply, a machine whose firmware still lists the installation
             media first simply reboots into WinPE - and the deployment appears to
             loop, forever, with every log saying it succeeded. bcdboot does not

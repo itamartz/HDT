@@ -4,7 +4,7 @@ function Get-HDTDiskLayout {
             Returns a named disk layout, or every layout HDT knows.
 
         .DESCRIPTION
-            DESIGN 9.1's two named layouts, as DATA rather than as code:
+            The two named layouts, as DATA rather than as code:
 
               uefi-standard  GPT: EFI System 260 MB FAT32, Windows,
                              WinRE recovery 1 GB at the end
@@ -12,7 +12,7 @@ function Get-HDTDiskLayout {
                              Windows remainder
 
             NEITHER DECLARES A MICROSOFT RESERVED PARTITION, AND THAT IS THE
-            POINT. SPIKES S6: Initialize-Disk -PartitionStyle GPT creates its own
+            POINT. Initialize-Disk -PartitionStyle GPT creates its own
             16 MB MSR. PSD's PSDPartition.ps1 initialises GPT and then creates an
             MSR by hand a few lines later, which is how the spike ended up with a
             DUPLICATE 16 MB partition. HDT records the 16 MB as an ALLOWANCE
@@ -29,7 +29,7 @@ function Get-HDTDiskLayout {
             after Format-Volume does not behave, the finding goes into SPIKES.md
             and this layout changes, not the test.
 
-            DESIGN 9.1 SAYS LAYOUTS LIVE IN workspace.yaml. That document does
+            LAYOUTS ARE MEANT TO LIVE IN workspace.yaml. That document does
             not exist yet - M4 introduces it for the boot image - so the
             built-ins live here and -Definition is the hook a workspace.yaml
             diskLayouts: block will arrive through. A supplied definition

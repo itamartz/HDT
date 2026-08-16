@@ -46,7 +46,7 @@ function Get-HDTBootstrapConfiguration {
               - promptForCredential true means the credential block may be
                 absent, and the caller stops for a human;
               - provider Local with a VOLUME-RELATIVE deployRoot (\Share) is
-                legal, and it is the form a boot image should carry. SPIKES S9.1:
+                legal, and it is the form a boot image should carry. In the lab
                 WinPE gave the content disk C: and the RAM disk X:, so a letter
                 written at build time is a guess about a machine that has not
                 booted yet. Resolve-HDTDeployRoot turns it into a real path at
@@ -55,9 +55,9 @@ function Get-HDTBootstrapConfiguration {
                 a build host uses - and it is not an error for it to be absent at
                 boot, because the resolver falls back to the probe;
               - sequenceId empty is legal: the sequence then comes from the rules,
-                which is DESIGN 3's answer to "which task sequence does this
+                which is the answer to "which task sequence does this
                 machine get";
-              - contentMarker defaults to rules.yaml, DESIGN 3.3's file, which is
+              - contentMarker defaults to rules.yaml, the rules file, which is
                 what identifies a workspace root when the volume is discovered
                 rather than configured.
 

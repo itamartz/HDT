@@ -60,10 +60,9 @@ function Get-HDTAdkPath {
               WinPeOptionalComponent          <winPeRoot>\WinPE_OCs
               WinPeOptionalComponentLanguage  <winPeRoot>\WinPE_OCs\<language>
 
-            SPIKES S3: efisys_noprompt.bin lives under Deployment Tools\<arch>\
-            Oscdimg, NOT under the WinPE add-on's Media\EFI tree, which carries
-            bootloaders and no El Torito boot image. DESIGN 5.2 was corrected to
-            match, and this table is where that correction is now enforced.
+            efisys_noprompt.bin lives under Deployment Tools\<arch>\Oscdimg, NOT
+            under the WinPE add-on's Media\EFI tree, which carries bootloaders
+            and no El Torito boot image. This table is where that is enforced.
 
         .PARAMETER Asset
             The ADK asset to resolve. Closed set; see the table above.

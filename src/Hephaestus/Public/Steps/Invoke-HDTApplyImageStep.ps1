@@ -4,7 +4,7 @@ function Invoke-HDTApplyImageStep {
             Applies Windows to the volume the partition step created.
 
         .DESCRIPTION
-            DESIGN 9.2, as a step:
+            Applying an image, as a step:
 
               - name: Apply OS
                 type: ApplyImage
@@ -28,10 +28,10 @@ function Invoke-HDTApplyImageStep {
             did not run - which is a sequence to fix, not a drive letter to
             invent.
 
-            THE ELAPSED TIME IS LOGGED. SPIKES S6 measured 95 seconds for a 4 GB
+            THE ELAPSED TIME IS LOGGED. A lab test measured 95 seconds for a 4 GB
             WIM applied over SMB, so the duration is the number that tells a
             technician whether a slow deployment was the network or the disk.
-            DESIGN 4.4.5: the native.exec record carries the image, the index and
+            The native.exec record carries the image, the index and
             the target at Info.
 
             AN EXPLICIT image: PATH BYPASSES THE CATALOG, for media too large to
@@ -45,7 +45,7 @@ function Invoke-HDTApplyImageStep {
             started with one - $Context.Service.Content, handed to
             Get-HDTOperatingSystem, which is the whole change this step needed to
             close the seam 04-02 marked. It never learns whether that provider is
-            Local or Smb, and DESIGN 6.2's claim that it cannot tell is asserted
+            Local or Smb, and the claim that it cannot tell is asserted
             by running this step through both and comparing the ordered list of
             every service call.
 

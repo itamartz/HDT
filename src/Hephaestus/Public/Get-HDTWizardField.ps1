@@ -8,8 +8,8 @@ function Get-HDTWizardField {
             W2 of the WPF-first direction, and the
             reason it is a command rather than code inside the window host.
 
-            NEW-HDTWIZARDHOST'S TDD EXEMPTION IS CONDITIONAL. CLAUDE.md rule 1
-            exempts a thin adapter over an external tool - here WPF itself - and
+            NEW-HDTWIZARDHOST'S TDD EXEMPTION IS CONDITIONAL. HDT exempts a
+            thin adapter over an external tool - here WPF itself - and
             the price of that exemption is that the adapter must stay
             BRANCH-FREE, "because it is not unit tested". The host had stopped
             paying it: it read the network, decided which named boxes were

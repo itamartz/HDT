@@ -22,7 +22,7 @@ function Import-HDTSequenceDocument {
 
             FLATTENING IS THE DESIGN DECISION HERE. A group is not an execution
             unit; it is a naming and condition device. Flattening nested groups
-            into one linear, 1-based list means DESIGN 4.3's "skips completed
+            into one linear, 1-based list means "skips completed
             steps by index" works unchanged with nesting, and a group whose
             condition is false produces one step.skip record per contained step
             naming the group - which is what a technician reading a log needs,
@@ -44,13 +44,13 @@ function Import-HDTSequenceDocument {
               RunIn            WinPE | FullOS | Any; a step with none inherits its
                                nearest ancestor group's runIn, default Any
               Retry            Count / DelaySecond / Backoff, default 0/0/fixed
-              Resumable        [bool], default $false - DESIGN 4.3's "re-runs the
-                               interrupted step only if it declares resumable"
+              Resumable        [bool], default $false - an interrupted step is
+                               re-run only if it declares resumable
               Log              a per-step log file name, or $null
               Property         ordered, case-insensitive: every key that is NOT a
                                common property, i.e. the step type's own arguments
 
-            A NODE IS A GROUP WHEN IT DECLARES steps. DESIGN 4.1's ApplyDrivers
+            A NODE IS A GROUP WHEN IT DECLARES steps. The reference ApplyDrivers
             step carries `group: "%HDTDriverGroup%"` as a type-specific property,
             so `group` cannot be the discriminator - it stays in Property.
 

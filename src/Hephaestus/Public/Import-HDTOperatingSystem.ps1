@@ -4,8 +4,8 @@ function Import-HDTOperatingSystem {
             Promotes an operating system source into the workspace catalog.
 
         .DESCRIPTION
-            DESIGN 9.3: "Import-HDTOperatingSystem promotes a capture into the OS
-            catalog." DESIGN 2.1 fixes where it lands -
+            Import-HDTOperatingSystem promotes a capture into the OS catalog.
+            The workspace layout fixes where it lands -
             OperatingSystems\<id>\os.yaml - and this is the only writer of that
             document.
 
@@ -26,7 +26,7 @@ function Import-HDTOperatingSystem {
             the tree is registered where it stands and sourcePath is recorded as
             given. With it, the directory holding the image is copied to
             <os folder>\sources and sourcePath becomes the relative
-            sources\<file>, which is what DESIGN 2.1's layout shows.
+            sources\<file>, which is what the workspace layout shows.
 
             THE CLOCK IS MANDATORY, for the reason it is mandatory everywhere in
             this engine: the only default is a real clock reading inside engine

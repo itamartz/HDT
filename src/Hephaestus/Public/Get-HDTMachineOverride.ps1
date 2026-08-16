@@ -4,7 +4,7 @@ function Get-HDTMachineOverride {
             Reads the per-machine variable override for a UUID, if one exists.
 
         .DESCRIPTION
-            DESIGN 3.1 source 2: Control\machines\<UUID>.yaml, "the MDT-database
+            Source 2 of five: Control\machines\<UUID>.yaml, "the MDT-database
             equivalent, but file-based; a SQL or REST provider can be plugged in
             later behind the same interface". This is that provider's file
             implementation.
@@ -23,7 +23,7 @@ function Get-HDTMachineOverride {
 
             The file is read through the injected IFileSystem, never Get-Content,
             so the whole path is provable with no share and no disk (PROJECT
-            constraint 4, DESIGN 12.2.1).
+            constraint 4).
 
             The returned variables are re-materialised into an ordered,
             case-insensitive dictionary for the same reason Import-HDTRuleDocument
