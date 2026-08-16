@@ -18,7 +18,6 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
@@ -114,7 +113,7 @@ Describe 'Get-HDTConsoleWorkspace and the monitor' {
 
         # The markup is checked through the SAME injected filesystem, so the
         # fake has to hold it - the real file is never read here.
-        $xamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/UI/HDTConsole.xaml'
+        $xamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/Console/HDTConsole.xaml'
 
         $answer = Show-HDTConsole -Path 'C:\nope' -ConsoleHost $fake `
             -FileSystem (New-HDTFakeFileSystem -File @{ $xamlPath = '<Window />' } -Directory @('C:\')) `

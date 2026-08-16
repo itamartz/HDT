@@ -13,7 +13,6 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
@@ -74,8 +73,8 @@ steps:
 
 Describe 'Add-HDTConsoleStep' {
 
-    It 'is exported by HDT.Console' {
-        Get-Command -Name 'Add-HDTConsoleStep' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Add-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
@@ -168,8 +167,8 @@ Describe 'Add-HDTConsoleStep -Block (paste)' {
 
 Describe 'Save-HDTConsoleSequence' {
 
-    It 'is exported by HDT.Console' {
-        Get-Command -Name 'Save-HDTConsoleSequence' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Save-HDTConsoleSequence' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 

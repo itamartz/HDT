@@ -20,12 +20,13 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
-    # The ENGINE, because the benchmark for an edit is that the deployment's own
-    # reader still accepts the result - not that it merely looks right in a diff.
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+    # ONE IMPORT, AND IT IS THE ENGINE'S. The console commands and the engine
+    # ship in the same module now, so the benchmark for an edit - that the
+    # deployment's own reader still accepts the result, not that it merely looks
+    # right in a diff - is met by the same manifest that supplies the editor.
 
     $script:text = @'
 # THE HEADER, which belongs to the document and to no step in it.
@@ -73,8 +74,8 @@ steps:
 
 Describe 'Remove-HDTConsoleStep' {
 
-    It 'is exported by HDT.Console' {
-        Get-Command -Name 'Remove-HDTConsoleStep' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Remove-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
@@ -168,8 +169,8 @@ steps:
 
 Describe 'Move-HDTConsoleStep' {
 
-    It 'is exported by HDT.Console' {
-        Get-Command -Name 'Move-HDTConsoleStep' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Move-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
@@ -225,8 +226,8 @@ Describe 'Move-HDTConsoleStep' {
 
 Describe 'Copy-HDTConsoleStep' {
 
-    It 'is exported by HDT.Console' {
-        Get-Command -Name 'Copy-HDTConsoleStep' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Copy-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 

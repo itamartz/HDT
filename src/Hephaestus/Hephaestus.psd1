@@ -143,7 +143,40 @@
         'Update-HDTRunStateStep',
         'Write-HDTLog',
         'Write-HDTStatus',
-        'Write-HDTVariableLog'
+        'Write-HDTVariableLog',
+
+        # THE ADMIN CONSOLE, FOLDED IN. The WPF console is not a module, it is one
+        # command: everything the window does has to run an actual HDT command, and
+        # if the command does not exist the window cannot do it. Shipping it beside
+        # the engine rather than beside a second manifest is what makes that true -
+        # one Import-Module puts the console and the commands it invokes in the
+        # same session.
+        'Add-HDTConsoleStep',
+        'Copy-HDTConsoleStep',
+        'Move-HDTConsoleStep',
+        'Remove-HDTConsoleStep',
+        'Get-HDTConsoleClosePrompt',
+        'Get-HDTConsoleEditorState',
+        'Get-HDTConsoleMonitor',
+        'Get-HDTConsoleMonitorNode',
+        'Get-HDTConsoleSequenceEditor',
+        'Get-HDTConsoleStepCatalog',
+        'Get-HDTConsoleStepChange',
+        'Get-HDTConsoleStepOption',
+        'Get-HDTConsoleSetting',
+        'Get-HDTConsoleTheme',
+        'Get-HDTConsoleTreeNode',
+        'Get-HDTConsoleWorkspace',
+        'New-HDTConsoleHost',
+        'New-HDTConsoleScreen',
+        'Resolve-HDTConsoleCloseAnswer',
+        'Save-HDTConsoleSequence',
+        'Save-HDTConsoleSetting',
+        'Set-HDTConsoleStepCondition',
+        'Set-HDTConsoleStepFlag',
+        'Set-HDTConsoleStepProperty',
+        'Show-HDTConsole',
+        'Show-HDTSequenceEditor'
     )
     CmdletsToExport      = @()
     VariablesToExport    = @()

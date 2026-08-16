@@ -160,7 +160,7 @@ function Get-HDTConsoleStepCatalog {
                     Text    = 'New Group'
                     Type    = ''
                     Kind    = 'Group'
-                    Source  = 'HDT.Console'
+                    Source  = 'Hephaestus'
                     Command = "Add-HDTConsoleStep -Line `$line -After '<the selected step>' -Block (Get-HDTGroupTemplate)"
 
                     # Straight from the engine, including the placeholder step

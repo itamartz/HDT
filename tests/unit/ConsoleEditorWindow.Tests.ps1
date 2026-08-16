@@ -14,10 +14,10 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
-    $script:xamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/UI/HDTSequenceEditor.xaml'
+    $script:xamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/Console/HDTSequenceEditor.xaml'
 
     $script:workspaceYaml = @'
 schemaVersion: 1
@@ -234,8 +234,8 @@ Describe 'HDTSequenceEditor.xaml' {
 
 Describe 'Show-HDTSequenceEditor' {
 
-    It 'is exported by HDT.Console' {
-        Get-Command -Name 'Show-HDTSequenceEditor' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Show-HDTSequenceEditor' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 

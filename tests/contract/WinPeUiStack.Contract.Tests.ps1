@@ -27,14 +27,29 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    # SCOPED TO THE ENGINE, NOT ALL OF src. src\HDT.Console is a DESKTOP app -
-    # it never enters a boot image, so WinPE's constraints do not apply to it
-    # and it has no Next/Cancel buttons to name. Scanning it made this contract
-    # fail on a perfectly correct file belonging to another workstream, which is
-    # exactly how a contract earns its own deletion.
+    # SCOPED TO THE ENGINE, NOT ALL OF src.
     $script:sourceRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus'
 
     $script:sourceFile = @(Get-ChildItem -LiteralPath $script:sourceRoot -Recurse -File -Include '*.ps1', '*.psm1', '*.xaml')
+
+    # THE ADMIN CONSOLE IS IN THIS MODULE AND NOT IN THE BOOT IMAGE, and after
+    # the two modules were folded into one those are no longer the same
+    # statement. The console is a DESKTOP app: it never enters a boot image, so
+    # WinPE's constraints do not apply to it and it has no Next/Cancel buttons to
+    # name. Scanning it under those two rules made this contract fail on
+    # perfectly correct files, which is exactly how a contract earns its own
+    # deletion.
+    #
+    # SPLIT BY FOLDER, NOT BY FILE NAME. Naming the exception by file is the trap
+    # this file's own header warns about - the next console page would inherit
+    # the WinPE rules simply by being new, and the next wizard page could escape
+    # them by being named something else. Markup that ships to the RAM disk lives
+    # in UI\; markup the console draws on an administrator's desktop lives in
+    # UI\Console\, and only the two WinPE-specific rules below consult this.
+    # EVERY OTHER RULE IN THIS FILE STILL SEES THE CONSOLE - the FindName sweep
+    # and the dead-button sweep are as true of a desktop window as of a WinPE
+    # one, and the console gained them by moving in here.
+    $script:desktopMarkup = '[\\/]UI[\\/]Console[\\/]'
 
     $script:scanned = @($script:sourceFile | ForEach-Object {
             [pscustomobject] @{
@@ -229,7 +244,12 @@ Describe 'the WinPE UI stack' {
             # own header warns about - the next status board would inherit the
             # rule by being new. This way, the moment anything is given a
             # button, it must have both of the ones the host wires.
-            $asking = @($script:window | Where-Object { $_.Code -match '<Button' })
+            #
+            # THE BOOT IMAGE'S WINDOWS ONLY. The console's windows are a desktop
+            # app's - see $script:desktopMarkup - and a Deployment Workbench does
+            # not have a Next button.
+            $asking = @($script:window |
+                    Where-Object { $_.Relative -notmatch $script:desktopMarkup -and $_.Code -match '<Button' })
 
             @($asking).Count | Should -BeGreaterThan 0 -Because (
                 'the assertion below is vacuous if no window has any buttons')
@@ -490,8 +510,12 @@ Describe 'the WinPE UI stack' {
         }
 
         It 'sets IsReadOnly nowhere as a direct attribute' {
+            # THE POISONING IS A WinPE LOAD-ORDER FACT, so this asks it of the
+            # markup that reaches WinPE: the wizard's pages and the share's. The
+            # console's windows never load HDTTheme.xaml and never run in that
+            # process - see $script:desktopMarkup.
             $offender = @($script:everyCode |
-                    Where-Object { $_.Code -match '<[A-Za-z][^>]*\sIsReadOnly\s*=' } |
+                    Where-Object { $_.Relative -notmatch $script:desktopMarkup -and $_.Code -match '<[A-Za-z][^>]*\sIsReadOnly\s*=' } |
                     ForEach-Object { $_.Relative })
 
             @($offender).Count | Should -Be 0 -Because (

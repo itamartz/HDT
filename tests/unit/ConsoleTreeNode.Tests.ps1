@@ -18,7 +18,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:root = 'C:\ws'
@@ -184,7 +184,7 @@ images:
 Describe 'Get-HDTConsoleIconColor' {
 
     It 'gives anything broken the same red, whatever kind it is' {
-      InModuleScope 'HDT.Console' {
+      InModuleScope 'Hephaestus' {
         # A technician scanning for trouble must not have to learn a palette.
         foreach ($kind in @('Share', 'TaskSequence', 'OperatingSystem', 'BootImage', 'MonitorRun')) {
             Get-HDTConsoleIconColor -Kind $kind -Status 'Error' | Should -BeExactly '#FFC42B1C'
@@ -193,19 +193,19 @@ Describe 'Get-HDTConsoleIconColor' {
     }
 
     It 'gives a missing thing amber rather than red, because absent is not broken' {
-      InModuleScope 'HDT.Console' {
+      InModuleScope 'Hephaestus' {
           Get-HDTConsoleIconColor -Kind 'BootImage' -Status 'Missing' | Should -BeExactly '#FFB77400'
       }
     }
 
     It 'gives a healthy deployment green, which is the only place green is used' {
-      InModuleScope 'HDT.Console' {
+      InModuleScope 'Hephaestus' {
           Get-HDTConsoleIconColor -Kind 'MonitorRun' -Status 'Ok' | Should -BeExactly '#FF107C10'
       }
     }
 
     It 'gives the structural rows the console blue' {
-      InModuleScope 'HDT.Console' {
+      InModuleScope 'Hephaestus' {
         Get-HDTConsoleIconColor -Kind 'Root' -Status 'Ok' | Should -BeExactly '#FF0E639C'
         Get-HDTConsoleIconColor -Kind 'Share' -Status 'Ok' | Should -BeExactly '#FF0E639C'
         Get-HDTConsoleIconColor -Kind 'Category' -Status 'Ok' | Should -BeExactly '#FF0E639C'
@@ -213,13 +213,13 @@ Describe 'Get-HDTConsoleIconColor' {
     }
 
     It 'leaves an empty row grey, so a placeholder does not compete with content' {
-      InModuleScope 'HDT.Console' {
+      InModuleScope 'Hephaestus' {
           Get-HDTConsoleIconColor -Kind 'Empty' -Status 'Ok' | Should -BeExactly '#FF767676'
       }
     }
 
     It 'answers for every kind a node can be, so no row is left without one' {
-      InModuleScope 'HDT.Console' {
+      InModuleScope 'Hephaestus' {
         $kind = @((Get-Command -Name 'New-HDTConsoleNode').Parameters['Kind'].Attributes |
                 Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }).ValidValues
 
@@ -245,8 +245,8 @@ Describe 'Get-HDTConsoleTreeNode' {
 
     Context 'the command is shaped like the rest of the toolkit' {
 
-        It 'is exported by HDT.Console' {
-            Get-Command -Name 'Get-HDTConsoleTreeNode' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+        It 'is exported by Hephaestus' {
+            Get-Command -Name 'Get-HDTConsoleTreeNode' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
                 Should -Not -BeNullOrEmpty
         }
 
@@ -454,8 +454,8 @@ Describe 'Get-HDTConsoleTreeNode' {
 
         It 'names a command that actually exists in the engine' {
             # A console that teaches the automation surface must not teach a
-            # command nobody can run.
-            Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+            # command nobody can run. The module imported in BeforeAll is the
+            # one that has to answer, because it is the only one there is.
 
             $verb = @($script:node |
                     Where-Object { $_.Command -match '^[A-Z][a-z]+-HDT' } |
@@ -465,7 +465,7 @@ Describe 'Get-HDTConsoleTreeNode' {
             @($verb).Count | Should -BeGreaterThan 0
 
             foreach ($name in $verb) {
-                Get-Command -Name $name -Module 'Hephaestus', 'HDT.Console' -ErrorAction SilentlyContinue |
+                Get-Command -Name $name -Module 'Hephaestus' -ErrorAction SilentlyContinue |
                     Should -Not -BeNullOrEmpty -Because "$name is offered to an administrator as something to type"
             }
         }

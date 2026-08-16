@@ -71,7 +71,7 @@
         THESE ARE THE FIRST-RUN NUMBERS ONLY. Get-HDTConsoleSetting reads the
         size the console was last left at and New-HDTConsoleHost applies it, so
         an administrator sizes this window once. The values here are what a
-        machine with no remembered size opens at, and HDT.Console.psm1 carries
+        machine with no remembered size opens at, and Hephaestus.psm1 carries
         the same four numbers for the reader and the writer to agree on - a test
         asserts the two files match.
     -->

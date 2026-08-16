@@ -21,8 +21,7 @@ green under both.
 ## Repo layout
 
 ```
-src/Hephaestus/     PowerShell module - the engine
-src/HDT.Console/    WPF console (last, optional)
+src/Hephaestus/     PowerShell module - the engine AND the WPF console
 schemas/            JSON Schema per YAML file type
 tests/unit/         Majority of tests - pure logic against fakes
 tests/contract/     Schema, naming, no-MDT, PS 5.1 syntax, provider contracts

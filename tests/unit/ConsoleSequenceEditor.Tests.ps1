@@ -16,7 +16,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:workspaceYaml = @'
@@ -105,8 +105,8 @@ Describe 'Get-HDTConsoleSequenceEditor' {
 
     Context 'the command is shaped like the rest of the toolkit' {
 
-        It 'is exported by HDT.Console' {
-            Get-Command -Name 'Get-HDTConsoleSequenceEditor' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+        It 'is exported by Hephaestus' {
+            Get-Command -Name 'Get-HDTConsoleSequenceEditor' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
                 Should -Not -BeNullOrEmpty
         }
 

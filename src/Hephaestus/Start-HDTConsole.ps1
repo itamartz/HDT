@@ -3,10 +3,15 @@
         Opens the HDT admin console on one or more deployment shares.
 
     .DESCRIPTION
-        The one file an administrator runs. It imports the console module beside
-        it and calls Show-HDTConsole; beyond the two pieces of housekeeping
-        below it holds no logic of its own, because anything else it decided
-        would be a decision no test could reach.
+        The one file an administrator runs. It imports the Hephaestus module
+        beside it and calls Show-HDTConsole; beyond the two pieces of
+        housekeeping below it holds no logic of its own, because anything else
+        it decided would be a decision no test could reach.
+
+        ONE MODULE, NOT TWO. The console is not a module of its own, it is one
+        command in the engine's: everything the window does has to run an actual
+        HDT command, and importing the engine is what puts those commands and
+        the window in the same session.
 
         THE CONSOLE WINDOW IT WAS LAUNCHED IN IS HIDDEN, WHEN IT OWNS IT. A
         desktop application that leaves a black terminal sitting behind it looks
@@ -133,7 +138,7 @@ if ($consoleWindow -ne [IntPtr]::Zero) {
 # -- the window ------------------------------------------------------------
 
 try {
-    Import-Module -Name (Join-Path -Path $PSScriptRoot -ChildPath 'HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $PSScriptRoot -ChildPath 'Hephaestus.psd1') -Force -ErrorAction Stop
 
     $answer = Show-HDTConsole -Path $Path -Title $Title -Theme $Theme
 

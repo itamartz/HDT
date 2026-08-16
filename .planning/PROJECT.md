@@ -315,8 +315,7 @@ proven end-to-end.
 ## Repo layout
 
 ```
-src/Hephaestus/        PowerShell module (the engine)
-src/HDT.Console/       WPF console (M8, last)
+src/Hephaestus/        PowerShell module (the engine and the WPF console)
 schemas/               JSON Schemas for every YAML file type
 tests/unit/            Pester unit tests (majority)
 tests/contract/        Schema + naming + provider contract tests

@@ -1901,8 +1901,8 @@ name at the source.
 ### 16.2 Other conventions
 
 - Module: `Hephaestus`.
-- Repo layout: `src/Hephaestus/` (module), `src/HDT.Console/` (WPF),
-  `schemas/`, `tests/`, `docs/`, `samples/`.
+- Repo layout: `src/Hephaestus/` (the one module - engine and WPF console
+  alike), `schemas/`, `tests/`, `docs/`, `samples/`.
 - All public cmdlets: comment-based help, `[CmdletBinding()]`,
   `SupportsShouldProcess` on anything destructive (`DiskPartition`, workspace
   writes, media generation).

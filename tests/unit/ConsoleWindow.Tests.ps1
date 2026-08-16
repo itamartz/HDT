@@ -21,7 +21,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:root = 'C:\ws'
@@ -29,7 +29,7 @@ BeforeAll {
 
     # The shipped window, read off disk rather than retyped, so the file the
     # console really loads and the file these tests exercise cannot drift.
-    $script:shippedXamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src\HDT.Console\UI\HDTConsole.xaml'
+    $script:shippedXamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src\Hephaestus\UI\Console\HDTConsole.xaml'
 
     $script:workspaceYaml = @'
 schemaVersion: 1
@@ -122,8 +122,8 @@ Describe 'Show-HDTConsole' {
 
     Context 'the command is shaped like the rest of the toolkit' {
 
-        It 'is exported by HDT.Console' {
-            Get-Command -Name 'Show-HDTConsole' -Module 'HDT.Console' -ErrorAction SilentlyContinue |
+        It 'is exported by Hephaestus' {
+            Get-Command -Name 'Show-HDTConsole' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
                 Should -Not -BeNullOrEmpty
         }
 
@@ -656,7 +656,7 @@ Describe 'the shipped console window' {
         # They must not drift, and drift is invisible: the console would open at
         # one size on a fresh profile and another the moment anything is saved.
         $document = [xml] $script:shippedXaml
-        $module = Get-Module -Name 'HDT.Console'
+        $module = Get-Module -Name 'Hephaestus'
 
         [double] $document.DocumentElement.GetAttribute('Width') |
             Should -Be (& $module { $script:HDTConsoleDefaultWidth })

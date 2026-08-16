@@ -59,7 +59,7 @@ function Show-HDTSequenceEditor {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string] $XamlPath = (Join-Path -Path $script:HDTConsoleRoot -ChildPath 'UI\HDTSequenceEditor.xaml'),
+        [string] $XamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTSequenceEditor.xaml'),
 
         [Parameter()]
         [AllowNull()]

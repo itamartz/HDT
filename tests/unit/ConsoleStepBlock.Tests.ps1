@@ -17,7 +17,7 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     # DEMO-M4's shape, comments and all, at a size a test can reason about.
     $script:document = @'
@@ -64,7 +64,7 @@ Describe 'Get-HDTConsoleStepBlock' {
     Context 'the command is shaped like the rest of the toolkit' {
 
         It 'has comment-based help' {
-            InModuleScope HDT.Console {
+            InModuleScope Hephaestus {
                 (Get-Help -Name 'Get-HDTConsoleStepBlock').Synopsis | Should -Not -BeNullOrEmpty
             }
         }
@@ -73,7 +73,7 @@ Describe 'Get-HDTConsoleStepBlock' {
     Context 'what it finds' {
 
         BeforeAll {
-            $script:block = InModuleScope HDT.Console -Parameters @{ Line = $script:document } {
+            $script:block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
                 @(Get-HDTConsoleStepBlock -Line $Line)
             }
@@ -109,7 +109,7 @@ Describe 'Get-HDTConsoleStepBlock' {
     Context 'the span of a step' {
 
         BeforeAll {
-            $script:block = InModuleScope HDT.Console -Parameters @{ Line = $script:document } {
+            $script:block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
                 @(Get-HDTConsoleStepBlock -Line $Line)
             }
@@ -153,7 +153,7 @@ Describe 'Get-HDTConsoleStepBlock' {
     Context 'the span of a group' {
 
         BeforeAll {
-            $script:block = InModuleScope HDT.Console -Parameters @{ Line = $script:document } {
+            $script:block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
                 @(Get-HDTConsoleStepBlock -Line $Line)
             }
@@ -179,7 +179,7 @@ Describe 'Get-HDTConsoleStepBlock' {
             # The header explains the document, not any step in it. An edit that
             # could move or delete it would be the edit that loses the reasoning
             # DEMO-M4 exists to record.
-            $block = InModuleScope HDT.Console -Parameters @{ Line = $script:document } {
+            $block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
                 @(Get-HDTConsoleStepBlock -Line $Line)
             }
@@ -190,7 +190,7 @@ Describe 'Get-HDTConsoleStepBlock' {
         }
 
         It 'finds nothing in a document with no steps at all' {
-            $block = InModuleScope HDT.Console -Parameters @{ Line = @('schemaVersion: 1', 'id: EMPTY') } {
+            $block = InModuleScope Hephaestus -Parameters @{ Line = @('schemaVersion: 1', 'id: EMPTY') } {
                 param($Line)
                 @(Get-HDTConsoleStepBlock -Line $Line)
             }

@@ -24,7 +24,6 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 }
 
@@ -137,17 +136,19 @@ Describe 'Get-HDTConsoleStepCatalog' {
             $offered | Should -Be $known
         }
 
-        It 'offers them to a session that loaded only the console' {
-            # THE REGRESSION. An administrator runs Start-HDTConsole.ps1, which
-            # imports HDT.Console and nothing else; the console imports the
-            # engine for its own use. Get-HDTStepType walks Get-Module, and a
-            # nested import is not listed there - so the menu came up empty on
-            # the one path that matters and full under every test, which import
-            # the engine themselves.
-            $consoleManifest = Join-Path -Path $script:repoRoot -ChildPath 'src/HDT.Console/HDT.Console.psd1'
+        It 'offers them to a session that ran nothing but the one import' {
+            # THE REGRESSION, AND WHY THE MODULES ARE ONE. An administrator runs
+            # Start-HDTConsole.ps1, which imports a manifest and nothing else.
+            # Get-HDTStepType walks Get-Module, and a NESTED import is not listed
+            # there - so when the console was a second module importing the
+            # engine for its own use, the menu came up empty on the one path that
+            # matters and full under every test, which import the engine
+            # themselves. A fresh process, so nothing this session loaded can
+            # stand in for the import under test.
+            $manifest = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1'
 
             $count = & powershell.exe -NoProfile -Command (
-                "Import-Module '$consoleManifest' -Force; " +
+                "Import-Module '$manifest' -Force; " +
                 '@(Get-HDTConsoleStepCatalog).Count')
 
             [int] $count | Should -BeGreaterThan 1

@@ -140,7 +140,7 @@ function Show-HDTConsole {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string] $XamlPath = (Join-Path -Path $script:HDTConsoleRoot -ChildPath 'UI\HDTConsole.xaml'),
+        [string] $XamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTConsole.xaml'),
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -197,7 +197,7 @@ function Show-HDTConsole {
 
     if (-not $FileSystem.TestPath($XamlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $XamlPath -Category ObjectNotFound `
-                    -Message 'the console window is not there, so there is nothing to show. It ships as UI\HDTConsole.xaml beside the HDT.Console module.'))
+                    -Message 'the console window is not there, so there is nothing to show. It ships as UI\Console\HDTConsole.xaml beside the Hephaestus module.'))
     }
 
     $xaml = [string] $FileSystem.ReadAllText($XamlPath)
