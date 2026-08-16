@@ -1,0 +1,71 @@
+<!--
+    MDT'S "SELECT ONE OR MORE APPLICATIONS TO INSTALL" PANE. DESIGN 11.2 lists
+    this page and HDT had never drawn it; an admin arriving from MDT expects a
+    checked list here and nothing else.
+
+    THE LIST IS HAND-AUTHORED, AS TaskSequence.xaml's IS. The real one comes
+    from the share's Applications\ folder - one app.yaml per application - and
+    reading it is a command that does not exist yet. The markup is what is being
+    settled here, so the entries below are three plausible rows rather than an
+    invented mechanism: a page that renders the right shape against a fixed list
+    is exactly as useful for laying it out, and does not pretend the wiring is
+    done.
+
+    AN ItemsControl, NOT A ListBox, AND THAT IS THE POINT OF THE SCREEN. A
+    ListBox would give every row a selection highlight on top of its checkbox,
+    so a row could be blue and unticked at the same time - two states meaning
+    two different things, one of which does nothing. What this page collects is
+    the TICKS. Nothing here has a "selected" row, so nothing here draws one.
+
+    Tag CARRIES THE ID, Content CARRIES THE NAME. The technician reads "7-Zip
+    24.09"; the sequence needs 7Zip-24.09. Putting the id in Tag is the same
+    trick TaskSequence.xaml uses with SelectedValuePath, and it means the
+    harvest reads a folder name rather than parsing a label somebody may
+    translate.
+
+    THIS PAGE COLLECTS NOTHING YET, deliberately. wizard.yaml's collect shape
+    reads ONE property off ONE control - Text, SelectedValue, Password or
+    IsChecked - and "every ticked row, joined" is none of those. Rather than
+    bend a single-value declaration into a multi-value one from the markup side,
+    the page ships uncollected and the schema gains the shape it needs next. A
+    page that quietly dropped what was ticked would be worse than one that
+    plainly does not carry it yet.
+-->
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" Style="{DynamicResource HDTHintText}" Margin="0,0,0,10"
+               TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left"
+               Text="Everything published on the deployment share. Tick what this machine gets - the task sequence installs them in the order they are listed here." />
+
+    <!--
+        THE BORDER IS THE FIELD, and it uses the theme's brushes rather than
+        naming colours, so a page added later cannot drift a shade off the
+        boxes beside it.
+    -->
+    <Border Grid.Row="1" Background="{DynamicResource HDTFooterBrush}"
+            BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10,8,10,8">
+            <ItemsControl x:Name="HDTApplicationList">
+                <CheckBox Tag="7Zip-24.09" Content="7-Zip 24.09" Margin="0,5" />
+                <CheckBox Tag="VSCode-1.96" Content="Visual Studio Code 1.96" Margin="0,5" />
+                <CheckBox Tag="Firefox-ESR-128" Content="Mozilla Firefox ESR 128" Margin="0,5" />
+            </ItemsControl>
+        </ScrollViewer>
+    </Border>
+
+    <!--
+        WHAT AN EMPTY LIST MEANS, SAID ON THE SCREEN. Ticking nothing is a
+        legitimate answer - a base image with no applications is most of what a
+        lab deploys - and a technician who cannot tell "none selected" from
+        "this page is broken" will go looking for the broken thing.
+    -->
+    <TextBlock Grid.Row="2" Style="{DynamicResource HDTHintText}" Margin="0,10,0,0"
+               TextWrapping="Wrap" MaxWidth="620" HorizontalAlignment="Left"
+               Text="Tick nothing and the machine is deployed with no applications, which is a normal choice. Applications a rule already selected are installed whether or not they are ticked here." />
+</Grid>

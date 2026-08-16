@@ -152,6 +152,17 @@
     </Style>
 
     <!--
+        THE SAME TWO SETTERS THE RADIO GETS, AND FOR THE SAME REASON. A CheckBox
+        with no style inherits Control's default black Foreground, which on this
+        window's ground is a label nobody can read - the applications page is a
+        column of them, so it would have been the whole page.
+    -->
+    <Style TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTBodySize}" />
+    </Style>
+
+    <!--
         THE ADDRESS BOXES FOLLOW THE RADIO, DECLARATIVELY. A DataTrigger bound
         to HDTUseStaticRadio.IsChecked - no code-behind, because there is no
         compiler in WinPE and the contract refuses one.
