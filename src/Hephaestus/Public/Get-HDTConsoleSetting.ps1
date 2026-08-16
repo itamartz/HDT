@@ -26,14 +26,18 @@ function Get-HDTConsoleSetting {
             The floor is the MinWidth and MinHeight the markup declares.
 
             AND A SIZE BIGGER THAN THE SCREEN IS LOWERED, WHICH IS THE SAME
-            ARGUMENT FROM THE OTHER END. The markup says
-            WindowStartupLocation="CenterScreen", so a window taller than the
-            desktop is centred with its title bar ABOVE the top edge - and a
-            title bar off the top cannot be dragged back. The window is then
-            open, focusable and invisible, which reads to the person who launched
-            it as "the console did not start". The shipped default of 1800 x 900
-            on a 1280 x 800 laptop is exactly that, so this is not a size only a
-            strange preference file could produce.
+            ARGUMENT FROM THE OTHER END. The window opens at the top-left of the
+            work area, so a size larger than the desktop hangs off the right and
+            the bottom - and the bottom edge is where the Close button is. The
+            shipped default of 1800 x 900 on a 1280 x 800 laptop is exactly that,
+            so this is not a size only a strange preference file could produce.
+
+            THE POSITION IS NOT REMEMBERED, ONLY THE SIZE. Where a window opens
+            is not a preference an administrator expressed: it is the corner of
+            whatever desktop they are sitting at today, which the console has to
+            measure rather than recall. Left and Top come back on the same object
+            because the window needs all four numbers at once, and
+            Resolve-HDTConsoleWindowPosition decides them.
 
             THE FLOOR STILL WINS WHERE THEY DISAGREE. On a desktop smaller than
             MinWidth x MinHeight there is no size that satisfies both, and WPF
@@ -60,8 +64,8 @@ function Get-HDTConsoleSetting {
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Path, Width and
-            Height.
+            System.Management.Automation.PSCustomObject with Path, Width, Height,
+            Left and Top.
 
         .EXAMPLE
             Get-HDTConsoleSetting
@@ -93,16 +97,23 @@ function Get-HDTConsoleSetting {
 
     $path = Get-HDTConsoleSettingPath -Environment $Environment
 
+    # LEFT AND TOP START AT THE CORNER AND ARE NEVER READ FROM THE FILE. The size
+    # is a preference; the position is not one. Every console opens at the origin
+    # of the work area, and Resolve-HDTConsoleWindowPosition is what finds out
+    # where that is - these two are the answer for a desktop that will not say.
     $result = [pscustomobject] @{
         Path   = $path
         Width  = [int] $script:HDTConsoleDefaultWidth
         Height = [int] $script:HDTConsoleDefaultHeight
+        Left   = 0
+        Top    = 0
     }
 
     # A first run is clamped too: the default is 1800 x 900, and a laptop that
     # cannot show it is the commonest way this goes wrong, not the rarest.
     if ([string]::IsNullOrWhiteSpace($path) -or -not $FileSystem.TestPath($path)) {
-        return (Resolve-HDTConsoleWindowSize -Size $result -Screen $Screen)
+        return (Resolve-HDTConsoleWindowPosition `
+                -Size (Resolve-HDTConsoleWindowSize -Size $result -Screen $Screen) -Screen $Screen)
     }
 
     # ONE try FOR THE WHOLE READ. Every way this file can be wrong ends in the
@@ -124,5 +135,6 @@ function Get-HDTConsoleSetting {
             $path, [string] $_.Exception.Message)
     }
 
-    return (Resolve-HDTConsoleWindowSize -Size $result -Screen $Screen)
+    return (Resolve-HDTConsoleWindowPosition `
+            -Size (Resolve-HDTConsoleWindowSize -Size $result -Screen $Screen) -Screen $Screen)
 }

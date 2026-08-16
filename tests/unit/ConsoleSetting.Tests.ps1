@@ -160,12 +160,10 @@ Describe 'Get-HDTConsoleSetting' {
 
     # THE SAME ARGUMENT AS THE MINIMUM, FROM THE OTHER END. A window too small to
     # use and a window too big to reach are one defect: the administrator cannot
-    # fix either, because the thing they would fix it with is the window. A size
-    # bigger than the screen is worse, in fact - WindowStartupLocation is
-    # CenterScreen, so a window taller than the desktop is centred with its title
-    # bar ABOVE the top edge, and a title bar off the top cannot be dragged back.
-    # The window is then open, focusable and invisible, which reads to the person
-    # who launched it as "the console did not start".
+    # fix either, because the thing they would fix it with is the window. The
+    # console opens at the work area's origin, so a size larger than the desktop
+    # hangs off the right and bottom edges - and the bottom is where the Close
+    # button is. Dragging it back up only trades one lost edge for another.
     #
     # THIS IS NOT HYPOTHETICAL. A 1800x900 console.json - the shipped default -
     # opened on a 1280x800 laptop is exactly the case that produced it.
@@ -252,6 +250,110 @@ Describe 'Get-HDTConsoleSetting' {
 
             $setting.Width | Should -Be 1800
             $setting.Height | Should -Be 900
+        }
+    }
+
+    # WHERE THE WINDOW OPENS, NOT ONLY HOW BIG IT IS. The console is asked for at
+    # the top-left of the usable desktop, filling it, rather than centred - and
+    # "top-left of the usable desktop" is not a literal 0,0. A taskbar docked at
+    # the top or the left moves the origin, and a window pinned to 0,0 would open
+    # underneath it with its title bar unreachable. That is the same argument the
+    # size clamp already makes, measured from the same work area.
+    Context 'where the window opens' {
+
+        It 'answers the origin of the work area' {
+            $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 2560 -Height 1400)
+
+            $setting.Left | Should -Be 0
+            $setting.Top | Should -Be 0
+        }
+
+        It 'clears a taskbar docked at the top' {
+            $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 2560 -Height 1340 -Left 0 -Top 60)
+
+            $setting.Left | Should -Be 0
+            $setting.Top | Should -Be 60
+        }
+
+        It 'clears a taskbar docked at the left' {
+            $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Width 2464 -Height 1400 -Left 96 -Top 0)
+
+            $setting.Left | Should -Be 96
+            $setting.Top | Should -Be 0
+        }
+
+        It 'opens at the corner rather than not opening, when the screen cannot be read' {
+            # Same rule as the size: a display query that throws may never be the
+            # reason a window fails to open, and 0,0 is where the work area starts
+            # on every desktop that does not say otherwise.
+            $setting = Get-HDTConsoleSetting -FileSystem (New-HDTFakeFileSystem) `
+                -Environment (New-HDTConsoleSettingTestEnvironment) `
+                -Screen (New-HDTFakeScreen -Throw)
+
+            $setting.Left | Should -Be 0
+            $setting.Top | Should -Be 0
+        }
+    }
+}
+
+Describe 'Resolve-HDTConsoleWindowPosition' {
+
+    # WHY THE DECISION IS NOT IN THE ADAPTER. New-HDTConsoleHost is exempt from
+    # TDD only while it stays branch-free, so "where does this window open" -
+    # which has a work area, an origin and a display that may not answer in it -
+    # cannot live there. The host assigns two numbers this command worked out.
+
+    It 'places the window at the origin of the work area' {
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 2464 -Height 1340 -Left 96 -Top 60) } {
+            param($Screen)
+
+            $size = [pscustomobject] @{ Width = 1800; Height = 900; Left = 0; Top = 0 }
+            $placed = Resolve-HDTConsoleWindowPosition -Size $size -Screen $Screen
+
+            $placed.Left | Should -Be 96
+            $placed.Top | Should -Be 60
+        }
+    }
+
+    It 'leaves the size it was handed alone' {
+        # It answers WHERE, and the fitter already answered HOW BIG. A command
+        # that quietly did both would be two rules in one place.
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 1280 -Height 770) } {
+            param($Screen)
+
+            $size = [pscustomobject] @{ Width = 1800; Height = 900; Left = 0; Top = 0 }
+            $placed = Resolve-HDTConsoleWindowPosition -Size $size -Screen $Screen
+
+            $placed.Width | Should -Be 1800
+            $placed.Height | Should -Be 900
+        }
+    }
+
+    It 'leaves the position at the corner when the desktop cannot be measured' {
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Throw) } {
+            param($Screen)
+
+            $size = [pscustomobject] @{ Width = 1800; Height = 900; Left = 0; Top = 0 }
+            $placed = Resolve-HDTConsoleWindowPosition -Size $size -Screen $Screen
+
+            $placed.Left | Should -Be 0
+            $placed.Top | Should -Be 0
+        }
+    }
+
+    It 'leaves the position at the corner when there is no screen at all' {
+        InModuleScope Hephaestus {
+            $size = [pscustomobject] @{ Width = 1800; Height = 900; Left = 0; Top = 0 }
+            $placed = Resolve-HDTConsoleWindowPosition -Size $size -Screen $null
+
+            $placed.Left | Should -Be 0
+            $placed.Top | Should -Be 0
         }
     }
 }

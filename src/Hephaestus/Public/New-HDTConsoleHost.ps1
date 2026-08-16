@@ -60,6 +60,13 @@ function New-HDTConsoleHost {
         # decisions do not go in an adapter.
         Width  = 0
         Height = 0
+
+        # THE BROWSER WINDOW, SO THE EDITOR CAN BE OWNED BY IT. It is $null until
+        # Show opens one, and $null is a legal Owner - a window with no owner is
+        # exactly what Show-HDTSequenceEditor run on its own has. Keeping it here
+        # rather than passing it into ShowEditor means the two methods do not
+        # have to agree on an argument that only ever has one possible value.
+        Window = $null
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
@@ -82,9 +89,13 @@ function New-HDTConsoleHost {
         $window.Title = $Title
 
         # The size the console was last left at, over the markup's first-run
-        # numbers. Get-HDTConsoleSetting decided these; this applies them.
+        # numbers, and the corner of the desktop it opens in.
+        # Get-HDTConsoleSetting decided all four; this applies them. Left and Top
+        # mean nothing without WindowStartupLocation="Manual" in the markup.
         $window.Width = [double] $Size.Width
         $window.Height = [double] $Size.Height
+        $window.Left = [double] $Size.Left
+        $window.Top = [double] $Size.Top
 
         # THE PALETTE, OVER THE DEFAULTS THE MARKUP DECLARED. Every colour in the
         # window is a DynamicResource, so replacing the resource repaints it.
@@ -107,6 +118,14 @@ function New-HDTConsoleHost {
         # dismissed with WM_CLOSE or the title-bar X never runs the handler at
         # all. It took an administrator pressing Close.
         $consoleHost = $this
+
+        # The editor is opened from a handler on this window, and an owned dialog
+        # is what keeps it above the window it was opened from instead of behind
+        # it. The position no longer depends on this - both windows are placed
+        # explicitly - but the z-order does, and a task sequence editor that
+        # vanished behind the browser the moment somebody clicked the browser
+        # would read as an editor that closed itself.
+        $consoleHost.Window = $window
 
         $share = $window.FindName('HDTShareText')
         $deployRoot = $window.FindName('HDTDeployRootText')
@@ -155,7 +174,12 @@ function New-HDTConsoleHost {
                 # an editor the size of the maximised console. What to do with
                 # those two numbers - the floor, the desktop, and the case where
                 # there is no console at all - is Resolve-HDTConsoleEditorSize's.
+                # -ConsoleHost IS WHAT CARRIES THE OWNER. Without it
+                # Show-HDTSequenceEditor builds a fresh host, whose Window is
+                # $null, so the editor is owned by nothing and drops behind the
+                # browser the first time the browser is clicked.
                 [void] (Show-HDTSequenceEditor -Sequence $selected.Subject -Theme $ThemeName `
+                        -ConsoleHost $consoleHost `
                         -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
             }.GetNewClosure())
 
@@ -278,9 +302,18 @@ function New-HDTConsoleHost {
         $window.Title = $Title
 
         # The size of the console this was opened from, over the markup's own
-        # numbers. Resolve-HDTConsoleEditorSize decided these; this applies them.
+        # numbers, and the same corner the console opens in.
+        # Resolve-HDTConsoleEditorSize decided all four; this applies them. Left
+        # and Top mean nothing without WindowStartupLocation="Manual".
         $window.Width = [double] $Size.Width
         $window.Height = [double] $Size.Height
+        $window.Left = [double] $Size.Left
+        $window.Top = [double] $Size.Top
+
+        # THE OWNER IS WHAT KEEPS THIS WINDOW ABOVE THE BROWSER. $null when the
+        # editor was opened on its own rather than from the browser, which is a
+        # legal Owner and the reason no test is needed to choose between them.
+        $window.Owner = $this.Window
 
         $converter = New-Object -TypeName System.Windows.Media.BrushConverter
         foreach ($key in @($Theme.Keys)) {

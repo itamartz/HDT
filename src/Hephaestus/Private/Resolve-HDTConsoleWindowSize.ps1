@@ -10,11 +10,11 @@ function Resolve-HDTConsoleWindowSize {
             it is the same argument from the other end.
 
             A WINDOW BIGGER THAN THE DESKTOP IS WORSE THAN ONE TOO SMALL. The
-            markup says WindowStartupLocation="CenterScreen", so a window taller
-            than the desktop is centred with its title bar above the top edge,
-            and a title bar off the top cannot be dragged back with a mouse. The
-            window is open, in the task list, focusable, and invisible - which
-            reads to the person who launched it as "it did not start".
+            window opens at the top-left of the work area, so a size larger than
+            the desktop puts its right and bottom edges off screen - and the
+            bottom edge carries the Close button. Dragging it up to reach that
+            only pushes the title bar past the top, where a mouse cannot get it
+            back.
 
             EACH DIMENSION IS CLAMPED ON ITS OWN. A narrow desktop is not a
             reason to forget a remembered height, and a short one is not a reason

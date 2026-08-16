@@ -1,7 +1,7 @@
 function Resolve-HDTConsoleEditorSize {
     <#
         .SYNOPSIS
-            Decides how big the task sequence editor opens.
+            Decides how big the task sequence editor opens, and where.
 
         .DESCRIPTION
             IT OPENS AT THE SIZE OF THE WINDOW IT WAS OPENED FROM. The editor is
@@ -49,7 +49,8 @@ function Resolve-HDTConsoleEditorSize {
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Width and Height.
+            System.Management.Automation.PSCustomObject with Width, Height, Left
+            and Top.
 
         .EXAMPLE
             Resolve-HDTConsoleEditorSize -OwnerWidth 1600 -OwnerHeight 1000 -Screen (New-HDTConsoleScreen)
@@ -81,10 +82,18 @@ function Resolve-HDTConsoleEditorSize {
     if ($OwnerWidth -gt 0) { $width = $OwnerWidth }
     if ($OwnerHeight -gt 0) { $height = $OwnerHeight }
 
+    # LEFT AND TOP START AT THE CORNER, AND ARE NOT COPIED FROM THE OWNER. The
+    # editor takes the console's SIZE because that is what the administrator asked
+    # for; taking its position too would stack a same-sized window one title bar
+    # short of the one underneath it. Both go to the same corner instead, which is
+    # what Resolve-HDTConsoleWindowPosition works out.
     $result = [pscustomobject] @{
         Width  = [Math]::Max($width, [int] $script:HDTConsoleEditorMinimumWidth)
         Height = [Math]::Max($height, [int] $script:HDTConsoleEditorMinimumHeight)
+        Left   = 0
+        Top    = 0
     }
 
-    return (Resolve-HDTConsoleWindowSize -Size $result -Screen $Screen)
+    return (Resolve-HDTConsoleWindowPosition `
+            -Size (Resolve-HDTConsoleWindowSize -Size $result -Screen $Screen) -Screen $Screen)
 }

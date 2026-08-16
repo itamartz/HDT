@@ -1530,6 +1530,14 @@ class HDTFakeScreen {
     [int] $Width
     [int] $Height
 
+    # WHERE THAT DESKTOP STARTS, which is not always 0,0. A taskbar docked at the
+    # top or the left moves the origin down or right by its thickness, and a
+    # window placed at a literal 0,0 then opens underneath it. Zero here is the
+    # ordinary case, not "the display did not say" - an origin of zero is a real
+    # answer, unlike a width of zero.
+    [int] $Left
+    [int] $Top
+
     # When true, GetWorkArea throws the way a display query can when the session
     # has no desktop at all: a service, a remote session being torn down, or a
     # console started before the shell.
@@ -1584,6 +1592,8 @@ class HDTFakeScreen {
         }
 
         return [pscustomobject] @{
+            Left   = $this.Left
+            Top    = $this.Top
             Width  = $this.Width
             Height = $this.Height
         }
@@ -1599,22 +1609,37 @@ function New-HDTFakeScreen {
             The hand-written double behind every test about a window fitting the
             screen it has to open on. It implements the single method
             GetWorkArea, which answers the usable desktop - the screen minus the
-            taskbar - as Width and Height.
+            taskbar - as Left, Top, Width and Height.
 
             SEEDING A SIZE IS WHAT MAKES THE 1280x800 LAPTOP TESTABLE FROM THE
             2560x1440 DESK, and the other way round. The console's remembered
             size is clamped to this, so a test that could only run on the machine
             with the offending monitor would not be a test.
 
-            A screen reporting zero is a display that answered without answering,
-            and -Throw is a display query that failed outright. Both exist because
-            neither may stop a window opening.
+            SEEDING AN ORIGIN IS THE SAME ARGUMENT FOR A TASKBAR. This desk docks
+            its taskbar at the bottom, so the work area starts at 0,0 and a window
+            that opened at a literal 0,0 would look correct here and slide under
+            the taskbar on a machine that docks it at the top. -Left and -Top are
+            what put that machine on this one.
+
+            A screen reporting zero WIDTH is a display that answered without
+            answering, and -Throw is a display query that failed outright. Both
+            exist because neither may stop a window opening. A zero ORIGIN is not
+            in that category: it is what an ordinary desktop reports.
 
         .PARAMETER Width
             The usable desktop width.
 
         .PARAMETER Height
             The usable desktop height.
+
+        .PARAMETER Left
+            Where the usable desktop starts across - the width of a taskbar docked
+            at the left, and zero otherwise.
+
+        .PARAMETER Top
+            Where the usable desktop starts down - the height of a taskbar docked
+            at the top, and zero otherwise.
 
         .PARAMETER Throw
             Make GetWorkArea throw, as it can in a session with no desktop.
@@ -1646,6 +1671,12 @@ function New-HDTFakeScreen {
         [int] $Height,
 
         [Parameter()]
+        [int] $Left,
+
+        [Parameter()]
+        [int] $Top,
+
+        [Parameter()]
         [switch] $Throw,
 
         [Parameter()]
@@ -1656,6 +1687,8 @@ function New-HDTFakeScreen {
     $fake = [HDTFakeScreen]::new()
     $fake.Width = $Width
     $fake.Height = $Height
+    $fake.Left = $Left
+    $fake.Top = $Top
     $fake.Fail = [bool] $Throw
     $fake.Journal = $Journal
 

@@ -257,11 +257,13 @@ Describe 'HDTSequenceEditor.xaml' {
             Should -Be (& $module { $script:HDTConsoleEditorMinimumHeight })
     }
 
-    It 'still centres on the window that opened it' {
-        # The editor is opened from a row in the browser, so the console is
-        # where the administrator is looking. CenterScreen would put it over
-        # whichever monitor Windows calls the primary one.
-        $script:markup | Should -Match 'WindowStartupLocation="CenterOwner"'
+    It 'takes the position it is given rather than centring itself' {
+        # The editor opens at the work area's origin, filling it, exactly as the
+        # console does - and WPF honours an assigned Left and Top only under
+        # Manual. Under CenterOwner it would recentre over the console and the
+        # two numbers Resolve-HDTConsoleWindowPosition worked out would be
+        # silently ignored.
+        $script:markup | Should -Match 'WindowStartupLocation="Manual"'
     }
 }
 
@@ -382,6 +384,21 @@ Describe 'Show-HDTSequenceEditor' {
         [int] $editorHost.Size.Width | Should -Be 1280
         [int] $editorHost.Size.Height | Should -Be 770
     }
+
+    It 'opens the editor at the corner of the work area, like the console' {
+        # Not over the console it came from: both windows fill the work area, so
+        # a centred editor would sit a few pixels off the console it covers and
+        # read as a window that failed to line up.
+        $editorHost = New-HDTFakeEditorHost
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -OwnerWidth 1600 -OwnerHeight 1000 `
+                -Screen (New-HDTFakeScreen -Width 2464 -Height 1340 -Left 96 -Top 60))
+
+        [int] $editorHost.Size.Left | Should -Be 96
+        [int] $editorHost.Size.Top | Should -Be 60
+    }
 }
 
 Describe 'Resolve-HDTConsoleEditorSize' {
@@ -458,6 +475,26 @@ Describe 'Resolve-HDTConsoleEditorSize' {
 
             [int] $size.Width | Should -Be 1600
             [int] $size.Height | Should -Be 1000
+        }
+    }
+
+    It 'answers the work area origin, so the editor opens where the console does' {
+        InModuleScope Hephaestus -Parameters @{ Screen = (New-HDTFakeScreen -Width 2464 -Height 1340 -Left 96 -Top 60) } {
+            param($Screen)
+
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 1600 -OwnerHeight 1000 -Screen $Screen
+
+            [int] $size.Left | Should -Be 96
+            [int] $size.Top | Should -Be 60
+        }
+    }
+
+    It 'answers the corner when there is no screen to measure' {
+        InModuleScope Hephaestus {
+            $size = Resolve-HDTConsoleEditorSize -OwnerWidth 1600 -OwnerHeight 1000 -Screen $null
+
+            [int] $size.Left | Should -Be 0
+            [int] $size.Top | Should -Be 0
         }
     }
 }

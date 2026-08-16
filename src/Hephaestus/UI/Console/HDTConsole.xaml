@@ -4,7 +4,7 @@
     Title="Hephaestus Deployment Toolkit"
     Height="900" Width="1800"
     MinHeight="520" MinWidth="900"
-    WindowStartupLocation="CenterScreen"
+    WindowStartupLocation="Manual"
     Background="{DynamicResource HDTWindowBrush}">
 
     <!--
@@ -17,6 +17,19 @@
         move into the WinPE wizard later without being rewritten, where
         XamlReader::Load is the only option there is. Handlers are attached in
         PowerShell, by name, after the tree is loaded.
+
+        WindowStartupLocation IS Manual BECAUSE THE POSITION IS DECIDED, NOT
+        GUESSED. This window opens at the top-left of the work area, filling it,
+        which is where an administrator's other management tooling sits. Manual
+        is the only value under which WPF honours the Left and Top the host
+        assigns - CenterScreen recentres after the assignment and throws them
+        away, and the two would happen to agree on this desk only because a
+        work-area-sized window centres back onto the corner it started at.
+
+        THE CORNER IS THE WORK AREA'S, NOT A LITERAL 0,0. A taskbar docked at the
+        top or the left moves the origin, and a window pinned to zero would open
+        underneath it. Resolve-HDTConsoleWindowPosition measures that; the four
+        numbers above are only what a window loaded on its own falls back to.
 
         NAMED CONTROLS ARE THE CONTRACT between this file and New-HDTConsoleHost:
         HDTShareText, HDTDeployRootText, HDTRootText, HDTConsoleTree,

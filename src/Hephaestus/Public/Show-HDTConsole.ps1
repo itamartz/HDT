@@ -248,10 +248,11 @@ function Show-HDTConsole {
 
     # -- show it -----------------------------------------------------------
 
-    # THE SIZE IT WAS LEFT AT, FITTED TO THE SCREEN IT HAS TO OPEN ON. The window
-    # is centred by the markup, so a remembered size larger than this desktop
-    # would put the title bar off the top edge - open, focusable, and impossible
-    # to drag back into view.
+    # THE SIZE IT WAS LEFT AT, FITTED TO THE SCREEN IT HAS TO OPEN ON, AND THE
+    # CORNER IT OPENS IN. The window is placed rather than centred, so a
+    # remembered size larger than this desktop would hang off the right and the
+    # bottom - and the bottom is where the Close button is. The position is not
+    # remembered: it is the origin of today's work area, measured every time.
     $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment -Screen $Screen
 
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,

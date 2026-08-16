@@ -369,6 +369,25 @@ Describe 'Show-HDTConsole' {
             $consoleHost.OpenedSize.Height | Should -Be 820
         }
 
+        It 'opens at the corner of the usable desktop, under no taskbar' {
+            # The position is not remembered and is not in the preference file:
+            # every console opens at the work area's origin. What varies between
+            # machines is where that origin is, and this states one.
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\ws\workspace.yaml' = $script:workspaceYaml
+                $script:xamlPath       = '<Window />'
+            }
+            $consoleHost = New-HDTFakeConsoleHost
+
+            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath `
+                    -ConsoleHost $consoleHost -FileSystem $fs `
+                    -Environment (New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }) `
+                    -Screen (New-HDTFakeScreen -Width 3744 -Height 2100 -Left 96 -Top 60))
+
+            $consoleHost.OpenedSize.Left | Should -Be 96
+            $consoleHost.OpenedSize.Top | Should -Be 60
+        }
+
         It 'remembers the size the window was closed at' {
             $fs = New-HDTFakeFileSystem -File @{
                 'C:\ws\workspace.yaml' = $script:workspaceYaml
@@ -540,6 +559,17 @@ Describe 'the shipped console window' {
 
         @($document.DocumentElement.Attributes | ForEach-Object { $_.Name }) |
             Should -Not -Contain 'x:Class'
+    }
+
+    It 'takes the position it is given rather than centring itself' {
+        # The console opens at the origin of the work area, filling it. WPF
+        # honours an assigned Left and Top only under Manual: under CenterScreen
+        # it recentres on the primary monitor after the assignment, so the two
+        # numbers Resolve-HDTConsoleWindowPosition worked out would be computed,
+        # assigned and then thrown away - and on a desktop whose work area
+        # already starts at 0,0 the difference would be invisible until somebody
+        # docked their taskbar at the top.
+        $script:shippedXaml | Should -Match 'WindowStartupLocation="Manual"'
     }
 
     It 'names <_>, which New-HDTConsoleHost finds by name' -ForEach @(

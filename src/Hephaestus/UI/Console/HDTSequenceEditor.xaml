@@ -4,7 +4,7 @@
     Title="Task Sequence Editor"
     Height="760" Width="1180"
     MinHeight="480" MinWidth="820"
-    WindowStartupLocation="CenterOwner"
+    WindowStartupLocation="Manual"
     Background="{DynamicResource HDTWindowBrush}">
 
     <!--
@@ -19,6 +19,17 @@
         IT IS ALSO THE ONLY WINDOW THAT WRITES. The browser opens a live share
         and promises to write nothing to it; an editing surface nested inside it
         would make that promise half-true, which is worse than either answer.
+
+        WindowStartupLocation IS Manual, THE SAME AS THE BROWSER'S. Both windows
+        open at the top-left of the work area, filling it, and Manual is the only
+        value under which WPF honours the Left and Top the host assigns.
+        CenterOwner would recentre this window over the browser after the
+        assignment - and since the two are the same size, "centred over it" means
+        a copy sitting a few pixels off the window it covers, which reads as a
+        window that failed to line up rather than as a second one.
+
+        IT IS STILL AN OWNED WINDOW. The owner is what keeps the editor above the
+        browser it was opened from; only the POSITION stopped depending on it.
 
         THE ACTIONS ARE A TOOLBAR, NOT A ROW OF FILLED BUTTONS. MDT and
         ConfigMgr both draw them flat, and a row of solid blue pills is the one
