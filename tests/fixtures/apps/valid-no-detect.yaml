@@ -1,0 +1,13 @@
+# AN APPLICATION THAT DECLARES NO DETECTION RULE, which DESIGN 8 makes explicitly
+# legal: it installs every time the step reaches it. That is MDT's behaviour and
+# the right one for an unconditional installer or a script wrapper whose
+# "installed" state is not observable.
+#
+# It is also the minimal legal document - schemaVersion, id, name and install and
+# nothing else - so it doubles as the proof that every other key is optional and
+# that the defaults (successCodes, rebootCodes, runIn) come from the engine
+# rather than from the file.
+schemaVersion: 1
+id: Corp-Baseline
+name: Corporate baseline configuration
+install: powershell.exe -ExecutionPolicy Bypass -File "Apply-Baseline.ps1"

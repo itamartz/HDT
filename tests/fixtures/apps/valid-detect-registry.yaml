@@ -1,0 +1,12 @@
+# Registry detection: key, value and the data the value must carry. Key alone is
+# legal - the key existing is the whole test - so this fixture carries all three
+# and valid-detect-registry-key-only.yaml carries one.
+schemaVersion: 1
+id: Contoso-Vpn
+name: Contoso VPN client
+install: setup.exe /S
+detect:
+  type: registry
+  key: 'HKLM:\SOFTWARE\Contoso\Vpn'
+  value: Version
+  data: '9.1'

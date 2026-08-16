@@ -1,0 +1,6 @@
+# The three phases are WinPE, FullOS and Any. 'Windows' is not one of them.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+install: setup.exe /S
+runIn: Windows

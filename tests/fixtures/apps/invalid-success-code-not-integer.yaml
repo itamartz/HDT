@@ -1,0 +1,7 @@
+# Exit codes are integers. '0' quoted is a string, and a string compared against
+# a process exit code matches nothing.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+install: setup.exe /S
+successCodes: ['0', 'reboot']

@@ -1,0 +1,9 @@
+# 'wmi' is a detection type MDT-adjacent tooling has and HDT does not. Naming the
+# four it does have is the whole message.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent
+install: setup.exe /S
+detect:
+  type: wmi
+  query: SELECT * FROM Win32_Product

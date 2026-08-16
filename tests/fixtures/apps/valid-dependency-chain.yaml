@@ -1,0 +1,7 @@
+# Two dependencies, so the topological sort has something to order rather than a
+# single edge it cannot get wrong.
+schemaVersion: 1
+id: Contoso-Suite
+name: Contoso suite
+install: setup.exe /quiet
+dependencies: [VCRedist-2015-2022, Contoso-Agent]

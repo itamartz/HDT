@@ -1,0 +1,5 @@
+# A catalog entry with nothing to run. There is no default install command and
+# there is no reason to guess one.
+schemaVersion: 1
+id: Contoso-Agent
+name: Contoso monitoring agent

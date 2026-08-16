@@ -1,0 +1,8 @@
+# The key existing IS the detection. No value, no data.
+schemaVersion: 1
+id: Contoso-Shell
+name: Contoso shell extension
+install: setup.exe /quiet
+detect:
+  type: registry
+  key: 'HKLM:\SOFTWARE\Contoso\Shell'
