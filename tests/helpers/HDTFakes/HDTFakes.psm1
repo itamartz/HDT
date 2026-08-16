@@ -40,6 +40,14 @@ class HDTFakeFileSystem {
     # boot with no message, and this is what makes that check provable.
     [hashtable] $HashOverride
 
+    # Path -> the four-part version GetVersion answers with. THE SECOND CONDITION
+    # SEEDED CONTENT CANNOT EXPRESS: a version resource is metadata a real file
+    # carries and a string in a hashtable does not, so a test that needs
+    # "agent.exe is there and it is 4.1" has to say so. Unseeded paths answer
+    # 0.0.0.0, which is what the real adapter returns for a file with no version
+    # resource - so DESIGN 8's file detection rule reads the same shape from both.
+    [hashtable] $VersionOverride
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -56,6 +64,7 @@ class HDTFakeFileSystem {
         $this.Directory = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.WriteFailure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.HashOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.VersionOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'FileSystem'
     }
@@ -160,6 +169,11 @@ class HDTFakeFileSystem {
     # to code that verifies by hash.
     [void] SeedHash([string] $Path, [string] $Hash) {
         $this.HashOverride[$this.Normalize($Path)] = $Hash
+    }
+
+    # THE VERSION RESOURCE. See $VersionOverride above.
+    [void] SeedVersion([string] $Path, [string] $Version) {
+        $this.VersionOverride[$this.Normalize($Path)] = $Version
     }
 
     # Checked by WriteAllText and AppendAllText AFTER they record, because the
@@ -340,6 +354,28 @@ class HDTFakeFileSystem {
 
         return [System.BitConverter]::ToString($byte).Replace('-', '')
     }
+
+    # THE FOUR-PART VERSION THE REAL ADAPTER WOULD READ. A seeded content string
+    # carries no version resource, so an unseeded file answers 0.0.0.0 - exactly
+    # what [System.Diagnostics.FileVersionInfo] reports for a file that has none.
+    # Both implementations therefore return something a caller can cast to
+    # [version] without a special case for "no version".
+    [string] GetVersion([string] $Path) {
+        $this.Record('GetVersion', @($Path))
+        $full = $this.Normalize($Path)
+
+        if (-not $this.File.ContainsKey($full)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.", $full)
+        }
+
+        # Checked AFTER the existence check: a version override describes a file
+        # that is there, not one that is absent.
+        if ($this.VersionOverride.ContainsKey($full)) {
+            return [string] $this.VersionOverride[$full]
+        }
+
+        return '0.0.0.0'
+    }
 }
 
 function New-HDTFakeFileSystem {
@@ -353,9 +389,10 @@ function New-HDTFakeFileSystem {
             (DESIGN 12.2.1: engine logic receives injected services so it can run
             with no machine attached; DESIGN 12.2.3: fake, don't mock).
 
-            It implements the nine IFileSystem methods - TestPath, ReadAllText,
+            It implements the eleven IFileSystem methods - TestPath, ReadAllText,
             WriteAllText, AppendAllText, CreateDirectory, RemoveItem, CopyItem,
-            GetChildItem, GetLength - and throws the same exception types the real
+            GetChildItem, GetLength, GetHash, GetVersion - and throws the same
+            exception types the real
             adapter throws, so tests assert on the type rather than on a message.
 
             AppendAllText creates a missing file and the parent directories of a
@@ -394,6 +431,14 @@ function New-HDTFakeFileSystem {
             makes New-HDTPxePayload's "fails rather than warns on a hash
             mismatch" provable - and a truncated boot.sdi on a TFTP server is a
             machine that hangs at boot with no message.
+
+        .PARAMETER Version
+            Paths whose GetVersion answers with a stated four-part version. A
+            seeded content string carries no version resource, so this is how a
+            test says "agent.exe is installed and it is 4.1" - which is what
+            DESIGN 8's file detection rule compares against. Unseeded files
+            answer 0.0.0.0, exactly as the real adapter does for a file with no
+            version resource.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
@@ -437,6 +482,9 @@ function New-HDTFakeFileSystem {
         [hashtable] $Hash,
 
         [Parameter()]
+        [hashtable] $Version,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
@@ -447,6 +495,12 @@ function New-HDTFakeFileSystem {
     if ($PSBoundParameters.ContainsKey('Hash')) {
         foreach ($key in @($Hash.Keys)) {
             $fake.SeedHash([string] $key, [string] $Hash[$key])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Version')) {
+        foreach ($key in @($Version.Keys)) {
+            $fake.SeedVersion([string] $key, [string] $Version[$key])
         }
     }
 

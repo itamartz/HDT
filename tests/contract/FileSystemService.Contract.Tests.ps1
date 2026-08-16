@@ -76,7 +76,7 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
                     'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetLength',
-                    'GetHash')) {
+                    'GetHash', 'GetVersion')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -411,6 +411,55 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             try { $script:fs.GetHash((Join-Path -Path $script:root -ChildPath 'absent.wim')) } catch { $null = $_ }
 
             $script:fs.GetOperationName() | Should -Be @('GetHash')
+        }
+
+        # -- GetVersion, the eleventh method (07-01) ------------------------
+        #
+        # DESIGN 8's file detection rule is only worth having WITH a version:
+        # a path test alone reports "installed" for a stale build the sequence
+        # exists to replace, which is the silent-skip failure detection is
+        # supposed to prevent. Reading a version resource cannot go through
+        # ReadAllText, so the interface grew an eleventh method rather than
+        # Test-HDTApplicationDetection growing a
+        # [System.Diagnostics.FileVersionInfo] call no fake could answer.
+        #
+        # The four-part form is what both implementations return, so a caller
+        # can always cast it to [version] rather than parsing whatever text a
+        # vendor put in the FileVersion string.
+
+        It 'returns a four-part version' {
+            $path = Join-Path -Path $script:root -ChildPath 'versioned.txt'
+            $script:fs.WriteAllText($path, 'x')
+
+            $script:fs.GetVersion($path) | Should -Match '^\d+\.\d+\.\d+\.\d+$'
+        }
+
+        It 'returns 0.0.0.0 for a file carrying no version resource' {
+            # A text file has none, and neither does most of what a deployment
+            # copies around. Reporting it as 0.0.0.0 rather than as an empty
+            # string or a throw keeps the comparison in the detection rule a
+            # plain version comparison with no special case.
+            $path = Join-Path -Path $script:root -ChildPath 'unversioned.txt'
+            $script:fs.WriteAllText($path, 'x')
+
+            $script:fs.GetVersion($path) | Should -BeExactly '0.0.0.0'
+        }
+
+        It 'throws FileNotFoundException from GetVersion for a path that is not a file' {
+            $record = $null
+            try { $script:fs.GetVersion((Join-Path -Path $script:root -ChildPath 'absent.exe')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.FileNotFoundException])
+        }
+
+        It 'records GetVersion before it can throw' {
+            try { $script:fs.GetVersion((Join-Path -Path $script:root -ChildPath 'absent.exe')) } catch { $null = $_ }
+
+            $script:fs.GetOperationName() | Should -Be @('GetVersion')
         }
 
         It 'treats paths case-insensitively' {
