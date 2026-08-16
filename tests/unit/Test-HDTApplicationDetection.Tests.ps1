@@ -23,7 +23,7 @@ BeforeAll {
     $script:productCode = '{23170F69-40C1-2702-2409-000001000000}'
     $script:agentPath = 'C:\Program Files\Contoso\Agent\agent.exe'
 
-    function script:New-HDTTestDetect {
+    function New-HDTTestDetect {
         param([hashtable] $Property)
 
         return [pscustomobject] $Property
@@ -53,7 +53,7 @@ Describe 'Test-HDTApplicationDetection' {
     Context 'msiProduct' {
 
         BeforeEach {
-            $script:detect = script:New-HDTTestDetect -Property @{
+            $script:detect = New-HDTTestDetect -Property @{
                 Type        = 'msiProduct'
                 ProductCode = $script:productCode
             }
@@ -99,14 +99,14 @@ Describe 'Test-HDTApplicationDetection' {
 
         It 'reports installed when the file is there and no version is required' {
             $fileSystem = New-HDTFakeFileSystem -File @{ $script:agentPath = 'binary' }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '' }
 
             Test-HDTApplicationDetection -Detect $detect -FileSystem $fileSystem | Should -BeTrue
         }
 
         It 'reports not installed when the file is absent' {
             $fileSystem = New-HDTFakeFileSystem
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '' }
 
             Test-HDTApplicationDetection -Detect $detect -FileSystem $fileSystem | Should -BeFalse
         }
@@ -114,7 +114,7 @@ Describe 'Test-HDTApplicationDetection' {
         It 'reports installed when the file version meets the floor' {
             $fileSystem = New-HDTFakeFileSystem -File @{ $script:agentPath = 'binary' } `
                 -Version @{ $script:agentPath = '4.2.0.0' }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '4.2.0.0' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '4.2.0.0' }
 
             Test-HDTApplicationDetection -Detect $detect -FileSystem $fileSystem | Should -BeTrue
         }
@@ -122,7 +122,7 @@ Describe 'Test-HDTApplicationDetection' {
         It 'reports installed when the file version exceeds the floor' {
             $fileSystem = New-HDTFakeFileSystem -File @{ $script:agentPath = 'binary' } `
                 -Version @{ $script:agentPath = '5.0.1.3' }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '4.2.0.0' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '4.2.0.0' }
 
             Test-HDTApplicationDetection -Detect $detect -FileSystem $fileSystem | Should -BeTrue
         }
@@ -133,14 +133,14 @@ Describe 'Test-HDTApplicationDetection' {
             # upgrade it exists to perform.
             $fileSystem = New-HDTFakeFileSystem -File @{ $script:agentPath = 'binary' } `
                 -Version @{ $script:agentPath = '4.1.9.0' }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '4.2.0.0' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '4.2.0.0' }
 
             Test-HDTApplicationDetection -Detect $detect -FileSystem $fileSystem | Should -BeFalse
         }
 
         It 'does not read the version when the rule states none' {
             $fileSystem = New-HDTFakeFileSystem -File @{ $script:agentPath = 'binary' }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'file'; Path = $script:agentPath; Version = '' }
 
             $null = Test-HDTApplicationDetection -Detect $detect -FileSystem $fileSystem
 
@@ -149,7 +149,7 @@ Describe 'Test-HDTApplicationDetection' {
 
         It 'expands a variable token in the path' {
             $fileSystem = New-HDTFakeFileSystem -File @{ $script:agentPath = 'binary' }
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type    = 'file'
                 Path    = '%ProgramFiles%\Contoso\Agent\agent.exe'
                 Version = ''
@@ -166,7 +166,7 @@ Describe 'Test-HDTApplicationDetection' {
 
         It 'reports installed when the key exists and the rule names no value' {
             $registry = New-HDTFakeRegistryService -Value @{ 'HKLM:\SOFTWARE\Contoso\Shell' = @{} }
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type  = 'registry'
                 Key   = 'HKLM:\SOFTWARE\Contoso\Shell'
                 Value = ''
@@ -178,7 +178,7 @@ Describe 'Test-HDTApplicationDetection' {
 
         It 'reports not installed when the key is absent' {
             $registry = New-HDTFakeRegistryService
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type  = 'registry'
                 Key   = 'HKLM:\SOFTWARE\Contoso\Shell'
                 Value = ''
@@ -192,7 +192,7 @@ Describe 'Test-HDTApplicationDetection' {
             $registry = New-HDTFakeRegistryService -Value @{
                 'HKLM:\SOFTWARE\Contoso\Vpn' = @{ Version = '9.1' }
             }
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type  = 'registry'
                 Key   = 'HKLM:\SOFTWARE\Contoso\Vpn'
                 Value = 'Version'
@@ -206,7 +206,7 @@ Describe 'Test-HDTApplicationDetection' {
             $registry = New-HDTFakeRegistryService -Value @{
                 'HKLM:\SOFTWARE\Contoso\Vpn' = @{ Other = 'x' }
             }
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type  = 'registry'
                 Key   = 'HKLM:\SOFTWARE\Contoso\Vpn'
                 Value = 'Version'
@@ -220,7 +220,7 @@ Describe 'Test-HDTApplicationDetection' {
             $registry = New-HDTFakeRegistryService -Value @{
                 'HKLM:\SOFTWARE\Contoso\Vpn' = @{ Version = '9.1' }
             }
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type  = 'registry'
                 Key   = 'HKLM:\SOFTWARE\Contoso\Vpn'
                 Value = 'Version'
@@ -234,7 +234,7 @@ Describe 'Test-HDTApplicationDetection' {
             $registry = New-HDTFakeRegistryService -Value @{
                 'HKLM:\SOFTWARE\Contoso\Vpn' = @{ Version = '8.4' }
             }
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type  = 'registry'
                 Key   = 'HKLM:\SOFTWARE\Contoso\Vpn'
                 Value = 'Version'
@@ -249,14 +249,14 @@ Describe 'Test-HDTApplicationDetection' {
 
         It 'reports installed when the script returns something truthy' {
             $invoker = New-HDTFakeScriptInvoker -Result @{ 'Detect-ContosoLob.ps1' = $true }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
 
             Test-HDTApplicationDetection -Detect $detect -ScriptInvoker $invoker | Should -BeTrue
         }
 
         It 'reports not installed when the script returns something falsy' {
             $invoker = New-HDTFakeScriptInvoker -Result @{ 'Detect-ContosoLob.ps1' = $false }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
 
             Test-HDTApplicationDetection -Detect $detect -ScriptInvoker $invoker | Should -BeFalse
         }
@@ -267,14 +267,14 @@ Describe 'Test-HDTApplicationDetection' {
             # An unseeded path is one the invoker cannot run - the same shape a
             # detection script that is missing from Scripts\ has in production.
             $invoker = New-HDTFakeScriptInvoker -Result @{ 'Detect-Something-Else.ps1' = $true }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
 
             Test-HDTApplicationDetection -Detect $detect -ScriptInvoker $invoker | Should -BeFalse
         }
 
         It 'hands the variables to the script' {
             $invoker = New-HDTFakeScriptInvoker -Result @{ 'Detect-ContosoLob.ps1' = $true }
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'script'; Path = 'Detect-ContosoLob.ps1' }
 
             $null = Test-HDTApplicationDetection -Detect $detect -ScriptInvoker $invoker `
                 -Variable @{ HDTSerialNumber = 'FIXTURE-SERIAL-0001' }
@@ -289,7 +289,7 @@ Describe 'Test-HDTApplicationDetection' {
             # A rule the caller cannot answer is a wiring mistake in the engine,
             # not an application that is absent - so it throws rather than
             # quietly reporting "not installed" and reinstalling every time.
-            $detect = script:New-HDTTestDetect -Property @{
+            $detect = New-HDTTestDetect -Property @{
                 Type        = 'msiProduct'
                 ProductCode = $script:productCode
             }
@@ -298,7 +298,7 @@ Describe 'Test-HDTApplicationDetection' {
         }
 
         It 'refuses a detection type it cannot run' {
-            $detect = script:New-HDTTestDetect -Property @{ Type = 'wmi' }
+            $detect = New-HDTTestDetect -Property @{ Type = 'wmi' }
 
             { Test-HDTApplicationDetection -Detect $detect } | Should -Throw -ExpectedMessage '*wmi*'
         }

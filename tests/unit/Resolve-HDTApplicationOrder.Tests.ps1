@@ -18,7 +18,7 @@ BeforeAll {
     # The sort reads two properties off an application - Id and Dependencies - so
     # the fixtures carry those and a Name to prove the object is passed through
     # rather than rebuilt.
-    function script:New-HDTTestApplication {
+    function New-HDTTestApplication {
         param([string] $Id, [string[]] $Dependency = @())
 
         return [pscustomobject] @{
@@ -36,10 +36,10 @@ Describe 'Resolve-HDTApplicationOrder' {
         # Declared in an order that is ALREADY WRONG, so a function that returned
         # its input unchanged would fail.
         $script:catalog = @(
-            script:New-HDTTestApplication -Id 'Contoso-Suite' -Dependency @('Contoso-Agent')
-            script:New-HDTTestApplication -Id 'Contoso-Agent' -Dependency @('VCRedist-2015-2022')
-            script:New-HDTTestApplication -Id 'VCRedist-2015-2022'
-            script:New-HDTTestApplication -Id 'Corp-Baseline'
+            New-HDTTestApplication -Id 'Contoso-Suite' -Dependency @('Contoso-Agent')
+            New-HDTTestApplication -Id 'Contoso-Agent' -Dependency @('VCRedist-2015-2022')
+            New-HDTTestApplication -Id 'VCRedist-2015-2022'
+            New-HDTTestApplication -Id 'Corp-Baseline'
         )
     }
 
@@ -124,9 +124,9 @@ Describe 'Resolve-HDTApplicationOrder' {
 
         It 'installs a shared dependency only once' {
             $catalog = @(
-                script:New-HDTTestApplication -Id 'App-A' -Dependency @('Shared-Lib')
-                script:New-HDTTestApplication -Id 'App-B' -Dependency @('Shared-Lib')
-                script:New-HDTTestApplication -Id 'Shared-Lib'
+                New-HDTTestApplication -Id 'App-A' -Dependency @('Shared-Lib')
+                New-HDTTestApplication -Id 'App-B' -Dependency @('Shared-Lib')
+                New-HDTTestApplication -Id 'Shared-Lib'
             )
 
             $plan = @(Resolve-HDTApplicationOrder -Application $catalog -Id @('App-A', 'App-B'))
@@ -143,9 +143,9 @@ Describe 'Resolve-HDTApplicationOrder' {
 
         It 'names every application in a cycle' {
             $catalog = @(
-                script:New-HDTTestApplication -Id 'App-A' -Dependency @('App-B')
-                script:New-HDTTestApplication -Id 'App-B' -Dependency @('App-C')
-                script:New-HDTTestApplication -Id 'App-C' -Dependency @('App-A')
+                New-HDTTestApplication -Id 'App-A' -Dependency @('App-B')
+                New-HDTTestApplication -Id 'App-B' -Dependency @('App-C')
+                New-HDTTestApplication -Id 'App-C' -Dependency @('App-A')
             )
 
             $message = ''
@@ -162,8 +162,8 @@ Describe 'Resolve-HDTApplicationOrder' {
 
         It 'reports a cycle as a configuration error rather than hanging' {
             $catalog = @(
-                script:New-HDTTestApplication -Id 'App-A' -Dependency @('App-B')
-                script:New-HDTTestApplication -Id 'App-B' -Dependency @('App-A')
+                New-HDTTestApplication -Id 'App-A' -Dependency @('App-B')
+                New-HDTTestApplication -Id 'App-B' -Dependency @('App-A')
             )
 
             $record = $null
@@ -179,7 +179,7 @@ Describe 'Resolve-HDTApplicationOrder' {
 
         It 'names the dependent and the dependency when a dependency is not in the catalog' {
             $catalog = @(
-                script:New-HDTTestApplication -Id 'Contoso-Suite' -Dependency @('Not-Imported')
+                New-HDTTestApplication -Id 'Contoso-Suite' -Dependency @('Not-Imported')
             )
 
             $message = ''
@@ -200,8 +200,8 @@ Describe 'Resolve-HDTApplicationOrder' {
 
         It 'refuses a catalog holding two applications with the same id' {
             $catalog = @(
-                script:New-HDTTestApplication -Id 'App-A'
-                script:New-HDTTestApplication -Id 'App-A'
+                New-HDTTestApplication -Id 'App-A'
+                New-HDTTestApplication -Id 'App-A'
             )
 
             { Resolve-HDTApplicationOrder -Application $catalog } |

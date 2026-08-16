@@ -52,7 +52,7 @@ Describe 'app.yaml schema contract' -Skip:$script:HDTSchemaSkip {
         $script:appSchemaPath = Join-Path -Path $script:repoRoot -ChildPath 'schemas/app.schema.json'
         $script:appPath = 'C:\ws\Applications\Contoso-Agent\app.yaml'
 
-        function script:ConvertTo-HDTFixtureJson {
+        function ConvertTo-HDTFixtureJson {
             <#
                 A fixture as the JSON the schema is handed.
 
@@ -101,14 +101,14 @@ Describe 'app.yaml schema contract' -Skip:$script:HDTSchemaSkip {
 
         It 'validates <Name> against schemas/app.schema.json' -ForEach $script:HDTValidFixture {
             $schema = Get-Content -LiteralPath $script:appSchemaPath -Raw
-            $json = script:ConvertTo-HDTFixtureJson -FixturePath $FixturePath
+            $json = ConvertTo-HDTFixtureJson -FixturePath $FixturePath
 
             Test-Json -Json $json -Schema $schema | Should -BeTrue
         }
 
         It 'rejects <Name> against schemas/app.schema.json' -ForEach $script:HDTInvalidFixture {
             $schema = Get-Content -LiteralPath $script:appSchemaPath -Raw
-            $json = script:ConvertTo-HDTFixtureJson -FixturePath $FixturePath
+            $json = ConvertTo-HDTFixtureJson -FixturePath $FixturePath
 
             Test-Json -Json $json -Schema $schema -ErrorAction SilentlyContinue | Should -BeFalse
         }
@@ -116,7 +116,7 @@ Describe 'app.yaml schema contract' -Skip:$script:HDTSchemaSkip {
         It 'agrees with Assert-HDTApplicationDocument about <Name>' -ForEach $script:HDTAgreementFixture {
             $schema = Get-Content -LiteralPath $script:appSchemaPath -Raw
             $yaml = Get-Content -LiteralPath $FixturePath -Raw
-            $json = script:ConvertTo-HDTFixtureJson -FixturePath $FixturePath
+            $json = ConvertTo-HDTFixtureJson -FixturePath $FixturePath
 
             $schemaVerdict = [bool] (Test-Json -Json $json -Schema $schema -ErrorAction SilentlyContinue)
 
@@ -138,7 +138,7 @@ Describe 'app.yaml schema contract' -Skip:$script:HDTSchemaSkip {
         It 'cannot express <Name>, so only the engine rejects it' -ForEach $script:HDTBlindSpotFixture {
             $schema = Get-Content -LiteralPath $script:appSchemaPath -Raw
             $yaml = Get-Content -LiteralPath $FixturePath -Raw
-            $json = script:ConvertTo-HDTFixtureJson -FixturePath $FixturePath
+            $json = ConvertTo-HDTFixtureJson -FixturePath $FixturePath
 
             # The schema accepting this is the documented blind spot. When that
             # stops being true, move the file out of $script:HDTSchemaBlindSpot
