@@ -177,9 +177,17 @@ Describe 'Get-HDTConsoleStepCatalog' {
         }
 
         It 'offers a type it has never heard of, under Custom' {
+            # Being absent from this file's curated name table is not a reason to
+            # be unofferable. Being unauthorable is - so the vendor row carries
+            # the template command that makes it so, which is what a real
+            # Get-HDTStepType row would have.
             $registry = @(
-                [pscustomobject] @{ Type = 'CommandLine'; Source = 'Hephaestus' }
-                [pscustomobject] @{ Type = 'ContosoBitLocker'; Source = 'Contoso.Steps' }
+                [pscustomobject] @{ Type = 'CommandLine'; Source = 'Hephaestus'
+                    TemplateCommand      = (Get-Command -Name 'Get-HDTCommandLineStepTemplate')
+                }
+                [pscustomobject] @{ Type = 'ContosoBitLocker'; Source = 'Contoso.Steps'
+                    TemplateCommand      = (Get-Command -Name 'Get-HDTNoOpStepTemplate')
+                }
             )
 
             $result = @(Get-HDTConsoleStepCatalog -StepType $registry)
@@ -189,6 +197,47 @@ Describe 'Get-HDTConsoleStepCatalog' {
             $custom[0].Item[0].Type | Should -BeExactly 'ContosoBitLocker'
             $custom[0].Item[0].Text | Should -BeExactly 'ContosoBitLocker'
             $custom[0].Item[0].Source | Should -BeExactly 'Contoso.Steps'
+        }
+
+        It 'leaves out a type the engine cannot author, however real it is' {
+            # THE RULE THIS MENU EXISTS TO OBEY. The console is a wrapper around
+            # the HDT command line: a menu item can only exist where a command
+            # exists behind it. A vendor who shipped Invoke-HDT<Type>Step alone
+            # has a type that RUNS - a sequence naming it executes unchanged -
+            # and cannot be created from here, because nothing knows what to
+            # write. The alternative is this window guessing the file format on
+            # the engine's behalf, which is what it used to do.
+            $registry = @(
+                [pscustomobject] @{ Type = 'CommandLine'; Source = 'Hephaestus'
+                    TemplateCommand      = (Get-Command -Name 'Get-HDTCommandLineStepTemplate')
+                }
+                [pscustomobject] @{ Type = 'ContosoOpaque'; Source = 'Contoso.Steps'; TemplateCommand = $null }
+            )
+
+            # NOT (...).Item - on an array that is the indexer, not the members.
+            $offered = @(Get-HDTConsoleStepCatalog -StepType $registry |
+                    ForEach-Object { $_.Item } |
+                    Where-Object { $_.Kind -eq 'Step' } | ForEach-Object { $_.Type })
+
+            $offered | Should -Not -Contain 'ContosoOpaque'
+            $offered | Should -Contain 'CommandLine'
+        }
+
+        It 'takes each block from the step type rather than writing one' {
+            # The proof that the YAML is not this file's: point the catalog at a
+            # row whose template is another type's and the block follows the
+            # template, not the row's Type.
+            $registry = @(
+                [pscustomobject] @{ Type = 'ContosoBitLocker'; Source = 'Contoso.Steps'
+                    TemplateCommand      = (Get-Command -Name 'Get-HDTRestartStepTemplate')
+                }
+            )
+
+            $entry = @(Get-HDTConsoleStepCatalog -StepType $registry |
+                    ForEach-Object { $_.Item } | Where-Object { $_.Kind -eq 'Step' })[0]
+
+            $entry.Block | Should -Contain '  type: Restart'
+            $entry.Block | Should -Contain '  delaySeconds: 10'
         }
 
         It 'drops a category that has nothing in it rather than showing it empty' {
