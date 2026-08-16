@@ -19,6 +19,8 @@ BeforeAll {
     # the fixtures carry those and a Name to prove the object is passed through
     # rather than rebuilt.
     function New-HDTTestApplication {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory test fixture object; it changes no state.')]
         param([string] $Id, [string[]] $Dependency = @())
 
         return [pscustomobject] @{

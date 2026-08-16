@@ -24,6 +24,8 @@ BeforeAll {
     $script:agentPath = 'C:\Program Files\Contoso\Agent\agent.exe'
 
     function New-HDTTestDetect {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory detection rule fixture; it changes no state.')]
         param([hashtable] $Property)
 
         return [pscustomobject] $Property
