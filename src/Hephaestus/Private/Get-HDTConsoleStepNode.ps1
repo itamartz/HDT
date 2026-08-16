@@ -25,6 +25,16 @@ function Get-HDTConsoleStepNode {
             GroupPath of ('Install', 'Drivers') creates 'Install' then 'Drivers'
             under it, and the next step naming the same path finds both.
 
+            AN EMPTY GROUP HAS NO FIRST STEP, so the two lists are MERGED rather
+            than one being walked. A group an administrator has named but not yet
+            filled is legal - it is what the New Group button creates, and what
+            emptying a group leaves behind - and it names no step and is named by
+            none, so a tree built from the step list alone drew nothing at all
+            and the button looked like it had done nothing. Each group says how
+            many steps preceded it (AfterStep), so opening every group that is
+            due before each step puts it exactly where the document puts it,
+            including between two steps and after the last one.
+
             EVERY ROW IS SCOPED TO ITS OWN SEQUENCE OBJECT. Nothing here is keyed
             on a sequence ID, deliberately - two shares commonly hold task
             sequences with the SAME id (both of the lab's shares hold a DEMO-M4),
@@ -101,71 +111,110 @@ function Get-HDTConsoleStepNode {
     $topLevel = New-Object -TypeName System.Collections.ArrayList
 
     $step = @($Sequence.Step)
+    $groupList = @($Sequence.Group)
+
+    # THE ROW FOR ONE GROUP PATH, and for every ancestor of it that does not
+    # exist yet. Both halves of the merge below call it - the group list, which
+    # is the only thing that knows about an empty group, and a step's own
+    # GroupPath, which is the only thing that knows about a group a caller
+    # handed over steps for without handing over the group. Whichever reaches a
+    # path first creates it; the other finds it.
+    #
+    # Its output is discarded at every call site: this function returns one
+    # object, and a stray Add() return value would arrive alongside it.
+    $openGroup = {
+        param([string[]] $Path)
+
+        $walked = @()
+
+        foreach ($name in @($Path)) {
+            $ancestor = $walked -join "`u{001F}"
+            $walked = $walked + $name
+            $key = $walked -join "`u{001F}"
+
+            if ($groupNode.ContainsKey($key)) { continue }
+
+            $groupIndex = $groupList.Count
+            $matched = @($groupList | Where-Object { (@($_.Path) -join "`u{001F}") -eq $key })
+
+            # A GROUP'S EDITABLE NAME IS ITS OWN LEG, NOT ITS PATH. The key
+            # on the line is `group:` and it holds this leg alone, so an
+            # editable box showing 'Install \ Drivers' would write that
+            # whole string as the name the moment anybody touched it. The
+            # path is still worth showing - it is what tells one 'Drivers'
+            # from another - so it gets a read-only row of its own, and only
+            # where there is a path to show.
+            $field = @(
+                New-HDTConsoleField -Label 'Group' -Value $name -Property 'group'
+            )
+
+            if ($walked.Count -gt 1) {
+                $field = $field + @(
+                    New-HDTConsoleField -Label 'Path' -Value ($walked -join ' \ ')
+                )
+            }
+
+            $field = $field + @(
+                New-HDTConsoleField -Label 'Task Sequence' -Value $Sequence.Id
+            )
+
+            if (@($matched).Count -gt 0) {
+                $groupIndex = [array]::IndexOf($groupList, $matched[0])
+
+                $field = $field + @(
+                    New-HDTConsoleField -Label 'Runs in' -Value (Get-HDTConsoleDisplayText -Text $matched[0].RunIn -Fallback 'any phase')
+                    New-HDTConsoleField -Label 'Condition' -Value (Get-HDTConsoleDisplayText -Text $matched[0].Condition -Fallback '(none)')
+                )
+            }
+
+            $row = New-HDTConsoleNode -Depth ($walked.Count - 1) -Kind 'StepGroup' -Status 'Ok' `
+                -Text $name -Name $name -Field $field `
+                -Command ('{0}.Group[{1}]' -f $document, $groupIndex) `
+                -Header $Header
+
+            $groupNode[$key] = $row
+            [void] $node.Add($row)
+
+            if ([string]::IsNullOrEmpty($ancestor)) {
+                [void] $topLevel.Add($row)
+            } else {
+                [void] $groupNode[$ancestor].Children.Add($row)
+            }
+        }
+    }
+
+    # HOW FAR INTO THE ORDER A GROUP OPENED. A group that does not say - a caller
+    # may build the projection by hand - opens where the walk has reached, which
+    # is where it would have been created from a step's path anyway.
+    $afterStep = {
+        param([object] $Group, [int] $Reached)
+
+        $property = $Group.PSObject.Properties['AfterStep']
+        if ($null -eq $property) { return $Reached }
+
+        return [int] $property.Value
+    }
+
+    $groupAt = 0
 
     for ($index = 0; $index -lt $step.Count; $index++) {
         $current = $step[$index]
 
+        # -- every group that opens before this step, in document order
+
+        while ($groupAt -lt $groupList.Count -and (& $afterStep $groupList[$groupAt] $index) -le $index) {
+            $null = & $openGroup @($groupList[$groupAt].Path)
+            $groupAt++
+        }
+
+        # -- the groups this step sits in, for a projection that listed none
+
         $path = @($current.GroupPath)
 
-        # -- the groups this step sits in, created the first time they are named
-
         $parent = $null
-        $walked = @()
-
-        foreach ($name in $path) {
-            $walked = $walked + $name
-            $key = $walked -join "`u{001F}"
-
-            if (-not $groupNode.ContainsKey($key)) {
-                $groupIndex = @($Sequence.Group).Count
-                $matched = @($Sequence.Group | Where-Object { (@($_.Path) -join "`u{001F}") -eq $key })
-
-                # A GROUP'S EDITABLE NAME IS ITS OWN LEG, NOT ITS PATH. The key
-                # on the line is `group:` and it holds this leg alone, so an
-                # editable box showing 'Install \ Drivers' would write that
-                # whole string as the name the moment anybody touched it. The
-                # path is still worth showing - it is what tells one 'Drivers'
-                # from another - so it gets a read-only row of its own, and only
-                # where there is a path to show.
-                $field = @(
-                    New-HDTConsoleField -Label 'Group' -Value $name -Property 'group'
-                )
-
-                if ($walked.Count -gt 1) {
-                    $field = $field + @(
-                        New-HDTConsoleField -Label 'Path' -Value ($walked -join ' \ ')
-                    )
-                }
-
-                $field = $field + @(
-                    New-HDTConsoleField -Label 'Task Sequence' -Value $Sequence.Id
-                )
-
-                if (@($matched).Count -gt 0) {
-                    $groupIndex = [array]::IndexOf(@($Sequence.Group), $matched[0])
-
-                    $field = $field + @(
-                        New-HDTConsoleField -Label 'Runs in' -Value (Get-HDTConsoleDisplayText -Text $matched[0].RunIn -Fallback 'any phase')
-                        New-HDTConsoleField -Label 'Condition' -Value (Get-HDTConsoleDisplayText -Text $matched[0].Condition -Fallback '(none)')
-                    )
-                }
-
-                $row = New-HDTConsoleNode -Depth ($walked.Count - 1) -Kind 'StepGroup' -Status 'Ok' `
-                    -Text $name -Name $name -Field $field `
-                    -Command ('{0}.Group[{1}]' -f $document, $groupIndex) `
-                    -Header $Header
-
-                $groupNode[$key] = $row
-                [void] $node.Add($row)
-
-                if ($null -eq $parent) {
-                    [void] $topLevel.Add($row)
-                } else {
-                    [void] $parent.Children.Add($row)
-                }
-            }
-
-            $parent = $groupNode[$key]
+        if ($path.Count -gt 0) {
+            $null = & $openGroup $path
+            $parent = $groupNode[($path -join "`u{001F}")]
         }
 
         # -- the step itself
@@ -249,6 +298,13 @@ function Get-HDTConsoleStepNode {
         } else {
             [void] $parent.Children.Add($row)
         }
+    }
+
+    # Everything the merge has not reached: the groups after the last step, and
+    # every group in a document that is nothing but empty ones.
+    while ($groupAt -lt $groupList.Count) {
+        $null = & $openGroup @($groupList[$groupAt].Path)
+        $groupAt++
     }
 
     # TWO READINGS OF ONE BUILD. Node is every row in display order, which is

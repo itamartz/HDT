@@ -120,3 +120,55 @@ Describe 'an edit that should change exactly one line' {
         $difference[0].InputObject.Trim() | Should -BeExactly 'disabled: true'
     }
 }
+
+Describe 'a new group added to a real sample' {
+
+    # THE TWO COMMANDS COMPOSED, ON A FILE THAT SHIPS. Every other test in this
+    # area brings its own fixture, and the last two defects here were both "each
+    # suite passed on its own document and nothing put the pair together": the
+    # menu wrote YAML the engine would not read back. So this presses the New
+    # Group button on every sample in the repository and then makes the engine
+    # read the result - Add-HDTStep with the template the menu carries, then
+    # Import-HDTSequenceDocument, then the tree.
+
+    It 'adds a group to <Name> that the engine still reads' -ForEach $script:sample {
+        $original = [System.IO.File]::ReadAllText($Path)
+        $line = [string[]] @($original -split "`r?`n")
+
+        $fake = New-HDTFakeFileSystem -File @{ $Path = $original }
+        $before = Import-HDTSequenceDocument -Path $Path -FileSystem $fake
+
+        $edited = @(Add-HDTStep -Line $line -After $before.Step[0].Name `
+                -Block (Get-HDTGroupTemplate -Name 'Round Trip Group') -Confirm:$false)
+
+        $after = Import-HDTSequenceDocument -Path $Path `
+            -FileSystem (New-HDTFakeFileSystem -File @{ $Path = ($edited -join [System.Environment]::NewLine) })
+
+        # A GROUP IS NOT A STEP. Adding one adds no work to the deployment, so
+        # every step and every index is exactly what it was.
+        @($after.Step | ForEach-Object { $_.Index }) | Should -Be @($before.Step | ForEach-Object { $_.Index })
+        @($after.Step | ForEach-Object { $_.Name }) | Should -Be @($before.Step | ForEach-Object { $_.Name })
+
+        @($after.Group | ForEach-Object { $_.Path[-1] }) | Should -Contain 'Round Trip Group'
+    }
+
+    It 'adds a group to <Name> that the tree still draws' -ForEach $script:sample {
+        $original = [System.IO.File]::ReadAllText($Path)
+        $line = [string[]] @($original -split "`r?`n")
+
+        $fake = New-HDTFakeFileSystem -File @{ $Path = $original }
+        $before = Import-HDTSequenceDocument -Path $Path -FileSystem $fake
+
+        $edited = @(Add-HDTStep -Line $line -After $before.Step[0].Name `
+                -Block (Get-HDTGroupTemplate -Name 'Round Trip Group') -Confirm:$false)
+
+        $state = Get-HDTConsoleEditorState -Line $edited -Path $Path
+
+        $state.Status | Should -BeExactly 'Ok' -Because ([string] $state.Message)
+
+        $row = @($state.Node | Where-Object { $_.Kind -eq 'StepGroup' -and $_.Name -eq 'Round Trip Group' })
+
+        @($row).Count | Should -Be 1
+        @($row)[0].Children.Count | Should -Be 0
+    }
+}

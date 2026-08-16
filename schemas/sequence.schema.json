@@ -15,12 +15,16 @@
       "propertyNames": { "pattern": "^HDT[A-Za-z0-9_]*$" },
       "additionalProperties": { "type": ["string", "boolean", "integer", "number", "array"] }
     },
-    "steps": { "$ref": "#/definitions/nodeList" }
+    "steps": { "$ref": "#/definitions/rootNodeList" }
   },
   "definitions": {
-    "nodeList": {
+    "rootNodeList": {
       "type": "array",
       "minItems": 1,
+      "items": { "$ref": "#/definitions/node" }
+    },
+    "groupNodeList": {
+      "type": ["array", "null"],
       "items": { "$ref": "#/definitions/node" }
     },
     "node": {
@@ -35,7 +39,7 @@
         "condition": { "type": "string", "minLength": 1 },
         "disabled": { "type": "boolean" },
         "runIn": { "enum": ["WinPE", "FullOS", "Any"] },
-        "steps": { "$ref": "#/definitions/nodeList" }
+        "steps": { "$ref": "#/definitions/groupNodeList" }
       }
     },
     "step": {

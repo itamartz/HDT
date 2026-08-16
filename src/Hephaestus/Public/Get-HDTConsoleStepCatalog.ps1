@@ -168,11 +168,11 @@ function Get-HDTConsoleStepCatalog {
                     Source  = 'Hephaestus'
                     Command = "Add-HDTStep -Line `$line -After '<the selected step>' -Block (Get-HDTGroupTemplate)"
 
-                    # Straight from the engine, including the placeholder step
-                    # it comes with - this window does not get to decide what a
-                    # group looks like on disk any more than it decides what a
-                    # step looks like. Get-HDTGroupTemplate carries the reason
-                    # the placeholder is there.
+                    # Straight from the engine - this window does not get to
+                    # decide what a group looks like on disk any more than it
+                    # decides what a step looks like. It is a group and nothing
+                    # else: an empty group is a document the engine reads, so
+                    # there is no placeholder step to delete afterwards.
                     Block   = [string[]] @(Get-HDTGroupTemplate)
                 }
             )

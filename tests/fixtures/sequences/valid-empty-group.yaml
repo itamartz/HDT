@@ -1,0 +1,41 @@
+# An empty group, in both spellings a YAML parser produces, and both legal.
+#
+# A group is a naming and condition device, and an administrator building a
+# sequence names the shelf before anything is on it - the editor's New Group
+# button creates exactly this and nothing else. An empty group contributes no
+# steps, so the 1-based numbering runs straight through it: First is 1, Second
+# is 2 and Third is 3 whatever sits between them.
+#
+# THE TWO SPELLINGS ARE NOT THE SAME OBJECT, which is why both are here:
+#
+#   `steps: []`  parses to an empty list;
+#   `steps:`     with nothing under it parses to NULL - no collection at all.
+#
+# A group that declares no steps key whatsoever is still refused, and has its
+# own fixture: `steps` is what tells a group from a step, and the ApplyDrivers
+# step carries a `group:` key of its own.
+#
+# The second group carries a condition as well, because a condition attached to
+# nothing must be parsed and then applied to no step rather than throwing.
+schemaVersion: 1
+id: EMPTY-GROUP
+name: Empty groups
+description: Groups an administrator has named but not yet filled.
+steps:
+  - name: First
+    type: NoOp
+
+  - group: Nothing here yet
+    steps: []
+
+  - group: Nothing here either
+    condition: '"%HDTIsLaptop%" == "True"'
+    steps:
+
+  - group: Holds one
+    steps:
+      - name: Second
+        type: NoOp
+
+  - name: Third
+    type: NoOp

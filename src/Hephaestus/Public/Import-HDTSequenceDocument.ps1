@@ -50,6 +50,22 @@ function Import-HDTSequenceDocument {
               Property         ordered, case-insensitive: every key that is NOT a
                                common property, i.e. the step type's own arguments
 
+            AN EMPTY GROUP CONTRIBUTES NO STEPS AND CONSUMES NO INDEX. A group
+            an administrator has named but not yet filled is legal - it is what
+            the editor's New Group button creates - and flattening it yields
+            nothing at all, so the 1-based numbering runs straight through it. It
+            is still recorded in Group, with its condition, because it is a real
+            part of the document that an editor has to be able to show. Its
+            condition therefore applies to no step, which is pointless rather
+            than an error, and nothing here throws over it.
+
+            A GROUP RECORDS HOW FAR INTO THE ORDER IT OPENED, in AfterStep: the
+            number of steps flattened before it. Every other consumer finds a
+            group through the GroupPath of a step inside it, which an empty group
+            has none of - so without this an empty group could be listed but not
+            placed, and a tree drawn from the step list alone would silently omit
+            it.
+
             A NODE IS A GROUP WHEN IT DECLARES steps. The reference ApplyDrivers
             step carries `group: "%HDTDriverGroup%"` as a type-specific property,
             so `group` cannot be the discriminator - it stays in Property.
@@ -72,7 +88,8 @@ function Import-HDTSequenceDocument {
               Path, SchemaVersion, Id, Name, Description
               Variable  ordered, case-insensitive: the sequence defaults
               Step      [object[]] flattened into execution order
-              Group     [object[]] one per group node: Path, Condition, RunIn
+              Group     [object[]] one per group node: Path, Condition, RunIn,
+                        Disabled, AfterStep
 
         .EXAMPLE
             $sequence = Import-HDTSequenceDocument -Path 'X:\Deploy\Sequences\STD-CLIENT\sequence.yaml' -FileSystem (New-HDTFileSystem)
@@ -186,9 +203,23 @@ function Import-HDTSequenceDocument {
                     Condition = $groupCondition
                     RunIn     = $groupRunIn
                     Disabled  = $groupDisabled
+
+                    # Where this group opened, measured in steps already
+                    # flattened. Non-decreasing down the list because the walk is
+                    # preorder, which is what lets a caller merge Group and Step
+                    # back into one ordered tree.
+                    AfterStep = $index
                 })
 
-            $childNode = @($node['steps'])
+            # `steps:` WITH NOTHING UNDER IT PARSES TO NULL, not to an empty
+            # list, and @($null) is a one-element array holding a null - which
+            # would be walked as if it were a node. An empty group has no
+            # children whichever way it was spelled.
+            $childNode = @()
+            if ($null -ne $node['steps']) {
+                $childNode = @($node['steps'])
+            }
+
             for ($position = $childNode.Count - 1; $position -ge 0; $position--) {
                 $stack.Push([pscustomobject] @{
                         Node           = $childNode[$position]

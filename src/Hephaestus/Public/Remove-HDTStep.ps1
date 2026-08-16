@@ -22,6 +22,10 @@ function Remove-HDTStep {
             REMOVING A GROUP REMOVES ITS STEPS. That is what the group is: the
             block spans its children, so the splice takes them.
 
+            REMOVING THE LAST STEP IN A GROUP LEAVES THE GROUP. An empty group is
+            a document the engine reads, so clearing one out to refill it is an
+            ordinary edit rather than something to be refused.
+
             IT RETURNS LINES AND WRITES NOTHING. Save-HDTSequenceDocument is what
             touches the share, so an edit can be composed, reviewed and
             abandoned without a file ever changing.
@@ -67,23 +71,12 @@ function Remove-HDTStep {
     $found = Resolve-HDTStepBlock -Line $Line -Name $Name
     $block = @($all | Where-Object { $_.Entry -eq $found.Entry })[0]
 
-    # A GROUP WITH NO STEPS IS NOT A DOCUMENT THE ENGINE ACCEPTS. The schema
-    # says a group's steps must be a list of steps and groups, so taking the
-    # last one out produces a file that fails to load - and it would fail at
-    # Save, after the administrator had done several more edits on top of it.
-    # Refusing here names the choice they actually have.
-    $parent = @(Get-HDTStepParent -Block $all)
-    $at = [array]::IndexOf($all, $block)
-
-    if ($block.Kind -eq 'Step' -and $parent[$at] -ge 0) {
-        $sibling = @($all | Where-Object { $parent[[array]::IndexOf($all, $_)] -eq $parent[$at] })
-
-        if (@($sibling).Count -le 1) {
-            throw (New-HDTErrorRecord -Path $Name -Category InvalidOperation `
-                    -Message ("'{0}' is the only step in the '{1}' group, and a group with no steps is not a document the engine will load. Remove the group instead." -f $Name, $all[$parent[$at]].Name))
-        }
-    }
-
+    # THE LAST STEP IN A GROUP MAY GO, AND THE GROUP STAYS. This used to be
+    # refused with "remove the group instead", because a group with no steps was
+    # not a document the engine would load - which told an administrator
+    # emptying a group to delete it and type its name again. An empty group is
+    # legal now, so what is left is a named shelf with nothing on it: exactly
+    # what the New Group button creates, and still a row in the tree.
     if (-not $PSCmdlet.ShouldProcess($Name, 'Remove from the task sequence')) {
         return [string[]] @($Line)
     }

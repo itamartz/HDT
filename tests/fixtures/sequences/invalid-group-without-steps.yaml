@@ -1,5 +1,10 @@
-# A group that contains nothing. A group is a naming and condition device; an
-# empty one applies its condition to no step at all.
+# A group with no steps KEY at all, which is not the same thing as an empty
+# group - `steps: []` is legal and has its own fixture.
+#
+# The steps key is the discriminator: the reference ApplyDrivers step carries a
+# `group:` key of its own, so a node is a group when it declares steps and not
+# when it declares group. A node with neither steps nor type is therefore not
+# something the engine can classify, however much it looks like a group.
 schemaVersion: 1
 id: GROUP-WITHOUT-STEPS
 name: Group without steps

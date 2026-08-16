@@ -1,7 +1,7 @@
 function Get-HDTGroupTemplate {
     <#
         .SYNOPSIS
-            The YAML for a new, empty-looking group.
+            The YAML for a new, empty group.
 
         .DESCRIPTION
             The group's counterpart to Get-HDT<Type>StepTemplate. A group is not
@@ -12,24 +12,21 @@ function Get-HDTGroupTemplate {
             job, and a window that wrote its own would be a second definition of
             what a group looks like.
 
-            A NEW GROUP ARRIVES WITH A STEP IN IT, because this engine has no
-            such thing as an empty one. 'steps:' with nothing under it is
-            rejected by Import-HDTSequenceDocument with "steps must be a list of
-            steps and groups", so a truly empty group would leave whoever created
-            it holding a document that can no longer be read - and in an editor,
-            no tree, every button dark, and no way back except discarding the
-            other edits too.
+            A NEW GROUP IS A GROUP AND NOTHING ELSE. It used to arrive carrying a
+            NoOp step, because the engine refused a group with no steps in it and
+            a truly empty one would have left whoever created it holding a
+            document that could no longer be read. The engine accepts an empty
+            group now - naming a shelf before there is anything to put on it is
+            what an administrator does first - so the passenger went with the
+            refusal, and pressing New Group adds a group.
 
-            NoOp IS THE RIGHT PASSENGER. It is a real registered step type that
-            does nothing, so the group is valid the moment it exists and the
-            author replaces a placeholder rather than working around a broken
-            document.
+            THE EMPTY LIST IS WRITTEN OUT, as `steps: []` rather than a bare
+            `steps:`. Both parse to an empty group, but only the explicit one
+            says so to a reader, to a schema validator and to any other YAML tool
+            the file passes through.
 
         .PARAMETER Name
             The group's name.
-
-        .PARAMETER StepName
-            The name of the placeholder step inside it.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -48,27 +45,14 @@ function Get-HDTGroupTemplate {
     param(
         [Parameter(Position = 0)]
         [ValidateNotNullOrEmpty()]
-        [string] $Name = 'New Group',
-
-        [Parameter(Position = 1)]
-        [ValidateNotNullOrEmpty()]
-        [string] $StepName = 'New Step'
+        [string] $Name = 'New Group'
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $line = New-Object -TypeName System.Collections.ArrayList
-
-    [void] $line.Add('- group: {0}' -f $Name)
-    [void] $line.Add('  steps:')
-
-    # The passenger comes from the NoOp type's own template rather than being
-    # written out again here, so a change to what a NoOp step looks like reaches
-    # every new group without this function knowing about it.
-    foreach ($current in @(Get-HDTNoOpStepTemplate -Name $StepName)) {
-        [void] $line.Add('    ' + $current)
-    }
-
-    return [string[]] @($line)
+    return [string[]] @(
+        ('- group: {0}' -f $Name)
+        '  steps: []'
+    )
 }

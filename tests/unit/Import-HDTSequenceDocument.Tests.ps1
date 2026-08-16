@@ -195,6 +195,50 @@ Describe 'Import-HDTSequenceDocument' {
                 Should -Be @('Outer', 'Outer/Middle', 'Outer/Middle/Inner', 'Sibling')
         }
 
+        It 'flattens an empty group to no steps at all' {
+            $document = & $script:import 'valid-empty-group.yaml'
+
+            @($document.Step | ForEach-Object { $_.Name }) | Should -Be @('First', 'Second', 'Third')
+        }
+
+        It 'runs the 1-based numbering straight through an empty group' {
+            # THE NUMBER IS THE EXECUTION ORDER, and a group that contributes no
+            # steps must not consume an index - state.json skips completed steps
+            # BY INDEX, so a gap or a shift here would resume the wrong step
+            # after a reboot.
+            $document = & $script:import 'valid-empty-group.yaml'
+
+            @($document.Step | ForEach-Object { $_.Index }) | Should -Be @(1, 2, 3)
+        }
+
+        It 'records an empty group like any other, in document order' {
+            $document = & $script:import 'valid-empty-group.yaml'
+
+            @($document.Group | ForEach-Object { $_.Path -join '/' }) |
+                Should -Be @('Nothing here yet', 'Nothing here either', 'Holds one')
+        }
+
+        It 'keeps the condition of a group that contains nothing' {
+            # A condition attached to no step is pointless rather than broken,
+            # and it must survive the flattening so the editor can still show it.
+            $document = & $script:import 'valid-empty-group.yaml'
+
+            $empty = @($document.Group | Where-Object { $_.Path[-1] -eq 'Nothing here either' })[0]
+
+            $empty.Condition | Should -BeExactly '"%HDTIsLaptop%" == "True"'
+        }
+
+        It 'says how many steps precede each group, so a caller can place it' {
+            # AN EMPTY GROUP HAS NO STEP TO HANG IT OFF. Everything else that
+            # draws a tree finds a group through the GroupPath of a step inside
+            # it, which for an empty one names nothing at all - so the group
+            # records how far into the execution order it opened, and the tree
+            # is built by merging the two lists rather than by walking one.
+            $document = & $script:import 'valid-empty-group.yaml'
+
+            @($document.Group | ForEach-Object { $_.AfterStep }) | Should -Be @(1, 1, 1)
+        }
+
         It 'counts every step of the DESIGN 4.1 example' {
             $document = & $script:import 'valid-design-example.yaml'
 

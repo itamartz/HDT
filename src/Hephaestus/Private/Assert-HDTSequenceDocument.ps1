@@ -23,8 +23,8 @@ function Assert-HDTSequenceDocument {
               variables every name matching ^HDT[A-Za-z0-9_]*$ and no _HDT* name,
                         which is engine-owned and cannot be assigned
               group     a mapping declaring steps; a non-empty group name; no key
-                        outside group/condition/runIn/steps; a non-empty steps
-                        list; a parseable condition; a runIn in the set
+                        outside group/condition/runIn/steps; a steps list, WHICH
+                        MAY BE EMPTY; a parseable condition; a runIn in the set
               step      a mapping declaring type; a non-empty name; a type
                         matching ^[A-Za-z][A-Za-z0-9]*$; boolean continueOnError
                         and resumable; a positive timeoutMinutes; a runIn in the
@@ -37,6 +37,19 @@ function Assert-HDTSequenceDocument {
             document the design prints. A node declaring BOTH steps and type is
             the error, and it is the one case JSON Schema draft-07 cannot express
             (see tests/contract/SequenceSchema.Contract.Tests.ps1).
+
+            AN EMPTY GROUP IS LEGAL, AND THE DOCUMENT'S OWN EMPTY steps IS NOT.
+            A group an administrator has named but not yet filled is a shelf with
+            nothing on it: it contributes no step, and the numbering runs
+            straight through it. It is what the editor's New Group button
+            creates, and what taking the last step out of a group leaves behind.
+            A document whose steps list is empty is a different thing - a
+            deployment that does nothing at all - and stays refused.
+
+            BOTH SPELLINGS OF EMPTY ARRIVE HERE, AND THEY ARE DIFFERENT OBJECTS.
+            `steps: []` parses to an empty list; `steps:` with nothing under it
+            parses to NULL, no collection at all. A steps key holding anything
+            else is still refused.
 
             CONDITIONS ARE PARSED HERE. ConvertFrom-HDTStepCondition runs over
             every step and group condition at import, so a malformed one fails
@@ -244,7 +257,7 @@ function Assert-HDTSequenceDocument {
         if (-not $isGroup -and -not $isStep) {
             if ($node.Contains('group')) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("group '{0}' declares no steps. A group is a naming and condition device, so an empty one applies its condition to nothing." -f $label)))
+                            -Message ("group '{0}' declares no steps key. The steps key is what tells a group from a step, so a group declares one even when there is nothing in it yet: write 'steps: []'." -f $label)))
             }
 
             $stepIndex++
@@ -270,15 +283,17 @@ function Assert-HDTSequenceDocument {
                 }
             }
 
+            # $null IS THE PARSER'S ANSWER FOR `steps:` WITH NOTHING UNDER IT,
+            # and it means the same as `steps: []`. Anything else - a scalar, a
+            # mapping - is still a mistake worth naming.
             $child = $node['steps']
-            if (-not ($child -is [System.Collections.IList])) {
+            if ($null -ne $child -and -not ($child -is [System.Collections.IList])) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                             -Message ("{0}: steps must be a list of steps and groups." -f $locator)))
             }
 
-            if (@($child).Count -eq 0) {
-                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("{0}: the steps list is empty. A group is a naming and condition device, so an empty one applies its condition to nothing." -f $locator)))
+            if ($null -eq $child) {
+                $child = @()
             }
 
             if ($node.Contains('condition')) {

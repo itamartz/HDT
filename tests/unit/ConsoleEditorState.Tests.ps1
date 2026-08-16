@@ -82,6 +82,55 @@ Describe 'Get-HDTConsoleEditorState' {
         }
     }
 
+    Context 'a group with nothing in it' {
+
+        BeforeAll {
+            # THE SHAPE THE NEW GROUP BUTTON PRODUCES, with a step on either side
+            # of it so the ORDER is asserted and not just the presence of a row.
+            $script:emptyGroupLine = @'
+schemaVersion: 1
+id: EMPTY
+name: An unfilled shelf
+
+steps:
+  - name: Validate
+    type: Validate
+
+  - group: New Group
+    steps: []
+
+  - name: Apply OS
+    type: ApplyImage
+'@ -split "`r?`n"
+
+            $script:emptyGroupState = Get-HDTConsoleEditorState -Line $script:emptyGroupLine -Path $script:path
+        }
+
+        It 'reads the document' {
+            $script:emptyGroupState.Status | Should -BeExactly 'Ok' -Because $script:emptyGroupState.Message
+        }
+
+        It 'draws the group even though no step names it' {
+            # EVERY OTHER GROUP ROW IS CREATED BY THE FIRST STEP INSIDE IT. An
+            # empty one has no such step, so a tree built by walking the steps
+            # alone drew nothing at all - and the New Group button looked like it
+            # had done nothing.
+            $row = @($script:emptyGroupState.Node | Where-Object { $_.Kind -eq 'StepGroup' -and $_.Name -eq 'New Group' })
+
+            @($row).Count | Should -Be 1
+            @($row)[0].Children.Count | Should -Be 0
+        }
+
+        It 'puts it where the document puts it, between the two steps' {
+            @($script:emptyGroupState.Root | ForEach-Object { $_.Text }) |
+                Should -Be @('1. Validate', 'New Group', '2. Apply OS')
+        }
+
+        It 'leaves the numbering to the steps' {
+            $script:emptyGroupState.StepCount | Should -Be 2
+        }
+    }
+
     Context 'a document the splice broke' {
 
         It 'says so, and does not throw at the window' {

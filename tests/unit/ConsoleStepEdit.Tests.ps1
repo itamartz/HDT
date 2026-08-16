@@ -120,11 +120,12 @@ Describe 'Remove-HDTStep' {
             Should -Throw -ExpectedMessage '*No Such Step*'
     }
 
-    It 'refuses to empty a group, because the engine will not load one' {
-        # The schema says a group's steps must be a list of steps and groups,
-        # so taking the last one out produces a file that fails to load. Caught
-        # here it names the choice the administrator actually has; caught at
-        # Save it arrives after several more edits have been built on top.
+    It 'empties a group and leaves a document the engine still reads' {
+        # IT USED TO REFUSE THIS. A group with no steps was not a document the
+        # engine would load, so taking the last step out of one had to be
+        # refused with "remove the group instead" - an administrator clearing a
+        # group out to refill it was told to delete the group and type its name
+        # again. An empty group is legal now, so the removal is just a removal.
         $single = @'
 schemaVersion: 1
 id: ONE
@@ -140,11 +141,20 @@ steps:
         type: NoOp
 '@ -split "`r?`n"
 
-        { Remove-HDTStep -Line $single -Name 'Alone' -ErrorAction Stop } |
-            Should -Throw -ExpectedMessage '*only step*'
+        $after = Remove-HDTStep -Line $single -Name 'Alone'
+
+        ($after -join "`n") | Should -Not -Match 'Alone'
+        ($after -join "`n") | Should -Match 'group: Only'
+
+        # The benchmark: what is left is still a document, and the emptied group
+        # is still a row in the tree rather than something that vanished.
+        $state = Get-HDTConsoleEditorState -Line $after -Path 'C:\ws\TaskSequences\ONE\sequence.yaml'
+
+        $state.Status | Should -BeExactly 'Ok' -Because $state.Message
+        @($state.Node | Where-Object { $_.Kind -eq 'StepGroup' -and $_.Name -eq 'Only' }).Count | Should -Be 1
     }
 
-    It 'still allows the GROUP to go, which is what it told you to do' {
+    It 'takes the whole GROUP, steps and all, when the group is what was named' {
         $single = @'
 schemaVersion: 1
 id: ONE

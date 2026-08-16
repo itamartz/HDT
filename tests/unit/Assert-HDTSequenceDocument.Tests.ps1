@@ -214,7 +214,11 @@ steps:
             $record.Exception.Message | Should -BeLike '*Preinstall*'
         }
 
-        It 'refuses a group with an empty steps list' {
+        It 'accepts a group with an empty steps list' {
+            # A GROUP AN ADMINISTRATOR HAS NAMED BUT NOT YET FILLED IS LEGAL.
+            # MDT's editor creates the group and lets you drag steps into it
+            # afterwards, and refusing that here made the console's New Group
+            # button unable to do what the button says.
             $record = & $script:assertFailure @'
 schemaVersion: 1
 id: X
@@ -222,10 +226,57 @@ name: X
 steps:
   - group: Preinstall
     steps: []
+  - name: First
+    type: NoOp
+'@
+
+            $record | Should -BeNullOrEmpty
+        }
+
+        It 'accepts a group whose steps key has nothing under it' {
+            # THE PARSER GIVES BACK NULL FOR THIS, not an empty list, and the two
+            # arrive at the validator as different objects. It is also what
+            # Remove-HDTStep leaves behind when the last step in a group goes.
+            $record = & $script:assertFailure @'
+schemaVersion: 1
+id: X
+name: X
+steps:
+  - group: Preinstall
+    steps:
+  - name: First
+    type: NoOp
+'@
+
+            $record | Should -BeNullOrEmpty
+        }
+
+        It 'still refuses a steps key that is neither a list nor empty' {
+            $record = & $script:assertFailure @'
+schemaVersion: 1
+id: X
+name: X
+steps:
+  - group: Preinstall
+    steps: soon
 '@
 
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
             $record.Exception.Message | Should -BeLike '*Preinstall*'
+        }
+
+        It 'still refuses an empty steps list on the DOCUMENT' {
+            # An empty group is a shelf with nothing on it; an empty document is
+            # a deployment that does nothing at all.
+            $record = & $script:assertFailure @'
+schemaVersion: 1
+id: X
+name: X
+steps: []
+'@
+
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+            $record.Exception.Message | Should -BeLike '*at least one step*'
         }
 
         It 'refuses a group with an unknown key' {

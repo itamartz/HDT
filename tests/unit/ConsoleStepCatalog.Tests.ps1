@@ -72,19 +72,20 @@ Describe 'Get-HDTConsoleStepCatalog' {
             $entry = $script:catalog[0].Item[0]
 
             $entry.Block[0] | Should -BeExactly '- group: New Group'
-            $entry.Block[1] | Should -BeExactly '  steps:'
+            $entry.Block[1] | Should -BeExactly '  steps: []'
         }
 
-        It 'puts a step in the new group, because this engine has no empty ones' {
-            # An empty `steps:` is rejected with "steps must be a list of steps
-            # and groups", which leaves the editor holding a document it cannot
-            # re-read: no tree, every button dark, and no way back except
-            # closing the window and losing the rest of the session's edits.
+        It 'adds a group and nothing else' {
+            # NEW GROUP MEANS A NEW GROUP. It used to arrive carrying a NoOp step
+            # because the engine refused an empty group, so the button an
+            # administrator pressed to make a shelf made a shelf and a thing on
+            # it that they then had to delete. The engine accepts an empty group
+            # now, and the passenger went with the refusal.
             $entry = $script:catalog[0].Item[0]
 
-            @($entry.Block).Count | Should -Be 4
-            $entry.Block[2] | Should -BeExactly '    - name: New Step'
-            $entry.Block[3] | Should -BeExactly '      type: NoOp'
+            @($entry.Block).Count | Should -Be 2
+            @($entry.Block) | Should -Not -Contain '    - name: New Step'
+            @($entry.Block -match 'type:') | Should -BeNullOrEmpty
         }
 
         It 'produces a document the engine still reads after the group is added' {
