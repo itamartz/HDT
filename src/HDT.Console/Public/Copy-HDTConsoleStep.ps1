@@ -5,8 +5,7 @@ function Copy-HDTConsoleStep {
             elsewhere.
 
         .DESCRIPTION
-            The Copy button, and the cmdlet an administrator can type instead
-            (DESIGN 12).
+            The Copy button, and the cmdlet an administrator can type instead.
 
             IT IS THE HALF OF A CROSS-GROUP MOVE THAT CAN BE SEEN. Move refuses
             to take a step out of its group, because "before the group" and

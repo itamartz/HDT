@@ -6,7 +6,7 @@ function Get-HDTConsoleCatalogEntry {
 
         .DESCRIPTION
             TaskSequences\ and OperatingSystems\ are both "a folder per item,
-            with one YAML document inside it" (DESIGN 2.1), so both are
+            with one YAML document inside it", so both are
             enumerated the same way and the rule for what counts lives here once.
 
             A FOLDER IS A CATALOG ITEM ONLY IF THE DOCUMENT IS IN IT. The lab

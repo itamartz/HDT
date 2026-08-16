@@ -4,9 +4,9 @@ function Get-HDTConsoleMonitor {
             Which deployments are in flight on a share, and where each has got to.
 
         .DESCRIPTION
-            ROADMAP M8's monitoring view, and DESIGN 12's description of it:
+            The monitoring view:
             "tails Logs\_active\, showing in-flight deployments, current step,
-            and elapsed time". DESIGN 4.4.6 is the other half of the same
+            and elapsed time". The engine's heartbeat is the other half of the same
             decision - "The engine writes a small status.json heartbeat to
             <share>\Logs\_active\<RunId>.json each step. The console tails that
             directory. No web service, no SQL, no MDT Monitoring dependency."
@@ -14,7 +14,7 @@ function Get-HDTConsoleMonitor {
             SO THE WHOLE FEATURE IS A DIRECTORY LISTING AND SOME ARITHMETIC, and
             both belong here rather than in the window. The console re-runs this
             on a timer and assigns what comes back; it works nothing out, which
-            is what leaves the adapter exempt from TDD (CLAUDE.md rule 1).
+            is what leaves the adapter exempt from TDD.
 
             THE CLOCK IS INJECTED. "How long since this said anything" is the
             one number on the screen that changes with nothing being written,

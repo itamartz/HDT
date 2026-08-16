@@ -5,8 +5,7 @@ function Save-HDTConsoleSequence {
             checking the engine can still read it.
 
         .DESCRIPTION
-            The Save button, and the cmdlet an administrator can type instead
-            (DESIGN 12).
+            The Save button, and the cmdlet an administrator can type instead.
 
             THIS IS THE ONLY COMMAND IN THE EDITOR THAT TOUCHES THE SHARE. Add,
             Remove, Move and Copy all compose lines in memory, so an edit can be
@@ -21,7 +20,7 @@ function Save-HDTConsoleSequence {
 
             IT KEEPS THE FILE'S OWN LINE ENDINGS. A save that rewrote every
             ending would show up as a diff touching every line - the git-review
-            problem DESIGN 12 is about, arriving by a different route. The
+            problem the splice design is about, arriving by a different route. The
             existing file decides; a new one gets CRLF, because the engine's
             documents live on Windows shares and are read in WinPE.
 

@@ -4,7 +4,7 @@ function Get-HDTConsoleLintText {
             How a task sequence's lint findings read on its row and in its pane.
 
         .DESCRIPTION
-            DESIGN 12'S "VALIDATION, SURFACED INLINE", turned into the two
+            VALIDATION, SURFACED INLINE, turned into the two
             strings a row needs. Test-HDTTaskSequence decided what is wrong -
             this decides how much of it goes where, which is a different
             question and the one a screen full of sequences turns on.

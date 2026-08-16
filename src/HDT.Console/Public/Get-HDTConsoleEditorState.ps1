@@ -9,7 +9,7 @@ function Get-HDTConsoleEditorState {
             THIS IS WHAT LETS THE WINDOW STAY BRANCH-FREE. Wiring the toolbar
             means deciding things - which buttons are live for the selected row,
             what the tree looks like after a splice, whether the edited text
-            still parses - and CLAUDE.md rule 1 puts decisions in commands
+            still parses - and this toolkit puts decisions in commands
             rather than in an adapter nothing tests. With this in place every
             handler in New-HDTConsoleHost is one call and one assignment.
 
@@ -32,7 +32,7 @@ function Get-HDTConsoleEditorState {
             Move-HDTConsoleStep refuses to move the first step in a group past
             the group's own boundary, because "before the group" and "the last
             step of the group above" are both plausible and the console must not
-            guess (DESIGN 9.1's rule about ambiguous targets). A toolbar that
+            guess. A toolbar that
             offered Up there would turn an ordinary-looking press into an error
             box, so the button is dark instead - the refusal is the same, made
             one moment earlier and without the dialog.

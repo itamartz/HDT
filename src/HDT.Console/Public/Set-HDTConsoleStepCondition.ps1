@@ -9,7 +9,7 @@ function Set-HDTConsoleStepCondition {
             under the two checkboxes and a step with none runs every time; HDT
             carries the same idea as one expression on the step's `condition`
             key, evaluated by the engine before the step is invoked. This is
-            that control, as a command - DESIGN 12: every button maps to a
+            that control, as a command: every button maps to a
             cmdlet invocation, and the console shows the invocation.
 
             ONE EXPRESSION, NOT A CLAUSE BUILDER. MDT's dialog composes an

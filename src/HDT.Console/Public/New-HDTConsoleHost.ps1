@@ -6,7 +6,7 @@ function New-HDTConsoleHost {
 
         .DESCRIPTION
             THIS IS AN ADAPTER OVER AN EXTERNAL TOOL AND IS DELIBERATELY
-            BRANCH-FREE. CLAUDE.md rule 1's only exception to TDD is a thin
+            BRANCH-FREE. The only exception to TDD in this toolkit is a thin
             adapter over something that cannot be faked - here WPF itself - and
             the price of that exception is that there is nothing in it worth
             testing. It formats nothing, counts nothing, and decides nothing:

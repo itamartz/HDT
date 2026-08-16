@@ -6,7 +6,7 @@ function Add-HDTConsoleStep {
 
         .DESCRIPTION
             The Add and Paste buttons, and the cmdlet an administrator can type
-            instead (DESIGN 12: "the console may not do anything the cmdlets
+            instead ("the console may not do anything the cmdlets
             can't").
 
             THIS IS THE ONLY OPERATION THAT INVENTS TEXT, and it therefore has

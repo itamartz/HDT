@@ -2,7 +2,7 @@ function Get-HDTConsoleBootImageNode {
     <#
         .SYNOPSIS
             Builds the boot image row - the build date, both artifacts, both
-            hashes, and DESIGN 6.1.1's verdict.
+            hashes, and whether the ISO carries the same boot image.
 
         .DESCRIPTION
             THIS ROW IS WHY C1 NAMES HASHES AT ALL. A deployment share's boot
@@ -20,7 +20,7 @@ function Get-HDTConsoleBootImageNode {
             THE HASHES ARE SHOWN IN FULL. A truncated hash cannot be compared
             with anything, which is the only thing a hash is for.
 
-            DESIGN 6.1.1's CLAIM IS STATED IN WORDS. "the WIM inside the ISO and
+            THE ISO CLAIM IS STATED IN WORDS. "the WIM inside the ISO and
             the standalone WIM have identical hashes" is a property the build
             asserts; the console says whether it holds for THIS image rather than
             printing two 64-character strings and leaving an administrator to

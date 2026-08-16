@@ -8,7 +8,7 @@ function Get-HDTConsoleStepCatalog {
             ADD IS A MENU, WHICH IS WORKBENCH'S SHAPE. MDT and ConfigMgr both
             hang a drop-down off Add - General, Disks, Images - and an
             administrator picks 'Apply Operating System' rather than typing a
-            type name. CLAUDE.md asks for a console close enough that muscle
+            type name. This console is meant to be close enough that muscle
             memory transfers, so the menu is a decision, it is made here, and
             every item of it is asserted in
             tests/unit/ConsoleStepCatalog.Tests.ps1. The window hangs the items
@@ -16,7 +16,7 @@ function Get-HDTConsoleStepCatalog {
 
             THE LIST IS Get-HDTStepType'S, NOT A LITERAL. That cmdlet is the
             engine's registry and it discovers third-party step types dropped
-            into Modules\ (DESIGN 5.4). A hard-coded menu would offer the ten
+            into Modules\. A hard-coded menu would offer the ten
             that shipped and quietly omit the one somebody installed this
             morning - a failure that is hard to notice precisely because the
             menu still looks complete.

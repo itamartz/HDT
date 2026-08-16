@@ -5,7 +5,7 @@ function Show-HDTSequenceEditor {
 
         .DESCRIPTION
             Deployment Workbench's shape: the browser lists task sequences and
-            editing their steps happens in a window opened from one. CLAUDE.md
+            editing their steps happens in a window opened from one. This toolkit
             asks for a console close enough to it that muscle memory transfers.
 
             THE DECISIONS ARE Get-HDTConsoleSequenceEditor'S; THIS ONE HANDS
@@ -13,7 +13,7 @@ function Show-HDTSequenceEditor {
             row shows are all built there and asserted in tests. This command
             loads the markup, resolves the palette and calls the injected host,
             which is what leaves the host branch-free and honestly exempt from
-            TDD (CLAUDE.md rule 1).
+            TDD.
 
             THE DOCUMENT PATH GOES TO THE WINDOW SEPARATELY, and the window
             shows it. Both of this lab's shares hold a DEMO-M4, so two editors

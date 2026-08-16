@@ -13,7 +13,7 @@ function New-HDTConsoleField {
 
             THE VALUE BOX IS READ-ONLY IN C1, AND THAT IS DELIBERATE RATHER THAN
             UNFINISHED. C1 opens a live deployment share and writes nothing to
-            it. Writing needs the comment-preserving YAML round-trip DESIGN 12
+            it. Writing needs the comment-preserving YAML round-trip the design
             requires - "a UI that reformats the file breaks git review" - and
             that does not exist yet. A box that accepts typing and silently
             discards it would be worse than one that plainly does not.

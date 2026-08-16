@@ -4,7 +4,7 @@ function Show-HDTConsole {
             Opens the HDT admin console on one or more deployment shares.
 
         .DESCRIPTION
-            C1 of the WPF-first direction (.planning/WPF-FIRST.md): the
+            The
             Deployment Workbench equivalent, showing what is on a share - its
             deployRoot, its task sequences, its operating systems, and the boot
             image with its build date and hashes.

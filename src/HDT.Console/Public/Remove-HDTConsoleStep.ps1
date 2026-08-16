@@ -6,11 +6,11 @@ function Remove-HDTConsoleStep {
 
         .DESCRIPTION
             The Remove button, and the cmdlet an administrator can type instead
-            (DESIGN 12: "the console may not do anything the cmdlets can't").
+            ("the console may not do anything the cmdlets can't").
 
             IT SPLICES LINES AND NEVER PARSES YAML. ConvertFrom-HDTYaml yields a
             dictionary and a dictionary has no comments in it; the lab's DEMO-M4
-            is 107 lines of which 51 are a header recording SPIKES findings. An
+            is 107 lines of which 51 are a header recording lab findings. An
             edit that round-tripped through the parser would hand back a file
             with every comment gone and every key reordered - the thing DESIGN
             12 forbids, because "a UI that reformats the file breaks git review".

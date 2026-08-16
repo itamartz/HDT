@@ -6,7 +6,7 @@ function Get-HDTConsoleStepNode {
         .DESCRIPTION
             THE TREE USED TO STOP AT THE SEQUENCE, and the detail pane said
             "Steps: 5". A count is not something an administrator can click.
-            DESIGN 12 calls for a "drag-and-drop step tree with a properties
+            The console is meant to have a "drag-and-drop step tree with a properties
             pane"; this builds that tree's contents, here rather than in the
             window, so every row can be asserted without a screen.
 

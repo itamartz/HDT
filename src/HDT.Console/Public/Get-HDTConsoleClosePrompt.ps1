@@ -34,7 +34,7 @@ function Get-HDTConsoleClosePrompt {
 
             THE WORDING IS DECIDED HERE, not in the adapter, so what an
             administrator is asked can be read in a test rather than by
-            provoking a dialog on a screen (CLAUDE.md rule 1).
+            provoking a dialog on a screen.
 
         .PARAMETER DocumentPath
             The sequence.yaml this editor would write.

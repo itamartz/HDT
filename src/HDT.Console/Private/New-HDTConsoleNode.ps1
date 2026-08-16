@@ -11,7 +11,7 @@ function New-HDTConsoleNode {
             THE ROWS ARE BOTH A TREE AND A LIST, AND BOTH ARE BUILT HERE. The
             window is a WPF TreeView - it expands, it collapses, and each row
             carries an icon, because that is what Deployment Workbench looks like
-            and DESIGN 12 asks for muscle memory rather than a novel shape. The
+            and the console is meant to transfer muscle memory rather than to be a novel shape. The
             TreeView needs nesting, so every node carries Children; a test, a
             Format-Table and a screenshot want a flat ordered reading, so every
             node also carries Depth and Display, which is Text with its
@@ -49,7 +49,7 @@ function New-HDTConsoleNode {
             console reading and a screen reading cannot disagree.
 
         .PARAMETER Command
-            The module command that produced the row (DESIGN 12).
+            The module command that produced the row.
 
         .PARAMETER Header
             What the banner says while this row is selected - Title, Root and

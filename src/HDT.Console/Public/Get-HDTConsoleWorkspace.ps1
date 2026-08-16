@@ -5,8 +5,8 @@ function Get-HDTConsoleWorkspace {
             shows about it.
 
         .DESCRIPTION
-            C1 of the WPF-first direction (.planning/WPF-FIRST.md), backend half,
-            and the whole of what the window knows. DESIGN 12's rule is that the
+            The backend half of the console,
+            and the whole of what the window knows. The rule is that the
             console may not do anything the cmdlets can't, so this reads the
             share through the SAME commands an administrator would type:
 
@@ -41,7 +41,7 @@ function Get-HDTConsoleWorkspace {
             Update-HDTBootImage writes Boot\<name>.manifest.json beside the .wim
             and the .iso, and it records the build date, the machine, the engine
             version and the SHA-256 of both artifacts. Reading it is how the
-            console can state DESIGN 6.1.1's claim - that the WIM inside the ISO
+            console can state the ISO claim - that the WIM inside the ISO
             hashes equal to the standalone WIM - instead of hashing 500 MB twice
             to re-derive it. A share whose image has never been built says so and
             names Update-HDTBootImage, rather than showing an image with empty
@@ -73,7 +73,7 @@ function Get-HDTConsoleWorkspace {
                               Architecture, DefaultIndex, ImageCount, Image,
                               SourcePath, ImagePath, Path, Status, Error
               Driver          Folder, Present - the folder only; the engine has
-                              no driver catalog to read (DESIGN 7 is unbuilt)
+                              no driver catalog to read
               BootImage       Name, Architecture, Language, ManifestPath,
                               Status ('Ok', 'Missing' or 'Error'), Error,
                               BuildId, BuiltUtc, BuiltOn, EngineVersion,
@@ -91,7 +91,7 @@ function Get-HDTConsoleWorkspace {
                 Format-Table Id, Name, StepCount, Status
 
             The same answer without a window - the console shows nothing the
-            command line cannot (DESIGN 12).
+            command line cannot.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -133,7 +133,7 @@ function Get-HDTConsoleWorkspace {
     if (-not $FileSystem.TestPath($workspacePath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $workspacePath `
                     -Category ObjectNotFound `
-                    -Message ("there is no workspace document here, so '{0}' is not a deployment share. A share declares its identity and its deployRoot in workspace.yaml at its root (DESIGN 2.1)." -f $root)))
+                    -Message ("there is no workspace document here, so '{0}' is not a deployment share. A share declares its identity and its deployRoot in workspace.yaml at its root." -f $root)))
     }
 
     # Deliberately NOT wrapped: a workspace.yaml that does not parse is a share

@@ -9,8 +9,8 @@ function Get-HDTConsoleSequenceEditor {
             SHAPE. MDT lists task sequences in the tree and edits their steps in
             a properties dialog opened from one - step tree on the left,
             properties on the right, Add/Remove/Up/Down across the top.
-            CLAUDE.md asks for a console "deliberately close to Deployment
-            Workbench so muscle memory transfers", and DESIGN 12 repeats it.
+            This console is meant to be "deliberately close to Deployment
+            Workbench so muscle memory transfers".
 
             IT IS ALSO WHERE WRITING BELONGS. The browser opens a live
             deployment share and promises to write nothing to it; an editing
@@ -22,7 +22,7 @@ function Get-HDTConsoleSequenceEditor {
             EVERYTHING THAT REACHES THE SCREEN IS DECIDED HERE, the same rule
             Get-HDTConsoleTreeNode follows and for the same reason: the injected
             host adds rows to a control and formats nothing, which is what
-            leaves it branch-free and honestly exempt from TDD (CLAUDE.md rule
+            leaves it branch-free and honestly exempt from TDD (the rule
             1). If the host built these rows, the only thing that could ever
             check the editor's output would be a person looking at a screen.
 

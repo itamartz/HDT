@@ -7,7 +7,7 @@ function Set-HDTConsoleStepFlag {
         .DESCRIPTION
             THE OPTIONS TAB'S TWO CHECKBOXES, AS A COMMAND. Deployment
             Workbench puts "Disable this step" and "Continue on error" on a tab
-            beside Properties; DESIGN 12 says the console may not do anything
+            beside Properties; the console may not do anything
             the cmdlets can't, so both are this cmdlet before they are controls.
 
             SWITCHING A STEP OFF IS NOT DELETING IT, and that is the whole point
@@ -20,7 +20,7 @@ function Set-HDTConsoleStepFlag {
 
             IT SPLICES. See Add-HDTConsoleStep for why nothing here parses YAML:
             a round trip through ConvertFrom-HDTYaml returns a dictionary, a
-            dictionary has no comments in it, and DESIGN 12 forbids a UI that
+            dictionary has no comments in it, and this toolkit forbids a UI that
             reformats the file. Exactly one line is inserted or rewritten and
             every other byte comes back as it went in.
 

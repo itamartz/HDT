@@ -8,7 +8,7 @@ function Set-HDTConsoleStepProperty {
             THE PROPERTIES TAB'S CMDLET. Options carries the three keys that
             decide whether a step runs; this carries the rest - the index
             ApplyImage installs, the minRamMB Validate insists on, the name on
-            the row. DESIGN 12: the console may not do anything the cmdlets
+            the row. The console may not do anything the cmdlets
             can't, and it shows the invocation for what it does.
 
             IT SPLICES, and it is the same three-way splice as the flags:

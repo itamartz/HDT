@@ -14,7 +14,7 @@ function Resolve-HDTConsoleStepBlock {
             AN AMBIGUOUS NAME IS ALSO AN ERROR. A sequence may legally hold two
             steps called 'Restart' and the console must not guess which one the
             administrator meant - the same refusal DiskPartition makes about an
-            ambiguous disk (DESIGN 9.1), for the same reason.
+            ambiguous disk, for the same reason.
 
         .PARAMETER Line
             The document, already split into lines.

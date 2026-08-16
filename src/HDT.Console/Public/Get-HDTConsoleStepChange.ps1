@@ -7,7 +7,7 @@ function Get-HDTConsoleStepChange {
         .DESCRIPTION
             APPLY IS ONE PRESS OVER SEVERAL BOXES, and working out which of them
             changed is a decision - so it is made here rather than in a loop
-            inside the window (CLAUDE.md rule 1). The handler behind the button
+            inside the window. The handler behind the button
             walks what this returns and calls Set-HDTConsoleStepProperty once
             per entry, with nothing left to work out.
 

@@ -9,7 +9,7 @@ function Get-HDTConsoleTreeNode {
             loaded by XamlReader and driven by an injected IConsoleHost that adds
             these rows to a list and shows the selected row's detail; the host
             makes no decisions and formats nothing, which is what leaves it
-            branch-free and honestly exempt from TDD (CLAUDE.md rule 1). If the
+            branch-free and honestly exempt from TDD. If the
             host built the rows, the only thing that could ever check the
             console's output would be a person looking at a screen.
 
@@ -24,13 +24,13 @@ function Get-HDTConsoleTreeNode {
 
             THE ORDER IS DEPLOYMENT WORKBENCH'S, deliberately: each share, then
             Task Sequences, Operating Systems and the Boot Image beneath it
-            (DESIGN 12 - "deliberately close to Deployment Workbench so muscle
+            ("deliberately close to Deployment Workbench so muscle
             memory transfers"). Depth carries the nesting and Display carries the
             indentation already applied, so a flat ListBox in a monospaced font
             reads as a tree without a converter, a TreeView, or a line of XAML
             that has to be right first time in a window nobody can unit test.
 
-            EVERY ROW CARRIES THE COMMAND THAT PRODUCED IT. DESIGN 12: "the
+            EVERY ROW CARRIES THE COMMAND THAT PRODUCED IT: "the
             console may not do anything the cmdlets can't. Every action it
             performs maps to a cmdlet invocation, and the console shows that
             invocation - so an admin can learn the automation surface by clicking

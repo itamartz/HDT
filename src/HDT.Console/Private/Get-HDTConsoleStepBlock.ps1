@@ -11,8 +11,8 @@ function Get-HDTConsoleStepBlock {
             round-trips through the YAML parser, because ConvertFrom-HDTYaml
             yields a dictionary and a dictionary has no comments in it - DEMO-M4
             on the lab share is 107 lines of which about 60 are a comment header
-            recording SPIKES findings, and a save that re-serialised a model
-            would delete every one. DESIGN 12: "a UI that reformats the file
+            recording findings from the lab, and a save that re-serialised a model
+            would delete every one: "a UI that reformats the file
             breaks git review, which is one of the reasons config-as-code fails
             in practice."
 

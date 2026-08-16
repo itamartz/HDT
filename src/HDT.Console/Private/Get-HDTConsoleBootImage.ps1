@@ -25,7 +25,7 @@ function Get-HDTConsoleBootImage {
             image is one panel of a window that still has a share, task sequences
             and operating systems to show.
 
-            DESIGN 6.1.1's CLAIM IS EVALUATED, NOT REPEATED. HashMatch is the
+            THE ISO CLAIM IS EVALUATED, NOT REPEATED. HashMatch is the
             comparison of the standalone WIM's hash against the hash of the
             boot.wim inside the ISO, both of which the manifest records. An older
             manifest written before that key existed answers $false rather than

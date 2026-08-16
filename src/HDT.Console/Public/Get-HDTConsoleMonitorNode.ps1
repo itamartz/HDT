@@ -4,7 +4,7 @@ function Get-HDTConsoleMonitorNode {
             The Monitoring category and the rows beneath it, built on its own.
 
         .DESCRIPTION
-            THE TAILING HALF OF ROADMAP M8's MONITORING VIEW. A view that reads
+            THE TAILING HALF OF THE MONITORING VIEW. A view that reads
             the directory once and then shows an hour-old answer is a report
             rather than a monitor - and worse, a report that LOOKS like a
             monitor, which is how somebody comes to believe a machine is fine.

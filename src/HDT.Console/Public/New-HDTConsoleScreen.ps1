@@ -5,7 +5,7 @@ function New-HDTConsoleScreen {
 
         .DESCRIPTION
             An adapter over one Windows call and nothing else, which is what
-            keeps it branch-free and honestly exempt from TDD (CLAUDE.md rule 1).
+            keeps it branch-free and honestly exempt from TDD.
             Every decision about what to do with the answer belongs to
             Get-HDTConsoleSetting, which is unit tested against
             New-HDTFakeScreen.

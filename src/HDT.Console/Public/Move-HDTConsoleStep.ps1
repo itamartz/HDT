@@ -6,7 +6,7 @@ function Move-HDTConsoleStep {
 
         .DESCRIPTION
             The Up and Down buttons, and the cmdlet an administrator can type
-            instead (DESIGN 12).
+            instead.
 
             REORDERING IS MOST OF WHAT EDITING A TASK SEQUENCE IS, and it is the
             operation a text splice makes least obvious: a move is a removal and
@@ -24,7 +24,7 @@ function Move-HDTConsoleStep {
             a group is refused rather than interpreted, because "before the
             group" and "the last step of the group above" are both plausible and
             the console must not guess - the same refusal DiskPartition makes
-            about an ambiguous target (DESIGN 9.1). Moving a step between groups
+            about an ambiguous target. Moving a step between groups
             is Copy, Paste and Remove, where each half is visible.
 
             A GROUP MOVES WHOLE. Its block spans its steps, so they travel with
