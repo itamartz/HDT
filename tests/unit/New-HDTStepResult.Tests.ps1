@@ -53,6 +53,36 @@ Describe 'New-HDTStepResult' {
         (New-HDTStepResult -Status $_).Status | Should -BeExactly $_
     }
 
+    # -- Reenter (07-02) ----------------------------------------------------
+    #
+    # A STEP THAT OWNS A LIST NEEDS THE REBOOT TO COME BACK TO IT. The loop
+    # records a RebootRequested step as Completed, which advances stepIndex past
+    # it, so the next leg continues at the NEXT step. That is right for a Restart
+    # step and wrong for an InstallApplications step that got a 3010 halfway down
+    # its list: the applications after it would be silently skipped.
+    #
+    # Reenter is how a step says "record me Pending, not Completed" - the loop
+    # then leaves stepIndex where it is and runs the step again on the next leg,
+    # and the step picks up from the progress it checkpointed into a variable.
+    # It is opt-in precisely because the default is right for everything else.
+
+    It 'defaults Reenter to false' {
+        (New-HDTStepResult -Status RebootRequested).Reenter | Should -BeFalse
+    }
+
+    It 'sets Reenter when asked' {
+        (New-HDTStepResult -Status RebootRequested -Reenter).Reenter | Should -BeTrue
+    }
+
+    It 'carries Reenter on every status, so the loop never tests for the property' {
+        # The loop reads $result.Reenter unconditionally under
+        # Set-StrictMode -Version Latest, where a missing property throws.
+        foreach ($status in @('Completed', 'Failed', 'RebootRequested')) {
+            (New-HDTStepResult -Status $status).PSObject.Properties['Reenter'] |
+                Should -Not -BeNullOrEmpty
+        }
+    }
+
     It 'has comment-based help with a synopsis' {
         $help = Get-Help -Name New-HDTStepResult -ErrorAction Stop
 

@@ -38,7 +38,22 @@ function New-HDTStepResult {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Status, ExitCode,
-            Message and Data.
+            Message, Data and Reenter.
+
+            REENTER IS HOW A STEP THAT OWNS A LIST SURVIVES ITS OWN REBOOT. The
+            loop records a RebootRequested step as Completed, advancing stepIndex
+            past it - right for a Restart step, and wrong for an
+            InstallApplications step that got a 3010 halfway down its list, whose
+            remaining applications would then be silently skipped. A step
+            returning -Reenter is recorded Pending instead: stepIndex stays put,
+            the reboot ceremony is unchanged, and the next leg runs the step
+            again so it can pick up from the progress it checkpointed into a
+            variable. It is opt-in because the default is right for everything
+            else - a Restart step that re-entered would reboot forever.
+
+            It is present on EVERY result, false unless asked for, so the loop
+            reads it without testing for the property under
+            Set-StrictMode -Version Latest.
 
         .EXAMPLE
             New-HDTStepResult -Status Completed -Message 'Applied index 1 to W:\'
@@ -64,7 +79,10 @@ function New-HDTStepResult {
 
         [Parameter()]
         [AllowNull()]
-        [object] $Data = $null
+        [object] $Data = $null,
+
+        [Parameter()]
+        [switch] $Reenter
     )
 
     Set-StrictMode -Version Latest
@@ -75,5 +93,6 @@ function New-HDTStepResult {
         ExitCode = $ExitCode
         Message  = $Message
         Data     = $Data
+        Reenter  = [bool] $Reenter
     }
 }

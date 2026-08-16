@@ -411,6 +411,18 @@ one where the OS changes out from under you.
 - Every step is **idempotent or checkpointed**. On resume the engine skips
   completed steps by index and re-runs the interrupted one only if the step
   declares `resumable: true`.
+- **A step that owns a list can ask to be re-entered.** A step returning
+  `RebootRequested` is normally recorded `Completed`, which advances the step
+  index past it — correct for a `Restart` step, and wrong for an
+  `InstallApplications` step (§8) that receives a `3010` halfway down its list:
+  the applications after it would be silently skipped and the run would report
+  success having installed half the software. Such a step returns
+  `New-HDTStepResult -Reenter`, and the engine records it **`Pending`** instead,
+  leaving the step index where it is. The reboot ceremony is otherwise
+  unchanged; the next leg runs the step again, and the step resumes from
+  progress it checkpointed into a variable — variables being part of the state
+  document. It is opt-in because the default is right for every other step: a
+  `Restart` step that re-entered would reboot forever.
 - Failure ends the sequence, writes a failure report, and — if
   `PauseOnError` — leaves the state loaded so the technician can inspect it on
   the machine that failed. This is the MDT `LTISuspend` idea, generalized.
