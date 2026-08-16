@@ -208,7 +208,7 @@ Describe 'the step contract' {
         It 'discovered <_>' -ForEach @(
             'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
             'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ConfigureBoot',
-            'InstallApplications', 'InstallRoles') {
+            'InstallApplications', 'InstallRoles', 'EnableBitLocker') {
 
             @(Get-HDTStepType -Name $_).Count | Should -Be 1
         }

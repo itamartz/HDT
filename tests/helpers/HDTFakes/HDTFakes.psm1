@@ -1863,6 +1863,253 @@ function New-HDTFakeProcessService {
     return $fake
 }
 
+class HDTFakeBitLockerService {
+
+    # Drive letter -> the volume's state: VolumeStatus, ProtectionStatus and the
+    # key protectors on it. Ordinal case-insensitive, matching how Windows treats
+    # a drive letter.
+    [hashtable] $Volume
+
+    # Drive letter -> the message a call against it throws, keyed by operation
+    # name. THE CONDITION SEEDED STATE CANNOT EXPRESS: an escrow that reaches the
+    # directory and comes back refused. DESIGN 10.3 makes "escrow verified BEFORE
+    # encryption begins" the rule that matters most in this whole step - a machine
+    # encrypted with no recoverable key is worse than one left unencrypted - and
+    # proving it needs a backup that can fail.
+    [hashtable] $Failure
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    # Makes the generated protector ids deterministic. A fake that used a real
+    # GUID would make an assertion about WHICH protector was escrowed impossible
+    # to write.
+    hidden [int] $ProtectorCount
+
+    HDTFakeBitLockerService() {
+        $this.Volume = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'BitLockerService'
+        $this.ProtectorCount = 0
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding -----------------------------------------------------------
+
+    [void] SeedVolume([string] $Drive, [hashtable] $State) {
+        $status = 'FullyDecrypted'
+        if ($State.ContainsKey('VolumeStatus')) { $status = [string] $State['VolumeStatus'] }
+
+        $protection = 'Off'
+        if ($State.ContainsKey('ProtectionStatus')) { $protection = [string] $State['ProtectionStatus'] }
+
+        $this.Volume[$this.Normalize($Drive)] = [pscustomobject] @{
+            VolumeStatus     = $status
+            ProtectionStatus = $protection
+            KeyProtector     = [System.Collections.ArrayList]::new()
+        }
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    hidden [string] Normalize([string] $Drive) {
+        return ([string] $Drive).Trim().TrimEnd(':').ToUpperInvariant()
+    }
+
+    hidden [object] Require([string] $Drive) {
+        $key = $this.Normalize($Drive)
+
+        if (-not $this.Volume.ContainsKey($key)) {
+            throw [System.ArgumentException]::new("No BitLocker volume '$Drive'.")
+        }
+
+        return $this.Volume[$key]
+    }
+
+    hidden [void] Fail([string] $Operation) {
+        if ($this.Failure.ContainsKey($Operation)) {
+            throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+        }
+    }
+
+    # -- IBitLockerService -------------------------------------------------
+
+    [object] GetVolume([string] $Drive) {
+        $this.Record('GetVolume', @($Drive))
+        $this.Fail('GetVolume')
+
+        $row = $this.Require($Drive)
+
+        return [pscustomobject] @{
+            VolumeStatus     = [string] $row.VolumeStatus
+            ProtectionStatus = [string] $row.ProtectionStatus
+            KeyProtector     = [object[]] @($row.KeyProtector)
+        }
+    }
+
+    [object] AddProtector([string] $Drive, [string] $Type, [string] $Argument) {
+        $this.Record('AddProtector', @($Drive, $Type, $Argument))
+        $this.Fail('AddProtector')
+
+        $row = $this.Require($Drive)
+
+        $this.ProtectorCount = $this.ProtectorCount + 1
+
+        $recovery = ''
+        if ($Type -eq 'RecoveryPassword') {
+            # Shaped like a real one - six groups of six digits - because a step
+            # that logged it would be caught by a test looking for that shape.
+            $recovery = '111111-222222-333333-444444-555555-666666'
+        }
+
+        $protector = [pscustomobject] @{
+            # Built by concatenation, not by -f with doubled braces: the format
+            # spec swallows the closing brace and '{{PROTECTOR-{0:D4}}}' comes out
+            # as '{PROTECTOR-D4}'.
+            KeyProtectorId   = ('{' + ('PROTECTOR-{0:D4}' -f $this.ProtectorCount) + '}')
+            KeyProtectorType = $Type
+            RecoveryPassword = $recovery
+        }
+
+        [void] $row.KeyProtector.Add($protector)
+
+        return $protector
+    }
+
+    [void] BackupProtector([string] $Drive, [string] $KeyProtectorId, [string] $Target) {
+        $this.Record('BackupProtector', @($Drive, $KeyProtectorId, $Target))
+        $this.Fail('BackupProtector')
+
+        $null = $this.Require($Drive)
+    }
+
+    [void] Enable([string] $Drive, [string] $Method, [bool] $UsedSpaceOnly) {
+        $this.Record('Enable', @($Drive, $Method, $UsedSpaceOnly))
+        $this.Fail('Enable')
+
+        $row = $this.Require($Drive)
+
+        $row.ProtectionStatus = 'On'
+        $row.VolumeStatus = 'EncryptionInProgress'
+    }
+}
+
+function New-HDTFakeBitLockerService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IBitLockerService that records every call.
+
+        .DESCRIPTION
+            The hand-written double for DESIGN 10.3. It carries EVERY behavioural
+            assertion about the interface, because there is no safe way to run the
+            real adapter: three of its four methods change the encryption state of
+            a physical disk, and the disk most likely to be in front of this code
+            is the developer's own.
+
+            IT IS ALSO WHERE "ESCROW BEFORE ENCRYPTION" IS PROVABLE. -Failure
+            seeds an operation that throws, so a test can make the backup fail and
+            then assert that Enable was never called at all. A machine encrypted
+            with no recoverable key is worse than one left unencrypted, and that
+            claim needs a backup that can refuse.
+
+            Protector ids are sequential rather than GUIDs, so a test can assert
+            WHICH protector was escrowed.
+
+        .PARAMETER Volume
+            Seed volumes. Keys are drive letters, values are hashtables with
+            VolumeStatus and ProtectionStatus. Every volume starts with no key
+            protectors; AddProtector adds them.
+
+        .PARAMETER Failure
+            Seed failures. Keys are operation names - GetVolume, AddProtector,
+            BackupProtector, Enable - and values are the message that operation
+            throws.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeBitLockerService. Never write the class name as a type literal
+            in a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            New-HDTFakeBitLockerService -Volume @{ 'C:' = @{ VolumeStatus = 'FullyDecrypted' } }
+
+        .EXAMPLE
+            New-HDTFakeBitLockerService -Volume @{ 'C:' = @{} } -Failure @{ BackupProtector = 'the directory refused the key' }
+
+            The escrow that fails, which is what makes the ordering rule testable.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Volume,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeBitLockerService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Volume')) {
+        foreach ($key in @($Volume.Keys)) {
+            $fake.SeedVolume([string] $key, $Volume[$key])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($key in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $key, [string] $Failure[$key])
+        }
+    }
+
+    return $fake
+}
+
 class HDTFakeFeatureService {
 
     # Feature name -> InstallState: Installed, Available or Removed. Ordinal
@@ -4980,6 +5227,7 @@ Export-ModuleMember -Function @(
     'New-HDTFakeCimProvider',
     'New-HDTFakeClock',
     'New-HDTFakeContentProvider',
+    'New-HDTFakeBitLockerService',
     'New-HDTFakeDiskService',
     'New-HDTFakeFeatureService',
     'New-HDTFakeEnvironmentProvider',

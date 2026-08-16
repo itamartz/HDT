@@ -23,6 +23,7 @@ function New-HDTServiceCatalog {
               Disk           IDiskService
               Image          IImageService
               Feature        IFeatureService
+              BitLocker      IBitLockerService
               Content        IContentProvider
 
             EVERY PROPERTY IS DEFINED EVEN WHERE IT IS $null. Engine code runs
@@ -82,6 +83,10 @@ function New-HDTServiceCatalog {
 
         .PARAMETER Feature
             An IFeatureService, or nothing. InstallRoles asks for it by name.
+
+        .PARAMETER BitLocker
+            An IBitLockerService, or nothing. EnableBitLocker asks for it by
+            name.
 
         .PARAMETER Content
             An IContentProvider, or nothing - New-HDTLocalContentProvider or
@@ -158,6 +163,10 @@ function New-HDTServiceCatalog {
 
         [Parameter()]
         [AllowNull()]
+        [object] $BitLocker = $null,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Content = $null,
 
         # NULL IS THE NORMAL CASE, AND IT COSTS NOTHING. A run with no progress
@@ -185,6 +194,7 @@ function New-HDTServiceCatalog {
         Disk          = $Disk
         Image         = $Image
         Feature       = $Feature
+        BitLocker     = $BitLocker
         Content       = $Content
         Progress      = $Progress
     }
