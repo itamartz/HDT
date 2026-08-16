@@ -176,7 +176,7 @@ function Get-HDTConsoleShareNode {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
             -Field @(
             New-HDTConsoleField -Label 'Folder' -Value $osFolder
-            New-HDTConsoleField -Label '' -Value 'There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under the folder above with an os.yaml in it (DESIGN 9.3).'
+            New-HDTConsoleField -Label '' -Value 'There is no operating system on this share yet. Import one with Import-HDTOperatingSystem; it lands as a folder under the folder above with an os.yaml in it.'
         ) `
             -Command $osCommand -Header $header
 
@@ -210,7 +210,7 @@ function Get-HDTConsoleShareNode {
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $Workspace.Driver.Folder
         New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)
-        New-HDTConsoleField -Label '' -Value ('The engine has no driver catalog yet: there is no command that reads this folder and no step that injects from it, so nothing here would reach a deployed machine. DESIGN 7 describes the store; the console will list it as soon as the engine can read it.')
+        New-HDTConsoleField -Label '' -Value ('The engine has no driver catalog yet: there is no command that reads this folder and no step that injects from it, so nothing here would reach a deployed machine. The console will list it as soon as the engine can read it.')
     ) `
         -Command $driverCommand -Header $header
 
@@ -292,7 +292,7 @@ function Get-HDTConsoleShareNode {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
             -Field @(
             New-HDTConsoleField -Label 'Folder' -Value $sequenceFolder
-            New-HDTConsoleField -Label '' -Value 'There is no task sequence on this share yet. A task sequence is a folder under the folder above with a sequence.yaml in it (DESIGN 2.1).'
+            New-HDTConsoleField -Label '' -Value 'There is no task sequence on this share yet. A task sequence is a folder under the folder above with a sequence.yaml in it.'
         ) `
             -Command $sequenceCommand -Header $header
 

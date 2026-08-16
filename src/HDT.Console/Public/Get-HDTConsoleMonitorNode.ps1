@@ -163,7 +163,7 @@ function Get-HDTConsoleMonitorNode {
             -Text $monitor.Summary `
             -Field @(
             New-HDTConsoleField -Label 'Watching' -Value $monitor.ActivePath
-            New-HDTConsoleField -Label '' -Value ('The engine writes a heartbeat here for each step of each running deployment (DESIGN 4.4.6). Nothing is running on this share, or nothing has run since this folder was last cleared.')
+            New-HDTConsoleField -Label '' -Value ('The engine writes a heartbeat here for each step of each running deployment. Nothing is running on this share, or nothing has run since this folder was last cleared.')
         ) `
             -Command $command -Header $Header
 

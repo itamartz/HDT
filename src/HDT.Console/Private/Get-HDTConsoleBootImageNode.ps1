@@ -95,9 +95,9 @@ function Get-HDTConsoleBootImageNode {
             $BootImage.BuiltUtc.ToUniversalTime())
     }
 
-    $verdict = 'DIFFERS from the standalone WIM - DESIGN 6.1.1 expects them identical'
+    $verdict = 'DIFFERS from the standalone WIM - one build emits both, so they should be identical'
     if ($BootImage.HashMatch) {
-        $verdict = 'matches the standalone WIM (DESIGN 6.1.1)'
+        $verdict = 'matches the standalone WIM'
     }
 
     $field = @(
