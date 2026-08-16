@@ -165,7 +165,8 @@ Describe 'the workspace commands are exported by Hephaestus' {
         'Add-HDTBootImageContent', 'Remove-HDTBootImageContent',
         'Add-HDTBootImageComponent', 'Remove-HDTBootImageComponent',
         'Add-HDTBootImageStartCommand', 'Remove-HDTBootImageStartCommand',
-        'Set-HDTBootImageDriver', 'Set-HDTWorkspaceProperty',
+        'Move-HDTBootImageStartCommand',
+        'Set-HDTBootImageDriver', 'Set-HDTBootImageUnattend', 'Set-HDTWorkspaceProperty',
         'Save-HDTWorkspaceDocument', 'Get-HDTAdkComponent') {
 
         Get-Command -Name $_ -Module 'Hephaestus' -ErrorAction SilentlyContinue |
@@ -462,6 +463,73 @@ Describe 'the start commands (<Style>)' -ForEach $script:style {
 
         ($after -join "`n") | Should -BeExactly ($script:line -join "`n")
     }
+
+    # ORDER IS SEMANTICS HERE, exactly as position is in a rules document.
+    # startnet.cmd runs these in the order they are listed, and cmd.exe runs
+    # them synchronously - so a tool that has to be up before the next line
+    # runs has to be ABOVE it, and -First only ever wins the top slot. Add was
+    # the whole vocabulary until now: reordering meant remove and re-add, which
+    # is three presses to move one row and loses the row's place if the second
+    # add fails.
+    Context 'moving one' {
+
+        BeforeAll {
+            $script:three = Add-HDTBootImageStartCommand -Line $script:line -Command 'X:\one.exe'
+            $script:three = Add-HDTBootImageStartCommand -Line $script:three -Command 'X:\two.exe'
+            $script:three = Add-HDTBootImageStartCommand -Line $script:three -Command 'X:\three.exe'
+        }
+
+        It 'moves one up, past exactly one neighbour' {
+            $after = Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\three.exe' -Direction Up
+
+            (Get-HDTTestWorkspace -Line $after).BootImage.StartCommand |
+                Should -Be @('X:\one.exe', 'X:\three.exe', 'X:\two.exe')
+        }
+
+        It 'moves one down, past exactly one neighbour' {
+            $after = Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\one.exe' -Direction Down
+
+            (Get-HDTTestWorkspace -Line $after).BootImage.StartCommand |
+                Should -Be @('X:\two.exe', 'X:\one.exe', 'X:\three.exe')
+        }
+
+        It 'leaves the first one alone when it is asked to move up' {
+            # NOT AN ERROR. The button is pressed by somebody holding it down to
+            # move a row several places, and refusing at the top would put a
+            # message on screen for a press that simply had nowhere to go.
+            $after = Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\one.exe' -Direction Up
+
+            (Get-HDTTestWorkspace -Line $after).BootImage.StartCommand |
+                Should -Be @('X:\one.exe', 'X:\two.exe', 'X:\three.exe')
+        }
+
+        It 'leaves the last one alone when it is asked to move down' {
+            $after = Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\three.exe' -Direction Down
+
+            (Get-HDTTestWorkspace -Line $after).BootImage.StartCommand |
+                Should -Be @('X:\one.exe', 'X:\two.exe', 'X:\three.exe')
+        }
+
+        It 'refuses to move a command the document does not run' {
+            { Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\nothing.exe' -Direction Up } |
+                Should -Throw -ExpectedMessage '*nothing.exe*'
+        }
+
+        It 'leaves every other line byte-identical' {
+            $after = Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\three.exe' -Direction Up
+
+            # The three commands are the only lines that may differ, and only in
+            # their order - the comments and every other key come back untouched.
+            @(Get-HDTTestRemovedLine -Before $script:three -After $after |
+                    Where-Object { $_ -notmatch 'one\.exe|two\.exe|three\.exe' }) | Should -BeNullOrEmpty
+        }
+
+        It 'changes nothing under -WhatIf' {
+            $after = Move-HDTBootImageStartCommand -Line $script:three -Command 'X:\three.exe' -Direction Up -WhatIf
+
+            ($after -join "`n") | Should -BeExactly ($script:three -join "`n")
+        }
+    }
 }
 
 Describe 'Set-HDTBootImageDriver (<Style>)' -ForEach $script:style {
@@ -502,6 +570,76 @@ Describe 'Set-HDTBootImageDriver (<Style>)' -ForEach $script:style {
         $after = Set-HDTBootImageDriver -Line $script:line -Name 'boot-critical' -WhatIf
 
         ($after -join "`n") | Should -BeExactly ($script:line -join "`n")
+    }
+}
+
+# The WinPE answer file. wpeinit processes it - EnableFirewall, EnableNetwork,
+# Display, LogPath, PageFile, Restart, RunSynchronous, RunAsynchronous - so it is
+# the supported way to build an image with the firewall configured, rather than
+# a `wpeutil disablefirewall` line somebody types at a prompt.
+#
+# IT IS SHAPED LIKE Set-HDTBootImageDriver, deliberately: one value, -Clear to
+# take it away, and the key removed rather than written empty. Two commands that
+# do the same kind of thing to the same block should not need to be learned
+# twice.
+Describe 'Set-HDTBootImageUnattend (<Style>)' -ForEach $script:style {
+
+    BeforeAll {
+        $script:line = [string[]] @($Text -split "`r?`n")
+    }
+
+    It 'names the answer file' {
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path 'Control\Unattend-PE.xml'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Unattend |
+            Should -BeExactly 'Control\Unattend-PE.xml'
+    }
+
+    It 'replaces the file it already named' {
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path 'Control\Unattend-PE.xml'
+        $after = Set-HDTBootImageUnattend -Line $after -Path 'Control\Unattend-Lab.xml'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Unattend |
+            Should -BeExactly 'Control\Unattend-Lab.xml'
+        @($after | Where-Object { $_ -match 'Unattend-PE' }) | Should -BeNullOrEmpty
+    }
+
+    It 'clears the key rather than writing it empty, which the engine refuses' {
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path 'Control\Unattend-PE.xml'
+        $after = Set-HDTBootImageUnattend -Line $after -Clear
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Unattend | Should -BeExactly ''
+        @($after | Where-Object { $_ -match '^\s*unattend:' }) | Should -BeNullOrEmpty
+    }
+
+    It 'leaves every other line byte-identical' {
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path 'Control\Unattend-PE.xml'
+
+        Get-HDTTestRemovedLine -Before $script:line -After $after | Should -BeNullOrEmpty
+    }
+
+    It 'changes nothing under -WhatIf' {
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path 'Control\Unattend-PE.xml' -WhatIf
+
+        ($after -join "`n") | Should -BeExactly ($script:line -join "`n")
+    }
+
+    It 'takes a rooted path, because Browse picks a file on the build host' {
+        # extraContent's source accepts one and always has. An answer file kept
+        # in a build folder rather than on the share is the ordinary case, not
+        # an attack: whoever edits workspace.yaml can already name any content
+        # they like.
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path 'C:\build\Unattend-PE.xml'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Unattend |
+            Should -BeExactly 'C:\build\Unattend-PE.xml'
+    }
+
+    It 'takes a UNC path' {
+        $after = Set-HDTBootImageUnattend -Line $script:line -Path '\\HDT-HOST\Build\Unattend-PE.xml'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Unattend |
+            Should -BeExactly '\\HDT-HOST\Build\Unattend-PE.xml'
     }
 }
 

@@ -32,6 +32,7 @@ function Update-HDTBootImage {
               12  write bootstrap.json
               13  write startnet.cmd - wpeinit, the workspace's startCommand
                   list, then the entry command
+             13b  copy the WinPE answer file to \Unattend.xml, if one is named
               14  copy extraContent
               15  check the share ACL and warn
               16  dismount saving, export, and COPY the exported WIM into the
@@ -138,6 +139,16 @@ function Update-HDTBootImage {
             An IClock, for the build timestamp and duration. Defaults to the real
             adapter.
 
+        .PARAMETER Progress
+            Where the seventeen steps are reported, from New-HDTBuildProgress.
+            Defaults to a sink that records nothing, which is what every caller
+            that is not a window wants.
+
+            EVERY STEP IS REPORTED BEFORE IT IS TAKEN, not after. A mount is
+            tens of seconds and the export is longer; a watcher still showing
+            the previous step's text through all of it is a watcher somebody
+            decides has stuck.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -236,7 +247,20 @@ function Update-HDTBootImage {
 
         [Parameter()]
         [AllowNull()]
-        [object] $Clock
+        [object] $Clock,
+
+        # WHERE THE SEVENTEEN STEPS ARE REPORTED. Omitted, they go to a sink
+        # that records nothing - which is what every caller that is not a window
+        # wants, and costs one method call per step.
+        #
+        # It exists because this command was SILENT for two and a half minutes
+        # between its ShouldProcess and its result. A window that greys out for
+        # that long reads as one that has hung, so it gets killed - and a killed
+        # build strands a mounted image that needs dism /cleanup-wim before
+        # anything can build again.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Progress
     )
 
     Set-StrictMode -Version Latest
@@ -246,12 +270,20 @@ function Update-HDTBootImage {
     if ($null -eq $Registry) { $Registry = New-HDTRegistryService }
     if ($null -eq $BootImageService) { $BootImageService = New-HDTBootImageService }
     if ($null -eq $Clock) { $Clock = New-HDTClock }
+    if ($null -eq $Progress) { $Progress = New-HDTBuildProgress }
+
+    # ONE NUMBER, IN ONE PLACE. The step count is what a progress bar divides
+    # by, and a total that disagreed with the number of reports would show a bar
+    # that never reaches the end - or reaches it early and then keeps going.
+    $stepTotal = 17
 
     $startedUtc = $Clock.GetUtcNow()
 
     # =====================================================================
     # 1. THE WORKSPACE DOCUMENT
     # =====================================================================
+
+    $Progress.Report(1, $stepTotal, 'Reading the workspace document', $WorkspaceRoot)
 
     $workspacePath = [System.IO.Path]::Combine($WorkspaceRoot, 'workspace.yaml')
     $workspace = Import-HDTWorkspaceDocument -Path $workspacePath -FileSystem $FileSystem
@@ -267,6 +299,8 @@ function Update-HDTBootImage {
     # =====================================================================
     # 2. THE ADK, RESOLVED - NEVER A LITERAL
     # =====================================================================
+
+    $Progress.Report(2, $stepTotal, 'Resolving the Windows ADK', '')
 
     $adkSplat = @{
         Architecture = $buildArchitecture
@@ -300,6 +334,8 @@ function Update-HDTBootImage {
     # 3. THE COMPONENT PLAN
     # =====================================================================
 
+    $Progress.Report(3, $stepTotal, 'Planning the optional components', '')
+
     $componentSplat = @{
         ComponentRoot = $assetPath['WinPeOptionalComponent']
         Language      = $buildLanguage
@@ -318,6 +354,8 @@ function Update-HDTBootImage {
     # =====================================================================
     # 4a. THE SCRATCH PATH, JUDGED BEFORE ANYTHING IS TOUCHED
     # =====================================================================
+
+    $Progress.Report(4, $stepTotal, 'Checking the scratch path', $ScratchPath)
 
     $scratch = $ScratchPath.TrimEnd('\', '/')
 
@@ -468,6 +506,46 @@ function Update-HDTBootImage {
             })
     }
 
+    # -- the WinPE answer file, resolved and judged before the mount ---------
+    #
+    # IT LANDS AT THE ROOT OF THE IMAGE, as \Unattend.xml, which is X:\ once the
+    # machine has booted. wpeinit will take a path anywhere, but the root is
+    # where Microsoft's own documentation puts it and where somebody debugging
+    # a boot will look first.
+    #
+    # A MISSING FILE IS REFUSED HERE RATHER THAN AT THE COPY, because the copy
+    # happens after the mount: failing then costs a mount, a discard and the
+    # minutes both take, to say something that was knowable before any of it.
+
+    $unattendSource = ''
+    $unattendInImage = ''
+
+    if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.Unattend)) {
+        $unattendDeclared = [string] $workspace.BootImage.Unattend
+
+        # ROOTED IS TAKEN AS WRITTEN, RELATIVE IS READ FROM THE SHARE. The
+        # answer file is whatever the administrator browsed to, which is
+        # frequently a folder on the build host and not share content at all.
+        #
+        # IsPathRooted RATHER THAN TrimStart. Trimming the leading separators
+        # and combining - the idiom extraContent uses - turns
+        # \\server\share\Unattend.xml into a share-relative server\share\...,
+        # which is a UNC silently read from the wrong place.
+        $unattendSource = $unattendDeclared
+
+        if (-not [System.IO.Path]::IsPathRooted($unattendDeclared)) {
+            $unattendSource = [System.IO.Path]::Combine($WorkspaceRoot, $unattendDeclared)
+        }
+
+        if (-not $FileSystem.TestPath($unattendSource)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $unattendSource `
+                        -Message ("the WinPE answer file '{0}' is named in workspace.yaml and is not at '{1}'. An image built without it would boot with none and say nothing about why the firewall setting did not take." -f
+                            $unattendDeclared, $unattendSource)))
+        }
+
+        $unattendInImage = 'X:\Unattend.xml'
+    }
+
     # =====================================================================
     # 4b. THE SCRATCH DIRECTORIES - the first thing that writes
     # =====================================================================
@@ -499,12 +577,16 @@ function Update-HDTBootImage {
     # 5. THE SOURCE WIM
     # =====================================================================
 
+    $Progress.Report(5, $stepTotal, 'Copying the source WinPE image', $scratchWim)
+
     $FileSystem.RemoveItem($scratchWim, $false)
     $FileSystem.CopyItem($assetPath['WinPeWim'], $scratchWim)
 
     # =====================================================================
     # 6. THE MEDIA TREE
     # =====================================================================
+
+    $Progress.Report(6, $stepTotal, 'Copying the ADK media tree', $mediaPath)
 
     [void] (Copy-HDTContentTree -Source $assetPath['WinPeMedia'] -Destination $mediaPath -FileSystem $FileSystem)
 
@@ -534,34 +616,77 @@ function Update-HDTBootImage {
         $startnetSplat['Command'] = [string] $workspace.BootImage.EntryCommand
     }
 
+    # The answer file is wpeinit's argument, not a line of its own - so it goes
+    # into the same call that writes the rest of startnet.cmd.
+    if (-not [string]::IsNullOrWhiteSpace($unattendInImage)) {
+        $startnetSplat['UnattendPath'] = $unattendInImage
+    }
+
     $startnet = Get-HDTStartnetScript @startnetSplat
 
     try {
         # -- 7. mount -------------------------------------------------------
+        #
+        # REPORTED BEFORE IT HAPPENS, like every other step: a mount is tens of
+        # seconds, and a window still showing the PREVIOUS step's text for all
+        # of it is a window somebody decides has stuck.
+
+        # THE DETAIL SAYS WHAT IS BEING MOUNTED AND THAT IT IS SLOW. DISM gives
+        # this adapter no sub-progress to pass on - it is one call that returns
+        # when it is done - so the honest thing is to name the file, name the
+        # mount, and say roughly how long it takes. A watcher that also shows
+        # how long the current step has been running turns the rest of the
+        # reassurance into something that visibly moves.
+        $Progress.Report(7, $stepTotal, 'Mounting the image',
+            ('{0} into {1} - a minute or so' -f (Split-Path -Leaf $scratchWim), $mountPath))
 
         $BootImageService.MountImage($scratchWim, 1, $mountPath)
         $mounted = $true
 
         # -- 8. the components, each followed by its language pack -----------
+
+        $Progress.Report(8, $stepTotal, 'Applying the optional components',
+            ('{0} component(s)' -f @($component).Count))
         #
         # DESIGN 5.1: "Each component's matching en-us pack is applied
         # immediately after it, where one exists." The empty LanguageCabPath is
         # Get-HDTBootImageComponent's answer for the twelve components in this
         # ADK that ship none.
 
+        # REPORTED PER CAB, NOT ONCE FOR THE LOOP. This step is most of a minute
+        # on a nine-component image, and a watcher told only "applying the
+        # optional components" sits on one unchanging line for all of it -
+        # which is indistinguishable from a build that has stopped. Naming each
+        # cab as it goes in is the difference between "working" and "stuck", and
+        # it also says WHICH one was being applied if the build dies here.
+        $componentAt = 0
+
         foreach ($row in $component) {
+            $componentAt++
+
+            $Progress.Report(8, $stepTotal, 'Applying the optional components',
+                ('{0} of {1} - {2}' -f $componentAt, @($component).Count, [string] $row.Name))
+
             $BootImageService.AddPackage($mountPath, [string] $row.CabPath)
 
             if (-not [string]::IsNullOrWhiteSpace([string] $row.LanguageCabPath)) {
+                $Progress.Report(8, $stepTotal, 'Applying the optional components',
+                    ('{0} of {1} - {2} language pack' -f $componentAt, @($component).Count, [string] $row.Name))
+
                 $BootImageService.AddPackage($mountPath, [string] $row.LanguageCabPath)
             }
         }
 
         # -- 9. scratch space ------------------------------------------------
 
+        $Progress.Report(9, $stepTotal, 'Setting the scratch space',
+            ('{0} MB' -f [int] $workspace.BootImage.ScratchSpaceMB))
+
         $BootImageService.SetScratchSpace($mountPath, [int] $workspace.BootImage.ScratchSpaceMB)
 
         # -- 10. the boot driver group ---------------------------------------
+
+        $Progress.Report(10, $stepTotal, 'Injecting the boot drivers', [string] $workspace.BootImage.Drivers)
         #
         # Boot images get network and storage drivers only, never the whole
         # driver store. A group that is not there WARNS AND CONTINUES: M5 owns
@@ -581,6 +706,11 @@ function Update-HDTBootImage {
         }
 
         # -- 11. the engine ---------------------------------------------------
+
+        # The detail is the mount, not $hdtRoot: that one is worked out a few
+        # lines below, and a report reaching for it is a report that reads a
+        # variable which does not exist yet.
+        $Progress.Report(11, $stepTotal, 'Staging the engine and the payload', $mountPath)
         #
         # Payload\ IS EXCLUDED FROM THE MODULE TREE and staged to X:\HDT\
         # instead. startnet.cmd launches X:\HDT\Start-HDTDeployment.ps1; a second
@@ -674,6 +804,8 @@ function Update-HDTBootImage {
             })
 
         # -- 12. bootstrap.json ----------------------------------------------
+
+        $Progress.Report(12, $stepTotal, 'Writing bootstrap.json', '')
         #
         # deployRoot GOES IN VERBATIM. See the header: a builder that expanded
         # \Share to the letter it sees here would bake in the one value that is
@@ -747,10 +879,26 @@ function Update-HDTBootImage {
 
         # -- 13. startnet.cmd -------------------------------------------------
 
+        $Progress.Report(13, $stepTotal, 'Writing startnet.cmd', '')
+
         $FileSystem.WriteAllText(
             [System.IO.Path]::Combine($mountPath, 'Windows', 'System32', 'startnet.cmd'), $startnet)
 
+        # -- 13b. the WinPE answer file ---------------------------------------
+        #
+        # AFTER startnet.cmd, because the line that reads it has just been
+        # written and the two are one decision. Named Unattend.xml at the image
+        # root whatever it is called on the share: startnet.cmd points at
+        # X:\Unattend.xml, and a name that varied would mean the two files had
+        # to agree twice.
+
+        if (-not [string]::IsNullOrWhiteSpace($unattendSource)) {
+            $FileSystem.CopyItem($unattendSource, [System.IO.Path]::Combine($mountPath, 'Unattend.xml'))
+        }
+
         # -- 14. extraContent --------------------------------------------------
+
+        $Progress.Report(14, $stepTotal, 'Copying the extra content', ('{0} entry(s)' -f @($extraContentPlan).Count))
 
         foreach ($entry in $extraContentPlan) {
             $count = Copy-HDTContentTree -Source $entry.Source -Destination $entry.Destination -FileSystem $FileSystem
@@ -763,6 +911,8 @@ function Update-HDTBootImage {
         }
 
         # -- 15. the share ACL - warn, never refuse (DESIGN 6.3) --------------
+
+        $Progress.Report(15, $stepTotal, 'Checking the share permissions', $WorkspaceRoot)
 
         if (-not [string]::IsNullOrWhiteSpace($credentialUserName)) {
             $rule = $AccessRule
@@ -788,6 +938,12 @@ function Update-HDTBootImage {
 
         # -- 16. commit, export, and the copy that IS DESIGN 6.1.1 ------------
 
+        # THE OTHER LONG ONE, and for the same reason: a commit writes every
+        # change into the WIM and the export rebuilds it. Two DISM calls, no
+        # sub-progress, a minute and a half between them.
+        $Progress.Report(16, $stepTotal, 'Committing and exporting the image',
+            'writing every change back into the .wim - the longest step')
+
         $BootImageService.DismountImage($mountPath, $true)
         $mounted = $false
     } catch {
@@ -797,6 +953,12 @@ function Update-HDTBootImage {
             $BootImageService.DismountImage($mountPath, $false)
             $mounted = $false
         }
+
+        # THE FAILURE TRAVELS ON THE SAME STREAM AS THE STEPS. A watcher that
+        # simply stopped receiving would have to guess between finished, slow
+        # and dead - and the one it guesses wrong is the one where somebody
+        # waits ten minutes for a build that died in the first thirty seconds.
+        $Progress.Complete($false, [string] $_.Exception.Message)
 
         throw
     }
@@ -817,6 +979,8 @@ function Update-HDTBootImage {
     # =====================================================================
     # 17. THE ISO, THEN THE MANIFEST - LAST
     # =====================================================================
+
+    $Progress.Report(17, $stepTotal, 'Building the ISO and writing the manifest', '')
 
     $skipped = New-Object -TypeName System.Collections.ArrayList
 
@@ -885,6 +1049,11 @@ function Update-HDTBootImage {
 
     # LAST, so a manifest that exists describes a build that finished.
     $FileSystem.WriteAllText($manifestPath, $manifestText)
+
+    # AFTER THE MANIFEST, for the same reason the manifest is last: the build is
+    # finished when the file that describes it exists, and a watcher told
+    # otherwise would close over a build still writing.
+    $Progress.Complete($true, $wimPath)
 
     return [pscustomobject] @{
         WimPath        = $wimPath

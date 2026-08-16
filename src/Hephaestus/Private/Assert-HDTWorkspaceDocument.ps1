@@ -102,7 +102,7 @@ function Assert-HDTWorkspaceDocument {
         'credential', 'bootImage')
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
-        'optionalComponents', 'extraContent', 'drivers', 'entryCommand', 'startCommand', 'skip')
+        'optionalComponents', 'extraContent', 'drivers', 'unattend', 'entryCommand', 'startCommand', 'skip')
     $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
@@ -308,6 +308,34 @@ function Assert-HDTWorkspaceDocument {
         if (([int] $scratchSpace -lt $minimumScratchSpaceMB) -or ([int] $scratchSpace -gt $maximumScratchSpaceMB)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message ("bootImage: scratchSpaceMB {0} is outside the range DISM accepts. It must be between {1} and {2}." -f $scratchSpace, $minimumScratchSpaceMB, $maximumScratchSpaceMB)))
+        }
+    }
+
+    # -- the WinPE answer file ------------------------------------------------
+    #
+    # A PATH IS A PATH HERE, exactly as it is for extraContent's SOURCE:
+    # relative to the share, or rooted on the build host. An earlier version
+    # refused a rooted one on the grounds that the answer file was share
+    # content - which was a rule this file invented and nothing else in the
+    # workspace holds. The file an administrator browses to is wherever they
+    # keep it.
+    #
+    # WHAT IS INSIDE THE FILE IS NOT CHECKED HERE. wpeinit accepts a fixed set
+    # of settings and ignores the rest; deciding which of them an administrator
+    # meant is not a YAML validator's job. Whether the file EXISTS is
+    # Update-HDTBootImage's business, and it refuses before it mounts.
+
+    if ($bootImage.Contains('unattend')) {
+        $unattend = $bootImage['unattend']
+
+        if ($null -ne $unattend -and -not ($unattend -is [string])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: unattend must be a path to a WinPE answer file, but it is '{0}'." -f $unattend)))
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string] $unattend)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: unattend is empty. Remove the key to build the image with no answer file.'))
         }
     }
 

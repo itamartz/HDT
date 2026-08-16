@@ -1,0 +1,366 @@
+# The WinPE window's state, worked out without a window.
+#
+# HDTBootImage.xaml is four tabs over one YAML block, and every control on it is
+# the face of a command that already exists. What this file asserts is the
+# QUESTION those tabs ask - what is ticked, what is listed, what each row would
+# run - so that New-HDTConsoleHost's ShowBootImage stays what an adapter is
+# allowed to be: load the markup, apply this by name, wire the buttons, show it.
+#
+# THE ADK IS INJECTED, NOT READ. Get-HDTAdkComponent needs an installed ADK and
+# a registry; this command takes its output as a parameter, so the whole of the
+# Features tab is testable on a machine with neither.
+
+BeforeAll {
+    $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+    $script:workspaceText = @'
+schemaVersion: 1
+id: HDT-LAB
+name: HDT lab deployment share
+deployRoot: \\HDT-HOST\HdtShare
+bootImage:
+  name: HDTPE_x64
+  architecture: amd64
+  language: en-us
+  scratchSpaceMB: 512
+  drivers: winpe-nic
+  unattend: Unattend-PE.xml
+  optionalComponents:
+    - WinPE-WMI
+    - WinPE-SecureStartup
+  extraContent:
+    - source: Tools\BGInfo
+      destination: \Tools\BGInfo
+    - source: Tools\TightVNC
+      destination: \Tools\VNC
+  startCommand:
+    - X:\Tools\run.cmd
+    - X:\Tools\BGInfo\bginfo64.exe /timer:0
+'@
+
+    $script:line = [string[]] @($script:workspaceText -split "`r?`n")
+
+    # The shape Get-HDTAdkComponent returns, hand-built so no ADK is needed -
+    # Description included, because that is the shape as of the description
+    # table. A fixture missing it would pass here and throw under StrictMode
+    # against the real command.
+    $script:component = @(
+        [pscustomobject] @{ Name = 'WinPE-WMI'; CabPath = 'X:\WinPE-WMI.cab'; SizeBytes = [long] 2097152
+            LanguagePack = [string[]] @('en-us'); Requires = [string[]] @(); Required = $true; Declared = $true
+            Description = 'WMI providers for system diagnostics - the query surface most gather scripts use.'
+        }
+        [pscustomobject] @{ Name = 'WinPE-PowerShell'; CabPath = 'X:\WinPE-PowerShell.cab'; SizeBytes = [long] 31457280
+            LanguagePack = [string[]] @('en-us'); Requires = [string[]] @('WinPE-WMI', 'WinPE-NetFx'); Required = $true; Declared = $true
+            Description = 'Windows PowerShell. No remoting and no ISE, and PowerShell 2.0 is not supported.'
+        }
+        [pscustomobject] @{ Name = 'WinPE-SecureStartup'; CabPath = 'X:\WinPE-SecureStartup.cab'; SizeBytes = [long] 1048576
+            LanguagePack = [string[]] @('en-us'); Requires = [string[]] @('WinPE-WMI'); Required = $false; Declared = $true
+            Description = 'BitLocker and the TPM - the tools, the WMI classes and the TPM driver.'
+        }
+        [pscustomobject] @{ Name = 'WinPE-HTA'; CabPath = 'X:\WinPE-HTA.cab'; SizeBytes = [long] 37449728
+            LanguagePack = [string[]] @('en-us'); Requires = [string[]] @(); Required = $false; Declared = $false
+            Description = 'HTML Applications - GUI tools written in HTML and script.'
+        }
+    )
+
+    # What Get-HDTDriverGroup returns for the share, injected for the same
+    # reason the ADK list is: reading it needs folders on disk.
+    $script:driverGroup = @(
+        [pscustomobject] @{ Name = 'boot-critical'; Path = 'C:\HDTLab\Share\Drivers\boot-critical' }
+        [pscustomobject] @{ Name = 'winpe-nic'; Path = 'C:\HDTLab\Share\Drivers\winpe-nic' }
+    )
+
+    $script:view = Get-HDTConsoleBootImageSetting -Line $script:line `
+        -Path 'C:\HDTLab\Share\workspace.yaml' -Component $script:component `
+        -DriverGroup $script:driverGroup
+}
+
+Describe 'Get-HDTConsoleBootImageSetting' {
+
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Get-HDTConsoleBootImageSetting' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+            Should -Not -BeNullOrEmpty
+    }
+
+    Context 'the banner' {
+
+        It 'names the image and the document it is configured in' {
+            # BOTH SHARES IN THIS LAB HOLD AN HDTPE_x64. Two windows open at once
+            # would otherwise be identical over different files, and the
+            # difference only shows at the moment one of them saves.
+            $script:view.Title | Should -BeLike '*HDTPE_x64*'
+            $script:view.DocumentPath | Should -BeExactly 'C:\HDTLab\Share\workspace.yaml'
+        }
+    }
+
+    Context 'the General tab' {
+
+        It 'reads <Property> as <Expected>' -ForEach @(
+            @{ Property = 'Name'; Expected = 'HDTPE_x64' }
+            @{ Property = 'Architecture'; Expected = 'amd64' }
+            @{ Property = 'Language'; Expected = 'en-us' }
+            @{ Property = 'Unattend'; Expected = 'Unattend-PE.xml' }
+        ) {
+            [string] $script:view.General.$Property | Should -BeExactly $Expected
+        }
+
+        It 'gives the scratch space as text, because the combo matches on its Tag' {
+            # SelectedValuePath="Tag" compares strings. An int here selects
+            # nothing and the box comes up blank on a document that set it.
+            $script:view.General.ScratchSpaceMB | Should -BeOfType [string]
+            $script:view.General.ScratchSpaceMB | Should -BeExactly '512'
+        }
+
+        It 'carries the Set-HDTWorkspaceProperty call Apply would run' {
+            $script:view.General.Command | Should -BeLike 'Set-HDTWorkspaceProperty*'
+            $script:view.General.Command | Should -BeLike '*-BootImageName*'
+        }
+
+        It 'carries the Set-HDTBootImageUnattend call the answer file box would run' {
+            $script:view.General.UnattendCommandFormat |
+                Should -BeLike 'Set-HDTBootImageUnattend*-Path ''{0}''*'
+        }
+    }
+
+    Context 'the Features tab' {
+
+        It 'lists every component the ADK offers, not only the declared ones' {
+            @($script:view.Component).Count | Should -Be 4
+        }
+
+        It 'ticks a component the document declares' {
+            @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-SecureStartup' })[0].Declared |
+                Should -BeTrue
+        }
+
+        It 'leaves an undeclared component unticked' {
+            @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-HTA' })[0].Declared |
+                Should -BeFalse
+        }
+
+        It 'ticks a required component and refuses to let it be unticked' {
+            # WinPE-PowerShell is not in this document's optionalComponents list
+            # and is applied to every image anyway. Shown ticked and disabled
+            # rather than hidden: an administrator looking for PowerShell has to
+            # find it and see that it is already there.
+            $row = @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-PowerShell' })[0]
+
+            $row.Declared | Should -BeTrue
+            $row.CanChange | Should -BeFalse
+        }
+
+        It 'lets an optional component be unticked' {
+            @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-HTA' })[0].CanChange |
+                Should -BeTrue
+        }
+
+        It 'gives each row a size a person reads rather than a byte count' {
+            @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-HTA' })[0].SizeText |
+                Should -BeLike '*35.7 MB*'
+        }
+
+        It 'says what the component is for, which the ADK does not' {
+            # WinPE_OCs\ is cabs and nothing else. Without the table HDT ships,
+            # this column is blank and the row reads 'WinPE-Dot3Svc  1.3 MB'.
+            @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-WMI' })[0].Description |
+                Should -BeLike '*WMI*'
+        }
+
+        It 'reads as what it does, then what comes with it' {
+            # ONE COLUMN, IN THAT ORDER. The description answers "what is this";
+            # the suffix answers "and what else does ticking it drag in". They
+            # are read together by somebody deciding, and a second column would
+            # put the second answer off the edge of a narrow window.
+            $row = @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-PowerShell' })[0]
+
+            $row.DetailText | Should -BeLike '*PowerShell*'
+            $row.DetailText | Should -BeLike '*(*WinPE-WMI*)'
+        }
+
+        It 'gives a component with nothing to require the description alone' {
+            $row = @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-HTA' })[0]
+
+            $row.DetailText | Should -BeExactly $row.Description
+        }
+
+        It 'says on the row what a component needs beside it' {
+            # WinPE-PowerShell without WinPE-WMI is a build that fails after two
+            # and a half minutes. Saying so on the row costs nothing.
+            @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-PowerShell' })[0].RequiresText |
+                Should -BeLike '*WinPE-WMI*'
+        }
+
+        It 'totals only what is ticked, because the cost of this tab is the WIM' {
+            # WMI 2 MB + PowerShell 30 MB + SecureStartup 1 MB = 33 MB. HTA is
+            # not ticked and must not be counted.
+            $script:view.SelectedSizeText | Should -BeLike '*33.0 MB*'
+            $script:view.SelectedSizeText | Should -BeLike '*3 of 4*'
+        }
+
+        It 'says what the document itself declares, apart from what is ticked' {
+            # A WINDOW CANNOT TELL A REAL TICK FROM WPF BUILDING A ROW. A
+            # TabControl does not realise an unselected tab, so every checkbox
+            # on the Features tab is created - and raises Checked - the first
+            # time somebody clicks it, which would re-add every component that
+            # was already there. Add-HDTBootImageComponent refuses a duplicate,
+            # so that is not a silent bug: it is the window dying.
+            $script:view.DeclaredName | Should -Contain 'WinPE-SecureStartup'
+            $script:view.DeclaredName | Should -Not -Contain 'WinPE-HTA'
+
+            # WinPE-PowerShell is applied to every image but is NOT in this
+            # document, and that difference is the whole point of this property:
+            # Declared says what the tick shows, this says what a Remove would
+            # actually have to remove.
+            $script:view.DeclaredName | Should -Not -Contain 'WinPE-PowerShell'
+        }
+
+        It 'carries the call each row would run when it is ticked or unticked' {
+            $row = @($script:view.Component | Where-Object { $_.Name -eq 'WinPE-HTA' })[0]
+
+            $row.AddCommand | Should -BeLike 'Add-HDTBootImageComponent*WinPE-HTA*'
+            $row.RemoveCommand | Should -BeLike 'Remove-HDTBootImageComponent*WinPE-HTA*'
+        }
+    }
+
+    Context 'the Drivers tab' {
+
+        It 'reads the driver group' {
+            $script:view.Driver.Group | Should -BeExactly 'winpe-nic'
+        }
+
+        It 'offers the groups the share has, with "no drivers" first' {
+            # A LIST, NOT A BOX YOU TYPE INTO: a group is a folder under
+            # Drivers\, so the legal answers are knowable, and a typo builds an
+            # image with no drivers in it that nobody notices until the bench.
+            #
+            # AND THE EMPTY ANSWER IS AN ENTRY. "No drivers" is a real choice,
+            # and a list whose only way to say it is to clear the selection is a
+            # list you cannot say it in.
+            @($script:view.Driver.Choice)[0].Name | Should -BeExactly ''
+            @($script:view.Driver.Choice)[0].Display | Should -BeLike '*none*'
+
+            @($script:view.Driver.Choice | ForEach-Object { $_.Name }) | Should -Contain 'winpe-nic'
+            @($script:view.Driver.Choice | ForEach-Object { $_.Name }) | Should -Contain 'boot-critical'
+        }
+
+        It 'keeps a declared group the share no longer has, and says so' {
+            # A RENAMED FOLDER MUST NOT READ AS "no drivers". The document still
+            # says winpe-nic; a list that quietly dropped it would show the
+            # empty row selected, and the next Save would make that true.
+            $view = Get-HDTConsoleBootImageSetting -Line $script:line `
+                -Path 'C:\HDTLab\Share\workspace.yaml' -Component $script:component `
+                -DriverGroup @([pscustomobject] @{ Name = 'boot-critical'; Path = 'C:\S\Drivers\boot-critical' })
+
+            $row = @($view.Driver.Choice | Where-Object { $_.Name -eq 'winpe-nic' })
+
+            @($row).Count | Should -Be 1
+            $row[0].Display | Should -BeLike '*not on the share*'
+        }
+
+        It 'offers only "no drivers" on a share with none imported' {
+            $view = Get-HDTConsoleBootImageSetting -Line ([string[]] @(
+                    'schemaVersion: 1'; 'id: X'; 'name: Y'; 'deployRoot: \\a\b')) `
+                -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @()
+
+            @($view.Driver.Choice).Count | Should -Be 1
+            @($view.Driver.Choice)[0].Name | Should -BeExactly ''
+        }
+
+        It 'carries the Apply and the Clear calls' {
+            $script:view.Driver.ApplyCommandFormat | Should -BeLike 'Set-HDTBootImageDriver*-Name ''{0}''*'
+            $script:view.Driver.ClearCommand | Should -BeLike 'Set-HDTBootImageDriver*-Clear*'
+        }
+    }
+
+    Context 'the Customisations tab' {
+
+        It 'lists the extra content in the order the document declares it' {
+            @($script:view.Content).Count | Should -Be 2
+            $script:view.Content[0].Source | Should -BeExactly 'Tools\BGInfo'
+            $script:view.Content[0].Destination | Should -BeExactly '\Tools\BGInfo'
+            $script:view.Content[1].Destination | Should -BeExactly '\Tools\VNC'
+        }
+
+        It 'carries the Remove call for a content row, keyed on the destination' {
+            # Remove-HDTBootImageContent takes the DESTINATION - it is what makes
+            # a row unique inside the image, and two sources can land in one
+            # place.
+            $script:view.Content[1].RemoveCommand |
+                Should -BeLike 'Remove-HDTBootImageContent*-Destination ''\Tools\VNC''*'
+        }
+
+        It 'carries the Add format the two boxes fill in' {
+            $script:view.AddContentCommandFormat |
+                Should -BeLike 'Add-HDTBootImageContent*-Source ''{0}''*-Destination ''{1}''*'
+        }
+
+        It 'lists the start commands in the order startnet.cmd will run them' {
+            @($script:view.StartCommand).Count | Should -Be 2
+            $script:view.StartCommand[0].Text | Should -BeExactly 'X:\Tools\run.cmd'
+            $script:view.StartCommand[1].Text | Should -BeLike '*bginfo64.exe*'
+        }
+
+        It 'holds the line the document holds, and does not project startnet.cmd' {
+            # TWO FILES, AND THIS ONE DESCRIBES workspace.yaml. startnet.cmd is
+            # generated from it at build time and carries `call` in front of a
+            # batch file so cmd.exe returns - a rule that belongs to
+            # Get-HDTStartnetScript, not to a view of the authored document.
+            # Publishing it here put text on the window that appears in no file
+            # the window can save.
+            $script:view.StartCommand[0].Text | Should -BeExactly 'X:\Tools\run.cmd'
+            $script:view.StartCommand[0].PSObject.Properties['Effective'] | Should -BeNullOrEmpty
+        }
+
+        It 'carries the Remove call for a start command row' {
+            $script:view.StartCommand[0].RemoveCommand |
+                Should -BeLike 'Remove-HDTBootImageStartCommand*-Command ''X:\Tools\run.cmd''*'
+        }
+
+        It 'carries the Add format, and the one that puts it first' {
+            $script:view.AddStartCommandFormat |
+                Should -BeLike 'Add-HDTBootImageStartCommand*-Command ''{0}''*'
+            $script:view.AddStartCommandFirstFormat | Should -BeLike '*-First*'
+        }
+    }
+
+    Context 'a workspace.yaml with no bootImage block at all' {
+
+        BeforeAll {
+            # What New-HDTWorkspace writes: no bootImage block, because an
+            # omitted setting takes the engine default and a copied-out default
+            # goes stale. The window still has to open on it.
+            $script:bare = Get-HDTConsoleBootImageSetting -Line ([string[]] @(
+                    'schemaVersion: 1'
+                    'id: HDT-LAB'
+                    'name: HDT lab deployment share'
+                    'deployRoot: \\HDT-HOST\HdtShare'
+                )) -Path 'C:\HDTLab\Share\workspace.yaml' -Component $script:component
+        }
+
+        It 'opens, and shows the engine defaults rather than empty boxes' {
+            $script:bare.General.Architecture | Should -Not -BeNullOrEmpty
+            $script:bare.General.Language | Should -Not -BeNullOrEmpty
+        }
+
+        It 'has no content, no start commands and no answer file' {
+            @($script:bare.Content).Count | Should -Be 0
+            @($script:bare.StartCommand).Count | Should -Be 0
+            $script:bare.General.Unattend | Should -BeExactly ''
+        }
+
+        It 'still ticks the components the engine applies to every image' {
+            @($script:bare.Component | Where-Object { $_.Declared }).Count | Should -BeGreaterThan 0
+        }
+    }
+
+    Context 'a document that will not parse' {
+
+        It 'throws rather than showing a window over a file it did not understand' {
+            # The browser's row already says the document is broken. A window
+            # that opened anyway would offer to Save over it.
+            { Get-HDTConsoleBootImageSetting -Line ([string[]] @('bootImage:', '  name: [unclosed')) `
+                    -Path 'C:\ws\workspace.yaml' -Component @() } | Should -Throw
+        }
+    }
+}

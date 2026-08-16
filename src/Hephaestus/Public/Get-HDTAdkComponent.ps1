@@ -258,6 +258,16 @@ function Get-HDTAdkComponent {
                 CabPath      = [string] $current.CabPath
                 SizeBytes    = [long] $current.SizeBytes
                 LanguagePack = $language
+
+                # WHAT IT DOES, WHICH THE ADK DOES NOT SAY. WinPE_OCs\ is cabs
+                # and nothing else - no manifest and no friendly name - so a
+                # list built from it reads 'WinPE-Dot3Svc 1.3 MB' and tells an
+                # administrator nothing. The table is HDT's, from Microsoft's
+                # OC reference, exactly as MDT ships its own.
+                #
+                # EMPTY FOR A CAB IT HAS NOT HEARD OF. The next ADK will ship
+                # one, and the row must still appear.
+                Description  = [string] (Get-HDTAdkComponentDescription -Name ([string] $current.Name))
                 Requires     = $requires
                 Required     = [bool] ($requiredComponent -contains [string] $current.Name)
                 Declared     = [bool] ($declared -contains ([string] $current.Name).ToLowerInvariant())

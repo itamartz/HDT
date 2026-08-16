@@ -659,8 +659,29 @@ Describe 'Get-HDTConsoleTreeNode' {
             $sequence.Subject.Path | Should -BeExactly 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
         }
 
+        # AND DOUBLE-CLICKING THE BOOT IMAGE OPENS THE WINDOWS PE WINDOW, which
+        # is Deployment Workbench's deployment share Properties. Same mechanism:
+        # the row says it opens and carries what the window needs, and the
+        # adapter routes on the Kind it already has rather than working out for
+        # itself which rows are which.
+        It 'marks the boot image as a row that opens' {
+            $boot = @($script:stepNode | Where-Object { $_.Kind -eq 'BootImage' })[0]
+
+            $boot.CanOpen | Should -BeTrue
+        }
+
+        It 'carries the workspace document the Windows PE window edits' {
+            # THE DOCUMENT, NOT THE SHARE ROOT. Two shares in this lab hold an
+            # HDTPE_x64; the window's banner and its Save both need to name the
+            # file, not the image.
+            $boot = @($script:stepNode | Where-Object { $_.Kind -eq 'BootImage' })[0]
+
+            $boot.Subject | Should -BeExactly 'C:\ws\workspace.yaml'
+        }
+
         It 'marks every other row as one that does not open' {
-            @($script:stepNode | Where-Object { $_.Kind -ne 'TaskSequence' -and $_.CanOpen }) |
+            @($script:stepNode |
+                    Where-Object { $_.Kind -notin @('TaskSequence', 'BootImage') -and $_.CanOpen }) |
                 Should -BeNullOrEmpty
         }
     }

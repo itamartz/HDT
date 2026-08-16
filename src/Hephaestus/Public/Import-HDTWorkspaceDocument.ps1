@@ -164,6 +164,13 @@ function Import-HDTWorkspaceDocument {
         $drivers = [string] $bootImage['drivers']
     }
 
+    # The WinPE answer file, relative to the share. Empty means wpeinit runs
+    # with no -unattend: argument, which is the ordinary case.
+    $unattend = ''
+    if ($null -ne $bootImage -and $bootImage.Contains('unattend')) {
+        $unattend = [string] $bootImage['unattend']
+    }
+
     # Empty means "the builder decides". The default command lives in
     # Get-HDTStartnetScript's parameter and is not repeated here: two defaults
     # for one string is one of them being wrong after the next edit.
@@ -248,6 +255,7 @@ function Import-HDTWorkspaceDocument {
             OptionalComponent = [string[]] @($optionalComponent)
             ExtraContent      = [pscustomobject[]] @($extraContent)
             Drivers           = $drivers
+            Unattend          = $unattend
             EntryCommand      = $entryCommand
             StartCommand      = [string[]] @($startCommand)
             SkipWelcome       = $skip['SkipWelcome']

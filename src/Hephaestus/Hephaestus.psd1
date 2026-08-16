@@ -19,8 +19,10 @@
         'Add-HDTBootImageStartCommand',
         'Remove-HDTBootImageComponent',
         'Remove-HDTBootImageContent',
+        'Move-HDTBootImageStartCommand',
         'Remove-HDTBootImageStartCommand',
         'Set-HDTBootImageDriver',
+        'Set-HDTBootImageUnattend',
         'Set-HDTWorkspaceProperty',
         'Save-HDTWorkspaceDocument',
         'Get-HDTAdkComponent',
@@ -33,6 +35,7 @@
         'Export-HDTMachineFact',
         'Export-HDTVariableProvenance',
         'Get-HDTAutoLogonState',
+        'Get-HDTDriverGroup',
         'Get-HDTDiskLayout',
         'Get-HDTLogPath',
         'Get-HDTMachineFact',
@@ -111,6 +114,7 @@
         'New-HDTBootImageService',
         'New-HDTCimProvider',
         'New-HDTBootIso',
+        'New-HDTBuildProgress',
         'New-HDTClock',
         'New-HDTContentProvider',
         'New-HDTDeploymentPassword',
@@ -194,6 +198,9 @@
         # the engine rather than beside a second manifest is what makes that true -
         # one Import-Module puts the console and the commands it invokes in the
         # same session.
+        'Get-HDTConsoleBootImageSetting',
+        'Show-HDTBootImageWindow',
+        'Show-HDTBuildProgressWindow',
         'Get-HDTConsoleClosePrompt',
         'Get-HDTConsoleEditorState',
         'Get-HDTConsoleMonitor',

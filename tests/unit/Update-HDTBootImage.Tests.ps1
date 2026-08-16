@@ -166,7 +166,11 @@ bootImage:
             [object] $Context,
 
             [Parameter()]
-            [hashtable] $Argument
+            [hashtable] $Argument,
+
+            [Parameter()]
+            [AllowNull()]
+            [object] $Progress
         )
 
         $splat = @{
@@ -180,6 +184,8 @@ bootImage:
             Clock            = $Context.Clock
             Confirm          = $false
         }
+
+        if ($PSBoundParameters.ContainsKey('Progress')) { $splat['Progress'] = $Progress }
 
         if ($PSBoundParameters.ContainsKey('Argument')) {
             foreach ($key in @($Argument.Keys)) { $splat[$key] = $Argument[$key] }
@@ -464,6 +470,184 @@ Describe 'Update-HDTBootImage' {
             $line[3] | Should -BeExactly 'wpeinit'
             $line[4] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe /timer:0'
             $line[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+        }
+
+        It 'calls a batch start command, so the payload below it is still reached' {
+            # cmd.exe does not RETURN from one batch file to another. A bare
+            # run.cmd line here transfers control and the payload under it never
+            # runs - a machine that booted, initialised, started the admin's
+            # tools and then sat there looking exactly like a hung deployment.
+            $yaml = $script:workspaceYaml + "`n  startCommand:`n    - X:\HDT\Tools\run.cmd"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $line = @($context.FileSystem.ReadAllText(
+                    $script:mountPath + '\Windows\System32\startnet.cmd').TrimEnd("`r", "`n") -split "`r`n")
+
+            $line[4] | Should -BeExactly 'call X:\HDT\Tools\run.cmd'
+            $line[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+        }
+
+        It 'copies the WinPE answer file to the root of the image and points wpeinit at it' {
+            # wpeinit is what processes it - EnableFirewall, EnableNetwork,
+            # Display, PageFile, RunSynchronous - so it is an argument on the
+            # line that already exists rather than a line of its own.
+            $yaml = $script:workspaceYaml + "`n  unattend: Control\Unattend-PE.xml"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            $context.FileSystem.WriteAllText(
+                ($script:workspaceRoot + '\Control\Unattend-PE.xml'), '<unattend />')
+
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $context.FileSystem.TestPath($script:mountPath + '\Unattend.xml') | Should -BeTrue
+
+            $line = @($context.FileSystem.ReadAllText(
+                    $script:mountPath + '\Windows\System32\startnet.cmd').TrimEnd("`r", "`n") -split "`r`n")
+
+            $line[3] | Should -BeExactly 'wpeinit -unattend:X:\Unattend.xml'
+        }
+
+        It 'reads a rooted answer file from where it is, not from under the share' {
+            # BROWSE PICKS A FILE ON THE BUILD HOST. Combining a rooted path
+            # with the workspace root - or trimming its separators first, which
+            # is what extraContent does - would read C:\build\Unattend-PE.xml
+            # from inside the share and find nothing there.
+            $yaml = $script:workspaceYaml + "`n  unattend: C:\build\Unattend-PE.xml"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            $context.FileSystem.WriteAllText('C:\build\Unattend-PE.xml', '<unattend />')
+
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $context.FileSystem.TestPath($script:mountPath + '\Unattend.xml') | Should -BeTrue
+        }
+
+        It 'refuses a named answer file that is not there, before it mounts' {
+            # BEFORE THE MOUNT, deliberately. Failing at the copy would cost a
+            # mount and a discard - minutes - to say something knowable at the
+            # start. An image built silently without it would boot with no
+            # firewall setting and nothing to say why.
+            $yaml = $script:workspaceYaml + "`n  unattend: Control\Missing.xml"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+
+            { Invoke-HDTBootImageTestBuild -Context $context } | Should -Throw '*Control\Missing.xml*'
+
+            @($context.Journal | Where-Object { $_.Operation -eq 'Mount' }) | Should -BeNullOrEmpty
+        }
+
+        It 'reports every step it takes, in the order it takes them' {
+            # SEVENTEEN STEPS AND TWO AND A HALF MINUTES, silent until now. A
+            # window that greys out for that long reads as one that has hung,
+            # and a killed build strands a mounted image.
+            #
+            # ASSERTED HERE RATHER THAN AT A WINDOW because the reports are the
+            # contract: Pester can watch the whole build with no ADK, no DISM
+            # and no display, which is the only place the ORDER can be pinned.
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $report = @($progress.Drain())
+
+            # Monotonic, starting at one, and every one of them naming what it
+            # is doing rather than a number an administrator has to look up.
+            @($report | Where-Object { -not $_.IsComplete }).Count | Should -BeGreaterThan 10
+
+            $step = @($report | Where-Object { -not $_.IsComplete } | ForEach-Object { $_.Step })
+            $step[0] | Should -Be 1
+            @($step | Sort-Object) | Should -Be $step
+
+            @($report | Where-Object { [string]::IsNullOrWhiteSpace($_.Title) }) | Should -BeNullOrEmpty
+        }
+
+        It 'says the mount is happening before it happens' {
+            # THE STEP THAT TAKES THE LONGEST HAS TO ANNOUNCE ITSELF FIRST.
+            # Reporting a step after doing it means the window sits on the
+            # PREVIOUS step's text for the whole of the slow one, which is
+            # exactly the moment somebody decides it is stuck.
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $mountAt = -1
+            $report = @($progress.Drain())
+
+            for ($index = 0; $index -lt $report.Count; $index++) {
+                if ($report[$index].Title -like '*mount*') { $mountAt = $index; break }
+            }
+
+            $mountAt | Should -BeGreaterThan -1
+
+            $mountOperation = @($context.Journal | Where-Object { $_.Operation -eq 'MountImage' })
+            @($mountOperation).Count | Should -BeGreaterThan 0
+        }
+
+        It 'names each component as it applies it' {
+            # THE LONGEST STEP IS THE ONE THAT LOOKED STUCK. Applying nine cabs
+            # is most of a minute, and a watcher told once that it is "applying
+            # the optional components" sits on one unchanging line for all of
+            # it - which is indistinguishable from a build that has stopped.
+            #
+            # It also says WHICH cab was going in if the build dies here, which
+            # a single report for the whole loop cannot.
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $detail = @($progress.Drain() | Where-Object { $_.Step -eq 8 } |
+                    ForEach-Object { [string] $_.Detail })
+
+            ($detail -join ' | ') | Should -BeLike '*WinPE-WMI*'
+            ($detail -join ' | ') | Should -BeLike '*WinPE-PowerShell*'
+
+            # One per cab, plus the one that opens the step - so more than a
+            # handful, and certainly not one.
+            @($detail).Count | Should -BeGreaterThan 5
+        }
+
+        It 'marks the build finished when it worked' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $last = @($progress.Drain())[-1]
+
+            $last.IsComplete | Should -BeTrue
+            $last.Succeeded | Should -BeTrue
+        }
+
+        It 'marks the build finished, and failed, when it threw' {
+            # A WINDOW THAT JUST STOPPED RECEIVING WOULD HAVE TO GUESS between
+            # finished, slow and dead. The failure travels on the same stream as
+            # everything else, carrying the message.
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext -Failure @{ MountImage = 'the image is already mounted' }
+
+            { Invoke-HDTBootImageTestBuild -Context $context -Progress $progress } | Should -Throw
+
+            $last = @($progress.Drain())[-1]
+
+            $last.IsComplete | Should -BeTrue
+            $last.Succeeded | Should -BeFalse
+            $last.Detail | Should -BeLike '*already mounted*'
+        }
+
+        It 'builds exactly as before when nobody passes a progress sink' {
+            # THE DEFAULT PATH IS THE HOT ONE. Every existing caller - this
+            # suite included - passes nothing, and must pay nothing.
+            $context = New-HDTBootImageTestContext
+            $result = Invoke-HDTBootImageTestBuild -Context $context
+
+            $result.WimPath | Should -Not -BeNullOrEmpty
         }
 
         It 'still launches the deployment payload when no entryCommand is declared' {

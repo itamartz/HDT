@@ -1,0 +1,701 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Windows PE"
+    Height="760" Width="1180"
+    MinHeight="520" MinWidth="880"
+    WindowStartupLocation="Manual"
+    Background="{DynamicResource HDTWindowBrush}">
+
+    <!--
+        THE WINDOWS PE WINDOW - Deployment Workbench's deployment share
+        Properties, Windows PE tab, which is where an MDT admin has configured a
+        boot image for fifteen years. Four tabs, and each one is the face of a
+        command family that already exists:
+
+          General          Set-HDTWorkspaceProperty, Set-HDTBootImageUnattend
+          Features         Get-HDTAdkComponent, Add/Remove-HDTBootImageComponent
+          Drivers          Get-HDTDriverGroup, Set-HDTBootImageDriver
+          Customisations   Add/Remove-HDTBootImageContent,
+                           Add/Remove/Move-HDTBootImageStartCommand
+
+        THE ENTRY COMMAND IS NOT ON THIS WINDOW. workspace.yaml carries one -
+        the last line of startnet.cmd, which replaces the deployment payload for
+        standalone media or a diagnostic image - and Set-HDTWorkspaceProperty
+        sets it. It is off the General tab on purpose: the thing an
+        administrator actually wants to run at boot is a start command, which
+        the Customisations tab already holds, and a box next to it that also
+        looks like "the command that runs" is how somebody puts run.cmd in the
+        one place that stops the deployment ever starting.
+
+        NOTHING ON THIS WINDOW EXISTS WITHOUT A COMMAND BEHIND IT, and that is
+        the rule the console is built to: "if we don't have that command we
+        can't do it using the WPF". Two things an MDT admin might look for are
+        therefore ABSENT rather than drawn dead:
+
+          - THE WELCOME-SCREEN SKIPS. workspace.yaml carries bootImage.skip
+            (welcome, staticIp, deployRoot, credential) and there is no setter
+            for it - Set-HDTWorkspaceProperty has no -Skip parameter. Four
+            checkboxes here would be four controls with nothing to call.
+        (Reordering start commands WAS one of them: Add took -First or appended
+        and nothing moved a row, so the arrows could not exist. That is what
+        Move-HDTBootImageStartCommand was written for - the window did not get
+        the buttons until the command was there to call.)
+
+        THE ARCHITECTURE BOX IS ON THIS WINDOW AND THE ADK LIST FOLLOWS IT.
+        Get-HDTAdkComponent is asked per architecture, so amd64 and arm64 do not
+        offer the same cabs - reading the box rather than assuming amd64 is what
+        stops the Features tab describing an image nobody is building.
+
+        UPDATE IS NOT SAVE, AND THEY ARE TWO BUTTONS. Save writes workspace.yaml
+        - instant, and what every tab on this window edits. Update runs
+        Update-HDTBootImage, which mounts, injects and rebuilds a WIM and an ISO
+        and takes minutes. MDT splits them the same way: the Properties dialog
+        has OK/Apply, and "Update Deployment Share" is its own action. One
+        button doing both would mean an administrator who fixed a typo in the
+        image name waits two and a half minutes for it.
+
+        NO x:Class AND NO CODE-BEHIND, as HDTConsole.xaml and
+        HDTSequenceEditor.xaml. Handlers attach in PowerShell, by name.
+
+        NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+        HDTBootImageTitleText, HDTBootImagePathText, HDTBootImageNameBox,
+        HDTBootImageArchitectureBox, HDTBootImageLanguageBox,
+        HDTBootImageScratchBox, HDTBootImageUnattendBox,
+        HDTBootImageUnattendBrowseButton,
+        HDTComponentList, HDTComponentSizeText,
+        HDTDriverGroupBox,
+        HDTContentList, HDTContentSourceBox, HDTContentBrowseButton,
+        HDTContentDestinationBox, HDTContentAddButton, HDTContentRemoveButton,
+        HDTStartCommandList, HDTStartCommandBox, HDTStartCommandFirstCheck,
+        HDTStartCommandAddButton, HDTStartCommandRemoveButton,
+        HDTStartCommandUpButton, HDTStartCommandDownButton,
+        HDTBootImageCommandText, HDTBootImageUpdateButton,
+        HDTBootImageSaveButton and HDTBootImageCloseButton.
+
+        THE PALETTE IS THE CONSOLE'S - every colour a DynamicResource under the
+        keys HDTConsole.xaml declares, so Get-HDTConsoleTheme repaints this
+        window with the others.
+    -->
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTHintBrush"        Color="#FF6A6A6A" />
+        <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFFAFAFA" />
+        <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTButtonHoverBrush"     Color="#FFCCE4F7" />
+        <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
+        <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
+
+        <!-- The console's button, template and all. See HDTConsole.xaml for why
+             the colours are Setters inside a ControlTemplate rather than local
+             values on the element. -->
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HDTButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonHoverBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <!-- A disabled action must LOOK disabled. Remove
+                                 means nothing until a row is selected, and a
+                                 bright button that does nothing when pressed is
+                                 how an administrator concludes the window is
+                                 broken. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTFooterBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <!-- The hint under a field: the same size, deliberately quieter. It
+             says what an EMPTY box means, which is the question every one of
+             these fields raises and none of them can answer by itself. -->
+        <Style x:Key="HDTHintText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource HDTFieldBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="6,4,6,4" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="6,4,6,4" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,5,14,5" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- the banner: which image, and which workspace it is configured in -->
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="24,14,24,14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="HDTBootImageTitleText"
+                           Text="Windows PE"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontFamily="Segoe UI" FontSize="19" />
+
+                <TextBlock Grid.Row="1" x:Name="HDTBootImagePathText"
+                           Text=""
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontFamily="Consolas, Courier New" FontSize="12"
+                           Margin="0,4,0,0" />
+            </Grid>
+        </Border>
+
+        <TabControl Grid.Row="1" Margin="24,18,24,0"
+                    Background="{DynamicResource HDTPanelBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}">
+
+            <!-- ==================== General ==================== -->
+            <TabItem Header="General">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16,18,16">
+                    <!--
+                        THE LABELS ARE TOP-ALIGNED, NOT CENTRED, and the 6px is
+                        the box's own border and padding. Each field cell holds
+                        a box AND the hint under it, so a centred label centres
+                        against both and lands below the box it names - which
+                        reads as a row that failed to line up rather than as a
+                        label with an explanation beneath it.
+                    -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="170" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Image name"
+                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,12">
+                            <TextBox x:Name="HDTBootImageNameBox" Width="360" HorizontalAlignment="Left" />
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Text="What the .wim and the .iso are called, and what WDS lists. Letters, digits, dot, dash and underscore." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Architecture"
+                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12">
+                            <ComboBox x:Name="HDTBootImageArchitectureBox" Width="180"
+                                      HorizontalAlignment="Left" SelectedValuePath="Tag">
+                                <ComboBoxItem Tag="amd64" Content="amd64" />
+                                <ComboBoxItem Tag="arm64" Content="arm64" />
+                            </ComboBox>
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Text="It also decides which optional components the Features tab can offer - the ADK ships a separate cab set per architecture." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Language"
+                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
+                            <TextBox x:Name="HDTBootImageLanguageBox" Width="180" HorizontalAlignment="Left" />
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Text="en-us unless the language packs for another are installed beside the ADK. A component with no pack for this language is added without one." />
+                        </StackPanel>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Scratch space"
+                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12">
+                            <ComboBox x:Name="HDTBootImageScratchBox" Width="180"
+                                      HorizontalAlignment="Left" SelectedValuePath="Tag">
+                                <ComboBoxItem Tag="32" Content="32 MB" />
+                                <ComboBoxItem Tag="64" Content="64 MB" />
+                                <ComboBoxItem Tag="128" Content="128 MB" />
+                                <ComboBoxItem Tag="256" Content="256 MB" />
+                                <ComboBoxItem Tag="512" Content="512 MB" />
+                                <ComboBoxItem Tag="1024" Content="1024 MB" />
+                            </ComboBox>
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Text="The writable RAM disk inside WinPE. Raise it when a deployment copies large content into X: - the default is enough for the engine itself." />
+                        </StackPanel>
+
+                        <!--
+                            THE ANSWER FILE, AND IT IS wpeinit's ARGUMENT rather
+                            than a line of its own. wpeinit processes it -
+                            Display, EnableFirewall, EnableNetwork, LogPath,
+                            PageFile, Restart, RunSynchronous, RunAsynchronous -
+                            so the WinPE firewall is set HERE and not by a tool
+                            in a start command. `wpeutil disablefirewall` is a
+                            command for a technician at a prompt; this is how an
+                            IMAGE is built with the setting.
+                        -->
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Answer file"
+                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="HDTBootImageUnattendBox" Width="470"
+                                         HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
+                                         Margin="0,0,8,0" />
+                                <Button x:Name="HDTBootImageUnattendBrowseButton" Content="Browse" MinWidth="80" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Text="A WinPE answer file, copied into the image and handed to wpeinit. This is where the WinPE firewall, the display resolution and the page file are set. Empty means wpeinit runs with no answer file, which is the ordinary case." />
+                        </StackPanel>
+
+                        <!--
+                            THERE IS NO APPLY ON THIS TAB, and that is not an
+                            omission. Every tab edits the same in-memory
+                            document; Save at the bottom is what writes it, and
+                            it is where MDT's properties dialog puts Apply too.
+                            A second Apply mid-form would have to mean something
+                            different from Save to be worth pressing, and it
+                            does not - it sat under the last field and read as
+                            "apply the answer file".
+                        -->
+
+                        <!--
+                            WHAT THIS TAB DOES NOT SHOW, said here rather than
+                            drawn as dead controls: workspace.yaml also carries
+                            bootImage.skip - the four Welcome-screen Skip*
+                            properties - and no command sets them, so there is
+                            nothing for a checkbox to call. They are edited in
+                            the file until there is one.
+                        -->
+                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource HDTHintText}"
+                                   Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
+                                   Text="The Welcome screen's Skip settings live in workspace.yaml under bootImage.skip and are not on this window: no command sets them yet, and a control with nothing behind it is worse than none." />
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Features ==================== -->
+            <TabItem Header="Features">
+                <Grid Margin="18,16,18,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Style="{StaticResource HDTHintText}" Margin="0,0,0,12"
+                               MaxWidth="820" HorizontalAlignment="Left"
+                               Text="Every optional component the installed ADK has a cab for, for the architecture on the General tab. Ticking one adds it to workspace.yaml; the image is only rebuilt when Update runs." />
+
+                    <!--
+                        A TICK PER COMPONENT, AND SIX OF THEM CANNOT BE UNTICKED.
+                        Get-HDTAdkComponent marks the ones HDT applies to every
+                        image - WinPE-NetFx and WinPE-PowerShell among them,
+                        because a boot image without them cannot run the engine
+                        at all. They are shown ticked and disabled rather than
+                        hidden: an administrator looking for PowerShell in this
+                        list has to find it and see that it is already there.
+
+                        REQUIRES IS ON THE ROW, not in a dialog after the fact.
+                        WinPE-PowerShell needs WinPE-WMI beside it, and a list
+                        that only says so once the build fails has spent two and
+                        a half minutes teaching it.
+                    -->
+                    <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
+                            BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
+                            <ItemsControl x:Name="HDTComponentList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,3,0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="250" />
+                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding Declared, Mode=TwoWay}"
+                                                      IsEnabled="{Binding CanChange}"
+                                                      Content="{Binding Name}" />
+
+                                            <TextBlock Grid.Column="1" Text="{Binding SizeText}"
+                                                       Foreground="{DynamicResource HDTHintBrush}"
+                                                       FontFamily="Consolas, Courier New" FontSize="12"
+                                                       HorizontalAlignment="Right" Margin="0,0,16,0" />
+
+                                            <!--
+                                                WHAT IT DOES, THEN WHAT COMES
+                                                WITH IT. The ADK ships no
+                                                descriptions at all - the cab
+                                                names are the only metadata
+                                                there is - so this text is a
+                                                table HDT carries, from
+                                                Microsoft's OC reference, the
+                                                same way MDT carries its own.
+                                                Without it the row read
+                                                'WinPE-Dot3Svc  1.3 MB'.
+                                            -->
+                                            <TextBlock Grid.Column="2" Text="{Binding DetailText}"
+                                                       Foreground="{DynamicResource HDTHintBrush}"
+                                                       FontSize="12" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding DetailText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!--
+                        THE TOTAL, BECAUSE THE COST OF THIS TAB IS THE THING IT
+                        HIDES. Every tick is megabytes in a WIM that has to be
+                        transferred to every machine that PXE boots, and the
+                        list gives no sense of that one row at a time.
+                    -->
+                    <TextBlock Grid.Row="2" x:Name="HDTComponentSizeText" Text=""
+                               Style="{StaticResource HDTHintText}" Margin="0,12,0,0" />
+                </Grid>
+            </TabItem>
+
+            <!-- ==================== Drivers ==================== -->
+            <TabItem Header="Drivers">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16,18,16">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource HDTHintText}" Margin="0,0,0,14"
+                                   MaxWidth="760" HorizontalAlignment="Left"
+                                   Text="Which drivers go INTO THE BOOT IMAGE - storage and network, so WinPE can see the disk and reach the share. This is not what the deployed OS gets; that is the sequence's own driver step." />
+
+                        <!--
+                            A LIST, NOT A BOX YOU TYPE INTO. A group is a folder
+                            under Drivers\ on the share, so the legal answers are
+                            knowable - Get-HDTDriverGroup reads them - and a
+                            typed one that is wrong builds an image with NO
+                            drivers in it, warned about at build time and
+                            discovered on a bench with a disk WinPE cannot see.
+
+                            "No drivers" IS THE FIRST ROW rather than an empty
+                            selection: it is a real choice, and a list you can
+                            only say it in by clearing the box is a list you
+                            cannot say it in.
+                        -->
+                        <TextBlock Text="Driver group" Margin="0,0,0,6" />
+                        <ComboBox x:Name="HDTDriverGroupBox" Width="420" HorizontalAlignment="Left"
+                                  DisplayMemberPath="Display" SelectedValuePath="Name" />
+                        <!--
+                            NO APPLY AND NO CLEAR HERE EITHER. Save writes what
+                            is in the box, and EMPTYING IT IS CLEARING IT - a
+                            Clear button beside a box you can already empty is a
+                            second way to do one thing, and the two disagree the
+                            first time somebody empties the box and presses
+                            Save expecting Clear's behaviour. Set-HDTBootImageDriver
+                            still has -Clear; it is what Save runs on an empty box.
+                        -->
+                        <TextBlock Style="{StaticResource HDTHintText}" Margin="0,6,0,0" MaxWidth="620"
+                                   HorizontalAlignment="Left"
+                                   Text="A folder under Drivers\ on the share - MDT's selection profile, by another name. Empty means no drivers are injected and WinPE uses what Microsoft ships." />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ==================== Customisations ==================== -->
+            <TabItem Header="Customisations">
+                <Grid Margin="18,16,18,16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!--
+                        TWO HALVES, AND THEY ONLY WORK TOGETHER. Copying BGInfo
+                        or a VNC server into the image starts nothing - the
+                        entry command is the deployment, and it does not return.
+                        The top half puts a file in the image; the bottom half
+                        is what runs it. A window with only the first would let
+                        an administrator ship a tool that never launches, which
+                        is the failure this pair exists to stop.
+                    -->
+                    <TextBlock Grid.Row="0" Text="Extra content" FontSize="14" Margin="0,0,0,8" />
+
+                    <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
+                            BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                            MinHeight="110">
+                        <ListBox x:Name="HDTContentList" BorderThickness="0"
+                                 Background="Transparent" FontSize="13">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="260" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0" Text="{Binding Source}"
+                                                   FontFamily="Consolas, Courier New" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Grid.Column="1" Text="  &#x2192;  "
+                                                   Foreground="{DynamicResource HDTHintBrush}" FontSize="12" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Destination}"
+                                                   FontFamily="Consolas, Courier New" FontSize="12"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <!--
+                        THE TWO BOXES ARE LABELLED, and on this row it is not
+                        decoration: they hold a path on the build machine and a
+                        path inside the image, they look identical, and putting
+                        them the wrong way round produces an image that builds
+                        and is missing the tool. A tooltip is no help - it needs
+                        the pointer to already be in the right box.
+                    -->
+                    <Grid Grid.Row="2" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="260" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Source, on this machine or the share"
+                                   Style="{StaticResource HDTHintText}" Margin="0,0,8,4" />
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Where it lands inside the image"
+                                   Style="{StaticResource HDTHintText}" Margin="0,0,8,4" />
+
+                        <TextBox Grid.Row="1" Grid.Column="0" x:Name="HDTContentSourceBox"
+                                 FontFamily="Consolas, Courier New" Margin="0,0,8,0"
+                                 ToolTip="A file or folder on this machine, or on the share." />
+                        <Button Grid.Row="1" Grid.Column="1" x:Name="HDTContentBrowseButton" Content="Browse" MinWidth="80" />
+                        <TextBox Grid.Row="1" Grid.Column="2" x:Name="HDTContentDestinationBox"
+                                 FontFamily="Consolas, Courier New" Margin="0,0,8,0"
+                                 ToolTip="\Tools\BGInfo, for example. Rooted at the image, and no '..'." />
+                        <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal">
+                            <Button x:Name="HDTContentAddButton" Content="Add" MinWidth="80" />
+                            <Button x:Name="HDTContentRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel Grid.Row="3" Margin="0,24,0,8">
+                        <TextBlock Text="Start commands" FontSize="14" Margin="0,0,0,4" />
+                        <TextBlock Style="{StaticResource HDTHintText}" MaxWidth="820" HorizontalAlignment="Left"
+                                   Text="Lines for startnet.cmd, in this order - after WinPE has a network, and before the deployment starts. This is what launches the tools added above. A .cmd or .bat is run with call, so control comes back and the deployment still starts." />
+                    </StackPanel>
+
+                    <!--
+                        THE ORDER IS THE LIST'S ORDER, and startnet.cmd runs
+                        them in it - after wpeinit, so anything needing the
+                        network has one, and before the entry command, because
+                        that one never comes back. There are no up and down
+                        buttons: Add appends or takes -First, Remove takes a
+                        command, and no command moves one. Drawing arrows that
+                        call nothing would be the window promising what the
+                        module cannot do.
+                    -->
+                    <Border Grid.Row="4" Background="{DynamicResource HDTPanelBrush}"
+                            BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                            MinHeight="90">
+                        <!--
+                            IT SHOWS THE DOCUMENT, WHICH IS WHAT THIS WINDOW
+                            EDITS. startnet.cmd and workspace.yaml are two
+                            different files: the yaml is the authored one, and
+                            the .cmd is generated from it at build time, with
+                            `call` in front of a batch file so cmd.exe returns.
+
+                            An earlier version showed the generated line here.
+                            It put a row on screen that appears in no file this
+                            window can save, and made a list that is otherwise
+                            a faithful view of the yaml quietly not one. The
+                            `call` rule is stated in the hint above instead -
+                            words about the other file, rather than the other
+                            file's contents wearing this one's clothes.
+                        -->
+                        <ListBox x:Name="HDTStartCommandList" BorderThickness="0"
+                                 Background="Transparent" DisplayMemberPath="Text"
+                                 FontFamily="Consolas, Courier New" FontSize="12" />
+                    </Border>
+
+                    <Grid Grid.Row="5" Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0" x:Name="HDTStartCommandBox"
+                                 FontFamily="Consolas, Courier New" Margin="0,0,12,0"
+                                 ToolTip="A line for startnet.cmd - X:\Tools\BGInfo\bginfo.exe /nolicprompt, for example." />
+
+                        <CheckBox Grid.Column="1" x:Name="HDTStartCommandFirstCheck"
+                                  Content="Run first" VerticalAlignment="Center" Margin="0,0,12,0"
+                                  ToolTip="Put it at the top of the list instead of the bottom." />
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <!--
+                                THE ARROWS ARE GLYPHS, AND THEY MOVE ONE PLACE.
+                                Order is semantics in this list - startnet.cmd
+                                runs the lines in it, synchronously - so a tool
+                                that must be up before the next line runs has to
+                                be above it. Move-HDTBootImageStartCommand is
+                                what they call; before it existed, reordering
+                                meant Remove and Add again.
+
+                                Segoe UI Symbol, NOT an image: WinPE has no
+                                icon pipeline and the console should not need
+                                one either, and a glyph scales with the window.
+                            -->
+                            <Button x:Name="HDTStartCommandUpButton" Content="&#xE010;"
+                                    FontFamily="Segoe UI Symbol" FontSize="12"
+                                    MinWidth="36" Margin="0,0,4,0"
+                                    ToolTip="Run this one place earlier" />
+                            <Button x:Name="HDTStartCommandDownButton" Content="&#xE011;"
+                                    FontFamily="Segoe UI Symbol" FontSize="12"
+                                    MinWidth="36" Margin="0,0,12,0"
+                                    ToolTip="Run this one place later" />
+
+                            <Button x:Name="HDTStartCommandAddButton" Content="Add" MinWidth="80" />
+                            <Button x:Name="HDTStartCommandRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- the cmdlet the last action ran, and the ways out -->
+        <Grid Grid.Row="2" Margin="24,16,24,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{DynamicResource HDTCommandBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                    Padding="10,7,10,7">
+                <!--
+                    AcceptsReturn, ON A BOX NOBODY TYPES INTO. One press of Save
+                    is four invocations - the three that decide what is written
+                    and the one that writes it - and a TextBox without this
+                    shows the first line of them and silently eats the rest.
+                    MaxHeight keeps four lines from pushing the buttons off the
+                    bottom of a short window.
+                -->
+                <TextBox x:Name="HDTBootImageCommandText"
+                         Text=""
+                         IsReadOnly="True" BorderThickness="0"
+                         AcceptsReturn="True" MaxHeight="76"
+                         VerticalScrollBarVisibility="Auto"
+                         Background="Transparent"
+                         Foreground="{DynamicResource HDTCommandTextBrush}"
+                         FontFamily="Consolas, Courier New" FontSize="12"
+                         TextWrapping="Wrap" />
+            </Border>
+
+            <Grid Grid.Row="1" Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- The long one, on its own, away from the ones that answer
+                     instantly. It mounts, injects and rebuilds - minutes, not
+                     milliseconds - and a mis-click on it beside Close is a
+                     coffee break nobody asked for. -->
+                <Button Grid.Column="0" x:Name="HDTBootImageUpdateButton"
+                        Content="Update Boot Image" MinWidth="150"
+                        ToolTip="Rebuilds the .wim and the .iso from what is saved. Minutes." />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button x:Name="HDTBootImageSaveButton" Content="Save" MinWidth="96" />
+                    <Button x:Name="HDTBootImageCloseButton" Content="Close" MinWidth="96" Margin="0" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

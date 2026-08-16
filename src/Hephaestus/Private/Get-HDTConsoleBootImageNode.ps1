@@ -86,7 +86,8 @@ function Get-HDTConsoleBootImageNode {
 
         return (New-HDTConsoleNode -Depth 3 -Kind 'BootImage' -Status $BootImage.Status `
                 -Text ('{0} - {1}' -f $BootImage.Name, $suffix) `
-                -Field $field -Command $command -Header $Header)
+                -Field $field -Command $command -Header $Header `
+                -Subject $Workspace.WorkspacePath)
     }
 
     $built = '(not recorded)'
@@ -125,5 +126,6 @@ function Get-HDTConsoleBootImageNode {
 
     return (New-HDTConsoleNode -Depth 3 -Kind 'BootImage' -Status 'Ok' `
             -Text ('{0} - built {1} UTC' -f $BootImage.Name, $built) `
-            -Field $field -Command $command -Header $Header)
+            -Field $field -Command $command -Header $Header `
+                -Subject $Workspace.WorkspacePath)
 }

@@ -159,6 +159,131 @@ Describe 'Get-HDTStartnetScript' {
         @([regex]::Matches($withStart, "(?<!`r)`n")).Count | Should -Be 0
     }
 
+    # =====================================================================
+    # A BATCH FILE NEEDS `call`, AND WITHOUT IT THE DEPLOYMENT NEVER STARTS.
+    #
+    # cmd.exe does not return from one batch file to another: a bare
+    # `X:\Tools\run.cmd` inside startnet.cmd TRANSFERS control, and the entry
+    # command below it - the deployment - is never reached. The machine sits at
+    # whatever run.cmd left behind, having booted, initialised and run the
+    # administrator's tools, and looks for all the world like a deployment that
+    # hung.
+    #
+    # It is fixed HERE rather than in Add-HDTBootImageStartCommand so that a
+    # hand-edited workspace.yaml gets it too. What the administrator typed is
+    # what the document keeps; `call` is a fact about cmd.exe, and belongs with
+    # the code that writes cmd.
+    # =====================================================================
+
+    It 'calls a <_> start command, so control comes back' -ForEach @('run.cmd', 'run.bat') {
+        $file = $_
+        $withStart = InModuleScope Hephaestus -Parameters @{ File = $file } {
+            param($File)
+            Get-HDTStartnetScript -StartCommand @('X:\Tools\{0}' -f $File)
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly ('call X:\Tools\{0}' -f $file)
+    }
+
+    It 'calls a batch file that carries arguments, and keeps them' {
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('X:\Tools\run.cmd -vnc -bginfo')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly 'call X:\Tools\run.cmd -vnc -bginfo'
+    }
+
+    It 'calls a quoted batch path, which is the one an admin with spaces types' {
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('"X:\Program Files\HDT\run.cmd"')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly 'call "X:\Program Files\HDT\run.cmd"'
+    }
+
+    It 'does not call a <_> twice' -ForEach @('call X:\Tools\run.cmd', 'CALL X:\Tools\run.cmd') {
+        $typed = $_
+        $withStart = InModuleScope Hephaestus -Parameters @{ Typed = $typed } {
+            param($Typed)
+            Get-HDTStartnetScript -StartCommand @($Typed)
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly $typed
+    }
+
+    It 'leaves a start-ed batch file alone, because start already returns' {
+        # `start` launches it in its own window and comes straight back, which
+        # is what an administrator writes when the tool has to stay up. Adding
+        # `call` there would change what they asked for.
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('start "" X:\Tools\run.cmd')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly 'start "" X:\Tools\run.cmd'
+    }
+
+    It 'leaves an executable alone' {
+        # An .exe is a process, not a batch file: cmd.exe waits for it and
+        # carries on by itself. `call` here would be noise.
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('X:\Tools\BGInfo\bginfo64.exe /timer:0')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly 'X:\Tools\BGInfo\bginfo64.exe /timer:0'
+    }
+
+    # =====================================================================
+    # THE ANSWER FILE, WHICH IS wpeinit's OWN ARGUMENT.
+    #
+    # wpeinit -unattend:<path> processes a WinPE answer file: Display,
+    # EnableFirewall, EnableNetwork, LogPath, PageFile, Restart, RunSynchronous
+    # and RunAsynchronous. It is the supported way to turn the WinPE firewall
+    # on or off, and it happens as part of the line that already exists rather
+    # than as a new one.
+    # =====================================================================
+
+    It 'points wpeinit at the answer file when there is one' {
+        $withUnattend = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -UnattendPath 'X:\Unattend.xml'
+        }
+        $unattendLine = @($withUnattend.TrimEnd("`r", "`n") -split "`r`n")
+
+        $unattendLine.Count | Should -Be 5
+        $unattendLine[3] | Should -BeExactly 'wpeinit -unattend:X:\Unattend.xml'
+    }
+
+    It 'quotes an answer file path with a space in it' {
+        $withUnattend = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -UnattendPath 'X:\HDT Files\Unattend.xml'
+        }
+        $unattendLine = @($withUnattend.TrimEnd("`r", "`n") -split "`r`n")
+
+        $unattendLine[3] | Should -BeExactly 'wpeinit -unattend:"X:\HDT Files\Unattend.xml"'
+    }
+
+    It 'writes a plain wpeinit when there is no answer file' {
+        $none = InModuleScope Hephaestus { Get-HDTStartnetScript -UnattendPath '' }
+
+        $none | Should -BeExactly $script:startnet
+    }
+
+    It 'still runs the start commands after wpeinit when an answer file is set' {
+        $both = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -UnattendPath 'X:\Unattend.xml' -StartCommand @('X:\Tools\run.cmd')
+        }
+        $bothLine = @($both.TrimEnd("`r", "`n") -split "`r`n")
+
+        $bothLine[3] | Should -BeExactly 'wpeinit -unattend:X:\Unattend.xml'
+        $bothLine[4] | Should -BeExactly 'call X:\Tools\run.cmd'
+        $bothLine[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+    }
+
     It 'is private to the module' {
         # It is an implementation detail of Update-HDTBootImage, not a command
         # an administrator runs. BOTH HALVES ARE ASSERTED: a test that only

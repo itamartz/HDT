@@ -82,6 +82,35 @@ function Get-HDTStartnetScript {
             Commands to run after wpeinit and before the entry command, in
             order. Empty produces the same five lines as before.
 
+            A BATCH FILE IS EMITTED WITH `call`, AND WITHOUT IT THE DEPLOYMENT
+            NEVER STARTS. cmd.exe does not return from one batch file to
+            another: a bare `X:\Tools\run.cmd` on a line here TRANSFERS control,
+            and the entry command below it is never reached. The machine sits
+            wherever run.cmd left it - booted, initialised, tools running - and
+            looks exactly like a deployment that hung.
+
+            It is done here rather than where the command is authored so that a
+            hand-edited workspace.yaml gets it too. What the administrator typed
+            is what the document keeps; `call` is a fact about cmd.exe and
+            belongs with the code that writes cmd.
+
+            ALREADY-CALLED AND ALREADY-STARTED LINES ARE LEFT ALONE. `start`
+            returns immediately by design - it is what an administrator writes
+            for a tool that has to stay up - and doubling `call` would be
+            rewriting an instruction that was already right.
+
+        .PARAMETER UnattendPath
+            A WinPE answer file inside the image, passed to wpeinit as
+            -unattend:. Empty means the plain wpeinit line.
+
+            IT IS AN ARGUMENT ON THE LINE THAT ALREADY EXISTS, not a line of its
+            own, because wpeinit is what processes it: Display, EnableFirewall,
+            EnableNetwork, LogPath, PageFile, Restart, RunSynchronous and
+            RunAsynchronous are the settings it accepts. The firewall in
+            particular has no other supported switch - `wpeutil disablefirewall`
+            is a manual command at a prompt, not something an image is built
+            with.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -111,7 +140,11 @@ function Get-HDTStartnetScript {
         [Parameter()]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [string[]] $StartCommand = @()
+        [string[]] $StartCommand = @(),
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $UnattendPath = ''
     )
 
     Set-StrictMode -Version Latest
@@ -122,7 +155,21 @@ function Get-HDTStartnetScript {
     [void] $line.Add('@echo off')
     [void] $line.Add('rem Written by Update-HDTBootImage. Do not edit inside the image; edit HDT.')
     [void] $line.Add('set HDT_LAUNCHED_BY=startnet')
-    [void] $line.Add('wpeinit')
+
+    # QUOTED ONLY WHEN IT HAS TO BE. cmd.exe splits on the space, so a path with
+    # one in it reaches wpeinit as two arguments and the answer file is silently
+    # not processed - which looks exactly like an answer file that did nothing.
+    # Quoting unconditionally would be safe too, but the unquoted form is what
+    # every Microsoft example shows and what an administrator compares against.
+    $wpeinit = 'wpeinit'
+    if (-not [string]::IsNullOrWhiteSpace($UnattendPath)) {
+        $unattendText = [string] $UnattendPath
+        if ($unattendText.Contains(' ')) { $unattendText = '"{0}"' -f $unattendText }
+
+        $wpeinit = 'wpeinit -unattend:{0}' -f $unattendText
+    }
+
+    [void] $line.Add($wpeinit)
 
     # After wpeinit and before the entry command. A blank entry is skipped rather
     # than written: a blank line in a .cmd is harmless, and this text is compared
@@ -130,7 +177,9 @@ function Get-HDTStartnetScript {
     foreach ($current in @($StartCommand)) {
         if ([string]::IsNullOrWhiteSpace([string] $current)) { continue }
 
-        [void] $line.Add([string] $current)
+        # THE `call` RULE LIVES IN ONE PLACE. The WinPE window shows the same
+        # answer, so a second copy here would be a second copy to get wrong.
+        [void] $line.Add((ConvertTo-HDTStartnetCommandLine -Command ([string] $current)))
     }
 
     [void] $line.Add($Command)

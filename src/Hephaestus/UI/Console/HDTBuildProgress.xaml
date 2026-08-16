@@ -1,0 +1,202 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Updating Boot Image"
+    Height="520" Width="760"
+    MinHeight="360" MinWidth="560"
+    WindowStartupLocation="Manual"
+    ResizeMode="CanResize"
+    Background="{DynamicResource HDTWindowBrush}">
+
+    <!--
+        WHAT THE BUILD IS DOING, WHILE IT DOES IT.
+
+        Update-HDTBootImage is seventeen steps and about two and a half minutes,
+        and it used to run on the dispatcher: the Windows PE window greyed out
+        for the whole of it, which reads as a window that has hung. That is not
+        a cosmetic problem - somebody kills it, and a killed build leaves a
+        MOUNTED IMAGE behind that needs dism /cleanup-wim before anything can
+        build again.
+
+        SO THE BUILD RUNS IN ITS OWN RUNSPACE and this window drains its reports
+        on a dispatcher timer. The reports come from New-HDTBuildProgress; what
+        each step is called is the engine's business, not this file's.
+
+        THREE THINGS ARE ON SCREEN AND EACH ANSWERS A DIFFERENT QUESTION:
+
+          the bar and "step N of 17"   how much is left
+          the current step, large      what it is doing NOW
+          the log, growing             what it has already done, and how long
+                                       each one took
+
+        The log is the one an administrator reads afterwards, and the reason
+        this window keeps every line rather than replacing one label: "which
+        step was slow" is the question asked after a build that took four
+        minutes instead of two, and a single label cannot answer it.
+
+        CLOSE IS DISABLED UNTIL IT FINISHES, and the title bar is gone with
+        WindowStyle inherited from the console's own windows... except it is
+        NOT: this window keeps its chrome deliberately, so the X is there and
+        visibly greyed rather than absent. A window with no way out at all is
+        more alarming than one whose way out is plainly not available yet.
+
+        NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+        HDTBuildTitleText, HDTBuildPathText, HDTBuildStepText,
+        HDTBuildDetailText, HDTBuildCountText, HDTBuildElapsedText,
+        HDTBuildBar, HDTBuildLog and HDTBuildCloseButton.
+    -->
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTHintBrush"        Color="#FF6A6A6A" />
+        <SolidColorBrush x:Key="HDTErrorBrush"       Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTButtonHoverBrush"     Color="#FFCCE4F7" />
+        <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
+        <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HDTButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonHoverBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                            </Trigger>
+                            <!-- Close is disabled while the build runs, and has
+                                 to LOOK it: a bright button that does nothing is
+                                 how somebody decides the window is broken and
+                                 reaches for Task Manager, which is the exact
+                                 thing this window exists to prevent. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTFooterBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="24,14,24,14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="HDTBuildTitleText" Text="Updating Boot Image"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontFamily="Segoe UI" FontSize="19" />
+                <TextBlock Grid.Row="1" x:Name="HDTBuildPathText" Text=""
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontFamily="Consolas, Courier New" FontSize="12" Margin="0,4,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- WHAT IT IS DOING NOW, in the largest text on the window. -->
+        <Grid Grid.Row="1" Margin="24,18,24,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTBuildStepText"
+                       Text="Starting..." FontSize="16" TextTrimming="CharacterEllipsis" />
+
+            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="HDTBuildCountText" Text=""
+                       Foreground="{DynamicResource HDTHintBrush}"
+                       FontFamily="Consolas, Courier New" FontSize="12"
+                       VerticalAlignment="Bottom" Margin="12,0,0,2" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" x:Name="HDTBuildDetailText"
+                       Text="" Foreground="{DynamicResource HDTHintBrush}"
+                       FontFamily="Consolas, Courier New" FontSize="12"
+                       TextTrimming="CharacterEllipsis" Margin="0,5,0,0" />
+
+            <ProgressBar Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" x:Name="HDTBuildBar"
+                         Height="10" Minimum="0" Maximum="17" Value="0" Margin="0,12,0,0"
+                         Foreground="{DynamicResource HDTButtonBrush}" />
+        </Grid>
+
+        <!--
+            EVERY STEP IT HAS FINISHED, WITH WHAT EACH ONE COST. This is the
+            half that is read AFTER the build: "which step was slow" is the
+            question a four-minute build raises, and a single current-step label
+            cannot answer it. It is a ListBox rather than a TextBox so a long
+            build scrolls rather than growing the window.
+        -->
+        <Border Grid.Row="2" Margin="24,0,24,0"
+                Background="{DynamicResource HDTPanelBrush}"
+                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+            <ListBox x:Name="HDTBuildLog" BorderThickness="0" Background="Transparent"
+                     FontFamily="Consolas, Courier New" FontSize="12"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto" />
+        </Border>
+
+        <Grid Grid.Row="3" Margin="24,14,24,18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" x:Name="HDTBuildElapsedText" Text=""
+                       Foreground="{DynamicResource HDTHintBrush}"
+                       FontFamily="Consolas, Courier New" FontSize="12"
+                       VerticalAlignment="Center" />
+
+            <Button Grid.Column="1" x:Name="HDTBuildCloseButton" Content="Close"
+                    MinWidth="96" IsEnabled="False" />
+        </Grid>
+    </Grid>
+</Window>

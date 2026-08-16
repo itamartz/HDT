@@ -168,6 +168,19 @@ function New-HDTConsoleHost {
                 if ($null -eq $selected) { return }
                 if (-not $selected.CanOpen) { return }
 
+                # TWO KINDS OF ROW OPEN, AND THE ROW SAYS WHICH IT IS. A task
+                # sequence opens the editor; the boot image opens the Windows PE
+                # window, which is Deployment Workbench's deployment share
+                # Properties. This routes on the Kind the node already carries -
+                # it does not work out for itself which rows are which, because
+                # that is the decision Get-HDTConsoleTreeNode already made.
+                if ([string] $selected.Kind -eq 'BootImage') {
+                    [void] (Show-HDTBootImageWindow -Path ([string] $selected.Subject) -Theme $ThemeName `
+                            -ConsoleHost $consoleHost `
+                            -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
+                    return
+                }
+
                 # AND IT COMES UP THE SIZE OF THIS WINDOW. ActualWidth, not the
                 # markup and not RestoreBounds: what was asked for is the size
                 # the administrator is looking at, so a maximised console opens
@@ -649,6 +662,779 @@ function New-HDTConsoleHost {
         [void] $window.ShowDialog()
 
         return [string] $this.Answer
+    }
+
+    # =====================================================================
+    # THE WINDOWS PE WINDOW
+    # =====================================================================
+    #
+    # Four tabs over one YAML block, and every control on it runs a command that
+    # already existed before this method did. What is ticked, what is listed,
+    # what each row would invoke and what the totals read as were all decided by
+    # Get-HDTConsoleBootImageSetting; this assigns them by name and wires the presses.
+    #
+    # THE COMPONENT LIST'S ItemsSource IS ASSIGNED EXACTLY ONCE, and that is the
+    # trap this window has that the editor does not. Assigning it builds a
+    # CheckBox per row and sets IsChecked from the model, which raises Checked -
+    # which is the handler that edits the document. Reassigning it after every
+    # tick would re-raise Checked for every ticked row, edit the document again,
+    # and reassign again. The ticks mutate the bound objects in place, so there
+    # is nothing to rebuild; only the total is recomputed.
+    #
+    # AND THE GUARD IS STATE, NOT TIMING. A quiet flag lowered after the
+    # assignment - even from a Background dispatcher callback - does not work
+    # here: a TabControl DOES NOT REALISE AN UNSELECTED TAB, so the Features
+    # checkboxes are built the first time an administrator clicks that tab,
+    # arbitrarily later, and every one of them raises Checked as it takes its
+    # bound value. Add-HDTBootImageComponent refuses a duplicate outright, so
+    # the window died on that click. Comparing against what the document
+    # actually declares cannot be out-waited.
+
+    $service | Add-Member -MemberType ScriptMethod -Name ShowBootImage -Value {
+        param(
+            [string] $Xaml, [string] $Path, [string[]] $Line,
+            [object[]] $Component, [object[]] $DriverGroup, [object] $Theme, [object] $Size,
+            [string] $ThemeName
+        )
+
+        Add-Type -AssemblyName PresentationFramework
+        Add-Type -AssemblyName PresentationCore
+        Add-Type -AssemblyName WindowsBase
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $window.Width = [double] $Size.Width
+        $window.Height = [double] $Size.Height
+        $window.Left = [double] $Size.Left
+        $window.Top = [double] $Size.Top
+        $window.Owner = $this.Window
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $window.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        $this.Answer = ''
+        $imageHost = $this
+
+        $titleText = $window.FindName('HDTBootImageTitleText')
+        $pathText = $window.FindName('HDTBootImagePathText')
+
+        $nameBox = $window.FindName('HDTBootImageNameBox')
+        $architectureBox = $window.FindName('HDTBootImageArchitectureBox')
+        $languageBox = $window.FindName('HDTBootImageLanguageBox')
+        $scratchBox = $window.FindName('HDTBootImageScratchBox')
+        $unattendBox = $window.FindName('HDTBootImageUnattendBox')
+        $unattendBrowse = $window.FindName('HDTBootImageUnattendBrowseButton')
+
+        $componentList = $window.FindName('HDTComponentList')
+        $componentSize = $window.FindName('HDTComponentSizeText')
+
+        $driverBox = $window.FindName('HDTDriverGroupBox')
+
+        $contentList = $window.FindName('HDTContentList')
+        $contentSource = $window.FindName('HDTContentSourceBox')
+        $contentBrowse = $window.FindName('HDTContentBrowseButton')
+        $contentDestination = $window.FindName('HDTContentDestinationBox')
+        $contentAdd = $window.FindName('HDTContentAddButton')
+        $contentRemove = $window.FindName('HDTContentRemoveButton')
+
+        $startList = $window.FindName('HDTStartCommandList')
+        $startBox = $window.FindName('HDTStartCommandBox')
+        $startFirst = $window.FindName('HDTStartCommandFirstCheck')
+        $startAdd = $window.FindName('HDTStartCommandAddButton')
+        $startRemove = $window.FindName('HDTStartCommandRemoveButton')
+        $startUp = $window.FindName('HDTStartCommandUpButton')
+        $startDown = $window.FindName('HDTStartCommandDownButton')
+
+        $commandText = $window.FindName('HDTBootImageCommandText')
+        $update = $window.FindName('HDTBootImageUpdateButton')
+        $save = $window.FindName('HDTBootImageSaveButton')
+        $close = $window.FindName('HDTBootImageCloseButton')
+
+        $book = [pscustomobject] @{
+            Line  = [string[]] @($Line)
+            Dirty = $false
+            View  = $null
+        }
+
+        # THE QUERY, AND ONLY ASSIGNMENT AFTER IT. Every value put on a control
+        # below came out of Get-HDTConsoleBootImageSetting; this computes none of them.
+        $ask = {
+            $book.View = Get-HDTConsoleBootImageSetting -Line $book.Line -Path $Path `
+                -Component $Component -DriverGroup $DriverGroup
+            return $book.View
+        }
+
+        $fillBoxes = {
+            $view = & $ask
+
+            $titleText.Text = [string] $view.Title
+            $pathText.Text = [string] $view.DocumentPath
+
+            $nameBox.Text = [string] $view.General.Name
+            $languageBox.Text = [string] $view.General.Language
+            $unattendBox.Text = [string] $view.General.Unattend
+            $architectureBox.SelectedValue = [string] $view.General.Architecture
+            $scratchBox.SelectedValue = [string] $view.General.ScratchSpaceMB
+
+            # THE LIST IS REBUILT EVERY TIME, and the selection is assigned
+            # after it: SelectedValue means nothing until the item carrying that
+            # value exists. Assigning ItemsSource on a ComboBox raises no event
+            # that edits anything, so unlike the component list this is safe to
+            # do repeatedly.
+            $driverBox.ItemsSource = $view.Driver.Choice
+            $driverBox.SelectedValue = [string] $view.Driver.Group
+
+            $componentSize.Text = [string] $view.SelectedSizeText
+        }
+
+        # THE TWO LISTS THAT MAY BE REBUILT. Neither carries a control that
+        # raises an event when it is created, so reassigning them is safe - it
+        # is only the component list's checkboxes that would loop.
+        $fillLists = {
+            $view = & $ask
+
+            $contentList.ItemsSource = $view.Content
+            $startList.ItemsSource = $view.StartCommand
+            $componentSize.Text = [string] $view.SelectedSizeText
+        }
+
+        & $fillBoxes
+        & $fillLists
+
+        $componentList.ItemsSource = $book.View.Component
+
+        # -- the Features tab, tick and untick -------------------------------
+
+        $componentList.AddHandler(
+            [System.Windows.Controls.Primitives.ToggleButton]::CheckedEvent,
+            [System.Windows.RoutedEventHandler] {
+                param($raiser, $raised)
+
+                $row = $raised.OriginalSource.DataContext
+                if ($null -eq $row) { return }
+
+                # ALREADY THERE MEANS WPF RAISED THIS, NOT A PERSON. See the
+                # block comment above: the Features tab's checkboxes are built
+                # the first time it is clicked, and each one raises Checked as
+                # it takes its bound value. Add-HDTBootImageComponent refuses a
+                # duplicate outright, so without this the window dies on the
+                # first click of that tab.
+                if ($book.View.DeclaredName -contains [string] $row.Name) { return }
+
+                # A LOCKED ROW IS NOT THE DOCUMENT'S TO NAME. The six components
+                # the engine applies to every image are shown ticked and cannot
+                # be unticked, and the document does not list them - so they pass
+                # the test above and would be written into optionalComponents by
+                # the very click that first draws them. That is how a share that
+                # named nothing ended up naming ten, freezing today's defaults
+                # into a file that is meant to inherit tomorrow's.
+                if (-not $row.CanChange) { return }
+
+                $book.Line = @(Add-HDTBootImageComponent -Line $book.Line -Name ([string] $row.Name) -Confirm:$false)
+                $book.Dirty = $true
+                $commandText.Text = [string] $row.AddCommand
+
+                $componentSize.Text = [string] (& $ask).SelectedSizeText
+            }.GetNewClosure())
+
+        $componentList.AddHandler(
+            [System.Windows.Controls.Primitives.ToggleButton]::UncheckedEvent,
+            [System.Windows.RoutedEventHandler] {
+                param($raiser, $raised)
+
+                $row = $raised.OriginalSource.DataContext
+                if ($null -eq $row) { return }
+
+                # NOT THERE MEANS THERE IS NOTHING TO REMOVE - the mirror of the
+                # Checked guard, and it also covers the six components the engine
+                # applies to every image, which are ticked without the document
+                # ever naming them.
+                if ($book.View.DeclaredName -notcontains [string] $row.Name) { return }
+
+                $book.Line = @(Remove-HDTBootImageComponent -Line $book.Line -Name ([string] $row.Name) -Confirm:$false)
+                $book.Dirty = $true
+                $commandText.Text = [string] $row.RemoveCommand
+
+                $componentSize.Text = [string] (& $ask).SelectedSizeText
+            }.GetNewClosure())
+
+        # -- the Customisations tab ------------------------------------------
+
+        $contentAdd.Add_Click({
+                if ([string]::IsNullOrWhiteSpace($contentSource.Text)) { return }
+                if ([string]::IsNullOrWhiteSpace($contentDestination.Text)) { return }
+
+                $book.Line = @(Add-HDTBootImageContent -Line $book.Line `
+                        -Source ([string] $contentSource.Text) `
+                        -Destination ([string] $contentDestination.Text) -Confirm:$false)
+                $book.Dirty = $true
+
+                $commandText.Text = $book.View.AddContentCommandFormat -f
+                    [string] $contentSource.Text, [string] $contentDestination.Text
+
+                $contentSource.Text = ''
+                $contentDestination.Text = ''
+
+                & $fillLists
+            }.GetNewClosure())
+
+        $contentRemove.Add_Click({
+                $row = $contentList.SelectedItem
+                if ($null -eq $row) { return }
+
+                $book.Line = @(Remove-HDTBootImageContent -Line $book.Line `
+                        -Destination ([string] $row.Destination) -Confirm:$false)
+                $book.Dirty = $true
+                $commandText.Text = [string] $row.RemoveCommand
+
+                & $fillLists
+            }.GetNewClosure())
+
+        $startAdd.Add_Click({
+                if ([string]::IsNullOrWhiteSpace($startBox.Text)) { return }
+
+                $startSplat = @{
+                    Line    = $book.Line
+                    Command = [string] $startBox.Text
+                    Confirm = $false
+                }
+
+                $format = $book.View.AddStartCommandFormat
+
+                if ($startFirst.IsChecked) {
+                    $startSplat['First'] = $true
+                    $format = $book.View.AddStartCommandFirstFormat
+                }
+
+                $book.Line = @(Add-HDTBootImageStartCommand @startSplat)
+                $book.Dirty = $true
+                $commandText.Text = $format -f [string] $startBox.Text
+
+                $startBox.Text = ''
+
+                & $fillLists
+            }.GetNewClosure())
+
+        # THE SELECTION FOLLOWS THE ROW, NOT THE INDEX. A move rebuilds the list
+        # from the spliced document, so the object that was selected no longer
+        # exists - and reselecting by index would leave the highlight where the
+        # row USED to be, which is the one thing that makes an arrow unusable:
+        # a second press would move a different row.
+        $move = {
+            param([string] $Direction)
+
+            $row = $startList.SelectedItem
+            if ($null -eq $row) { return }
+
+            $moved = [string] $row.Text
+
+            $book.Line = @(Move-HDTBootImageStartCommand -Line $book.Line `
+                    -Command $moved -Direction $Direction -Confirm:$false)
+            $book.Dirty = $true
+            $commandText.Text = "Move-HDTBootImageStartCommand -Line `$line -Command '{0}' -Direction {1}" -f
+                $moved, $Direction
+
+            & $fillLists
+
+            $startList.SelectedItem = @($startList.ItemsSource | Where-Object { $_.Text -eq $moved })[0]
+        }
+
+        $startUp.Add_Click({ & $move 'Up' }.GetNewClosure())
+        $startDown.Add_Click({ & $move 'Down' }.GetNewClosure())
+
+        $startRemove.Add_Click({
+                $row = $startList.SelectedItem
+                if ($null -eq $row) { return }
+
+                $book.Line = @(Remove-HDTBootImageStartCommand -Line $book.Line `
+                        -Command ([string] $row.Text) -Confirm:$false)
+                $book.Dirty = $true
+                $commandText.Text = [string] $row.RemoveCommand
+
+                & $fillLists
+            }.GetNewClosure())
+
+        # -- Browse, which fills a box and nothing else ----------------------
+        #
+        # THE FILE PICKER IS NOT A DECISION, it is a keyboard. Neither of these
+        # edits the document; they put a path in a box that another press acts
+        # on, which is why an untested adapter is allowed to own them.
+
+        $unattendBrowse.Add_Click({
+                $dialog = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $dialog.Title = 'Choose the WinPE answer file'
+                $dialog.Filter = 'Answer files (*.xml)|*.xml|All files (*.*)|*.*'
+
+                if ($dialog.ShowDialog($window)) { $unattendBox.Text = $dialog.FileName }
+            }.GetNewClosure())
+
+        # A FOLDER, NOT A FILE, because extraContent's commonest source is a
+        # tool's whole directory - BGInfo, a VNC server - and a file picker
+        # cannot return one.
+        #
+        # SHELL COM RATHER THAN System.Windows.Forms.FolderBrowserDialog, and a
+        # contract test is what says so: System.Windows.Forms is not guaranteed
+        # by WinPE-NetFx, so a reference to it anywhere in this module is a
+        # window that works on a developer machine and fails in WinPE. This
+        # window never runs there - but the rule is file-blind on purpose, and
+        # arguing the exception is how the next one gets written into a file
+        # that does.
+        $contentBrowse.Add_Click({
+                $shell = New-Object -ComObject Shell.Application
+                $folder = $shell.BrowseForFolder(0, 'Choose the folder to copy into the boot image', 0)
+
+                if ($null -ne $folder) { $contentSource.Text = [string] $folder.Self.Path }
+            }.GetNewClosure())
+
+        # -- Save, which is where the General and Drivers boxes are read -----
+        #
+        # THOSE TWO TABS HAVE NO APPLY. Every tab edits the same in-memory
+        # document and Save writes it, which is where MDT's properties dialog
+        # puts Apply too.
+        #
+        # AN EMPTY BOX IS A CLEAR, and that is the one decision here. The
+        # alternative was a Clear button beside a box you can already empty -
+        # two ways to do one thing, which disagree the first time somebody
+        # empties the box and presses Save expecting Clear's behaviour.
+
+        $save.Add_Click({
+                $propertySplat = @{ Line = $book.Line; Confirm = $false }
+
+                if (-not [string]::IsNullOrWhiteSpace($nameBox.Text)) {
+                    $propertySplat['BootImageName'] = [string] $nameBox.Text
+                }
+                if (-not [string]::IsNullOrWhiteSpace($architectureBox.SelectedValue)) {
+                    $propertySplat['Architecture'] = [string] $architectureBox.SelectedValue
+                }
+                if (-not [string]::IsNullOrWhiteSpace($languageBox.Text)) {
+                    $propertySplat['Language'] = [string] $languageBox.Text
+                }
+                if (-not [string]::IsNullOrWhiteSpace($scratchBox.SelectedValue)) {
+                    $propertySplat['ScratchSpaceMB'] = [int] $scratchBox.SelectedValue
+                }
+
+                $book.Line = @(Set-HDTWorkspaceProperty @propertySplat)
+
+                if ([string]::IsNullOrWhiteSpace($unattendBox.Text)) {
+                    $book.Line = @(Set-HDTBootImageUnattend -Line $book.Line -Clear -Confirm:$false)
+                } else {
+                    $book.Line = @(Set-HDTBootImageUnattend -Line $book.Line `
+                            -Path ([string] $unattendBox.Text) -Confirm:$false)
+                }
+
+                if ([string]::IsNullOrWhiteSpace($driverBox.SelectedValue)) {
+                    $book.Line = @(Set-HDTBootImageDriver -Line $book.Line -Clear -Confirm:$false)
+                } else {
+                    $book.Line = @(Set-HDTBootImageDriver -Line $book.Line `
+                            -Name ([string] $driverBox.SelectedValue) -Confirm:$false)
+                }
+
+                [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `
+                        -FileSystem (New-HDTFileSystem) -Confirm:$false)
+
+                $book.Dirty = $false
+
+                & $fillBoxes
+                & $fillLists
+
+                # EVERY COMMAND SAVE RAN, NOT JUST THE LAST ONE. One press is
+                # four invocations, and echoing only the write hid the three
+                # that decided what was written - which is exactly the surface
+                # DESIGN 12 says this box exists to teach. Composed from the
+                # refreshed view, so what it shows is what the file now says.
+                $ran = New-Object -TypeName System.Collections.ArrayList
+
+                [void] $ran.Add([string] $book.View.General.Command)
+
+                if ([string]::IsNullOrWhiteSpace($book.View.General.Unattend)) {
+                    [void] $ran.Add([string] $book.View.General.UnattendClearCommand)
+                } else {
+                    [void] $ran.Add($book.View.General.UnattendCommandFormat -f
+                        [string] $book.View.General.Unattend)
+                }
+
+                if ([string]::IsNullOrWhiteSpace($book.View.Driver.Group)) {
+                    [void] $ran.Add([string] $book.View.Driver.ClearCommand)
+                } else {
+                    [void] $ran.Add($book.View.Driver.ApplyCommandFormat -f [string] $book.View.Driver.Group)
+                }
+
+                [void] $ran.Add("Save-HDTWorkspaceDocument -Line `$line -Path '{0}'" -f $Path)
+
+                $commandText.Text = (@($ran) -join [System.Environment]::NewLine)
+            }.GetNewClosure())
+
+        # -- Update, which is minutes rather than milliseconds ---------------
+        #
+        # IT SAVES FIRST. Update-HDTBootImage reads workspace.yaml from disk, so
+        # building without saving would build the image the file describes and
+        # not the one on the screen - the worst possible outcome, because it
+        # succeeds.
+        #
+        # AND IT HANDS OVER TO A PROGRESS WINDOW rather than running here. An
+        # earlier version ran the build on the dispatcher: this window greyed
+        # out for two and a half minutes, which reads as one that has hung, and
+        # a killed build strands a mounted image that needs dism /cleanup-wim.
+        # ShowBuildProgress runs it in its own runspace and shows every step.
+
+        $update.Add_Click({
+                $save.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                            -ArgumentList ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+
+                $root = Split-Path -Parent $Path
+                $commandText.Text = "Update-HDTBootImage -WorkspaceRoot '{0}'" -f $root
+
+                [void] (Show-HDTBuildProgressWindow -WorkspaceRoot $root -ConsoleHost $imageHost `
+                        -Theme $ThemeName -Screen (New-HDTConsoleScreen))
+
+                # The build wrote a manifest and possibly a warning; what this
+                # window shows came out of the document, which the build did not
+                # touch. Re-asking costs nothing and keeps the two honest.
+                & $fillBoxes
+                & $fillLists
+            }.GetNewClosure())
+
+        $close.Add_Click({
+                $imageHost.Answer = 'Close'
+                $window.Close()
+            }.GetNewClosure())
+
+        # THE WAY OUT ASKS FIRST, WHICHEVER WAY OUT IT IS - the title-bar X
+        # never runs a button's handler, which is how the editor came to discard
+        # every splice in silence. Both windows ask the same command what to
+        # say and what the answer means.
+        $window.Add_Closing({
+                param($closingWindow, $closing)
+
+                $prompt = Get-HDTConsoleClosePrompt -DocumentPath $Path -Dirty:$book.Dirty
+
+                if (-not $prompt.Ask) { return }
+
+                $answer = [System.Windows.MessageBox]::Show($window, $prompt.Message, $prompt.Title,
+                    ([System.Windows.MessageBoxButton] $prompt.Button),
+                    ([System.Windows.MessageBoxImage] $prompt.Icon))
+
+                $decision = Resolve-HDTConsoleCloseAnswer -Answer ([string] $answer)
+
+                if ($decision.Cancel) {
+                    $closing.Cancel = $true
+                    return
+                }
+
+                if ($decision.Save) {
+                    [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `
+                            -FileSystem (New-HDTFileSystem) -Confirm:$false)
+                    $book.Dirty = $false
+                }
+            }.GetNewClosure())
+
+        [void] $window.ShowDialog()
+
+        return [string] $this.Answer
+    }
+
+    # =====================================================================
+    # THE BUILD PROGRESS WINDOW
+    # =====================================================================
+    #
+    # Update-HDTBootImage IS SEVENTEEN STEPS AND ABOUT TWO AND A HALF MINUTES,
+    # and it used to run on the dispatcher: the window that started it greyed
+    # out for the whole build. That reads as a window which has hung, so it gets
+    # killed - and a killed build leaves a MOUNTED IMAGE behind that needs
+    # dism /cleanup-wim before anything can build again. The freeze was not a
+    # cosmetic problem; it was a way to break the lab.
+    #
+    # THE QUEUE CROSSES THE THREAD BOUNDARY, NOT THE SINK. A PSCustomObject's
+    # ScriptMethods are scriptblocks bound to the runspace that created them,
+    # so handing the sink to the build's runspace would be asking one runspace
+    # to invoke another's code. The sink is CREATED INSIDE the build runspace
+    # instead, around a synchronized Queue made here - so the only thing shared
+    # is a thread-safe collection, which is what one is for.
+    #
+    # THE TIMER OWNS THE UI AND THE RUNSPACE OWNS THE BUILD. Nothing on the
+    # dispatcher waits on the build, so the window stays responsive whatever the
+    # build is doing - including hanging.
+
+    $service | Add-Member -MemberType ScriptMethod -Name ShowBuildProgress -Value {
+        param(
+            [string] $Xaml, [string] $WorkspaceRoot, [string] $ModulePath,
+            [object] $Theme, [object] $Size
+        )
+
+        Add-Type -AssemblyName PresentationFramework
+        Add-Type -AssemblyName PresentationCore
+        Add-Type -AssemblyName WindowsBase
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $window.Left = [double] $Size.Left
+        $window.Top = [double] $Size.Top
+        $window.Owner = $this.Window
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $window.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        $titleText = $window.FindName('HDTBuildTitleText')
+        $pathText = $window.FindName('HDTBuildPathText')
+        $stepText = $window.FindName('HDTBuildStepText')
+        $detailText = $window.FindName('HDTBuildDetailText')
+        $countText = $window.FindName('HDTBuildCountText')
+        $elapsedText = $window.FindName('HDTBuildElapsedText')
+        $bar = $window.FindName('HDTBuildBar')
+        $log = $window.FindName('HDTBuildLog')
+        $close = $window.FindName('HDTBuildCloseButton')
+
+        $titleText.Text = 'Updating Boot Image'
+        $pathText.Text = $WorkspaceRoot
+
+        $line = New-Object -TypeName System.Collections.ObjectModel.ObservableCollection[string]
+        $log.ItemsSource = $line
+
+        $queue = [System.Collections.Queue]::Synchronized((New-Object -TypeName System.Collections.Queue))
+
+        # THE BUILD, IN ITS OWN RUNSPACE. The module is imported by path rather
+        # than by name: a console started from a working copy is not running the
+        # module that Import-Module Hephaestus would find.
+        $shell = [powershell]::Create()
+
+        [void] $shell.AddScript({
+                param($ModulePath, $WorkspaceRoot, $Queue)
+
+                Import-Module -Name $ModulePath -Force -ErrorAction Stop
+
+                # CREATED HERE, on this side of the boundary. See the block
+                # comment above: a sink made in the window's runspace would carry
+                # scriptblocks this one cannot invoke.
+                $progress = New-HDTBuildProgress -Queue $Queue
+
+                Update-HDTBootImage -WorkspaceRoot $WorkspaceRoot -Progress $progress -Confirm:$false
+            })
+
+        [void] $shell.AddArgument($ModulePath)
+        [void] $shell.AddArgument($WorkspaceRoot)
+        [void] $shell.AddArgument($queue)
+
+        $handle = $shell.BeginInvoke()
+        $startedAt = [datetime]::UtcNow
+
+        $book = [pscustomobject] @{
+            Finished  = $false
+            Succeeded = $false
+
+            # WHEN THE CURRENT STEP STARTED. Mount and commit are ONE DISM call
+            # each - the adapter gets no sub-progress to pass on - so the only
+            # honest way to show that a ninety-second step is working is to say
+            # how long it has been working. A line that changes every second is
+            # not stuck; a line that does not is indistinguishable from one.
+            StepAt    = [datetime]::UtcNow
+            StepText  = ''
+        }
+
+        $timer = New-Object -TypeName System.Windows.Threading.DispatcherTimer
+        $timer.Interval = [TimeSpan]::FromMilliseconds(250)
+
+        $drain = {
+                $elapsed = [datetime]::UtcNow - $startedAt
+
+                if (-not $book.Finished) {
+                    # BOTH CLOCKS, because they answer different questions: the
+                    # total says how long to wait, and the per-step says whether
+                    # anything is happening at all.
+                    $onStep = [datetime]::UtcNow - $book.StepAt
+
+                    $elapsedText.Text = 'elapsed {0:mm\:ss}   -   {1:N0}s on "{2}"' -f
+                        $elapsed, $onStep.TotalSeconds, $book.StepText
+                }
+
+                # DEQUEUED DIRECTLY, not through the sink: the sink belongs to
+                # the other runspace, and the queue is the only thing shared.
+                while ($queue.Count -gt 0) {
+                    $report = $queue.Dequeue()
+
+                    if ($report.IsComplete) {
+                        $book.Finished = $true
+                        $book.Succeeded = [bool] $report.Succeeded
+
+                        $stepText.Text = 'Finished'
+                        $bar.Value = $bar.Maximum
+
+                        if ($report.Succeeded) {
+                            $detailText.Text = [string] $report.Detail
+                            [void] $line.Add(('{0:mm\:ss}  done - {1}' -f $elapsed, $report.Detail))
+                        } else {
+                            $stepText.Text = 'Failed'
+                            $stepText.Foreground = $window.Resources['HDTErrorBrush']
+                            $detailText.Text = [string] $report.Detail
+                            [void] $line.Add(('{0:mm\:ss}  FAILED - {1}' -f $elapsed, $report.Detail))
+                        }
+
+                        $elapsedText.Text = 'took {0:mm\:ss}' -f $elapsed
+                        $close.IsEnabled = $true
+                        continue
+                    }
+
+                    $stepText.Text = [string] $report.Title
+                    $detailText.Text = [string] $report.Detail
+                    $countText.Text = 'step {0} of {1}' -f $report.Step, $report.Total
+                    $bar.Maximum = [double] $report.Total
+                    $bar.Value = [double] $report.Step
+
+                    # THE PER-STEP CLOCK RESTARTS ON A NEW STEP NUMBER, not on
+                    # every report: step 8 reports once per component, and a
+                    # clock reset by each of those would never show that the
+                    # step as a whole has been running for a minute.
+                    if ($book.StepText -ne [string] $report.Title) {
+                        $book.StepAt = [datetime]::UtcNow
+                        $book.StepText = [string] $report.Title
+                    }
+
+                    # THE PARENTHESES AROUND EVERY -f IN THIS METHOD ARE
+                    # LOAD-BEARING, and the reason is the comma. Inside a .NET
+                    # method call, a comma separates ARGUMENTS - so
+                    #
+                    #     $line.Add('{0} {1}' -f $a, $b)
+                    #
+                    # parses as Add(('{0} {1}' -f $a), $b): the format string
+                    # gets one argument, {1} has nothing to fill it, and it
+                    # throws "Index (zero based) must be greater than or equal
+                    # to zero and less than the size of the argument list".
+                    #
+                    # It parses cleanly, it reads correctly, and it throws at
+                    # run time only - which killed this window at its first
+                    # report, and again at its last.
+                    # THE DETAIL IS ON THE LOG LINE, NOT ONLY IN THE LABEL.
+                    # Step 8 reports once per cab, and a line carrying the title
+                    # alone printed "Applying the optional components" nineteen
+                    # times - which says the build is moving and refuses to say
+                    # what it is moving through. The name of the cab is the
+                    # whole value of reporting per component, and it is also
+                    # what tells somebody WHICH one was being applied if the
+                    # build dies inside that step.
+                    $row = '{0:mm\:ss}  {1,2}/{2}  {3}' -f
+                        $elapsed, $report.Step, $report.Total, $report.Title
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $report.Detail)) {
+                        $row = '{0}  -  {1}' -f $row, [string] $report.Detail
+                    }
+
+                    [void] $line.Add($row)
+
+                    # The newest line is the one being looked at.
+                    $log.ScrollIntoView($line[$line.Count - 1])
+                }
+
+                if (-not $handle.IsCompleted) { return }
+
+                # DRAINED ONE LAST TIME, AND THAT IS NOT BELT AND BRACES. The
+                # completion report is enqueued by the build a moment before its
+                # runspace finishes, so a tick that drains and THEN sees
+                # IsCompleted has already missed it - and the window below would
+                # declare a successful build "ended without saying why". It
+                # happened on the first real run.
+                while ($queue.Count -gt 0) {
+                    $final = $queue.Dequeue()
+
+                    if (-not $final.IsComplete) { continue }
+
+                    $book.Finished = $true
+                    $book.Succeeded = [bool] $final.Succeeded
+
+                    $stepText.Text = 'Finished'
+                    $bar.Value = $bar.Maximum
+                    $detailText.Text = [string] $final.Detail
+
+                    if ($final.Succeeded) {
+                        [void] $line.Add(('{0:mm\:ss}  done - {1}' -f $elapsed, $final.Detail))
+                    } else {
+                        $stepText.Text = 'Failed'
+                        $stepText.Foreground = $window.Resources['HDTErrorBrush']
+                        [void] $line.Add(('{0:mm\:ss}  FAILED - {1}' -f $elapsed, $final.Detail))
+                    }
+
+                    $elapsedText.Text = 'took {0:mm\:ss}' -f $elapsed
+                    $close.IsEnabled = $true
+                }
+
+                $timer.Stop()
+
+                # A BUILD THAT DIED WITHOUT REPORTING. Update-HDTBootImage
+                # reports its own failure, but a runspace can also fail before
+                # the command runs at all - a module that will not import, for
+                # instance - and that error exists only in this stream.
+                if (-not $book.Finished) {
+                    $failure = 'the build ended without saying why'
+
+                    # EndInvoke IS WHAT RAISES THE RUNSPACE'S TERMINATING ERROR.
+                    # A build that threw outside its own try - the ISO step is
+                    # outside it - reports nothing and leaves Streams.Error
+                    # empty, and the window then said "ended without saying why"
+                    # about a failure PowerShell was holding all along.
+                    try {
+                        [void] $shell.EndInvoke($handle)
+                    } catch {
+                        $failure = [string] $_.Exception.Message
+                    }
+
+                    if ($failure -eq 'the build ended without saying why' -and
+                        @($shell.Streams.Error).Count -gt 0) {
+
+                        $failure = [string] $shell.Streams.Error[0].Exception.Message
+                    }
+
+                    $stepText.Text = 'Failed'
+                    $stepText.Foreground = $window.Resources['HDTErrorBrush']
+                    $detailText.Text = $failure
+                    [void] $line.Add(('{0:mm\:ss}  FAILED - {1}' -f $elapsed, $failure))
+
+                    $book.Finished = $true
+                    $close.IsEnabled = $true
+                }
+
+                $shell.Dispose()
+        }
+
+        # A TICK THAT THROWS TAKES THE DIALOG WITH IT. An exception out of a
+        # DispatcherTimer handler unwinds through ShowDialog, so a mistake in
+        # the drain above does not produce a wrong label - it produces a window
+        # that vanishes mid-build with the runspace still holding a mount. The
+        # handler says what went wrong ON THE WINDOW and stops ticking, which
+        # leaves the build running and visibly reported rather than gone.
+        $timer.Add_Tick({
+                try {
+                    & $drain
+                } catch {
+                    [void] $line.Add(('the progress window itself failed at line {0}: {1} | {2}' -f
+                            $_.InvocationInfo.ScriptLineNumber, $_.Exception.Message,
+                            ([string] $_.InvocationInfo.Line).Trim()))
+                    $stepText.Text = 'The build is still running - this window stopped following it'
+                    $book.Finished = $true
+                    $close.IsEnabled = $true
+                    $timer.Stop()
+                }
+            }.GetNewClosure())
+
+        $timer.Start()
+
+        $close.Add_Click({ $window.Close() }.GetNewClosure())
+
+        # CLOSING IS REFUSED WHILE IT BUILDS, and the X is refused with it - a
+        # window that let itself be closed over a running mount would leave the
+        # runspace holding it with nothing on screen to say so.
+        $window.Add_Closing({
+                param($closingWindow, $closing)
+
+                if (-not $book.Finished) { $closing.Cancel = $true }
+            }.GetNewClosure())
+
+        [void] $window.ShowDialog()
+
+        return [bool] $book.Succeeded
     }
 
     return $service
