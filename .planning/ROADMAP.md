@@ -299,23 +299,38 @@ ships with a server sample sequence.
 
 **Plans:** 6 plans in 6 waves.
 
-- [ ] `07-01-PLAN.md` — the application catalog, all pure logic: `app.schema.json`,
+- [x] `07-01-PLAN.md` — the application catalog, all pure logic: `app.schema.json`,
       `Assert-HDTApplicationDocument`, `Get-HDTApplication`, the four detection
       rules behind `Test-HDTApplicationDetection`, and `Resolve-HDTApplicationOrder`
       (topological sort, cycle detection at authoring time)
-- [ ] `07-02-PLAN.md` — the `InstallApplications` step: selection from the
+- [x] `07-02-PLAN.md` — the `InstallApplications` step: selection from the
       `Applications` variable or a fixed list collapsing to one logged plan,
       exit-code classification, `3010` suspending and resuming at the next app
-- [ ] `07-03-PLAN.md` — `InstallRoles` and `IFeatureService`: fail fast on an
+- [x] `07-03-PLAN.md` — `InstallRoles` and `IFeatureService`: fail fast on an
       unknown feature name listing valid alternatives, SxS `source` through the
       content provider with `Local`/`Smb` operation-list equality
-- [ ] `07-04-PLAN.md` — `EnableBitLocker` and `IBitLockerService`: escrow verified
+- [x] `07-04-PLAN.md` — `EnableBitLocker` and `IBitLockerService`: escrow verified
       before encryption begins, `scope` mapping, `escrow: none` warning,
       `wait: false`
-- [ ] `07-05-PLAN.md` — `HDTAdminPasswordPolicy`: `rotate`, `laps` and `disable`
-      in the existing teardown; `keep` stays the default and needs no code
-- [ ] `07-06-PLAN.md` — wiring and samples: schema step-type enum, manifest
-      exports, console step catalog, a server sequence in `samples/`
+- [x] `07-05-PLAN.md` — the default `HDTAdminPassword`, in the fallback rule of
+      `rules.yaml` (MDT's `[Default]`). **`HDTAdminPasswordPolicy` is NOT built:**
+      `keep` is the default and needs no code, which is what v1 does; `rotate`,
+      `laps` and `disable` need a local-account service and are outstanding
+- [x] `07-06-PLAN.md` — wiring and samples: manifest exports, console step
+      catalog, a server sequence and two applications in `samples/`
+
+Phase 07 is **complete**, on `feat/apps-fullos`. Three new step types
+(`InstallApplications`, `InstallRoles`, `EnableBitLocker`), two new services
+(`IFeatureService`, `IBitLockerService`), an eleventh `IFileSystem` method
+(`GetVersion`), and one engine change: `New-HDTStepResult -Reenter`, without
+which an `InstallApplications` step that hit a 3010 halfway down its list would
+have silently skipped everything after it while reporting success.
+
+Two things it does NOT ship, both deliberate and both recorded above:
+`WindowsUpdate` (v2) and `HDTAdminPasswordPolicy`'s `rotate`/`laps`/`disable`
+(needs a local-account service). No Windows Server VM joined the E2E matrix, so
+`STD-SERVER` is proven by import, schema validation and console round-trip rather
+than by a Hyper-V run.
 
 **08 — Capture and media.** Sysprep + capture back into the OS catalog;
 `New-HDTMedia` content projection to ISO/USB.
