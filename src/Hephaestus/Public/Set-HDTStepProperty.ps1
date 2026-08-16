@@ -1,4 +1,4 @@
-function Set-HDTConsoleStepProperty {
+function Set-HDTStepProperty {
     <#
         .SYNOPSIS
             Changes one property of a step or group - what it does, rather than
@@ -13,7 +13,7 @@ function Set-HDTConsoleStepProperty {
 
             IT SPLICES, and it is the same three-way splice as the flags:
             rewrite the line if the key is there, insert one under `type:` if it
-            is not, remove it if the value is cleared. Get-HDTConsoleStepKey
+            is not, remove it if the value is cleared. Get-HDTStepKey
             finds all three cases, and stops at a group's `steps:` so setting a
             property on 'Install' cannot rewrite a line belonging to the first
             step inside it.
@@ -26,7 +26,7 @@ function Set-HDTConsoleStepProperty {
             A NAME CANNOT BE CLEARED. Every editing cmdlet here resolves its
             target by name; a step with none could not be found again, by this
             console or by an administrator reading the file. Removing a step is
-            Remove-HDTConsoleStep, where it is what was asked for.
+            Remove-HDTStep, where it is what was asked for.
 
             THE TYPE CANNOT BE CHANGED AT ALL. A step's properties belong to its
             type - `index` means something to ApplyImage and nothing to Restart -
@@ -40,7 +40,7 @@ function Set-HDTConsoleStepProperty {
 
         .PARAMETER Name
             The step or group to change. Ambiguous names are refused rather
-            than guessed - see Resolve-HDTConsoleStepBlock.
+            than guessed - see Resolve-HDTStepBlock.
 
         .PARAMETER Property
             The YAML key, exactly as it is written in the file.
@@ -55,10 +55,10 @@ function Set-HDTConsoleStepProperty {
             System.String[] - the document, with one line changed.
 
         .EXAMPLE
-            Set-HDTConsoleStepProperty -Line $line -Name 'Apply OS' -Property 'index' -Value '2'
+            Set-HDTStepProperty -Line $line -Name 'Apply OS' -Property 'index' -Value '2'
 
         .EXAMPLE
-            Set-HDTConsoleStepProperty -Line $line -Name 'Apply OS' -Property 'name' -Value 'Apply Windows 11'
+            Set-HDTStepProperty -Line $line -Name 'Apply OS' -Property 'name' -Value 'Apply Windows 11'
 
             Renames the step, on its own entry line.
     #>
@@ -87,7 +87,7 @@ function Set-HDTConsoleStepProperty {
     $ErrorActionPreference = 'Stop'
 
     if ($Property -eq 'type') {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $Name -Category InvalidOperation `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Name -Category InvalidOperation `
                     -Message ("a step's type cannot be changed, because its properties belong to that type and would be left behind. Remove '{0}' and add the step you meant." -f $Name)))
     }
 
@@ -95,13 +95,13 @@ function Set-HDTConsoleStepProperty {
     $clear = [string]::IsNullOrWhiteSpace($Value)
 
     if ($clear -and $naming -contains $Property) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $Name -Category InvalidArgument `
-                    -Message ("a step's name cannot be cleared - every edit here finds its target by name, and one with none could not be found again. Use Remove-HDTConsoleStep to delete it.")))
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Name -Category InvalidArgument `
+                    -Message ("a step's name cannot be cleared - every edit here finds its target by name, and one with none could not be found again. Use Remove-HDTStep to delete it.")))
     }
 
-    $target = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $target = Resolve-HDTStepBlock -Line $Line -Name $Name
 
-    $found = Get-HDTConsoleStepKey -Line $Line -Block $target -Key $Property
+    $found = Get-HDTStepKey -Line $Line -Block $target -Key $Property
 
     if ($clear -and $found.Index -lt 0) {
         return [string[]] @($Line)

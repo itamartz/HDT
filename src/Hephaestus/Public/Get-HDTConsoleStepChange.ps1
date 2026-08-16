@@ -8,7 +8,7 @@ function Get-HDTConsoleStepChange {
             APPLY IS ONE PRESS OVER SEVERAL BOXES, and working out which of them
             changed is a decision - so it is made here rather than in a loop
             inside the window. The handler behind the button
-            walks what this returns and calls Set-HDTConsoleStepProperty once
+            walks what this returns and calls Set-HDTStepProperty once
             per entry, with nothing left to work out.
 
             A ROW IS CHANGED WHEN ITS Value NO LONGER MATCHES ITS Original.
@@ -42,13 +42,13 @@ function Get-HDTConsoleStepChange {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject per change, with
-            Property, Value and the Set-HDTConsoleStepProperty call that would
+            Property, Value and the Set-HDTStepProperty call that would
             make it. Nothing at all when nothing was typed.
 
         .EXAMPLE
             $change = Get-HDTConsoleStepChange -Field $state.Selected.Field -Name 'Apply OS'
             foreach ($one in $change) {
-                $line = Set-HDTConsoleStepProperty -Line $line -Name 'Apply OS' -Property $one.Property -Value $one.Value
+                $line = Set-HDTStepProperty -Line $line -Name 'Apply OS' -Property $one.Property -Value $one.Value
             }
     #>
     [CmdletBinding()]
@@ -94,7 +94,7 @@ function Get-HDTConsoleStepChange {
             Original  = [string] $row.Original
             Renames   = $renames
             NameAfter = $after
-            Command   = ("Set-HDTConsoleStepProperty -Line `$line -Name '{0}' -Property {1} -Value '{2}'" -f $Name, $row.Property, $value)
+            Command   = ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property {1} -Value '{2}'" -f $Name, $row.Property, $value)
         }
 
         if ($renames) {

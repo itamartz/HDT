@@ -416,7 +416,7 @@ function New-HDTConsoleHost {
                         param($menuItem)
 
                         $chosen = $menuItem.Tag
-                        $book.Line = @(Add-HDTConsoleStep -Line $book.Line -After $book.Selected -Block $chosen.Block)
+                        $book.Line = @(Add-HDTStep -Line $book.Line -After $book.Selected -Block $chosen.Block)
                         $book.Dirty = $true
                         $command.Text = [string] $chosen.Command
 
@@ -433,39 +433,39 @@ function New-HDTConsoleHost {
             }.GetNewClosure())
 
         $remove.Add_Click({
-                $book.Line = @(Remove-HDTConsoleStep -Line $book.Line -Name $book.Selected -Confirm:$false)
+                $book.Line = @(Remove-HDTStep -Line $book.Line -Name $book.Selected -Confirm:$false)
                 $book.Dirty = $true
                 $book.Selected = ''
                 & $rebuild
             }.GetNewClosure())
 
         $up.Add_Click({
-                $book.Line = @(Move-HDTConsoleStep -Line $book.Line -Name $book.Selected -Direction Up)
+                $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected -Direction Up)
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())
 
         $down.Add_Click({
-                $book.Line = @(Move-HDTConsoleStep -Line $book.Line -Name $book.Selected -Direction Down)
+                $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected -Direction Down)
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())
 
         $copy.Add_Click({
-                $book.Clipboard = @(Copy-HDTConsoleStep -Line $book.Line -Name $book.Selected)
+                $book.Clipboard = @(Copy-HDTStep -Line $book.Line -Name $book.Selected)
                 & $rebuild
             }.GetNewClosure())
 
         $paste.Add_Click({
-                $book.Line = @(Add-HDTConsoleStep -Line $book.Line -After $book.Selected -Block $book.Clipboard)
+                $book.Line = @(Add-HDTStep -Line $book.Line -After $book.Selected -Block $book.Clipboard)
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())
 
-        # THE ONLY PRESS THAT TOUCHES THE SHARE. Save-HDTConsoleSequence checks
+        # THE ONLY PRESS THAT TOUCHES THE SHARE. Save-HDTSequenceDocument checks
         # the result through the engine's own reader before it writes.
         $save.Add_Click({
-                [void] (Save-HDTConsoleSequence -Path $Path -Line $book.Line -FileSystem (New-HDTFileSystem) -Confirm:$false)
+                [void] (Save-HDTSequenceDocument -Path $Path -Line $book.Line -FileSystem (New-HDTFileSystem) -Confirm:$false)
                 $book.Dirty = $false
                 & $rebuild
             }.GetNewClosure())
@@ -473,7 +473,7 @@ function New-HDTConsoleHost {
         $disableCheck.Add_Click({
                 if ($book.Quiet) { return }
 
-                $book.Line = @(Set-HDTConsoleStepFlag -Line $book.Line -Name $book.Selected `
+                $book.Line = @(Set-HDTStepFlag -Line $book.Line -Name $book.Selected `
                         -Flag Disabled -Value ([bool] $disableCheck.IsChecked))
                 $book.Dirty = $true
                 & $rebuild
@@ -482,7 +482,7 @@ function New-HDTConsoleHost {
         $continueCheck.Add_Click({
                 if ($book.Quiet) { return }
 
-                $book.Line = @(Set-HDTConsoleStepFlag -Line $book.Line -Name $book.Selected `
+                $book.Line = @(Set-HDTStepFlag -Line $book.Line -Name $book.Selected `
                         -Flag ContinueOnError -Value ([bool] $continueCheck.IsChecked))
                 $book.Dirty = $true
                 & $rebuild
@@ -497,7 +497,7 @@ function New-HDTConsoleHost {
                 $subject = $book.Selected
 
                 foreach ($one in @(Get-HDTConsoleStepChange -Field $detail.ItemsSource -Name $subject)) {
-                    $book.Line = @(Set-HDTConsoleStepProperty -Line $book.Line -Name $subject `
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
                             -Property $one.Property -Value $one.Value)
 
                     $command.Text = [string] $one.Command
@@ -520,14 +520,14 @@ function New-HDTConsoleHost {
             }.GetNewClosure())
 
         $conditionApply.Add_Click({
-                $book.Line = @(Set-HDTConsoleStepCondition -Line $book.Line -Name $book.Selected `
+                $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected `
                         -Condition ([string] $conditionText.Text))
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())
 
         $conditionClear.Add_Click({
-                $book.Line = @(Set-HDTConsoleStepCondition -Line $book.Line -Name $book.Selected -Condition '')
+                $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected -Condition '')
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())
@@ -594,7 +594,7 @@ function New-HDTConsoleHost {
                 }
 
                 if ($decision.Save) {
-                    [void] (Save-HDTConsoleSequence -Path $Path -Line $book.Line `
+                    [void] (Save-HDTSequenceDocument -Path $Path -Line $book.Line `
                             -FileSystem (New-HDTFileSystem) -Confirm:$false)
                     $book.Dirty = $false
                 }

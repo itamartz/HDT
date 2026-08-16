@@ -48,12 +48,12 @@ steps:
     $script:path = 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
 }
 
-Describe 'Set-HDTConsoleStepProperty' {
+Describe 'Set-HDTStepProperty' {
 
     Context 'a property the step already carries' {
 
         It 'rewrites it in place, keeping the comment above the step' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Validate' -Property 'minRamMB' -Value '4096')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Validate' -Property 'minRamMB' -Value '4096')
 
             $result | Should -Contain '        minRamMB: 4096'
             $result | Should -Contain '      # minRamMB is 2048 rather than 4096 ON PURPOSE.'
@@ -61,7 +61,7 @@ Describe 'Set-HDTConsoleStepProperty' {
         }
 
         It 'leaves every other byte as it was' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Validate' -Property 'minRamMB' -Value '4096')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Validate' -Property 'minRamMB' -Value '4096')
 
             $expected = @($script:line | ForEach-Object { $_ -replace 'minRamMB: 2048$', 'minRamMB: 4096' })
             ($result -join "`n") | Should -BeExactly ($expected -join "`n")
@@ -71,7 +71,7 @@ Describe 'Set-HDTConsoleStepProperty' {
     Context 'a property it does not carry yet' {
 
         It 'inserts it under type, where the engine''s own documents put it' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'edition' -Value 'Enterprise')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'edition' -Value 'Enterprise')
 
             $at = [array]::IndexOf($result, '        type: ApplyImage')
             $result[$at + 1] | Should -BeExactly '        edition: Enterprise'
@@ -81,7 +81,7 @@ Describe 'Set-HDTConsoleStepProperty' {
     Context 'clearing one' {
 
         It 'takes the line out rather than leaving a key with nothing after it' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'index' -Value '')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'index' -Value '')
 
             @($result | Where-Object { $_ -match '^\s*index:' }).Count | Should -Be 0
             $result.Count | Should -Be ($script:line.Count - 1)
@@ -91,7 +91,7 @@ Describe 'Set-HDTConsoleStepProperty' {
     Context 'the name on the row' {
 
         It 'renames the step on its own entry line, dash and all' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'name' -Value 'Apply Windows 11')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'name' -Value 'Apply Windows 11')
 
             $result | Should -Contain '      - name: Apply Windows 11'
             @($result | Where-Object { $_ -match '^\s*- name: Apply OS$' }).Count | Should -Be 0
@@ -99,7 +99,7 @@ Describe 'Set-HDTConsoleStepProperty' {
         }
 
         It 'renames a group the same way' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Install' -Property 'group' -Value 'Install the OS')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Install' -Property 'group' -Value 'Install the OS')
 
             $result | Should -Contain '  - group: Install the OS'
 
@@ -108,7 +108,7 @@ Describe 'Set-HDTConsoleStepProperty' {
         }
 
         It 'refuses to empty a name, because a step with none cannot be found again' {
-            { Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'name' -Value '' } |
+            { Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'name' -Value '' } |
                 Should -Throw '*cannot be cleared*'
         }
     }
@@ -116,7 +116,7 @@ Describe 'Set-HDTConsoleStepProperty' {
     Context 'the type, which is not editable' {
 
         It 'refuses, and says what to do instead' {
-            { Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'type' -Value 'Restart' } |
+            { Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'type' -Value 'Restart' } |
                 Should -Throw '*type*'
         }
     }
@@ -124,7 +124,7 @@ Describe 'Set-HDTConsoleStepProperty' {
     Context 'the result the engine reads' {
 
         It 'round-trips through Import-HDTSequenceDocument' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'index' -Value '2')
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'index' -Value '2')
 
             $fs = New-HDTFakeFileSystem -File @{ $script:path = ($result -join "`r`n") }
             $document = Import-HDTSequenceDocument -Path $script:path -FileSystem $fs
@@ -137,12 +137,12 @@ Describe 'Set-HDTConsoleStepProperty' {
     Context 'refusals' {
 
         It 'refuses a step that is not there' {
-            { Set-HDTConsoleStepProperty -Line $script:line -Name 'Nowhere' -Property 'index' -Value '2' } |
+            { Set-HDTStepProperty -Line $script:line -Name 'Nowhere' -Property 'index' -Value '2' } |
                 Should -Throw '*no step or group*'
         }
 
         It 'supports -WhatIf and changes nothing under it' {
-            $result = @(Set-HDTConsoleStepProperty -Line $script:line -Name 'Apply OS' -Property 'index' -Value '9' -WhatIf)
+            $result = @(Set-HDTStepProperty -Line $script:line -Name 'Apply OS' -Property 'index' -Value '9' -WhatIf)
 
             ($result -join "`n") | Should -BeExactly ($script:line -join "`n")
         }
@@ -250,7 +250,7 @@ Describe 'Get-HDTConsoleStepChange' {
 
         $change = @(Get-HDTConsoleStepChange -Field $field -Name 'Apply OS')
 
-        $change[0].Command | Should -BeLike '*Set-HDTConsoleStepProperty*'
+        $change[0].Command | Should -BeLike '*Set-HDTStepProperty*'
         $change[0].Command | Should -BeLike "*-Name 'Apply OS'*"
         $change[0].Command | Should -BeLike "*-Property index*"
     }

@@ -1,4 +1,4 @@
-function Get-HDTConsoleGroupParent {
+function Get-HDTGroupParent {
     <#
         .SYNOPSIS
             The key identifying the group one level above the given group path.
@@ -30,7 +30,7 @@ function Get-HDTConsoleGroupParent {
             System.String - the parent's key, empty for a top-level group.
 
         .EXAMPLE
-            Get-HDTConsoleGroupParent -Path @('Install', 'Drivers')
+            Get-HDTGroupParent -Path @('Install', 'Drivers')
     #>
     [CmdletBinding()]
     [OutputType([string])]

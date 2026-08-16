@@ -1,4 +1,4 @@
-function Remove-HDTConsoleBlankRun {
+function Remove-HDTBlankRun {
     <#
         .SYNOPSIS
             Collapses a run of consecutive blank lines left behind by a splice.
@@ -28,10 +28,10 @@ function Remove-HDTConsoleBlankRun {
             System.String[]
 
         .EXAMPLE
-            Remove-HDTConsoleBlankRun -Line $line -At 42
+            Remove-HDTBlankRun -Line $line -At 42
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
-        Justification = 'Returns a copy of in-memory lines. Save-HDTConsoleSequence is the only command that writes, and it carries ShouldProcess.')]
+        Justification = 'Returns a copy of in-memory lines. Save-HDTSequenceDocument is the only command that writes, and it carries ShouldProcess.')]
     [CmdletBinding()]
     [OutputType([string[]])]
     param(

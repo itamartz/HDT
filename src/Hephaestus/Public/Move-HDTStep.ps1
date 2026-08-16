@@ -1,4 +1,4 @@
-function Move-HDTConsoleStep {
+function Move-HDTStep {
     <#
         .SYNOPSIS
             Moves a step or group up or down past its neighbour, carrying the
@@ -46,7 +46,7 @@ function Move-HDTConsoleStep {
             System.String[] - the document with the block moved.
 
         .EXAMPLE
-            Move-HDTConsoleStep -Line $line -Name 'Apply OS' -Direction Down
+            Move-HDTStep -Line $line -Name 'Apply OS' -Direction Down
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     [OutputType([string[]])]
@@ -72,9 +72,9 @@ function Move-HDTConsoleStep {
     # the name separately would build a SECOND set of block objects, and an
     # identity comparison against the first set then matches nothing - which
     # reads as "this step is already first" for every step in the document.
-    $block = @(Get-HDTConsoleStepBlock -Line $Line)
+    $block = @(Get-HDTStepBlock -Line $Line)
 
-    $found = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $found = Resolve-HDTStepBlock -Line $Line -Name $Name
     $current = @($block | Where-Object { $_.Entry -eq $found.Entry })[0]
 
     # A SIBLING SHARES A PARENT, NOT MERELY AN INDENTATION. Every step in the
@@ -82,7 +82,7 @@ function Move-HDTConsoleStep {
     # make the last step of one group the neighbour of the first step of the
     # next - and Down would silently move a step across a group boundary, which
     # is the one thing this command refuses to do.
-    $parent = @(Get-HDTConsoleStepParent -Block $block)
+    $parent = @(Get-HDTStepParent -Block $block)
 
     $at = [array]::IndexOf($block, $current)
     $sibling = @($block | Where-Object { $_.Indent -eq $current.Indent -and $parent[[array]::IndexOf($block, $_)] -eq $parent[$at] })
@@ -90,12 +90,12 @@ function Move-HDTConsoleStep {
     $at = [array]::IndexOf($sibling, $current)
 
     if ($Direction -eq 'Up' -and $at -le 0) {
-        throw (New-HDTConsoleErrorRecord -Path $Name -Category InvalidOperation `
+        throw (New-HDTErrorRecord -Path $Name -Category InvalidOperation `
                 -Message ("'{0}' is already the first step of its group, and moving it further up would mean moving it OUT of the group - which could mean before the group or into the one above it. Use Copy, Paste and Remove, where each half of that is visible." -f $Name))
     }
 
     if ($Direction -eq 'Down' -and $at -ge ($sibling.Count - 1)) {
-        throw (New-HDTConsoleErrorRecord -Path $Name -Category InvalidOperation `
+        throw (New-HDTErrorRecord -Path $Name -Category InvalidOperation `
                 -Message ("'{0}' is already the last step of its group, and moving it further down would mean moving it OUT of the group. Use Copy, Paste and Remove, where each half of that is visible." -f $Name))
     }
 

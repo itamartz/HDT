@@ -7,7 +7,7 @@
 # CLAUDE.md rule 1 puts decisions in commands, not in the adapter. With this in
 # place every handler in New-HDTConsoleHost is one call and one assignment.
 #
-# UP IS NOT ALWAYS AVAILABLE, AND THAT IS THE POINT. Move-HDTConsoleStep refuses
+# UP IS NOT ALWAYS AVAILABLE, AND THAT IS THE POINT. Move-HDTStep refuses
 # to move the first step in a group past the group's own boundary, because
 # "before the group" and "the last step of the group above" are both plausible.
 # A toolbar that offered Up there would produce an error box on a press that
@@ -16,7 +16,7 @@
 # THE EDITED TEXT IS RE-READ THROUGH THE ENGINE, not tracked as a model. A
 # splice that produced something Import-HDTSequenceDocument cannot read is
 # reported here, with the file on the share still intact - which is the same
-# check Save-HDTConsoleSequence makes, one press earlier.
+# check Save-HDTSequenceDocument makes, one press earlier.
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -211,7 +211,7 @@ Describe 'Get-HDTConsoleEditorState' {
         It 'still finds the row when the edit changed how it reads' {
             # A disabled step's Text gains '(disabled)'. Name is what the row is
             # matched on, and it does not move.
-            $off = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
+            $off = @(Set-HDTStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
 
             $state = Get-HDTConsoleEditorState -Line $off -Path $script:path -SelectedName 'Apply OS'
 

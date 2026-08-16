@@ -1,4 +1,4 @@
-function Remove-HDTConsoleStep {
+function Remove-HDTStep {
     <#
         .SYNOPSIS
             Removes one step or group from a task sequence document, leaving
@@ -22,7 +22,7 @@ function Remove-HDTConsoleStep {
             REMOVING A GROUP REMOVES ITS STEPS. That is what the group is: the
             block spans its children, so the splice takes them.
 
-            IT RETURNS LINES AND WRITES NOTHING. Save-HDTConsoleSequence is what
+            IT RETURNS LINES AND WRITES NOTHING. Save-HDTSequenceDocument is what
             touches the share, so an edit can be composed, reviewed and
             abandoned without a file ever changing.
 
@@ -40,10 +40,10 @@ function Remove-HDTConsoleStep {
 
         .EXAMPLE
             $line = [System.IO.File]::ReadAllText($path) -split "`r?`n"
-            Remove-HDTConsoleStep -Line $line -Name 'Apply OS'
+            Remove-HDTStep -Line $line -Name 'Apply OS'
 
         .EXAMPLE
-            Remove-HDTConsoleStep -Line $line -Name 'Preinstall'
+            Remove-HDTStep -Line $line -Name 'Preinstall'
 
             The group and every step in it.
     #>
@@ -63,8 +63,8 @@ function Remove-HDTConsoleStep {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $all = @(Get-HDTConsoleStepBlock -Line $Line)
-    $found = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $all = @(Get-HDTStepBlock -Line $Line)
+    $found = Resolve-HDTStepBlock -Line $Line -Name $Name
     $block = @($all | Where-Object { $_.Entry -eq $found.Entry })[0]
 
     # A GROUP WITH NO STEPS IS NOT A DOCUMENT THE ENGINE ACCEPTS. The schema
@@ -72,14 +72,14 @@ function Remove-HDTConsoleStep {
     # last one out produces a file that fails to load - and it would fail at
     # Save, after the administrator had done several more edits on top of it.
     # Refusing here names the choice they actually have.
-    $parent = @(Get-HDTConsoleStepParent -Block $all)
+    $parent = @(Get-HDTStepParent -Block $all)
     $at = [array]::IndexOf($all, $block)
 
     if ($block.Kind -eq 'Step' -and $parent[$at] -ge 0) {
         $sibling = @($all | Where-Object { $parent[[array]::IndexOf($all, $_)] -eq $parent[$at] })
 
         if (@($sibling).Count -le 1) {
-            throw (New-HDTConsoleErrorRecord -Path $Name -Category InvalidOperation `
+            throw (New-HDTErrorRecord -Path $Name -Category InvalidOperation `
                     -Message ("'{0}' is the only step in the '{1}' group, and a group with no steps is not a document the engine will load. Remove the group instead." -f $Name, $all[$parent[$at]].Name))
         }
     }
@@ -100,5 +100,5 @@ function Remove-HDTConsoleStep {
     # the one before it, side by side. Collapsing a run of blanks INSIDE the
     # steps region keeps the file's spacing where it was rather than letting it
     # grow a gap with every edit.
-    return [string[]] @(Remove-HDTConsoleBlankRun -Line $keep -At $block.Start)
+    return [string[]] @(Remove-HDTBlankRun -Line $keep -At $block.Start)
 }

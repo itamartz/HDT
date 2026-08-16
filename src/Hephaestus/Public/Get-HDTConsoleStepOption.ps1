@@ -122,7 +122,7 @@ function Get-HDTConsoleStepOption {
         Condition        = $condition
         ConditionText    = $conditionText
         HasCondition     = $hasCondition
-        ConditionCommand = ("Set-HDTConsoleStepCondition -Line `$line -Name '{0}' -Condition '{1}'" -f $name, $condition)
+        ConditionCommand = ("Set-HDTStepCondition -Line `$line -Name '{0}' -Condition '{1}'" -f $name, $condition)
         RunIn            = $runIn
         RunInText        = (Get-HDTConsoleDisplayText -Text $runIn -Fallback 'any phase')
     }

@@ -20,7 +20,7 @@ function Get-HDTConsoleEditorState {
             model of it that could drift. It also means a splice that produced
             something unreadable is caught here, with the file on the share
             still intact, which is the same check
-            Save-HDTConsoleSequence makes one press later.
+            Save-HDTSequenceDocument makes one press later.
 
             A BROKEN DOCUMENT REPORTS RATHER THAN THROWS. An editor that threw
             mid-edit would leave an administrator with a dialog they cannot
@@ -29,7 +29,7 @@ function Get-HDTConsoleEditorState {
             answer Get-HDTConsoleStepNode gives a sequence that will not parse.
 
             UP IS NOT ALWAYS AVAILABLE, AND THAT IS DELIBERATE.
-            Move-HDTConsoleStep refuses to move the first step in a group past
+            Move-HDTStep refuses to move the first step in a group past
             the group's own boundary, because "before the group" and "the last
             step of the group above" are both plausible and the console must not
             guess. A toolbar that
@@ -84,7 +84,7 @@ function Get-HDTConsoleEditorState {
             $state.CanMoveUp
 
         .EXAMPLE
-            $line = Move-HDTConsoleStep -Line $line -Name 'Apply OS' -Direction Down
+            $line = Move-HDTStep -Line $line -Name 'Apply OS' -Direction Down
             $state = Get-HDTConsoleEditorState -Line $line -Path $path -SelectedName 'Apply OS' -Dirty
 
             The whole editing loop: splice, then re-read.
@@ -205,12 +205,12 @@ function Get-HDTConsoleEditorState {
             # cannot be found", naming neither the parameter nor the assignment.
             $groupPath = @($subject.Path)
             $depth = $groupPath.Count
-            $parent = Get-HDTConsoleGroupParent -Path $groupPath
+            $parent = Get-HDTGroupParent -Path $groupPath
 
             $sibling = @($document.Group | Where-Object {
                     $other = @($_.Path)
 
-                    $other.Count -eq $depth -and (Get-HDTConsoleGroupParent -Path $other) -eq $parent
+                    $other.Count -eq $depth -and (Get-HDTGroupParent -Path $other) -eq $parent
                 })
         }
 

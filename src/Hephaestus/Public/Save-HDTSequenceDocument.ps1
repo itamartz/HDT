@@ -1,4 +1,4 @@
-function Save-HDTConsoleSequence {
+function Save-HDTSequenceDocument {
     <#
         .SYNOPSIS
             Writes an edited task sequence document back to the share, after
@@ -44,7 +44,7 @@ function Save-HDTConsoleSequence {
             StepCount and GroupCount.
 
         .EXAMPLE
-            Save-HDTConsoleSequence -Path $path -Line $line
+            Save-HDTSequenceDocument -Path $path -Line $line
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([pscustomobject])]

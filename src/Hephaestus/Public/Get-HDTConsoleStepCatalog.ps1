@@ -42,7 +42,7 @@ function Get-HDTConsoleStepCatalog {
             'NEW GROUP' COMES FIRST AND IS NOT A STEP TYPE. It has no Invoke
             command and never appears in the registry, so its YAML comes from
             Get-HDTGroupTemplate rather than from a type. It is added through
-            Add-HDTConsoleStep's -Block route, which is the same paste path the
+            Add-HDTStep's -Block route, which is the same paste path the
             Copy button uses. Its Kind says Group so the window can tell the two
             apart without inspecting the command string.
 
@@ -57,7 +57,7 @@ function Get-HDTConsoleStepCatalog {
 
               Category  the submenu's name
               Item      its entries, each with Text, Type, Kind, Source and the
-                        Add-HDTConsoleStep call that would create it
+                        Add-HDTStep call that would create it
 
         .EXAMPLE
             Get-HDTConsoleStepCatalog | ForEach-Object { $_.Category }
@@ -139,11 +139,11 @@ function Get-HDTConsoleStepCatalog {
                 Source   = [string] $type.Source
                 Category = $category
                 Order    = $order
-                Command  = ("Add-HDTConsoleStep -Line `$line -After '<the selected step>' -Name '{0}' -Type {1}" -f $text, $name)
+                Command  = ("Add-HDTStep -Line `$line -After '<the selected step>' -Name '{0}' -Type {1}" -f $text, $name)
 
                 # The lines the menu item actually splices in, straight from the
                 # step type. Every item carries one, group and step alike, so the
-                # handler behind the menu calls Add-HDTConsoleStep -Block and
+                # handler behind the menu calls Add-HDTStep -Block and
                 # never has to choose a parameter set.
                 Block    = $block
             })
@@ -161,7 +161,7 @@ function Get-HDTConsoleStepCatalog {
                     Type    = ''
                     Kind    = 'Group'
                     Source  = 'Hephaestus'
-                    Command = "Add-HDTConsoleStep -Line `$line -After '<the selected step>' -Block (Get-HDTGroupTemplate)"
+                    Command = "Add-HDTStep -Line `$line -After '<the selected step>' -Block (Get-HDTGroupTemplate)"
 
                     # Straight from the engine, including the placeholder step
                     # it comes with - this window does not get to decide what a

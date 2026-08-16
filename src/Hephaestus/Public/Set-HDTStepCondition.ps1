@@ -1,4 +1,4 @@
-function Set-HDTConsoleStepCondition {
+function Set-HDTStepCondition {
     <#
         .SYNOPSIS
             Gives a step the expression that decides whether it runs, or takes
@@ -34,7 +34,7 @@ function Set-HDTConsoleStepCondition {
 
         .PARAMETER Name
             The step or group to change. Ambiguous names are refused rather
-            than guessed - see Resolve-HDTConsoleStepBlock.
+            than guessed - see Resolve-HDTStepBlock.
 
         .PARAMETER Condition
             The expression. Empty removes the condition.
@@ -46,10 +46,10 @@ function Set-HDTConsoleStepCondition {
             System.String[] - the document, with one line changed.
 
         .EXAMPLE
-            Set-HDTConsoleStepCondition -Line $line -Name 'Apply Drivers' -Condition '$Make -eq "Dell Inc."'
+            Set-HDTStepCondition -Line $line -Name 'Apply Drivers' -Condition '$Make -eq "Dell Inc."'
 
         .EXAMPLE
-            Set-HDTConsoleStepCondition -Line $line -Name 'Apply Drivers' -Condition ''
+            Set-HDTStepCondition -Line $line -Name 'Apply Drivers' -Condition ''
 
             Takes the condition off, so the step runs every time.
     #>
@@ -73,9 +73,9 @@ function Set-HDTConsoleStepCondition {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $target = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $target = Resolve-HDTStepBlock -Line $Line -Name $Name
 
-    $found = Get-HDTConsoleStepKey -Line $Line -Block $target -Key 'condition'
+    $found = Get-HDTStepKey -Line $Line -Block $target -Key 'condition'
 
     $clear = [string]::IsNullOrWhiteSpace($Condition)
 
@@ -92,7 +92,7 @@ function Set-HDTConsoleStepCondition {
     }
 
     # Bare wherever bare reads back the same, quoted where it would not - see
-    # Get-HDTConsoleScalarText, which Set-HDTConsoleStepProperty shares.
+    # Get-HDTConsoleScalarText, which Set-HDTStepProperty shares.
     $written = '{0}condition: {1}' -f (' ' * $found.Indent), (Get-HDTConsoleScalarText -Value $Condition)
 
     $result = New-Object -TypeName System.Collections.ArrayList

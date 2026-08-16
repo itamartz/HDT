@@ -1,4 +1,4 @@
-function Copy-HDTConsoleStep {
+function Copy-HDTStep {
     <#
         .SYNOPSIS
             Returns the lines one step or group occupies, ready to be pasted
@@ -34,8 +34,8 @@ function Copy-HDTConsoleStep {
             System.String[] - the block's lines, comment first.
 
         .EXAMPLE
-            $block = Copy-HDTConsoleStep -Line $line -Name 'Apply OS'
-            Add-HDTConsoleStep -Line $line -Block $block -After 'Prepare Boot'
+            $block = Copy-HDTStep -Line $line -Name 'Apply OS'
+            Add-HDTStep -Line $line -Block $block -After 'Prepare Boot'
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Reads lines out of an in-memory document; it changes nothing.')]
@@ -55,7 +55,7 @@ function Copy-HDTConsoleStep {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $block = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $block = Resolve-HDTStepBlock -Line $Line -Name $Name
 
     return [string[]] @($Line[$block.Start..$block.End])
 }

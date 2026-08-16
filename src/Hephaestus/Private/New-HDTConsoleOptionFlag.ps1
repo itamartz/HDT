@@ -17,7 +17,7 @@ function New-HDTConsoleOptionFlag {
             The wording beside the box.
 
         .PARAMETER Property
-            The flag Set-HDTConsoleStepFlag names.
+            The flag Set-HDTStepFlag names.
 
         .PARAMETER Checked
             What the file currently says.
@@ -36,7 +36,7 @@ function New-HDTConsoleOptionFlag {
             New-HDTConsoleOptionFlag -Label 'Disable this step' -Property 'Disabled' -Checked $false -Name 'Apply OS'
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
-        Justification = 'Builds one row of a display model in memory. Set-HDTConsoleStepFlag is what the row''s command would run, and that one carries ShouldProcess.')]
+        Justification = 'Builds one row of a display model in memory. Set-HDTStepFlag is what the row''s command would run, and that one carries ShouldProcess.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
@@ -66,6 +66,6 @@ function New-HDTConsoleOptionFlag {
         Label    = $Label
         Property = $Property
         Checked  = $Checked
-        Command  = ("Set-HDTConsoleStepFlag -Line `$line -Name '{0}' -Flag {1} -Value {2}" -f $Name, $Property, $value)
+        Command  = ("Set-HDTStepFlag -Line `$line -Name '{0}' -Flag {1} -Value {2}" -f $Name, $Property, $value)
     }
 }

@@ -184,7 +184,7 @@ function Show-HDTConsole {
     # -- the apartment, before anything else -------------------------------
 
     if ($ApartmentState -ne [System.Threading.ApartmentState]::STA) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -ErrorId 'HDTEnvironmentError' `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -ErrorId 'HDTEnvironmentError' `
                     -Category InvalidOperation `
                     -Message ("WPF needs a single-threaded apartment and this thread is {0}. Run the console with 'pwsh -STA', with windows powershell, or through Start-HDTConsole.ps1, which arranges it. A window created on an MTA thread never appears and reports nothing." -f
                         $ApartmentState)))
@@ -196,7 +196,7 @@ function Show-HDTConsole {
     # missing window file is a mistake in the install rather than in the share.
 
     if (-not $FileSystem.TestPath($XamlPath)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $XamlPath -Category ObjectNotFound `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath -Category ObjectNotFound `
                     -Message 'the console window is not there, so there is nothing to show. It ships as UI\Console\HDTConsole.xaml beside the Hephaestus module.'))
     }
 
@@ -208,14 +208,14 @@ function Show-HDTConsole {
     # exception about a root element that reads like a XAML problem. A file that
     # was copied badly is the way this happens.
     if ([string]::IsNullOrWhiteSpace($xaml)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $XamlPath -Category InvalidData `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath -Category InvalidData `
                     -Message 'the console window is empty, so there is nothing to show.'))
     }
 
     try {
         [void] ([xml] $xaml)
     } catch {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $XamlPath -Category InvalidData `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath -Category InvalidData `
                     -Message ('the console window is not well-formed XML, so it could not be shown: {0}' -f
                         [string] $_.Exception.Message)))
     }

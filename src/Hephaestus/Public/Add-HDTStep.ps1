@@ -1,4 +1,4 @@
-function Add-HDTConsoleStep {
+function Add-HDTStep {
     <#
         .SYNOPSIS
             Adds a new step to a task sequence document, or pastes a copied one,
@@ -27,7 +27,7 @@ function Add-HDTConsoleStep {
             reports an unknown type as an Error finding - so the editor must not
             be able to create one in the first place.
 
-            IT RETURNS LINES AND WRITES NOTHING. Save-HDTConsoleSequence is what
+            IT RETURNS LINES AND WRITES NOTHING. Save-HDTSequenceDocument is what
             touches the share.
 
         .PARAMETER Line
@@ -43,7 +43,7 @@ function Add-HDTConsoleStep {
             The new step's type. Must be one the engine knows.
 
         .PARAMETER Block
-            Lines from Copy-HDTConsoleStep, to paste instead of creating a new
+            Lines from Copy-HDTStep, to paste instead of creating a new
             step.
 
         .INPUTS
@@ -53,11 +53,11 @@ function Add-HDTConsoleStep {
             System.String[] - the document with the step added.
 
         .EXAMPLE
-            Add-HDTConsoleStep -Line $line -After 'Validate' -Name 'Check TPM' -Type Validate
+            Add-HDTStep -Line $line -After 'Validate' -Name 'Check TPM' -Type Validate
 
         .EXAMPLE
-            $block = Copy-HDTConsoleStep -Line $line -Name 'Apply OS'
-            Add-HDTConsoleStep -Line $line -After 'Prepare Boot' -Block $block
+            $block = Copy-HDTStep -Line $line -Name 'Apply OS'
+            Add-HDTStep -Line $line -After 'Prepare Boot' -Block $block
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low', DefaultParameterSetName = 'New')]
     [OutputType([string[]])]
@@ -87,7 +87,7 @@ function Add-HDTConsoleStep {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $target = Resolve-HDTConsoleStepBlock -Line $Line -Name $After
+    $target = Resolve-HDTStepBlock -Line $Line -Name $After
 
     # A new step sits where its neighbour sits. Placing it after a GROUP puts it
     # after the whole group, at the group's own indentation, which is where a
@@ -98,7 +98,7 @@ function Add-HDTConsoleStep {
         $known = @(Get-HDTStepType | ForEach-Object { $_.Type })
 
         if ($known -notcontains $Type) {
-            throw (New-HDTConsoleErrorRecord -Path $Type -Category InvalidArgument `
+            throw (New-HDTErrorRecord -Path $Type -Category InvalidArgument `
                     -Message ("'{0}' is not a step type this engine has. Get-HDTStepType lists the {1} it does." -f $Type, @($known).Count))
         }
 
@@ -107,7 +107,7 @@ function Add-HDTConsoleStep {
             ('{0}  type: {1}' -f $indent, $Type)
         )
     } else {
-        $text = @(Set-HDTConsoleBlockIndent -Block $Block -Indent $target.Indent)
+        $text = @(Set-HDTBlockIndent -Block $Block -Indent $target.Indent)
     }
 
     $subject = $Name

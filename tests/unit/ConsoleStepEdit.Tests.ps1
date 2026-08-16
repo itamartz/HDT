@@ -72,15 +72,15 @@ steps:
     }
 }
 
-Describe 'Remove-HDTConsoleStep' {
+Describe 'Remove-HDTStep' {
 
     It 'is exported by Hephaestus' {
-        Get-Command -Name 'Remove-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+        Get-Command -Name 'Remove-HDTStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
     It 'takes the step out' {
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Apply OS'
+        $after = Remove-HDTStep -Line $script:line -Name 'Apply OS'
 
         Get-HDTTestStepName -Line $after |
             Should -Be @('Validate', 'Format and Partition', 'Prepare Boot')
@@ -89,13 +89,13 @@ Describe 'Remove-HDTConsoleStep' {
     It 'takes the comment that explained it with it' {
         # A comment left behind attaches itself to whatever now sits beneath it,
         # which is worse than deleting it: the file then states something untrue.
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Validate'
+        $after = Remove-HDTStep -Line $script:line -Name 'Validate'
 
         ($after -join "`n") | Should -Not -Match 'minRamMB is 2048 rather than'
     }
 
     It 'leaves every other line byte-identical' {
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Apply OS'
+        $after = Remove-HDTStep -Line $script:line -Name 'Apply OS'
 
         # Everything before the Install group is untouched, to the character.
         $before = @($script:line[0..($script:line.Count - 1)] | Select-Object -First 20)
@@ -103,20 +103,20 @@ Describe 'Remove-HDTConsoleStep' {
     }
 
     It 'leaves the document header alone' {
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Validate'
+        $after = Remove-HDTStep -Line $script:line -Name 'Validate'
 
         ($after -join "`n") | Should -Match 'THE HEADER, which belongs to the document'
     }
 
     It 'removes a whole group, steps and all' {
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Preinstall'
+        $after = Remove-HDTStep -Line $script:line -Name 'Preinstall'
 
         Get-HDTTestStepName -Line $after | Should -Be @('Apply OS', 'Prepare Boot')
         ($after -join "`n") | Should -Not -Match 'Preinstall'
     }
 
     It 'refuses a name that is not there, rather than silently changing nothing' {
-        { Remove-HDTConsoleStep -Line $script:line -Name 'No Such Step' -ErrorAction Stop } |
+        { Remove-HDTStep -Line $script:line -Name 'No Such Step' -ErrorAction Stop } |
             Should -Throw -ExpectedMessage '*No Such Step*'
     }
 
@@ -140,7 +140,7 @@ steps:
         type: NoOp
 '@ -split "`r?`n"
 
-        { Remove-HDTConsoleStep -Line $single -Name 'Alone' -ErrorAction Stop } |
+        { Remove-HDTStep -Line $single -Name 'Alone' -ErrorAction Stop } |
             Should -Throw -ExpectedMessage '*only step*'
     }
 
@@ -160,29 +160,29 @@ steps:
         type: NoOp
 '@ -split "`r?`n"
 
-        $after = Remove-HDTConsoleStep -Line $single -Name 'Only'
+        $after = Remove-HDTStep -Line $single -Name 'Only'
 
         ($after -join "`n") | Should -Not -Match 'Alone'
         ($after -join "`n") | Should -Match 'Company'
     }
 }
 
-Describe 'Move-HDTConsoleStep' {
+Describe 'Move-HDTStep' {
 
     It 'is exported by Hephaestus' {
-        Get-Command -Name 'Move-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+        Get-Command -Name 'Move-HDTStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
     It 'moves a step up past its sibling' {
-        $after = Move-HDTConsoleStep -Line $script:line -Name 'Format and Partition' -Direction Up
+        $after = Move-HDTStep -Line $script:line -Name 'Format and Partition' -Direction Up
 
         Get-HDTTestStepName -Line $after |
             Should -Be @('Format and Partition', 'Validate', 'Apply OS', 'Prepare Boot')
     }
 
     It 'moves a step down past its sibling' {
-        $after = Move-HDTConsoleStep -Line $script:line -Name 'Apply OS' -Direction Down
+        $after = Move-HDTStep -Line $script:line -Name 'Apply OS' -Direction Down
 
         Get-HDTTestStepName -Line $after |
             Should -Be @('Validate', 'Format and Partition', 'Prepare Boot', 'Apply OS')
@@ -191,7 +191,7 @@ Describe 'Move-HDTConsoleStep' {
     It 'carries the comment with the step it explains' {
         # The whole reason a move is a splice of Start..End rather than of the
         # dash line: DEMO-M4's comments are the record of what SPIKES proved.
-        $after = Move-HDTConsoleStep -Line $script:line -Name 'Format and Partition' -Direction Up
+        $after = Move-HDTStep -Line $script:line -Name 'Format and Partition' -Direction Up
         $joined = $after -join "`n"
 
         $joined | Should -Match 'wipe: true declares the target expendable\.[\s\S]{0,80}- name: Format and Partition'
@@ -201,51 +201,51 @@ Describe 'Move-HDTConsoleStep' {
         # Up on the first step could mean "into the group above", which is a
         # different and much larger operation. Refusing is honest; guessing is
         # how an administrator loses a step.
-        { Move-HDTConsoleStep -Line $script:line -Name 'Validate' -Direction Up -ErrorAction Stop } |
+        { Move-HDTStep -Line $script:line -Name 'Validate' -Direction Up -ErrorAction Stop } |
             Should -Throw -ExpectedMessage '*first*'
     }
 
     It 'will not move the last step down out of its group' {
-        { Move-HDTConsoleStep -Line $script:line -Name 'Prepare Boot' -Direction Down -ErrorAction Stop } |
+        { Move-HDTStep -Line $script:line -Name 'Prepare Boot' -Direction Down -ErrorAction Stop } |
             Should -Throw -ExpectedMessage '*last*'
     }
 
     It 'keeps the line count identical, because a move creates and destroys nothing' {
-        $after = Move-HDTConsoleStep -Line $script:line -Name 'Apply OS' -Direction Down
+        $after = Move-HDTStep -Line $script:line -Name 'Apply OS' -Direction Down
 
         @($after).Count | Should -Be @($script:line).Count
     }
 
     It 'moves whole groups too' {
-        $after = Move-HDTConsoleStep -Line $script:line -Name 'Install' -Direction Up
+        $after = Move-HDTStep -Line $script:line -Name 'Install' -Direction Up
 
         Get-HDTTestStepName -Line $after |
             Should -Be @('Apply OS', 'Prepare Boot', 'Validate', 'Format and Partition')
     }
 }
 
-Describe 'Copy-HDTConsoleStep' {
+Describe 'Copy-HDTStep' {
 
     It 'is exported by Hephaestus' {
-        Get-Command -Name 'Copy-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+        Get-Command -Name 'Copy-HDTStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
     It 'returns the step''s own lines, comment included' {
-        $block = Copy-HDTConsoleStep -Line $script:line -Name 'Validate'
+        $block = Copy-HDTStep -Line $script:line -Name 'Validate'
 
         ($block -join "`n") | Should -Match 'minRamMB is 2048'
         ($block -join "`n") | Should -Match '- name: Validate'
     }
 
     It 'does not include the following step' {
-        $block = Copy-HDTConsoleStep -Line $script:line -Name 'Validate'
+        $block = Copy-HDTStep -Line $script:line -Name 'Validate'
 
         ($block -join "`n") | Should -Not -Match 'Format and Partition'
     }
 
     It 'changes nothing in the document' {
-        [void] (Copy-HDTConsoleStep -Line $script:line -Name 'Validate')
+        [void] (Copy-HDTStep -Line $script:line -Name 'Validate')
 
         Get-HDTTestStepName -Line $script:line |
             Should -Be @('Validate', 'Format and Partition', 'Apply OS', 'Prepare Boot')
@@ -273,25 +273,25 @@ Describe 'an edited document is still a task sequence' {
     }
 
     It 'still parses after a remove' {
-        $document = Test-HDTEditedDocument -Line (Remove-HDTConsoleStep -Line $script:line -Name 'Apply OS')
+        $document = Test-HDTEditedDocument -Line (Remove-HDTStep -Line $script:line -Name 'Apply OS')
 
         @($document.Step).Count | Should -Be 3
     }
 
     It 'still parses after a move, with the new order' {
-        $document = Test-HDTEditedDocument -Line (Move-HDTConsoleStep -Line $script:line -Name 'Format and Partition' -Direction Up)
+        $document = Test-HDTEditedDocument -Line (Move-HDTStep -Line $script:line -Name 'Format and Partition' -Direction Up)
 
         @($document.Step | ForEach-Object { $_.Name })[0] | Should -BeExactly 'Format and Partition'
     }
 
     It 'keeps the groups a move did not touch' {
-        $document = Test-HDTEditedDocument -Line (Move-HDTConsoleStep -Line $script:line -Name 'Apply OS' -Direction Down)
+        $document = Test-HDTEditedDocument -Line (Move-HDTStep -Line $script:line -Name 'Apply OS' -Direction Down)
 
         @($document.Group | ForEach-Object { @($_.Path) -join '/' }) | Should -Be @('Preinstall', 'Install')
     }
 
     It 'still parses after a whole group is removed' {
-        $document = Test-HDTEditedDocument -Line (Remove-HDTConsoleStep -Line $script:line -Name 'Preinstall')
+        $document = Test-HDTEditedDocument -Line (Remove-HDTStep -Line $script:line -Name 'Preinstall')
 
         @($document.Step).Count | Should -Be 2
         @($document.Group).Count | Should -Be 1

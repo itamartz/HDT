@@ -131,7 +131,7 @@ function Get-HDTConsoleWorkspace {
     $workspacePath = [System.IO.Path]::Combine($root, 'workspace.yaml')
 
     if (-not $FileSystem.TestPath($workspacePath)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $workspacePath `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $workspacePath `
                     -Category ObjectNotFound `
                     -Message ("there is no workspace document here, so '{0}' is not a deployment share. A share declares its identity and its deployRoot in workspace.yaml at its root." -f $root)))
     }

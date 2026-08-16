@@ -1,4 +1,4 @@
-function Get-HDTConsoleStepKey {
+function Get-HDTStepKey {
     <#
         .SYNOPSIS
             Finds one key inside a step's own lines, and the line a new key
@@ -11,7 +11,7 @@ function Get-HDTConsoleStepKey {
             not, and know exactly which lines count as this step's - so it is
             written once and the cmdlets above it only decide the value.
 
-            A GROUP'S OWN KEYS STOP AT ITS `steps:`. Get-HDTConsoleStepBlock
+            A GROUP'S OWN KEYS STOP AT ITS `steps:`. Get-HDTStepBlock
             hands back a block that covers the whole group INCLUDING the steps
             nested inside it, which is right for moving and copying and wrong
             for this: a group whose first step already carries `disabled: true`
@@ -36,7 +36,7 @@ function Get-HDTConsoleStepKey {
             The document, already split into lines.
 
         .PARAMETER Block
-            One block from Get-HDTConsoleStepBlock.
+            One block from Get-HDTStepBlock.
 
         .PARAMETER Key
             The YAML key to find, exactly as it is written in the file.
@@ -52,7 +52,7 @@ function Get-HDTConsoleStepKey {
               Indent  the column this step's keys are written at
 
         .EXAMPLE
-            Get-HDTConsoleStepKey -Line $line -Block $block -Key 'disabled'
+            Get-HDTStepKey -Line $line -Block $block -Key 'disabled'
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

@@ -51,7 +51,7 @@ Describe 'Get-HDTConsoleStepCatalog' {
         }
 
         It 'gives every item the YAML it would insert, so the window branches on nothing' {
-            # The handler behind the menu calls Add-HDTConsoleStep -Block for
+            # The handler behind the menu calls Add-HDTStep -Block for
             # every item, group and step alike. If the item carried only a type,
             # the window would have to choose a parameter set - which is a
             # decision, and decisions do not go in an adapter (CLAUDE.md rule 1).
@@ -100,7 +100,7 @@ Describe 'Get-HDTConsoleStepCatalog' {
             )
 
             foreach ($entry in $script:item) {
-                $edited = @(Add-HDTConsoleStep -Line $line -After 'Apply OS' -Block $entry.Block)
+                $edited = @(Add-HDTStep -Line $line -After 'Apply OS' -Block $entry.Block)
                 $state = Get-HDTConsoleEditorState -Line $edited -Path 'C:\ws\TaskSequences\DEMO\sequence.yaml'
 
                 $state.Status | Should -BeExactly 'Ok' -Because ("adding '{0}' must leave a readable document, and it said: {1}" -f $entry.Text, $state.Message)
@@ -111,7 +111,7 @@ Describe 'Get-HDTConsoleStepCatalog' {
             foreach ($entry in @($script:item | Where-Object { $_.Kind -eq 'Step' })) {
                 $entry.Type | Should -Not -BeNullOrEmpty
                 $entry.Text | Should -Not -BeNullOrEmpty
-                $entry.Command | Should -BeLike 'Add-HDTConsoleStep *'
+                $entry.Command | Should -BeLike 'Add-HDTStep *'
                 $entry.Command | Should -BeLike ('*-Type {0}*' -f $entry.Type)
             }
         }
@@ -296,7 +296,7 @@ Describe 'Get-HDTConsoleStepOption' {
         }
 
         It 'shows the cmdlet each box would run, naming the step and the flag' {
-            $script:option.Flag[0].Command | Should -BeLike '*Set-HDTConsoleStepFlag*'
+            $script:option.Flag[0].Command | Should -BeLike '*Set-HDTStepFlag*'
             $script:option.Flag[0].Command | Should -BeLike "*-Name 'Apply OS'*"
             $script:option.Flag[0].Command | Should -BeLike '*-Flag Disabled*'
             $script:option.Flag[1].Command | Should -BeLike '*-Flag ContinueOnError*'
@@ -333,7 +333,7 @@ Describe 'Get-HDTConsoleStepOption' {
         It 'shows the cmdlet that would set it' {
             $option = Get-HDTConsoleStepOption -Step $script:step
 
-            $option.ConditionCommand | Should -BeLike '*Set-HDTConsoleStepCondition*'
+            $option.ConditionCommand | Should -BeLike '*Set-HDTStepCondition*'
             $option.ConditionCommand | Should -BeLike "*-Name 'Apply OS'*"
         }
 

@@ -59,13 +59,13 @@ steps:
 '@ -split "`r?`n"
 }
 
-Describe 'Get-HDTConsoleStepBlock' {
+Describe 'Get-HDTStepBlock' {
 
     Context 'the command is shaped like the rest of the toolkit' {
 
         It 'has comment-based help' {
             InModuleScope Hephaestus {
-                (Get-Help -Name 'Get-HDTConsoleStepBlock').Synopsis | Should -Not -BeNullOrEmpty
+                (Get-Help -Name 'Get-HDTStepBlock').Synopsis | Should -Not -BeNullOrEmpty
             }
         }
     }
@@ -75,7 +75,7 @@ Describe 'Get-HDTConsoleStepBlock' {
         BeforeAll {
             $script:block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
-                @(Get-HDTConsoleStepBlock -Line $Line)
+                @(Get-HDTStepBlock -Line $Line)
             }
         }
 
@@ -111,7 +111,7 @@ Describe 'Get-HDTConsoleStepBlock' {
         BeforeAll {
             $script:block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
-                @(Get-HDTConsoleStepBlock -Line $Line)
+                @(Get-HDTStepBlock -Line $Line)
             }
         }
 
@@ -155,7 +155,7 @@ Describe 'Get-HDTConsoleStepBlock' {
         BeforeAll {
             $script:block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
-                @(Get-HDTConsoleStepBlock -Line $Line)
+                @(Get-HDTStepBlock -Line $Line)
             }
         }
 
@@ -181,7 +181,7 @@ Describe 'Get-HDTConsoleStepBlock' {
             # DEMO-M4 exists to record.
             $block = InModuleScope Hephaestus -Parameters @{ Line = $script:document } {
                 param($Line)
-                @(Get-HDTConsoleStepBlock -Line $Line)
+                @(Get-HDTStepBlock -Line $Line)
             }
 
             $first = @($block | Sort-Object Start)[0]
@@ -192,7 +192,7 @@ Describe 'Get-HDTConsoleStepBlock' {
         It 'finds nothing in a document with no steps at all' {
             $block = InModuleScope Hephaestus -Parameters @{ Line = @('schemaVersion: 1', 'id: EMPTY') } {
                 param($Line)
-                @(Get-HDTConsoleStepBlock -Line $Line)
+                @(Get-HDTStepBlock -Line $Line)
             }
 
             @($block) | Should -BeNullOrEmpty

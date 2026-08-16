@@ -1,4 +1,4 @@
-function Set-HDTConsoleStepFlag {
+function Set-HDTStepFlag {
     <#
         .SYNOPSIS
             Switches a step off, or lets it fail without stopping the
@@ -18,7 +18,7 @@ function Set-HDTConsoleStepFlag {
             (Invoke-HDTTaskSequence branch 2a) and the tree draws it struck
             through; this writes the fact.
 
-            IT SPLICES. See Add-HDTConsoleStep for why nothing here parses YAML:
+            IT SPLICES. See Add-HDTStep for why nothing here parses YAML:
             a round trip through ConvertFrom-HDTYaml returns a dictionary, a
             dictionary has no comments in it, and this toolkit forbids a UI that
             reformats the file. Exactly one line is inserted or rewritten and
@@ -32,7 +32,7 @@ function Set-HDTConsoleStepFlag {
             written.
 
             A GROUP TAKES THE FLAG TOO, AND ITS STEPS ARE LEFT ALONE.
-            Get-HDTConsoleStepKey stops at the group's `steps:`, so switching
+            Get-HDTStepKey stops at the group's `steps:`, so switching
             off 'Install' does not rewrite the first line inside it that happens
             to say `disabled:`.
 
@@ -41,7 +41,7 @@ function Set-HDTConsoleStepFlag {
 
         .PARAMETER Name
             The step or group to change. Ambiguous names are refused rather
-            than guessed - see Resolve-HDTConsoleStepBlock.
+            than guessed - see Resolve-HDTStepBlock.
 
         .PARAMETER Flag
             Disabled or ContinueOnError.
@@ -56,13 +56,13 @@ function Set-HDTConsoleStepFlag {
             System.String[] - the document, with one line changed.
 
         .EXAMPLE
-            Set-HDTConsoleStepFlag -Line $line -Name 'Apply OS' -Flag Disabled -Value $true
+            Set-HDTStepFlag -Line $line -Name 'Apply OS' -Flag Disabled -Value $true
 
             Switches a step off, keeping it and its comment in the file.
 
         .EXAMPLE
-            $line = Set-HDTConsoleStepFlag -Line $line -Name 'Install Applications' -Flag ContinueOnError -Value $true
-            Save-HDTConsoleSequence -Path $path -Line $line -FileSystem (New-HDTFileSystem)
+            $line = Set-HDTStepFlag -Line $line -Name 'Install Applications' -Flag ContinueOnError -Value $true
+            Save-HDTSequenceDocument -Path $path -Line $line -FileSystem (New-HDTFileSystem)
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     [OutputType([string[]])]
@@ -87,7 +87,7 @@ function Set-HDTConsoleStepFlag {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $target = Resolve-HDTConsoleStepBlock -Line $Line -Name $Name
+    $target = Resolve-HDTStepBlock -Line $Line -Name $Name
 
     # The parameter is named the way the console reads; the file is written the
     # way the engine reads. Import-HDTSequenceDocument's common-key list is the
@@ -95,7 +95,7 @@ function Set-HDTConsoleStepFlag {
     $key = 'disabled'
     if ($Flag -eq 'ContinueOnError') { $key = 'continueOnError' }
 
-    $found = Get-HDTConsoleStepKey -Line $Line -Block $target -Key $key
+    $found = Get-HDTStepKey -Line $Line -Block $target -Key $key
 
     $text = 'false'
     if ($Value) { $text = 'true' }

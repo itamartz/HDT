@@ -1,4 +1,4 @@
-function Get-HDTConsoleStepBlock {
+function Get-HDTStepBlock {
     <#
         .SYNOPSIS
             Finds the exact lines each step and group occupies in a sequence
@@ -47,7 +47,7 @@ function Get-HDTConsoleStepBlock {
               End     the last line the block owns, blanks excluded
 
         .EXAMPLE
-            Get-HDTConsoleStepBlock -Line ($text -split "`r?`n")
+            Get-HDTStepBlock -Line ($text -split "`r?`n")
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject[]])]

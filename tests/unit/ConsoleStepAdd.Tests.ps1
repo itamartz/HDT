@@ -71,15 +71,15 @@ steps:
     }
 }
 
-Describe 'Add-HDTConsoleStep' {
+Describe 'Add-HDTStep' {
 
     It 'is exported by Hephaestus' {
-        Get-Command -Name 'Add-HDTConsoleStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+        Get-Command -Name 'Add-HDTStep' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
     It 'puts a new step after the one it was told to follow' {
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate'
+        $after = Add-HDTStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate'
 
         Get-HDTTestStepName -Line $after |
             Should -Be @('Validate', 'Check TPM', 'Format and Partition', 'Apply OS', 'Prepare Boot')
@@ -88,21 +88,21 @@ Describe 'Add-HDTConsoleStep' {
     It 'writes it at the indentation of its new neighbour' {
         # A step written two columns out is a document the engine refuses, and
         # the administrator's own edit is what broke it.
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate'
+        $after = Add-HDTStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate'
         $at = @($after | Select-String -Pattern '- name: Check TPM').LineNumber - 1
 
         $after[$at] | Should -BeExactly '      - name: Check TPM'
     }
 
     It 'lands in the same group as the step it follows' {
-        $document = Read-HDTTestDocument -Line (Add-HDTConsoleStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate')
+        $document = Read-HDTTestDocument -Line (Add-HDTStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate')
         $step = @($document.Step | Where-Object { $_.Name -eq 'Check TPM' })[0]
 
         @($step.GroupPath) -join '/' | Should -BeExactly 'Preinstall'
     }
 
     It 'produces a step the engine reads back with the type it was given' {
-        $document = Read-HDTTestDocument -Line (Add-HDTConsoleStep -Line $script:line -After 'Apply OS' -Name 'Reboot' -Type 'Restart')
+        $document = Read-HDTTestDocument -Line (Add-HDTStep -Line $script:line -After 'Apply OS' -Name 'Reboot' -Type 'Restart')
         $step = @($document.Step | Where-Object { $_.Name -eq 'Reboot' })[0]
 
         $step.Type | Should -BeExactly 'Restart'
@@ -111,36 +111,36 @@ Describe 'Add-HDTConsoleStep' {
     It 'refuses a step type the engine does not have' {
         # The authoring lint reports an unknown type as an Error finding; the
         # editor should not be able to create one in the first place.
-        { Add-HDTConsoleStep -Line $script:line -After 'Validate' -Name 'X' -Type 'NoSuchType' -ErrorAction Stop } |
+        { Add-HDTStep -Line $script:line -After 'Validate' -Name 'X' -Type 'NoSuchType' -ErrorAction Stop } |
             Should -Throw -ExpectedMessage '*NoSuchType*'
     }
 
     It 'leaves every other line byte-identical' {
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Apply OS' -Name 'Reboot' -Type 'Restart'
+        $after = Add-HDTStep -Line $script:line -After 'Apply OS' -Name 'Reboot' -Type 'Restart'
 
         @($after | Select-Object -First 18) | Should -Be @($script:line | Select-Object -First 18)
     }
 
     It 'keeps the document header' {
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate'
+        $after = Add-HDTStep -Line $script:line -After 'Validate' -Name 'Check TPM' -Type 'Validate'
 
         ($after -join "`n") | Should -Match 'THE HEADER, which belongs to the document'
     }
 }
 
-Describe 'Add-HDTConsoleStep -Block (paste)' {
+Describe 'Add-HDTStep -Block (paste)' {
 
     It 'pastes a copied step after the named one' {
-        $block = Copy-HDTConsoleStep -Line $script:line -Name 'Validate'
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Apply OS' -Block $block
+        $block = Copy-HDTStep -Line $script:line -Name 'Validate'
+        $after = Add-HDTStep -Line $script:line -After 'Apply OS' -Block $block
 
         Get-HDTTestStepName -Line $after |
             Should -Be @('Validate', 'Format and Partition', 'Apply OS', 'Validate', 'Prepare Boot')
     }
 
     It 'brings the copied comment with it' {
-        $block = Copy-HDTConsoleStep -Line $script:line -Name 'Validate'
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Apply OS' -Block $block
+        $block = Copy-HDTStep -Line $script:line -Name 'Validate'
+        $after = Add-HDTStep -Line $script:line -After 'Apply OS' -Block $block
 
         (($after -join "`n") -split 'minRamMB is 2048').Count | Should -Be 3
     }
@@ -151,32 +151,32 @@ Describe 'Add-HDTConsoleStep -Block (paste)' {
         # whitespace-significant, so that is the difference between a step and a
         # parse error.
         $block = @('      - name: Pasted', '        type: NoOp')
-        $after = Add-HDTConsoleStep -Line $script:line -After 'Apply OS' -Block $block
+        $after = Add-HDTStep -Line $script:line -After 'Apply OS' -Block $block
         $at = @($after | Select-String -Pattern '- name: Pasted').LineNumber - 1
 
         $after[$at] | Should -BeExactly '      - name: Pasted'
     }
 
     It 'produces a document the engine still reads' {
-        $block = Copy-HDTConsoleStep -Line $script:line -Name 'Format and Partition'
-        $document = Read-HDTTestDocument -Line (Add-HDTConsoleStep -Line $script:line -After 'Apply OS' -Block $block)
+        $block = Copy-HDTStep -Line $script:line -Name 'Format and Partition'
+        $document = Read-HDTTestDocument -Line (Add-HDTStep -Line $script:line -After 'Apply OS' -Block $block)
 
         @($document.Step).Count | Should -Be 5
     }
 }
 
-Describe 'Save-HDTConsoleSequence' {
+Describe 'Save-HDTSequenceDocument' {
 
     It 'is exported by Hephaestus' {
-        Get-Command -Name 'Save-HDTConsoleSequence' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+        Get-Command -Name 'Save-HDTSequenceDocument' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
             Should -Not -BeNullOrEmpty
     }
 
     It 'writes the document to the path it was given' {
         $fs = New-HDTFakeFileSystem -File @{ $script:path = ($script:line -join "`r`n") }
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Apply OS'
+        $after = Remove-HDTStep -Line $script:line -Name 'Apply OS'
 
-        [void] (Save-HDTConsoleSequence -Path $script:path -Line $after -FileSystem $fs)
+        [void] (Save-HDTSequenceDocument -Path $script:path -Line $after -FileSystem $fs)
 
         $written = @($fs.Operations | Where-Object { $_.Operation -eq 'WriteAllText' })
         @($written).Count | Should -Be 1
@@ -185,9 +185,9 @@ Describe 'Save-HDTConsoleSequence' {
 
     It 'writes what the editor produced, comments and all' {
         $fs = New-HDTFakeFileSystem -File @{ $script:path = ($script:line -join "`r`n") }
-        $after = Remove-HDTConsoleStep -Line $script:line -Name 'Apply OS'
+        $after = Remove-HDTStep -Line $script:line -Name 'Apply OS'
 
-        [void] (Save-HDTConsoleSequence -Path $script:path -Line $after -FileSystem $fs)
+        [void] (Save-HDTSequenceDocument -Path $script:path -Line $after -FileSystem $fs)
 
         $written = @($fs.Operations | Where-Object { $_.Operation -eq 'WriteAllText' })[0].Arguments[1]
 
@@ -201,7 +201,7 @@ Describe 'Save-HDTConsoleSequence' {
         # about, arriving by a different route.
         $fs = New-HDTFakeFileSystem -File @{ $script:path = ($script:line -join "`r`n") }
 
-        [void] (Save-HDTConsoleSequence -Path $script:path -Line $script:line -FileSystem $fs)
+        [void] (Save-HDTSequenceDocument -Path $script:path -Line $script:line -FileSystem $fs)
 
         $written = @($fs.Operations | Where-Object { $_.Operation -eq 'WriteAllText' })[0].Arguments[1]
 
@@ -216,7 +216,7 @@ Describe 'Save-HDTConsoleSequence' {
         $fs = New-HDTFakeFileSystem -File @{ $script:path = ($script:line -join "`r`n") }
         $broken = @('schemaVersion: 1', 'id: DEMO-M4', '  name: not valid yaml at all')
 
-        { Save-HDTConsoleSequence -Path $script:path -Line $broken -FileSystem $fs -ErrorAction Stop } |
+        { Save-HDTSequenceDocument -Path $script:path -Line $broken -FileSystem $fs -ErrorAction Stop } |
             Should -Throw
 
         @($fs.Operations | Where-Object { $_.Operation -eq 'WriteAllText' }) | Should -BeNullOrEmpty
@@ -225,7 +225,7 @@ Describe 'Save-HDTConsoleSequence' {
     It 'says what it wrote, so a caller is not left guessing' {
         $fs = New-HDTFakeFileSystem -File @{ $script:path = ($script:line -join "`r`n") }
 
-        $answer = Save-HDTConsoleSequence -Path $script:path -Line $script:line -FileSystem $fs
+        $answer = Save-HDTSequenceDocument -Path $script:path -Line $script:line -FileSystem $fs
 
         $answer.Saved | Should -BeTrue
         $answer.Path | Should -BeExactly $script:path

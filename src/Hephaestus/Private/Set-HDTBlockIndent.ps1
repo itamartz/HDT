@@ -1,4 +1,4 @@
-function Set-HDTConsoleBlockIndent {
+function Set-HDTBlockIndent {
     <#
         .SYNOPSIS
             Shifts a copied block to the indentation of where it is being
@@ -36,7 +36,7 @@ function Set-HDTConsoleBlockIndent {
             System.String[]
 
         .EXAMPLE
-            Set-HDTConsoleBlockIndent -Block $block -Indent 6
+            Set-HDTBlockIndent -Block $block -Indent 6
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Returns reindented copies of in-memory lines; it changes no state.')]

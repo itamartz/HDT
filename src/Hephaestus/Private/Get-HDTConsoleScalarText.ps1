@@ -21,8 +21,8 @@ function Get-HDTConsoleScalarText {
             or a regular expression survives it unaltered - which double quotes,
             with their backslash escapes, would not.
 
-            IT IS SHARED because Set-HDTConsoleStepCondition and
-            Set-HDTConsoleStepProperty must agree about it. Two copies of a
+            IT IS SHARED because Set-HDTStepCondition and
+            Set-HDTStepProperty must agree about it. Two copies of a
             quoting rule is two quoting rules as soon as one of them is fixed.
 
         .PARAMETER Value

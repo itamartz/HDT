@@ -443,7 +443,7 @@
                     YAML key the row writes - so the window holds no list of
                     which labels are typeable and cannot disagree with the
                     splice about it. 'Type' and 'Runs' come through read-only:
-                    one is refused by Set-HDTConsoleStepProperty and the other
+                    one is refused by Set-HDTStepProperty and the other
                     is a position rather than anything in the file.
 
                     A READ-ONLY BOX ALSO LOOKS READ-ONLY. A grey field that

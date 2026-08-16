@@ -76,7 +76,7 @@ Describe 'a load and save cycle on every sample' {
             $script:captured = $Text
         }
 
-        [void] (Save-HDTConsoleSequence -Path $Path -Line $line -FileSystem $fake -Confirm:$false)
+        [void] (Save-HDTSequenceDocument -Path $Path -Line $line -FileSystem $fake -Confirm:$false)
 
         # It wrote, and it wrote to the file it was opened on - both of this
         # lab's shares hold a DEMO-M4, so "it saved" is only half an answer.
@@ -108,7 +108,7 @@ Describe 'an edit that should change exactly one line' {
 
         $subject = $step[0].Name
 
-        $edited = @(Set-HDTConsoleStepFlag -Line $line -Name $subject -Flag Disabled -Value $true)
+        $edited = @(Set-HDTStepFlag -Line $line -Name $subject -Flag Disabled -Value $true)
 
         # One line added, and it is the one that was added.
         @($edited).Count | Should -Be (@($line).Count + 1)

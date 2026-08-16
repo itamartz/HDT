@@ -174,7 +174,7 @@ function Get-HDTConsoleStepNode {
         # the key it writes; a row that does not is a report. 'Type' is
         # deliberately among the reports - a step's properties belong to its
         # type, so retyping one leaves keys the new type has never heard of, and
-        # Set-HDTConsoleStepProperty refuses it for the same reason.
+        # Set-HDTStepProperty refuses it for the same reason.
         $field = @(
             New-HDTConsoleField -Label 'Name' -Value $current.Name -Property 'name'
             New-HDTConsoleField -Label 'Type' -Value $current.Type

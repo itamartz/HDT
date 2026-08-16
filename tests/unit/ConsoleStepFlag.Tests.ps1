@@ -4,7 +4,7 @@
 # THESE ARE THE OPTIONS TAB'S CMDLETS. Deployment Workbench puts "Disable this
 # step", "Continue on error" and the condition list on a second tab beside
 # Properties, and DESIGN 12 says every button maps to a cmdlet invocation the
-# console shows. Set-HDTConsoleStepFlag and Set-HDTConsoleStepCondition are
+# console shows. Set-HDTStepFlag and Set-HDTStepCondition are
 # those two controls, as commands.
 #
 # THEY SPLICE, LIKE EVERY OTHER EDIT HERE. See ConsoleStepEdit.Tests.ps1 for
@@ -58,12 +58,12 @@ steps:
     $script:line = $script:text -split "`r?`n"
 }
 
-Describe 'Set-HDTConsoleStepFlag' {
+Describe 'Set-HDTStepFlag' {
 
     Context 'a flag the step does not carry yet' {
 
         It 'inserts the key directly under type, at the step''s own indentation' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
 
             $at = [array]::IndexOf($result, '        type: ApplyImage')
             $at | Should -BeGreaterThan 0
@@ -71,7 +71,7 @@ Describe 'Set-HDTConsoleStepFlag' {
         }
 
         It 'leaves every other line byte-identical' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
 
             $result.Count | Should -Be ($script:line.Count + 1)
 
@@ -89,14 +89,14 @@ Describe 'Set-HDTConsoleStepFlag' {
         }
 
         It 'writes nothing at all when the flag is being set to the value it already means' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $false)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $false)
 
             $result.Count | Should -Be $script:line.Count
             ($result -join "`n") | Should -BeExactly ($script:line -join "`n")
         }
 
         It 'inserts continueOnError under type just the same' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Prepare Boot' -Flag ContinueOnError -Value $true)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Prepare Boot' -Flag ContinueOnError -Value $true)
 
             $at = [array]::IndexOf($result, '        type: ConfigureBoot')
             $result[$at + 1] | Should -BeExactly '        continueOnError: true'
@@ -106,7 +106,7 @@ Describe 'Set-HDTConsoleStepFlag' {
     Context 'a flag the step already carries' {
 
         It 'rewrites the existing line rather than adding a second one' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Format and Partition' -Flag Disabled -Value $false)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Format and Partition' -Flag Disabled -Value $false)
 
             @($result | Where-Object { $_ -match '^\s*disabled:' }).Count | Should -Be 1
             $result | Should -Contain '        disabled: false'
@@ -114,7 +114,7 @@ Describe 'Set-HDTConsoleStepFlag' {
         }
 
         It 'keeps the keys around it in their original order' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Format and Partition' -Flag Disabled -Value $false)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Format and Partition' -Flag Disabled -Value $false)
 
             $at = [array]::IndexOf($result, '        disabled: false')
             $result[$at - 1] | Should -BeExactly '        type: DiskPartition'
@@ -125,7 +125,7 @@ Describe 'Set-HDTConsoleStepFlag' {
     Context 'a group' {
 
         It 'switches a whole group off without touching the steps inside it' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Install' -Flag Disabled -Value $true)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Install' -Flag Disabled -Value $true)
 
             $at = [array]::IndexOf($result, '  - group: Install')
             $result[$at + 1] | Should -BeExactly '    runIn: WinPE'
@@ -140,7 +140,7 @@ Describe 'Set-HDTConsoleStepFlag' {
     Context 'the result the engine reads' {
 
         It 'produces a document Import-HDTSequenceDocument still accepts, with the step marked off' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true)
 
             $path = 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
             $fs = New-HDTFakeFileSystem -File @{ $path = ($result -join "`r`n") }
@@ -154,31 +154,31 @@ Describe 'Set-HDTConsoleStepFlag' {
     Context 'refusals' {
 
         It 'refuses a step that is not there' {
-            { Set-HDTConsoleStepFlag -Line $script:line -Name 'Nowhere' -Flag Disabled -Value $true } |
+            { Set-HDTStepFlag -Line $script:line -Name 'Nowhere' -Flag Disabled -Value $true } |
                 Should -Throw '*no step or group*'
         }
 
         It 'supports -WhatIf and changes nothing under it' {
-            $result = @(Set-HDTConsoleStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true -WhatIf)
+            $result = @(Set-HDTStepFlag -Line $script:line -Name 'Apply OS' -Flag Disabled -Value $true -WhatIf)
 
             ($result -join "`n") | Should -BeExactly ($script:line -join "`n")
         }
     }
 }
 
-Describe 'Set-HDTConsoleStepCondition' {
+Describe 'Set-HDTStepCondition' {
 
     Context 'a step with no condition' {
 
         It 'inserts one under type' {
-            $result = @(Set-HDTConsoleStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$IsUEFI -eq $true')
+            $result = @(Set-HDTStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$IsUEFI -eq $true')
 
             $at = [array]::IndexOf($result, '        type: ConfigureBoot')
             $result[$at + 1] | Should -BeExactly "        condition: `$IsUEFI -eq `$true"
         }
 
         It 'leaves the rest of the document byte-identical' {
-            $result = @(Set-HDTConsoleStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$IsUEFI -eq $true')
+            $result = @(Set-HDTStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$IsUEFI -eq $true')
 
             $survivor = @($result | Where-Object { $_ -notmatch '^\s*condition: \$IsUEFI' })
             ($survivor -join "`n") | Should -BeExactly ($script:line -join "`n")
@@ -188,7 +188,7 @@ Describe 'Set-HDTConsoleStepCondition' {
     Context 'a step that already has one' {
 
         It 'rewrites it in place' {
-            $result = @(Set-HDTConsoleStepCondition -Line $script:line -Name 'Apply OS' -Condition '$Make -eq "Dell Inc."')
+            $result = @(Set-HDTStepCondition -Line $script:line -Name 'Apply OS' -Condition '$Make -eq "Dell Inc."')
 
             @($result | Where-Object { $_ -match '^\s*condition:' }).Count | Should -Be 1
             $result | Should -Contain '        condition: $Make -eq "Dell Inc."'
@@ -196,7 +196,7 @@ Describe 'Set-HDTConsoleStepCondition' {
         }
 
         It 'takes the line out entirely when the condition is cleared' {
-            $result = @(Set-HDTConsoleStepCondition -Line $script:line -Name 'Apply OS' -Condition '')
+            $result = @(Set-HDTStepCondition -Line $script:line -Name 'Apply OS' -Condition '')
 
             @($result | Where-Object { $_ -match '^\s*condition:' }).Count | Should -Be 0
             $result.Count | Should -Be ($script:line.Count - 1)
@@ -209,7 +209,7 @@ Describe 'Set-HDTConsoleStepCondition' {
     Context 'the result the engine reads' {
 
         It 'round-trips through Import-HDTSequenceDocument' {
-            $result = @(Set-HDTConsoleStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$IsUEFI -eq $true')
+            $result = @(Set-HDTStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$IsUEFI -eq $true')
 
             $path = 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
             $fs = New-HDTFakeFileSystem -File @{ $path = ($result -join "`r`n") }
@@ -223,12 +223,12 @@ Describe 'Set-HDTConsoleStepCondition' {
     Context 'refusals' {
 
         It 'refuses a step that is not there' {
-            { Set-HDTConsoleStepCondition -Line $script:line -Name 'Nowhere' -Condition '$true' } |
+            { Set-HDTStepCondition -Line $script:line -Name 'Nowhere' -Condition '$true' } |
                 Should -Throw '*no step or group*'
         }
 
         It 'supports -WhatIf and changes nothing under it' {
-            $result = @(Set-HDTConsoleStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$true' -WhatIf)
+            $result = @(Set-HDTStepCondition -Line $script:line -Name 'Prepare Boot' -Condition '$true' -WhatIf)
 
             ($result -join "`n") | Should -BeExactly ($script:line -join "`n")
         }

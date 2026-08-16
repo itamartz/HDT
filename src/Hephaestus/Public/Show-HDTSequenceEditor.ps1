@@ -81,7 +81,7 @@ function Show-HDTSequenceEditor {
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     if (-not (Test-Path -LiteralPath $XamlPath)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTConsoleErrorRecord -Path $XamlPath `
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath `
                     -Category ObjectNotFound `
                     -Message 'the task sequence editor markup is missing, so the editor cannot be shown.'))
     }

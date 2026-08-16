@@ -1,4 +1,4 @@
-function Resolve-HDTConsoleStepBlock {
+function Resolve-HDTStepBlock {
     <#
         .SYNOPSIS
             Finds the one block a step-editing cmdlet was asked to act on.
@@ -27,10 +27,10 @@ function Resolve-HDTConsoleStepBlock {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject - one block from
-            Get-HDTConsoleStepBlock.
+            Get-HDTStepBlock.
 
         .EXAMPLE
-            Resolve-HDTConsoleStepBlock -Line $line -Name 'Apply OS'
+            Resolve-HDTStepBlock -Line $line -Name 'Apply OS'
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -48,16 +48,16 @@ function Resolve-HDTConsoleStepBlock {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $block = @(Get-HDTConsoleStepBlock -Line $Line)
+    $block = @(Get-HDTStepBlock -Line $Line)
     $matched = @($block | Where-Object { $_.Name -eq $Name })
 
     if (@($matched).Count -eq 0) {
-        throw (New-HDTConsoleErrorRecord -Path $Name -Category ObjectNotFound `
+        throw (New-HDTErrorRecord -Path $Name -Category ObjectNotFound `
                 -Message ("there is no step or group called '{0}' in this task sequence." -f $Name))
     }
 
     if (@($matched).Count -gt 1) {
-        throw (New-HDTConsoleErrorRecord -Path $Name -Category InvalidArgument `
+        throw (New-HDTErrorRecord -Path $Name -Category InvalidArgument `
                 -Message ("this task sequence holds {0} steps called '{1}', so the one to act on is ambiguous. Rename one of them first." -f @($matched).Count, $Name))
     }
 
