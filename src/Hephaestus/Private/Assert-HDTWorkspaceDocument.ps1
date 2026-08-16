@@ -96,13 +96,14 @@ function Assert-HDTWorkspaceDocument {
     # tests/contract/WorkspaceSchema.Contract.Tests.ps1, which reads this very
     # variable out of this file. A key added to one and forgotten in the other
     # turns that contract red. Do not inline this list into the loop below.
-    $requiredRootKey = @('schemaVersion', 'id', 'name', 'deployRoot')
+    $requiredRootKey = @('schemaVersion', 'id', 'name')
 
     $allowedRootKey = @('schemaVersion', 'id', 'name', 'deployRoot', 'logLevel',
         'credential', 'bootImage')
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
-        'optionalComponents', 'extraContent', 'drivers', 'entryCommand')
+        'optionalComponents', 'extraContent', 'drivers', 'entryCommand', 'skip')
+    $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
     $allowedLogLevel = @('Error', 'Warning', 'Info', 'Debug')
@@ -183,12 +184,20 @@ function Assert-HDTWorkspaceDocument {
 
     # -- deployRoot -----------------------------------------------------------
 
-    $deployRoot = [string] $Document['deployRoot']
-
-    if ([string]::IsNullOrWhiteSpace($deployRoot)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'deployRoot is empty. It is what a booted client connects to: a UNC path (\\server\HdtShare), a rooted local path (C:\HDTLab\Share), or a volume-relative path (\Share) for media whose drive letter cannot be known at build time.'))
-    }
+    # NO SHARE IS NO SHARE, however it was spelled. An omitted key, an empty
+    # value and a whitespace value all mean the same thing here: the image is
+    # built without a deployment root, reaches the Welcome screen with an empty
+    # box, and asks the technician for one.
+    #
+    # An earlier version refused the empty spelling on the grounds that a
+    # written-but-blank key looks like a failed template substitution rather
+    # than a decision. That is true, and it is still not worth two documents
+    # that mean the same thing behaving differently - the surprise costs more
+    # than the typo it caught, and an image that asks for its share is not a
+    # broken image.
+    $deployRoot = ''
+    if ($Document.Contains('deployRoot')) { $deployRoot = [string] $Document['deployRoot'] }
+    if ([string]::IsNullOrWhiteSpace($deployRoot)) { $deployRoot = '' }
 
     if ($deployRoot -like '*..*') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
@@ -326,6 +335,46 @@ function Assert-HDTWorkspaceDocument {
         if (([string] $entryCommand).IndexOfAny([char[]] @("`r", "`n")) -ge 0) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message 'bootImage: entryCommand must be one command on one line. A line break here becomes a second command inside startnet.cmd that nobody reading this document would see.'))
+        }
+    }
+
+    # -- the skip block -------------------------------------------------------
+    #
+    # MDT's Skip* properties for the Welcome screen, which live here rather than
+    # in rules.yaml because that screen runs BEFORE the share is reachable
+    # (.planning/WPF-FIRST.md, W2).
+    #
+    # AN OMITTED KEY IS NOT false, and this validator must not turn it into one:
+    # it checks shape and says nothing about defaults. Get-HDTWizardSkip is the
+    # only place "the workspace said nothing" becomes a decision.
+    #
+    # A NON-BOOLEAN IS REFUSED RATHER THAN COERCED. 'yes', 'no' and '' are all
+    # truthy or falsy in PowerShell in ways nobody reading the YAML would
+    # predict, and the wrong guess here is a wizard that does not appear on a
+    # machine somebody is standing in front of.
+
+    if ($bootImage.Contains('skip')) {
+        $skip = $bootImage['skip']
+
+        if ($null -ne $skip -and -not ($skip -is [System.Collections.IDictionary])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: skip must be a mapping of {0}, but it is a {1}." -f ($allowedSkipKey -join ', '), $skip.GetType().Name)))
+        }
+
+        if ($null -ne $skip) {
+            foreach ($key in @($skip.Keys)) {
+                if ($allowedSkipKey -notcontains [string] $key) {
+                    $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                                -Message ("bootImage: skip: '{0}' is not a rule it may declare. The allowed rules are {1}." -f $key, ($allowedSkipKey -join ', '))))
+                }
+
+                $value = $skip[$key]
+
+                if ($null -ne $value -and -not ($value -is [bool])) {
+                    $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                                -Message ("bootImage: skip: {0} must be true or false, but it is '{1}'. Remove the rule to leave it unstated." -f $key, $value)))
+                }
+            }
         }
     }
 

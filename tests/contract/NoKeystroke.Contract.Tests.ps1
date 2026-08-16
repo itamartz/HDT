@@ -68,6 +68,40 @@ BeforeAll {
 
     $script:totalCodeLength = 0
     foreach ($row in $script:scanned) { $script:totalCodeLength += $row.CodeOnly.Length }
+
+    # -- the whole test tree, for the prompt rule below -----------------------
+    #
+    # A SECOND, WIDER SCAN, because the rule below is not about virtual machines
+    # - it is about this suite stopping to ask a human anything, anywhere.
+    #
+    # Token stream only. This file has to spell the forbidden name in its own
+    # prose to explain the rule, and a raw scan would therefore convict itself.
+    $script:testRoot = Join-Path -Path $script:repoRoot -ChildPath 'tests'
+    $script:scannedTest = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($file in @(Get-ChildItem -LiteralPath $script:testRoot -Filter '*.Tests.ps1' -File -Recurse)) {
+
+        # THIS FILE IS EXEMPT FROM ITS OWN RULE, and for the same reason the
+        # header is allowed to spell Msvm_Keyboard: the rule has to name the
+        # thing it forbids in order to search for it. The name appears here in
+        # a search pattern, which is code rather than prose, so the token scan
+        # would otherwise convict the only file that may say it.
+        if ($file.Name -eq 'NoKeystroke.Contract.Tests.ps1') { continue }
+
+        $text = [System.IO.File]::ReadAllText($file.FullName)
+
+        $token = $null
+        $parseError = $null
+        [void] [System.Management.Automation.Language.Parser]::ParseInput(
+            $text, [ref] $token, [ref] $parseError)
+
+        [void] $script:scannedTest.Add([pscustomobject] @{
+                Relative = $file.FullName.Substring($script:repoRoot.Length).TrimStart('\', '/')
+                CodeOnly = (@($token |
+                            Where-Object { $_.Kind -ne 'Comment' } |
+                            ForEach-Object { [string] $_.Text }) -join ' ')
+            })
+    }
 }
 
 Describe 'the no-keystroke contract' {
@@ -131,6 +165,52 @@ Describe 'the no-keystroke contract' {
             @($offender).Count | Should -Be 0 -Because (
                 "a plain Select-String for '{0}' over tests/e2e must come back empty. Found in: {1}. Discuss the property without naming the call, and point at tests/contract/NoKeystroke.Contract.Tests.ps1" -f
                     $name, (($offender -join ', ')))
+        }
+    }
+
+    Context 'no test stops to ask a human for a parameter' {
+
+        # THE SAME PROPERTY AS THE RULES ABOVE, ONE LAYER OUT. Those keep a test
+        # from typing INTO a machine; this keeps a test from making a machine
+        # type back.
+        #
+        # HOW IT BIT US. A pair of tests proved a parameter was mandatory by
+        # calling the command without it and asserting the resulting error id.
+        # That works on a non-interactive host - and on an INTERACTIVE one
+        # PowerShell does the other thing it is allowed to do: it prompts.
+        #
+        #     cmdlet New-HDTServiceCatalog at command pipeline position 1
+        #     Supply values for the following parameters:
+        #     Clock:
+        #
+        # The suite then sits there, mid-run, waiting on a keystroke, with no
+        # failure and no output - which is precisely what this whole contract
+        # exists to prevent. It cost a real session's flow before it was found.
+        #
+        # WHAT TO DO INSTEAD. Assert the declaration rather than the binder:
+        #
+        #     (Get-Command -Name 'Verb-HDTNoun').Parameters['Clock'].Attributes |
+        #         Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] }
+        #
+        # Whether PowerShell enforces Mandatory is PowerShell's business. That
+        # the parameter IS mandatory is ours, and metadata says so without
+        # invoking anything.
+
+        It 'scanned the whole test tree' {
+            # Anti-vacuity, same as above: "no file contains X" is trivially
+            # true of no files.
+            @($script:scannedTest).Count | Should -BeGreaterThan 50 -Because (
+                'this repository has hundreds of test files; a small count means the scan missed them')
+        }
+
+        It 'never proves a mandatory parameter by omitting it' {
+            $offender = @($script:scannedTest |
+                    Where-Object { $_.CodeOnly -match 'MissingMandatoryParameter' } |
+                    ForEach-Object { $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                ("omitting a mandatory parameter PROMPTS on an interactive host and hangs the run with no output. Found in: {0}. Assert the parameter's Mandatory attribute through Get-Command instead - see the comment above this test" -f
+                    ($offender -join ', ')))
         }
     }
 

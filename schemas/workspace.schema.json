@@ -3,56 +3,139 @@
   "$id": "https://hephaestus/schemas/workspace.schema.json",
   "title": "HDT workspace.yaml",
   "type": "object",
-  "required": ["schemaVersion", "id", "name", "deployRoot"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "name"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
-    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
-    "name": { "type": "string", "minLength": 1 },
-    "deployRoot": {
-      "description": "UNC (\\\\server\\share), rooted local (C:\\path), or volume-relative (\\Share) for media whose drive letter cannot be known at build time. Never contains '..'.",
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^(?!.*\\.\\.)\\s*\\S.*$"
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
     },
-    "logLevel": { "type": "string", "enum": ["Error", "Warning", "Info", "Debug"] },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "deployRoot": {
+      "description": "UNC (\\\\server\\share), rooted local (C:\\path), or volume-relative (\\Share) for media whose drive letter cannot be known at build time. Never contains '..'. OPTIONAL: an image built without one reaches the Welcome screen with an empty share box and a hint telling the technician to supply it, rather than failing to boot.",
+      "type": "string",
+      "pattern": "^$|^(?!.*\\.\\.)\\s*\\S.*$"
+    },
+    "logLevel": {
+      "type": "string",
+      "enum": [
+        "Error",
+        "Warning",
+        "Info",
+        "Debug"
+      ]
+    },
     "credential": {
       "description": "A username and nothing else. The secret lives in Control\\share-credential.json, written by Set-HDTShareCredential (DESIGN 6.3).",
       "type": "object",
-      "required": ["username"],
+      "required": [
+        "username"
+      ],
       "additionalProperties": false,
       "properties": {
-        "username": { "type": "string", "minLength": 1 }
+        "username": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "bootImage": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" },
-        "architecture": { "type": "string", "enum": ["amd64", "arm64"] },
-        "language": { "type": "string", "minLength": 1 },
-        "scratchSpaceMB": { "type": "integer", "minimum": 32, "maximum": 1024 },
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        },
+        "architecture": {
+          "type": "string",
+          "enum": [
+            "amd64",
+            "arm64"
+          ]
+        },
+        "language": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scratchSpaceMB": {
+          "type": "integer",
+          "minimum": 32,
+          "maximum": 1024
+        },
         "optionalComponents": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "type": "string", "pattern": "^WinPE-[A-Za-z0-9-]+$" }
+          "items": {
+            "type": "string",
+            "pattern": "^WinPE-[A-Za-z0-9-]+$"
+          }
         },
         "extraContent": {
           "type": "array",
-          "items": { "$ref": "#/definitions/extraContentEntry" }
+          "items": {
+            "$ref": "#/definitions/extraContentEntry"
+          }
         },
-        "drivers": { "type": "string", "minLength": 1 }
+        "drivers": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entryCommand": {
+          "description": "What startnet.cmd launches. Empty means the builder's default deployment payload.",
+          "type": "string"
+        },
+        "skip": {
+          "description": "MDT's Skip* properties for the Welcome screen. These four live in the boot image, not in rules.yaml, because the Welcome screen runs before the share is reachable. An omitted rule means the workspace said nothing, which is NOT the same as false: Get-HDTWizardSkip's defaults are what keep an unattended image unattended.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "welcome": {
+              "description": "Skip the Welcome screen entirely.",
+              "type": "boolean"
+            },
+            "staticIp": {
+              "description": "Hide the static IP pane; DHCP is used.",
+              "type": "boolean"
+            },
+            "deployRoot": {
+              "description": "Hide the share box; bootstrap.json's value is used.",
+              "type": "boolean"
+            },
+            "credential": {
+              "description": "Hide the account pane; the embedded credential is used.",
+              "type": "boolean"
+            }
+          }
+        }
       }
     }
   },
   "definitions": {
     "extraContentEntry": {
       "type": "object",
-      "required": ["source", "destination"],
+      "required": [
+        "source",
+        "destination"
+      ],
       "additionalProperties": false,
       "properties": {
-        "source": { "type": "string", "minLength": 1 },
+        "source": {
+          "type": "string",
+          "minLength": 1
+        },
         "destination": {
           "description": "A path inside the image, rooted at the image and free of '..'.",
           "type": "string",

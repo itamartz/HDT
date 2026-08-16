@@ -98,6 +98,13 @@ $probe = [ordered] @{
     bootstrapRead      = $false
     deployRoot         = ''
 
+    skipWelcome        = $false
+    skipStaticIp       = $false
+    skipDeployRoot     = $false
+    skipCredential     = $false
+    skipSource         = @()
+    paneVisible        = @()
+
     fieldCount         = 0
     fieldName          = @()
 
@@ -190,7 +197,25 @@ if ($probe['moduleImported']) {
         }
     }
 
-    # -- 3. what belongs in every box ---------------------------------------
+    # -- 3. what to ask, and whether to ask at all --------------------------
+    #
+    # MDT's Skip* properties, resolved from the boot image because the Welcome
+    # screen runs before the share is reachable. THE DEFAULT IS SKIPPED: an
+    # image that can reach its share unaided deploys with nobody present, and
+    # that is what the unattended E2E proves.
+
+    $skip = Get-HDTWizardSkip -Bootstrap $bootstrap
+
+    $probe['skipWelcome'] = [bool] $skip.Welcome
+    $probe['skipStaticIp'] = [bool] $skip.StaticIp
+    $probe['skipDeployRoot'] = [bool] $skip.DeployRoot
+    $probe['skipCredential'] = [bool] $skip.Credential
+    $probe['skipSource'] = @($skip.Source | ForEach-Object { '{0}={1} ({2})' -f $_.Rule, $_.Value, $_.Source })
+    $probe['paneVisible'] = @($skip.Pane | Where-Object { $_.Visible } | ForEach-Object { [string] $_.Name })
+
+    & $say ('skip: {0}' -f (($probe['skipSource']) -join '; '))
+
+    # -- 4. what belongs in every box ---------------------------------------
 
     $field = @(Get-HDTWizardField -NetworkConfiguration $network -Bootstrap $bootstrap)
 
@@ -199,9 +224,19 @@ if ($probe['moduleImported']) {
 
     & $say ('{0} field(s): {1}' -f $probe['fieldCount'], (($probe['fieldName']) -join ', '))
 
-    # -- 4. show it, and close it again -------------------------------------
+    # -- 5. show it, and close it again -------------------------------------
+    #
+    # HDTSkipWelcome IS ENFORCED HERE, NOT IN Show-HDTWizard. Skipping the whole
+    # window means not calling it: a Show-HDTWizard that sometimes showed
+    # nothing would return an Action for a window nobody saw, and 'Cancel' from
+    # a wizard that never opened is indistinguishable from a technician
+    # cancelling one that did.
 
-    if ($probe['xamlPresent']) {
+    if ($probe['skipWelcome']) {
+        & $say 'the Welcome screen is skipped; nothing is shown and nothing waits.'
+    }
+
+    if ($probe['xamlPresent'] -and -not $probe['skipWelcome']) {
 
         # PostMessage, because the window belongs to the host and this script
         # never sees it. WM_CLOSE is the X, which is the dismissal
@@ -260,7 +295,7 @@ public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntP
 
             & $say ('showing {0}; dwelling {1}s for the screenshot' -f $XamlPath, $DwellSecond)
 
-            $answer = Show-HDTWizard -XamlPath $XamlPath -Title $title -Field $field
+            $answer = Show-HDTWizard -XamlPath $XamlPath -Title $title -Field $field -Pane $skip.Pane
 
             $probe['shown'] = $true
             $probe['action'] = [string] $answer.Action
@@ -276,7 +311,7 @@ public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntP
     }
 }
 
-# -- 5. write the answer somewhere that survives the machine -----------------
+# -- 6. write the answer somewhere that survives the machine -----------------
 
 if ([string]::IsNullOrWhiteSpace($ContentRoot)) {
     foreach ($letter in @('C', 'D', 'E', 'F', 'G', 'H')) {

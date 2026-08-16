@@ -1,0 +1,7 @@
+# The least a wizard definition can be: one page, named, with its markup.
+#
+# MDT's DeployWiz_Definition_ENU.xml with a single <Pane id= reference= />.
+schemaVersion: 1
+pages:
+  - id: Summary
+    reference: Summary.xaml

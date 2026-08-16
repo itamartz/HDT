@@ -60,6 +60,16 @@ function Show-HDTWizard {
             command interprets none of them. Omitted, the window opens with
             whatever the markup declares.
 
+        .PARAMETER Pane
+            Which panes are visible, from Get-HDTWizardSkip. Each entry is a
+            control Name and a Visible flag; the host collapses the ones that
+            are not. Omitted, every pane the markup declares is shown.
+
+            NOTE THAT HDTSkipWelcome IS NOT HANDLED HERE. Skipping the whole
+            window means NOT CALLING THIS COMMAND, which is the caller's
+            decision - a Show-HDTWizard that sometimes showed nothing would
+            return an Action for a window nobody saw.
+
         .PARAMETER WizardHost
             An IWizardHost. Defaults to the real adapter.
 
@@ -101,11 +111,23 @@ function Show-HDTWizard {
 
         [Parameter()]
         [AllowNull()]
+        [object[]] $Pane,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $WizardHost,
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # F8, THE SAME AS EVERY OTHER WINDOW IN THIS IMAGE. The Welcome screen
+        # is the first thing on the machine and the one shown when the share
+        # cannot be reached - which is exactly when a technician wants a prompt.
+        # A key that works on two of the three windows is a key nobody trusts.
+        [Parameter()]
+        [AllowNull()]
+        [scriptblock] $CommandPrompt
     )
 
     Set-StrictMode -Version Latest
@@ -113,6 +135,7 @@ function Show-HDTWizard {
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
     if ($null -eq $WizardHost) { $WizardHost = New-HDTWizardHost }
+    if ($null -eq $CommandPrompt) { $CommandPrompt = { [void] (Start-HDTCommandPrompt) } }
 
     # -- the window file, before anything is shown -------------------------
 
@@ -133,7 +156,7 @@ function Show-HDTWizard {
 
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field))
+    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt)
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these three exactly is a Cancel.

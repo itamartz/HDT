@@ -68,9 +68,45 @@ Describe 'the WinPE UI stack' {
 
     Context 'nothing that ships into the image reaches for WinForms' {
 
+        BeforeAll {
+            # CODE WITHOUT ITS COMMENTS, and the same lesson this file already
+            # learned for markup one context down: several of these files
+            # explain a rule by NAMING THE THING IT FORBIDS, which under a raw
+            # scan convicts the one file that had to say it.
+            #
+            # It happened here too. Start-HDTDeployment.ps1's header explains
+            # which assemblies it may not name - and naming them failed this
+            # rule, on a file that was correct.
+            #
+            # TOKENISED, NOT REGEXED. A '#' inside a string is not a comment, and
+            # a line-based stripper would eat half of one.
+            $script:codeOnly = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.ps1' -or $_.Relative -like '*.psm1' } |
+                    ForEach-Object {
+                        $token = $null
+                        $parseError = $null
+                        [void] [System.Management.Automation.Language.Parser]::ParseInput(
+                            $_.Text, [ref] $token, [ref] $parseError)
+
+                        $text = $_.Text
+                        foreach ($comment in @($token | Where-Object { $_.Kind -eq 'Comment' } |
+                                    Sort-Object { $_.Extent.StartOffset } -Descending)) {
+
+                            $text = $text.Remove($comment.Extent.StartOffset,
+                                $comment.Extent.EndOffset - $comment.Extent.StartOffset)
+                        }
+
+                        [pscustomobject] @{ Relative = $_.Relative; Text = $text }
+                    })
+        }
+
+        It 'stripped something, so the assertions below are not reading nothing' {
+            @($script:codeOnly).Count | Should -BeGreaterThan 50
+        }
+
         It 'references no <_>' -ForEach @('System.Windows.Forms', 'WindowsFormsIntegration') {
             $name = $PSItem
-            $offender = @($script:scanned |
+            $offender = @($script:codeOnly |
                     Where-Object { $_.Text -match [regex]::Escape($name) } |
                     ForEach-Object { $_.Relative })
 
@@ -80,7 +116,7 @@ Describe 'the WinPE UI stack' {
         }
 
         It 'pumps the message loop with the WPF dispatcher, not DoEvents' {
-            $offender = @($script:scanned |
+            $offender = @($script:codeOnly |
                     Where-Object { $_.Text -match 'DoEvents' } |
                     ForEach-Object { $_.Relative })
 
@@ -98,7 +134,33 @@ Describe 'the WinPE UI stack' {
         # out of the rules by existing.
 
         BeforeAll {
-            $script:window = @($script:scanned | Where-Object { $_.Relative -like '*.xaml' })
+            # MARKUP WITHOUT ITS COMMENTS, for every rule below. These files
+            # explain themselves at length, and several of them explain a rule
+            # by naming the thing it forbids - HDTTheme.xaml's header says why
+            # it is not merged with `ResourceDictionary Source=`, which under a
+            # raw scan convicts the one file that had to say it. Same trap the
+            # no-keystroke contract hit, same fix: judge the markup, not the
+            # prose.
+            $script:markup = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.xaml' } |
+                    ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Text     = $_.Text
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    })
+
+            # A WINDOW IS A FILE WHOSE ROOT IS <Window>, and the difference now
+            # matters: HDTTheme.xaml is a ResourceDictionary, so it has no Next
+            # button, no Cancel button and no business being asked for them. It
+            # is still markup that ships into the image, so every OTHER rule
+            # still applies to it.
+            $script:window = @($script:markup |
+                    Where-Object { ([xml] $_.Text).DocumentElement.LocalName -eq 'Window' })
+
+            $script:dictionary = @($script:markup |
+                    Where-Object { ([xml] $_.Text).DocumentElement.LocalName -eq 'ResourceDictionary' })
         }
 
         It 'found at least one window' {
@@ -106,11 +168,21 @@ Describe 'the WinPE UI stack' {
                 'the assertions below are vacuous with nothing to check')
         }
 
+        It 'found the theme dictionary' {
+            # Anti-vacuity for the split above: if the root-element test ever
+            # stopped recognising a dictionary, every dictionary would silently
+            # become a window and the button rule would start failing them -
+            # or worse, the split would quietly classify a real window as a
+            # dictionary and excuse it from the button rule entirely.
+            @($script:dictionary).Count | Should -BeGreaterThan 0 -Because (
+                'HDTTheme.xaml is a ResourceDictionary and the split must see it as one')
+        }
+
         It 'declares no code-behind class in any window' {
             # There is no compiler in WinPE to build a partial class against, so
             # XamlReader::Load - which parses markup only - is the only way in.
             $offender = @()
-            foreach ($row in $script:window) {
+            foreach ($row in $script:markup) {
                 $document = [xml] $row.Text
                 if (-not [string]::IsNullOrEmpty($document.DocumentElement.GetAttribute('Class', 'http://schemas.microsoft.com/winfx/2006/xaml'))) {
                     $offender += $row.Relative
@@ -124,15 +196,18 @@ Describe 'the WinPE UI stack' {
             # Another file that would have to reach the RAM disk intact. Every
             # increment that adds one has to add it to the image as well, and
             # this is where that gets noticed.
-            $offender = @($script:window |
-                    Where-Object { $_.Text -match 'ResourceDictionary\s+Source=' } |
+            # EVERY .xaml, not only the windows: a dictionary that merged
+            # another dictionary would put the same second file on the RAM disk
+            # by a longer route.
+            $offender = @($script:markup |
+                    Where-Object { $_.Code -match 'ResourceDictionary\s+Source=' } |
                     ForEach-Object { $_.Relative })
 
             @($offender).Count | Should -Be 0 -Because ('external resources in: {0}' -f ($offender -join ', '))
         }
 
         It 'parses as XML' {
-            foreach ($row in $script:window) {
+            foreach ($row in $script:markup) {
                 { [xml] $row.Text } | Should -Not -Throw -Because $row.Relative
             }
         }
@@ -140,9 +215,42 @@ Describe 'the WinPE UI stack' {
         It 'names its buttons so the backend can find them' {
             # FindName is how handlers are attached with no code-behind, so a
             # page whose buttons are anonymous cannot be wired at all.
-            foreach ($row in $script:window) {
-                $row.Text | Should -BeLike '*HDTNextButton*' -Because $row.Relative
-                $row.Text | Should -BeLike '*HDTCancelButton*' -Because $row.Relative
+            # WINDOWS ONLY. A ResourceDictionary has no buttons to name.
+            #
+            # A WINDOW THAT ASKS SOMETHING NEEDS BOTH ANSWERS. A window that
+            # asks nothing needs neither: HDTProgress.xaml is a STATUS BOARD,
+            # shown while a deployment runs, and there is nothing on it to
+            # approve or cancel. Giving it a Next would be giving a technician a
+            # button that does nothing, and a Cancel would be a corner that
+            # makes a running deployment's only screen disappear.
+            #
+            # THE TEST IS "DOES IT HAVE BUTTONS AT ALL", NOT "IS IT THE PROGRESS
+            # WINDOW". Naming the exception by file is the trap this context's
+            # own header warns about - the next status board would inherit the
+            # rule by being new. This way, the moment anything is given a
+            # button, it must have both of the ones the host wires.
+            $asking = @($script:window | Where-Object { $_.Code -match '<Button' })
+
+            @($asking).Count | Should -BeGreaterThan 0 -Because (
+                'the assertion below is vacuous if no window has any buttons')
+
+            foreach ($row in $asking) {
+                $row.Code | Should -BeLike '*HDTNextButton*' -Because $row.Relative
+                $row.Code | Should -BeLike '*HDTCancelButton*' -Because $row.Relative
+            }
+        }
+
+        It 'has at least one window that asks nothing, and it declares no buttons' {
+            # The other side of the rule above, so "no buttons" cannot quietly
+            # become the way every window opts out of it.
+            $silent = @($script:window | Where-Object { $_.Code -notmatch '<Button' })
+
+            @($silent).Count | Should -BeGreaterThan 0 -Because (
+                'HDTProgress.xaml is a status board and must stay one')
+
+            foreach ($row in $silent) {
+                $row.Code | Should -Not -BeLike '*HDTNextButton*' -Because $row.Relative
+                $row.Code | Should -Not -BeLike '*HDTCancelButton*' -Because $row.Relative
             }
         }
     }
@@ -197,6 +305,224 @@ Describe 'the WinPE UI stack' {
             @($offender).Count | Should -Be 0 -Because (
                 'FindName returns null rather than throwing, so this is a control that silently does nothing in WinPE. Found: {0}' -f
                     ($offender -join ', '))
+        }
+    }
+
+    Context 'every button a window offers is a button the engine wires' {
+
+        # THE OTHER DIRECTION, AND IT IS THE ONE THAT WAS ACTUALLY WRONG.
+        # The context above catches a name the engine reaches for and no window
+        # answers to. THIS catches the mirror image: a button a technician can
+        # SEE AND PRESS that no engine code mentions at all.
+        #
+        # HDTWizardShell.xaml shipped an "Open CMD" button named
+        # HDTCommandPromptButton while New-HDTWizardHost wired HDTOpenCmdButton.
+        # Both files were internally consistent and every existing assertion
+        # passed. The button was simply dead - it did not open a prompt, and it
+        # did not even close the window. The one place that failure is visible
+        # is in front of the machine, which is the one place there is no test.
+        #
+        # A DEAD BUTTON IS WORSE THAN A MISSING ONE. A wizard with no escape
+        # hatch tells a technician to find another way; a wizard with one that
+        # does nothing tells them the machine is hung.
+        #
+        # MATCHED ON MENTION, NOT ON FindName. The host reaches for its buttons
+        # through a table - FindName([string] $pair.Name) - so a scan for
+        # FindName('literal') sees none of them. What is being asserted is
+        # weaker and honest: the engine names this control SOMEWHERE. A name
+        # nothing in src/ even mentions cannot be wired by any route.
+
+        BeforeAll {
+            # COMPUTED HERE, NOT BORROWED. $script:window is built by another
+            # Context's BeforeAll, and a Context that only works because an
+            # earlier one ran is a Context that breaks the day someone runs this
+            # file with -FullNameFilter.
+            $script:buttonWindow = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.xaml' } |
+                    ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    } |
+                    Where-Object { ([xml] $_.Code).DocumentElement.LocalName -eq 'Window' })
+
+            $script:declaredButton = @($script:buttonWindow | ForEach-Object {
+                    $relative = $_.Relative
+                    $document = [xml] $_.Code
+
+                    @($document.SelectNodes('//*')) |
+                        Where-Object { $_.LocalName -eq 'Button' } |
+                        ForEach-Object {
+                            $name = $_.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml')
+                            if (-not [string]::IsNullOrEmpty($name)) {
+                                [pscustomobject] @{ Name = $name; Relative = $relative }
+                            }
+                        }
+                    })
+
+            $script:engineText = @($script:scanned |
+                    Where-Object { $_.Relative -like '*.ps1' } |
+                    ForEach-Object { $_.Text })
+        }
+
+        It 'found buttons to judge' {
+            @($script:declaredButton).Count | Should -BeGreaterThan 3 -Because (
+                'the assertion below is vacuous with no buttons found, and every window ships at least Next and Cancel')
+        }
+
+        It 'names no button the engine never mentions' {
+            $offender = @($script:declaredButton | Where-Object {
+                    $name = $_.Name
+                    -not @($script:engineText | Where-Object { $_ -match [regex]::Escape($name) })
+                } | ForEach-Object { '{0} ({1})' -f $_.Name, $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'a button no engine code names is one a technician can press and nothing happens. Found: {0}' -f
+                    ($offender -join ', '))
+        }
+    }
+
+    Context 'F8 opens a command prompt from every window in the image' {
+
+        # MDT's boot image has "Enable command support (testing only)" and every
+        # technician who has debugged a deployment knows what F8 does. Nothing in
+        # WinPE provides that key - ConfigMgr's boot shell implements it, MDT's
+        # implements it, and so does this - so it has to be wired once per host,
+        # and a host that forgot is a key that silently does nothing.
+        #
+        # A KEY THAT WORKS ON TWO WINDOWS OUT OF THREE IS A KEY NOBODY TRUSTS,
+        # which is why this is a rule and not three separate assertions written
+        # when each window happened to be built.
+
+        It 'wires F8 in <_>' -ForEach @(
+            'New-HDTWizardHost.ps1',      # the Welcome screen AND the shell
+            'New-HDTProgressHost.ps1') {  # the status board, where it matters most
+
+            $path = Join-Path -Path $script:sourceRoot -ChildPath ('Public/{0}' -f $PSItem)
+
+            Test-Path -LiteralPath $path | Should -BeTrue
+            (Get-Content -LiteralPath $path -Raw) | Should -Match 'Key\]::F8' -Because (
+                '{0} draws a window a technician looks at in WinPE' -f $PSItem)
+        }
+
+        It 'hands the progress window a path rather than making it resolve one' {
+            # That window runs in its own runspace with no Hephaestus module in
+            # it, so it cannot call Start-HDTCommandPrompt. Importing a module on
+            # a RAM disk to answer a keypress is not the fix.
+            $path = Join-Path -Path $script:sourceRoot -ChildPath 'Public/New-HDTProgressHost.ps1'
+
+            (Get-Content -LiteralPath $path -Raw) | Should -Match 'HDTCommandPromptPath'
+        }
+
+        It 'never lets a keystroke take a window down with it' {
+            # Both handlers run on a UI thread the engine cannot see. An
+            # exception in one would leave a machine deploying behind a dead
+            # screen, which is strictly worse than a key that did nothing.
+            $progress = Get-Content -LiteralPath (
+                Join-Path -Path $script:sourceRoot -ChildPath 'Public/New-HDTProgressHost.ps1') -Raw
+
+            $progress | Should -Match '(?s)Key\]::F8.*?try\s*\{'
+        }
+    }
+
+    Context 'no page sets a member the theme has already claimed for a style' {
+
+        # FOUND ON A LIVE MACHINE, AND ONLY THERE. A WinPE VM reached the Ready
+        # to Deploy page and died with
+        #
+        #     Cannot set unknown member 'System.Windows.Controls.TextBox.IsReadOnly'
+        #
+        # on a page that loads perfectly well on a desktop, and perfectly well in
+        # WinPE ON ITS OWN. Bisecting the theme inside WinPE found the cause:
+        # once HDTTheme.xaml's `<Style x:Key="HDTAddressBox" TargetType="TextBox">`
+        # has been parsed, WPF's XAML schema context stops recognising
+        # TextBox.IsReadOnly AS AN ATTRIBUTE for every later XamlReader::Load in
+        # the process. The theme is merged before every page, so every page
+        # afterwards is in the poisoned process.
+        #
+        # THE .NET VERSION IS NOT THE DIFFERENCE - WinPE carries the same
+        # PresentationFramework 4.8 the host does. LOAD ORDER is: a desktop probe
+        # that loads one page in a fresh runspace never sees it, which is exactly
+        # why this reached a booted machine.
+        #
+        # SO THE MEMBER LIVES IN THE THEME, where a Setter still resolves it, and
+        # a page asks for the style by name. That is where the wizard's look
+        # belongs anyway; this is the reason it is not merely a preference.
+        #
+        # THE SAMPLE PAGES ARE SCANNED TOO. The offending file was
+        # samples/workspace/Scripts/UI/Summary.xaml - a SHARE page, outside
+        # src/Hephaestus, and therefore outside every other rule in this file.
+        # A rule that could not see the file that broke a deployment is not a
+        # rule.
+
+        BeforeAll {
+            $script:pageRoot = Join-Path -Path $script:repoRoot -ChildPath 'samples/workspace/Scripts/UI'
+
+            $script:everyMarkup = @($script:scanned | Where-Object { $_.Relative -like '*.xaml' })
+
+            if (Test-Path -LiteralPath $script:pageRoot) {
+                $script:everyMarkup += @(Get-ChildItem -LiteralPath $script:pageRoot -Recurse -File -Filter '*.xaml' |
+                        ForEach-Object {
+                            [pscustomobject] @{
+                                Relative = $_.FullName.Substring($script:repoRoot.Length).TrimStart('\', '/')
+                                Text     = [System.IO.File]::ReadAllText($_.FullName)
+                            }
+                        })
+            }
+
+            # COMMENTS STRIPPED, for the reason the whole file already knows: the
+            # markup below explains the trap in prose, and a raw scan convicts
+            # the file that documented it.
+            $script:everyCode = @($script:everyMarkup | ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    })
+        }
+
+        It 'scanned the share pages as well as the module markup' {
+            # Anti-vacuity, and it is the point of the whole context: the file
+            # that broke a live deployment lives under samples/, not src/.
+            @($script:everyCode | Where-Object { $_.Relative -like '*samples*' }).Count |
+                Should -BeGreaterThan 0 -Because 'the wizard pages on the share are markup this rule must see'
+        }
+
+        It 'sets IsReadOnly nowhere as a direct attribute' {
+            $offender = @($script:everyCode |
+                    Where-Object { $_.Code -match '<[A-Za-z][^>]*\sIsReadOnly\s*=' } |
+                    ForEach-Object { $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'HDTTheme.xaml poisons TextBox.IsReadOnly as an attribute for every later XamlReader::Load in WinPE - ' +
+                'ask the theme for a style instead. Found: {0}' -f ($offender -join ', '))
+        }
+
+        It 'asks the theme for nothing with StaticResource on a share page' {
+            # A SHARE PAGE IS PARSED ON ITS OWN. New-HDTWizardHost loads the page
+            # and only then puts it inside the shell, so at parse time there is
+            # no dictionary above it: a StaticResource throws "Provide value on
+            # 'System.Windows.StaticResourceExtension' threw an exception" and
+            # the page never appears. A DynamicResource is resolved once the page
+            # is attached, which is the only form that can work here.
+            #
+            # THE MODULE'S OWN MARKUP IS EXEMPT - the shell and the theme are
+            # loaded as whole documents and may resolve their own keys.
+            $offender = @($script:everyCode |
+                    Where-Object { $_.Relative -like '*samples*' -and $_.Code -match '\{\s*StaticResource' } |
+                    ForEach-Object { $_.Relative })
+
+            @($offender).Count | Should -Be 0 -Because (
+                'a share page is parsed detached, so StaticResource cannot resolve. Found: {0}' -f ($offender -join ', '))
+        }
+
+        It 'still offers a style that carries it, so the rule above is not a ban on read-only boxes' {
+            $theme = @($script:everyCode | Where-Object { $_.Relative -like '*HDTTheme.xaml' })
+
+            @($theme).Count | Should -Be 1
+            $theme[0].Code | Should -Match 'x:Key="HDTSnippetBox"' -Because (
+                'the Ready to Deploy page needs a selectable read-only box and may no longer say so itself')
         }
     }
 }

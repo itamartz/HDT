@@ -130,6 +130,18 @@ function Invoke-HDTStepAttempt {
                 attempt = $attempt
             })
 
+        # THE SCREEN, IMMEDIATELY AFTER THE RECORD THAT CHANGED IT. This is the
+        # point where the step a technician is watching becomes the step that is
+        # running - before the work, not after it - so the name on screen is the
+        # thing taking the time rather than the thing that just finished.
+        #
+        # IT READS THE LOG BACK RATHER THAN BEING TOLD. DESIGN 11.1: one source
+        # of truth, so the screen and the log cannot disagree.
+        #
+        # A RUN WITH NO DISPLAY RETURNS BEFORE READING ANYTHING, and nothing
+        # here can fail a deployment - see Update-HDTProgressDisplay.
+        Update-HDTProgressDisplay -Context $Context
+
         $thrown = $null
         $startedUtc = $clock.GetUtcNow()
 

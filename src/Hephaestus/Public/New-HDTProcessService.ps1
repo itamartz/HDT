@@ -143,5 +143,41 @@ function New-HDTProcessService {
         }
     }
 
+    # A PROCESS NOBODY WAITS FOR, AND WITH A WINDOW. Start above is right for a
+    # command line step: both pipes redirected, CreateNoWindow, wait for exit.
+    # Every one of those is wrong for MDT's "Exit to Command Prompt" - an
+    # interactive prompt has no output to capture, MUST have a window, and must
+    # not block the thread that opened it.
+    #
+    # UseShellExecute = $true IS WHAT GIVES IT A CONSOLE. With it false the
+    # child inherits this process's handles and, in WinPE, opens into the
+    # console the wizard hid - a prompt the technician cannot see.
+    #
+    # SO IT IS A SEPARATE VERB RATHER THAN A FLAG ON Start. A caller cannot then
+    # get an interactive prompt by passing the wrong timeout, and neither method
+    # has to branch on which kind of process it is running.
+    $service | Add-Member -MemberType ScriptMethod -Name StartInteractive -Value {
+        param([string] $FilePath, [string] $Argument, [string] $WorkingDirectory)
+
+        $this.Record('StartInteractive', @($FilePath, $Argument, $WorkingDirectory))
+
+        $startInfo = New-Object -TypeName System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $FilePath
+        $startInfo.Arguments = $Argument
+        $startInfo.UseShellExecute = $true
+        $startInfo.CreateNoWindow = $false
+
+        if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) {
+            $startInfo.WorkingDirectory = $WorkingDirectory
+        }
+
+        $process = [System.Diagnostics.Process]::Start($startInfo)
+
+        return [pscustomobject] @{
+            ProcessId = [int] $process.Id
+            FilePath  = $FilePath
+        }
+    }
+
     return $service
 }

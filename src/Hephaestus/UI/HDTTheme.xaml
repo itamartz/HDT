@@ -1,0 +1,324 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        THE ONE PLACE THE WIZARD'S LOOK IS DEFINED.
+
+        WHY A DICTIONARY NOTHING REFERENCES BY NAME. A merged
+        `ResourceDictionary Source="..."` is refused by
+        tests/contract/WinPeUiStack.Contract.Tests.ps1, and for a good reason:
+        a page that names a second file has a second file that must reach the
+        RAM disk intact, and a WinPE machine with half its UI is a machine
+        showing an exception instead of a wizard.
+
+        So no page references this file. New-HDTWizardHost READS IT AND MERGES
+        IT at runtime, before it loads the page - the page is pure layout and
+        inherits everything below. The image still carries two files, but the
+        page cannot half-load: if the theme is missing the host says so, in one
+        sentence, instead of WPF throwing a XamlParseException at a technician.
+
+        DESIGN 11.2 puts eight more pages under Scripts\UI on the SHARE, read
+        after connecting. They inherit this same dictionary through the same
+        host, which is the whole point of doing it here rather than in the
+        markup: a colour changes once, not nine times.
+
+        EVERY VALUE IS A RESOURCE, INCLUDING THE FONT SIZES. A page that writes
+        FontSize="15" has an opinion this file cannot override, and the next
+        person to be told "make it bigger" has to find all of them again.
+    -->
+
+    <!-- ============ colour ============ -->
+    <!--
+        Dark, because WinPE boots into a black screen and a white window is a
+        flashbang in a server room at 3am. The accent is Windows' own #0E639C.
+    -->
+    <SolidColorBrush x:Key="HDTSurfaceBrush" Color="#FF1E1E1E" />
+    <SolidColorBrush x:Key="HDTBannerBrush" Color="#FF0E639C" />
+    <SolidColorBrush x:Key="HDTFooterBrush" Color="#FF252526" />
+    <SolidColorBrush x:Key="HDTFieldBrush" Color="#FF2D2D30" />
+    <SolidColorBrush x:Key="HDTFieldReadOnlyBrush" Color="#FF232326" />
+    <SolidColorBrush x:Key="HDTBorderBrush" Color="#FF3F3F46" />
+
+    <SolidColorBrush x:Key="HDTTextBrush" Color="White" />
+    <SolidColorBrush x:Key="HDTLabelBrush" Color="#FFCCCCCC" />
+    <SolidColorBrush x:Key="HDTSubtleBrush" Color="#FFD6E9F5" />
+    <SolidColorBrush x:Key="HDTHintBrush" Color="#FF8A8A8A" />
+    <SolidColorBrush x:Key="HDTReadOnlyTextBrush" Color="#FF9A9A9A" />
+
+    <!-- Amber warns, red fails. A missing share has not failed yet. -->
+    <SolidColorBrush x:Key="HDTWarningBrush" Color="#FFD9A441" />
+    <SolidColorBrush x:Key="HDTErrorBrush" Color="#FFF48771" />
+
+    <SolidColorBrush x:Key="HDTHoverBrush" Color="#FFE6E6E6" />
+    <SolidColorBrush x:Key="HDTPressedBrush" Color="#FFBDBDBD" />
+    <!--
+        DISABLED MUST STILL BE LEGIBLE. These were #FF2A2A2A on a #FF252526
+        footer with #FF6E6E6E text - a difference of five values against the
+        background, which did not read as "disabled", it read as "there is no
+        Back button". A control a technician cannot see is a control they will
+        ask about, and on the Deploying page they will ask whether the wizard
+        is broken.
+    -->
+    <!--
+        AND IT MUST STILL READ AS DISABLED. The secondary buttons are already
+        #FF3A3A3C, so matching that would make disabled and enabled identical -
+        trading an invisible button for a lying one. The surface sits between
+        the footer and an enabled button; the TEXT is what carries the state,
+        dim grey against white.
+    -->
+    <SolidColorBrush x:Key="HDTDisabledBrush" Color="#FF2F2F31" />
+    <SolidColorBrush x:Key="HDTDisabledTextBrush" Color="#FF8C8C8C" />
+
+    <!-- ============ type ============ -->
+    <!--
+        Sized for a monitor wheeled up to a bench and read standing, not a desk
+        at arm's length. The scale is title / heading / body / label / hint.
+    -->
+    <System:Double x:Key="HDTTitleSize" xmlns:System="clr-namespace:System;assembly=mscorlib">30</System:Double>
+    <System:Double x:Key="HDTHeadingSize" xmlns:System="clr-namespace:System;assembly=mscorlib">19</System:Double>
+    <System:Double x:Key="HDTBodySize" xmlns:System="clr-namespace:System;assembly=mscorlib">16</System:Double>
+    <System:Double x:Key="HDTLabelSize" xmlns:System="clr-namespace:System;assembly=mscorlib">15</System:Double>
+    <System:Double x:Key="HDTHintSize" xmlns:System="clr-namespace:System;assembly=mscorlib">14</System:Double>
+    <System:Double x:Key="HDTFieldHeight" xmlns:System="clr-namespace:System;assembly=mscorlib">32</System:Double>
+
+    <Style x:Key="HDTTitleText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTTitleSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="HDTSubtitleText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HDTSubtleBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTBodySize}" />
+        <Setter Property="Margin" Value="0,4,0,0" />
+    </Style>
+
+    <Style x:Key="HDTHeadingText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTHeadingSize}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="HDTBodyText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTBodySize}" />
+    </Style>
+
+    <Style x:Key="HDTLabelText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTLabelSize}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="HDTHintText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource HDTHintBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTHintSize}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="HDTWarningText" TargetType="TextBlock" BasedOn="{StaticResource HDTHintText}">
+        <Setter Property="Foreground" Value="{StaticResource HDTWarningBrush}" />
+    </Style>
+
+    <Style x:Key="HDTErrorText" TargetType="TextBlock" BasedOn="{StaticResource HDTHintText}">
+        <Setter Property="Foreground" Value="{StaticResource HDTErrorBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTLabelSize}" />
+    </Style>
+
+    <!-- ============ controls ============ -->
+
+    <Style TargetType="TextBox">
+        <Setter Property="Height" Value="{StaticResource HDTFieldHeight}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HDTBorderBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTLabelSize}" />
+    </Style>
+
+    <Style TargetType="PasswordBox">
+        <Setter Property="Height" Value="{StaticResource HDTFieldHeight}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HDTBorderBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTLabelSize}" />
+    </Style>
+
+    <Style TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTBodySize}" />
+    </Style>
+
+    <!--
+        THE ADDRESS BOXES FOLLOW THE RADIO, DECLARATIVELY. A DataTrigger bound
+        to HDTUseStaticRadio.IsChecked - no code-behind, because there is no
+        compiler in WinPE and the contract refuses one.
+
+        READ-ONLY, NOT DISABLED. Under DHCP these boxes SHOW THE LEASE the
+        machine actually got, so a technician can read what it was given before
+        deciding whether to override it. A disabled box greys its text out and
+        is harder to read, which defeats the point.
+    -->
+    <Style x:Key="HDTAddressBox" TargetType="TextBox">
+        <Setter Property="Height" Value="{StaticResource HDTFieldHeight}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="BorderBrush" Value="{StaticResource HDTBorderBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource HDTLabelSize}" />
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldReadOnlyBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HDTReadOnlyTextBrush}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsChecked, ElementName=HDTUseStaticRadio}" Value="True">
+                <Setter Property="IsReadOnly" Value="False" />
+                <Setter Property="Background" Value="{StaticResource HDTFieldBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--
+        THE READ-ONLY SNIPPET BOX - Ready to Deploy's rules.yaml, and anything
+        later that shows a file rather than asks for a value.
+
+        IT IS HERE, AND NOT ON THE PAGE, BECAUSE OF A DEFECT FOUND ON A BOOTED
+        MACHINE. Summary.xaml carried `IsReadOnly="True"` as a plain attribute
+        and died in WinPE with
+
+            Cannot set unknown member 'System.Windows.Controls.TextBox.IsReadOnly'
+
+        on a page that loads perfectly on a desktop, and perfectly in WinPE ON
+        ITS OWN. Bisecting this dictionary inside WinPE found the cause: once
+        HDTAddressBox above has been parsed, WPF's XAML schema context stops
+        recognising TextBox.IsReadOnly AS AN ATTRIBUTE for every later
+        XamlReader::Load in the process - and the host merges this file before
+        every page, so every page is in that process. Qualifying the setter as
+        TextBoxBase.IsReadOnly does not help; the Style itself is what does it.
+
+        A SETTER STILL RESOLVES IT, which is the whole reason this style exists:
+        the member the pages may no longer name, named once, here.
+
+        READ-ONLY, NOT DISABLED, AND SELECTABLE - a technician with a phone
+        camera or a USB stick has to be able to get this text off the machine,
+        and a disabled box greys its text out and cannot be selected.
+
+        Height IS EXPLICITLY Auto. The field boxes are 32px tall by design;
+        without this a page-sized snippet would be one line with the rest
+        scrolled out of sight.
+    -->
+    <Style x:Key="HDTSnippetBox" TargetType="TextBox">
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="AcceptsReturn" Value="True" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+        <Setter Property="Height" Value="Auto" />
+        <Setter Property="VerticalAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Top" />
+        <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+        <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="FontFamily" Value="Consolas" />
+        <Setter Property="FontSize" Value="{StaticResource HDTHintSize}" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldReadOnlyBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HDTBorderBrush}" />
+    </Style>
+
+    <!--
+        THE BUTTON TEMPLATE, and it is here because of a real defect: WPF's
+        DEFAULT button template paints its own light hover chrome UNDERNEATH
+        the content, so white text on a dark button becomes unreadable the
+        moment the mouse touches it. Setting Background alone does not fix it -
+        the default template ignores it on hover.
+
+        So the template is replaced outright, and the hover and pressed states
+        set the FOREGROUND to black against a light surface. A technician must
+        be able to read the button they are about to press.
+    -->
+    <Style TargetType="Button">
+        <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="FontSize" Value="{StaticResource HDTBodySize}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="HDTButtonSurface"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HDTButtonSurface" Property="Background" Value="{StaticResource HDTHoverBrush}" />
+                            <Setter Property="Foreground" Value="Black" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="HDTButtonSurface" Property="Background" Value="{StaticResource HDTPressedBrush}" />
+                            <Setter Property="Foreground" Value="Black" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="HDTButtonSurface" Property="Background" Value="{StaticResource HDTDisabledBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource HDTDisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        THE EYE gets its own template for the same reason: the default
+        ToggleButton chrome paints light-on-light on hover, and an eye you
+        cannot see is worse than no eye.
+    -->
+    <Style TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource HDTLabelBrush}" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="HDTToggleSurface" Background="{TemplateBinding Background}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="HDTToggleSurface" Property="Background" Value="{StaticResource HDTBannerBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HDTToggleSurface" Property="Background" Value="{StaticResource HDTHoverBrush}" />
+                            <Setter Property="Foreground" Value="Black" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        THE PROGRESS BAR. Flat, accent-coloured, no animation: WinPE renders in
+        software on a VM console, and the default template's shimmer costs
+        frames that a technician reads as the deployment being stuck.
+    -->
+    <Style TargetType="ProgressBar">
+        <Setter Property="Height" Value="8" />
+        <Setter Property="Background" Value="{StaticResource HDTFieldReadOnlyBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HDTBannerBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}" />
+                        <Border x:Name="PART_Track" />
+                        <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                                Background="{TemplateBinding Foreground}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

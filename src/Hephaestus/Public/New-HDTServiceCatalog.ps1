@@ -150,7 +150,15 @@ function New-HDTServiceCatalog {
 
         [Parameter()]
         [AllowNull()]
-        [object] $Content = $null
+        [object] $Content = $null,
+
+        # NULL IS THE NORMAL CASE, AND IT COSTS NOTHING. A run with no progress
+        # display never reads its own log to draw one - see
+        # Update-HDTProgressDisplay. DESIGN 11.1's HDTSkipProgress and every
+        # sequence test in the suite arrive here as $null.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Progress = $null
     )
 
     Set-StrictMode -Version Latest
@@ -169,6 +177,7 @@ function New-HDTServiceCatalog {
         Disk          = $Disk
         Image         = $Image
         Content       = $Content
+        Progress      = $Progress
     }
 
     $catalog | Add-Member -MemberType ScriptMethod -Name GetRequired -Value {

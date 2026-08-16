@@ -83,6 +83,27 @@ Describe 'Get-HDTVariableMap' {
         (Get-HDTVariableMap -Name 'HDTRecoveryVolume').MdtName | Should -BeExactly 'RecoveryVolume'
     }
 
+    It 'carries the locale settings the Locale and Time page collects' {
+        # MDT'S PANE ASKS FOUR THINGS and HDT named only one of them. A wizard
+        # page that collects a variable the map does not know about is a
+        # variable nothing can document, translate to MDT, or report on - and
+        # DESIGN 11.2 lists this page as collecting "HDTTimeZoneName, locale"
+        # without ever saying what "locale" is spelled.
+        foreach ($pair in @(
+                @{ HDT = 'HDTUILanguage'; Mdt = 'UILanguage' }
+                @{ HDT = 'HDTUserLocale'; Mdt = 'UserLocale' }
+                @{ HDT = 'HDTKeyboardLocale'; Mdt = 'KeyboardLocale' }
+                @{ HDT = 'HDTTimeZoneName'; Mdt = 'TimeZoneName' })) {
+
+            $row = @(Get-HDTVariableMap -Name $pair.HDT)
+
+            $row.Count | Should -Be 1 -Because ("{0} is collected by the Locale and Time page" -f $pair.HDT)
+            $row[0].MdtName | Should -BeExactly $pair.Mdt
+            $row[0].Origin | Should -BeExactly 'authored'
+            $row[0].Description | Should -Not -BeNullOrEmpty
+        }
+    }
+
     It 'leaves the two with no MDT counterpart empty' {
         (Get-HDTVariableMap -Name 'HDTImageIndex').MdtName | Should -BeNullOrEmpty
         (Get-HDTVariableMap -Name 'HDTUnattendPath').MdtName | Should -BeNullOrEmpty

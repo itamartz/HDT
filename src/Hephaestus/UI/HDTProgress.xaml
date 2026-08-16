@@ -1,0 +1,158 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Hephaestus Deployment Toolkit"
+    WindowStyle="None"
+    WindowState="Maximized"
+    ResizeMode="NoResize"
+    Background="#FF1E1E1E">
+
+    <!--
+        DESIGN 11.1'S PROGRESS WINDOW, IN MDT'S SHAPE: a modest card in the
+        middle of a full-screen backdrop.
+
+        BOTH HALVES ARE LOAD-BEARING AND THEY COME FROM DIFFERENT PLACES.
+
+        THE CARD IS MDT'S. LiteTouch shows a centred "Installation Progress"
+        dialog - sequence, step, a bar - and an admin has watched that dialog a
+        thousand times. A full-screen takeover of numbers reads as a kiosk
+        rather than as a deployment, and the first draft of this file was one.
+
+        THE BACKDROP IS WinPE'S. It is why DESIGN 11.1 asked for full-screen at
+        all: behind this window is a console the payload hid, and around a small
+        dialog a technician would see the black edges of a half-drawn
+        X:\Windows\system32> prompt - which is the exact thing this section
+        exists to stop them seeing. MDT solves it with a deployment wallpaper;
+        this solves it with the window's own ground.
+
+        NO X, NO TITLE BAR, NO BUTTONS. There is nothing here to answer - it is
+        a status board, not a dialog - and a deployment screen with a corner
+        that makes it disappear is a deployment nobody can account for.
+
+        EVERY VALUE COMES FROM Get-HDTDeploymentProgress, which derives it from
+        the JSONL stream the engine writes anyway (DESIGN 11.1: driven by the
+        event stream, not by a parallel progress API). The screen and the log
+        cannot disagree, because they are the same facts.
+
+        NO x:Class AND NO MERGED DICTIONARY, for the reason every window in this
+        image carries: there is no compiler in WinPE, and a second file that
+        must reach the RAM disk intact is a XamlParseException waiting for the
+        one machine nobody can debug.
+    -->
+
+    <!--
+        THE SAME GROUND THE WIZARD STANDS ON. This was a navy backdrop, which
+        made the two surfaces of one product look like two products - a
+        technician sees the wizard and then this, minutes apart, on the same
+        machine. HDTWizardShell.xaml paints #FF1E1E1E and its panels #FF252526,
+        and so does this.
+
+        THE ROOT PAINTS ITS OWN GROUND. Window.Background alone is not enough:
+        anything rendering this tree without the Window around it gets whatever
+        is behind it, and it cost exactly one screenshot to learn that on the
+        wizard.
+    -->
+    <Grid Background="#FF1E1E1E">
+
+        <!--
+            THE CARD. Fixed width so the layout does not reflow on a 1024x768
+            WinPE screen and a 1920x1080 one into two different-looking
+            products; centred both ways so it lands where a dialog would.
+        -->
+        <Border Width="720" VerticalAlignment="Center" HorizontalAlignment="Center"
+                Background="#FF252526" BorderBrush="#FF3A3A3C" BorderThickness="1">
+            <StackPanel Margin="36,30,36,30">
+
+                <!-- ============ who this machine is ============ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock x:Name="HDTProgressComputerName" Text="" Foreground="White"
+                                   FontSize="26" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="HDTProgressSequenceName" Text="" Foreground="#FFCCCCCC"
+                                   FontSize="15" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <!--
+                        THE PHASE ANSWERS THE FIRST QUESTION a technician has
+                        about a machine that has been running twenty minutes:
+                        has it rebooted yet, or is it still in WinPE?
+                    -->
+                    <Border Grid.Column="1" Background="#FF0E639C" Padding="14,5" VerticalAlignment="Top">
+                        <TextBlock x:Name="HDTProgressPhase" Text="" Foreground="White"
+                                   FontSize="14" FontWeight="SemiBold" />
+                    </Border>
+                </Grid>
+
+                <Border Height="1" Background="#FF3A3A3C" Margin="0,22,0,22" />
+
+                <!-- ============ what it is doing ============ -->
+                <TextBlock x:Name="HDTProgressStepGroup" Text="" Foreground="#FF8A8A8A"
+                           FontSize="13" Margin="0,0,0,6" TextTrimming="CharacterEllipsis" />
+
+                <!--
+                    TWO LINES OF ROOM AND NO MORE. A step name is authored on the
+                    share and can be any length; without a bound, a long one
+                    would push the bar off the card - and the bar is the control
+                    a technician is actually looking at.
+                -->
+                <TextBlock x:Name="HDTProgressStepName" Text="" Foreground="White"
+                           FontSize="20" TextWrapping="Wrap" MaxHeight="56"
+                           TextTrimming="CharacterEllipsis" />
+
+                <TextBlock x:Name="HDTProgressStepCounter" Text="" Foreground="#FFCCCCCC"
+                           FontSize="15" Margin="0,10,0,0" />
+
+                <!--
+                    A REAL BAR, NOT A MARQUEE. An indeterminate animation says
+                    "not hung" and nothing else; the counter above and the fill
+                    here say how far through the sequence this machine is.
+                -->
+                <ProgressBar x:Name="HDTProgressBar" Height="14" Minimum="0" Maximum="100" Value="0"
+                             Margin="0,16,0,0" Background="#FF1E1E1E" Foreground="#FF0E639C"
+                             BorderBrush="#FF3A3A3C" BorderThickness="1" />
+
+                <!-- ============ how long, and how it is going ============ -->
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--
+                        THE STATUS LINE IS WHERE A FAILURE LANDS, painted by a
+                        trigger on the text rather than by the engine - the same
+                        split the wizard's rail and message line use: the engine
+                        states what a thing IS and the markup decides what that
+                        looks like.
+                    -->
+                    <TextBlock Grid.Column="0" x:Name="HDTProgressStatus" Text=""
+                               FontSize="15" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#FFCCCCCC" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Failed">
+                                        <Setter Property="Foreground" Value="#FFF48771" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Succeeded">
+                                        <Setter Property="Foreground" Value="#FF89D185" />
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Grid.Column="1" x:Name="HDTProgressElapsed" Text="" Foreground="#FF8A8A8A"
+                               FontSize="15" VerticalAlignment="Center" />
+                </Grid>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

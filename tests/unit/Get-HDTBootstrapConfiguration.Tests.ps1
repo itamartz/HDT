@@ -213,15 +213,20 @@ Describe 'Get-HDTBootstrapConfiguration' {
             $bootstrap.DeployRoot | Should -BeExactly '\Share'
         }
 
-        It 'refuses a missing deployRoot' {
-            $fs = & $script:seed 'invalid-missing-deployroot.json'
+        It 'reads a boot image with no deployRoot, because a technician can supply one' {
+            # THIS USED TO BE A REFUSAL, and the refusal was in the wrong place.
+            # An image with no share is not a malformed document - it is an
+            # image that has a question for whoever is standing in front of it.
+            # Throwing here means the Welcome screen never opens, so the person
+            # who could have typed the share never gets asked.
+            #
+            # The failure still happens if nobody answers: connecting to an
+            # empty share fails, loudly, at connect time.
+            $fs = & $script:seed 'valid-missing-deployroot.json'
 
-            $record = & $script:errorOf { Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs }
+            $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
 
-            $record | Should -Not -BeNullOrEmpty
-            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
-            $record.Exception.Message | Should -BeLike '*deployRoot*'
-            $record.Exception.Message | Should -BeLike ('*{0}*' -f $script:bootstrapPath)
+            [string] $bootstrap.DeployRoot | Should -BeExactly ''
         }
 
         It 'still refuses a non-UNC deployRoot for Smb' {
@@ -319,6 +324,78 @@ Describe 'Get-HDTBootstrapConfiguration' {
             $fs = & $script:seed 'valid-local.json'
 
             { Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs } | Should -Not -Throw
+        }
+    }
+
+    Context 'the skip block' {
+
+        # MDT's Bootstrap.ini carries SkipBDDWelcome and CustomSettings.ini
+        # carries every other Skip*, and the reason is structural rather than
+        # historical: the Welcome screen runs BEFORE the share is reachable, so
+        # a rule about it cannot live on the share. HDT has the same split, and
+        # this is the in-image half of it (.planning/WPF-FIRST.md, W2).
+        #
+        # ABSENT IS NOT false. Every image built before the skip block existed
+        # has no skip block, and Get-HDTWizardSkip's defaults are what turn that
+        # into the unattended path - so the reader has to hand back "the image
+        # said nothing" rather than quietly saying "no".
+
+        It 'reads all four rules when the image states them' {
+            $fs = & $script:seedObject @{
+                schemaVersion = 1
+                provider      = 'Local'
+                deployRoot    = '\Share'
+                skip          = @{ welcome = $true; staticIp = $true; deployRoot = $false; credential = $true }
+            }
+
+            $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+            [bool] $bootstrap.Skip.Welcome | Should -BeTrue
+            [bool] $bootstrap.Skip.StaticIp | Should -BeTrue
+            [bool] $bootstrap.Skip.DeployRoot | Should -BeFalse
+            [bool] $bootstrap.Skip.Credential | Should -BeTrue
+        }
+
+        It 'reports a rule the image did not state as null, not as false' {
+            $fs = & $script:seedObject @{
+                schemaVersion = 1
+                provider      = 'Local'
+                deployRoot    = '\Share'
+                skip          = @{ welcome = $false }
+            }
+
+            $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+            [bool] $bootstrap.Skip.Welcome | Should -BeFalse
+            $bootstrap.Skip.StaticIp | Should -BeNullOrEmpty -Because (
+                'an unstated rule is a different fact from a rule set to false')
+        }
+
+        It 'still carries a Skip object when the image has no skip block at all' {
+            # THE SHAPE EVERY EXISTING IMAGE HAS. A missing Skip property would
+            # make Get-HDTWizardSkip throw under StrictMode on the one machine
+            # that has no operator.
+            $fs = & $script:seed 'valid-local.json'
+
+            $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+            $bootstrap.Skip | Should -Not -BeNullOrEmpty
+            $bootstrap.Skip.Welcome | Should -BeNullOrEmpty
+        }
+
+        It 'ignores a key nobody knows, rather than refusing to boot over it' {
+            # A newer builder writing a fifth rule must not stop an older engine
+            # from deploying. It reads the four it knows.
+            $fs = & $script:seedObject @{
+                schemaVersion = 1
+                provider      = 'Local'
+                deployRoot    = '\Share'
+                skip          = @{ welcome = $true; summary = $true }
+            }
+
+            { Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs } | Should -Not -Throw
+            [bool] (Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs).Skip.Welcome |
+                Should -BeTrue
         }
     }
 

@@ -1613,6 +1613,11 @@ class HDTFakeProcessService {
     # Normalised command line -> the result Start returns.
     [hashtable] $Result
 
+    # Makes StartInteractive throw the way Process.Start does when the shell is
+    # not there. The path a wizard takes when the prompt it just promised the
+    # technician does not open is one nobody exercises by accident.
+    [bool] $FailInteractive
+
     # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
     [System.Collections.ArrayList] $Operations
 
@@ -1709,6 +1714,28 @@ class HDTFakeProcessService {
             DurationMs     = $durationMs
         }
     }
+
+    # A SEPARATE VERB, AND THE DIFFERENCE IS THE POINT. Start redirects both
+    # pipes, hides the window and waits for exit. An interactive prompt has no
+    # output to capture, must HAVE a window, and must not block the thread that
+    # opened it - so it cannot be Start with different flags.
+    #
+    # NOTHING IS SEEDED HERE. Start refuses a command line no test seeded
+    # because a typo must not look like success; there is no result to seed for
+    # a process nobody waits on, so this records and answers.
+    [object] StartInteractive([string] $FilePath, [string] $Argument, [string] $WorkingDirectory) {
+        $this.Record('StartInteractive', @($FilePath, $Argument, $WorkingDirectory))
+
+        if ($this.FailInteractive) {
+            throw [System.ComponentModel.Win32Exception]::new(
+                "The system cannot find the file specified: '$FilePath'.")
+        }
+
+        return [pscustomobject] @{
+            ProcessId = 4242
+            FilePath  = $FilePath
+        }
+    }
 }
 
 function New-HDTFakeProcessService {
@@ -1762,12 +1789,16 @@ function New-HDTFakeProcessService {
         [hashtable] $Result,
 
         [Parameter()]
+        [switch] $FailInteractive,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeProcessService]::new()
     $fake.Journal = $Journal
+    $fake.FailInteractive = [bool] $FailInteractive
 
     if ($PSBoundParameters.ContainsKey('Result')) {
         foreach ($commandLine in @($Result.Keys)) {
@@ -4388,19 +4419,41 @@ function New-HDTFakeWizardHost {
             very branch that keeps a dismissed wizard from meaning consent to
             partition a disk.
 
+            IT ALSO REPLAYS A TECHNICIAN. ShowShell is the multi-page shell,
+            where the window opens once and the page inside it is swapped, so a
+            fake that only recorded what it was handed could not exercise the
+            navigation at all. -Click is the sequence of buttons a technician
+            presses; each one goes through THE SAME navigator scriptblock the
+            real host calls, and Visited records where each click landed. That
+            is what lets a whole Next/Next/Back/Next walk be asserted as an
+            ordered list with no display attached.
+
         .PARAMETER Action
             What the technician "chose". 'Next', 'Cancel', or empty for a window
             that was dismissed without answering.
+
+        .PARAMETER Click
+            For ShowShell: the buttons the technician presses, in order. 'Next'
+            and 'Back' go through the navigator; 'Cancel' and 'CommandPrompt'
+            end the walk with that answer. Running out of clicks before the last
+            page falls back to -Action, which is how "they closed the window on
+            page two" is expressed.
 
         .PARAMETER Journal
             The shared cross-service operation journal.
 
         .OUTPUTS
-            A PSCustomObject with a Show method, an Operations list, and the
-            LastXaml, LastTitle and LastField it was handed.
+            A PSCustomObject with Show and ShowShell methods, an Operations
+            list, and the LastXaml, LastTitle, LastField, LastState and Visited
+            it recorded.
 
         .EXAMPLE
             Show-HDTWizard -XamlPath $p -Title 'HDT' -WizardHost (New-HDTFakeWizardHost -Action 'Next')
+
+        .EXAMPLE
+            $host = New-HDTFakeWizardHost -Action 'Next' -Click @('Next', 'Next', 'Back', 'Next', 'Next')
+            Show-HDTWizardShell -ShellXamlPath $p -Page $page -WizardHost $host
+            $host.Visited   # every page, in the order it was reached
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory test double; it changes no state.')]
@@ -4413,19 +4466,45 @@ function New-HDTFakeWizardHost {
 
         [Parameter()]
         [AllowNull()]
+        [string[]] $Click,
+
+        [Parameter()]
+        [AllowNull()]
+        [hashtable] $Value,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Journal
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
+    # @($null) IS AN ARRAY OF ONE NULL, NOT AN EMPTY ARRAY. Left alone, a fake
+    # built with no -Click replays one press of the empty string, and the
+    # navigator's ValidateSet refuses it - so every test that never meant to
+    # click anything fails inside the fake. Filtered here rather than in the
+    # method, so there is one place the list is a list.
+    $press = @(@($Click) | Where-Object { -not [string]::IsNullOrEmpty($_) })
+
+    $bag = $Value
+    if ($null -eq $bag) { $bag = @{} }
+
     $service = [pscustomobject] @{
-        Action     = $Action
-        Operations = (New-Object -TypeName System.Collections.ArrayList)
-        Journal    = $Journal
-        LastXaml   = ''
-        LastTitle  = ''
-        LastField  = @()
+        Action         = $Action
+        Click          = $press
+        Value          = $bag
+        Operations     = (New-Object -TypeName System.Collections.ArrayList)
+        Journal        = $Journal
+        LastXaml       = ''
+        LastShellXaml  = ''
+        LastThemeXaml  = ''
+        LastTitle      = ''
+        LastField      = @()
+        LastPane       = @()
+        LastState      = $null
+        LastCommandPrompt = $null
+        Visited        = (New-Object -TypeName System.Collections.ArrayList)
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -4436,20 +4515,192 @@ function New-HDTFakeWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field)
+        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane)
 
         $this.LastXaml = $Xaml
         $this.LastTitle = $Title
         $this.LastField = @($Field)
+        $this.LastPane = @($Pane)
         $this.Record(('Show({0})' -f $Title))
 
+        return $this.Action
+    }
+
+    # THE SHELL, WALKED. The real host opens ONE window and swaps the page
+    # inside it; this opens nothing and swaps nothing, but it takes the same
+    # arguments and calls the SAME navigator, so what is asserted here is the
+    # navigation the real host will perform rather than a paraphrase of it.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowShell -Value {
+        param(
+            [string] $ShellXaml,
+            [string] $ThemeXaml,
+            [string] $Title,
+            [object] $State,
+            [object[]] $Field,
+            [object[]] $Pane,
+            [scriptblock] $Navigator,
+            [scriptblock] $CommandPrompt)
+
+        $this.LastShellXaml = $ShellXaml
+        $this.LastThemeXaml = $ThemeXaml
+        $this.LastTitle = $Title
+        $this.LastState = $State
+        $this.LastField = @($Field)
+        $this.LastPane = @($Pane)
+        $this.LastCommandPrompt = $CommandPrompt
+        $this.Record(('ShowShell({0})' -f $Title))
+
+        $current = $State
+        [void] $this.Visited.Add([string] $current.Page.Id)
+
+        foreach ($press in @($this.Click)) {
+
+            # Cancel and Open CMD never reach the navigator - they are not
+            # navigation, they are the technician leaving.
+            if ($press -eq 'Cancel' -or $press -eq 'CommandPrompt') {
+                $this.Record(('press {0}' -f $press))
+                return $press
+            }
+
+            # F8 IS NOT LEAVING EITHER, and that is the point of replaying it.
+            # MDT's F8 puts a prompt on top of the wizard; the technician closes
+            # it and is still on the same page. So the loop does not return, the
+            # navigator is not called, and the page does not change.
+            if ($press -eq 'F8') {
+                $this.Record('press F8')
+                if ($null -ne $CommandPrompt) { & $CommandPrompt }
+                continue
+            }
+
+            # THE COLLECTED VALUES GO WITH EVERY MOVE. The real host reads them
+            # off the page it is leaving; this fake has no controls, so a test
+            # seeds them with -Value. The summary page is built from them, so a
+            # fake that passed nothing could never exercise it.
+            $current = & $Navigator $current.Index $press $this.Value
+
+            # THE LATEST STATE, NOT THE FIRST. LastState used to be written once
+            # on entry, so a test could only ever assert what the wizard opened
+            # with - and anything a later page carries, the summary rows above
+            # all, was invisible to every assertion.
+            $this.LastState = $current
+
+            if ($current.Done) {
+                $this.Record('press Next -> Done')
+                return 'Next'
+            }
+
+            $this.Record(('press {0} -> {1}' -f $press, [string] $current.Page.Id))
+            [void] $this.Visited.Add([string] $current.Page.Id)
+        }
+
+        # RAN OUT OF CLICKS. The technician is still standing in front of the
+        # window; -Action is what they did next, including nothing at all.
         return $this.Action
     }
 
     return $service
 }
 
+function New-HDTFakeProgressHost {
+    <#
+        .SYNOPSIS
+            Creates an IProgressHost that draws nothing and records what it was
+            asked to draw.
+
+        .DESCRIPTION
+            The hand-written double behind the progress window (DESIGN 12.2.3:
+            fake, don't mock). New-HDTProgressHost is the real one and is a
+            branch-free WPF adapter, so it is not unit tested; this is what lets
+            Start-HDTProgressDisplay's DECISIONS - suppress, draw, or fall back
+            to the console - be asserted with no display attached.
+
+            -FailOpen IS THE ONE THAT MATTERS. DESIGN 11.1 requires the console
+            fallback to be exercised by a test "because the fallback is exactly
+            the path nobody exercises until the night it matters", and a boot
+            image built without WinPE-NetFx has no PresentationFramework at all:
+            Add-Type throws where a window should have opened. This is that
+            machine, on a developer's desktop.
+
+        .PARAMETER FailOpen
+            Throw from Open, the way a machine with no WPF does.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal.
+
+        .OUTPUTS
+            A PSCustomObject with Open, Update and Close methods, an Operations
+            list, LastXaml and LastProgress.
+
+        .EXAMPLE
+            Start-HDTProgressDisplay -XamlPath $p -DisplayHost (New-HDTFakeProgressHost -FailOpen)
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter()]
+        [switch] $FailOpen,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Journal
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $service = [pscustomobject] @{
+        FailOpen     = [bool] $FailOpen
+        Operations   = (New-Object -TypeName System.Collections.ArrayList)
+        Journal      = $Journal
+        LastXaml     = ''
+        LastCommandPromptPath = ''
+        LastProgress = $null
+        IsOpen       = $false
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
+        param([string] $Operation)
+
+        [void] $this.Operations.Add($Operation)
+        if ($null -ne $this.Journal) { [void] $this.Journal.Add($Operation) }
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Open -Value {
+        param([string] $Xaml, [string] $CommandPromptPath)
+
+        $this.LastCommandPromptPath = $CommandPromptPath
+
+        if ($this.FailOpen) {
+            # WHAT A MACHINE WITH NO WPF ACTUALLY DOES. Add-Type throws this
+            # shape when PresentationFramework is not there to load.
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not load file or assembly 'PresentationFramework'.")
+        }
+
+        $this.LastXaml = $Xaml
+        $this.IsOpen = $true
+        $this.Record('Open')
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Update -Value {
+        param([object] $Progress)
+
+        $this.LastProgress = $Progress
+        $this.Record('Update')
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Close -Value {
+        $this.IsOpen = $false
+        $this.Record('Close')
+    }
+
+    return $service
+}
+
 Export-ModuleMember -Function @(
+    'New-HDTFakeProgressHost',
     'New-HDTFakeBootImageService',
     'New-HDTFakeWizardHost',
     'New-HDTFakeCimProvider',

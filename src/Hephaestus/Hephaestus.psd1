@@ -1,4 +1,4 @@
-﻿@{
+@{
     RootModule           = 'Hephaestus.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
@@ -54,9 +54,15 @@
         'Get-HDTStepDescription',
         'Get-HDTStepType',
         'Get-HDTGroupTemplate',
+        'Get-HDTUsableAddress',
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
         'Get-HDTWizardField',
+        'Format-HDTProgressLine',
+        'Get-HDTDeploymentProgress',
+        'Get-HDTWizardPage',
+        'Get-HDTWizardSkip',
+        'Get-HDTWizardSummary',
         'Get-HDTWorkspacePath',
         'Get-HDTVariableProvenance',
         'Hide-HDTShellWindow',
@@ -66,6 +72,7 @@
         'Import-HDTRunState',
         'Import-HDTSequenceDocument',
         'Import-HDTStepModule',
+        'Import-HDTWizardDocument',
         'Import-HDTWorkspaceDocument',
         'Invoke-HDTNoOpStep',
         'Invoke-HDTSetVariableStep',
@@ -117,6 +124,14 @@
         'Set-HDTShareCredential',
         'Set-HDTStaticAddress',
         'Show-HDTWizard',
+        'Show-HDTWizardShell',
+        'New-HDTConsoleProgressHost',
+        'New-HDTProgressHost',
+        'Split-HDTAccountName',
+        'Start-HDTCommandPrompt',
+        'Start-HDTProgressDisplay',
+        'Step-HDTWizardPage',
+        'Test-HDTComputerName',
         'Test-HDTRunStateAbandoned',
         'Test-HDTShareAcl',
         'Test-HDTPowerShellStepApplicable',
@@ -124,6 +139,7 @@
         'Test-HDTStepCondition',
         'Test-HDTTaskSequence',
         'Update-HDTBootImage',
+        'Update-HDTProgressDisplay',
         'Update-HDTRunStateStep',
         'Write-HDTLog',
         'Write-HDTStatus',

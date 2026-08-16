@@ -188,6 +188,38 @@ function Import-HDTWorkspaceDocument {
         }
     }
 
+    # MDT's Skip* properties, the four that must be decided INSIDE the boot
+    # image because the Welcome screen runs before the share is reachable
+    # (.planning/WPF-FIRST.md, W2).
+    #
+    # $null MEANS THE WORKSPACE SAID NOTHING, and that is a different fact from
+    # false: Update-HDTBootImage omits an unstated rule from bootstrap.json
+    # entirely, and Get-HDTWizardSkip's defaults are what turn silence into the
+    # unattended path. Defaulting to $false anywhere in this chain would move
+    # that decision to build time and quietly make every image show a wizard.
+    $skip = [ordered] @{
+        SkipWelcome    = $null
+        SkipStaticIp   = $null
+        SkipDeployRoot = $null
+        SkipCredential = $null
+    }
+
+    if ($null -ne $bootImage -and $bootImage.Contains('skip')) {
+        $skipDocument = $bootImage['skip']
+
+        foreach ($pair in @(
+                @{ Key = 'welcome'; Property = 'SkipWelcome' },
+                @{ Key = 'staticIp'; Property = 'SkipStaticIp' },
+                @{ Key = 'deployRoot'; Property = 'SkipDeployRoot' },
+                @{ Key = 'credential'; Property = 'SkipCredential' })) {
+
+            $key = [string] $pair.Key
+            if ($null -ne $skipDocument -and $skipDocument.Contains($key)) {
+                $skip[[string] $pair.Property] = [bool] $skipDocument[$key]
+            }
+        }
+    }
+
     $logLevel = 'Info'
     if ($document.Contains('logLevel')) { $logLevel = [string] $document['logLevel'] }
 
@@ -208,6 +240,10 @@ function Import-HDTWorkspaceDocument {
             ExtraContent      = [pscustomobject[]] @($extraContent)
             Drivers           = $drivers
             EntryCommand      = $entryCommand
+            SkipWelcome       = $skip['SkipWelcome']
+            SkipStaticIp      = $skip['SkipStaticIp']
+            SkipDeployRoot    = $skip['SkipDeployRoot']
+            SkipCredential    = $skip['SkipCredential']
         }
     }
 }

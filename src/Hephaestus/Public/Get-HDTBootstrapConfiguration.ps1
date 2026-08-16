@@ -81,8 +81,12 @@ function Get-HDTBootstrapConfiguration {
         .OUTPUTS
             System.Management.Automation.PSCustomObject with SchemaVersion,
             WorkspaceId, Provider, DeployRoot, ContentMarker, SequenceId,
-            PromptForCredential, LogLevel, UserName, HasCredential, BuildId,
-            BuiltUtc and Path, plus a GetCredential() ScriptMethod.
+            PromptForCredential, Skip, LogLevel, UserName, HasCredential,
+            BuildId, BuiltUtc and Path, plus a GetCredential() ScriptMethod.
+
+            Skip carries Welcome, StaticIp, DeployRoot and Credential, each
+            $true, $false, or $null for a rule the image did not state.
+            Get-HDTWizardSkip is what turns those into a decision.
 
         .EXAMPLE
             $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
@@ -198,14 +202,60 @@ function Get-HDTBootstrapConfiguration {
                     -Message ("provider '{0}' is not a transport HDT can build. The provider must be Smb or Local." -f $provider)))
     }
 
-    if ([string]::IsNullOrWhiteSpace($deployRoot)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message 'deployRoot is missing. It is the only thing in the boot image that says where the content is, so a machine that boots this image would have nowhere to go.'))
-    }
-
-    if ($provider -eq 'Smb' -and -not $deployRoot.StartsWith('\\')) {
+    # A MISSING deployRoot IS A QUESTION, NOT A MALFORMED DOCUMENT, and this
+    # used to throw. The refusal was in the wrong place: an image with no share
+    # still boots, still reaches the Welcome screen, and still has a technician
+    # in front of it who can type one. Throwing here is what stopped that
+    # screen from ever opening, so the only person who could fix it was never
+    # asked - Get-HDTWizardSkip raises HDTDeployRootHint instead.
+    #
+    # NOTHING IS SILENTLY EXCUSED. An empty share that nobody fills in fails at
+    # connect time, loudly, which is where a share that is wrong rather than
+    # absent has always failed.
+    #
+    # The shape checks below still apply to a share that IS stated - a
+    # deployRoot present and wrong is still a malformed document.
+    if (-not [string]::IsNullOrWhiteSpace($deployRoot) -and
+        $provider -eq 'Smb' -and -not $deployRoot.StartsWith('\\')) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                     -Message ("provider is Smb and deployRoot '{0}' is not a UNC path. An Smb deployRoot names a share (\\server\share); a volume-relative or drive-qualified root is a Local idea and the transports are not interchangeable." -f $deployRoot)))
+    }
+
+    # -- the skip block, and ABSENT IS NOT false --------------------------
+    #
+    # MDT's Bootstrap.ini carries SkipBDDWelcome and CustomSettings.ini carries
+    # every other Skip*, for a structural reason rather than a historical one:
+    # the Welcome screen runs BEFORE the share is reachable, so a rule about it
+    # cannot live on the share. This is HDT's in-image half of the same split
+    # (.planning/WPF-FIRST.md, W2).
+    #
+    # A rule the image did not state comes back as $null, NOT $false. Every
+    # image built before this block existed has no skip block at all, and it is
+    # Get-HDTWizardSkip's defaults - not this reader - that turn "said nothing"
+    # into the unattended path. A reader that flattened absent to false would
+    # make that decision here, silently, and in the wrong place.
+    #
+    # A key nobody knows is ignored rather than refused: a newer builder writing
+    # a fifth rule must not stop an older engine from deploying.
+    $skip = [ordered] @{
+        Welcome    = $null
+        StaticIp   = $null
+        DeployRoot = $null
+        Credential = $null
+    }
+
+    if ($null -ne $document.PSObject.Properties['skip'] -and $null -ne $document.skip) {
+        foreach ($pair in @(
+                @{ Property = 'Welcome'; Key = 'welcome' },
+                @{ Property = 'StaticIp'; Key = 'staticIp' },
+                @{ Property = 'DeployRoot'; Key = 'deployRoot' },
+                @{ Property = 'Credential'; Key = 'credential' })) {
+
+            $key = [string] $pair.Key
+            if ($null -ne $document.skip.PSObject.Properties[$key] -and $null -ne $document.skip.$key) {
+                $skip[[string] $pair.Property] = [bool] $document.skip.$key
+            }
+        }
     }
 
     $userName = ''
@@ -247,6 +297,7 @@ function Get-HDTBootstrapConfiguration {
             ContentMarker       = $contentMarker
             SequenceId          = $sequenceId
             PromptForCredential = $prompt
+            Skip                = [pscustomobject] $skip
             LogLevel            = $logLevel
             UserName            = $userName
             HasCredential       = $hasCredential
