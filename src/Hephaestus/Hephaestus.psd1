@@ -154,6 +154,14 @@
         'Set-HDTStepFlag',
         'Set-HDTStepProperty',
 
+        # AUTHORING RULES.YAML, the same way and for the same reasons. Position
+        # is semantics in a rules document - first match wins per variable - so
+        # Add-HDTRule takes -After and -First rather than only appending.
+        'Add-HDTRule',
+        'Remove-HDTRule',
+        'Save-HDTRuleDocument',
+        'Set-HDTRule',
+
         # THE ADMIN CONSOLE, FOLDED IN. The WPF console is not a module, it is one
         # command: everything the window does has to run an actual HDT command, and
         # if the command does not exist the window cannot do it. Shipping it beside
