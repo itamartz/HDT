@@ -1343,7 +1343,12 @@ runIn: FullOS
 
 ### 9.1 Disk layout
 
-Two named layouts:
+**Two named layouts, or one a sequence writes itself.** A `DiskPartition` step
+either names a built-in or carries its own `partition:` table; declaring both is
+refused, because they are two different answers to the same question about the
+same disk.
+
+The named ones cover the case that should stay one word in a document:
 
 - `uefi-standard` — GPT: EFI System 260 MB FAT32, Windows (remainder minus
   recovery), WinRE recovery 1 GB at the end.
@@ -1383,6 +1388,56 @@ a field recipe rather than a tested one.
 **A FAT32 volume label comes back uppercased.** The layout asks for `System` on
 the ESP and `Get-Volume` reports `SYSTEM`; NTFS preserves the case it was given.
 Nothing downstream may match a volume label case-sensitively.
+
+#### An authored partition table
+
+MDT's *Format and Partition Disk* lets an administrator lay a disk out row by
+row, and the commonest thing they do with it — a data volume beside Windows —
+could not be said here at all. It can now:
+
+```yaml
+- name: Format and Partition
+  type: DiskPartition
+  wipe: true
+  partition:
+    - name: System    type: EFI      size: 260MB
+    - name: Windows   type: Primary  size: 60%        variable: HDTOSVolume
+    - name: Data      type: Primary  size: remainder
+    - name: Recovery  type: Recovery size: 1GB
+```
+
+`ConvertTo-HDTDiskLayout` turns that into **the same shape `Get-HDTDiskLayout`
+returns**, so `New-HDTDiskLayoutPlan` reads an authored layout and a built-in
+through one door and there is never a second copy of the arithmetic to keep
+right.
+
+**A percentage is of what is left, not of the disk** — MDT's own wording is "a
+percentage of remaining free space". On a 128 GB disk the two differ by more than
+a gigabyte, and differ *silently*: the disk still partitions, just not as the
+author meant. Percentages are floored, never rounded; rounding up hands out a
+byte the disk does not have and the failure lands on whichever partition is
+created last.
+
+**`TakesRemainder` and `UseMaximumSize` are two flags because they are two
+questions.** `UseMaximumSize` is where leftover slack *lands* when the partition
+is created — `uefi-standard` puts it on Recovery. `TakesRemainder` is which row
+gets the space nothing else claimed, which in the built-ins is Windows by role
+and in an authored table is whichever row said `remainder`. Collapsing them gave
+an authored layout Recovery's flag and Windows' meaning.
+
+**The type is a word, never a GUID.** An author writes `EFI`, `Primary` or
+`Recovery`; the ESP's `c12a7328-…` and the recovery type are the engine's
+business, including the create-as-basic-data trick below. `Logical` and
+`Extended` — which MDT's dialog offers — are refused **by name**: this engine
+creates basic partitions and has never made an extended container, and accepting
+the word while quietly making a Primary would produce a disk that does not match
+the document.
+
+**`quickFormat` and `bootable` come from MDT's own per-partition variables**
+(`OSDPartitions<n>QUICKFORMAT`, `…BOOTABLE`, still listed in PSD's
+`ZTIGather.xml`), with MDT's defaults: quick, and bootable on the first
+partition. Two bootable partitions are refused — the firmware picks one, and
+which one is then not the author's decision.
 
 **Layouts live in `Get-HDTDiskLayout`'s built-ins until `workspace.yaml` exists**
 (M4 introduces that document for the boot image). `Get-HDTDiskLayout -Definition`
