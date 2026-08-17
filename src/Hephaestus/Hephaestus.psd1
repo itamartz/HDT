@@ -216,6 +216,7 @@
         'Show-HDTBuildProgressWindow',
         'Get-HDTConsoleClosePrompt',
         'Get-HDTConsoleEditorState',
+        'Get-HDTConsoleImageChoice',
         'Get-HDTConsoleMonitor',
         'Get-HDTConsolePartitionRow',
         'Get-HDTConsoleMonitorNode',

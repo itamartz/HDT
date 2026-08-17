@@ -263,7 +263,21 @@ function Get-HDTConsolePartitionRow {
                     QuickText     = ''
                     BootText      = ''
                     FileSystem    = [string] $current.FileSystem
-                    Variable      = ''
+
+                    # WHAT THE STEP WILL PUBLISH FOR THIS ROLE. A built-in
+                    # layout carries no variable key - Invoke-HDTDiskPartitionStep
+                    # writes HDTSystemVolume, HDTOSVolume and HDTRecoveryVolume
+                    # by role - so leaving the column empty hid the one answer
+                    # somebody comes to this grid for: which volume the image
+                    # lands on.
+                    Variable      = $(
+                        switch ([string] $current.Role) {
+                            'System' { 'HDTSystemVolume' }
+                            'Windows' { 'HDTOSVolume' }
+                            'Recovery' { 'HDTRecoveryVolume' }
+                            default { '' }
+                        })
+
                     FromLayout    = $true
 
                     RemoveCommand = ("Get-HDTDiskLayout -Name '{0}'" -f $layout)

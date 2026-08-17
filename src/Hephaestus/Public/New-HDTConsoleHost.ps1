@@ -469,6 +469,20 @@ function New-HDTConsoleHost {
 
         $this.Answer = ''
 
+        # THE SHARE'S ROOT, DERIVED FROM THE DOCUMENT'S OWN PATH. The engine
+        # mandates <root>\TaskSequences\<id>\sequence.yaml, so three levels up
+        # is the root - and the catalog page needs it to list the images this
+        # share holds.
+        #
+        # A PATH THAT IS NOT THAT SHAPE STILL OPENS THE EDITOR. The catalog is
+        # then empty and the box shows what the document says, which is what a
+        # sequence opened from anywhere else should look like.
+        $workspaceRoot = [System.IO.Path]::GetDirectoryName(
+            [System.IO.Path]::GetDirectoryName(
+                [System.IO.Path]::GetDirectoryName($Path)))
+
+        if ([string]::IsNullOrWhiteSpace($workspaceRoot)) { $workspaceRoot = [System.IO.Path]::GetDirectoryName($Path) }
+
         # See the Show method above for why the host is captured by name: inside
         # an Add_Click handler $this is the button that raised the event.
         $editorHost = $this
@@ -506,6 +520,13 @@ function New-HDTConsoleHost {
         $partitionList = $window.FindName('HDTPartitionList')
         $tabBook = $window.FindName('HDTOptionTab')
         $propertyTab = $window.FindName('HDTPropertyTab')
+        $imageTab = $window.FindName('HDTImageTab')
+        $imageBox = $window.FindName('HDTImageBox')
+        $imageIndexBox = $window.FindName('HDTImageIndexBox')
+        $imageTargetBox = $window.FindName('HDTImageTargetBox')
+        $imageTimeoutBox = $window.FindName('HDTImageTimeoutBox')
+        $imageApply = $window.FindName('HDTImageApplyButton')
+        $imageRevert = $window.FindName('HDTImageRevertButton')
         $validateTab = $window.FindName('HDTValidateTab')
         $validateList = $window.FindName('HDTValidateList')
         $validateApply = $window.FindName('HDTValidateApplyButton')
@@ -578,6 +599,10 @@ function New-HDTConsoleHost {
             Dirty     = $false
             Selected  = ''
             Partition = ''
+            Image     = ''
+            ImageShown = ''
+            IndexWritten = ''
+            IndexShown = ''
             Quiet     = $false
         }
 
@@ -633,6 +658,68 @@ function New-HDTConsoleHost {
             $diskTab.Visibility = [System.Windows.Visibility]::Collapsed
             if ($view.IsDiskStep) { $diskTab.Visibility = [System.Windows.Visibility]::Visible }
 
+            # THE OPERATING SYSTEM PAGE, on the same rule as the disk one: MDT's
+            # Install Operating System dialog IS that step's properties page.
+            $imageChoice = Get-HDTConsoleImageChoice -Line $book.Line -Path $Path `
+                -Name $book.Selected -Workspace $workspaceRoot
+
+            $imageTab.Visibility = [System.Windows.Visibility]::Collapsed
+
+            if ($imageChoice.IsImageStep) {
+                $imageTab.Visibility = [System.Windows.Visibility]::Visible
+
+                $imageBox.ItemsSource = $imageChoice.Image
+                $imageBox.SelectedValue = $imageChoice.Selected
+
+                # THE EDITIONS, AND THE ONE IN FORCE - SELECTED, so the box
+                # reads '1  -  Windows 11 Enterprise LTSC' the way it does after
+                # somebody picks from the list. Setting the text alone showed a
+                # bare '1' until the list was opened, which made the same
+                # setting look like two different things.
+                #
+                # THE TEXT IS THE FALLBACK, because the box is editable and an
+                # index written as a variable, or naming an edition this image
+                # does not have, still has to be shown as it stands.
+                $imageIndexBox.ItemsSource = $imageChoice.Edition
+
+                $matched = @($imageChoice.Edition |
+                        Where-Object { [string] $_.Index -eq [string] $imageChoice.Index })
+
+                if (@($matched).Count -gt 0) {
+                    $imageIndexBox.SelectedItem = $matched[0]
+                } else {
+                    $imageIndexBox.SelectedItem = $null
+                    $imageIndexBox.Text = [string] $imageChoice.Index
+                }
+                # THE VOLUMES SOMETHING PUBLISHES, with their percent signs on.
+                # Text rather than SelectedValue because the box is editable: a
+                # drive letter is legal and has to be typeable.
+                $imageTargetBox.ItemsSource = $imageChoice.Destination
+                $imageTargetBox.Text = [string] $imageChoice.Target
+                $imageTimeoutBox.Text = [string] $imageChoice.TimeoutMinutes
+
+
+                # WHAT APPLY WOULD WRITE IF NOBODY TOUCHES THE LIST - the
+                # author's own text. Changing the selection replaces it; leaving
+                # it alone keeps the variable the sequence was built on.
+                $book.Image = [string] $imageChoice.Written
+
+                # AND WHAT THE BOX WAS SET TO, so the handler can tell "nobody
+                # touched it" from "somebody picked the same thing". $imageChoice
+                # is local to this refresh; a closure built before it existed
+                # would compare against $null and rewrite the file every time.
+                $book.ImageShown = [string] $imageChoice.Selected
+
+                # The same for the index: what the box was set to, so Apply can
+                # tell an untouched box from a deliberate choice and leave a
+                # variable where it stands.
+                $book.IndexWritten = [string] $imageChoice.IndexWritten
+                $book.IndexShown = [string] $imageChoice.Index
+            }
+
+            $imageApply.IsEnabled = $imageChoice.IsImageStep
+            $imageRevert.IsEnabled = $imageChoice.IsImageStep
+
             # THE VALIDATION PAGE, on the same rule as the disk one. MDT's
             # Validate dialog IS that step's properties page, so the generic tab
             # goes with it.
@@ -655,7 +742,7 @@ function New-HDTConsoleHost {
             # Properties stays for every other step type: most have no page of
             # their own, and it is the only editor they get.
             $propertyTab.Visibility = [System.Windows.Visibility]::Visible
-            if ($view.IsDiskStep -or $validate.IsValidateStep) {
+            if ($view.IsDiskStep -or $validate.IsValidateStep -or $imageChoice.IsImageStep) {
                 $propertyTab.Visibility = [System.Windows.Visibility]::Collapsed
             }
 
@@ -1014,6 +1101,74 @@ function New-HDTConsoleHost {
         # Set-HDTStepProperty every other property box uses. Disk number and
         # disk type are one decision with the table below them, which is why
         # they are on this page and not on Properties.
+        $imageBox.Add_SelectionChanged({
+                if ($book.Quiet) { return }
+
+                $picked = $imageBox.SelectedItem
+                if ($null -eq $picked) { return }
+
+                $imageIndexBox.ItemsSource = $picked.Edition
+
+                # A DIFFERENT IMAGE'S INDEX MEANS NOTHING. Its editions are
+                # numbered from one like everybody else's, so carrying the old
+                # number across is how a Server sequence ends up applying
+                # whatever Windows 11 calls index 2.
+                #
+                # SELECTED, NOT TYPED, for the same reason the initial fill is:
+                # setting the text alone leaves a bare '1' in a box that shows
+                # '1  -  Windows Server 2025 Standard' the moment the list is
+                # opened, so the same setting reads as two different things.
+                $imageIndexBox.SelectedItem = $null
+                $imageIndexBox.Text = ''
+
+                if (@($picked.Edition).Count -gt 0) {
+                    $imageIndexBox.SelectedItem = @($picked.Edition)[0]
+                }
+            }.GetNewClosure())
+
+        # THE OPERATING SYSTEM PAGE WRITES ON ONE PRESS, for the reason the
+        # validation page does: four boxes written on every keystroke would
+        # splice the document four times while somebody types a number.
+        $imageApply.Add_Click({
+                # UNCHANGED MEANS UNCHANGED. The box shows the image a variable
+                # resolves to, so writing what the box holds would replace
+                # '%HDTOSImage%' with today's answer - silently, on a press
+                # meant for the time limit.
+                $image = [string] $book.Image
+                if ([string] $imageBox.SelectedValue -ne [string] $book.ImageShown) {
+                    $image = [string] $imageBox.SelectedValue
+                }
+
+                $written = @(
+                    @{ Key = 'os'; Value = $image }
+                    @{ Key = 'index'; Value = $(
+                            # WHAT THE FILE GETS IS THE NUMBER, never the label.
+                            # A selected editable ComboBox reports its Display as
+                            # Text - '1  -  Windows 11 Enterprise LTSC' - and
+                            # that is not an index.
+                            $typed = [string] $imageIndexBox.Text
+                            if ($null -ne $imageIndexBox.SelectedItem) {
+                                $typed = [string] $imageIndexBox.SelectedItem.Index
+                            }
+
+                            if ($typed -eq [string] $book.IndexShown) {
+                                [string] $book.IndexWritten
+                            } else { $typed }) }
+                    @{ Key = 'target'; Value = [string] $imageTargetBox.Text }
+                    @{ Key = 'timeoutMinutes'; Value = [string] $imageTimeoutBox.Text }
+                )
+
+                & $partitionAttempt {
+                    foreach ($one in $written) {
+                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                                -Property ([string] $one.Key) -Value ([string] $one.Value) -Confirm:$false)
+                    }
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'os' -Value '{1}'" -f
+                    $book.Selected, [string] $imageBox.SelectedValue)
+            }.GetNewClosure())
+
+        $imageRevert.Add_Click({ & $reflect }.GetNewClosure())
+
         # THE VALIDATION PAGE WRITES ON ONE PRESS, which is MDT's OK. Writing on
         # every keystroke would splice the document six times while somebody
         # types a number, and each splice rebuilds the tree under their hands.

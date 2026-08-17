@@ -207,6 +207,15 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTPartitionRemoveButton' }
         @{ Name = 'HDTPartitionUpButton' }
         @{ Name = 'HDTPartitionDownButton' }
+
+        # The Operating System page - MDT's Install Operating System dialog.
+        @{ Name = 'HDTImageTab' }
+        @{ Name = 'HDTImageBox' }
+        @{ Name = 'HDTImageIndexBox' }
+        @{ Name = 'HDTImageTargetBox' }
+        @{ Name = 'HDTImageTimeoutBox' }
+        @{ Name = 'HDTImageApplyButton' }
+        @{ Name = 'HDTImageRevertButton' }
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
     }

@@ -326,3 +326,39 @@ Describe 'Get-HDTConsolePartitionRow' {
         }
     }
 }
+
+Describe 'the variable a layout row publishes' {
+
+    # THE COLUMN WAS EMPTY AND THE VARIABLES WERE BEING PUBLISHED ANYWAY. A
+    # built-in layout carries no `variable` key - Invoke-HDTDiskPartitionStep
+    # publishes HDTSystemVolume, HDTOSVolume and HDTRecoveryVolume by ROLE - so
+    # the grid showed nothing in the one column that answers "which volume does
+    # the Install OS step apply to".
+
+    BeforeAll {
+        $script:layoutView = Get-HDTConsolePartitionRow -Line $script:named `
+            -Path $script:path -Name 'Format and Partition'
+    }
+
+    It 'names what the step will publish for <Volume>' -ForEach @(
+        @{ Volume = 'System'; Variable = 'HDTSystemVolume' }
+        @{ Volume = 'Windows'; Variable = 'HDTOSVolume' }
+        @{ Volume = 'Recovery'; Variable = 'HDTRecoveryVolume' }
+    ) {
+        $wanted = $Variable
+
+        $row = @($script:layoutView.Row | Where-Object { $_.Name -eq $Volume })[0]
+
+        $row.Variable | Should -BeExactly $wanted
+    }
+
+    It 'leaves an authored row saying what the document says' {
+        # AN AUTHORED TABLE NAMES ITS OWN, and a row that names none publishes
+        # none - the roles are not what an authored table is keyed on.
+        $view = Get-HDTConsolePartitionRow -Line $script:authored `
+            -Path $script:path -Name 'Format and Partition'
+
+        @($view.Row | Where-Object { $_.Name -eq 'Windows' })[0].Variable | Should -BeExactly 'OSDisk'
+        @($view.Row | Where-Object { $_.Name -eq 'System' })[0].Variable | Should -BeExactly ''
+    }
+}

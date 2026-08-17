@@ -579,6 +579,178 @@
                 </TabItem>
 
                 <!--
+                    THE OPERATING SYSTEM. MDT's Install Operating System page,
+                    where an image is PICKED out of the share rather than typed
+                    and found to be misspelled at the machine.
+
+                    THE LIST IS THE SHARE'S. Get-HDTConsoleImageChoice reads the
+                    same catalog the browser does, so this window cannot offer
+                    one the engine will not resolve - and an image the document
+                    names but the share no longer holds still appears, marked,
+                    rather than being silently swapped for whatever sorts first.
+
+                    THE EXPLANATIONS ARE BEHIND A ? AT THE END OF EACH ROW, as
+                    they are on the validation page: they are read once, when a
+                    setting is new, and a paragraph under every row turns four
+                    settings into a page that has to be scrolled.
+                -->
+                <TabItem Header="Operating System" x:Name="HDTImageTab">
+                    <Grid Margin="14,12,14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="150" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="30" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid.Resources>
+                            <!-- THE ? THE VALIDATION PAGE USES, and for the same
+                                 reason it is a Border rather than a bare glyph:
+                                 WPF raises a tooltip only over what is painted,
+                                 so a question mark with no surface has to be hit
+                                 within a pixel or two - which reads as a tooltip
+                                 that does not work. -->
+                            <Style TargetType="Border" x:Key="HDTHelpDot">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Width" Value="22" />
+                                <Setter Property="Height" Value="22" />
+                                <Setter Property="CornerRadius" Value="11" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Setter Property="HorizontalAlignment" Value="Right" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                                <Setter Property="Cursor" Value="Help" />
+                                <Setter Property="Margin" Value="0,0,0,8" />
+                                <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+                                <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+                            </Style>
+
+                            <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+                                <Setter Property="Text" Value="?" />
+                                <Setter Property="Foreground" Value="{DynamicResource HDTLabelBrush}" />
+                                <Setter Property="FontFamily" Value="Segoe UI" />
+                                <Setter Property="FontSize" Value="12" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Setter Property="HorizontalAlignment" Value="Center" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                            </Style>
+
+                            <Style TargetType="TextBlock" x:Key="HDTFieldLabel">
+                                <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+                                <Setter Property="FontSize" Value="12" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                                <Setter Property="Margin" Value="0,0,10,8" />
+                            </Style>
+                        </Grid.Resources>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Operating system"
+                                   Style="{StaticResource HDTFieldLabel}" />
+
+                        <ComboBox Grid.Row="0" Grid.Column="1" x:Name="HDTImageBox"
+                                  DisplayMemberPath="Display" SelectedValuePath="Id"
+                                  Margin="0,0,0,8" />
+
+                        <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap"
+                                               Text="The images this share holds. Importing one makes it appear here; an image the sequence names but the share does not have is shown as missing rather than replaced." />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Image index"
+                                   Style="{StaticResource HDTFieldLabel}" />
+
+                        <!-- THE EDITIONS os.yaml CARRIES, not a number to type
+                             and hope. Editable because a sequence may name the
+                             index through a variable. -->
+                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="HDTImageIndexBox"
+                                  DisplayMemberPath="Display" SelectedValuePath="Index"
+                                  IsEditable="True" Margin="0,0,0,8" />
+
+                        <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap"
+                                               Text="Which edition inside the image. The list is what os.yaml recorded off the media; 1 is the first image in the WIM, which is what the engine applies when a step names none." />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Destination"
+                                   Style="{StaticResource HDTFieldLabel}" />
+
+                        <ComboBox Grid.Row="2" Grid.Column="1" x:Name="HDTImageTargetBox"
+                                  IsEditable="True" Margin="0,0,0,8" />
+
+                        <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap"
+                                               Text="Which volume the image is written to. %HDTOSVolume% is the one the partition step published - never a guess at C:, which in WinPE is frequently the content disk." />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Time limit"
+                                   Style="{StaticResource HDTFieldLabel}" />
+
+                        <Grid Grid.Row="3" Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0" x:Name="HDTImageTimeoutBox"
+                                     Background="{DynamicResource HDTPanelBrush}"
+                                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                                     BorderBrush="{DynamicResource HDTBorderBrush}"
+                                     BorderThickness="1"
+                                     FontFamily="Consolas, Courier New" FontSize="12"
+                                     Padding="6,5,6,5" />
+
+                            <TextBlock Grid.Column="1" Text="minutes"
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
+                        </Grid>
+
+                        <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap"
+                                               Text="Minutes before the step is treated as hung and the attempt fails. 0 means no limit." />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <Border Grid.Row="5" Grid.ColumnSpan="3" Padding="0,10,0,0"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HDTImageApplyButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Apply" />
+                                <Button x:Name="HDTImageRevertButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Revert" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!--
                     THE VALIDATION. MDT's Validate dialog is a column of
                     checkboxes, each with the value it checks against, and this
                     is that page.
