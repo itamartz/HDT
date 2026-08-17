@@ -97,6 +97,7 @@
         'Get-HDTWizardHarvest',
         'Format-HDTProgressLine',
         'Get-HDTDeploymentProgress',
+        'Get-HDTWizardComputerName',
         'Get-HDTWizardPage',
         'Get-HDTWizardSequence',
         'Get-HDTWizardSkip',

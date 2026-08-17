@@ -684,7 +684,20 @@ try {
                 & $say ("task sequence picker: {0} sequence(s) on the share, opening on '{1}'" -f
                     @($sequenceChoice.Choice).Count, $sequenceChoice.Selected)
 
-                $field = @($field) + @($sequenceChoice.Field)
+                # W4: THE NAME THE RULES PRODUCED, IN THE BOX BEFORE ANYBODY
+                # TYPES. rules.yaml owns the convention - PC-%HDTSerialNumber%
+                # and the rest - and this shows what it resolved to, falling
+                # back to the serial and then to the machine's own name. The
+                # verdict is logged: a rule that built a sixteen-character name
+                # is a rule somebody has to fix, and the log is where they will
+                # look after the technician has gone home.
+                $computerName = Get-HDTWizardComputerName -Variable $resolved.Variable `
+                    -Environment (New-HDTEnvironmentProvider)
+
+                & $say ("computer name: '{0}' from {1}{2}" -f $computerName.Value, $computerName.Source,
+                    $(if ($computerName.Severity -eq 'None') { '' } else { " - {0}: {1}" -f $computerName.Severity, $computerName.Reason }))
+
+                $field = @($field) + @($sequenceChoice.Field) + @($computerName.Field)
 
                 $answer = Show-HDTWizardShell -ShellXamlPath $WizardShellPath -ThemeXamlPath $WizardThemePath `
                     -Page $ask.Page -Title $wizard.Title -Field $field
