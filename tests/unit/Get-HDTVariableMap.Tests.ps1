@@ -143,3 +143,27 @@ Describe 'Get-HDTVariableMap' {
         @($help.Examples.Example).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'HDTDeploymentType' {
+
+    # MDT'S DeploymentType, WHICH ITS Client.xml GATES WHOLE GROUPS ON:
+    # NEWCOMPUTER, REFRESH, REPLACE, UPGRADE. That is how one template serves
+    # bare metal and an in-place refresh from the same file.
+    #
+    # HDT IMPLEMENTS ONE OF THEM. There is no State Capture, no USMT and no
+    # replace path, so the variable has exactly one value today - and it exists
+    # anyway, so a sequence can be written against it now and the groups that
+    # arrive later need no rewrite of the ones already there.
+
+    It 'is a variable the toolkit knows about' {
+        Get-HDTVariableMap -Name 'HDTDeploymentType' | Should -Not -BeNullOrEmpty
+    }
+
+    It "carries MDT's own name for it, so the two can be read side by side" {
+        (Get-HDTVariableMap -Name 'HDTDeploymentType').MdtName | Should -BeExactly 'DeploymentType'
+    }
+
+    It 'says what it is today rather than pretending to more' {
+        (Get-HDTVariableMap -Name 'HDTDeploymentType').Description | Should -BeLike '*NEWCOMPUTER*'
+    }
+}

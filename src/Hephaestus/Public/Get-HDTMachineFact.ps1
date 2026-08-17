@@ -277,6 +277,12 @@ function Get-HDTMachineFact {
     $fact['HDTSystemSKU'] = $systemSku
     $fact['HDTMemory'] = $memoryMegabyte
     $fact['HDTArchitecture'] = $architecture
+    # MDT SETS DeploymentType IN ZTIGather AND GATES WHOLE GROUPS ON IT. This
+    # engine performs bare-metal installs only, so there is one value - and it
+    # is written anyway, so a sequence can be conditioned on it now rather than
+    # every group predating the refresh path having to be retrofitted later.
+    # See Get-HDTVariableMap for the rest of MDT's set.
+    $fact['HDTDeploymentType'] = 'NEWCOMPUTER'
     $fact['HDTIsUEFI'] = [bool] $isUefi
     $fact['HDTSecureBootEnabled'] = [bool] $secureBootEnabled
     $fact['HDTTPMVersion'] = $tpmVersion

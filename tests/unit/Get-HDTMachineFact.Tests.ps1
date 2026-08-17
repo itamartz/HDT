@@ -631,3 +631,23 @@ Describe 'Get-HDTMachineFact' {
     }
 }
 
+
+Describe 'the deployment scenario' {
+
+    # MDT SETS DeploymentType IN ZTIGather and gates whole groups on it. HDT
+    # gathers it in the same place, and today it has one value - see
+    # Get-HDTVariableMap for why it exists anyway.
+
+    BeforeEach {
+        $script:scenario = Get-HDTMachineFact -CimProvider $script:cim `
+            -RegistryService $script:registry -EnvironmentProvider $script:environment
+    }
+
+    It 'is gathered, so a sequence can condition on it' {
+        $script:scenario.Contains('HDTDeploymentType') | Should -BeTrue
+    }
+
+    It 'says NEWCOMPUTER, which is the only scenario this engine performs' {
+        [string] $script:scenario['HDTDeploymentType'] | Should -BeExactly 'NEWCOMPUTER'
+    }
+}

@@ -105,6 +105,18 @@ function Get-HDTVariableMap {
         @{ HDTName = 'HDTArchitecture'; MdtName = 'Architecture'; Origin = 'environment.PROCESSOR_ARCHITECTURE'
             Description = 'Processor architecture, x64 for AMD64, read from PROCESSOR_ARCHITEW6432 first so a 32-bit host process still reports the truth.'
         }
+        # MDT GATES WHOLE GROUPS ON THIS - NEWCOMPUTER, REFRESH, REPLACE,
+        # UPGRADE - which is how one Client.xml serves bare metal and an
+        # in-place refresh from the same file.
+        #
+        # HDT IMPLEMENTS ONE OF THEM, and the variable exists anyway. A sequence
+        # written against it now needs no rewrite the day a refresh path lands;
+        # the alternative is a condition invented later and retrofitted onto
+        # every group that predates it. What it must NOT do is claim more than
+        # it does, which is why the description says so out loud.
+        @{ HDTName = 'HDTDeploymentType'; MdtName = 'DeploymentType'; Origin = 'engine'
+            Description = 'Which deployment scenario is running. This engine performs bare-metal installs only, so it is always NEWCOMPUTER; MDT also has REFRESH, REPLACE and UPGRADE, and those arrive with the steps that implement them.'
+        }
         @{ HDTName = 'HDTIsUEFI'; MdtName = 'IsUEFI'; Origin = 'environment.firmware_type'
             Description = 'True when the machine booted UEFI firmware, which decides the disk layout.'
         }
