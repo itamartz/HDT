@@ -93,6 +93,11 @@
           "type": "string",
           "minLength": 1
         },
+        "background": {
+          "description": "The image WinPE shows behind everything, copied into the image as \Windows\System32\winpe.jpg. It must be a JPEG: WinPE reads that one file under that one name, so any other format is carried into the image and never shown. MDT's custom background bitmap file. A path relative to the share, or a rooted one on the build host.",
+          "type": "string",
+          "minLength": 1
+        },
         "unattend": {
           "description": "A WinPE answer file, copied into the image as \\Unattend.xml and handed to wpeinit as -unattend:. This is what sets the WinPE firewall, the display, the page file and any RunSynchronous command - the settings wpeinit accepts, and the supported way to build an image with them rather than typing wpeutil at a prompt. It is NOT the deployed OS's unattend.xml; that belongs to the sequence. A path relative to the share, or a rooted one on the build host - exactly like extraContent's source, and for the same reason: the file an administrator browses to is wherever they keep it.",
           "type": "string",

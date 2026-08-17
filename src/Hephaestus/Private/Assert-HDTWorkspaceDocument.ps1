@@ -102,7 +102,8 @@ function Assert-HDTWorkspaceDocument {
         'credential', 'bootImage')
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
-        'optionalComponents', 'extraContent', 'drivers', 'unattend', 'entryCommand', 'startCommand', 'skip')
+        'optionalComponents', 'extraContent', 'drivers', 'unattend', 'background',
+        'entryCommand', 'startCommand', 'skip')
     $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
@@ -336,6 +337,33 @@ function Assert-HDTWorkspaceDocument {
         if ([string]::IsNullOrWhiteSpace([string] $unattend)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message 'bootImage: unattend is empty. Remove the key to build the image with no answer file.'))
+        }
+    }
+
+    # -- the WinPE background --------------------------------------------------
+    #
+    # JUDGED THE WAY THE ANSWER FILE IS - a path is a path - plus the one rule
+    # that is not about paths: WinPE reads \Windows\System32\winpe.jpg and
+    # nothing else, so a .png named here is a file the image carries and never
+    # shows. A build that succeeds and a background that does not appear is the
+    # worst way to learn that.
+
+    if ($bootImage.Contains('background')) {
+        $background = $bootImage['background']
+
+        if ($null -ne $background -and -not ($background -is [string])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: background must be a path to a .jpg, but it is '{0}'." -f $background)))
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string] $background)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: background is empty. Remove the key to use the background WinPE ships.'))
+        }
+
+        if (([string] $background) -notmatch '\.(jpg|jpeg)$') {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: background '{0}' is not a .jpg. WinPE's background is \Windows\System32\winpe.jpg and it must be a JPEG." -f $background)))
         }
     }
 

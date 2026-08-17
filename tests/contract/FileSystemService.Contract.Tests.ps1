@@ -76,7 +76,7 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
                     'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetDirectory',
-                    'GetLength', 'GetHash', 'GetVersion')) {
+                    'TakeOwnership', 'GetLength', 'GetHash', 'GetVersion')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -108,6 +108,31 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
         It 'throws for a path that is not there, as GetChildItem does' {
             $record = $null
             try { $script:fs.GetDirectory((Join-Path -Path $script:root -ChildPath 'missing')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+        }
+
+        # TakeOwnership EXISTS BECAUSE OF ONE FILE: \Windows\System32\winpe.jpg
+        # inside a mounted WinPE image is owned by TrustedInstaller and denies
+        # write even to an elevated build. A real build proved it - "Access to
+        # the path ... is denied" - and Microsoft's own instructions for
+        # replacing that background are take ownership, grant Administrators
+        # full control, then copy.
+        It 'leaves a file writable after taking ownership of it' {
+            $path = Join-Path -Path $script:root -ChildPath 'owned.txt'
+            $script:fs.WriteAllText($path, 'first')
+
+            $script:fs.TakeOwnership($path)
+
+            # The point is not who owns it - that differs between a real ACL and
+            # a fake with none - but that the caller may now write over it.
+            $script:fs.WriteAllText($path, 'second')
+            $script:fs.ReadAllText($path) | Should -BeExactly 'second'
+        }
+
+        It 'throws for a file that is not there' {
+            $record = $null
+            try { $script:fs.TakeOwnership((Join-Path -Path $script:root -ChildPath 'absent.txt')) } catch { $record = $_ }
 
             $record | Should -Not -BeNullOrEmpty
         }

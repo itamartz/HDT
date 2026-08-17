@@ -521,6 +521,28 @@ Describe 'Update-HDTBootImage' {
             $context.FileSystem.TestPath($script:mountPath + '\Unattend.xml') | Should -BeTrue
         }
 
+        It 'copies the background over the one file WinPE reads' {
+            # \Windows\System32\winpe.jpg, under that name whatever the
+            # administrator called it on their own disk. A file copied in under
+            # any other name is carried into the image and never shown.
+            $yaml = $script:workspaceYaml + "`n  background: Branding\hdt.jpg"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            $context.FileSystem.WriteAllText(($script:workspaceRoot + '\Branding\hdt.jpg'), 'jpeg bytes')
+
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $context.FileSystem.TestPath($script:mountPath + '\Windows\System32\winpe.jpg') | Should -BeTrue
+        }
+
+        It 'refuses a named background that is not there, before it mounts' {
+            $yaml = $script:workspaceYaml + "`n  background: Branding\missing.jpg"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+
+            { Invoke-HDTBootImageTestBuild -Context $context } | Should -Throw '*missing.jpg*'
+
+            @($context.Journal | Where-Object { $_.Operation -eq 'MountImage' }) | Should -BeNullOrEmpty
+        }
+
         It 'refuses a named answer file that is not there, before it mounts' {
             # BEFORE THE MOUNT, deliberately. Failing at the copy would cost a
             # mount and a discard - minutes - to say something knowable at the

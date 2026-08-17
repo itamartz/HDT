@@ -21,6 +21,7 @@
         'Remove-HDTBootImageContent',
         'Move-HDTBootImageStartCommand',
         'Remove-HDTBootImageStartCommand',
+        'Set-HDTBootImageBackground',
         'Set-HDTBootImageDriver',
         'Set-HDTBootImageUnattend',
         'Set-HDTWorkspaceProperty',

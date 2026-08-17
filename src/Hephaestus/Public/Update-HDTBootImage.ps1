@@ -546,6 +546,29 @@ function Update-HDTBootImage {
         $unattendInImage = 'X:\Unattend.xml'
     }
 
+    # -- the WinPE background, resolved and judged before the mount ----------
+    #
+    # SAME RULES AS THE ANSWER FILE: rooted is taken as written, relative is
+    # read from the share, and a named file that is not there is refused before
+    # anything is mounted rather than after.
+
+    $backgroundSource = ''
+
+    if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.Background)) {
+        $backgroundDeclared = [string] $workspace.BootImage.Background
+        $backgroundSource = $backgroundDeclared
+
+        if (-not [System.IO.Path]::IsPathRooted($backgroundDeclared)) {
+            $backgroundSource = [System.IO.Path]::Combine($WorkspaceRoot, $backgroundDeclared)
+        }
+
+        if (-not $FileSystem.TestPath($backgroundSource)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $backgroundSource `
+                        -Message ("the WinPE background '{0}' is named in workspace.yaml and is not at '{1}'." -f
+                            $backgroundDeclared, $backgroundSource)))
+        }
+    }
+
     # =====================================================================
     # 4b. THE SCRATCH DIRECTORIES - the first thing that writes
     # =====================================================================
@@ -894,6 +917,44 @@ function Update-HDTBootImage {
 
         if (-not [string]::IsNullOrWhiteSpace($unattendSource)) {
             $FileSystem.CopyItem($unattendSource, [System.IO.Path]::Combine($mountPath, 'Unattend.xml'))
+        }
+
+        # -- 13c. the WinPE background ----------------------------------------
+        #
+        # OVER \Windows\System32\winpe.jpg, WHICH IS THE ONLY FILE WinPE READS
+        # for this. The name in the image is fixed; what the administrator
+        # called it on their own disk is their business.
+        #
+        # THAT FILE ALREADY EXISTS IN THE MOUNT AND IS OWNED BY TrustedInstaller
+        # - Microsoft's own instructions for replacing it say to take ownership
+        # and grant Administrators full control first. So the copy is attempted
+        # and a refusal is REPORTED IN THOSE TERMS rather than as a bare access
+        # denied, which is a message nobody can act on.
+
+        if (-not [string]::IsNullOrWhiteSpace($backgroundSource)) {
+            $Progress.Report(13, $stepTotal, 'Copying the WinPE background', $backgroundSource)
+
+            $backgroundTarget = [System.IO.Path]::Combine($mountPath, 'Windows', 'System32', 'winpe.jpg')
+
+            try {
+                # OWNERSHIP FIRST, AND ONLY THEN THE COPY. A real build failed
+                # here with "Access to the path is denied" before this line
+                # existed: the file is owned by TrustedInstaller, and taking
+                # ownership plus granting Administrators full control is
+                # Microsoft's own documented procedure for replacing it.
+                #
+                # ONLY IF IT IS THERE. Ownership is a thing one takes FROM
+                # somebody; a WinPE that shipped without a winpe.jpg has nobody
+                # to take it from, and the copy below simply creates the file.
+                if ($FileSystem.TestPath($backgroundTarget)) {
+                    $FileSystem.TakeOwnership($backgroundTarget)
+                }
+                $FileSystem.CopyItem($backgroundSource, $backgroundTarget)
+            } catch {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $backgroundTarget `
+                            -Message ("the WinPE background could not be written over '{0}': {1}. That file is owned by TrustedInstaller inside the image, and replacing it needs ownership and full control for Administrators - or an elevated build." -f
+                                $backgroundTarget, $_.Exception.Message)))
+            }
         }
 
         # -- 14. extraContent --------------------------------------------------

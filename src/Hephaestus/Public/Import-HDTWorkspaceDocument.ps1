@@ -171,6 +171,13 @@ function Import-HDTWorkspaceDocument {
         $unattend = [string] $bootImage['unattend']
     }
 
+    # The WinPE background, relative to the share or rooted. Empty means the
+    # one Microsoft ships.
+    $background = ''
+    if ($null -ne $bootImage -and $bootImage.Contains('background')) {
+        $background = [string] $bootImage['background']
+    }
+
     # Empty means "the builder decides". The default command lives in
     # Get-HDTStartnetScript's parameter and is not repeated here: two defaults
     # for one string is one of them being wrong after the next edit.
@@ -256,6 +263,7 @@ function Import-HDTWorkspaceDocument {
             ExtraContent      = [pscustomobject[]] @($extraContent)
             Drivers           = $drivers
             Unattend          = $unattend
+            Background        = $background
             EntryCommand      = $entryCommand
             StartCommand      = [string[]] @($startCommand)
             SkipWelcome       = $skip['SkipWelcome']

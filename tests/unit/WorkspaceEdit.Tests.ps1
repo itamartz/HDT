@@ -643,6 +643,69 @@ Describe 'Set-HDTBootImageUnattend (<Style>)' -ForEach $script:style {
     }
 }
 
+# The WinPE background. DESIGN 11.1 says HDT solves the bare-prompt problem
+# with the progress window's own ground rather than with a wallpaper, and that
+# stands - but the boot image still has a desktop behind that window, and an
+# administrator who wants it branded should not have to hand-edit YAML for it.
+#
+# IT IS SHAPED LIKE Set-HDTBootImageUnattend, which is shaped like
+# Set-HDTBootImageDriver: one value, -Clear to take it away, key removed rather
+# than written empty.
+Describe 'Set-HDTBootImageBackground (<Style>)' -ForEach $script:style {
+
+    BeforeAll {
+        $script:line = [string[]] @($Text -split "`r?`n")
+    }
+
+    It 'names the background image' {
+        $after = Set-HDTBootImageBackground -Line $script:line -Path 'C:\HDTLab\Branding\winpe.jpg'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Background |
+            Should -BeExactly 'C:\HDTLab\Branding\winpe.jpg'
+    }
+
+    It 'takes a share-relative path too' {
+        $after = Set-HDTBootImageBackground -Line $script:line -Path 'Branding\winpe.jpg'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Background | Should -BeExactly 'Branding\winpe.jpg'
+    }
+
+    It 'clears the key rather than writing it empty' {
+        $after = Set-HDTBootImageBackground -Line $script:line -Path 'Branding\winpe.jpg'
+        $after = Set-HDTBootImageBackground -Line $after -Clear
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Background | Should -BeExactly ''
+        @($after | Where-Object { $_ -match '^\s*background:' }) | Should -BeNullOrEmpty
+    }
+
+    It 'refuses a file WinPE will not read' {
+        # WinPE READS ONE FILE, winpe.jpg, AND IT MUST BE A JPEG. A .png or a
+        # .bmp copied over it is a file the boot image carries and never shows -
+        # which is a build that succeeds and a background that does not appear,
+        # the worst way to find out.
+        { Set-HDTBootImageBackground -Line $script:line -Path 'Branding\winpe.png' } |
+            Should -Throw -ExpectedMessage '*jpg*'
+    }
+
+    It 'takes .jpeg as well as .jpg' {
+        $after = Set-HDTBootImageBackground -Line $script:line -Path 'Branding\winpe.jpeg'
+
+        (Get-HDTTestWorkspace -Line $after).BootImage.Background | Should -BeExactly 'Branding\winpe.jpeg'
+    }
+
+    It 'leaves every other line byte-identical' {
+        $after = Set-HDTBootImageBackground -Line $script:line -Path 'Branding\winpe.jpg'
+
+        Get-HDTTestRemovedLine -Before $script:line -After $after | Should -BeNullOrEmpty
+    }
+
+    It 'changes nothing under -WhatIf' {
+        $after = Set-HDTBootImageBackground -Line $script:line -Path 'Branding\winpe.jpg' -WhatIf
+
+        ($after -join "`n") | Should -BeExactly ($script:line -join "`n")
+    }
+}
+
 Describe 'Set-HDTWorkspaceProperty (<Style>)' -ForEach $script:style {
 
     BeforeAll {

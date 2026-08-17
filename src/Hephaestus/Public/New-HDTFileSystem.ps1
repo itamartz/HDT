@@ -211,6 +211,42 @@ function New-HDTFileSystem {
         return , ([string[]] $child)
     }
 
+    # OWNERSHIP AND FULL CONTROL FOR ADMINISTRATORS, WHICH IS THE ONLY WAY TO
+    # REPLACE A FILE INSIDE A MOUNTED IMAGE. \Windows\System32\winpe.jpg - the
+    # WinPE background - is owned by TrustedInstaller and denies write even to
+    # an elevated build: a straight copy over it fails with "Access to the path
+    # is denied", which is exactly what a real build reported. Microsoft's own
+    # instructions for changing that background are take ownership, grant
+    # Administrators full control, then replace, and this is that pair.
+    #
+    # IT NEEDS ELEVATION, and every build that mounts an image already has it -
+    # DISM will not mount without it. A caller that is not elevated gets the
+    # framework's own exception, which says so.
+    $service | Add-Member -MemberType ScriptMethod -Name TakeOwnership -Value {
+        param([string] $Path)
+
+        $this.Record('TakeOwnership', @($Path))
+
+        $full = $this.NormalizePath($Path)
+        $administrators = New-Object -TypeName System.Security.Principal.SecurityIdentifier `
+            -ArgumentList ([System.Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid), $null
+
+        # THE OWNER IS SET IN ITS OWN Set-Acl, BEFORE THE ACE IS ADDED. Writing
+        # a DACL onto a file you do not own is itself denied, so the two cannot
+        # be one call: ownership first buys the right to change the rest.
+        $file = Get-Item -LiteralPath $full -Force
+        $owner = $file.GetAccessControl('Owner')
+        $owner.SetOwner($administrators)
+        $file.SetAccessControl($owner)
+
+        $access = $file.GetAccessControl('Access')
+        $access.AddAccessRule((New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule `
+                    -ArgumentList $administrators,
+                ([System.Security.AccessControl.FileSystemRights]::FullControl),
+                ([System.Security.AccessControl.AccessControlType]::Allow)))
+        $file.SetAccessControl($access)
+    }
+
     # THE FOLDERS ONLY, because a caller frequently means folders. A driver
     # group is a FOLDER under Drivers\, and a flat list of paths cannot be
     # filtered back down to folders without guessing from the name - which fails

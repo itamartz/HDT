@@ -727,6 +727,8 @@ function New-HDTConsoleHost {
         $scratchBox = $window.FindName('HDTBootImageScratchBox')
         $unattendBox = $window.FindName('HDTBootImageUnattendBox')
         $unattendBrowse = $window.FindName('HDTBootImageUnattendBrowseButton')
+        $backgroundBox = $window.FindName('HDTBootImageBackgroundBox')
+        $backgroundBrowse = $window.FindName('HDTBootImageBackgroundBrowseButton')
 
         $componentList = $window.FindName('HDTComponentList')
         $componentSize = $window.FindName('HDTComponentSizeText')
@@ -776,6 +778,7 @@ function New-HDTConsoleHost {
             $nameBox.Text = [string] $view.General.Name
             $languageBox.Text = [string] $view.General.Language
             $unattendBox.Text = [string] $view.General.Unattend
+            $backgroundBox.Text = [string] $view.General.Background
             $architectureBox.SelectedValue = [string] $view.General.Architecture
             $scratchBox.SelectedValue = [string] $view.General.ScratchSpaceMB
 
@@ -971,6 +974,17 @@ function New-HDTConsoleHost {
                 if ($dialog.ShowDialog($window)) { $unattendBox.Text = $dialog.FileName }
             }.GetNewClosure())
 
+        # FILTERED TO JPEG, because WinPE reads \Windows\System32\winpe.jpg and
+        # nothing else. Set-HDTBootImageBackground refuses any other format; the
+        # dialog's job is to not offer one in the first place.
+        $backgroundBrowse.Add_Click({
+                $dialog = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $dialog.Title = 'Choose the WinPE background'
+                $dialog.Filter = 'JPEG images (*.jpg;*.jpeg)|*.jpg;*.jpeg'
+
+                if ($dialog.ShowDialog($window)) { $backgroundBox.Text = $dialog.FileName }
+            }.GetNewClosure())
+
         # A FOLDER, NOT A FILE, because extraContent's commonest source is a
         # tool's whole directory - BGInfo, a VNC server - and a file picker
         # cannot return one.
@@ -1025,6 +1039,13 @@ function New-HDTConsoleHost {
                             -Path ([string] $unattendBox.Text) -Confirm:$false)
                 }
 
+                if ([string]::IsNullOrWhiteSpace($backgroundBox.Text)) {
+                    $book.Line = @(Set-HDTBootImageBackground -Line $book.Line -Clear -Confirm:$false)
+                } else {
+                    $book.Line = @(Set-HDTBootImageBackground -Line $book.Line `
+                            -Path ([string] $backgroundBox.Text) -Confirm:$false)
+                }
+
                 if ([string]::IsNullOrWhiteSpace($driverBox.SelectedValue)) {
                     $book.Line = @(Set-HDTBootImageDriver -Line $book.Line -Clear -Confirm:$false)
                 } else {
@@ -1054,6 +1075,13 @@ function New-HDTConsoleHost {
                 } else {
                     [void] $ran.Add($book.View.General.UnattendCommandFormat -f
                         [string] $book.View.General.Unattend)
+                }
+
+                if ([string]::IsNullOrWhiteSpace($book.View.General.Background)) {
+                    [void] $ran.Add([string] $book.View.General.BackgroundClearCommand)
+                } else {
+                    [void] $ran.Add($book.View.General.BackgroundCommandFormat -f
+                        [string] $book.View.General.Background)
                 }
 
                 if ([string]::IsNullOrWhiteSpace($book.View.Driver.Group)) {

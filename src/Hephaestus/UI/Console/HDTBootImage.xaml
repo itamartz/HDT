@@ -13,7 +13,8 @@
         boot image for fifteen years. Four tabs, and each one is the face of a
         command family that already exists:
 
-          General          Set-HDTWorkspaceProperty, Set-HDTBootImageUnattend
+          General          Set-HDTWorkspaceProperty, Set-HDTBootImageUnattend,
+                           Set-HDTBootImageBackground
           Features         Get-HDTAdkComponent, Add/Remove-HDTBootImageComponent
           Drivers          Get-HDTDriverGroup, Set-HDTBootImageDriver
           Customisations   Add/Remove-HDTBootImageContent,
@@ -62,7 +63,8 @@
         HDTBootImageTitleText, HDTBootImagePathText, HDTBootImageNameBox,
         HDTBootImageArchitectureBox, HDTBootImageLanguageBox,
         HDTBootImageScratchBox, HDTBootImageUnattendBox,
-        HDTBootImageUnattendBrowseButton,
+        HDTBootImageUnattendBrowseButton, HDTBootImageBackgroundBox,
+        HDTBootImageBackgroundBrowseButton,
         HDTComponentList, HDTComponentSizeText,
         HDTDriverGroupBox,
         HDTContentList, HDTContentSourceBox, HDTContentBrowseButton,
@@ -249,6 +251,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Image name"
@@ -324,6 +327,34 @@
                         </StackPanel>
 
                         <!--
+                            MDT'S "custom background bitmap file". DESIGN 11.1
+                            says HDT does not NEED one - the progress window
+                            paints its own full-screen ground, which is what the
+                            wallpaper is for in MDT - but the boot image still
+                            has a desktop behind that window, and branding it
+                            should not mean hand-editing YAML.
+
+                            THE FILE PICKER FILTERS TO JPEG because WinPE reads
+                            \Windows\System32\winpe.jpg and nothing else. A .png
+                            chosen here would be copied into the image and never
+                            shown; Set-HDTBootImageBackground refuses one, and
+                            the dialog tries not to offer it in the first place.
+                        -->
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Background"
+                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="HDTBootImageBackgroundBox" Width="470"
+                                         HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
+                                         Margin="0,0,8,0" />
+                                <Button x:Name="HDTBootImageBackgroundBrowseButton" Content="Browse" MinWidth="80" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+                                       HorizontalAlignment="Left"
+                                       Text="A .jpg shown behind everything in WinPE, copied into the image as \Windows\System32\winpe.jpg. Empty means the background WinPE ships. The deployment's own progress window covers most of it." />
+                        </StackPanel>
+
+                        <!--
                             THERE IS NO APPLY ON THIS TAB, and that is not an
                             omission. Every tab edits the same in-memory
                             document; Save at the bottom is what writes it, and
@@ -342,7 +373,7 @@
                             nothing for a checkbox to call. They are edited in
                             the file until there is one.
                         -->
-                        <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource HDTHintText}"
+                        <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource HDTHintText}"
                                    Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
                                    Text="The Welcome screen's Skip settings live in workspace.yaml under bootImage.skip and are not on this window: no command sets them yet, and a control with nothing behind it is worse than none." />
                     </Grid>

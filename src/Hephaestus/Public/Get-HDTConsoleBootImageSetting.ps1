@@ -214,6 +214,7 @@ function Get-HDTConsoleBootImageSetting {
         # blank on a document that set it.
         ScratchSpaceMB        = [string] $bootImage.ScratchSpaceMB
         Unattend              = [string] $bootImage.Unattend
+        Background            = [string] $bootImage.Background
 
         Command               = "Set-HDTWorkspaceProperty -Line `$line -BootImageName '{0}' -Architecture '{1}' -Language '{2}' -ScratchSpaceMB {3}" -f
         [string] $bootImage.Name, [string] $bootImage.Architecture,
@@ -221,6 +222,9 @@ function Get-HDTConsoleBootImageSetting {
 
         UnattendCommandFormat = 'Set-HDTBootImageUnattend -Line $line -Path ''{0}'''
         UnattendClearCommand  = 'Set-HDTBootImageUnattend -Line $line -Clear'
+
+        BackgroundCommandFormat = 'Set-HDTBootImageBackground -Line $line -Path ''{0}'''
+        BackgroundClearCommand  = 'Set-HDTBootImageBackground -Line $line -Clear'
     }
 
     # -- the Drivers tab -----------------------------------------------------

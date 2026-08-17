@@ -308,6 +308,20 @@ class HDTFakeFileSystem {
         return $result
     }
 
+    # RECORDED, NOT SIMULATED. There are no ACLs in this fake and inventing
+    # them would be inventing a Windows security model to test against; what a
+    # caller has to prove is that it ASKS before it writes over a file inside a
+    # mounted image, and the journal is where that is proved.
+    [void] TakeOwnership([string] $Path) {
+        $this.Record('TakeOwnership', @($Path))
+
+        $full = $this.Normalize($Path)
+
+        if (-not $this.File.ContainsKey($full)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.")
+        }
+    }
+
     # The folders only. See New-HDTFileSystem's GetDirectory for why the caller
     # cannot filter GetChildItem's answer back down to folders itself.
     [string[]] GetDirectory([string] $Path) {
