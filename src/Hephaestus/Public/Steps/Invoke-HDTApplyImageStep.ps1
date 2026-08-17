@@ -221,8 +221,77 @@ function Invoke-HDTApplyImageStep {
     $clock = $Context.Service.Clock
     $startedUtc = $clock.GetUtcNow()
 
+    # THE ONLY NUMBER THAT MOVES FOR THE NEXT NINE MINUTES. Everything else on
+    # the screen - the counter, the sequence percentage, the step name - is
+    # correct and motionless for the whole of an 18 GB apply, and a motionless
+    # screen is indistinguishable from a hung machine to the person standing in
+    # front of it. dism prints a percentage as it works; the adapter hands every
+    # line it prints to this.
+    #
+    # STILL NO SECOND CHANNEL (DESIGN 11.1). This writes a record to the JSONL
+    # and asks the display to re-read it, exactly as the step loop does between
+    # steps. The screen and the log cannot disagree because they are the same
+    # facts.
+    #
+    # EVERY FIVE POINTS, AND ALWAYS AT A HUNDRED. dism prints about a hundred
+    # meter lines and each one would otherwise be a log record and a re-read of
+    # the log by the display; five is the granularity a bar on a wall is read
+    # at. A hundred is reported whether or not it clears the threshold, because
+    # the last thing the log says about an apply should be that it finished.
+    $progressState = @{ Percent = 0 }
+
+    # THE CALLBACK RUNS IN SOMEBODY ELSE'S MODULE, AND COMMAND RESOLUTION
+    # FOLLOWS THE CALLER RATHER THAN THE CLOSURE. The real IImageService is a
+    # pscustomobject built in this module, but the fake is a PowerShell CLASS in
+    # HDTFakes - and a scriptblock invoked from a class method resolves its
+    # commands in the class's module, where ConvertFrom-HDTDismProgressLine,
+    # private to Hephaestus, does not exist. That failure landed in the catch
+    # below and looked exactly like an apply that printed no percentages: every
+    # other assertion still passed.
+    #
+    # SO THEY ARE RESOLVED HERE, WHERE THIS FUNCTION IS, and captured. A
+    # CommandInfo invoked with & does not care whose scope it is called from.
+    $parseProgress = Get-Command -Name 'ConvertFrom-HDTDismProgressLine'
+    $writeLog = Get-Command -Name 'Write-HDTLog'
+    $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
+
+    $onOutput = {
+        param([string] $Line)
+
+        # A BAR DOES NOT GET TO FAIL A DEPLOYMENT. This runs inside the apply,
+        # on a machine part-way through writing Windows to a disk; a log write
+        # that lost its RAM disk or a display whose runspace has died is not a
+        # reason to stop building a computer.
+        try {
+            $percent = & $parseProgress -Line $Line
+            if ($null -eq $percent) { return }
+
+            $reported = [int] $progressState['Percent']
+            if ([int] $percent -le $reported) { return }
+            if ([int] $percent -lt ($reported + 5) -and [int] $percent -lt 100) { return }
+
+            $progressState['Percent'] = [int] $percent
+
+            & $writeLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyImage' `
+                -Message ('applying {0} (index {1}) to {2}: {3}%' -f $imagePath, $resolvedIndex, $applyPath, [int] $percent) `
+                -Data ([ordered] @{
+                    imagePath = $imagePath
+                    index     = $resolvedIndex
+                    target    = $applyPath
+                    percent   = [int] $percent
+                })
+
+            & $updateDisplay -Context $Context
+        } catch {
+            # Kept where a debugger can reach it rather than thrown away: an
+            # empty catch is how a percentage that never appeared stays a
+            # mystery.
+            $progressState['Error'] = [string] $_.Exception.Message
+        }
+    }.GetNewClosure()
+
     try {
-        $imageService.ApplyImage($imagePath, $resolvedIndex, $applyPath)
+        $imageService.ApplyImage($imagePath, $resolvedIndex, $applyPath, $onOutput)
     } catch {
         return (& $fail ("applying {0} (index {1}) to {2} failed: {3}" -f
                 $imagePath, $resolvedIndex, $applyPath, [string] $_.Exception.Message) '')

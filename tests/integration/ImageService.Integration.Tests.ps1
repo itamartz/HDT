@@ -68,6 +68,7 @@ BeforeAll {
 
     $script:applySecond = 0
     $script:scratchNumber = -1
+    $script:applyLine = [string[]] @()
 
     if (-not $script:skipSlow) {
         $scratch = New-HDTLabScratchDisk -Path $script:scratchPath -SizeByte $script:scratchSizeByte -Dynamic -Confirm:$false
@@ -98,9 +99,20 @@ BeforeAll {
 
         # THE APPLY. Timed, so the local-disk number exists beside SPIKES S6's
         # 95 seconds over SMB for M4 to compare against.
+        #
+        # EVERY LINE THE TOOL PRINTS IS KEPT, because the percentage a technician
+        # watches during the nine minutes this takes comes from dism's own
+        # stdout, and this is the only place in the suite where the real tool
+        # prints it. The unit tests replay a captured transcript; here the
+        # transcript is made.
+        $line = New-Object System.Collections.ArrayList
+        $collect = { param([string] $Text) [void] $line.Add($Text) }.GetNewClosure()
+
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $script:image.ApplyImage($script:wimPath, 1, 'W:\')
+        $script:image.ApplyImage($script:wimPath, 1, 'W:\', $collect)
         $stopwatch.Stop()
+
+        $script:applyLine = [string[]] @($line)
         $script:applySecond = [int] $stopwatch.Elapsed.TotalSeconds
 
         Write-Information ("apply of index 1 to W:\ took {0}s" -f $script:applySecond) -InformationAction Continue
@@ -164,6 +176,33 @@ Describe 'IImageService reading the real media' -Skip:$skipMedia {
 }
 
 Describe 'IImageService applying Windows 11 for real' -Tag 'Slow' -Skip:$skipSlow {
+
+    Context 'what the tool said while it worked' {
+
+        # THE PROGRESS IS THE REASON THE ADAPTER RUNS dism.exe RATHER THAN
+        # Expand-WindowsImage, whose progress goes to PowerShell's progress
+        # stream and is therefore invisible to a deployment. Every other claim
+        # about that choice is asserted against a captured transcript; these
+        # three are asserted against the tool itself.
+
+        It 'printed a percentage meter' {
+            @($script:applyLine | Where-Object { $_ -match '^\s*\[[=\s]*[0-9]+(\.[0-9]+)?%' }) |
+                Should -Not -BeNullOrEmpty -Because 'the step bar is driven by these lines'
+        }
+
+        It 'printed more than one of them, as it went' {
+            # One line at the end would be a bar that jumps from nothing to done,
+            # which is the state this work exists to leave behind.
+            @($script:applyLine | Where-Object { $_ -match '%' }).Count | Should -BeGreaterThan 1
+        }
+
+        It 'ended at a hundred' {
+            $meter = @($script:applyLine | Where-Object { $_ -match '%' })
+
+            $meter[-1] | Should -Match '100(\.0)?%'
+        }
+    }
+
 
     Context 'the applied volume' {
 

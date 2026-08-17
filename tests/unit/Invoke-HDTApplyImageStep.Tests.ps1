@@ -565,3 +565,144 @@ Describe 'a target that resolves to nothing' {
         (Invoke-HDTApplyImageStep -Step $step -Context $context).Status | Should -BeExactly 'Failed'
     }
 }
+
+Describe 'the apply says how far it has got' {
+
+    # DESIGN 11.1 DERIVES PROGRESS FROM THE LOG, and for the whole of M4 the
+    # longest step in a deployment wrote two lines: one when it started and one
+    # when it finished. A technician watching a machine apply 18 GB had a bar
+    # that had not moved in nine minutes and no way to tell a slow disk from a
+    # dead one.
+    #
+    # dism.exe prints a percentage as it works, which is why the adapter runs
+    # the tool MDT ran rather than Expand-WindowsImage - whose progress goes to
+    # PowerShell's progress STREAM, which nothing in WinPE is reading.
+    #
+    # THE STEP THROTTLES, THE ADAPTER DOES NOT. dism prints about a hundred
+    # meter lines and every one of them would otherwise be a JSONL record and a
+    # re-read of that JSONL by the display. Five points is the granularity a bar
+    # on a wall is read at.
+    #
+    # 100% IS ALWAYS REPORTED even when it would not clear the threshold: the
+    # last thing the log says about an apply should be that it finished.
+
+    BeforeEach {
+        $script:progressLine = [string[]] [System.IO.File]::ReadAllLines(
+            (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-apply-image-output.txt'))
+
+        $script:progressFs = New-HDTFakeFileSystem -File @{ $script:catalogPath = $script:catalogYaml }
+        $script:progressClock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 9, 26, [System.DateTimeKind]::Utc)) -TickMillisecond 500
+        $script:progressDisplay = New-HDTFakeProgressHost
+
+        $script:newProgressContext = {
+            param([object] $ImageService)
+
+            $catalog = New-HDTServiceCatalog -FileSystem $script:progressFs -Clock $script:progressClock `
+                -Disk (New-HDTFakeDiskService) -Image $ImageService -Progress $script:progressDisplay
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:progressFs -Clock $script:progressClock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+
+            return (New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:workspaceRoot `
+                    -Variable $live -Service $catalog -Log $log)
+        }
+
+        $script:progressStep = & $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; index = 1 })
+    }
+
+    It 'writes a step.progress record every five points, and one at a hundred' {
+        # THE CAPTURED RUN JUMPS 85 TO 100 and this expectation says so rather
+        # than smoothing it: dism stops printing while it applies the last of
+        # the image and then prints the solid bar. A step that only reported on
+        # a five-point stride would have said 85% and then nothing at all about
+        # an apply that finished - which is why 100 is reported unconditionally.
+        $context = & $script:newProgressContext (New-HDTFakeImageService -ApplyOutput $script:progressLine)
+
+        (Invoke-HDTApplyImageStep -Step $script:progressStep -Context $context).Status | Should -BeExactly 'Completed'
+
+        $percent = @(Get-HDTLogRecord -FileSystem $script:progressFs -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                ForEach-Object { [int] $_.data.percent })
+
+        $percent | Should -Be @(5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 100)
+    }
+
+    It 'names the image and the target in the progress record' {
+        $context = & $script:newProgressContext (New-HDTFakeImageService -ApplyOutput $script:progressLine)
+
+        Invoke-HDTApplyImageStep -Step $script:progressStep -Context $context | Out-Null
+
+        $record = @(Get-HDTLogRecord -FileSystem $script:progressFs -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress')
+
+        [string] $record[0].component | Should -BeExactly 'ApplyImage'
+        [string] $record[0].data.target | Should -BeExactly 'W:\'
+        [string] $record[0].data.imagePath | Should -BeLike '*install.wim'
+    }
+
+    It 'writes nothing when the tool prints no meter at all' {
+        # A dism build that prints only its banner, and the reason the parser is
+        # asked rather than the line count: a record per line of output would be
+        # a progress bar driven by how chatty a tool is.
+        $context = & $script:newProgressContext (New-HDTFakeImageService -ApplyOutput @(
+                'Deployment Image Servicing and Management tool', 'Version: 10.0.26100.8521', '', 'Applying image'))
+
+        Invoke-HDTApplyImageStep -Step $script:progressStep -Context $context | Out-Null
+
+        @(Get-HDTLogRecord -FileSystem $script:progressFs -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress') |
+            Should -BeNullOrEmpty
+    }
+
+    It 'still applies exactly one image with the same three arguments' {
+        # The progress channel is an addition, not a change: what the step asks
+        # the service to do is what it always asked.
+        $image = New-HDTFakeImageService -ApplyOutput $script:progressLine
+        $context = & $script:newProgressContext $image
+
+        Invoke-HDTApplyImageStep -Step $script:progressStep -Context $context | Out-Null
+
+        $apply = @($image.Operations | Where-Object { $_.Operation -eq 'ApplyImage' })
+
+        $apply.Count | Should -Be 1
+        @($apply[0].Arguments).Count | Should -Be 3
+        [string] $apply[0].Arguments[2] | Should -BeExactly 'W:\'
+    }
+
+    It 'keeps the progress it made when the apply then fails' {
+        # THE LAST PERCENTAGE IS THE EVIDENCE. An apply that dies at 60% died
+        # somewhere different from one that never started, and the log is the
+        # only place a technician can tell them apart afterwards.
+        $image = New-HDTFakeImageService -ApplyOutput $script:progressLine[0..80] `
+            -Failure @{ ApplyImage = 'Error: 0x80070070 - There is not enough space on the disk.' }
+        $context = & $script:newProgressContext $image
+
+        $result = Invoke-HDTApplyImageStep -Step $script:progressStep -Context $context
+
+        $result.Status | Should -BeExactly 'Failed'
+
+        $percent = @(Get-HDTLogRecord -FileSystem $script:progressFs -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                ForEach-Object { [int] $_.data.percent })
+
+        $percent | Should -Not -BeNullOrEmpty
+        $percent[-1] | Should -BeLessThan 100
+    }
+
+    It 'drives the progress display while the apply is still running' {
+        # THE WHOLE POINT, ASSERTED END TO END: the step logs, the display reads
+        # the log back, and the number on the screen is the number dism printed.
+        # Nothing here is a second channel (DESIGN 11.1).
+        $context = & $script:newProgressContext (New-HDTFakeImageService -ApplyOutput $script:progressLine)
+
+        Invoke-HDTApplyImageStep -Step $script:progressStep -Context $context | Out-Null
+
+        # THE DISPLAY THE STEP ACTUALLY DROVE, read off the context rather than
+        # off a variable a test believes is the same object.
+        # IProgressHost's fake records operation NAMES, not operation objects.
+        $display = $context.Service.Progress
+        $update = @($display.Operations | Where-Object { $_ -eq 'Update' })
+
+        $update.Count | Should -BeGreaterThan 1 -Because 'a display updated only at the end is the bar that never moves'
+        [int] $display.LastProgress.StepPercent | Should -Be 100
+    }
+}

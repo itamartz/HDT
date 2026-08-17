@@ -1,12 +1,12 @@
 function New-HDTImageService {
     <#
         .SYNOPSIS
-            Creates the real IImageService adapter over the DISM cmdlets,
-            bcdboot, bcdedit and reagentc.
+            Creates the real IImageService adapter over Get-WindowsImage,
+            dism.exe, bcdboot, bcdedit and reagentc.
 
         .DESCRIPTION
-            The one place in HDT that names Get-WindowsImage,
-            Expand-WindowsImage, bcdboot.exe, bcdedit.exe or Reagentc.exe.
+            The one place in HDT that names Get-WindowsImage, dism.exe,
+            bcdboot.exe, bcdedit.exe or Reagentc.exe.
             PROJECT constraint 4 forbids a step from touching hardware directly,
             so ApplyImage and ConfigureBoot receive this object and can be
             swapped for New-HDTFakeImageService in a test with no media, no disk
@@ -19,8 +19,10 @@ function New-HDTImageService {
                   index for EditionId, Architecture and Version, which the
                   summary form does not carry.
 
-              ApplyImage(imagePath, index, applyPath)
-                  Expand-WindowsImage -ImagePath -Index -ApplyPath.
+              ApplyImage(imagePath, index, applyPath[, onOutput])
+                  dism.exe /Apply-Image /ImageFile: /Index: /ApplyDir:, with
+                  every line the tool prints handed to onOutput as it arrives.
+                  That is where the percentage comes from - see the method.
 
               InstallBootFile(osRoot, systemVolume, firmware)
                   bcdboot.exe "<OsRoot>\Windows" /s <systemVolume> /f <firmware>,
@@ -60,7 +62,7 @@ function New-HDTImageService {
             firmware boot entries. Its contract row calls GetImageInfo and
             nothing else; the rest is proven in tests/integration (04-04)
             against a scratch VHDX. The price of not testing it is that it must
-            stay dumb. THE ONLY BRANCHES BELOW ARE AN EXISTENCE GUARD AND FOUR
+            stay dumb. THE ONLY BRANCHES BELOW ARE AN EXISTENCE GUARD AND FIVE
             EXIT-CODE CHECKS, each commented as such. Every decision about WHICH
             index to apply or WHETHER a recovery partition exists lives in the
             steps, which are tested against the fake. Do not add logic here.
@@ -205,14 +207,51 @@ function New-HDTImageService {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name ApplyImage -Value {
-        param([string] $ImagePath, [int] $Index, [string] $ApplyPath)
+        param([string] $ImagePath, [int] $Index, [string] $ApplyPath, [scriptblock] $OnOutput = {})
 
         $this.Record('ApplyImage', @($ImagePath, $Index, $ApplyPath))
         $this.AssertImage($ImagePath)
 
-        # DESIGN 9.2. SPIKES.md S6 applied a 4 GB WIM this way over SMB in 95
-        # seconds, so a network apply is not a performance concern.
-        Expand-WindowsImage -ImagePath $ImagePath -Index $Index -ApplyPath $ApplyPath | Out-Null
+        # DISM.EXE, NOT Expand-WindowsImage, AND THE REASON IS THE ONE NUMBER A
+        # TECHNICIAN WATCHES. Expand-WindowsImage reports progress on
+        # PowerShell's progress STREAM, which is a console bar and not data:
+        # nothing in WinPE is reading it, and there is no parameter or callback
+        # that turns it into one. dism.exe prints a percentage on stdout, which
+        # is how MDT's LiteTouch has always driven its bar, and DESIGN 11.1
+        # needs the number in the log rather than on a screen nobody is at.
+        #
+        # It is also one fewer thing the boot image must carry: dism.exe is in
+        # WinPE as shipped, where the DISM cmdlets need the WinPE-DismCmdlets
+        # optional component.
+        #
+        # EVERY LINE GOES TO $OnOutput AS IT ARRIVES, RAW. A spike on this
+        # machine measured the meter arriving one repaint per pipeline object,
+        # about a hundred of them across a 12-second export, so a caller sees
+        # the percentage move rather than getting the whole transcript at the
+        # end. What a line MEANS is decided by ConvertFrom-HDTDismProgressLine
+        # and the step: this adapter is not unit tested and gets no branches.
+        #
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
+        $commandLine = 'dism /Apply-Image /ImageFile:{0} /Index:{1} /ApplyDir:{2}' -f $ImagePath, $Index, $ApplyPath
+
+        $output = @(& "$env:SystemRoot\System32\dism.exe" '/Apply-Image' "/ImageFile:$ImagePath" `
+                "/Index:$Index" "/ApplyDir:$ApplyPath" 2>&1 |
+                ForEach-Object {
+                    $line = [string] $_
+                    $null = $OnOutput.Invoke($line)
+                    $line
+                })
+
+        # Exit-code check, with dism's own sentence attached.
+        $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name InstallBootFile -Value {

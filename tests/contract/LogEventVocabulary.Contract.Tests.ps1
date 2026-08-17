@@ -36,8 +36,8 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         $script:documented.Count | Should -BeGreaterThan 0 -Because 'DESIGN 4.4.2 has to list the vocabulary somewhere this test can read'
     }
 
-    It 'has thirteen names in the engine' {
-        $script:accepted.Count | Should -Be 13
+    It 'has fourteen names in the engine' {
+        $script:accepted.Count | Should -Be 14
     }
 
     It 'documents every name the engine accepts' {

@@ -3319,11 +3319,16 @@ class HDTFakeImageService {
     # a class type literal.
     [string] $ServiceName
 
+    # The lines ApplyImage replays to its output callback: a captured dism
+    # transcript, or a handful of lines a test wrote to make one point.
+    [string[]] $ApplyOutput
+
     HDTFakeImageService() {
         $this.Image = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'ImageService'
+        $this.ApplyOutput = [string[]] @()
     }
 
     # -- recording ---------------------------------------------------------
@@ -3444,7 +3449,25 @@ class HDTFakeImageService {
     }
 
     [void] ApplyImage([string] $ImagePath, [int] $Index, [string] $ApplyPath) {
+        $this.ApplyImage($ImagePath, $Index, $ApplyPath, {})
+    }
+
+    # The real adapter hands every line dism.exe writes to $OnOutput as it
+    # arrives, which is how a step reports progress while an apply is running.
+    # This replays the seeded lines instead - the captured transcript in
+    # tests/fixtures/image/, normally - so the step's throttling is provable
+    # with no media, no disk and no nine-minute wait.
+    #
+    # THE LINES COME BEFORE THE FAILURE, because that is the order they happen
+    # in: dism prints its way to 60% and then runs out of disk, and a step that
+    # logged nothing about the first 60% is a step nobody can debug afterwards.
+    [void] ApplyImage([string] $ImagePath, [int] $Index, [string] $ApplyPath, [object] $OnOutput) {
         $this.Record('ApplyImage', @($ImagePath, $Index, $ApplyPath))
+
+        if ($null -ne $OnOutput) {
+            foreach ($line in @($this.ApplyOutput)) { $null = $OnOutput.Invoke([string] $line) }
+        }
+
         $this.AssertNoFailure('ApplyImage')
     }
 
@@ -3481,7 +3504,7 @@ function New-HDTFakeImageService {
 
               GetImageInfo(imagePath) -> Index, Name, Description, Edition,
                                          SizeBytes, Architecture, Version
-              ApplyImage(imagePath, index, applyPath)
+              ApplyImage(imagePath, index, applyPath[, onOutput])
               InstallBootFile(osRoot, systemVolume, firmware)
               SetRecoveryImage(osRoot, recoveryPath)
               SetBootOrderFirst()
@@ -3517,6 +3540,12 @@ function New-HDTFakeImageService {
             Methods that fail. Keys are method names, values are the message the
             System.InvalidOperationException carries - the type the real adapter
             throws when a native tool exits non-zero.
+
+        .PARAMETER ApplyOutput
+            The lines ApplyImage replays to its output callback, in order, as
+            dism.exe would print them. Seed the captured transcript at
+            tests/fixtures/image/dism-apply-image-output.txt to give a step a
+            real apply's worth of progress in no time at all.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
@@ -3555,12 +3584,17 @@ function New-HDTFakeImageService {
         [hashtable] $Failure,
 
         [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]] $ApplyOutput = @(),
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
 
     $fake = [HDTFakeImageService]::new()
     $fake.Journal = $Journal
+    $fake.ApplyOutput = [string[]] @($ApplyOutput)
 
     if ($PSBoundParameters.ContainsKey('FixturePath')) {
         if (-not (Test-Path -LiteralPath $FixturePath -PathType Container)) {

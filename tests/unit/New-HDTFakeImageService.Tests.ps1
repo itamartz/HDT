@@ -220,3 +220,64 @@ Describe 'New-HDTFakeImageService' {
         }
     }
 }
+
+Describe 'the apply that talks back' {
+
+    # THE REAL ADAPTER HANDS EVERY LINE dism.exe PRINTS TO A CALLBACK as it
+    # arrives, which is where a step's progress percentage comes from. A fake
+    # that swallowed the callback would leave the only interesting behaviour of
+    # the longest step in a deployment untested, so it replays what it was
+    # seeded with - normally the captured transcript in tests/fixtures/image/.
+
+    BeforeAll {
+        $script:meter = @(
+            '[                           1.0%                           ] '
+            '[==============             50.0%                          ] '
+            '[==========================100.0%==========================] '
+        )
+    }
+
+    It 'replays the seeded lines to the callback, in order' {
+        $image = New-HDTFakeImageService -ApplyOutput $script:meter
+        $seen = New-Object System.Collections.ArrayList
+
+        $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -Be $script:meter
+    }
+
+    It 'replays nothing when it was seeded with nothing' {
+        $image = New-HDTFakeImageService
+        $seen = New-Object System.Collections.ArrayList
+
+        $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -BeNullOrEmpty
+    }
+
+    It 'still takes three arguments, for every caller that has no use for the output' {
+        $image = New-HDTFakeImageService -ApplyOutput $script:meter
+
+        { $image.ApplyImage('Z:\install.wim', 1, 'W:\') } | Should -Not -Throw
+    }
+
+    It 'records the same three arguments whether or not a callback was given' {
+        $image = New-HDTFakeImageService -ApplyOutput $script:meter
+
+        $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) })
+
+        @($image.Operations[0].Arguments) | Should -Be @('Z:\install.wim', 1, 'W:\')
+    }
+
+    It 'says what it printed before it fails' {
+        # AN APPLY THAT DIED AT 50% DIED SOMEWHERE DIFFERENT from one that never
+        # started, and the lines are the only evidence of which happened.
+        $image = New-HDTFakeImageService -ApplyOutput $script:meter -Failure @{ ApplyImage = 'Error: 0x80070070' }
+        $seen = New-Object System.Collections.ArrayList
+
+        { $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) [void] $seen.Add($Text) }) } |
+            Should -Throw
+
+        @($seen).Count | Should -Be 3
+    }
+}

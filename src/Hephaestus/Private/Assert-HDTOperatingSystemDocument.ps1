@@ -154,7 +154,7 @@ function Assert-HDTOperatingSystemDocument {
 
     if ($allowedType -notcontains $type) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                    -Message ("type '{0}' is not an image type HDT applies. The types are {1}: a wim is applied with Expand-WindowsImage and an ffu with DISM /Apply-Ffu, and there is no third apply path." -f $type, ($allowedType -join ', '))))
+                    -Message ("type '{0}' is not an image type HDT applies. The types are {1}: a wim is applied with DISM /Apply-Image and an ffu with DISM /Apply-Ffu, and there is no third apply path." -f $type, ($allowedType -join ', '))))
     }
 
     if ($Document.Contains('architecture')) {

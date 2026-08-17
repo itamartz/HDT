@@ -30,10 +30,11 @@ function Write-HDTLog {
 
             EVENT IS A CONTROLLED VOCABULARY, enforced by ValidateSet, so the
             report renderer and the console filter on a known set rather than
-            regexing prose. Thirteen names: the base eleven, plus
-            reboot.teardown for the autologon failsafe and message for a custom
-            step's bare call. Adding a fourteenth means editing the vocabulary as
-            well - a test asserts the exact list.
+            regexing prose. Fourteen names: the base eleven, plus
+            reboot.teardown for the autologon failsafe, message for a custom
+            step's bare call, and step.progress for a step long enough that the
+            bar would otherwise not move for nine minutes. Adding a fifteenth
+            means editing the vocabulary as well - a test asserts the exact list.
 
             Verbosity order is Error < Warning < Info < Debug, so Level = Warning
             emits Error and Warning only.
@@ -114,6 +115,7 @@ function Write-HDTLog {
             'run.start',
             'step.complete',
             'step.fail',
+            'step.progress',
             'step.skip',
             'step.start',
             'var.resolve')]

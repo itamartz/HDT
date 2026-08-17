@@ -11,7 +11,7 @@
 #
 # THE REAL ROW CALLS GetImageInfo AND NOTHING ELSE.
 #
-# The other four write to a disk: Expand-WindowsImage lays 4 GB of Windows down
+# The other four write to a disk: dism /Apply-Image lays 4 GB of Windows down
 # somewhere, bcdboot writes boot files, reagentc registers a recovery image and
 # bcdedit reorders this machine's own firmware boot entries. None of those is
 # something a contract test gets to do on a developer's box. THEY ARE PROVEN IN

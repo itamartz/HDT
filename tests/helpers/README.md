@@ -136,7 +136,7 @@ image with no indices. Image paths are normalised exactly as
 and is skipped with a printed warning where the staged media is absent — CI has
 none. Applying an image, writing boot files, registering a recovery image and
 reordering the firmware entries are proven in `tests/integration` (04-04); until
-then `Expand-WindowsImage`, `bcdboot`, `bcdedit` and `reagentc` have **never
+then `dism /Apply-Image`, `bcdboot`, `bcdedit` and `reagentc` have **never
 been executed by this repository**, and the summary says so rather than implying
 otherwise.
 

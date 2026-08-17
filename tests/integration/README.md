@@ -5,7 +5,7 @@ The first place HDT's code touches a real disk.
 Everything in `tests/unit` and `tests/contract` runs against hand-written fakes,
 which is what makes those suites take seconds and run on any machine. This
 directory is where the fakes are checked against the world: real `Get-Disk`,
-real `Clear-Disk`, real `Initialize-Disk`, real `Expand-WindowsImage`, real
+real `Clear-Disk`, real `Initialize-Disk`, real `dism /Apply-Image`, real
 `bcdboot`.
 
 ```powershell

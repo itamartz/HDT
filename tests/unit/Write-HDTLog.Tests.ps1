@@ -15,10 +15,12 @@ BeforeAll {
     $script:jsonlPath = 'X:\HDT\Logs\HDT.jsonl'
     $script:masterPath = 'X:\HDT\Logs\HDT.log'
 
-    # The thirteen names of DESIGN 4.4.2's controlled vocabulary: the eleven the
+    # The fourteen names of DESIGN 4.4.2's controlled vocabulary: the eleven the
     # design lists, plus reboot.teardown (DESIGN 4.5.3's failsafe, emitted by
-    # 03-03) and message (what a custom step's bare Write-HDTLog produces,
-    # DESIGN 4.4.4). Both additions are written back into DESIGN 4.4.2 by 03-05.
+    # 03-03), message (what a custom step's bare Write-HDTLog produces, DESIGN
+    # 4.4.4) and step.progress (a step long enough to report on itself - an
+    # apply, which prints a percentage for nine minutes). All three additions
+    # are written back into DESIGN 4.4.2.
     $script:eventVocabulary = @(
         'message'
         'native.exec'
@@ -30,6 +32,7 @@ BeforeAll {
         'run.start'
         'step.complete'
         'step.fail'
+        'step.progress'
         'step.skip'
         'step.start'
         'var.resolve'
@@ -187,7 +190,7 @@ Describe 'Write-HDTLog' {
         It 'accepts the event <_>' -ForEach @(
             'message', 'native.exec', 'phase.change', 'reboot.arm', 'reboot.resume',
             'reboot.teardown', 'run.end', 'run.start', 'step.complete', 'step.fail',
-            'step.skip', 'step.start', 'var.resolve'
+            'step.progress', 'step.skip', 'step.start', 'var.resolve'
         ) {
             Write-HDTLog -Context $script:context -Message 'x' -Event $_
 
@@ -195,15 +198,15 @@ Describe 'Write-HDTLog' {
             $record.event | Should -BeExactly $_
         }
 
-        It 'validates exactly thirteen events and no more' {
+        It 'validates exactly fourteen events and no more' {
             # This is what ties the engine to DESIGN 4.4.2's controlled vocabulary
-            # rather than to a comment. It goes red when somebody adds a fourteenth
+            # rather than to a comment. It goes red when somebody adds a fifteenth
             # event without touching the design.
             $attribute = @((Get-Command -Name Write-HDTLog).Parameters['Event'].Attributes |
                     Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })
 
             $attribute.Count | Should -Be 1
-            @($attribute[0].ValidValues).Count | Should -Be 13
+            @($attribute[0].ValidValues).Count | Should -Be 14
             @($attribute[0].ValidValues | Sort-Object) | Should -Be $script:eventVocabulary
         }
 
