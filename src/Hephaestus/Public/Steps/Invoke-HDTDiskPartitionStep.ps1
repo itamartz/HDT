@@ -124,6 +124,26 @@ function Invoke-HDTDiskPartitionStep {
 
     try {
         $layoutName = Get-HDTStepProperty -Step $Step -Name 'layout'
+
+        # AN AUTHORED TABLE, IF THERE IS ONE. A step may name a layout or write
+        # its own partitions; naming both is a document that says two different
+        # things about the same disk, and guessing which was meant is exactly
+        # the kind of guess this step refuses everywhere else.
+        $authored = Get-HDTStepProperty -Step $Step -Name 'partition'
+        $style = Get-HDTStepProperty -Step $Step -Name 'style' -Context $Context -Expand
+
+        # @($null).Count IS 1, NOT 0. A step with no partition property reads
+        # back $null, and the obvious test for "did it declare a table" sends
+        # every named-layout step down the authored path - which is what it did,
+        # and every existing test in this suite failed at once.
+        $hasAuthored = $false
+        if ($null -ne $authored) {
+            $hasAuthored = @(@($authored) | Where-Object { $null -ne $_ }).Count -gt 0
+        }
+
+        if ($hasAuthored -and -not [string]::IsNullOrWhiteSpace([string] $layoutName)) {
+            throw ("this step declares both a layout ('{0}') and its own partition table. They are two different answers to the same question, and guessing which was meant is how a disk gets laid out by accident - keep one." -f $layoutName)
+        }
         $allowExistingData = Get-HDTStepProperty -Step $Step -Name 'wipe' -Default $false -Context $Context -Expand -As Bool
         $minimumDiskGb = Get-HDTStepProperty -Step $Step -Name 'minDiskGB' -Default 60 -Context $Context -Expand -As Long
         $diskNumber = Get-HDTStepProperty -Step $Step -Name 'diskNumber' -Context $Context -Expand -As Int
@@ -170,8 +190,28 @@ function Invoke-HDTDiskPartitionStep {
     # -- the plan ---------------------------------------------------------
 
     try {
-        $resolvedName = Resolve-HDTDiskLayoutName -Variable $Context.Variable -Layout ([string] $layoutName)
-        $layout = Get-HDTDiskLayout -Name $resolvedName
+        if ($hasAuthored) {
+
+            # THE STYLE FOLLOWS THE FIRMWARE UNLESS THE STEP PINS IT, which is
+            # what Resolve-HDTDiskLayoutName already does for a named layout:
+            # a UEFI machine gets GPT and a BIOS machine MBR, because a disk
+            # laid out for the other firmware does not boot.
+            $resolvedStyle = [string] $style
+
+            if ([string]::IsNullOrWhiteSpace($resolvedStyle)) {
+                $resolvedStyle = 'MBR'
+                if ((Resolve-HDTDiskLayoutName -Variable $Context.Variable -Layout '') -eq 'uefi-standard') {
+                    $resolvedStyle = 'GPT'
+                }
+            }
+
+            $resolvedName = 'authored'
+            $layout = ConvertTo-HDTDiskLayout -Partition ([object[]] @($authored)) -Style $resolvedStyle
+        } else {
+            $resolvedName = Resolve-HDTDiskLayoutName -Variable $Context.Variable -Layout ([string] $layoutName)
+            $layout = Get-HDTDiskLayout -Name $resolvedName
+        }
+
         $plan = @(New-HDTDiskLayoutPlan -Layout $layout -DiskSizeByte ([long] $target.SizeBytes))
     } catch {
         return (& $fail ([string] $_.Exception.Message) (([string] $_.FullyQualifiedErrorId).Split(',')[0]))

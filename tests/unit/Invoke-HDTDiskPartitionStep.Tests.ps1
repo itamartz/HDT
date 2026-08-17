@@ -697,3 +697,71 @@ Describe 'Get-HDTDiskPartitionStepDescription' {
         Get-HDTDiskPartitionStepDescription -Step $step | Should -Not -BeNullOrEmpty
     }
 }
+
+# =============================================================================
+# AN AUTHORED PARTITION TABLE
+# =============================================================================
+#
+# Step three of the Format-and-Partition work: a step may write its own
+# partitions instead of naming one of the two layouts the engine ships. What
+# happens BELOW the plan is unchanged - ConvertTo-HDTDiskLayout produces the
+# shape Get-HDTDiskLayout does - so these assertions are about the choosing.
+
+Describe 'Invoke-HDTDiskPartitionStep with an authored table' {
+
+    BeforeAll {
+        # THE SUITE'S OWN STEP SHAPE, not a raw hashtable: Get-HDTStepProperty
+        # reads $Step.Property, so a hashtable of properties passed as the step
+        # itself fails with "The property 'Property' cannot be found".
+        $script:authoredStep = & $script:newStep ([ordered] @{
+                wipe      = $true
+                style     = 'GPT'
+                partition = @(
+                    [ordered] @{ name = 'System'; type = 'EFI'; size = '260MB' }
+                    [ordered] @{ name = 'Windows'; type = 'Primary'; size = '60%' }
+                    [ordered] @{ name = 'Data'; type = 'Primary'; size = 'remainder' }
+                )
+            })
+
+        $script:bothStep = & $script:newStep ([ordered] @{
+                wipe      = $true
+                layout    = 'uefi-standard'
+                partition = @([ordered] @{ name = 'Windows'; type = 'Primary'; size = 'remainder' })
+            })
+    }
+
+    It 'creates a partition for every authored row' {
+        $service = New-HDTFakeDiskService -Disk @($script:targetDisk)
+        $context = & $script:newContextFor $service $null
+
+        $result = Invoke-HDTDiskPartitionStep -Step $script:authoredStep -Context $context
+
+        $result.Status | Should -BeExactly 'Completed'
+        @($service.Operations | Where-Object { $_.Operation -eq 'NewPartition' }).Count | Should -Be 3
+    }
+
+    It 'refuses a step that declares a layout AND a table' {
+        # TWO DIFFERENT ANSWERS TO THE SAME QUESTION. Guessing which was meant
+        # is how a disk gets laid out by accident, and this step refuses every
+        # other guess of that kind.
+        $service = New-HDTFakeDiskService -Disk @($script:targetDisk)
+        $context = & $script:newContextFor $service $null
+
+        $result = Invoke-HDTDiskPartitionStep -Step $script:bothStep -Context $context
+
+        $result.Status | Should -BeExactly 'Failed'
+        $result.Message | Should -BeLike '*both*'
+    }
+
+    It 'creates nothing at all when it refuses' {
+        # THE REFUSAL HAS TO COME BEFORE THE DISK IS TOUCHED. A step that
+        # cleared the disk and then noticed the document was ambiguous would
+        # have destroyed the machine to report a typo.
+        $service = New-HDTFakeDiskService -Disk @($script:targetDisk)
+        $context = & $script:newContextFor $service $null
+
+        [void] (Invoke-HDTDiskPartitionStep -Step $script:bothStep -Context $context)
+
+        @($service.Operations | Where-Object { $_.Operation -eq 'ClearDisk' }) | Should -BeNullOrEmpty
+    }
+}
