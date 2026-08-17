@@ -1859,11 +1859,49 @@ Every value the wizard collects enters the variable engine as the
 recorded in provenance like any other, so the report can say a name was typed
 rather than derived.
 
-### 11.3 What this is not
+### 11.3 The failure screen
+
+**A machine that failed used to tell the person standing in front of it
+nothing.** The reason went into the JSONL, a `FATAL` line went into a console
+the payload had hidden to put a window on screen, and five seconds later
+`wpeutil` powered the machine off. Everything needed to fix it was on a share,
+in a folder named after a computer that never finished being built. MDT shows a
+summary dialog naming the step that failed; this is HDT's.
+
+`Get-HDTDeploymentFailure` derives it from the same JSONL stream the progress
+window reads — one source of truth, so the screen and the log cannot disagree —
+and `Show-HDTDeploymentFailure` shows `HDTFailure.xaml` through the ordinary
+wizard host. **The reason is never summarised:** "disk 0 carries existing data
+on volume C (NTFS), D (NTFS), and the step did not declare that it may be
+replaced" *contains the fix*, and shortening it to "disk error" would send a
+technician to the log to read the rest.
+
+**Three buttons, and the machine obeys whichever was pressed:**
+
+| Button | What the machine does |
+|---|---|
+| **Open CMD** | opens a prompt and **stays running** — the technician is going to look |
+| **Restart** | `wpeutil reboot`, to try again from the top |
+| **Shut down** | `wpeutil shutdown`, they are finished with this machine |
+
+**It appears only when a display was opened.** A run with no window is a run
+nobody is standing at, and an unattended deployment must not wait for a keypress
+that will never come — the zero-keystroke E2E proof depends on it ending by
+itself. A boot image without `WinPE-NetFx` cannot draw the screen at all, and
+that must not become a second failure: the attempt is caught, `Shown` comes back
+false, and the machine ends as it would have.
+
+**A deployment that SUCCEEDED restarts** into what it built, which is what MDT
+does and what `ConfigureBoot` has already arranged by putting the Windows Boot
+Manager first. **A failed one shuts down**, because a failed run has usually not
+applied an image and a restart would boot the media again and deploy for a
+second time, in a loop nobody is watching.
+
+### 11.4 What this is not
 
 It is not the admin console (§12). That is a WPF app on an administrator's
-workstation for authoring the workspace. This is two screens inside WinPE on the
-machine being deployed. They share only XAML skills.
+workstation for authoring the workspace. This is three screens inside WinPE on
+the machine being deployed. They share only XAML skills.
 
 ---
 

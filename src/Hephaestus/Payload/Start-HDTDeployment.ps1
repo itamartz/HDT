@@ -143,6 +143,13 @@ param(
     [ValidateNotNullOrEmpty()]
     [string] $ProgressXamlPath = 'X:\HDT\UI\HDTProgress.xaml',
 
+    # THE SCREEN A FAILED MACHINE SHOWS. In the image rather than on the share
+    # for the same reason the others are: a run that never reached the share is
+    # exactly the run that needs it.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $FailureXamlPath = 'X:\HDT\UI\HDTFailure.xaml',
+
     # THE ONE SCREEN THAT RUNS BEFORE THE SHARE IS REACHABLE, so it cannot live
     # on the share with the others (DESIGN 11.2's correction).
     [Parameter()]
@@ -220,6 +227,10 @@ $result = [ordered] @{
     # technician who pressed Open CMD is standing in front of the machine with
     # something to look at, and the tail must leave it running for them.
     leftAtCommandPrompt = $false
+
+    # WHICH BUTTON THE TECHNICIAN PRESSED ON THE FAILURE SCREEN, or empty when
+    # there was nobody there to press one.
+    failureScreen      = ''
 
     # SET BY startnet.cmd (05-04) AND BY NOTHING ELSE. A human typing this
     # command at the prompt does not set it, so 05-05 reads this one field to
@@ -920,11 +931,67 @@ if ($null -ne $log) {
 # WHAT THE MACHINE DOES NEXT, decided before it is recorded, so RESULT.json can
 # say which one it was. ROADMAP M2 left "does WinPE need wpeutil reboot rather
 # than shutdown.exe" open; this is the first run that can answer it.
+# A DEPLOYMENT THAT WORKED RESTARTS INTO WHAT IT BUILT. It used to power the
+# machine off, which is MDT's behaviour for nothing at all: LiteTouch restarts,
+# and ConfigureBoot has already put the Windows Boot Manager first, so the next
+# thing on screen is the machine's own Setup rather than a technician wondering
+# whether it finished.
+#
+# A FAILURE STILL SHUTS DOWN, and that is not timidity. A failed run has usually
+# not applied an image, so a machine that restarted would boot the media again
+# and start the same deployment for the second time - a loop nobody is watching.
 $ending = 'shutdown'
-if ([string] $result['status'] -eq 'RebootPending') {
+if ([string] $result['status'] -eq 'RebootPending' -or [string] $result['status'] -eq 'Succeeded') {
     $ending = 'reboot'
 }
 $result['endedWith'] = 'wpeutil {0}' -f $ending
+
+# -- the failure screen, before anything is powered off ----------------------
+#
+# A MACHINE THAT FAILED USED TO TELL THE PERSON IN FRONT OF IT NOTHING. The
+# reason went into the JSONL, a FATAL line went into a console this payload had
+# hidden, and five seconds later wpeutil ended the machine. MDT shows a summary
+# dialog naming the step, and now so does this - with the three things a
+# technician does next on it, and the machine obeying whichever they pressed.
+#
+# IT IS SKIPPED WHEN NOBODY IS THERE TO READ IT: a run that never opened a
+# window is a run nobody is standing at (DESIGN 11.1's suppression), and an
+# unattended deployment must not wait for a keypress that will never come. That
+# is what keeps the zero-keystroke E2E proof true.
+if ([string] $result['status'] -eq 'Failed' -and
+    -not [bool] $result['leftAtCommandPrompt'] -and
+    $null -ne $display -and $display.Mode -ne 'Suppressed') {
+
+    try {
+        $failure = Get-HDTDeploymentFailure -Record (Get-HDTRunLogRecord -Context $log) `
+            -LogPath ([string] $result['logDestination'])
+
+        if ($failure.IsFailure) {
+            $chosen = Show-HDTDeploymentFailure -Failure $failure -XamlPath $FailureXamlPath
+
+            $result['failureScreen'] = [string] $chosen.Action
+            & $say ("the failure screen was answered: {0} (shown: {1})" -f $chosen.Action, $chosen.Shown) 'Warning'
+
+            if ([string] $chosen.Action -eq 'Restart') {
+                $ending = 'reboot'
+                $result['endedWith'] = 'wpeutil reboot'
+            }
+
+            if ([string] $chosen.Action -eq 'CommandPrompt') {
+                $prompt = Start-HDTCommandPrompt
+                & $say ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
+
+                $result['leftAtCommandPrompt'] = $true
+                $result['endedWith'] = 'nothing - the technician was left at a command prompt'
+            }
+        }
+    } catch {
+        # THE SCREEN IS NOT ALLOWED TO BECOME THE FAILURE. This machine has
+        # already failed; a window that could not be drawn must not stop the
+        # log being written or the machine being ended.
+        & $say ("the failure screen could not be shown: {0}" -f [string] $_.Exception.Message) 'Warning'
+    }
+}
 
 # EXCEPT WHEN A TECHNICIAN IS STANDING AT A PROMPT ON THIS MACHINE. Open CMD
 # exists to debug a machine that is behaving badly, and a run that opened the

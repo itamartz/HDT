@@ -192,18 +192,28 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:codeOnly | Should -Not -Match 'XamlReader'
         }
 
-        It 'shows only the two windows DESIGN 11 defines' {
-            # BOTH REFUSE TO READ A DISMISSED WINDOW AS CONSENT, which is the
-            # property that matters: a payload calling a host directly could
+        It 'shows only the three windows DESIGN 11 defines' {
+            # ALL THREE REFUSE TO READ A DISMISSED WINDOW AS CONSENT, which is
+            # the property that matters: a payload calling a host directly could
             # treat silence as Next.
             #
             # Show-HDTWizard is the WELCOME screen and runs BEFORE the share is
             # reachable - a machine with no address is what it exists for.
             # Show-HDTWizardShell is the multi-page wizard and runs after,
             # against pages that live on the share.
+            # Show-HDTDeploymentFailure is the screen a failed machine shows
+            # instead of powering off in front of a technician who was told
+            # nothing.
             $shown = @($script:everyCommandName | Where-Object { $_ -like 'Show-*' } | Sort-Object -Unique)
 
-            $shown | Should -Be @('Show-HDTWizard', 'Show-HDTWizardShell')
+            $shown | Should -Be @('Show-HDTDeploymentFailure', 'Show-HDTWizard', 'Show-HDTWizardShell')
+        }
+
+        It 'shows the failure screen only when a display was opened' {
+            # AN UNATTENDED DEPLOYMENT MUST NOT WAIT FOR A KEYPRESS THAT WILL
+            # NEVER COME. A run with no display is a run nobody is standing at,
+            # and the zero-keystroke E2E proof depends on it ending by itself.
+            $script:codeOnly | Should -Match 'Suppressed'
         }
 
         It 'asks for a network rather than failing at the share' {

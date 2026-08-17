@@ -5097,6 +5097,9 @@ function New-HDTFakeWizardHost {
         [hashtable] $Value,
 
         [Parameter()]
+        [switch] $FailShow,
+
+        [Parameter()]
         [AllowNull()]
         [object] $Journal
     )
@@ -5120,6 +5123,7 @@ function New-HDTFakeWizardHost {
         Value          = $bag
         Operations     = (New-Object -TypeName System.Collections.ArrayList)
         Journal        = $Journal
+        FailShow       = [bool] $FailShow
         LastXaml       = ''
         LastShellXaml  = ''
         LastThemeXaml  = ''
@@ -5146,6 +5150,16 @@ function New-HDTFakeWizardHost {
         $this.LastField = @($Field)
         $this.LastPane = @($Pane)
         $this.Record(('Show({0})' -f $Title))
+
+        # WHAT A BOOT IMAGE WITH NO WPF DOES, and why -FailShow exists: without
+        # WinPE-NetFx there is no PresentationFramework for Add-Type to load.
+        # Show-HDTDeploymentFailure is called on a machine that has ALREADY
+        # failed, so it has to survive this - a screen that cannot be drawn must
+        # not become a second failure.
+        if ($this.FailShow) {
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not load file or assembly 'PresentationFramework'.")
+        }
 
         return $this.Action
     }
