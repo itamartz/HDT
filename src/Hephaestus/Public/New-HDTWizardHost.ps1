@@ -140,6 +140,17 @@ function New-HDTWizardHost {
             # SelectedValue means nothing until the item carrying that value
             # exists, which is the same order the console's driver list needs.
             if ($null -ne $current.PSObject.Properties['Item']) {
+
+                # ANY ROWS THE PAGE DECLARED ARE CLEARED FIRST, AND A REAL SHARE
+                # IS WHY. WPF throws "Items collection must be empty before
+                # using ItemsSource" when a ListBox carries inline
+                # <ListBoxItem>s, and every page written before W3 carries them
+                # - the picker was a hand-typed list. On a share not yet updated
+                # that exception is thrown while the wizard is opening, in
+                # WinPE, on a machine whose console has just been hidden: a
+                # technician gets a black screen instead of a page.
+                if ($control.Items.Count -gt 0) { $control.Items.Clear() }
+
                 $control.ItemsSource = @($current.Item)
             }
 
