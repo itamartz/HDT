@@ -53,7 +53,15 @@ function Get-HDTDeploymentProgress {
         .OUTPUTS
             System.Management.Automation.PSCustomObject with SequenceId,
             StepNumber, StepCount, StepName, StepType, CompletedCount,
-            PercentComplete, Phase, Status, ElapsedSecond and RunId.
+            PercentComplete, StepPercent, Phase, Status, ElapsedSecond and
+            RunId.
+
+            PercentComplete AND StepPercent ARE DIFFERENT FACTS. The first is
+            how many steps of the sequence are done; the second is how far
+            through the one that is running - which for an apply is the only
+            number that changes for nine minutes. A step reports it with
+            step.progress; a step that reports nothing leaves it at zero, and
+            a step that starts, finishes or is skipped clears it.
 
         .EXAMPLE
             Get-HDTDeploymentProgress -Record $record
@@ -89,6 +97,7 @@ function Get-HDTDeploymentProgress {
         Phase           = ''
         Status          = 'Unknown'
         ElapsedSecond   = 0
+        StepPercent     = 0
     }
 
     $ordered = @($Record)
@@ -179,7 +188,20 @@ function Get-HDTDeploymentProgress {
                 if (-not [string]::IsNullOrWhiteSpace($to)) { $result['Phase'] = $to }
             }
 
+            'step.progress' {
+                # HOW FAR THROUGH THE STEP, WHICH IS A DIFFERENT FACT FROM HOW
+                # FAR THROUGH THE SEQUENCE. For the nine minutes an apply takes,
+                # it is the only number on the screen that moves.
+                $percent = & $valueOf $data 'percent'
+                if ($null -ne $percent) { $result['StepPercent'] = [int] $percent }
+            }
+
             'step.start' {
+                # THE STEP THAT IS STARTING HAS DONE NONE OF ITSELF YET. Without
+                # this the bar would open at whatever the last step reached and
+                # count down.
+                $result['StepPercent'] = 0
+
                 $index = & $valueOf $data 'index'
                 if ($null -eq $index) { $index = & $valueOf $row 'stepIndex' }
                 if ($null -ne $index) { $result['StepNumber'] = [int] $index }
@@ -194,6 +216,11 @@ function Get-HDTDeploymentProgress {
             }
 
             { $_ -eq 'step.complete' -or $_ -eq 'step.skip' } {
+                # A FINISHED STEP IS NOT A STEP THAT IS 60% DONE. The step bar
+                # belongs to whatever is running now, and between two steps
+                # nothing is.
+                $result['StepPercent'] = 0
+
                 # BY INDEX, NOT BY COUNTING RECORDS. A step that was retried
                 # logs more than one completion, and a resumed run replays
                 # nothing but may complete a step the earlier leg also did.

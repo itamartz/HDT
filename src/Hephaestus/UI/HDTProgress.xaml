@@ -104,8 +104,26 @@
                            FontSize="20" TextWrapping="Wrap" MaxHeight="56"
                            TextTrimming="CharacterEllipsis" />
 
-                <TextBlock x:Name="HDTProgressStepCounter" Text="" Foreground="#FFCCCCCC"
-                           FontSize="15" Margin="0,10,0,0" />
+                <!--
+                    THE COUNTER AND THE STEP'S OWN PERCENTAGE SHARE A LINE, and
+                    the percentage is here rather than beside its bar so that
+                    both bars are the same width. A bar with a caption at the
+                    end of it is a bar that stops short of the one above it, and
+                    the pair then reads as ragged rather than as two measures of
+                    the same machine.
+                -->
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" x:Name="HDTProgressStepCounter" Text=""
+                               Foreground="#FFCCCCCC" FontSize="15" />
+
+                    <TextBlock Grid.Column="1" x:Name="HDTProgressStepPercent" Text=""
+                               Foreground="#FFCCCCCC" FontSize="15" Margin="10,0,0,0" />
+                </Grid>
 
                 <!--
                     A REAL BAR, NOT A MARQUEE. An indeterminate animation says
@@ -114,6 +132,33 @@
                 -->
                 <ProgressBar x:Name="HDTProgressBar" Height="14" Minimum="0" Maximum="100" Value="0"
                              Margin="0,16,0,0" Background="#FF1E1E1E" Foreground="#FF0E639C"
+                             BorderBrush="#FF3A3A3C" BorderThickness="1" />
+
+                <!--
+                    THE SECOND BAR IS MDT'S TOO. LiteTouch shows the sequence's
+                    progress and the current operation's, one above the other,
+                    and an admin has read that pair a thousand times.
+
+                    IT IS THE ONLY THING ON THIS CARD THAT MOVES DURING AN
+                    APPLY. Writing 18 GB of Windows is one step: the counter,
+                    the sequence bar and the step name are all correct and
+                    motionless for nine minutes, and a motionless screen is
+                    indistinguishable from a hung machine to the person standing
+                    in front of it. dism prints a percentage as it works and
+                    DESIGN 11.1 carries it here through the log.
+
+                    THINNER, AND A LIGHTER BLUE. It is subordinate to the bar
+                    above it - one step of the sequence, not the sequence - and
+                    at a glance from across a room the two must not be mistaken
+                    for each other.
+
+                    COLLAPSED UNTIL SOMETHING REPORTS. Most steps take a second
+                    and say nothing about themselves; an empty bar sitting at
+                    zero under every one of them is a control that looks broken.
+                -->
+                <ProgressBar x:Name="HDTProgressStepBar" Height="8" Minimum="0" Maximum="100" Value="0"
+                             Margin="0,8,0,0" Visibility="Collapsed"
+                             Background="#FF1E1E1E" Foreground="#FF3794FF"
                              BorderBrush="#FF3A3A3C" BorderThickness="1" />
 
                 <!-- ============ how long, and how it is going ============ -->

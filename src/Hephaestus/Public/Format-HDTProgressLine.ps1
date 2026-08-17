@@ -46,7 +46,7 @@ function Format-HDTProgressLine {
         .EXAMPLE
             Format-HDTProgressLine -Progress (Get-HDTDeploymentProgress -Record $record)
 
-            [ 3/8  25%] WinPE  Apply Windows 11 Enterprise LTSC 202  00:01:24
+            [ 3/8  25%] WinPE  Apply Windows 11 Enterprise LTSC  37%  00:01:24
     #>
     # $Progress IS used - inside the $valueOf closure below, which the analyzer
     # does not follow. Removing it to satisfy the rule would remove the input.
@@ -79,6 +79,7 @@ function Format-HDTProgressLine {
     $stepName = [string] (& $valueOf 'StepName' '')
     $status = [string] (& $valueOf 'Status' '')
     $elapsed = [int] (& $valueOf 'ElapsedSecond' 0)
+    $stepPercent = [int] (& $valueOf 'StepPercent' 0)
 
     # A COUNT NOBODY STATED IS NOT PRINTED AS ZERO. '3/0' is a wrong fact where
     # '3' is an incomplete one.
@@ -98,9 +99,17 @@ function Format-HDTProgressLine {
     $phaseText = ''
     if (-not [string]::IsNullOrWhiteSpace($phase)) { $phaseText = ' {0,-6}' -f $phase }
 
+    # THE STEP'S OWN PERCENTAGE, AND THE COLUMN IS RESERVED EVEN WHEN NOTHING
+    # REPORTED ONE. Five characters, blank for a step that says nothing about
+    # itself: a column that appeared and disappeared would shift the clock
+    # sideways mid-deployment, and consecutive lines forming columns is the
+    # whole of the styling this fallback has.
+    $stepText = '     '
+    if ($stepPercent -gt 0) { $stepText = ' {0,3}%' -f $stepPercent }
+
     # WHAT IS LEFT AFTER THE PARTS THAT MAY NOT SHRINK. Two spaces before the
     # clock keep the columns apart when a name runs the full width.
-    $fixed = $header.Length + $phaseText.Length + $flag.Length + $clock.Length + 3
+    $fixed = $header.Length + $phaseText.Length + $stepText.Length + $flag.Length + $clock.Length + 3
     $room = 80 - $fixed
 
     if ($room -lt 0) { $room = 0 }
@@ -108,5 +117,5 @@ function Format-HDTProgressLine {
     $name = $stepName
     if ($name.Length -gt $room) { $name = $name.Substring(0, $room) }
 
-    return ('{0}{1} {2}  {3}{4}' -f $header, $phaseText, $name.PadRight($room), $clock, $flag).TrimEnd()
+    return ('{0}{1} {2}{3}  {4}{5}' -f $header, $phaseText, $name.PadRight($room), $stepText, $clock, $flag).TrimEnd()
 }

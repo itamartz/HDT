@@ -107,6 +107,8 @@ function New-HDTProgressHost {
                 $stepGroup = $window.FindName('HDTProgressStepGroup')
                 $stepCounter = $window.FindName('HDTProgressStepCounter')
                 $bar = $window.FindName('HDTProgressBar')
+                $stepBar = $window.FindName('HDTProgressStepBar')
+                $stepPercent = $window.FindName('HDTProgressStepPercent')
                 $status = $window.FindName('HDTProgressStatus')
                 $elapsed = $window.FindName('HDTProgressElapsed')
 
@@ -143,6 +145,23 @@ function New-HDTProgressHost {
                         }
 
                         $bar.Value = [int] $progress.PercentComplete
+
+                        # THE STEP'S OWN BAR, AND IT IS THERE ONLY WHILE
+                        # SOMETHING IS REPORTING. Most steps take a second and
+                        # say nothing about themselves; an empty bar under every
+                        # one of them is a control that looks broken. An apply
+                        # says something every five points, and for nine minutes
+                        # it is the only thing on this card that changes.
+                        $stepValue = [int] $progress.StepPercent
+                        $stepBar.Value = $stepValue
+
+                        if ($stepValue -gt 0) {
+                            $stepBar.Visibility = [System.Windows.Visibility]::Visible
+                            $stepPercent.Text = '{0}%' -f $stepValue
+                        } else {
+                            $stepBar.Visibility = [System.Windows.Visibility]::Collapsed
+                            $stepPercent.Text = ''
+                        }
 
                         $span = [timespan]::FromSeconds([int] $progress.ElapsedSecond)
                         $elapsed.Text = '{0:00}:{1:00}:{2:00} elapsed' -f

@@ -33,7 +33,8 @@ BeforeAll {
             [Parameter()] [int] $PercentComplete = 25,
             [Parameter()] [string] $Phase = 'WinPE',
             [Parameter()] [string] $Status = 'Running',
-            [Parameter()] [int] $ElapsedSecond = 84
+            [Parameter()] [int] $ElapsedSecond = 84,
+            [Parameter()] [int] $StepPercent = 0
         )
 
         return [pscustomobject] @{
@@ -48,6 +49,7 @@ BeforeAll {
             Phase           = $Phase
             Status          = $Status
             ElapsedSecond   = $ElapsedSecond
+            StepPercent     = $StepPercent
         }
     }
 }
@@ -164,5 +166,48 @@ Describe 'Format-HDTProgressLine' {
 
             Format-HDTProgressLine -Progress $unknown | Should -Not -BeLike '*/0*'
         }
+    }
+}
+
+Describe 'the step that is taking all the time' {
+
+    # AN APPLY IS NINE MINUTES OF ONE LINE. The counter and the sequence
+    # percentage are correct and motionless for the whole of it, and a
+    # motionless line on a serial console is indistinguishable from a hung
+    # machine. dism's own percentage is what moves.
+    #
+    # THE COLUMN IS RESERVED WHETHER OR NOT IT IS USED, because consecutive
+    # lines forming columns is the entire styling this fallback has, and a
+    # column that appears when a step happens to report would shift the clock
+    # sideways mid-deployment.
+
+    It 'shows the percentage the step reported' {
+        Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 37) | Should -BeLike '*37%*'
+    }
+
+    It 'shows nothing where a step reported nothing' {
+        Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 0) | Should -Not -BeLike '*0%*'
+    }
+
+    It 'keeps the clock in the same column either way' {
+        $with = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 37)
+        $without = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 0)
+
+        $with.IndexOf('00:01:24') | Should -Be $without.IndexOf('00:01:24')
+    }
+
+    It 'still fits in eighty columns with a long name and a percentage' {
+        $long = New-HDTTestProgress -StepPercent 100 -StepName ('Apply ' + ('Windows Server 2025 Standard Desktop Experience ' * 3))
+
+        (Format-HDTProgressLine -Progress $long).Length | Should -BeLessOrEqual 80
+    }
+
+    It 'survives a progress object that predates the field' {
+        $old = [pscustomobject] @{
+            SequenceId = 'STD-CLIENT'; StepNumber = 3; StepCount = 8; StepName = 'Apply image'; StepType = 'ApplyImage'
+            CompletedCount = 2; PercentComplete = 25; Phase = 'WinPE'; Status = 'Running'; ElapsedSecond = 84
+        }
+
+        { Format-HDTProgressLine -Progress $old } | Should -Not -Throw
     }
 }

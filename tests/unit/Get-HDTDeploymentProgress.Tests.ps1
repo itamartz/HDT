@@ -255,3 +255,68 @@ Describe 'Get-HDTDeploymentProgress' {
         }
     }
 }
+
+Describe 'how far through the step itself' {
+
+    # THE SEQUENCE BAR AND THE STEP BAR ARE DIFFERENT FACTS. PercentComplete is
+    # how many steps are done; StepPercent is how far through the one that is
+    # running - and for the nine minutes an 18 GB apply takes, it is the only
+    # number on the screen that moves.
+    #
+    # IT BELONGS TO THE STEP THAT REPORTED IT AND TO NO OTHER. A step that
+    # starts inherits nothing from the one before it, or the bar would open at
+    # 100% and count down.
+
+    It 'reads the percentage off the latest step.progress' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 -Data @{ index = 3; percent = 20 }
+            New-HDTProgressRecord -Event 'step.progress' -Second 60 -StepIndex 3 -Data @{ index = 3; percent = 65 }
+        )
+
+        [int] (Get-HDTDeploymentProgress -Record $record).StepPercent | Should -Be 65
+    }
+
+    It 'is zero before anything has reported' {
+        [int] (Get-HDTDeploymentProgress -Record $script:midRun).StepPercent | Should -Be 0
+    }
+
+    It 'is cleared when the next step starts' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 -Data @{ index = 3; percent = 65 }
+            New-HDTProgressRecord -Event 'step.complete' -Second 90 -StepIndex 3 -Data @{ index = 3; attempt = 1; exitCode = 0 }
+            New-HDTProgressRecord -Event 'step.start' -Second 91 -StepIndex 4 -StepName 'Install drivers' -Data @{ index = 4; name = 'Install drivers'; type = 'InjectDriver'; attempt = 1 }
+        )
+
+        [int] (Get-HDTDeploymentProgress -Record $record).StepPercent | Should -Be 0
+    }
+
+    It 'is cleared when the step that reported it finishes' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 -Data @{ index = 3; percent = 65 }
+            New-HDTProgressRecord -Event 'step.complete' -Second 90 -StepIndex 3 -Data @{ index = 3; attempt = 1; exitCode = 0 }
+        )
+
+        [int] (Get-HDTDeploymentProgress -Record $record).StepPercent | Should -Be 0
+    }
+
+    It 'keeps the last percentage a failed step reached' {
+        # An apply that died at 60% died somewhere different from one that never
+        # started, and this is the number that says so.
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 -Data @{ index = 3; percent = 60 }
+            New-HDTProgressRecord -Event 'step.fail' -Second 40 -StepIndex 3 -StepName 'Apply image' -Data @{ index = 3; attempt = 1 }
+        )
+
+        $progress = Get-HDTDeploymentProgress -Record $record
+
+        [int] $progress.StepPercent | Should -Be 60
+        [string] $progress.Status | Should -BeExactly 'Failed'
+    }
+
+    It 'ignores a step.progress with no percentage rather than throwing' {
+        $record = @($script:midRun) + @(New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 -Data @{ index = 3 })
+
+        { Get-HDTDeploymentProgress -Record $record } | Should -Not -Throw
+        [int] (Get-HDTDeploymentProgress -Record $record).StepPercent | Should -Be 0
+    }
+}
