@@ -31,6 +31,7 @@
         'Get-HDTApplication',
         'Get-HDTBootImageComponent',
         'Get-HDTBootstrapConfiguration',
+        'ConvertTo-HDTDiskLayout',
         'ConvertTo-HDTReport',
         'Copy-HDTLog',
         'Export-HDTMachineFact',
