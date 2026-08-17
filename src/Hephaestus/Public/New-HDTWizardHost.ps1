@@ -94,6 +94,13 @@ function New-HDTWizardHost {
         # into the variable engine as the Wizard source (DESIGN 3.1) - so a
         # typed computer name reaches the deployment and the provenance says it
         # was typed.
+        #
+        # THE WELCOME SCREEN USES THE SAME BAG, and did not until a real boot
+        # showed why it had to: that screen answered with an Action alone, so a
+        # technician who corrected an unreachable share watched the machine fail
+        # on the address that was already wrong. Show fills this from
+        # Get-HDTWizardHarvest's list exactly as ShowShell fills it from each
+        # page's collect declarations.
         Value  = @{}
     }
 
@@ -118,7 +125,17 @@ function New-HDTWizardHost {
         # every page and no page has all the controls.
         foreach ($current in @($Field)) {
             $control = $Root.FindName([string] $current.Name)
-            if ($null -ne $control) { $control.Text = [string] $current.Text }
+            if ($null -eq $control) { continue }
+
+            # THE PROPERTY THE FIELD NAMED, defaulting to Text for a producer
+            # that predates the pair - a PasswordBox has no Text at all, so a
+            # host that always wrote Text could not prefill one.
+            $property = 'Text'
+            if ($null -ne $current.PSObject.Properties['Property']) {
+                $property = [string] $current.Property
+            }
+
+            $control.$property = [string] $current.Text
         }
 
         # WHICH PANES EXIST WAS ALSO DECIDED SOMEWHERE ELSE. Get-HDTWizardSkip
@@ -168,7 +185,8 @@ function New-HDTWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane, [scriptblock] $CommandPrompt)
+        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane, [scriptblock] $CommandPrompt,
+            [object[]] $Collect)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -233,6 +251,20 @@ function New-HDTWizardHost {
             # handler would report whatever the loop variable held last.
             $button.Add_Click({
                     $wizardHost.Answer = $answer
+
+                    # READ BEFORE IT CLOSES, and read for EVERY answer rather
+                    # than only for Next: a technician who typed the right share
+                    # and then pressed Open CMD has still told us the right
+                    # share. What any of it MEANS is Show-HDTWizard's business
+                    # and the payload's; this only reads the named property off
+                    # the named control, which is why it may stay untested.
+                    foreach ($wanted in @($Collect)) {
+                        $control = $window.FindName([string] $wanted.Name)
+                        if ($null -eq $control) { continue }
+
+                        $wizardHost.Value[[string] $wanted.Name] = $control.([string] $wanted.Property)
+                    }
+
                     $window.Close()
                 }.GetNewClosure())
         }

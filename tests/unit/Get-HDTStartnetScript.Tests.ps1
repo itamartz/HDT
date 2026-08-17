@@ -124,11 +124,15 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine.Count | Should -Be 7
+        # NINE LINES, NOT SEVEN: each start command is announced before it is
+        # run, so a technician watching the console knows what it is about to do.
+        $startLine.Count | Should -Be 9
         $startLine[3] | Should -BeExactly 'wpeinit'
-        $startLine[4] | Should -BeExactly 'X:\HDT\Tools\BGInfo\bginfo.exe /timer:0'
-        $startLine[5] | Should -BeExactly 'X:\HDT\Tools\VNC\winvnc.exe -service'
-        $startLine[6] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+        $startLine[4] | Should -BeExactly 'echo about to run the command: X:\HDT\Tools\BGInfo\bginfo.exe /timer:0'
+        $startLine[5] | Should -BeExactly 'X:\HDT\Tools\BGInfo\bginfo.exe /timer:0'
+        $startLine[6] | Should -BeExactly 'echo about to run the command: X:\HDT\Tools\VNC\winvnc.exe -service'
+        $startLine[7] | Should -BeExactly 'X:\HDT\Tools\VNC\winvnc.exe -service'
+        $startLine[8] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
     }
 
     It 'writes the five lines and nothing else when there are no start commands' {
@@ -146,8 +150,8 @@ Describe 'Get-HDTStartnetScript' {
         }
         $bothLine = @($both.TrimEnd("`r", "`n") -split "`r`n")
 
-        $bothLine[4] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe'
-        $bothLine[5] | Should -BeExactly 'cmd.exe /k'
+        $bothLine[5] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe'
+        $bothLine[6] | Should -BeExactly 'cmd.exe /k'
     }
 
     It 'ends every start command line with CRLF too' {
@@ -155,7 +159,7 @@ Describe 'Get-HDTStartnetScript' {
             Get-HDTStartnetScript -StartCommand @('X:\HDT\Tools\bginfo.exe')
         }
 
-        @([regex]::Matches($withStart, "`r`n")).Count | Should -Be 6
+        @([regex]::Matches($withStart, "`r`n")).Count | Should -Be 7
         @([regex]::Matches($withStart, "(?<!`r)`n")).Count | Should -Be 0
     }
 
@@ -183,7 +187,7 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine[4] | Should -BeExactly ('call X:\Tools\{0}' -f $file)
+        $startLine[5] | Should -BeExactly ('call X:\Tools\{0}' -f $file)
     }
 
     It 'calls a batch file that carries arguments, and keeps them' {
@@ -192,7 +196,7 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine[4] | Should -BeExactly 'call X:\Tools\run.cmd -vnc -bginfo'
+        $startLine[5] | Should -BeExactly 'call X:\Tools\run.cmd -vnc -bginfo'
     }
 
     It 'calls a quoted batch path, which is the one an admin with spaces types' {
@@ -201,7 +205,7 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine[4] | Should -BeExactly 'call "X:\Program Files\HDT\run.cmd"'
+        $startLine[5] | Should -BeExactly 'call "X:\Program Files\HDT\run.cmd"'
     }
 
     It 'does not call a <_> twice' -ForEach @('call X:\Tools\run.cmd', 'CALL X:\Tools\run.cmd') {
@@ -212,7 +216,7 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine[4] | Should -BeExactly $typed
+        $startLine[5] | Should -BeExactly $typed
     }
 
     It 'leaves a start-ed batch file alone, because start already returns' {
@@ -224,7 +228,7 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine[4] | Should -BeExactly 'start "" X:\Tools\run.cmd'
+        $startLine[5] | Should -BeExactly 'start "" X:\Tools\run.cmd'
     }
 
     It 'leaves an executable alone' {
@@ -235,7 +239,77 @@ Describe 'Get-HDTStartnetScript' {
         }
         $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
 
-        $startLine[4] | Should -BeExactly 'X:\Tools\BGInfo\bginfo64.exe /timer:0'
+        $startLine[5] | Should -BeExactly 'X:\Tools\BGInfo\bginfo64.exe /timer:0'
+    }
+
+    # =====================================================================
+    # EACH START COMMAND SAYS WHAT IT IS ABOUT TO DO.
+    #
+    # A boot image that ran a VNC server, a BGInfo and a run.cmd showed a
+    # console with one line of output on it - and that line came from whichever
+    # of them happened to print. When one of them hangs, which is exactly what a
+    # tool that does not return does, the screen names the LAST thing that
+    # printed rather than the thing that is stuck. On this lab's own image that
+    # was `wpeutil disablefirewall` reporting success while a VNC server two
+    # lines later held the deployment forever.
+    #
+    # An echo before each one makes the last line on screen the command that is
+    # actually running.
+    # =====================================================================
+
+    It 'announces each start command before running it' {
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('X:\Tools\one.exe', 'X:\Tools\two.exe')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly 'echo about to run the command: X:\Tools\one.exe'
+        $startLine[5] | Should -BeExactly 'X:\Tools\one.exe'
+        $startLine[6] | Should -BeExactly 'echo about to run the command: X:\Tools\two.exe'
+        $startLine[7] | Should -BeExactly 'X:\Tools\two.exe'
+    }
+
+    It 'announces the line it will actually run, call and all' {
+        # THE ECHO AND THE COMMAND UNDER IT MATCH, so a console can be read
+        # top to bottom. Announcing what the document said while running
+        # something else would be worse than not announcing at all.
+        $withStart = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -StartCommand @('X:\Tools\run.cmd')
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly 'echo about to run the command: call X:\Tools\run.cmd'
+        $startLine[5] | Should -BeExactly 'call X:\Tools\run.cmd'
+    }
+
+    It 'escapes a <Name> so cmd echoes it instead of acting on it' -ForEach @(
+        @{ Name = 'redirect'; Command = 'X:\Tools\one.exe > X:\log.txt'; Escaped = 'X:\Tools\one.exe ^> X:\log.txt' }
+        @{ Name = 'pipe'; Command = 'X:\Tools\one.exe | more'; Escaped = 'X:\Tools\one.exe ^| more' }
+        @{ Name = 'ampersand'; Command = 'X:\Tools\one.exe & X:\Tools\two.exe'; Escaped = 'X:\Tools\one.exe ^& X:\Tools\two.exe' }
+        @{ Name = 'percent'; Command = 'X:\Tools\one.exe %USERNAME%'; Escaped = 'X:\Tools\one.exe %%USERNAME%%' }
+    ) {
+        # AN UNESCAPED ECHO IS A SECOND COMMAND. `echo run.exe > X:\log.txt`
+        # does not print anything - it writes a file - and `%PATH%` in an echo
+        # prints the variable rather than the text. Both turn a line meant to
+        # inform into a line that acts.
+        $command = $Command
+        $withStart = InModuleScope Hephaestus -Parameters @{ Given = $command } {
+            param($Given)
+            Get-HDTStartnetScript -StartCommand @($Given)
+        }
+        $startLine = @($withStart.TrimEnd("`r", "`n") -split "`r`n")
+
+        $startLine[4] | Should -BeExactly ('echo about to run the command: {0}' -f $Escaped)
+
+        # AND THE COMMAND ITSELF IS UNTOUCHED. The escaping is for the echo; the
+        # line that runs is what the administrator wrote.
+        $startLine[5] | Should -BeExactly $command
+    }
+
+    It 'announces nothing when there is nothing to announce' {
+        $none = InModuleScope Hephaestus { Get-HDTStartnetScript -StartCommand @() }
+
+        $none | Should -Not -BeLike '*about to run*'
     }
 
     # =====================================================================
@@ -280,8 +354,8 @@ Describe 'Get-HDTStartnetScript' {
         $bothLine = @($both.TrimEnd("`r", "`n") -split "`r`n")
 
         $bothLine[3] | Should -BeExactly 'wpeinit -unattend:X:\Unattend.xml'
-        $bothLine[4] | Should -BeExactly 'call X:\Tools\run.cmd'
-        $bothLine[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+        $bothLine[5] | Should -BeExactly 'call X:\Tools\run.cmd'
+        $bothLine[6] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
     }
 
     It 'is private to the module' {

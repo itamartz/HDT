@@ -179,7 +179,34 @@ function Get-HDTStartnetScript {
 
         # THE `call` RULE LIVES IN ONE PLACE. The WinPE window shows the same
         # answer, so a second copy here would be a second copy to get wrong.
-        [void] $line.Add((ConvertTo-HDTStartnetCommandLine -Command ([string] $current)))
+        $effective = ConvertTo-HDTStartnetCommandLine -Command ([string] $current)
+
+        # ANNOUNCED BEFORE IT IS RUN, AND A REAL BOOT IS WHY. An image carrying
+        # a firewall command, a VNC server and a BGInfo showed a console with
+        # ONE line on it - "The command completed successfully" - which came
+        # from the firewall command. The VNC server two lines later never
+        # returned and held the whole deployment, and the screen was still
+        # naming the last thing that PRINTED rather than the thing that was
+        # stuck. With this, the last line on screen is the command that is
+        # actually running.
+        #
+        # IT ANNOUNCES THE LINE THAT WILL RUN, call AND ALL, so the console can
+        # be read top to bottom against the file.
+        #
+        # ESCAPED, BECAUSE AN ECHO IS STILL A COMMAND. `echo run.exe > log.txt`
+        # writes a file instead of printing, and %PATH% in an echo prints the
+        # variable rather than the text - so a line meant to inform would act.
+        # The caret goes first: escaping it after the others would escape the
+        # carets this very line just added.
+        $announce = $effective -replace '\^', '^^'
+        $announce = $announce -replace '&', '^&'
+        $announce = $announce -replace '<', '^<'
+        $announce = $announce -replace '>', '^>'
+        $announce = $announce -replace '\|', '^|'
+        $announce = $announce -replace '%', '%%'
+
+        [void] $line.Add(('echo about to run the command: {0}' -f $announce))
+        [void] $line.Add($effective)
     }
 
     [void] $line.Add($Command)

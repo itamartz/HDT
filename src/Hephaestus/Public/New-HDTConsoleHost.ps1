@@ -360,8 +360,53 @@ function New-HDTConsoleHost {
         $disableCheck = $window.FindName('HDTDisableCheck')
         $continueCheck = $window.FindName('HDTContinueCheck')
         $conditionText = $window.FindName('HDTConditionText')
+        $conditionVariable = $window.FindName('HDTConditionVariableBox')
+        $conditionOperator = $window.FindName('HDTConditionOperatorBox')
+        $conditionValue = $window.FindName('HDTConditionValueBox')
+        $conditionBuild = $window.FindName('HDTConditionBuildButton')
         $conditionApply = $window.FindName('HDTConditionApplyButton')
         $conditionClear = $window.FindName('HDTConditionClearButton')
+
+        # THE CONDITION PICKER. Filled once - the variables the engine knows and
+        # the four operators it implements do not change while a window is open -
+        # and composed by Get-HDTConsoleConditionOption's own format string, so
+        # the window joins nothing itself.
+        #
+        # BUILD WRITES INTO THE BOX; IT DOES NOT SAVE. Apply is still the only
+        # thing that writes, which keeps one way to save rather than two that
+        # can disagree - and leaves the composed text somewhere an author can
+        # read and edit before committing to it.
+        $conditionOption = Get-HDTConsoleConditionOption
+
+        $conditionVariable.ItemsSource = $conditionOption.Variable
+        $conditionOperator.ItemsSource = $conditionOption.Operator
+        $conditionOperator.SelectedIndex = 0
+
+        # THE VALUE LIST FOLLOWS THE VARIABLE. A boolean fact offers True and
+        # False; a computer name offers nothing and stays a free box, which is
+        # what an empty Suggested means.
+        $conditionVariable.Add_SelectionChanged({
+                $chosen = $conditionVariable.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $conditionValue.ItemsSource = $chosen.Suggested
+            }.GetNewClosure())
+
+        $conditionBuild.Add_Click({
+                $token = [string] $conditionVariable.SelectedValue
+                $operator = [string] $conditionOperator.SelectedValue
+
+                if ([string]::IsNullOrWhiteSpace($token)) { return }
+                if ([string]::IsNullOrWhiteSpace($operator)) { return }
+
+                # Parenthesised on principle: a -f split across lines binds only
+                # its first argument INSIDE a method call's argument list, and
+                # that cost this session a window that died at its first report.
+                # An assignment is not that case, but the habit is cheaper than
+                # remembering which case is which.
+                $conditionText.Text = ($conditionOption.Format -f
+                    $token, $operator, [string] $conditionValue.Text)
+            }.GetNewClosure())
         $runInText = $window.FindName('HDTRunInText')
 
         $titleText.Text = $Title

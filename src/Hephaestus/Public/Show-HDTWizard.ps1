@@ -127,7 +127,15 @@ function Show-HDTWizard {
         # A key that works on two of the three windows is a key nobody trusts.
         [Parameter()]
         [AllowNull()]
-        [scriptblock] $CommandPrompt
+        [scriptblock] $CommandPrompt,
+
+        # WHICH BOXES TO READ BACK, from Get-HDTWizardHarvest. Omitted, the
+        # screen answers with an Action alone - which is what it did before this
+        # existed, and why a corrected share was thrown away.
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [object[]] $Collect = @()
     )
 
     Set-StrictMode -Version Latest
@@ -156,7 +164,7 @@ function Show-HDTWizard {
 
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt)
+    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt, @($Collect))
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these three exactly is a Cancel.
@@ -178,5 +186,11 @@ function Show-HDTWizard {
         Action   = $action
         Title    = $Title
         XamlPath = $XamlPath
+
+        # WHAT THE TECHNICIAN TYPED, keyed by control name. Empty when nothing
+        # was asked for. The Welcome screen used to answer with an Action alone,
+        # so a corrected deploy root went nowhere and the machine died on the
+        # address that was already wrong - see Get-HDTWizardHarvest.
+        Value    = $WizardHost.Value
     }
 }

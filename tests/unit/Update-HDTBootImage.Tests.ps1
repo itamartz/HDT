@@ -467,9 +467,13 @@ Describe 'Update-HDTBootImage' {
             $startnet = $context.FileSystem.ReadAllText($script:mountPath + '\Windows\System32\startnet.cmd')
             $line = @($startnet.TrimEnd("`r", "`n") -split "`r`n")
 
+            # ANNOUNCED FIRST, THEN RUN. The echo is what turns a console
+            # showing one stale success message into one naming the command
+            # that is actually executing - see Get-HDTStartnetScript.
             $line[3] | Should -BeExactly 'wpeinit'
-            $line[4] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe /timer:0'
-            $line[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+            $line[4] | Should -BeExactly 'echo about to run the command: X:\HDT\Tools\bginfo.exe /timer:0'
+            $line[5] | Should -BeExactly 'X:\HDT\Tools\bginfo.exe /timer:0'
+            $line[6] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
         }
 
         It 'calls a batch start command, so the payload below it is still reached' {
@@ -484,8 +488,9 @@ Describe 'Update-HDTBootImage' {
             $line = @($context.FileSystem.ReadAllText(
                     $script:mountPath + '\Windows\System32\startnet.cmd').TrimEnd("`r", "`n") -split "`r`n")
 
-            $line[4] | Should -BeExactly 'call X:\HDT\Tools\run.cmd'
-            $line[5] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+            $line[4] | Should -BeExactly 'echo about to run the command: call X:\HDT\Tools\run.cmd'
+            $line[5] | Should -BeExactly 'call X:\HDT\Tools\run.cmd'
+            $line[6] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
         }
 
         It 'copies the WinPE answer file to the root of the image and points wpeinit at it' {

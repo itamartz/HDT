@@ -50,16 +50,43 @@ BeforeAll {
     function New-HDTTestBootstrap {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Builds an in-memory test object; it changes no state.')]
+        # THE SAME THREE Get-HDTWizardCredential.Tests.ps1 SUPPRESSES, for the
+        # same reason: this is a stand-in for the bootstrap document, and the
+        # password is a test constant the assertions search for. The real
+        # Get-HDTBootstrapConfiguration hands its secret out through
+        # GetCredential() and never carries it as a property, which is exactly
+        # the shape this fake reproduces.
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingUsernameAndPasswordParams', '',
+            Justification = 'A test fixture standing in for bootstrap.json, which carries both.')]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Password',
+            Justification = 'A test fixture constant, not a credential: it is what the prefill assertion looks for.')]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+            Justification = 'The only way to build a SecureString from a known test constant.')]
         [CmdletBinding()]
         param(
             [Parameter()] [string] $DeployRoot = '\\192.168.2.108\HDTShare',
-            [Parameter()] [string] $UserName = ''
+            [Parameter()] [string] $UserName = '',
+            [Parameter()] [string] $Password = ''
         )
 
-        return [pscustomobject] @{
+        $bootstrap = [pscustomobject] @{
             DeployRoot = $DeployRoot
             UserName   = $UserName
         }
+
+        # GetCredential(), NOT A Password PROPERTY - that is the shape the real
+        # Get-HDTBootstrapConfiguration returns, and deliberately so: the secret
+        # is closed over rather than carried, so the object can be written to a
+        # log without writing the password with it.
+        $secret = $Password
+        $bootstrap | Add-Member -MemberType ScriptMethod -Name GetCredential -Value {
+            if ([string]::IsNullOrEmpty($secret)) { return $null }
+
+            return New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList 'svc',
+            (ConvertTo-SecureString -String $secret -AsPlainText -Force)
+        }.GetNewClosure()
+
+        return $bootstrap
     }
 
     function Get-HDTTestFieldText {
@@ -188,26 +215,54 @@ Describe 'Get-HDTWizardField' {
         }
     }
 
-    Context 'the password, which is never a field' {
+    Context 'the password, which IS prefilled' {
 
-        It 'never emits a field for the password box' {
-            # bootstrap.json can carry a credential and this command can see it.
-            # A prefilled PasswordBox would put the share password on a screen in
-            # a room where somebody is deploying a machine.
+        # AN EARLIER VERSION REFUSED TO PREFILL IT, on the grounds that it would
+        # put the share password on a screen in a room where somebody is
+        # deploying. Two facts overturned that:
+        #
+        #   IT IS ALREADY IN THE IMAGE - bootstrap.json inside the boot media
+        #   carries this very credential, which is why DESIGN 6.3 says to treat
+        #   boot media AS a credential. Withholding it from the screen protects
+        #   nothing from anybody holding the media.
+        #
+        #   A PasswordBox SHOWS DOTS - it is masked until somebody presses the
+        #   eye, so it is not readable on screen by default.
+        #
+        # And the screen is shown when the SHARE CANNOT BE REACHED, which is
+        # exactly when a technician needs to try the same account against a
+        # corrected UNC. Making them retype a password nobody wrote down is how
+        # that attempt fails for a second, unrelated reason.
+
+        It 'emits the embedded password, into the Password property' {
+            $field = @(Get-HDTWizardField -NetworkConfiguration (New-HDTTestNetwork) `
+                    -Bootstrap (New-HDTTestBootstrap -UserName 'CONTOSO\svc' -Password 'Sup3rSecret!'))
+
+            $row = @($field | Where-Object { $_.Name -eq 'HDTPasswordBox' })
+
+            @($row).Count | Should -Be 1
+            $row[0].Text | Should -BeExactly 'Sup3rSecret!'
+
+            # A PasswordBox HAS NO Text AT ALL. Without the property the host
+            # would try to set one and the Welcome screen would die on the one
+            # machine nobody can debug.
+            $row[0].Property | Should -BeExactly 'Password'
+        }
+
+        It 'emits no password field for an image built without a credential' {
+            # -PromptForCredential builds exactly this image, and it deliberately
+            # stops for a human. An empty box is what that human is for.
+            $field = @(Get-HDTWizardField -Bootstrap (New-HDTTestBootstrap -UserName ''))
+
+            @($field | Where-Object { $_.Name -eq 'HDTPasswordBox' }) | Should -BeNullOrEmpty
+        }
+
+        It 'says Text for every other box, so a TextBox is still filled' {
             $field = @(Get-HDTWizardField -NetworkConfiguration (New-HDTTestNetwork) `
                     -Bootstrap (New-HDTTestBootstrap -UserName 'CONTOSO\svc'))
 
-            @($field | Where-Object { $_.Name -like '*Password*' }) | Should -BeNullOrEmpty
-        }
-
-        It 'carries no password-shaped value in any field it does emit' {
-            $bootstrap = New-HDTTestBootstrap -UserName 'CONTOSO\svc'
-            $bootstrap | Add-Member -MemberType NoteProperty -Name 'Password' -Value 'Sup3rSecret!'
-
-            $field = @(Get-HDTWizardField -Bootstrap $bootstrap)
-
-            foreach ($current in $field) {
-                [string] $current.Text | Should -Not -BeLike '*Sup3rSecret*'
+            foreach ($current in @($field | Where-Object { $_.Name -ne 'HDTPasswordBox' })) {
+                $current.Property | Should -BeExactly 'Text'
             }
         }
     }

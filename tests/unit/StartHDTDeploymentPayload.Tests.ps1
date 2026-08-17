@@ -277,7 +277,19 @@ Describe 'Start-HDTDeployment.ps1' {
             # may not, and this assertion is what stops the next author putting
             # it back.
             $script:codeOnly | Should -Match 'GetDrives'
-            @(& $script:commandNamed 'Resolve-HDTDeployRoot').Count | Should -Be 1
+
+            # TWICE NOW, AND BOTH ARE THE SAME DELEGATION. The first resolves
+            # what bootstrap.json carried; the second resolves what a technician
+            # typed into the Welcome screen after that share could not be
+            # reached. The rule this test defends is that the payload never
+            # DECIDES a drive letter - it enumerates and hands the decision to
+            # Resolve-HDTDeployRoot - and a corrected share has to go through
+            # the same command for the same reason, including the
+            # volume-relative form.
+            #
+            # The count stays exact rather than becoming -BeGreaterThan 0: a
+            # third call is a thing to think about, not to wave through.
+            @(& $script:commandNamed 'Resolve-HDTDeployRoot').Count | Should -Be 2
         }
 
         It 'names no Net cmdlet WinPE does not have' {

@@ -61,6 +61,8 @@
         HDTUpButton, HDTDownButton, HDTCopyButton, HDTPasteButton,
         HDTSaveButton, HDTOptionTab, HDTDisableCheck, HDTContinueCheck,
         HDTConditionText, HDTConditionApplyButton, HDTConditionClearButton,
+        HDTConditionVariableBox, HDTConditionOperatorBox, HDTConditionValueBox,
+        HDTConditionBuildButton,
         HDTRunInText and HDTEditorCloseButton. A test asserts every one of these
         names is here, so renaming one fails on a developer machine rather than
         in front of an administrator.
@@ -553,6 +555,61 @@
                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                        FontFamily="Segoe UI" FontSize="12"
                                        TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                            <!--
+                                THE PICKER, ABOVE THE BOX RATHER THAN INSTEAD OF
+                                IT. The grammar is closed - a %Var% token, one of
+                                four operators, a value - so the legal conditions
+                                are enumerable and a blank box is the worst way
+                                to enter one: it accepts '%HDTIsUEFI% = true',
+                                which is not the grammar, and the document is
+                                then refused at import, on the share, by somebody
+                                who did not type it.
+
+                                THE BOX STAYS because an author may want
+                                something the three lists cannot say, and
+                                because it is what SHOWS the condition a step
+                                already has. Build writes into it; it is not a
+                                second way to save.
+
+                                WHAT IS IN THE LISTS IS Get-HDTConsoleConditionOption'S
+                                - every variable the engine knows, the four
+                                operators it implements, and the values worth
+                                offering for the facts that have a closed set.
+                            -->
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <ComboBox Grid.Column="0" x:Name="HDTConditionVariableBox"
+                                          DisplayMemberPath="Name" SelectedValuePath="Token"
+                                          FontFamily="Segoe UI" FontSize="12" Margin="0,0,6,0"
+                                          ToolTip="The variable to test" />
+
+                                <ComboBox Grid.Column="1" x:Name="HDTConditionOperatorBox"
+                                          DisplayMemberPath="Display" SelectedValuePath="Token"
+                                          MinWidth="150" FontFamily="Segoe UI" FontSize="12"
+                                          Margin="0,0,6,0" />
+
+                                <!--
+                                    EDITABLE, because most variables have no
+                                    closed set - a computer name has no menu -
+                                    and IsEditable is what lets one control be
+                                    both a menu and a box.
+                                -->
+                                <ComboBox Grid.Column="2" x:Name="HDTConditionValueBox"
+                                          IsEditable="True" MinWidth="130"
+                                          FontFamily="Consolas, Courier New" FontSize="12"
+                                          Margin="0,0,6,0" />
+
+                                <Button Grid.Column="3" x:Name="HDTConditionBuildButton"
+                                        Style="{StaticResource HDTToolButton}" Content="Build"
+                                        ToolTip="Write this into the box below" />
+                            </Grid>
 
                             <TextBox x:Name="HDTConditionText"
                                      MinHeight="64"

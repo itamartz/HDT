@@ -103,12 +103,18 @@ function Get-HDTWizardField {
         return [string] $Source.$Name
     }
 
+    # NAME, VALUE, AND WHICH PROPERTY IT GOES IN. Text for a TextBox and
+    # Password for a PasswordBox - the same pair wizard.yaml's collect
+    # declarations use, and the same pair Get-HDTWizardHarvest reads back with.
+    # A host that worked the property out from the control's type would be
+    # deciding something, which is what an untested adapter may not do.
     $add = {
-        param([string] $Name, [string] $Text)
+        param([string] $Name, [string] $Text, [string] $Property = 'Text')
 
         return [pscustomobject] @{
-            Name = $Name
-            Text = $Text
+            Name     = $Name
+            Text     = $Text
+            Property = $Property
         }
     }
 
@@ -151,7 +157,45 @@ function Get-HDTWizardField {
         $field += & $add 'HDTUserDomainBox' $userDomain
     }
 
-    # THE PASSWORD BOX IS NOT HERE, AND MUST NOT BE. See the header.
+    # -- 3. the password, which IS prefilled -------------------------------
+    #
+    # AN EARLIER VERSION REFUSED TO, and the reasoning was that a prefilled
+    # PasswordBox puts the share password on a screen in a room where somebody
+    # is deploying a machine. Two facts overturned it:
+    #
+    #   IT IS ALREADY IN THE IMAGE. bootstrap.json inside the boot media
+    #   carries this credential; anybody holding the media has the password
+    #   already, which is exactly why DESIGN 6.3 says to treat boot media as a
+    #   credential. Withholding it from the screen protects nothing.
+    #
+    #   A PasswordBox SHOWS DOTS. It is masked unless the technician presses the
+    #   eye - so it is not on screen in any readable sense until somebody
+    #   deliberately asks for it.
+    #
+    #   AND THE SCREEN IS SHOWN WHEN THE SHARE CANNOT BE REACHED, which is
+    #   precisely the moment a technician needs to try the same account against
+    #   a corrected UNC. Making them retype a password they cannot see written
+    #   down anywhere is how that attempt fails for a second, unrelated reason.
+
+    if ($null -ne $Bootstrap -and $null -ne $Bootstrap.PSObject.Members['GetCredential']) {
+        $secret = ''
+
+        try {
+            $credential = $Bootstrap.GetCredential()
+            if ($null -ne $credential) {
+                $secret = [string] $credential.GetNetworkCredential().Password
+            }
+        } catch {
+            # An image built with no embedded credential answers nothing here,
+            # and that is an ordinary boot rather than a failure.
+            $secret = ''
+        }
+
+        if (-not [string]::IsNullOrEmpty($secret)) {
+            $field += & $add 'HDTPasswordBox' $secret 'Password'
+        }
+    }
+
 
     return $field
 }

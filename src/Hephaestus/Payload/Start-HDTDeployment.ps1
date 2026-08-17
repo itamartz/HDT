@@ -327,7 +327,7 @@ try {
         try {
             $hidden = [bool] (Hide-HDTShellWindow)
             $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -Title 'Hephaestus Deployment Toolkit' `
-                -Field $field -Pane $skip.Pane
+                -Field $field -Pane $skip.Pane -Collect (Get-HDTWizardHarvest)
         } finally {
             if ($hidden) { [void] (Hide-HDTShellWindow -Restore) }
         }
@@ -343,7 +343,19 @@ try {
             return [pscustomobject] @{ Retry = $false }
         }
 
-        return [pscustomobject] @{ Retry = ($answer.Action -eq 'Next') }
+        # WHAT WAS TYPED COMES BACK WITH THE ANSWER. Until Get-HDTWizardHarvest
+        # existed this screen returned an Action alone, so a technician could
+        # correct the share, press Next, and watch the machine fail on the
+        # address that was already wrong.
+        $typed = ''
+        if ($null -ne $answer.Value -and $answer.Value.ContainsKey('HDTDeployRootBox')) {
+            $typed = [string] $answer.Value['HDTDeployRootBox']
+        }
+
+        return [pscustomobject] @{
+            Retry      = ($answer.Action -eq 'Next')
+            DeployRoot = $typed
+        }
     }
 
     $needAddress = ([string] $bootstrap.Provider -eq 'Smb')
@@ -468,9 +480,78 @@ try {
     }
     if ($null -ne $credential) { $providerArgument['Credential'] = $credential }
 
-    $content = New-HDTContentProvider @providerArgument
+    # A SHARE THAT CANNOT BE REACHED IS A QUESTION, NOT A FATAL ERROR.
+    #
+    # HDT-Wizard-01 proved why: its lab host's DHCP lease had moved, the image
+    # still carried the old address, and this line threw
+    #
+    #     "NewMapping" ... The network path was not found
+    #
+    # straight into the fatal catch - which recorded the failure, could not
+    # write RESULT.json (that goes to the share too), and powered the machine
+    # off. A technician standing at the bench saw the message for a moment and
+    # then a dark screen, with no way to say "the share is over here now".
+    #
+    # THE WELCOME SCREEN ALREADY EXISTED FOR THIS. New-HDTWizardHost's own
+    # comment says it is "the window shown when the SHARE CANNOT BE REACHED";
+    # what was missing was reading the box back. Now the technician can correct
+    # the UNC and the connect is tried again with it.
+    #
+    # IT ASKS EVEN WHEN THE IMAGE SAYS TO SKIP THE WELCOME SCREEN, and that is
+    # deliberate. HDTSkipWelcome defaults to TRUE for any image carrying an
+    # embedded credential - MDT's model, because such an image is meant to run
+    # with nobody present - so honouring it here meant the one machine that
+    # needed a human got a shutdown instead of a window. The skip governs the
+    # NORMAL path: whether to stop and ask before a deployment that could
+    # otherwise proceed. A share that cannot be reached has no unattended
+    # outcome left to protect.
+    #
+    # THE COST IS THAT AN UNWATCHED MACHINE WAITS instead of powering off. That
+    # is the right way round: a machine sitting at a screen can be walked up to
+    # and fixed, and one that powered off at 3am tells nobody anything. The
+    # screen still has Cancel and a command prompt on it.
 
-    [void] $content.Connect()
+    $content = $null
+
+    while ($true) {
+        $providerArgument['Root'] = [string] $deployRoot.Path
+        $content = New-HDTContentProvider @providerArgument
+
+        $reached = $true
+        try {
+            [void] $content.Connect()
+        } catch {
+            $reached = $false
+            & $say ("could not reach '{0}': {1}" -f $deployRoot.Path, $_.Exception.Message) 'Warning'
+        }
+
+        if ($reached) { break }
+
+        $corrected = & $showWelcome
+
+        if (-not $corrected.Retry) {
+            throw ("HDTDeploymentCancelled: '{0}' could not be reached and the technician left the Welcome screen." -f
+                $deployRoot.Path)
+        }
+
+        if ([string]::IsNullOrWhiteSpace($corrected.DeployRoot)) {
+            & $say 'the Welcome screen was closed with an empty share box, so the same one is tried again' 'Warning'
+            continue
+        }
+
+        # RESOLVED AGAIN, NOT ASSIGNED. What was typed is a deployRoot in the
+        # same sense bootstrap.json's is - including the volume-relative form -
+        # so it goes back through the command that knows what those mean.
+        $deployRoot = Resolve-HDTDeployRoot -DeployRoot ([string] $corrected.DeployRoot) `
+            -Provider ([string] $bootstrap.Provider) -CandidateRoot $candidateRoot `
+            -Marker ([string] $bootstrap.ContentMarker) -FileSystem $fileSystem
+
+        $result['resolvedDeployRoot'] = [string] $deployRoot.Path
+        $result['deployRootSource'] = 'Welcome'
+
+        & $say ("the technician gave '{0}'; trying that" -f $deployRoot.Path)
+    }
+
     $result['connected'] = $true
     & $say ("connected to '{0}' over {1}" -f $deployRoot.Path, $bootstrap.Provider)
 

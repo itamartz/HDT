@@ -80,7 +80,7 @@
     <System:Double x:Key="HDTBodySize" xmlns:System="clr-namespace:System;assembly=mscorlib">16</System:Double>
     <System:Double x:Key="HDTLabelSize" xmlns:System="clr-namespace:System;assembly=mscorlib">15</System:Double>
     <System:Double x:Key="HDTHintSize" xmlns:System="clr-namespace:System;assembly=mscorlib">14</System:Double>
-    <System:Double x:Key="HDTFieldHeight" xmlns:System="clr-namespace:System;assembly=mscorlib">32</System:Double>
+    <System:Double x:Key="HDTFieldHeight" xmlns:System="clr-namespace:System;assembly=mscorlib">34</System:Double>
 
     <Style x:Key="HDTTitleText" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource HDTTextBrush}" />

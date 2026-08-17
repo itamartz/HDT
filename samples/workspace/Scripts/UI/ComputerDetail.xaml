@@ -29,7 +29,7 @@
 
         <!--
             IT SETS NO FONT, NO PADDING AND NO COLOUR. HDTTheme.xaml's TextBox
-            style sets Height="32" with FontSize="15", and a LOCAL VALUE BEATS A
+            style sets Height="34" with FontSize="15", and a LOCAL VALUE BEATS A
             STYLE SETTER - so a page that set its own font and padding grew the
             text inside a box that stayed 32px tall and clipped the bottom three
             pixels. The underscore lives entirely in those three pixels, so the
@@ -216,7 +216,7 @@
                          HorizontalAlignment="Left" Visibility="Collapsed" />
 
                 <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle" Content="&#x1F441;"
-                              Width="36" Height="32" Margin="8,0,0,0"
+                              Width="36" Height="34" Margin="8,0,0,0"
                               Background="#FF3A3A3C" Foreground="White" BorderThickness="0"
                               ToolTip="Show the password" />
             </Grid>

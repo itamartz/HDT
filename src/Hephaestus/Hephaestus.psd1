@@ -79,6 +79,7 @@
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
         'Get-HDTWizardField',
+        'Get-HDTWizardHarvest',
         'Format-HDTProgressLine',
         'Get-HDTDeploymentProgress',
         'Get-HDTWizardPage',
@@ -200,6 +201,7 @@
         # one Import-Module puts the console and the commands it invokes in the
         # same session.
         'Get-HDTConsoleBootImageSetting',
+        'Get-HDTConsoleConditionOption',
         'Show-HDTBootImageWindow',
         'Show-HDTBuildProgressWindow',
         'Get-HDTConsoleClosePrompt',

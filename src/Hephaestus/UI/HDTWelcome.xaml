@@ -104,8 +104,33 @@
             A disabled box greys its text out and is harder to read, which
             defeats the point; read-only keeps it legible and uncopyable-over.
         -->
+        <!--
+            EVERY FIELD ON THIS SCREEN IS 34 HIGH, AND IT IS SET HERE BECAUSE
+            THIS WINDOW DOES NOT LOAD HDTTheme.xaml. It carries its own copy of
+            the styles it needs - it is the one screen that runs before the
+            share is reachable - so the theme's HDTFieldHeight token does not
+            reach it, and a change made there alone leaves this screen behind.
+            Measured after exactly that mistake: the address boxes stayed 32
+            while the theme said 34.
+
+            AND WITHOUT AN IMPLICIT STYLE, A BOX HAS NO HEIGHT AT ALL. The
+            deploy-root box carried Height="32" as a local value; removing that
+            in favour of "the style will do it" left it 19.95 high, because
+            there was no TextBox style for it to inherit from. The two implicit
+            styles below are what make that true now.
+        -->
+        <Style TargetType="TextBox">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="PasswordBox">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
         <Style x:Key="HDTAddressBox" TargetType="TextBox">
-            <Setter Property="Height" Value="32" />
+            <Setter Property="Height" Value="34" />
             <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="BorderBrush" Value="#FF3F3F46" />
             <Setter Property="IsReadOnly" Value="True" />
@@ -213,8 +238,8 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="34" />
-                            <RowDefinition Height="34" />
+                            <RowDefinition Height="36" />
+                            <RowDefinition Height="36" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
@@ -270,7 +295,7 @@
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Share"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTDeployRootBox" Height="32"
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTDeployRootBox"
                                    VerticalContentAlignment="Center"
                                    Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
@@ -303,21 +328,21 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="34" />
-                            <RowDefinition Height="34" />
+                            <RowDefinition Height="36" />
+                            <RowDefinition Height="36" />
                             <RowDefinition Height="20" />
-                            <RowDefinition Height="34" />
+                            <RowDefinition Height="36" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="User name"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTUserIdBox" Height="32"
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTUserIdBox"
                                    VerticalContentAlignment="Center"
                                    Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Domain"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTUserDomainBox" Height="32"
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTUserDomainBox"
                                    VerticalContentAlignment="Center"
                                    Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
@@ -341,16 +366,16 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <PasswordBox Grid.Column="0" x:Name="HDTPasswordBox" Height="32"
+                            <PasswordBox Grid.Column="0" x:Name="HDTPasswordBox"
                                          VerticalContentAlignment="Center"
                                          Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
-                            <TextBox Grid.Column="0" x:Name="HDTPasswordRevealBox" Height="32"
+                            <TextBox Grid.Column="0" x:Name="HDTPasswordRevealBox"
                                      Visibility="Collapsed" VerticalContentAlignment="Center"
                                      Background="#FF2D2D30" Foreground="White" BorderBrush="#FF3F3F46" />
 
                             <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle"
-                                          Width="38" Height="32" Margin="6,0,0,0"
+                                          Width="38" Height="34" Margin="6,0,0,0"
                                           ToolTip="Show the password">
                                 <Grid Width="22" Height="16">
                                     <Path Data="M 1,8 C 5,2.5 17,2.5 21,8 C 17,13.5 5,13.5 1,8 Z"
