@@ -625,7 +625,10 @@ try {
     # actually applies - a typed name beats the rule that guessed one, a rule
     # still wins where the technician left a box empty, and the provenance says
     # which happened.
-    $wizardValue = @{}
+    # NULL UNTIL A WIZARD RUNS. A share that declares no pages never opens one,
+    # and the tail below reads this to know whether there is a second-passed bag
+    # to deploy with or only the first resolution.
+    $wizardVariable = $null
 
     $wizard = Import-HDTWizardDocument -Provider $content
 
@@ -705,10 +708,17 @@ try {
                 $result['wizardAction'] = [string] $answer.Action
                 & $say ("the technician chose: {0}" -f $answer.Action)
 
+                # W5: WHAT THE ANSWER MEANS IS NOT THIS FILE'S QUESTION. The
+                # allow-list, the second resolution that gives a typed value its
+                # provenance, and the engine's own case-insensitive bag all live
+                # in Start-HDTWizardDeployment, where a test can reach them
+                # without a booted machine.
+                $deploy = Start-HDTWizardDeployment -Answer $answer -ResolveArgument $resolveArgument
+
                 # MDT'S "EXIT TO COMMAND PROMPT": the window closes and the
                 # technician is left AT a prompt. Opening it is this caller's
                 # job - Show-HDTWizardShell reports and opens nothing.
-                if ($answer.Action -eq 'CommandPrompt') {
+                if ($deploy.Action -eq 'CommandPrompt') {
                     $prompt = Start-HDTCommandPrompt
                     & $say ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
 
@@ -724,27 +734,33 @@ try {
                 }
 
                 # A DISMISSED WIZARD IS NOT CONSENT TO PARTITION A DISK.
-                if ($answer.Action -ne 'Next') {
+                if ($deploy.Action -ne 'Deploy') {
                     throw 'HDTDeploymentCancelled: the technician cancelled the wizard.'
                 }
 
-                $wizardValue = $answer.Value
                 & $say ("the wizard supplied {0} value(s): {1}" -f
-                    @($wizardValue.Keys).Count, ((@($wizardValue.Keys) | Sort-Object) -join ', '))
+                    @($deploy.Applied).Count, (@($deploy.Applied) -join ', '))
+
+                # THE RESOLVED SET, ALREADY SECOND-PASSED. What the wizard typed
+                # has been through the resolver as the Wizard source, so DESIGN
+                # 3.1's precedence applied rather than being patched around.
+                $resolved = $deploy.Resolved
+                $wizardVariable = $deploy.Variable
             } finally {
                 if ($consoleHidden) { [void] (Hide-HDTShellWindow -Restore) }
             }
         }
     }
 
-    if (@($wizardValue.Keys).Count -gt 0) {
-        $resolveArgument['Wizard'] = $wizardValue
-        $resolved = Resolve-HDTVariable @resolveArgument
-    }
-
-    $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($name in @($resolved.Variable.Keys)) {
-        $variable[[string] $name] = $resolved.Variable[$name]
+    # THE BAG THE ENGINE RUNS ON. Start-HDTWizardDeployment built it when there
+    # was a wizard; a share that declares none never opened one, and the first
+    # resolution is what the machine deploys with.
+    $variable = $wizardVariable
+    if ($null -eq $variable) {
+        $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($name in @($resolved.Variable.Keys)) {
+            $variable[[string] $name] = $resolved.Variable[$name]
+        }
     }
 
     # WHAT THIS BOOT IMAGE CARRIES, so a sequence can ask before it acts. The

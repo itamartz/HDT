@@ -180,6 +180,7 @@
         'Split-HDTAccountName',
         'Start-HDTCommandPrompt',
         'Start-HDTProgressDisplay',
+        'Start-HDTWizardDeployment',
         'Step-HDTWizardPage',
         'Test-HDTApplicationDetection',
         'Test-HDTComputerName',
