@@ -100,7 +100,12 @@ function Get-HDTConsoleBootImageSetting {
         [object[]] $DriverGroup = @(),
 
         [Parameter()]
-        [bool] $HasCertificatePassword = $false
+        [bool] $HasCertificatePassword = $false,
+
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [object[]] $TimeZone = @()
     )
 
     Set-StrictMode -Version Latest
@@ -213,6 +218,56 @@ function Get-HDTConsoleBootImageSetting {
             })
     }
 
+    # -- the time zone --------------------------------------------------------
+    #
+    # A LIST, BECAUSE tzutil TAKES AN ID AND NOBODY KNOWS THE IDS. What an
+    # administrator is looking for is "(UTC+02:00) Jerusalem"; what the document
+    # has to hold is "Israel Standard Time".
+    #
+    # "The hardware clock" IS THE FIRST ROW rather than an empty selection - it
+    # is what every image built before this did, and a list you can only say it
+    # in by clearing the box is a list you cannot say it in.
+    #
+    # THE DOCUMENT'S OWN ANSWER SURVIVES A MACHINE THAT HAS NEVER HEARD OF IT.
+    # Windows adds time zones; a share edited on a patched machine and opened on
+    # an older one would otherwise read as "no time zone", and a Save would make
+    # that true.
+
+    $zoneChoice = New-Object -TypeName System.Collections.ArrayList
+
+    [void] $zoneChoice.Add([pscustomobject] @{
+            Id      = ''
+            Display = '(leave WinPE on the hardware clock)'
+        })
+
+    foreach ($current in @($TimeZone)) {
+        [void] $zoneChoice.Add([pscustomobject] @{
+                Id      = [string] $current.Id
+                Display = [string] $current.Display
+            })
+    }
+
+    $declaredZone = [string] $bootImage.TimeZone
+
+    if (-not [string]::IsNullOrWhiteSpace($declaredZone) -and
+        @($zoneChoice | Where-Object { $_.Id -eq $declaredZone }).Count -eq 0) {
+
+        [void] $zoneChoice.Add([pscustomobject] @{
+                Id      = $declaredZone
+                Display = '{0}  (this machine does not know it)' -f $declaredZone
+            })
+    }
+
+    $timeZoneRow = [pscustomobject] @{
+        Id                 = $declaredZone
+        Choice             = [pscustomobject[]] @($zoneChoice)
+
+        Hint               = 'WinPE has no time zone setting in its answer file, so it runs on the hardware clock - UTC in practice, which puts its log timestamps hours from the machine it just built. Named here, startnet.cmd runs tzutil, and the deployed machine''s unattend inherits the same answer.'
+
+        ApplyCommandFormat = 'Set-HDTBootImageTimeZone -Line $line -Name ''{0}'''
+        ClearCommand       = 'Set-HDTBootImageTimeZone -Line $line -Clear'
+    }
+
     # -- the Certificates tab -------------------------------------------------
     #
     # TWO LISTS BECAUSE THEY ARE TWO DIFFERENT THINGS, and the Store column is
@@ -291,6 +346,11 @@ function Get-HDTConsoleBootImageSetting {
         ScratchSpaceMB        = [string] $bootImage.ScratchSpaceMB
         Unattend              = [string] $bootImage.Unattend
         Background            = [string] $bootImage.Background
+
+        # A REAL BOOLEAN, because the control is a CheckBox and IsChecked takes
+        # one - every other value here is a string because the controls that
+        # show them are text boxes and combo boxes.
+        PromptForKey          = [bool] $bootImage.PromptForKey
 
         Command               = "Set-HDTWorkspaceProperty -Line `$line -BootImageName '{0}' -Architecture '{1}' -Language '{2}' -ScratchSpaceMB {3}" -f
         [string] $bootImage.Name, [string] $bootImage.Architecture,
@@ -378,6 +438,7 @@ function Get-HDTConsoleBootImageSetting {
         Content                   = [pscustomobject[]] @($contentRow)
         StartCommand              = [pscustomobject[]] @($startCommandRow)
 
+        TimeZone                    = $timeZoneRow
         Certificate                 = [pscustomobject[]] @($certificateRow)
         CertificateSummaryText      = $certificateSummaryText
         ClientCertificate           = $clientCertificate

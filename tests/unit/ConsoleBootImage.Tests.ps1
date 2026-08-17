@@ -112,6 +112,32 @@ Describe 'Get-HDTConsoleBootImageSetting' {
             $script:view.General.ScratchSpaceMB | Should -BeExactly '512'
         }
 
+        It 'gives the boot prompt as a boolean, because the control is a tick box' {
+            # Every other value on this tab is a string, because the controls
+            # showing them are text and combo boxes. CheckBox.IsChecked takes a
+            # boolean, and a string here would tick the box for 'false'.
+            $script:view.General.PromptForKey | Should -BeOfType [bool]
+        }
+
+        It 'defaults the boot prompt off, which is what every image was built with' {
+            # "Press any key to boot from CD or DVD" is efisys.bin's doing and
+            # HDT has always written efisys_noprompt.bin: a machine nobody is
+            # standing at cannot answer a keypress.
+            $script:view.General.PromptForKey | Should -BeFalse
+        }
+
+        It 'has a control on the page for it' {
+            # THE VIEW MODEL AND THE MARKUP HAVE TO AGREE ON THE NAME, and this
+            # is the file that would otherwise go stale in silence: the host
+            # finds the control by name, and a rename here is a tick box that
+            # quietly stops loading and saving.
+            $xamlPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/Console/HDTBootImage.xaml'
+            $xaml = [xml] (Get-Content -LiteralPath $xamlPath -Raw)
+
+            @($xaml.SelectNodes('//*[@*[local-name()="Name"]="HDTBootImagePromptForKeyCheck"]')).Count |
+                Should -Be 1
+        }
+
         It 'carries the Set-HDTWorkspaceProperty call Apply would run' {
             $script:view.General.Command | Should -BeLike 'Set-HDTWorkspaceProperty*'
             $script:view.General.Command | Should -BeLike '*-BootImageName*'
@@ -479,5 +505,61 @@ bootImage:
             Should -BeLike 'Set-HDTBootImageCertificatePassword*-WorkspaceRoot ''{0}''*'
 
         $script:certView.ClientCertificate.PasswordCommandFormat | Should -Not -BeLike '*{1}*'
+    }
+}
+
+Describe 'the time zone row' {
+
+    # WinPE'S ANSWER FILE CANNOT SET A TIME ZONE, so this row is not a duplicate
+    # of anything on the answer file line above it: it is what puts tzutil into
+    # startnet.cmd, and what the deployed machine's unattend inherits.
+
+    BeforeAll {
+        # INJECTED, like the ADK list and the driver groups. Windows adds time
+        # zones, so reading them here would make this suite's result depend on
+        # how recently the machine running it was patched.
+        $script:zone = @(
+            [pscustomobject] @{ Id = 'UTC'; Display = '(UTC) Coordinated Universal Time'; BaseUtcOffset = '00:00:00' }
+            [pscustomobject] @{ Id = 'Israel Standard Time'; Display = '(UTC+02:00) Jerusalem'; BaseUtcOffset = '02:00:00' }
+        )
+
+        $script:zoneLine = [string[]] @(($script:workspaceText + "`n  timeZone: Israel Standard Time") -split "`r?`n")
+
+        $script:zoneView = Get-HDTConsoleBootImageSetting -Line $script:zoneLine `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @() -TimeZone $script:zone
+    }
+
+    It 'reads what the document names' {
+        [string] $script:zoneView.TimeZone.Id | Should -BeExactly 'Israel Standard Time'
+    }
+
+    It 'offers every zone it was given, with the hardware clock first' {
+        # "Leave it alone" IS A REAL CHOICE and it is what every image built
+        # before this did, so it is a row rather than an empty selection.
+        @($script:zoneView.TimeZone.Choice).Count | Should -Be 3
+        [string] @($script:zoneView.TimeZone.Choice)[0].Id | Should -BeExactly ''
+    }
+
+    It 'keeps a zone the document names that this machine has never heard of' {
+        # A share edited on one machine and built on another. Dropping it would
+        # make the window read as 'no time zone' and a Save would make that true.
+        $strange = [string[]] @(($script:workspaceText + "`n  timeZone: Mars Standard Time") -split "`r?`n")
+
+        $view = Get-HDTConsoleBootImageSetting -Line $strange -Path 'C:\HDTLab\Share\workspace.yaml' `
+            -Component @() -DriverGroup @() -TimeZone $script:zone
+
+        [string] $view.TimeZone.Id | Should -BeExactly 'Mars Standard Time'
+        @($view.TimeZone.Choice | Where-Object { $_.Id -eq 'Mars Standard Time' }).Count | Should -Be 1
+    }
+
+    It 'carries the calls Save would run' {
+        $script:zoneView.TimeZone.ApplyCommandFormat | Should -BeLike 'Set-HDTBootImageTimeZone*-Name ''{0}''*'
+        $script:zoneView.TimeZone.ClearCommand | Should -BeLike 'Set-HDTBootImageTimeZone*-Clear*'
+    }
+
+    It 'says what it costs to leave it alone' {
+        # THE ROW HAS TO SAY WHY IT MATTERS. WinPE on the hardware clock stamps
+        # its logs hours away from the machine it just built.
+        [string] $script:zoneView.TimeZone.Hint | Should -Not -BeNullOrEmpty
     }
 }

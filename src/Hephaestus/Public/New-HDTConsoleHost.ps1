@@ -1619,7 +1619,7 @@ function New-HDTConsoleHost {
         param(
             [string] $Xaml, [string] $Path, [string[]] $Line,
             [object[]] $Component, [object[]] $DriverGroup, [object] $Theme, [object] $Size,
-            [string] $ThemeName
+            [string] $ThemeName, [object[]] $TimeZone = @()
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -1655,11 +1655,15 @@ function New-HDTConsoleHost {
         $unattendTemplate = $window.FindName('HDTBootImageUnattendTemplateButton')
         $unattendOpen = $window.FindName('HDTBootImageUnattendOpenButton')
         $backgroundBox = $window.FindName('HDTBootImageBackgroundBox')
+        $promptForKeyCheck = $window.FindName('HDTBootImagePromptForKeyCheck')
         $backgroundBrowse = $window.FindName('HDTBootImageBackgroundBrowseButton')
+        $timeZoneBox = $window.FindName('HDTBootImageTimeZoneBox')
+        $timeZoneHint = $window.FindName('HDTBootImageTimeZoneHintText')
 
         $componentList = $window.FindName('HDTComponentList')
         $componentSize = $window.FindName('HDTComponentSizeText')
 
+        $certificateList = $window.FindName('HDTCertificateList')
         $certificateBox = $window.FindName('HDTCertificateBox')
         $certificateSummary = $window.FindName('HDTCertificateSummaryText')
         $certificateBrowse = $window.FindName('HDTCertificateBrowseButton')
@@ -1709,7 +1713,7 @@ function New-HDTConsoleHost {
 
             $book.View = Get-HDTConsoleBootImageSetting -Line $book.Line -Path $Path `
                 -Component $Component -DriverGroup $DriverGroup `
-                -HasCertificatePassword ([bool] $stored)
+                -HasCertificatePassword ([bool] $stored) -TimeZone $TimeZone
             return $book.View
         }
 
@@ -1723,6 +1727,10 @@ function New-HDTConsoleHost {
             $languageBox.Text = [string] $view.General.Language
             $unattendBox.Text = [string] $view.General.Unattend
             $backgroundBox.Text = [string] $view.General.Background
+
+            # A CheckBox TAKES A BOOLEAN, and the view model hands one over
+            # rather than the string every other field here carries.
+            $promptForKeyCheck.IsChecked = [bool] $view.General.PromptForKey
             $clientCertificateBox.Text = [string] $view.ClientCertificate.Path
             $clientCertificateWarning.Text = [string] $view.ClientCertificate.Warning
             $architectureBox.SelectedValue = [string] $view.General.Architecture
@@ -1736,6 +1744,13 @@ function New-HDTConsoleHost {
             $driverBox.ItemsSource = $view.Driver.Choice
             $driverBox.SelectedValue = [string] $view.Driver.Group
 
+            # SAME ORDER AS THE DRIVER LIST, and for the same reason:
+            # SelectedValue means nothing until the item carrying that value
+            # exists.
+            $timeZoneBox.ItemsSource = $view.TimeZone.Choice
+            $timeZoneBox.SelectedValue = [string] $view.TimeZone.Id
+            $timeZoneHint.Text = [string] $view.TimeZone.Hint
+
             $componentSize.Text = [string] $view.SelectedSizeText
         }
 
@@ -1747,10 +1762,10 @@ function New-HDTConsoleHost {
 
             $contentList.ItemsSource = $view.Content
             $startList.ItemsSource = $view.StartCommand
-            # THE DROP-DOWN IS WHAT IS ALREADY TRUSTED, and the typed text is
-            # what Add would add - so the ItemsSource is assigned and the Text
-            # deliberately left alone.
-            $certificateBox.ItemsSource = $view.Certificate
+            # THE LIST IS WHAT IS ALREADY TRUSTED and the box below it is what
+            # Add would add - two controls, because one doing both hid the
+            # result of every press behind a click.
+            $certificateList.ItemsSource = $view.Certificate
             $certificateSummary.Text = [string] $view.CertificateSummaryText
             $clientCertificateWarning.Text = [string] $view.ClientCertificate.Warning
             $componentSize.Text = [string] $view.SelectedSizeText
@@ -1912,6 +1927,23 @@ function New-HDTConsoleHost {
                 & $fillLists
             }.GetNewClosure())
 
+        # A FILE ON THE SHARE IS NAMED RELATIVE TO IT. A picker hands back
+        # C:\HDTLab\Share\Certs\ca.cer, and storing that in workspace.yaml puts
+        # ONE BUILD HOST'S DRIVE LETTER in a document every build host reads -
+        # the same rule New-HDTBootImageUnattend states for the answer file.
+        # A file kept elsewhere stays rooted, because it is elsewhere.
+        $relativeToShare = {
+            param([string] $Chosen)
+
+            $root = [string] $book.View.WorkspaceRoot
+            if ([string]::IsNullOrWhiteSpace($root)) { return $Chosen }
+
+            $prefix = $root.TrimEnd('\') + '\'
+            if (-not $Chosen.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) { return $Chosen }
+
+            return $Chosen.Substring($prefix.Length)
+        }.GetNewClosure()
+
         # -- the Certificates tab --------------------------------------------
         #
         # THE TOP HALF EDITS THE DOCUMENT AS IT IS PRESSED, like the content and
@@ -1927,7 +1959,6 @@ function New-HDTConsoleHost {
                     $book.Dirty = $true
                     $commandText.Text = $book.View.AddCertificateCommandFormat -f $typed
                     $certificateBox.Text = ''
-                    $certificateBox.SelectedItem = $null
 
                     & $fillLists
                 } catch {
@@ -1940,11 +1971,10 @@ function New-HDTConsoleHost {
             }.GetNewClosure())
 
         $certificateRemove.Add_Click({
-                # THE ROW CHOSEN IN THE DROP-DOWN, not the text beside it. An
-                # editable ComboBox reports its selected item's Display as .Text,
-                # so reading Text here would work by accident today and stop the
-                # day the display stops being the path.
-                $row = $certificateBox.SelectedItem
+                # THE ROW SELECTED IN THE LIST, not the text in the box below it:
+                # the box holds what is being added, which is a different
+                # question from what is being taken away.
+                $row = $certificateList.SelectedItem
                 if ($null -eq $row) { return }
 
                 $book.Line = @(Remove-HDTBootImageCertificate -Line $book.Line `
@@ -2092,12 +2122,37 @@ function New-HDTConsoleHost {
         # a file picker can stop the mistake the page is most likely to see: a
         # .pfx in the trusted-root list, or a .cer as the machine's identity.
         # Both commands refuse it too; the dialog tries not to offer it.
+        # BROWSE ADDS WHAT IT PICKS, and takes more than one file. This row is a
+        # LIST behind a single box, so a Browse that only filled the box meant
+        # browsing twice replaced the first answer with the second - and a chain
+        # is a root AND a subordinate, which is two files nearly every time.
+        #
+        # THE TYPED PATH STILL NEEDS Add. A path spelled by hand is the other way
+        # into this row and the button that commits it has not moved.
         $certificateBrowse.Add_Click({
                 $dialog = New-Object -TypeName Microsoft.Win32.OpenFileDialog
-                $dialog.Title = 'Choose a certificate authority to trust'
+                $dialog.Title = 'Choose the certificate authorities to trust'
                 $dialog.Filter = 'Certificates (*.cer;*.crt;*.der)|*.cer;*.crt;*.der|All files (*.*)|*.*'
+                $dialog.Multiselect = $true
 
-                if ($dialog.ShowDialog($window)) { $certificateBox.Text = $dialog.FileName }
+                if (-not $dialog.ShowDialog($window)) { return }
+
+                $ran = New-Object -TypeName System.Collections.ArrayList
+
+                foreach ($chosen in @($dialog.FileNames)) {
+                    $named = & $relativeToShare ([string] $chosen)
+
+                    try {
+                        $book.Line = @(Add-HDTBootImageCertificate -Line $book.Line -Path $named -Confirm:$false)
+                        $book.Dirty = $true
+                        [void] $ran.Add($book.View.AddCertificateCommandFormat -f $named)
+                    } catch {
+                        [void] $ran.Add([string] $_.Exception.Message)
+                    }
+                }
+
+                $commandText.Text = (@($ran) -join [System.Environment]::NewLine)
+                & $fillLists
             }.GetNewClosure())
 
         $clientCertificateBrowse.Add_Click({
@@ -2105,7 +2160,11 @@ function New-HDTConsoleHost {
                 $dialog.Title = "Choose this machine's certificate"
                 $dialog.Filter = 'Certificates with a private key (*.pfx)|*.pfx'
 
-                if ($dialog.ShowDialog($window)) { $clientCertificateBox.Text = $dialog.FileName }
+                # ONE FILE AND ONE BOX, so this half fills the box as before -
+                # Save is what writes it, like the answer file and the background.
+                if ($dialog.ShowDialog($window)) {
+                    $clientCertificateBox.Text = & $relativeToShare ([string] $dialog.FileName)
+                }
             }.GetNewClosure())
 
         # FILTERED TO JPEG, because WinPE reads \Windows\System32\winpe.jpg and
@@ -2164,6 +2223,13 @@ function New-HDTConsoleHost {
                     $propertySplat['ScratchSpaceMB'] = [int] $scratchBox.SelectedValue
                 }
 
+                # WRITTEN WHICHEVER WAY IT IS SET, unlike the boxes above, which
+                # are skipped when empty. A tick box has no empty: unticked is
+                # an answer, and 'promptForKey: false' in the document is what
+                # tells the next reader somebody decided rather than never
+                # looked.
+                $propertySplat['PromptForKey'] = [bool] $promptForKeyCheck.IsChecked
+
                 $book.Line = @(Set-HDTWorkspaceProperty @propertySplat)
 
                 if ([string]::IsNullOrWhiteSpace($unattendBox.Text)) {
@@ -2178,6 +2244,13 @@ function New-HDTConsoleHost {
                 } else {
                     $book.Line = @(Set-HDTBootImageBackground -Line $book.Line `
                             -Path ([string] $backgroundBox.Text) -Confirm:$false)
+                }
+
+                if ([string]::IsNullOrWhiteSpace($timeZoneBox.SelectedValue)) {
+                    $book.Line = @(Set-HDTBootImageTimeZone -Line $book.Line -Clear -Confirm:$false)
+                } else {
+                    $book.Line = @(Set-HDTBootImageTimeZone -Line $book.Line `
+                            -Name ([string] $timeZoneBox.SelectedValue) -Confirm:$false)
                 }
 
                 if ([string]::IsNullOrWhiteSpace($clientCertificateBox.Text)) {
@@ -2223,6 +2296,12 @@ function New-HDTConsoleHost {
                 } else {
                     [void] $ran.Add($book.View.General.BackgroundCommandFormat -f
                         [string] $book.View.General.Background)
+                }
+
+                if ([string]::IsNullOrWhiteSpace($book.View.TimeZone.Id)) {
+                    [void] $ran.Add([string] $book.View.TimeZone.ClearCommand)
+                } else {
+                    [void] $ran.Add($book.View.TimeZone.ApplyCommandFormat -f [string] $book.View.TimeZone.Id)
                 }
 
                 if ([string]::IsNullOrWhiteSpace($book.View.ClientCertificate.Path)) {

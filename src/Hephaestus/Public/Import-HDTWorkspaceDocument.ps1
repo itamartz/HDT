@@ -76,6 +76,7 @@ function Import-HDTWorkspaceDocument {
               SchemaVersion, Id, Name, DeployRoot, LogLevel, Path,
               Credential  -> { Username }, or $null when there is no block
               BootImage   -> { Name, Architecture, Language, ScratchSpaceMB,
+                               PromptForKey,
                                OptionalComponent [string[]],
                                ExtraContent [rows of { Source, Destination }],
                                Drivers, Unattend, Background,
@@ -178,6 +179,27 @@ function Import-HDTWorkspaceDocument {
     $background = ''
     if ($null -ne $bootImage -and $bootImage.Contains('background')) {
         $background = [string] $bootImage['background']
+    }
+
+    # THE TIME ZONE WinPE RUNS IN, which its answer file cannot set: the
+    # windowsPE pass carries locale and nothing else, so an image runs on
+    # whatever the hardware clock says - UTC in practice. Empty means exactly
+    # that, and startnet.cmd gets no tzutil line.
+    $timeZone = ''
+    if ($null -ne $bootImage -and $bootImage.Contains('timeZone')) {
+        $timeZone = [string] $bootImage['timeZone']
+    }
+
+    # WHETHER THE ISO STOPS AND ASKS. "Press any key to boot from CD or DVD"
+    # is the UEFI boot sector's doing - efisys.bin prompts, efisys_noprompt.bin
+    # does not - and HDT builds with the quiet one, because a machine nobody is
+    # standing at must boot without a keypress. Declaring promptForKey: true
+    # asks for the prompt back, which is what somebody wants when the machine's
+    # boot order still has the DVD first and they need it to fall through to the
+    # disk. Absent means false: what every image built before this did.
+    $promptForKey = $false
+    if ($null -ne $bootImage -and $bootImage.Contains('promptForKey')) {
+        $promptForKey = [bool] $bootImage['promptForKey']
     }
 
     # The certificate authorities WinPE is to trust. Empty is the ordinary case:
@@ -285,6 +307,8 @@ function Import-HDTWorkspaceDocument {
             Drivers           = $drivers
             Unattend          = $unattend
             Background        = $background
+            TimeZone          = $timeZone
+            PromptForKey      = $promptForKey
             RootCertificate   = [string[]] @($rootCertificate)
             ClientCertificate = $clientCertificate
             EntryCommand      = $entryCommand

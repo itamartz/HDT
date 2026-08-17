@@ -94,7 +94,7 @@
           "minLength": 1
         },
         "background": {
-          "description": "The image WinPE shows behind everything, copied into the image as \Windows\System32\winpe.jpg. It must be a JPEG: WinPE reads that one file under that one name, so any other format is carried into the image and never shown. MDT's custom background bitmap file. A path relative to the share, or a rooted one on the build host.",
+          "description": "The image WinPE shows behind everything, copied into the image as \\Windows\\System32\\winpe.jpg. It must be a JPEG: WinPE reads that one file under that one name, so any other format is carried into the image and never shown. MDT's custom background bitmap file. A path relative to the share, or a rooted one on the build host.",
           "type": "string",
           "minLength": 1
         },
@@ -102,6 +102,15 @@
           "description": "A WinPE answer file, copied into the image as \\Unattend.xml and handed to wpeinit as -unattend:. This is what sets the WinPE firewall, the display, the page file and any RunSynchronous command - the settings wpeinit accepts, and the supported way to build an image with them rather than typing wpeutil at a prompt. It is NOT the deployed OS's unattend.xml; that belongs to the sequence. A path relative to the share, or a rooted one on the build host - exactly like extraContent's source, and for the same reason: the file an administrator browses to is wherever they keep it.",
           "type": "string",
           "minLength": 1
+        },
+        "timeZone": {
+          "description": "The time zone WinPE runs in, as a Windows time zone id - 'Israel Standard Time', not '+02:00'. WinPE has no time zone setting in its answer file (the windowsPE pass carries locale and nothing else), so it runs on whatever the hardware clock says - UTC in practice. Named here, startnet.cmd runs tzutil /s with it. Run Get-HDTTimeZone, or tzutil /l, for the ids.",
+          "type": "string",
+          "minLength": 1
+        },
+        "promptForKey": {
+          "description": "Whether the ISO stops at 'Press any key to boot from CD or DVD'. False - the default, and what every image built before this key existed did - selects efisys_noprompt.bin, so a machine nobody is standing at boots without a keypress. True asks for the prompt back, which is what somebody wants when a machine's boot order still has the DVD first and it has to be able to fall through to the disk. UEFI only: the BIOS boot sector has no quiet variant.",
+          "type": "boolean"
         },
         "rootCertificates": {
           "description": "Certificate authority certificates imported into WinPE's Local Machine Root store at boot. WinPE starts with Microsoft's roots and nothing else, so an internal CA is trusted by every domain-joined machine and by no machine that has just booted a WIM. Public certificates only - a .pfx here would put a private key in the trusted root store. Each is a path relative to the share, or a rooted one on the build host.",

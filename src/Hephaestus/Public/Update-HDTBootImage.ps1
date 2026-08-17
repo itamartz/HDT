@@ -296,6 +296,17 @@ function Update-HDTBootImage {
 
     $imageName = [string] $workspace.BootImage.Name
 
+    # WHETHER THE ISO STOPS AT "Press any key to boot from CD or DVD", DECIDED
+    # ONCE AND HERE - the manifest records it even when -SkipIso means no ISO is
+    # built, so it cannot be worked out inside the block that builds one.
+    #
+    # THE SWITCH WINS OVER THE SHARE. workspace.yaml's promptForKey is what an
+    # administrator sets in the console for every build of this image;
+    # -PromptForKey is what somebody types for THIS build. A setting is a
+    # default; an argument is an instruction.
+    $wantPrompt = [bool] $workspace.BootImage.PromptForKey
+    if ($PSBoundParameters.ContainsKey('PromptForKey')) { $wantPrompt = [bool] $PromptForKey }
+
     # =====================================================================
     # 2. THE ADK, RESOLVED - NEVER A LITERAL
     # =====================================================================
@@ -716,6 +727,10 @@ function Update-HDTBootImage {
         $startnetSplat['CertificateScript'] = 'X:\HDT\Import-HDTBootCertificate.ps1'
     }
 
+    if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.TimeZone)) {
+        $startnetSplat['TimeZone'] = [string] $workspace.BootImage.TimeZone
+    }
+
     $startnet = Get-HDTStartnetScript @startnetSplat
 
     try {
@@ -1044,6 +1059,14 @@ function Update-HDTBootImage {
             $bootstrap['certificate'] = $certificateBlock
         }
 
+        # CARRIED SO THE DEPLOYED MACHINE GETS THE SAME ANSWER. startnet.cmd
+        # already moves WinPE's clock with it; this is how HDTTimeZone reaches
+        # the unattend's specialize pass without the administrator choosing
+        # twice and getting two different answers.
+        if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.TimeZone)) {
+            $bootstrap['timeZone'] = [string] $workspace.BootImage.TimeZone
+        }
+
         $FileSystem.WriteAllText([System.IO.Path]::Combine($hdtRoot, 'bootstrap.json'),
             (ConvertTo-Json -InputObject $bootstrap -Depth 4))
 
@@ -1216,7 +1239,8 @@ function Update-HDTBootImage {
         # DESIGN 5.2: -NoPromptForKey is ON when Update-HDTBootImage invokes
         # New-HDTBootIso, because a boot image you mount to test something should
         # just boot.
-        if (-not $PromptForKey) { $isoSplat['NoPromptForKey'] = $true }
+        #
+        if (-not $wantPrompt) { $isoSplat['NoPromptForKey'] = $true }
 
         $iso = New-HDTBootIso @isoSplat
 
@@ -1250,7 +1274,7 @@ function Update-HDTBootImage {
         Sha256         = $isoSha256
         SizeBytes      = $isoSize
         Firmware       = $Firmware
-        NoPromptForKey = (-not $PromptForKey)
+        NoPromptForKey = (-not $wantPrompt)
         Skipped        = [bool] $SkipIso
     } `
         -IsoBootWimSha256 $isoBootWimSha256

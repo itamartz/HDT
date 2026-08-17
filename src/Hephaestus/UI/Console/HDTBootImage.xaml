@@ -15,12 +15,12 @@
 
           General          Set-HDTWorkspaceProperty, Set-HDTBootImageUnattend,
                            New-HDTBootImageUnattend, Set-HDTBootImageBackground,
+                           Set-HDTBootImageTimeZone, Get-HDTTimeZone,
                            Add/Remove-HDTBootImageCertificate,
                            Set-HDTBootImageClientCertificate,
                            Set-HDTBootImageCertificatePassword
           Features         Get-HDTAdkComponent, Add/Remove-HDTBootImageComponent
           Drivers          Get-HDTDriverGroup, Set-HDTBootImageDriver
-
           Customisations   Add/Remove-HDTBootImageContent,
                            Add/Remove/Move-HDTBootImageStartCommand
 
@@ -71,8 +71,10 @@
         HDTBootImageUnattendTemplateButton, HDTBootImageUnattendOpenButton,
         HDTBootImageBackgroundBox,
         HDTBootImageBackgroundBrowseButton,
+        HDTBootImageTimeZoneBox, HDTBootImageTimeZoneHintText,
         HDTComponentList, HDTComponentSizeText,
-        HDTCertificateBox, HDTCertificateBrowseButton, HDTCertificateAddButton,
+        HDTCertificateList, HDTCertificateBox, HDTCertificateBrowseButton,
+        HDTCertificateAddButton,
         HDTCertificateRemoveButton, HDTCertificateSummaryText,
         HDTClientCertificateBox, HDTClientCertificateBrowseButton,
         HDTClientCertificatePasswordButton, HDTClientCertificateWarningText,
@@ -264,6 +266,8 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Image name"
@@ -400,6 +404,59 @@
                         </StackPanel>
 
                         <!--
+                            THE TIME ZONE, WHICH THE ANSWER FILE ABOVE CANNOT
+                            SET. WinPE's windowsPE pass carries locale and
+                            nothing else - Microsoft's TimeZone belongs to
+                            Shell-Setup, which only runs in the deployed OS's
+                            passes - so this row is what puts tzutil into
+                            startnet.cmd, and what the deployed machine's
+                            unattend inherits.
+
+                            A LIST, BECAUSE tzutil TAKES AN ID. Nobody knows the
+                            ids; everybody recognises "(UTC+02:00) Jerusalem".
+                        -->
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Time zone"
+                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,12">
+                            <ComboBox x:Name="HDTBootImageTimeZoneBox" Width="470"
+                                      HorizontalAlignment="Left"
+                                      DisplayMemberPath="Display" SelectedValuePath="Id" />
+                            <TextBlock x:Name="HDTBootImageTimeZoneHintText"
+                                       Style="{StaticResource HDTHintText}" Margin="0,5,0,0"
+                                       MaxWidth="620" HorizontalAlignment="Left" Text="" />
+                        </StackPanel>
+
+                        <!--
+                            "PRESS ANY KEY TO BOOT FROM CD OR DVD" IS A BOOT
+                            SECTOR, NOT A SETTING WinPE READS. oscdimg writes
+                            efisys.bin for the prompt and efisys_noprompt.bin
+                            for silence, and HDT has always written the silent
+                            one - a machine nobody is standing at cannot answer
+                            a keypress, and an unattended deployment that waited
+                            for one would sit at a black screen until somebody
+                            walked past.
+
+                            UNTICKED IS THEREFORE THE DEFAULT and matches every
+                            image built before this box existed. Ticking it is
+                            for the machine whose boot order still has the DVD
+                            first: the prompt is what lets it fall through to
+                            the disk instead of deploying itself again.
+
+                            UEFI ONLY. The BIOS boot sector has no quiet
+                            variant, so a BIOS ISO prompts either way.
+                        -->
+                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Boot prompt"
+                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <StackPanel Grid.Row="10" Grid.Column="1" Margin="0,0,0,12">
+                            <CheckBox x:Name="HDTBootImagePromptForKeyCheck"
+                                      Content="Stop at &quot;Press any key to boot from CD or DVD&quot;"
+                                      HorizontalAlignment="Left" />
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0"
+                                       MaxWidth="620" HorizontalAlignment="Left"
+                                       Text="Off is what every HDT image has been built with: the ISO boots straight into WinPE with no keypress, which is what an unattended deployment needs. Turn it on when this machine's firmware still boots the DVD first and you need the option to fall through to the disk. UEFI only." />
+                        </StackPanel>
+
+                        <!--
                             THE CERTIFICATES, AS TWO ROWS ON THIS TAB rather
                             than a tab of their own. They are two paths and a
                             password - the same shape as the answer file and the
@@ -411,18 +468,32 @@
                             root and the subordinate that actually issued the
                             certificate, and an image trusting only the root
                             still cannot validate what the issuing CA signed.
-                            The box is editable, so a path can be typed or
-                            browsed to, and the drop-down is what is already
-                            trusted - which is also what Remove takes.
+
+                            IT WAS A DROP-DOWN AND THAT WAS WRONG. One box did
+                            two jobs - the thing being typed and the things
+                            already trusted - so adding one emptied the box and
+                            hid the result behind a click: the only visible
+                            change was a grey count line, and it read as nothing
+                            having happened. A list shows what the image trusts
+                            without being asked, which is what this row is for.
+                            It is the shape the Customisations tab uses for extra
+                            content, and it costs the vertical space a tab that
+                            already scrolls can afford.
                         -->
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Certificate authorities"
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Certificate authorities"
                                    TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
-                        <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,12">
-                            <StackPanel Orientation="Horizontal">
-                                <ComboBox x:Name="HDTCertificateBox" Width="470" IsEditable="True"
-                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
-                                          Margin="0,0,8,0"
-                                          DisplayMemberPath="Path" SelectedValuePath="Path" />
+                        <StackPanel Grid.Row="7" Grid.Column="1" Margin="0,0,0,12">
+                            <Border Background="{DynamicResource HDTPanelBrush}"
+                                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                                    Width="470" HorizontalAlignment="Left" Height="86">
+                                <ListBox x:Name="HDTCertificateList" BorderThickness="0"
+                                         Background="Transparent" DisplayMemberPath="Path"
+                                         FontFamily="Consolas, Courier New" FontSize="12" />
+                            </Border>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <TextBox x:Name="HDTCertificateBox" Width="470"
+                                         HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
+                                         Margin="0,0,8,0" />
                                 <Button x:Name="HDTCertificateBrowseButton" Content="Browse" MinWidth="80" />
                                 <Button x:Name="HDTCertificateAddButton" Content="Add" MinWidth="70" />
                                 <Button x:Name="HDTCertificateRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
@@ -448,9 +519,9 @@
                             never workspace.yaml, which is the document an
                             administrator commits.
                         -->
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Machine certificate"
+                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Machine certificate"
                                    TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
-                        <StackPanel Grid.Row="7" Grid.Column="1" Margin="0,0,0,12">
+                        <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,0,0,12">
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="HDTClientCertificateBox" Width="470"
                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
@@ -487,7 +558,7 @@
                             nothing for a checkbox to call. They are edited in
                             the file until there is one.
                         -->
-                        <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource HDTHintText}"
+                        <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource HDTHintText}"
                                    Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
                                    Text="The Welcome screen's Skip settings live in workspace.yaml under bootImage.skip and are not on this window: no command sets them yet, and a control with nothing behind it is worse than none." />
                     </Grid>

@@ -66,6 +66,14 @@ function Set-HDTWorkspaceProperty {
             The writable RAM disk inside WinPE, in megabytes. DISM accepts 32 to
             1024.
 
+        .PARAMETER PromptForKey
+            Whether the ISO stops at "Press any key to boot from CD or DVD".
+            False - the default for every image HDT has ever built - is the
+            quiet UEFI boot sector, so a machine nobody is standing at boots
+            without a keypress. It is written whichever way it is passed,
+            because 'false' stated is what tells the next reader that somebody
+            decided rather than never looked.
+
         .PARAMETER EntryCommand
             What startnet.cmd launches instead of the deployment payload - a
             diagnostic image, or standalone media with its own entry point.
@@ -133,6 +141,9 @@ function Set-HDTWorkspaceProperty {
         [int] $ScratchSpaceMB,
 
         [Parameter()]
+        [bool] $PromptForKey,
+
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string] $EntryCommand
     )
@@ -154,6 +165,7 @@ function Set-HDTWorkspaceProperty {
         @{ Parameter = 'Architecture'; Path = @('bootImage', 'architecture') }
         @{ Parameter = 'Language'; Path = @('bootImage', 'language') }
         @{ Parameter = 'ScratchSpaceMB'; Path = @('bootImage', 'scratchSpaceMB') }
+        @{ Parameter = 'PromptForKey'; Path = @('bootImage', 'promptForKey') }
         @{ Parameter = 'EntryCommand'; Path = @('bootImage', 'entryCommand') }
     )
 

@@ -1,4 +1,4 @@
-function Assert-HDTWorkspaceDocument {
+﻿function Assert-HDTWorkspaceDocument {
     <#
         .SYNOPSIS
             Validates a parsed workspace.yaml against the authoring rules.
@@ -103,7 +103,8 @@ function Assert-HDTWorkspaceDocument {
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
         'optionalComponents', 'extraContent', 'drivers', 'unattend', 'background',
-        'rootCertificates', 'clientCertificate', 'entryCommand', 'startCommand', 'skip')
+        'timeZone', 'promptForKey', 'rootCertificates', 'clientCertificate', 'entryCommand',
+        'startCommand', 'skip')
     $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')

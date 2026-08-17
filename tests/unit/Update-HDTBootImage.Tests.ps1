@@ -939,6 +939,20 @@ Describe 'Update-HDTBootImage' {
             @($call.Arguments[2]) | Should -Contain ('-bootdata:1#pEF,e,b{0}\efisys_noprompt.bin' -f $script:bitPath)
         }
 
+        It 'asks for the prompt when the share declares promptForKey' {
+            # THE SETTING AN ADMINISTRATOR TICKS IN THE CONSOLE. A machine whose
+            # boot order still has the DVD first needs the prompt to be able to
+            # fall through to the disk, and that is a property of the image
+            # rather than of one build of it.
+            $yaml = $script:workspaceYaml + "`n  promptForKey: true"
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml
+            Invoke-HDTBootImageTestBuild -Context $context | Out-Null
+
+            $call = @($context.Boot.Operations | Where-Object { $_.Operation -eq 'NewIso' })[0]
+
+            @($call.Arguments[2]) | Should -Contain ('-bootdata:1#pEF,e,b{0}\efisys.bin' -f $script:bitPath)
+        }
+
         It 'does not pass it under -PromptForKey' {
             $context = New-HDTBootImageTestContext
             Invoke-HDTBootImageTestBuild -Context $context -Argument @{ PromptForKey = $true } | Out-Null
