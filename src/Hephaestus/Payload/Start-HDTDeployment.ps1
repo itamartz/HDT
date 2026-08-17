@@ -221,6 +221,10 @@ $result = [ordered] @{
     elapsedSecond      = 0
     logPath            = ''
     logDestination     = ''
+
+    # HDTSLShare, DeployRoot, or None - so a run that put its logs somewhere
+    # unexpected says which rule sent them there.
+    logDestinationSource = ''
     endedWith          = ''
 
     # THE ONE FIELD THAT STOPS THIS SCRIPT POWERING THE MACHINE OFF. A
@@ -774,6 +778,30 @@ try {
         }
     }
 
+    # WHEN THIS RUN STARTED, IN UTC. A tattoo step subtracts it from a matching
+    # end value to say how long the deployment took, and UTC is the decision
+    # rather than a detail: WinPE runs on the hardware clock and the deployed OS
+    # is put into a time zone half way through, so two local readings are hours
+    # apart for reasons that have nothing to do with the duration.
+    #
+    # ISO 8601 WITH THE Z, invariant culture, because this value is read back by
+    # code and by a person on a machine whose regional format is unknown.
+    $variable['HDTDeploymentStart'] = [System.DateTime]::UtcNow.ToString(
+        'yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
+
+    # THE TIME ZONE THE DEPLOYED MACHINE GETS, from the boot image, unless a rule
+    # already answered. The unattend's specialize pass reads it; without it
+    # Windows derives the zone from the locale and every en-US machine comes up
+    # on Pacific Standard Time.
+    #
+    # ONLY WHEN NOTHING ELSE SPOKE. DESIGN 3.1's precedence puts a rule above the
+    # boot image, and Contains is what keeps it there.
+    if (-not [string]::IsNullOrWhiteSpace([string] $bootstrap.TimeZone) -and
+        -not $variable.Contains('HDTTimeZone')) {
+
+        $variable['HDTTimeZone'] = [string] $bootstrap.TimeZone
+    }
+
     # WHAT THIS BOOT IMAGE CARRIES, so a sequence can ask before it acts. The
     # client template's Install Certificates step is conditioned on it, and it
     # is set here rather than gathered because it is a fact about the IMAGE, not
@@ -867,8 +895,16 @@ try {
 
     # -LogDestination IS THE LOG ROOT, NOT THE RUN FOLDER: Copy-HDTLog appends
     # <ComputerName>-<RunId> itself.
-    $logDestination = Get-HDTWorkspacePath -Root $workspaceRoot -Kind Logs
+    #
+    # AND WHICH ROOT IS MDT'S QUESTION, ANSWERED MDT'S WAY. HDTSLShare sends the
+    # logs to a log server; without it they land under the deploy root, which is
+    # what every deployment did before the variable existed.
+    $logTarget = Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $variable
+    $logDestination = [string] $logTarget.Path
     $result['logDestination'] = $logDestination
+    $result['logDestinationSource'] = [string] $logTarget.Source
+
+    & $say ("logs will be copied to '{0}' ({1})" -f $logDestination, $logTarget.Source)
 
     & $say 'running the task sequence'
 

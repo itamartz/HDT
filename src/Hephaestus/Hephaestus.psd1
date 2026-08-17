@@ -1,4 +1,4 @@
-@{
+﻿@{
     RootModule           = 'Hephaestus.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
@@ -24,6 +24,8 @@
         'Set-HDTBootImageBackground',
         'Set-HDTBootImageDriver',
         'Set-HDTBootImageUnattend',
+        'Set-HDTBootImageTimeZone',
+        'Get-HDTTimeZone',
         'New-HDTBootImageUnattend',
         'Add-HDTBootImageCertificate',
         'Remove-HDTBootImageCertificate',
@@ -46,6 +48,7 @@
         'Get-HDTAutoLogonState',
         'Get-HDTDriverGroup',
         'Get-HDTDiskLayout',
+        'Get-HDTLogDestination',
         'Get-HDTLogPath',
         'Get-HDTMachineFact',
         'Get-HDTMachineOverride',
