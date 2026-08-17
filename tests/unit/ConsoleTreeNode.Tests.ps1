@@ -407,9 +407,18 @@ Describe 'Get-HDTConsoleTreeNode' {
                     Where-Object { $_.Kind -eq 'BootImage' })[0]
         }
 
-        It 'carries the build date in the row itself, not only in the detail' {
-            $script:bootNode.Text | Should -Match 'HDTPE_x64'
-            $script:bootNode.Text | Should -Match '2026-08-14 07:13:25'
+        It 'is named after the image and nothing else' {
+            # THE BUILD DATE USED TO BE IN THE ROW as well, on the argument that
+            # "is this image current?" is asked in front of a bench and should
+            # not need a click. It does not need one: the row opens on a single
+            # click and the detail's Built field is right there. Two copies of
+            # one timestamp is one of them wrong the first time a rebuild lands
+            # while the tree is open.
+            $script:bootNode.Text | Should -BeExactly 'HDTPE_x64'
+        }
+
+        It 'still carries the build date in the detail' {
+            $script:bootNode.Detail | Should -Match '2026-08-14 07:13:25'
         }
 
         It 'shows both hashes in full, because a truncated hash cannot be compared' {
@@ -684,5 +693,33 @@ Describe 'Get-HDTConsoleTreeNode' {
                     Where-Object { $_.Kind -notin @('TaskSequence', 'BootImage') -and $_.CanOpen }) |
                 Should -BeNullOrEmpty
         }
+    }
+}
+
+Describe 'the category a window can act on' {
+
+    # RIGHT-CLICKING Task Sequences IS WHERE Workbench PUTS New Task Sequence,
+    # so the window has to be able to tell that row from the other three
+    # categories. Its TEXT carries a count - 'Task Sequences (5)' - and routing
+    # on that means a window parsing a label, in the one place a label is most
+    # likely to be reworded.
+    #
+    # THE NAME IS THE STABLE ONE. Text is for reading; Name is for matching.
+
+    BeforeAll {
+        $script:categoryNode = @($script:node | Where-Object { $_.Kind -eq 'Category' })
+    }
+
+    It 'gives the task sequence category a name with no count in it' {
+        $row = @($script:categoryNode | Where-Object { $_.Name -eq 'TaskSequences' })
+
+        @($row).Count | Should -Be 1
+        $row[0].Text | Should -BeLike 'Task Sequences*'
+    }
+
+    It 'carries the share root, so a window knows which share to write into' {
+        $row = @($script:categoryNode | Where-Object { $_.Name -eq 'TaskSequences' })[0]
+
+        $row.HeaderRoot | Should -Not -BeNullOrEmpty
     }
 }

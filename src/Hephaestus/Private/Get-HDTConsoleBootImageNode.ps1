@@ -1,8 +1,9 @@
 function Get-HDTConsoleBootImageNode {
     <#
         .SYNOPSIS
-            Builds the boot image row - the build date, both artifacts, both
-            hashes, and whether the ISO carries the same boot image.
+            Builds the boot image row - named for the image, detailing the build
+            date, both artifacts, both hashes, and whether the ISO carries the
+            same boot image.
 
         .DESCRIPTION
             THIS ROW IS WHY C1 NAMES HASHES AT ALL. A deployment share's boot
@@ -12,10 +13,12 @@ function Get-HDTConsoleBootImageNode {
             beside it. The manifest records all of that, and this row is where it
             becomes readable.
 
-            THE BUILD DATE IS IN THE ROW, NOT ONLY IN THE DETAIL. "Is this image
-            current?" is the question that gets asked in front of a bench with a
-            machine waiting, and an answer that needs a click is an answer that
-            gets guessed instead.
+            THE BUILD DATE IS IN THE DETAIL, AND ONLY THERE. It was in the row
+            as well, on the argument that "is this image current?" gets asked in
+            front of a bench with a machine waiting. It does not earn a second
+            place: the row opens on one click and Built is the fourth field, and
+            the same timestamp rendered twice is a row that contradicts its own
+            detail the first time a rebuild lands while the tree is open.
 
             THE HASHES ARE SHOWN IN FULL. A truncated hash cannot be compared
             with anything, which is the only thing a hash is for.
@@ -124,8 +127,12 @@ function Get-HDTConsoleBootImageNode {
         New-HDTConsoleField -Label 'To rebuild it' -Value ("Update-HDTBootImage -WorkspacePath '{0}'" -f $Workspace.WorkspacePath)
     )
 
+    # THE ROW IS THE IMAGE'S NAME. The build date is one click away in the
+    # Built field below, and a timestamp printed twice is a timestamp that
+    # disagrees with itself the first time a rebuild lands while the tree is
+    # open.
     return (New-HDTConsoleNode -Depth 3 -Kind 'BootImage' -Status 'Ok' `
-            -Text ('{0} - built {1} UTC' -f $BootImage.Name, $built) `
+            -Text $BootImage.Name `
             -Field $field -Command $command -Header $Header `
                 -Subject $Workspace.WorkspacePath)
 }
