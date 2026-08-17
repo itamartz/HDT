@@ -269,3 +269,73 @@ Describe 'Set-HDTBootImageCertificatePassword' {
                 -FileSystem $fs -Confirm:$false } | Should -Throw '*empty*'
     }
 }
+
+Describe 'Set-HDTBootImageTimeZone' {
+
+    # WinPE HAS NO TIME ZONE SETTING IN ITS ANSWER FILE. The windowsPE pass
+    # component carries InputLocale, SystemLocale, UILanguage and UserLocale and
+    # nothing else, so an image runs on whatever the hardware clock says - which
+    # is UTC in practice. tzutil is the supported way to move it, and startnet.cmd
+    # is where a command an image runs every boot belongs.
+
+    It 'names the time zone in the document' {
+        $result = Set-HDTBootImageTimeZone -Line $script:plain -Name 'Israel Standard Time' -Confirm:$false
+
+        ($result -join "`n") | Should -BeLike '*timeZone: Israel Standard Time*'
+    }
+
+    It 'replaces one that is already named' {
+        $first = Set-HDTBootImageTimeZone -Line $script:plain -Name 'Israel Standard Time' -Confirm:$false
+        $second = Set-HDTBootImageTimeZone -Line $first -Name 'W. Europe Standard Time' -Confirm:$false
+
+        ($second -join "`n") | Should -BeLike '*W. Europe Standard Time*'
+        ($second -join "`n") | Should -Not -BeLike '*Israel*'
+    }
+
+    It 'takes it away with -Clear' {
+        $first = Set-HDTBootImageTimeZone -Line $script:plain -Name 'Israel Standard Time' -Confirm:$false
+        $result = Set-HDTBootImageTimeZone -Line $first -Clear -Confirm:$false
+
+        ($result -join "`n") | Should -Not -BeLike '*timeZone*'
+    }
+
+    It 'is read back off the document' {
+        $result = Set-HDTBootImageTimeZone -Line $script:plain -Name 'Israel Standard Time' -Confirm:$false
+
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\workspace.yaml' = ($result -join "`n") }
+        $document = Import-HDTWorkspaceDocument -Path 'C:\ws\workspace.yaml' -FileSystem $fs
+
+        [string] $document.BootImage.TimeZone | Should -BeExactly 'Israel Standard Time'
+    }
+
+    It 'answers empty for a share that names none' {
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\workspace.yaml' = $script:plainText }
+        $document = Import-HDTWorkspaceDocument -Path 'C:\ws\workspace.yaml' -FileSystem $fs
+
+        [string] $document.BootImage.TimeZone | Should -BeExactly ''
+    }
+
+    It 'refuses an empty name' {
+        { Set-HDTBootImageTimeZone -Line $script:plain -Name '  ' -Confirm:$false } | Should -Throw '*-Clear*'
+    }
+}
+
+Describe 'Get-HDTTimeZone' {
+
+    It 'offers the ids Windows knows' {
+        $found = @(Get-HDTTimeZone)
+
+        @($found).Count | Should -BeGreaterThan 50
+        @($found | Where-Object { $_.Id -eq 'UTC' }).Count | Should -Be 1
+    }
+
+    It 'carries a display name a person can pick from' {
+        # tzutil TAKES THE ID AND NOBODY KNOWS THE IDS. "(UTC+02:00) Jerusalem"
+        # is what an administrator is looking for; 'Israel Standard Time' is what
+        # the document has to hold.
+        $row = @(Get-HDTTimeZone | Where-Object { $_.Id -eq 'UTC' })[0]
+
+        [string] $row.Display | Should -Not -BeNullOrEmpty
+        [string] $row.Display | Should -BeLike '*UTC*'
+    }
+}

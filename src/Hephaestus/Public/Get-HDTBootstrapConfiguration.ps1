@@ -301,6 +301,14 @@ function Get-HDTBootstrapConfiguration {
     # credential's is: this object goes into RESULT.json and into log records,
     # so a plain property would put a private key's password in both.
 
+    # THE TIME ZONE THE IMAGE WAS BUILT WITH. startnet.cmd already applied it to
+    # WinPE's own clock; this is the copy the deployed machine's unattend gets,
+    # so one choice on the Windows PE window covers both.
+    $timeZone = ''
+    if ($null -ne $document.PSObject.Properties['timeZone']) {
+        $timeZone = [string] $document.timeZone
+    }
+
     $rootCertificate = New-Object -TypeName System.Collections.ArrayList
     $clientCertificate = ''
     $certificateProtected = ''
@@ -346,6 +354,7 @@ function Get-HDTBootstrapConfiguration {
             LogLevel            = $logLevel
             UserName            = $userName
             HasCredential       = $hasCredential
+            TimeZone            = $timeZone
             RootCertificate     = [string[]] @($rootCertificate)
             ClientCertificate   = $clientCertificate
             BuildId             = $buildId

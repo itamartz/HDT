@@ -115,6 +115,10 @@ function Get-HDTStartnetScript {
             A PowerShell script inside the image that imports the boot image's
             certificates, run BEFORE wpeinit. Empty writes no line at all.
 
+        .PARAMETER TimeZone
+            A Windows time zone id. Empty writes no line, which leaves WinPE on
+            the hardware clock - what every image did before this existed.
+
             BEFORE, NOT AFTER, unlike everything else here. A client certificate
             exists so that a network which authenticates the machine will give
             it an address, and wpeinit is what asks for the address - so an
@@ -157,7 +161,11 @@ function Get-HDTStartnetScript {
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $CertificateScript = ''
+        [string] $CertificateScript = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $TimeZone = ''
     )
 
     Set-StrictMode -Version Latest
@@ -196,6 +204,19 @@ function Get-HDTStartnetScript {
     }
 
     [void] $line.Add($wpeinit)
+
+    # THE TIME ZONE, WHICH THE ANSWER FILE CANNOT SET. WinPE's windowsPE pass
+    # carries locale and nothing else - Microsoft's TimeZone setting belongs to
+    # Shell-Setup and is valid only in the DEPLOYED OS's passes - so a booted
+    # WinPE runs on whatever the hardware clock says. tzutil is the supported
+    # way to move it and this is the file that runs on every boot.
+    #
+    # QUOTED ALWAYS. Every id worth naming has a space in it, and cmd.exe splits
+    # on the space: an unquoted 'Israel Standard Time' reaches tzutil as three
+    # arguments and leaves the clock where it was, silently.
+    if (-not [string]::IsNullOrWhiteSpace($TimeZone)) {
+        [void] $line.Add('tzutil /s "{0}"' -f $TimeZone)
+    }
 
     # After wpeinit and before the entry command. A blank entry is skipped rather
     # than written: a blank line in a .cmd is harmless, and this text is compared

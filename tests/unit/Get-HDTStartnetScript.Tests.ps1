@@ -377,6 +377,27 @@ Describe 'Get-HDTStartnetScript' {
         $none | Should -BeExactly $script:startnet
     }
 
+    It 'moves the clock with tzutil, after wpeinit' {
+        # WinPE's ANSWER FILE CANNOT SET A TIME ZONE - the windowsPE pass carries
+        # locale and nothing else - so tzutil is the supported way, and this is
+        # the file that runs on every boot. AFTER wpeinit, because everything
+        # that is not a certificate goes after wpeinit and tzutil needs nothing
+        # wpeinit provides.
+        $withZone = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -TimeZone 'Israel Standard Time'
+        }
+        $zoneLine = @($withZone.TrimEnd("`r", "`n") -split "`r`n")
+
+        $zoneLine[3] | Should -BeExactly 'wpeinit'
+        $zoneLine[4] | Should -BeExactly 'tzutil /s "Israel Standard Time"'
+    }
+
+    It 'writes no tzutil line when no time zone is named' {
+        $none = InModuleScope Hephaestus { Get-HDTStartnetScript -TimeZone '' }
+
+        $none | Should -BeExactly $script:startnet
+    }
+
     It 'is private to the module' {
         # It is an implementation detail of Update-HDTBootImage, not a command
         # an administrator runs. BOTH HALVES ARE ASSERTED: a test that only

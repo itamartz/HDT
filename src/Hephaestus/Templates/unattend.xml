@@ -41,6 +41,21 @@
       <ComputerName>%HDTComputerName%</ComputerName>
       <RegisteredOwner>%HDTFullName%</RegisteredOwner>
       <RegisteredOrganization>%HDTOrgName%</RegisteredOrganization>
+
+      <!--
+        WITHOUT THIS, THE LOCALE DECIDES, AND en-US MEANS PACIFIC. Microsoft's
+        rule is that an unspecified TimeZone is derived from the installed
+        language and region: this document sets UserLocale en-US below, which
+        gives every machine Pacific Standard Time. MDT has TimeZoneName in
+        CustomSettings.ini for exactly this reason.
+
+        THE VALUE COMES FROM THE BOOT IMAGE unless a rule says otherwise.
+        Start-HDTDeployment seeds HDTTimeZone from the time zone the Windows PE
+        window chose, so one answer covers WinPE's clock and the deployed
+        machine's; rules.yaml overrides it per machine through the ordinary
+        precedence.
+      -->
+      <TimeZone>%HDTTimeZone%</TimeZone>
     </component>
   </settings>
 

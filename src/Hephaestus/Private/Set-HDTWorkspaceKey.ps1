@@ -1,4 +1,4 @@
-function Set-HDTWorkspaceKey {
+﻿function Set-HDTWorkspaceKey {
     <#
         .SYNOPSIS
             Replaces, inserts or removes one key of a workspace document,
@@ -98,7 +98,7 @@ function Set-HDTWorkspaceKey {
     $order = @{
         ''          = @('schemaVersion', 'id', 'name', 'deployRoot', 'logLevel', 'credential', 'bootImage')
         'bootImage' = @('name', 'architecture', 'language', 'scratchSpaceMB', 'optionalComponents',
-            'extraContent', 'drivers', 'unattend', 'background', 'rootCertificates',
+            'extraContent', 'drivers', 'unattend', 'background', 'timeZone', 'rootCertificates',
             'clientCertificate', 'entryCommand', 'startCommand', 'skip')
     }
 
