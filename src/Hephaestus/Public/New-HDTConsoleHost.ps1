@@ -1656,6 +1656,12 @@ function New-HDTConsoleHost {
         $unattendOpen = $window.FindName('HDTBootImageUnattendOpenButton')
         $backgroundBox = $window.FindName('HDTBootImageBackgroundBox')
         $promptForKeyCheck = $window.FindName('HDTBootImagePromptForKeyCheck')
+
+        # THE TEXT COMES OUT OF A FILE, NOT OUT OF THE MARKUP. Every label,
+        # hint and button caption on this window is a key in Strings\<culture>.psd1,
+        # so a site can translate it or reword it without editing a window - and
+        # a string cannot exist twice and drift.
+        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable))
         $backgroundBrowse = $window.FindName('HDTBootImageBackgroundBrowseButton')
         $timeZoneBox = $window.FindName('HDTBootImageTimeZoneBox')
         $timeZoneHint = $window.FindName('HDTBootImageTimeZoneHintText')

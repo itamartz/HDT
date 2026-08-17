@@ -224,9 +224,9 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" x:Name="HDTBootImageTitleText"
-                           Text="Windows PE"
-                           Foreground="{DynamicResource HDTBannerTextBrush}"
-                           FontFamily="Segoe UI" FontSize="19" />
+
+ Foreground="{DynamicResource HDTBannerTextBrush}"
+ FontFamily="Segoe UI" FontSize="19" />
 
                 <TextBlock Grid.Row="1" x:Name="HDTBootImagePathText"
                            Text=""
@@ -241,7 +241,7 @@
                     BorderBrush="{DynamicResource HDTBorderBrush}">
 
             <!-- ==================== General ==================== -->
-            <TabItem Header="General">
+            <TabItem x:Name="HDTBootImageGeneral" >
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16,18,16">
                     <!--
                         THE LABELS ARE TOP-ALIGNED, NOT CENTRED, and the 6px is
@@ -270,39 +270,39 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Image name"
-                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <TextBlock x:Name="HDTBootImageImageNameLabel" Grid.Row="0" Grid.Column="0"
+ VerticalAlignment="Top" Margin="0,6,0,12" />
                         <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,12">
                             <TextBox x:Name="HDTBootImageNameBox" Width="360" HorizontalAlignment="Left" />
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Text="What the .wim and the .iso are called, and what WDS lists. Letters, digits, dot, dash and underscore." />
+                            <TextBlock x:Name="HDTBootImageImageNameHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Architecture"
-                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <TextBlock x:Name="HDTBootImageArchitectureLabel" Grid.Row="1" Grid.Column="0"
+ VerticalAlignment="Top" Margin="0,6,0,12" />
                         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,12">
                             <ComboBox x:Name="HDTBootImageArchitectureBox" Width="180"
                                       HorizontalAlignment="Left" SelectedValuePath="Tag">
                                 <ComboBoxItem Tag="amd64" Content="amd64" />
                                 <ComboBoxItem Tag="arm64" Content="arm64" />
                             </ComboBox>
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Text="It also decides which optional components the Features tab can offer - the ADK ships a separate cab set per architecture." />
+                            <TextBlock x:Name="HDTBootImageArchitectureHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Language"
-                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <TextBlock x:Name="HDTBootImageLanguageLabel" Grid.Row="2" Grid.Column="0"
+ VerticalAlignment="Top" Margin="0,6,0,12" />
                         <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,12">
                             <TextBox x:Name="HDTBootImageLanguageBox" Width="180" HorizontalAlignment="Left" />
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Text="en-us unless the language packs for another are installed beside the ADK. A component with no pack for this language is added without one." />
+                            <TextBlock x:Name="HDTBootImageLanguageHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Scratch space"
-                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <TextBlock x:Name="HDTBootImageScratchSpaceLabel" Grid.Row="3" Grid.Column="0"
+ VerticalAlignment="Top" Margin="0,6,0,12" />
                         <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,12">
                             <ComboBox x:Name="HDTBootImageScratchBox" Width="180"
                                       HorizontalAlignment="Left" SelectedValuePath="Tag">
@@ -313,9 +313,9 @@
                                 <ComboBoxItem Tag="512" Content="512 MB" />
                                 <ComboBoxItem Tag="1024" Content="1024 MB" />
                             </ComboBox>
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Text="The writable RAM disk inside WinPE. Raise it when a deployment copies large content into X: - the default is enough for the engine itself." />
+                            <TextBlock x:Name="HDTBootImageScratchSpaceHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
                         <!--
@@ -328,14 +328,14 @@
                             command for a technician at a prompt; this is how an
                             IMAGE is built with the setting.
                         -->
-                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Answer file"
-                                   VerticalAlignment="Top" Margin="0,6,0,12" />
+                        <TextBlock x:Name="HDTBootImageAnswerFileLabel" Grid.Row="4" Grid.Column="0"
+ VerticalAlignment="Top" Margin="0,6,0,12" />
                         <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,12">
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="HDTBootImageUnattendBox" Width="470"
                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
                                          Margin="0,0,8,0" />
-                                <Button x:Name="HDTBootImageUnattendBrowseButton" Content="Browse" MinWidth="80" />
+                                <Button x:Name="HDTBootImageUnattendBrowseButton" MinWidth="80" />
                             </StackPanel>
 
                             <!--
@@ -355,14 +355,14 @@
                                 list, not HDT's, and it changes with WinPE.
                             -->
                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                <Button x:Name="HDTBootImageUnattendTemplateButton" Content="Use template"
-                                        MinWidth="110" Margin="0,0,8,0" />
-                                <Button x:Name="HDTBootImageUnattendOpenButton" Content="Open" MinWidth="80" />
+                                <Button x:Name="HDTBootImageUnattendTemplateButton"
+ MinWidth="110" Margin="0,0,8,0" />
+                                <Button x:Name="HDTBootImageUnattendOpenButton" MinWidth="80" />
                             </StackPanel>
 
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Text="A WinPE answer file, copied into the image and handed to wpeinit. This is where the WinPE firewall, the display resolution and the page file are set. Empty means wpeinit runs with no answer file, which is the ordinary case. Use template writes this module's own onto the share; Open edits the one named above." />
+                            <TextBlock x:Name="HDTBootImageAnswerFileHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
                         <!--
@@ -389,18 +389,18 @@
                             for a .bmp. The rest of the phrase is MDT's, and the
                             hint says which format it has to be.
                         -->
-                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Custom background file"
-                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <TextBlock x:Name="HDTBootImageCustomBackgroundFileLabel" Grid.Row="5" Grid.Column="0"
+ TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
                         <StackPanel Grid.Row="5" Grid.Column="1" Margin="0,0,0,12">
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="HDTBootImageBackgroundBox" Width="470"
                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
                                          Margin="0,0,8,0" />
-                                <Button x:Name="HDTBootImageBackgroundBrowseButton" Content="Browse" MinWidth="80" />
+                                <Button x:Name="HDTBootImageBackgroundBrowseButton" MinWidth="80" />
                             </StackPanel>
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
-                                       HorizontalAlignment="Left"
-                                       Text="The picture WinPE shows behind everything. It must be a .jpg - it is copied in as \Windows\System32\winpe.jpg, and anything else is carried into the image and never shown. Empty keeps the one WinPE ships." />
+                            <TextBlock x:Name="HDTBootImageCustomBackgroundFileHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
                         <!--
@@ -415,8 +415,8 @@
                             A LIST, BECAUSE tzutil TAKES AN ID. Nobody knows the
                             ids; everybody recognises "(UTC+02:00) Jerusalem".
                         -->
-                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Time zone"
-                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <TextBlock x:Name="HDTBootImageTimeZoneLabel" Grid.Row="6" Grid.Column="0"
+ TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
                         <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,12">
                             <ComboBox x:Name="HDTBootImageTimeZoneBox" Width="470"
                                       HorizontalAlignment="Left"
@@ -445,15 +445,15 @@
                             UEFI ONLY. The BIOS boot sector has no quiet
                             variant, so a BIOS ISO prompts either way.
                         -->
-                        <TextBlock Grid.Row="9" Grid.Column="0" Text="Boot prompt"
-                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <TextBlock x:Name="HDTBootImageBootPromptLabel" Grid.Row="9" Grid.Column="0"
+ TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
                         <StackPanel Grid.Row="9" Grid.Column="1" Margin="0,0,0,12">
                             <CheckBox x:Name="HDTBootImagePromptForKeyCheck"
-                                      Content="Stop at &quot;Press any key to boot from CD or DVD&quot;"
-                                      HorizontalAlignment="Left" />
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0"
-                                       MaxWidth="620" HorizontalAlignment="Left"
-                                       Text="Off boots straight into WinPE, which is what an unattended deployment needs." />
+
+ HorizontalAlignment="Left" />
+                            <TextBlock x:Name="HDTBootImageBootPromptHint" Style="{StaticResource HDTHintText}" Margin="0,5,0,0"
+ MaxWidth="620" HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
                         <!--
@@ -480,8 +480,8 @@
                             content, and it costs the vertical space a tab that
                             already scrolls can afford.
                         -->
-                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Certificate authorities"
-                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <TextBlock x:Name="HDTBootImageCertificateAuthoritiesLabel" Grid.Row="7" Grid.Column="0"
+ TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
                         <StackPanel Grid.Row="7" Grid.Column="1" Margin="0,0,0,12">
                             <Border Background="{DynamicResource HDTPanelBrush}"
                                     BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
@@ -494,9 +494,9 @@
                                 <TextBox x:Name="HDTCertificateBox" Width="470"
                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
                                          Margin="0,0,8,0" />
-                                <Button x:Name="HDTCertificateBrowseButton" Content="Browse" MinWidth="80" />
-                                <Button x:Name="HDTCertificateAddButton" Content="Add" MinWidth="70" />
-                                <Button x:Name="HDTCertificateRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
+                                <Button x:Name="HDTCertificateBrowseButton" MinWidth="80" />
+                                <Button x:Name="HDTCertificateAddButton" MinWidth="70" />
+                                <Button x:Name="HDTCertificateRemoveButton" MinWidth="80" Margin="0" />
                             </StackPanel>
                             <TextBlock x:Name="HDTCertificateSummaryText" Style="{StaticResource HDTHintText}"
                                        Margin="0,5,0,0" MaxWidth="620" HorizontalAlignment="Left" Text="" />
@@ -507,9 +507,9 @@
                                 be on the window is the store, which is what
                                 makes these two rows different from each other.
                             -->
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,3,0,0" MaxWidth="620"
-                                       HorizontalAlignment="Left"
-                                       Text="Root and subordinate CAs, into LocalMachine\Root before the network starts. Public certificates only - WinPE otherwise trusts Microsoft's roots and nothing of yours." />
+                            <TextBlock x:Name="HDTBootImageCertificateAuthoritiesHint" Style="{StaticResource HDTHintText}" Margin="0,3,0,0" MaxWidth="620"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
                         <!--
@@ -519,24 +519,24 @@
                             never workspace.yaml, which is the document an
                             administrator commits.
                         -->
-                        <TextBlock Grid.Row="8" Grid.Column="0" Text="Machine certificate"
-                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <TextBlock x:Name="HDTBootImageMachineCertificateLabel" Grid.Row="8" Grid.Column="0"
+ TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
                         <StackPanel Grid.Row="8" Grid.Column="1" Margin="0,0,0,12">
                             <StackPanel Orientation="Horizontal">
                                 <TextBox x:Name="HDTClientCertificateBox" Width="470"
                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
                                          Margin="0,0,8,0" />
-                                <Button x:Name="HDTClientCertificateBrowseButton" Content="Browse" MinWidth="80" />
-                                <Button x:Name="HDTClientCertificatePasswordButton" Content="Set password"
-                                        MinWidth="110" Margin="0" />
+                                <Button x:Name="HDTClientCertificateBrowseButton" MinWidth="80" />
+                                <Button x:Name="HDTClientCertificatePasswordButton"
+ MinWidth="110" Margin="0" />
                             </StackPanel>
                             <TextBlock x:Name="HDTClientCertificateWarningText" Text=""
                                        Foreground="{DynamicResource HDTErrorBrush}" FontSize="12"
                                        TextWrapping="Wrap" Margin="0,5,0,0" MaxWidth="620"
                                        HorizontalAlignment="Left" />
-                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,3,0,0" MaxWidth="620"
-                                       HorizontalAlignment="Left"
-                                       Text="A .pfx the machine authenticates WITH, into LocalMachine\My before the network starts - for an 802.1X port, or an endpoint that asks for a client certificate. The password is stored in Control\, never here." />
+                            <TextBlock x:Name="HDTBootImageMachineCertificateHint" Style="{StaticResource HDTHintText}" Margin="0,3,0,0" MaxWidth="620"
+ HorizontalAlignment="Left"
+ />
                         </StackPanel>
 
                         <!--
@@ -558,15 +558,15 @@
                             nothing for a checkbox to call. They are edited in
                             the file until there is one.
                         -->
-                        <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource HDTHintText}"
-                                   Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
-                                   Text="The Welcome screen's Skip settings live in workspace.yaml under bootImage.skip and are not on this window: no command sets them yet, and a control with nothing behind it is worse than none." />
+                        <TextBlock x:Name="HDTBootImageMachineCertificateHint2" Grid.Row="10" Grid.Column="1" Style="{StaticResource HDTHintText}"
+ Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
+ />
                     </Grid>
                 </ScrollViewer>
             </TabItem>
 
             <!-- ==================== Features ==================== -->
-            <TabItem Header="Features">
+            <TabItem x:Name="HDTBootImageFeatures" >
                 <Grid Margin="18,16,18,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -574,9 +574,9 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <TextBlock Grid.Row="0" Style="{StaticResource HDTHintText}" Margin="0,0,0,12"
-                               MaxWidth="820" HorizontalAlignment="Left"
-                               Text="Every optional component the installed ADK has a cab for, for the architecture on the General tab. Ticking one adds it to workspace.yaml; the image is only rebuilt when Update runs." />
+                    <TextBlock x:Name="HDTBootImageMachineCertificateHint3" Grid.Row="0" Style="{StaticResource HDTHintText}" Margin="0,0,0,12"
+ MaxWidth="820" HorizontalAlignment="Left"
+ />
 
                     <!--
                         A TICK PER COMPONENT, AND SIX OF THEM CANNOT BE UNTICKED.
@@ -650,12 +650,12 @@
             </TabItem>
 
             <!-- ==================== Drivers ==================== -->
-            <TabItem Header="Drivers">
+            <TabItem x:Name="HDTBootImageDrivers" >
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,16,18,16">
                     <StackPanel>
-                        <TextBlock Style="{StaticResource HDTHintText}" Margin="0,0,0,14"
-                                   MaxWidth="760" HorizontalAlignment="Left"
-                                   Text="Which drivers go INTO THE BOOT IMAGE - storage and network, so WinPE can see the disk and reach the share. This is not what the deployed OS gets; that is the sequence's own driver step." />
+                        <TextBlock x:Name="HDTBootImageMachineCertificateHint4" Style="{StaticResource HDTHintText}" Margin="0,0,0,14"
+ MaxWidth="760" HorizontalAlignment="Left"
+ />
 
                         <!--
                             A LIST, NOT A BOX YOU TYPE INTO. A group is a folder
@@ -670,7 +670,7 @@
                             only say it in by clearing the box is a list you
                             cannot say it in.
                         -->
-                        <TextBlock Text="Driver group" Margin="0,0,0,6" />
+                        <TextBlock x:Name="HDTBootImageDriverGroupLabel" Margin="0,0,0,6" />
                         <ComboBox x:Name="HDTDriverGroupBox" Width="420" HorizontalAlignment="Left"
                                   DisplayMemberPath="Display" SelectedValuePath="Name" />
                         <!--
@@ -682,15 +682,15 @@
                             Save expecting Clear's behaviour. Set-HDTBootImageDriver
                             still has -Clear; it is what Save runs on an empty box.
                         -->
-                        <TextBlock Style="{StaticResource HDTHintText}" Margin="0,6,0,0" MaxWidth="620"
-                                   HorizontalAlignment="Left"
-                                   Text="A folder under Drivers\ on the share - MDT's selection profile, by another name. Empty means no drivers are injected and WinPE uses what Microsoft ships." />
+                        <TextBlock x:Name="HDTBootImageDriverGroupHint" Style="{StaticResource HDTHintText}" Margin="0,6,0,0" MaxWidth="620"
+ HorizontalAlignment="Left"
+ />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
 
             <!-- ==================== Customisations ==================== -->
-            <TabItem Header="Customisations">
+            <TabItem x:Name="HDTBootImageCustomisations" >
                 <Grid Margin="18,16,18,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
@@ -710,7 +710,7 @@
                         an administrator ship a tool that never launches, which
                         is the failure this pair exists to stop.
                     -->
-                    <TextBlock Grid.Row="0" Text="Extra content" FontSize="14" Margin="0,0,0,8" />
+                    <TextBlock x:Name="HDTBootImageExtraContentLabel" Grid.Row="0" FontSize="14" Margin="0,0,0,8" />
 
                     <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
                             BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
@@ -760,28 +760,28 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Source, on this machine or the share"
-                                   Style="{StaticResource HDTHintText}" Margin="0,0,8,4" />
-                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Where it lands inside the image"
-                                   Style="{StaticResource HDTHintText}" Margin="0,0,8,4" />
+                        <TextBlock x:Name="HDTBootImageSourceOnThisMachine" Grid.Row="0" Grid.Column="0"
+ Style="{StaticResource HDTHintText}" Margin="0,0,8,4" />
+                        <TextBlock x:Name="HDTBootImageWhereItLandsInsideLabel" Grid.Row="0" Grid.Column="2"
+ Style="{StaticResource HDTHintText}" Margin="0,0,8,4" />
 
                         <TextBox Grid.Row="1" Grid.Column="0" x:Name="HDTContentSourceBox"
-                                 FontFamily="Consolas, Courier New" Margin="0,0,8,0"
-                                 ToolTip="A file or folder on this machine, or on the share." />
-                        <Button Grid.Row="1" Grid.Column="1" x:Name="HDTContentBrowseButton" Content="Browse" MinWidth="80" />
+ FontFamily="Consolas, Courier New" Margin="0,0,8,0"
+ />
+                        <Button Grid.Row="1" Grid.Column="1" x:Name="HDTContentBrowseButton" MinWidth="80" />
                         <TextBox Grid.Row="1" Grid.Column="2" x:Name="HDTContentDestinationBox"
-                                 FontFamily="Consolas, Courier New" Margin="0,0,8,0"
-                                 ToolTip="\Tools\BGInfo, for example. Rooted at the image, and no '..'." />
+ FontFamily="Consolas, Courier New" Margin="0,0,8,0"
+ />
                         <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal">
-                            <Button x:Name="HDTContentAddButton" Content="Add" MinWidth="80" />
-                            <Button x:Name="HDTContentRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
+                            <Button x:Name="HDTContentAddButton" MinWidth="80" />
+                            <Button x:Name="HDTContentRemoveButton" MinWidth="80" Margin="0" />
                         </StackPanel>
                     </Grid>
 
                     <StackPanel Grid.Row="3" Margin="0,24,0,8">
-                        <TextBlock Text="Start commands" FontSize="14" Margin="0,0,0,4" />
-                        <TextBlock Style="{StaticResource HDTHintText}" MaxWidth="820" HorizontalAlignment="Left"
-                                   Text="Lines for startnet.cmd, in this order - after WinPE has a network, and before the deployment starts. This is what launches the tools added above. A .cmd or .bat is run with call, so control comes back and the deployment still starts." />
+                        <TextBlock x:Name="HDTBootImageStartCommandsLabel" FontSize="14" Margin="0,0,0,4" />
+                        <TextBlock x:Name="HDTBootImageStartCommandsHint" Style="{StaticResource HDTHintText}" MaxWidth="820" HorizontalAlignment="Left"
+ />
                     </StackPanel>
 
                     <!--
@@ -825,12 +825,12 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBox Grid.Column="0" x:Name="HDTStartCommandBox"
-                                 FontFamily="Consolas, Courier New" Margin="0,0,12,0"
-                                 ToolTip="A line for startnet.cmd - X:\Tools\BGInfo\bginfo.exe /nolicprompt, for example." />
+ FontFamily="Consolas, Courier New" Margin="0,0,12,0"
+ />
 
                         <CheckBox Grid.Column="1" x:Name="HDTStartCommandFirstCheck"
-                                  Content="Run first" VerticalAlignment="Center" Margin="0,0,12,0"
-                                  ToolTip="Put it at the top of the list instead of the bottom." />
+ VerticalAlignment="Center" Margin="0,0,12,0"
+ />
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
                             <!--
@@ -847,16 +847,16 @@
                                 one either, and a glyph scales with the window.
                             -->
                             <Button x:Name="HDTStartCommandUpButton" Content="&#xE010;"
-                                    FontFamily="Segoe UI Symbol" FontSize="12"
-                                    MinWidth="36" Margin="0,0,4,0"
-                                    ToolTip="Run this one place earlier" />
+ FontFamily="Segoe UI Symbol" FontSize="12"
+ MinWidth="36" Margin="0,0,4,0"
+ />
                             <Button x:Name="HDTStartCommandDownButton" Content="&#xE011;"
-                                    FontFamily="Segoe UI Symbol" FontSize="12"
-                                    MinWidth="36" Margin="0,0,12,0"
-                                    ToolTip="Run this one place later" />
+ FontFamily="Segoe UI Symbol" FontSize="12"
+ MinWidth="36" Margin="0,0,12,0"
+ />
 
-                            <Button x:Name="HDTStartCommandAddButton" Content="Add" MinWidth="80" />
-                            <Button x:Name="HDTStartCommandRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
+                            <Button x:Name="HDTStartCommandAddButton" MinWidth="80" />
+                            <Button x:Name="HDTStartCommandRemoveButton" MinWidth="80" Margin="0" />
                         </StackPanel>
                     </Grid>
                 </Grid>
@@ -904,12 +904,12 @@
                      milliseconds - and a mis-click on it beside Close is a
                      coffee break nobody asked for. -->
                 <Button Grid.Column="0" x:Name="HDTBootImageUpdateButton"
-                        Content="Update Boot Image" MinWidth="150"
-                        ToolTip="Rebuilds the .wim and the .iso from what is saved. Minutes." />
+ MinWidth="150"
+ />
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <Button x:Name="HDTBootImageSaveButton" Content="Save" MinWidth="96" />
-                    <Button x:Name="HDTBootImageCloseButton" Content="Close" MinWidth="96" Margin="0" />
+                    <Button x:Name="HDTBootImageSaveButton" MinWidth="96" />
+                    <Button x:Name="HDTBootImageCloseButton" MinWidth="96" Margin="0" />
                 </StackPanel>
             </Grid>
         </Grid>
