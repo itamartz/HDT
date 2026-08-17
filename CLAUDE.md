@@ -232,3 +232,17 @@ tests/fixtures/     Real .inf headers, captured CIM shapes, sample workspaces
 - **Do exactly what I said — no extensions.** Nothing extra, no scope I did not
   ask for.
 - **Keep answers short.** Relevant data only. If I want details, I will ask.
+  A few lines, not a report. No preamble, no summary of what you just did unless
+  it changes what I do next. No tables or bullet lists for a two-fact answer.
+- **Don't ask me for details.** Make the call yourself from `docs/DESIGN.md`,
+  `.planning/`, and the code, and say the assumption in one line as you go. Ask
+  only when proceeding either way would be unsafe or would waste the work — not
+  to confirm a design choice, a name, or a file location.
+- **Change the UI, show me the UI.** When I ask for something on a window —
+  a label, a control, a page, a colour — open the real window afterwards and
+  send me the picture, without being asked. A description of the change is not
+  the change; the last five defects in the console were found by looking at it,
+  and every one of them passed its tests first. Drive it with an STA probe (see
+  `New-HDTConsoleHost` and the scratchpad probes) and capture with
+  `PrintWindow` — hardware rendering on this host paints blank often enough
+  that `RenderOptions.ProcessRenderMode = SoftwareOnly` belongs in the probe.
