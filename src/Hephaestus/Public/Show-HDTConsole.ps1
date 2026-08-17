@@ -144,6 +144,10 @@ function Show-HDTConsole {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
+        [string] $NewSequenceXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTNewSequence.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
         [Parameter()]
@@ -255,8 +259,17 @@ function Show-HDTConsole {
     # remembered: it is the origin of today's work area, measured every time.
     $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment -Screen $Screen
 
+    # THE WIZARD'S MARKUP TRAVELS WITH THE CONSOLE'S, so the host never touches
+    # the file system - the same reason the console's own markup arrives as a
+    # string. Absent, the New Task Sequence button hides itself rather than
+    # promising a window that cannot open.
+    $newSequenceXaml = ''
+    if (Test-Path -LiteralPath $NewSequenceXamlPath) {
+        $newSequenceXaml = [System.IO.File]::ReadAllText($NewSequenceXamlPath)
+    }
+
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
-        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond)
+        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond, $newSequenceXaml)
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot

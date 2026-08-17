@@ -1,4 +1,4 @@
-# The WinPE window's state, worked out without a window.
+﻿# The WinPE window's state, worked out without a window.
 #
 # HDTBootImage.xaml is four tabs over one YAML block, and every control on it is
 # the face of a command that already exists. What this file asserts is the
@@ -120,6 +120,21 @@ Describe 'Get-HDTConsoleBootImageSetting' {
         It 'carries the Set-HDTBootImageUnattend call the answer file box would run' {
             $script:view.General.UnattendCommandFormat |
                 Should -BeLike 'Set-HDTBootImageUnattend*-Path ''{0}''*'
+        }
+
+        It 'carries the New-HDTBootImageUnattend call the template button would run' {
+            # A SHARE WITH NO ANSWER FILE IS THE ORDINARY CASE, and the box next
+            # to it takes a path to a file that has to already exist. The
+            # template button is where the file comes from.
+            $script:view.General.UnattendTemplateCommandFormat |
+                Should -BeLike 'New-HDTBootImageUnattend*-Workspace ''{0}''*'
+        }
+
+        It 'names the share the answer file is written to and read from' {
+            # THE DOCUMENT'S FOLDER IS THE SHARE. Both the template button and
+            # the Open button need it: unattend is stored relative to the root,
+            # and neither a file picker nor a text box hands back a root.
+            $script:view.WorkspaceRoot | Should -BeExactly 'C:\HDTLab\Share'
         }
     }
 
@@ -362,5 +377,107 @@ Describe 'Get-HDTConsoleBootImageSetting' {
             { Get-HDTConsoleBootImageSetting -Line ([string[]] @('bootImage:', '  name: [unclosed')) `
                     -Path 'C:\ws\workspace.yaml' -Component @() } | Should -Throw
         }
+    }
+}
+
+Describe 'the Certificates tab' {
+
+    # A ROOT CA AND A MACHINE CERTIFICATE ARE DIFFERENT ANIMALS and the tab
+    # keeps them apart: a list you add to and remove from, and one file with one
+    # password. What each row would run is on the row, as everywhere else.
+
+    BeforeAll {
+        $script:certText = @'
+schemaVersion: 1
+id: HDT-LAB
+name: lab share
+deployRoot: \HDT-HOST\HdtShare
+bootImage:
+  name: HDTPE_x64
+  architecture: amd64
+  rootCertificates:
+    - Certs\contoso-root.cer
+    - Certs\contoso-issuing.cer
+  clientCertificate: Certs\winpe-802.1x.pfx
+'@
+
+        $script:certLine = [string[]] @($script:certText -split "`r?`n")
+
+        $script:certView = Get-HDTConsoleBootImageSetting -Line $script:certLine `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @() `
+            -HasCertificatePassword $true
+    }
+
+    It 'lists the certificate authorities the document trusts' {
+        @($script:certView.Certificate).Count | Should -Be 2
+        [string] @($script:certView.Certificate)[0].Path | Should -BeExactly 'Certs\contoso-root.cer'
+    }
+
+    It 'says which store each row lands in' {
+        # THE TWO ROWS ON THE GENERAL TAB DIFFER BY STORE AND BY NOTHING ELSE
+        # AN EYE CAN SEE - two path boxes, one above the other. The window says
+        # so in its hint; this is the same fact, on the data, so a caller that
+        # is not a window can tell them apart too.
+        [string] @($script:certView.Certificate)[0].Store | Should -BeExactly 'Root'
+    }
+
+    It 'carries the Remove call on the row' {
+        [string] @($script:certView.Certificate)[0].RemoveCommand |
+            Should -BeLike 'Remove-HDTBootImageCertificate*Certs\contoso-root.cer*'
+    }
+
+    It 'counts what is trusted, in one line under the box' {
+        # THE BOX SHOWS ONE ROW AT A TIME. A chain is a root AND the subordinate
+        # that issued the certificate, and an administrator has to be able to
+        # see that both are there without opening the drop-down.
+        [string] $script:certView.CertificateSummaryText | Should -BeLike '*2*'
+    }
+
+    It 'says so plainly when none is trusted' {
+        $bare = Get-HDTConsoleBootImageSetting -Line $script:line `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @()
+
+        [string] $bare.CertificateSummaryText | Should -BeLike '*no certificate authorities*'
+    }
+
+    It 'carries the Add format' {
+        $script:certView.AddCertificateCommandFormat | Should -BeLike 'Add-HDTBootImageCertificate*-Path ''{0}''*'
+    }
+
+    It 'reads the machine certificate and the calls that change it' {
+        [string] $script:certView.ClientCertificate.Path | Should -BeExactly 'Certs\winpe-802.1x.pfx'
+        $script:certView.ClientCertificate.ApplyCommandFormat |
+            Should -BeLike 'Set-HDTBootImageClientCertificate*-Path ''{0}''*'
+        $script:certView.ClientCertificate.ClearCommand |
+            Should -BeLike 'Set-HDTBootImageClientCertificate*-Clear*'
+    }
+
+    It 'says whether a password has been stored for it' {
+        # A .pfx NAMED WITH NO PASSWORD IS A BUILD Update-HDTBootImage REFUSES,
+        # so the window has to be able to say so before anybody presses Update.
+        $script:certView.ClientCertificate.HasPassword | Should -BeTrue
+
+        $without = Get-HDTConsoleBootImageSetting -Line $script:certLine `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @() `
+            -HasCertificatePassword $false
+
+        $without.ClientCertificate.HasPassword | Should -BeFalse
+        [string] $without.ClientCertificate.Warning | Should -Not -BeNullOrEmpty
+    }
+
+    It 'says nothing is wrong when no certificate is named at all' {
+        $bare = Get-HDTConsoleBootImageSetting -Line $script:line `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @()
+
+        @($bare.Certificate).Count | Should -Be 0
+        [string] $bare.ClientCertificate.Path | Should -BeExactly ''
+        [string] $bare.ClientCertificate.Warning | Should -BeExactly ''
+    }
+
+    It 'carries the password call, which names the share and not the password' {
+        $script:certView.ClientCertificate.PasswordCommandFormat |
+            Should -BeLike 'Set-HDTBootImageCertificatePassword*-WorkspaceRoot ''{0}''*'
+
+        $script:certView.ClientCertificate.PasswordCommandFormat | Should -Not -BeLike '*{1}*'
     }
 }

@@ -238,6 +238,12 @@ tests/fixtures/     Real .inf headers, captured CIM shapes, sample workspaces
   `.planning/`, and the code, and say the assumption in one line as you go. Ask
   only when proceeding either way would be unsafe or would waste the work — not
   to confirm a design choice, a name, or a file location.
+- **Find a defect, fix it — don't ask.** A bug, a false warning, a wrong
+  refusal, a message that names the symptom instead of the cause: fix it as
+  soon as you find it, then tell me what it was. Asking permission to fix
+  something broken wastes a turn and leaves it broken in the meantime. Only stop
+  to ask when the fix is a design reversal I have already decided, or when it
+  would change something outside what I asked for.
 - **Change the UI, show me the UI.** When I ask for something on a window —
   a label, a control, a page, a colour — open the real window afterwards and
   send me the picture, without being asked. A description of the change is not

@@ -240,6 +240,22 @@
                       FontFamily="Segoe UI" FontSize="13"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 
+                <!--
+                    MDT'S New Task Sequence, WHERE MDT PUTS IT: a right-click on
+                    the Task Sequences node. A button in the footer was the wrong
+                    shape - this is an action ON a node, and the footer is where
+                    a window's own actions live.
+
+                    THE ITEM IS DARK UNLESS THAT NODE IS THE ONE UNDER THE
+                    POINTER, and the host tells which node that is by NAME - the
+                    label carries a count and would put a parser in the window.
+                -->
+                <TreeView.ContextMenu>
+                    <ContextMenu x:Name="HDTConsoleTreeMenu">
+                        <MenuItem x:Name="HDTNewSequenceMenuItem" Header="New Task Sequence" />
+                    </ContextMenu>
+                </TreeView.ContextMenu>
+
                 <TreeView.ItemContainerStyle>
                     <Style TargetType="TreeViewItem">
                         <!-- Which branches start open is the row's decision. -->

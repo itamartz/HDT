@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Windows PE"
@@ -14,9 +14,13 @@
         command family that already exists:
 
           General          Set-HDTWorkspaceProperty, Set-HDTBootImageUnattend,
-                           Set-HDTBootImageBackground
+                           New-HDTBootImageUnattend, Set-HDTBootImageBackground,
+                           Add/Remove-HDTBootImageCertificate,
+                           Set-HDTBootImageClientCertificate,
+                           Set-HDTBootImageCertificatePassword
           Features         Get-HDTAdkComponent, Add/Remove-HDTBootImageComponent
           Drivers          Get-HDTDriverGroup, Set-HDTBootImageDriver
+
           Customisations   Add/Remove-HDTBootImageContent,
                            Add/Remove/Move-HDTBootImageStartCommand
 
@@ -63,9 +67,15 @@
         HDTBootImageTitleText, HDTBootImagePathText, HDTBootImageNameBox,
         HDTBootImageArchitectureBox, HDTBootImageLanguageBox,
         HDTBootImageScratchBox, HDTBootImageUnattendBox,
-        HDTBootImageUnattendBrowseButton, HDTBootImageBackgroundBox,
+        HDTBootImageUnattendBrowseButton,
+        HDTBootImageUnattendTemplateButton, HDTBootImageUnattendOpenButton,
+        HDTBootImageBackgroundBox,
         HDTBootImageBackgroundBrowseButton,
         HDTComponentList, HDTComponentSizeText,
+        HDTCertificateBox, HDTCertificateBrowseButton, HDTCertificateAddButton,
+        HDTCertificateRemoveButton, HDTCertificateSummaryText,
+        HDTClientCertificateBox, HDTClientCertificateBrowseButton,
+        HDTClientCertificatePasswordButton, HDTClientCertificateWarningText,
         HDTDriverGroupBox,
         HDTContentList, HDTContentSourceBox, HDTContentBrowseButton,
         HDTContentDestinationBox, HDTContentAddButton, HDTContentRemoveButton,
@@ -252,6 +262,8 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="Image name"
@@ -321,9 +333,32 @@
                                          Margin="0,0,8,0" />
                                 <Button x:Name="HDTBootImageUnattendBrowseButton" Content="Browse" MinWidth="80" />
                             </StackPanel>
+
+                            <!--
+                                BROWSE ALONE ASSUMES THE FILE EXISTS, and on a
+                                new share it does not: a windowsPE answer file
+                                is a document written from Microsoft's schema,
+                                and "go and write one" is not an answer a
+                                properties page should give.
+
+                                USE TEMPLATE writes the one this module ships
+                                onto the share and names it here. OPEN is what
+                                makes that worth doing - wpeinit also reads
+                                EnableFirewall, EnableNetwork, LogPath, PageFile
+                                and Restart, and every one of them is set by
+                                editing this file. There is no page for those
+                                and there should not be: they are wpeinit's
+                                list, not HDT's, and it changes with WinPE.
+                            -->
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="HDTBootImageUnattendTemplateButton" Content="Use template"
+                                        MinWidth="110" Margin="0,0,8,0" />
+                                <Button x:Name="HDTBootImageUnattendOpenButton" Content="Open" MinWidth="80" />
+                            </StackPanel>
+
                             <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0" MaxWidth="560"
                                        HorizontalAlignment="Left"
-                                       Text="A WinPE answer file, copied into the image and handed to wpeinit. This is where the WinPE firewall, the display resolution and the page file are set. Empty means wpeinit runs with no answer file, which is the ordinary case." />
+                                       Text="A WinPE answer file, copied into the image and handed to wpeinit. This is where the WinPE firewall, the display resolution and the page file are set. Empty means wpeinit runs with no answer file, which is the ordinary case. Use template writes this module's own onto the share; Open edits the one named above." />
                         </StackPanel>
 
                         <!--
@@ -365,6 +400,75 @@
                         </StackPanel>
 
                         <!--
+                            THE CERTIFICATES, AS TWO ROWS ON THIS TAB rather
+                            than a tab of their own. They are two paths and a
+                            password - the same shape as the answer file and the
+                            background directly above them - and a tab for two
+                            rows makes an administrator hunt for a setting that
+                            belongs beside the others.
+
+                            THE FIRST ROW IS A LIST because a PKI is a chain: a
+                            root and the subordinate that actually issued the
+                            certificate, and an image trusting only the root
+                            still cannot validate what the issuing CA signed.
+                            The box is editable, so a path can be typed or
+                            browsed to, and the drop-down is what is already
+                            trusted - which is also what Remove takes.
+                        -->
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Certificate authorities"
+                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal">
+                                <ComboBox x:Name="HDTCertificateBox" Width="470" IsEditable="True"
+                                          HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
+                                          Margin="0,0,8,0"
+                                          DisplayMemberPath="Path" SelectedValuePath="Path" />
+                                <Button x:Name="HDTCertificateBrowseButton" Content="Browse" MinWidth="80" />
+                                <Button x:Name="HDTCertificateAddButton" Content="Add" MinWidth="70" />
+                                <Button x:Name="HDTCertificateRemoveButton" Content="Remove" MinWidth="80" Margin="0" />
+                            </StackPanel>
+                            <TextBlock x:Name="HDTCertificateSummaryText" Style="{StaticResource HDTHintText}"
+                                       Margin="0,5,0,0" MaxWidth="620" HorizontalAlignment="Left" Text="" />
+                            <!--
+                                ONE LINE, BECAUSE THIS TAB IS ALREADY LONG. The
+                                rest of the reasoning is in the schema and in
+                                Add-HDTBootImageCertificate's help; what has to
+                                be on the window is the store, which is what
+                                makes these two rows different from each other.
+                            -->
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,3,0,0" MaxWidth="620"
+                                       HorizontalAlignment="Left"
+                                       Text="Root and subordinate CAs, into LocalMachine\Root before the network starts. Public certificates only - WinPE otherwise trusts Microsoft's roots and nothing of yours." />
+                        </StackPanel>
+
+                        <!--
+                            THE SECOND ROW IS ONE FILE AND ONE PASSWORD, and the
+                            password is the only value on this window that goes
+                            to a different file: Control\certificate-password.json,
+                            never workspace.yaml, which is the document an
+                            administrator commits.
+                        -->
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Machine certificate"
+                                   TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
+                        <StackPanel Grid.Row="7" Grid.Column="1" Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox x:Name="HDTClientCertificateBox" Width="470"
+                                         HorizontalAlignment="Left" FontFamily="Consolas, Courier New"
+                                         Margin="0,0,8,0" />
+                                <Button x:Name="HDTClientCertificateBrowseButton" Content="Browse" MinWidth="80" />
+                                <Button x:Name="HDTClientCertificatePasswordButton" Content="Set password"
+                                        MinWidth="110" Margin="0" />
+                            </StackPanel>
+                            <TextBlock x:Name="HDTClientCertificateWarningText" Text=""
+                                       Foreground="{DynamicResource HDTErrorBrush}" FontSize="12"
+                                       TextWrapping="Wrap" Margin="0,5,0,0" MaxWidth="620"
+                                       HorizontalAlignment="Left" />
+                            <TextBlock Style="{StaticResource HDTHintText}" Margin="0,3,0,0" MaxWidth="620"
+                                       HorizontalAlignment="Left"
+                                       Text="A .pfx the machine authenticates WITH, into LocalMachine\My before the network starts - for an 802.1X port, or an endpoint that asks for a client certificate. The password is stored in Control\, never here." />
+                        </StackPanel>
+
+                        <!--
                             THERE IS NO APPLY ON THIS TAB, and that is not an
                             omission. Every tab edits the same in-memory
                             document; Save at the bottom is what writes it, and
@@ -383,7 +487,7 @@
                             nothing for a checkbox to call. They are edited in
                             the file until there is one.
                         -->
-                        <TextBlock Grid.Row="6" Grid.Column="1" Style="{StaticResource HDTHintText}"
+                        <TextBlock Grid.Row="8" Grid.Column="1" Style="{StaticResource HDTHintText}"
                                    Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
                                    Text="The Welcome screen's Skip settings live in workspace.yaml under bootImage.skip and are not on this window: no command sets them yet, and a control with nothing behind it is worse than none." />
                     </Grid>

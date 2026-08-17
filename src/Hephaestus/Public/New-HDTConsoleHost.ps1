@@ -77,7 +77,7 @@ function New-HDTConsoleHost {
         # a key added to the hashtable would be fed to the BrushConverter below
         # along with the colours.
         param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
-            [string] $ThemeName = 'Light')
+            [string] $ThemeName = 'Light', [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '')
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -221,7 +221,10 @@ function New-HDTConsoleHost {
         $refresh.Interval = [timespan]::FromSeconds([double] $RefreshSecond)
 
         $refresh.Add_Tick({
-                foreach ($root in @($Node)) {
+                # THE TREE, NOT THE COLLECTION THIS METHOD WAS HANDED. Creating
+                # a task sequence rebuilds the rows, and a timer still holding
+                # the originals refreshes rows that are no longer on screen.
+                foreach ($root in @($tree.ItemsSource)) {
                     foreach ($share in @($root.Children)) {
                         $at = -1
 
@@ -253,6 +256,114 @@ function New-HDTConsoleHost {
 
         # A timer left running holds a reference to a window that has gone.
         $window.Add_Closed({ $refresh.Stop() }.GetNewClosure())
+
+        # MDT'S New Task Sequence. It creates into the share the tree is showing
+        # - the selected row carries its own root, and two shares in one window
+        # commonly hold sequences with the same id, so "the selected one" is the
+        # only answer that cannot write to the wrong share.
+        #
+        # NO MARKUP, NO BUTTON. A button that cannot open its window is one a
+        # technician presses to find out nothing happens.
+        $newSequence = $window.FindName('HDTNewSequenceMenuItem')
+
+        if ($null -ne $newSequence) {
+            if ([string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
+                $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
+            } else {
+                # RIGHT-CLICK DOES NOT SELECT, IN WPF. The menu would otherwise
+                # act on whatever was last left-clicked, which is the row above
+                # the one somebody just pointed at - and this menu writes a file
+                # into a share.
+                $tree.Add_PreviewMouseRightButtonDown({
+                        param($raiser, $mouse)
+
+                        $hit = [System.Windows.Media.VisualTreeHelper]::HitTest($tree,
+                            $mouse.GetPosition($tree))
+
+                        if ($null -eq $hit) { return }
+
+                        $walk = $hit.VisualHit
+
+                        while ($null -ne $walk -and $walk -isnot [System.Windows.Controls.TreeViewItem]) {
+                            $walk = [System.Windows.Media.VisualTreeHelper]::GetParent($walk)
+                        }
+
+                        if ($null -ne $walk) { $walk.IsSelected = $true }
+                    }.GetNewClosure())
+
+                # AND NO MENU AT ALL ANYWHERE ELSE. A menu that opens on every
+                # row with one dead item is worse than no menu: it teaches that
+                # right-click does nothing here, on the one row where it does.
+                #
+                # Handled STOPS IT OPENING. The alternative - opening it and
+                # greying the item out - still puts a menu on the boot image,
+                # the drivers folder and every task sequence in the share.
+                $tree.Add_ContextMenuOpening({
+                        param($raiser, $opening)
+
+                        $chosen = $tree.SelectedItem
+
+                        $wanted = ($null -ne $chosen -and
+                            [string] $chosen.Kind -eq 'Category' -and
+                            [string] $chosen.Name -eq 'TaskSequences')
+
+                        if (-not $wanted) { $opening.Handled = $true }
+                    }.GetNewClosure())
+
+                $newSequence.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        # THE ROW SAYS WHICH SHARE. Two shares in one window
+                        # commonly hold sequences with the same id, so the
+                        # node's own root is the only answer that cannot write
+                        # to the wrong one.
+                        $where = [string] $chosen.HeaderRoot
+                        if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                        $made = [string] $consoleHost.ShowNewSequence($NewSequenceXaml, $where, $Theme, $window)
+
+                        if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                        # THE TREE IS REBUILT, or the sequence that was just
+                        # created is not in the window that created it - the
+                        # refresh timer only rebuilds the monitor rows.
+                        #
+                        # THE SAME TWO CALLS Show-HDTConsole MAKES, over the
+                        # same roots: a share is read and its rows are built.
+                        $shareRoot = New-Object -TypeName System.Collections.ArrayList
+
+                        foreach ($root in @($tree.ItemsSource)) {
+                            foreach ($share in @($root.Children)) {
+                                $one = [string] $share.HeaderRoot
+                                if (-not [string]::IsNullOrWhiteSpace($one)) { [void] $shareRoot.Add($one) }
+                            }
+                        }
+
+                        $rebuiltShare = New-Object -TypeName System.Collections.ArrayList
+
+                        foreach ($one in @($shareRoot)) {
+                            try {
+                                [void] $rebuiltShare.Add((Get-HDTConsoleWorkspace -Path $one))
+                            } catch {
+                                [void] $rebuiltShare.Add((New-HDTConsoleShareFailure -Path $one `
+                                            -Message ([string] $_.Exception.Message)))
+                            }
+                        }
+
+                        # THE DEPTH-0 ROWS, NOT EVERY ROW. Get-HDTConsoleTreeNode
+                        # returns the tree flat and WPF builds the branches from
+                        # each row's Children, so handing it everything draws
+                        # every node twice - once under its parent and once at
+                        # the top.
+                        $rebuiltNode = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($rebuiltShare)))
+
+                        $tree.ItemsSource = @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
+
+                        $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
+                    }.GetNewClosure())
+            }
+        }
 
         $close.Add_Click({
                 $consoleHost.Answer = 'Close'
@@ -298,6 +409,139 @@ function New-HDTConsoleHost {
     # that a command cannot be handed. After every edit the lines go back
     # through Get-HDTConsoleEditorState, so the tree on screen is what the
     # ENGINE reads and not a parallel model of it.
+    # =====================================================================
+    # MDT'S New Task Sequence WIZARD
+    # =====================================================================
+    #
+    # The one thing the browser could not do: everything else in that window
+    # opens what exists, and this creates one. It decides nothing -
+    # Get-HDTConsoleNewSequence says what may be chosen,
+    # Test-HDTConsoleNewSequence says whether the answers can be used, and
+    # New-HDTTaskSequence writes the file.
+    #
+    # IT RETURNS THE PATH IT CREATED, or an empty string when it was cancelled,
+    # so the caller can refresh the tree without asking what happened.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowNewSequence -Value {
+        param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        $rootText = $dialog.FindName('HDTNewSequenceRootText')
+        $idBox = $dialog.FindName('HDTNewSequenceIdBox')
+        $nameBox = $dialog.FindName('HDTNewSequenceNameBox')
+        $templateBox = $dialog.FindName('HDTNewSequenceTemplateBox')
+        $imageBox = $dialog.FindName('HDTNewSequenceImageBox')
+        $fullNameBox = $dialog.FindName('HDTNewSequenceFullNameBox')
+        $orgBox = $dialog.FindName('HDTNewSequenceOrgBox')
+        $passwordBox = $dialog.FindName('HDTNewSequencePasswordBox')
+        $passwordHint = $dialog.FindName('HDTNewSequencePasswordHint')
+        $messageText = $dialog.FindName('HDTNewSequenceMessageText')
+        $commandText = $dialog.FindName('HDTNewSequenceCommandText')
+        $create = $dialog.FindName('HDTNewSequenceCreateButton')
+
+        $offer = Get-HDTConsoleNewSequence -Workspace $Workspace
+
+        $rootText.Text = $Workspace
+
+        $templateBox.ItemsSource = $offer.Template
+        if (@($offer.Template).Count -gt 0) { $templateBox.SelectedIndex = 0 }
+
+        # AN EMPTY ROW FIRST, because "decide later" is a real answer: the
+        # sequence carries the image as a variable either way, and a share with
+        # nothing imported yet still needs a sequence to put steps in.
+        $imageChoice = New-Object -TypeName System.Collections.ArrayList
+        [void] $imageChoice.Add([pscustomobject] @{ Id = ''; Display = '(decide later)' })
+        foreach ($one in @($offer.Image)) { [void] $imageChoice.Add($one) }
+
+        $imageBox.ItemsSource = $imageChoice
+
+        # THE FIRST REAL IMAGE, NOT THE EMPTY ROW. MDT's wizard requires an
+        # operating system; a page that defaults to "decide later" makes the
+        # commonest answer the one nobody chose, and produces a sequence whose
+        # image is unset on a share that has one.
+        $imageBox.SelectedIndex = 0
+        if (@($offer.Image).Count -gt 0) { $imageBox.SelectedIndex = 1 }
+
+        # THE PASSWORD WARNING COMES FROM THE COMMAND, not from this markup, so
+        # the page and the variable map cannot say different things about the
+        # same value.
+        $passwordHint.Text = [string] @($offer.Setting |
+                Where-Object { $_.Key -eq 'HDTAdminPassword' })[0].Hint
+
+        # WHETHER THE ANSWERS CAN BE USED, ON EVERY KEYSTROKE. The alternative
+        # is a wizard that takes seven answers and refuses on the last press.
+        $check = {
+            $answer = Test-HDTConsoleNewSequence -Workspace $Workspace `
+                -Id ([string] $idBox.Text) -Name ([string] $nameBox.Text)
+
+            $create.IsEnabled = [bool] $answer.CanCreate
+            $messageText.Text = [string] $answer.Message
+
+            $commandText.Text = ($offer.CommandFormat -f
+                [string] $idBox.Text, [string] $nameBox.Text, [string] $templateBox.SelectedValue)
+        }.GetNewClosure()
+
+        $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $nameBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $templateBox.Add_SelectionChanged({ & $check }.GetNewClosure())
+
+        & $check
+
+        $this.NewSequencePath = ''
+        $dialogHost = $this
+
+        $create.Add_Click({
+                # WHAT WAS TYPED, AND ONLY WHAT WAS TYPED. An empty box writes no
+                # variable rather than an empty one: a sequence carrying
+                # HDTOrgName: '' looks like a decision somebody made.
+                $variable = [ordered] @{}
+
+                if (-not [string]::IsNullOrWhiteSpace([string] $imageBox.SelectedValue)) {
+                    $variable['HDTOSImage'] = [string] $imageBox.SelectedValue
+                }
+
+                foreach ($pair in @(
+                        @{ Key = 'HDTFullName'; Value = [string] $fullNameBox.Text }
+                        @{ Key = 'HDTOrgName'; Value = [string] $orgBox.Text }
+                        @{ Key = 'HDTAdminPassword'; Value = [string] $passwordBox.Text }
+                    )) {
+
+                    if ([string]::IsNullOrWhiteSpace([string] $pair.Value)) { continue }
+                    $variable[[string] $pair.Key] = [string] $pair.Value
+                }
+
+                try {
+                    $made = New-HDTTaskSequence -Workspace $Workspace `
+                        -Id ([string] $idBox.Text) -Name ([string] $nameBox.Text) `
+                        -Template ([string] $templateBox.SelectedValue) `
+                        -Variable $variable -Confirm:$false
+
+                    $dialogHost.NewSequencePath = [string] $made.Path
+                    $dialog.DialogResult = $true
+                } catch {
+                    # THE REFUSAL LANDS ON THE PAGE, not in a message box over a
+                    # dialog that has already closed.
+                    $messageText.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return [string] $this.NewSequencePath
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name NewSequencePath -Value ''
+
     # =====================================================================
     # MDT'S Partition Properties DIALOG
     # =====================================================================
@@ -1408,11 +1652,23 @@ function New-HDTConsoleHost {
         $scratchBox = $window.FindName('HDTBootImageScratchBox')
         $unattendBox = $window.FindName('HDTBootImageUnattendBox')
         $unattendBrowse = $window.FindName('HDTBootImageUnattendBrowseButton')
+        $unattendTemplate = $window.FindName('HDTBootImageUnattendTemplateButton')
+        $unattendOpen = $window.FindName('HDTBootImageUnattendOpenButton')
         $backgroundBox = $window.FindName('HDTBootImageBackgroundBox')
         $backgroundBrowse = $window.FindName('HDTBootImageBackgroundBrowseButton')
 
         $componentList = $window.FindName('HDTComponentList')
         $componentSize = $window.FindName('HDTComponentSizeText')
+
+        $certificateBox = $window.FindName('HDTCertificateBox')
+        $certificateSummary = $window.FindName('HDTCertificateSummaryText')
+        $certificateBrowse = $window.FindName('HDTCertificateBrowseButton')
+        $certificateAdd = $window.FindName('HDTCertificateAddButton')
+        $certificateRemove = $window.FindName('HDTCertificateRemoveButton')
+        $clientCertificateBox = $window.FindName('HDTClientCertificateBox')
+        $clientCertificateBrowse = $window.FindName('HDTClientCertificateBrowseButton')
+        $clientCertificatePassword = $window.FindName('HDTClientCertificatePasswordButton')
+        $clientCertificateWarning = $window.FindName('HDTClientCertificateWarningText')
 
         $driverBox = $window.FindName('HDTDriverGroupBox')
 
@@ -1445,8 +1701,15 @@ function New-HDTConsoleHost {
         # THE QUERY, AND ONLY ASSIGNMENT AFTER IT. Every value put on a control
         # below came out of Get-HDTConsoleBootImageSetting; this computes none of them.
         $ask = {
+            # WHETHER A PASSWORD EXISTS, NOT WHAT IT IS. The view model takes a
+            # boolean on purpose: an object a window binds to must not hold a
+            # private key's password.
+            $stored = Test-HDTBootImageCertificatePassword `
+                -WorkspaceRoot (Split-Path -Path $Path -Parent)
+
             $book.View = Get-HDTConsoleBootImageSetting -Line $book.Line -Path $Path `
-                -Component $Component -DriverGroup $DriverGroup
+                -Component $Component -DriverGroup $DriverGroup `
+                -HasCertificatePassword ([bool] $stored)
             return $book.View
         }
 
@@ -1460,6 +1723,8 @@ function New-HDTConsoleHost {
             $languageBox.Text = [string] $view.General.Language
             $unattendBox.Text = [string] $view.General.Unattend
             $backgroundBox.Text = [string] $view.General.Background
+            $clientCertificateBox.Text = [string] $view.ClientCertificate.Path
+            $clientCertificateWarning.Text = [string] $view.ClientCertificate.Warning
             $architectureBox.SelectedValue = [string] $view.General.Architecture
             $scratchBox.SelectedValue = [string] $view.General.ScratchSpaceMB
 
@@ -1482,6 +1747,12 @@ function New-HDTConsoleHost {
 
             $contentList.ItemsSource = $view.Content
             $startList.ItemsSource = $view.StartCommand
+            # THE DROP-DOWN IS WHAT IS ALREADY TRUSTED, and the typed text is
+            # what Add would add - so the ItemsSource is assigned and the Text
+            # deliberately left alone.
+            $certificateBox.ItemsSource = $view.Certificate
+            $certificateSummary.Text = [string] $view.CertificateSummaryText
+            $clientCertificateWarning.Text = [string] $view.ClientCertificate.Warning
             $componentSize.Text = [string] $view.SelectedSizeText
         }
 
@@ -1641,6 +1912,113 @@ function New-HDTConsoleHost {
                 & $fillLists
             }.GetNewClosure())
 
+        # -- the Certificates tab --------------------------------------------
+        #
+        # THE TOP HALF EDITS THE DOCUMENT AS IT IS PRESSED, like the content and
+        # start command lists, because it is a list. The bottom half is one
+        # value and is read at Save, like the answer file and the background.
+
+        $certificateAdd.Add_Click({
+                $typed = [string] $certificateBox.Text
+                if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                try {
+                    $book.Line = @(Add-HDTBootImageCertificate -Line $book.Line -Path $typed -Confirm:$false)
+                    $book.Dirty = $true
+                    $commandText.Text = $book.View.AddCertificateCommandFormat -f $typed
+                    $certificateBox.Text = ''
+                    $certificateBox.SelectedItem = $null
+
+                    & $fillLists
+                } catch {
+                    # THE REFUSAL IS THE ANSWER. A .pfx in this list, or the same
+                    # certificate twice, is refused by the command with a
+                    # sentence saying why - and that sentence is better than
+                    # anything this window could invent.
+                    $commandText.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        $certificateRemove.Add_Click({
+                # THE ROW CHOSEN IN THE DROP-DOWN, not the text beside it. An
+                # editable ComboBox reports its selected item's Display as .Text,
+                # so reading Text here would work by accident today and stop the
+                # day the display stops being the path.
+                $row = $certificateBox.SelectedItem
+                if ($null -eq $row) { return }
+
+                $book.Line = @(Remove-HDTBootImageCertificate -Line $book.Line `
+                        -Path ([string] $row.Path) -Confirm:$false)
+                $book.Dirty = $true
+                $commandText.Text = [string] $row.RemoveCommand
+
+                & $fillLists
+            }.GetNewClosure())
+
+        # THE PASSWORD IS WRITTEN THE MOMENT IT IS TYPED, and not at Save, and
+        # that is deliberate: it goes to a different file from everything else
+        # on this window - Control\certificate-password.json, not workspace.yaml -
+        # so Save has nothing to do with it and holding it until then would mean
+        # holding a password in a window's memory for as long as it is open.
+        $clientCertificatePassword.Add_Click({
+                Add-Type -AssemblyName PresentationFramework
+
+                # A .pfx PASSWORD IS TYPED, NOT BROWSED TO. There is no file
+                # picker for it and no command that can discover it; the box is
+                # a PasswordBox on a small dialog because that is the only
+                # control in WPF that does not put it on screen.
+                $prompt = New-Object -TypeName System.Windows.Window
+                $prompt.Title = 'Certificate password'
+                $prompt.Width = 420
+                $prompt.SizeToContent = [System.Windows.SizeToContent]::Height
+                $prompt.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
+                $prompt.Owner = $window
+                $prompt.ResizeMode = [System.Windows.ResizeMode]::NoResize
+
+                $panel = New-Object -TypeName System.Windows.Controls.StackPanel
+                $panel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 16
+
+                $label = New-Object -TypeName System.Windows.Controls.TextBlock
+                $label.Text = 'The password the .pfx was exported with. It is stored obfuscated, not encrypted - the boot image carries enough to reverse it.'
+                $label.TextWrapping = [System.Windows.TextWrapping]::Wrap
+                $label.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 10
+
+                $entry = New-Object -TypeName System.Windows.Controls.PasswordBox
+                $entry.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 12
+
+                $accept = New-Object -TypeName System.Windows.Controls.Button
+                $accept.Content = 'Store'
+                $accept.IsDefault = $true
+                $accept.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+                $accept.Padding = New-Object -TypeName System.Windows.Thickness -ArgumentList 14, 6, 14, 6
+                $accept.Add_Click({ $prompt.DialogResult = $true }.GetNewClosure())
+
+                [void] $panel.Children.Add($label)
+                [void] $panel.Children.Add($entry)
+                [void] $panel.Children.Add($accept)
+
+                $prompt.Content = $panel
+                $entry.Focus()
+
+                if ($prompt.ShowDialog() -ne $true) { return }
+
+                $root = [string] $book.View.WorkspaceRoot
+
+                try {
+                    Set-HDTBootImageCertificatePassword -WorkspaceRoot $root `
+                        -Password $entry.SecurePassword -Confirm:$false
+
+                    $commandText.Text = $book.View.ClientCertificate.PasswordCommandFormat -f $root
+                } catch {
+                    $commandText.Text = [string] $_.Exception.Message
+                }
+
+                # THE WARNING GOES AWAY BECAUSE THE FACT CHANGED, and it is
+                # re-asked rather than cleared: this window does not decide
+                # whether a password exists, the Control folder does.
+                & $fillLists
+            }.GetNewClosure())
+
         # -- Browse, which fills a box and nothing else ----------------------
         #
         # THE FILE PICKER IS NOT A DECISION, it is a keyboard. Neither of these
@@ -1653,6 +2031,81 @@ function New-HDTConsoleHost {
                 $dialog.Filter = 'Answer files (*.xml)|*.xml|All files (*.*)|*.*'
 
                 if ($dialog.ShowDialog($window)) { $unattendBox.Text = $dialog.FileName }
+            }.GetNewClosure())
+
+        # -- the answer file itself, written and opened ----------------------
+        #
+        # BROWSE ASSUMES THE FILE EXISTS. On a share that never had one there is
+        # nothing to browse to, and what an administrator has to do instead is
+        # write a windowsPE document from Microsoft's schema by hand. This puts
+        # the one the module ships on the share and names it in the box; Save is
+        # still what writes workspace.yaml.
+        #
+        # A FILE ALREADY THERE IS NAMED, NOT REPLACED. New-HDTBootImageUnattend
+        # refuses it, and the refusal is the right answer to show - somebody's
+        # firewall setting may be in that file - but the name still belongs in
+        # the box, which is what the press meant.
+        $unattendTemplate.Add_Click({
+                $root = [string] $book.View.WorkspaceRoot
+
+                try {
+                    $made = New-HDTBootImageUnattend -Workspace $root -Confirm:$false
+                    $unattendBox.Text = [string] $made.Relative
+                    $commandText.Text = $book.View.General.UnattendTemplateCommandFormat -f $root
+                } catch {
+                    $unattendBox.Text = 'Unattend-PE.xml'
+                    $commandText.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        # OPEN, BECAUSE EVERYTHING ELSE wpeinit READS IS EDITED IN THAT FILE.
+        # EnableFirewall, EnableNetwork, LogPath, PageFile and Restart have no
+        # page here and should not: they are wpeinit's list, not HDT's.
+        #
+        # RELATIVE IS READ FROM THE SHARE, ROOTED IS TAKEN AS WRITTEN, which is
+        # Update-HDTBootImage's rule for this same value - and the box, not the
+        # document, because the box is what a press a moment ago changed.
+        $unattendOpen.Add_Click({
+                $typed = [string] $unattendBox.Text
+                if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                $target = $typed
+                if (-not [System.IO.Path]::IsPathRooted($typed)) {
+                    $target = [System.IO.Path]::Combine([string] $book.View.WorkspaceRoot, $typed)
+                }
+
+                if (-not (Test-Path -LiteralPath $target)) {
+                    $commandText.Text = "there is no answer file at '{0}'. Use template writes one." -f $target
+                    return
+                }
+
+                # NOTEPAD, NOT THE SHELL'S ASSOCIATION. Launching the file was
+                # tried first and this build host opens .xml in Edge - a page
+                # you can read and cannot change, which is the one thing this
+                # button is for. The association for .xml is a browser on most
+                # machines that have ever opened an RSS feed; notepad is on
+                # every one of them and it edits.
+                [void] (Start-Process -FilePath 'notepad.exe' -ArgumentList $target)
+            }.GetNewClosure())
+
+        # FILTERED BY WHAT EACH HALF OF THAT TAB ACCEPTS, which is the one place
+        # a file picker can stop the mistake the page is most likely to see: a
+        # .pfx in the trusted-root list, or a .cer as the machine's identity.
+        # Both commands refuse it too; the dialog tries not to offer it.
+        $certificateBrowse.Add_Click({
+                $dialog = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $dialog.Title = 'Choose a certificate authority to trust'
+                $dialog.Filter = 'Certificates (*.cer;*.crt;*.der)|*.cer;*.crt;*.der|All files (*.*)|*.*'
+
+                if ($dialog.ShowDialog($window)) { $certificateBox.Text = $dialog.FileName }
+            }.GetNewClosure())
+
+        $clientCertificateBrowse.Add_Click({
+                $dialog = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $dialog.Title = "Choose this machine's certificate"
+                $dialog.Filter = 'Certificates with a private key (*.pfx)|*.pfx'
+
+                if ($dialog.ShowDialog($window)) { $clientCertificateBox.Text = $dialog.FileName }
             }.GetNewClosure())
 
         # FILTERED TO JPEG, because WinPE reads \Windows\System32\winpe.jpg and
@@ -1727,6 +2180,13 @@ function New-HDTConsoleHost {
                             -Path ([string] $backgroundBox.Text) -Confirm:$false)
                 }
 
+                if ([string]::IsNullOrWhiteSpace($clientCertificateBox.Text)) {
+                    $book.Line = @(Set-HDTBootImageClientCertificate -Line $book.Line -Clear -Confirm:$false)
+                } else {
+                    $book.Line = @(Set-HDTBootImageClientCertificate -Line $book.Line `
+                            -Path ([string] $clientCertificateBox.Text) -Confirm:$false)
+                }
+
                 if ([string]::IsNullOrWhiteSpace($driverBox.SelectedValue)) {
                     $book.Line = @(Set-HDTBootImageDriver -Line $book.Line -Clear -Confirm:$false)
                 } else {
@@ -1763,6 +2223,13 @@ function New-HDTConsoleHost {
                 } else {
                     [void] $ran.Add($book.View.General.BackgroundCommandFormat -f
                         [string] $book.View.General.Background)
+                }
+
+                if ([string]::IsNullOrWhiteSpace($book.View.ClientCertificate.Path)) {
+                    [void] $ran.Add([string] $book.View.ClientCertificate.ClearCommand)
+                } else {
+                    [void] $ran.Add($book.View.ClientCertificate.ApplyCommandFormat -f
+                        [string] $book.View.ClientCertificate.Path)
                 }
 
                 if ([string]::IsNullOrWhiteSpace($book.View.Driver.Group)) {

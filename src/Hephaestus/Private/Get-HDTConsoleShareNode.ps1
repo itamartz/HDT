@@ -222,7 +222,12 @@ function Get-HDTConsoleShareNode {
     $sequenceFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind TaskSequences
     $sequenceCommand = "Get-HDTWorkspacePath -Root '{0}' -Kind TaskSequences" -f $Workspace.Root
 
+    # NAMED, NOT JUST LABELLED. The text carries a count - 'Task Sequences (5)' -
+    # and the window has to be able to tell this row from the other three
+    # categories to hang New Task Sequence off it. Matching on a label would put
+    # a parser in the window and break the day somebody rewords it.
     $sequenceCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Name 'TaskSequences' `
         -Text ('Task Sequences ({0})' -f @($Workspace.TaskSequence).Count) `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $sequenceFolder

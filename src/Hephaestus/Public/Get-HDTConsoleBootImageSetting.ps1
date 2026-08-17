@@ -45,6 +45,14 @@ function Get-HDTConsoleBootImageSetting {
             An empty list is legal and means the Features tab has no rows -
             which is what a build host with no ADK actually offers.
 
+        .PARAMETER HasCertificatePassword
+            Whether Control\certificate-password.json exists, as
+            Test-HDTBootImageCertificatePassword answers it. INJECTED RATHER
+            THAN READ, like the ADK list and the driver groups - and unlike
+            them, deliberately a BOOLEAN rather than the value: a view model
+            that read the password would hold a private key's password in an
+            object a window binds to.
+
         .PARAMETER DriverGroup
             What Get-HDTDriverGroup returned for this share. An empty list is
             legal and means the only choice is "no drivers" - which is what a
@@ -89,7 +97,10 @@ function Get-HDTConsoleBootImageSetting {
         [Parameter()]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [object[]] $DriverGroup = @()
+        [object[]] $DriverGroup = @(),
+
+        [Parameter()]
+        [bool] $HasCertificatePassword = $false
     )
 
     Set-StrictMode -Version Latest
@@ -202,6 +213,71 @@ function Get-HDTConsoleBootImageSetting {
             })
     }
 
+    # -- the Certificates tab -------------------------------------------------
+    #
+    # TWO LISTS BECAUSE THEY ARE TWO DIFFERENT THINGS, and the Store column is
+    # what says so on the screen: a certificate authority is trusted (Root) and
+    # a machine certificate is presented (My). An administrator looking at a
+    # page with two file boxes on it has to be told why it is not one.
+
+    $certificateRow = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($current in @($bootImage.RootCertificate)) {
+        [void] $certificateRow.Add([pscustomobject] @{
+                Path          = [string] $current
+                Store         = 'Root'
+                RemoveCommand = ("Remove-HDTBootImageCertificate -Line `$line -Path '{0}'" -f [string] $current)
+            })
+    }
+
+    # THE COUNT, BECAUSE THE BOX SHOWS ONE ROW AT A TIME. A PKI is a chain - a
+    # root and the subordinate that actually issued the certificate - and an
+    # image trusting only the root still cannot validate what the issuing CA
+    # signed. A drop-down that has to be opened to find out how many are in it
+    # is a drop-down nobody opens.
+    $certificateSummaryText = 'This image trusts no certificate authorities of its own, which is the ordinary case.'
+
+    if (@($certificateRow).Count -eq 1) {
+        $certificateSummaryText = '1 certificate authority trusted.'
+    } elseif (@($certificateRow).Count -gt 1) {
+        $certificateSummaryText = '{0} certificate authorities trusted - a chain is normally a root and the subordinate that issued from it.' -f
+        @($certificateRow).Count
+    }
+
+    # THE WARNING IS COMPUTED HERE, NOT DRAWN IN THE MARKUP, because it is a
+    # fact about this document: a .pfx named with no password stored is a build
+    # Update-HDTBootImage refuses, and the refusal comes minutes after the press
+    # if the window did not say so first.
+    $clientPath = [string] $bootImage.ClientCertificate
+    $certificateWarning = ''
+
+    if (-not [string]::IsNullOrWhiteSpace($clientPath) -and -not $HasCertificatePassword) {
+        $certificateWarning = 'This certificate has no password stored, and a .pfx will not import without one. Update Boot Image refuses the build until Set password has been used.'
+    }
+
+    $clientCertificate = [pscustomobject] @{
+        Path                  = $clientPath
+        HasPassword           = $HasCertificatePassword
+        Warning               = $certificateWarning
+
+        ApplyCommandFormat    = 'Set-HDTBootImageClientCertificate -Line $line -Path ''{0}'''
+        ClearCommand          = 'Set-HDTBootImageClientCertificate -Line $line -Clear'
+
+        # THE SHARE, AND NOT THE PASSWORD. What the window echoes is the command
+        # an administrator could have typed, and this is the one command in the
+        # console whose second argument must never appear in that box.
+        # THE PROMPT IS Get-Credential's, and a contract test is what decided
+        # that: no file in this module may name the console-reading cmdlet, at
+        # all, because the engine runs where nobody is at the keyboard and a
+        # prompt there is a deployment that hangs until somebody notices.
+        #
+        # THE RULE IS FILE-BLIND AND SO IS ITS SCAN. This view model never runs
+        # in WinPE and the test does not care - and it also matched the COMMENT
+        # that first explained the exception, which is why this one does not
+        # spell the name either.
+        PasswordCommandFormat = 'Set-HDTBootImageCertificatePassword -WorkspaceRoot ''{0}'' -Password (Get-Credential -UserName certificate -Message ''The .pfx password'').Password'
+    }
+
     # -- the General tab, and the calls Save runs ----------------------------
 
     $general = [pscustomobject] @{
@@ -222,6 +298,12 @@ function Get-HDTConsoleBootImageSetting {
 
         UnattendCommandFormat = 'Set-HDTBootImageUnattend -Line $line -Path ''{0}'''
         UnattendClearCommand  = 'Set-HDTBootImageUnattend -Line $line -Clear'
+
+        # THE FILE, NOT THE NAME OF IT. The box beside this takes a path to an
+        # answer file that has to already exist, and a share that has never had
+        # one has nothing to browse to - which left the ordinary case as "go and
+        # write a windowsPE document from Microsoft's schema, by hand".
+        UnattendTemplateCommandFormat = 'New-HDTBootImageUnattend -Workspace ''{0}'''
 
         BackgroundCommandFormat = 'Set-HDTBootImageBackground -Line $line -Path ''{0}'''
         BackgroundClearCommand  = 'Set-HDTBootImageBackground -Line $line -Clear'
@@ -276,6 +358,12 @@ function Get-HDTConsoleBootImageSetting {
         Title                     = 'Windows PE  -  {0}' -f [string] $bootImage.Name
         DocumentPath              = $Path
 
+        # THE SHARE, WHICH IS THE DOCUMENT'S FOLDER. Everything the boot image
+        # names - the answer file, the background, extraContent's sources - is
+        # stored relative to it, and neither a text box nor a file picker hands
+        # a root back. Worked out here so the window resolves nothing.
+        WorkspaceRoot             = [string] (Split-Path -Path $Path -Parent)
+
         General                   = $general
         Component                 = [pscustomobject[]] @($componentRow)
 
@@ -289,6 +377,11 @@ function Get-HDTConsoleBootImageSetting {
         Driver                    = $driver
         Content                   = [pscustomobject[]] @($contentRow)
         StartCommand              = [pscustomobject[]] @($startCommandRow)
+
+        Certificate                 = [pscustomobject[]] @($certificateRow)
+        CertificateSummaryText      = $certificateSummaryText
+        ClientCertificate           = $clientCertificate
+        AddCertificateCommandFormat = 'Add-HDTBootImageCertificate -Line $line -Path ''{0}'''
 
         AddContentCommandFormat   = 'Add-HDTBootImageContent -Line $line -Source ''{0}'' -Destination ''{1}'''
         AddStartCommandFormat     = 'Add-HDTBootImageStartCommand -Line $line -Command ''{0}'''
