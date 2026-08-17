@@ -445,9 +445,9 @@
                             UEFI ONLY. The BIOS boot sector has no quiet
                             variant, so a BIOS ISO prompts either way.
                         -->
-                        <TextBlock Grid.Row="10" Grid.Column="0" Text="Boot prompt"
+                        <TextBlock Grid.Row="9" Grid.Column="0" Text="Boot prompt"
                                    TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,6,8,12" />
-                        <StackPanel Grid.Row="10" Grid.Column="1" Margin="0,0,0,12">
+                        <StackPanel Grid.Row="9" Grid.Column="1" Margin="0,0,0,12">
                             <CheckBox x:Name="HDTBootImagePromptForKeyCheck"
                                       Content="Stop at &quot;Press any key to boot from CD or DVD&quot;"
                                       HorizontalAlignment="Left" />
@@ -558,7 +558,7 @@
                             nothing for a checkbox to call. They are edited in
                             the file until there is one.
                         -->
-                        <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource HDTHintText}"
+                        <TextBlock Grid.Row="10" Grid.Column="1" Style="{StaticResource HDTHintText}"
                                    Margin="0,22,0,0" MaxWidth="560" HorizontalAlignment="Left"
                                    Text="The Welcome screen's Skip settings live in workspace.yaml under bootImage.skip and are not on this window: no command sets them yet, and a control with nothing behind it is worse than none." />
                     </Grid>
