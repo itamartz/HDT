@@ -584,6 +584,50 @@ Describe 'Start-HDTDeployment.ps1' {
             $script:text | Should -BeLike '*wpeutil*'
         }
 
+        It 'does not power the machine off when the technician asked for a prompt' {
+            # THE DEFECT THIS ASSERTION EXISTS FOR, found on a real VM: pressing
+            # Open CMD in the wizard opened a prompt, threw
+            # HDTDeploymentCancelled, was reported as a FATAL exception in the
+            # parent console, and then wpeutil shut the machine down five
+            # seconds later - taking the prompt with it. The one button whose
+            # entire purpose is debugging a machine ended the machine.
+            #
+            # THE POWER LINE MUST THEREFORE BE CONDITIONAL. Asserted on the AST
+            # rather than the text, because 'the last line is guarded' is the
+            # property, not any particular spelling of the guard.
+            $power = @(& $script:commandNamed 'wpeutil.exe') + @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.Extent.Text -like '*wpeutil*'
+                    }, $true))
+
+            $power | Should -Not -BeNullOrEmpty
+
+            $guarded = $false
+            foreach ($call in $power) {
+                $walk = $call.Parent
+                while ($null -ne $walk) {
+                    if ($walk -is [System.Management.Automation.Language.IfStatementAst]) { $guarded = $true; break }
+                    $walk = $walk.Parent
+                }
+            }
+
+            $guarded | Should -BeTrue -Because 'a machine left at a command prompt must not be powered off under the technician'
+        }
+
+        It 'records that it left the technician at a prompt' {
+            # RESULT.json is the evidence file, and "why is this machine still
+            # on?" is exactly the question it should answer.
+            $script:text | Should -BeLike '*leftAtCommandPrompt*'
+        }
+
+        It 'reports a cancel as cancelled rather than as a failure' {
+            # A technician who pressed Open CMD or Cancel did not suffer a
+            # fault, and a red FATAL over a deliberate choice teaches everyone
+            # reading the console to ignore red.
+            $script:codeOnly | Should -Match 'Cancelled'
+        }
+
         It 'reboots on RebootPending and shuts down otherwise' {
             $script:codeOnly | Should -Match 'reboot'
             $script:codeOnly | Should -Match 'shutdown'

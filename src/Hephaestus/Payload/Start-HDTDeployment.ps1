@@ -216,6 +216,11 @@ $result = [ordered] @{
     logDestination     = ''
     endedWith          = ''
 
+    # THE ONE FIELD THAT STOPS THIS SCRIPT POWERING THE MACHINE OFF. A
+    # technician who pressed Open CMD is standing in front of the machine with
+    # something to look at, and the tail must leave it running for them.
+    leftAtCommandPrompt = $false
+
     # SET BY startnet.cmd (05-04) AND BY NOTHING ELSE. A human typing this
     # command at the prompt does not set it, so 05-05 reads this one field to
     # prove the deployment started itself.
@@ -339,6 +344,12 @@ try {
         if ($answer.Action -eq 'CommandPrompt') {
             $prompt = Start-HDTCommandPrompt
             & $say ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
+
+            # AND THE MACHINE STAYS ON. Recorded on $result rather than in a
+            # variable because the tail reads $result and nothing else, and
+            # because "why is this machine still running?" is a question
+            # RESULT.json should answer.
+            $result['leftAtCommandPrompt'] = $true
 
             return [pscustomobject] @{ Retry = $false }
         }
@@ -667,6 +678,14 @@ try {
                     $prompt = Start-HDTCommandPrompt
                     & $say ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
 
+                    # THE MACHINE STAYS ON, and this is the field that keeps it
+                    # on. A VM run found the whole point of this button undone
+                    # by the tail: the prompt opened, the throw below was
+                    # reported as a FATAL exception in the parent console, and
+                    # wpeutil powered the machine off five seconds later - with
+                    # the technician's prompt on it.
+                    $result['leftAtCommandPrompt'] = $true
+
                     throw 'HDTDeploymentCancelled: the technician asked for a command prompt instead of a deployment.'
                 }
 
@@ -792,11 +811,23 @@ try {
         }
     }
 } catch {
-    $result['status'] = 'Failed'
     $result['message'] = [string] $_.Exception.Message
 
-    & $say ("FATAL: {0}" -f $_.Exception.Message) 'Error'
-    & $say ([string] ($_ | Out-String)) 'Debug'
+    # A CHOICE IS NOT A FAULT. Cancel and Open CMD both leave through this
+    # catch, because a throw is how this script stops - but a technician who
+    # pressed a button did not suffer a failure, and a red FATAL over a
+    # deliberate choice is how everybody learns to ignore red. The prefix is
+    # the one every deliberate stop in this file already carries.
+    if ([string] $_.Exception.Message -like 'HDTDeploymentCancelled*') {
+        $result['status'] = 'Cancelled'
+
+        & $say ([string] $_.Exception.Message) 'Warning'
+    } else {
+        $result['status'] = 'Failed'
+
+        & $say ("FATAL: {0}" -f $_.Exception.Message) 'Error'
+        & $say ([string] ($_ | Out-String)) 'Debug'
+    }
 }
 
 # -- 13. the tail: evidence, then the power state ----------------------------
@@ -828,6 +859,22 @@ if ([string] $result['status'] -eq 'RebootPending') {
     $ending = 'reboot'
 }
 $result['endedWith'] = 'wpeutil {0}' -f $ending
+
+# EXCEPT WHEN A TECHNICIAN IS STANDING AT A PROMPT ON THIS MACHINE. Open CMD
+# exists to debug a machine that is behaving badly, and a run that opened the
+# prompt and then powered the machine off five seconds later gave the technician
+# nothing at all - which is what a real VM run did. This script simply ends
+# instead: startnet.cmd's own console is still there, and so is the prompt that
+# was asked for.
+#
+# $ending IS NOT CLEARED TO SAY SO. Its two values are compared against
+# Get-HDTPowerCommand's by a test that exists to stop this duplicate going
+# stale, and a third value would be a third thing to keep in step. The verb
+# stays what the machine WOULD have done; whether it does it is the guard at
+# the end of this file.
+if ([bool] $result['leftAtCommandPrompt']) {
+    $result['endedWith'] = 'nothing - the technician was left at a command prompt'
+}
 
 # UTF-8 WITHOUT A BOM, EXPLICITLY. SPIKES S6's third finding: the default under
 # 5.1 is UTF-16, which half the tooling cannot read.
@@ -899,11 +946,15 @@ if ($null -ne $content) {
 Write-Information ("HDT run {0} ended {1} in {2}s; {3}" -f
     $runId, $result['status'], $result['elapsedSecond'], $result['endedWith'])
 
-Start-Sleep -Seconds 5
-
 # HOW THIS MACHINE ENDS, IN EVERY PATH INCLUDING THE ONES WHERE IT FAILED BEFORE
 # IT STARTED. RebootPending means the deployment wants the machine back; anything
-# else means it is finished with it.
-& "$env:SystemRoot\System32\wpeutil.exe" $ending
+# else means it is finished with it - UNLESS somebody asked for a command
+# prompt, in which case the machine is theirs and this script is finished with
+# it rather than the other way round.
+if (-not [bool] $result['leftAtCommandPrompt']) {
+    Start-Sleep -Seconds 5
+
+    & "$env:SystemRoot\System32\wpeutil.exe" $ending
+}
 
 exit 0
