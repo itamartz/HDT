@@ -36,10 +36,20 @@ function Get-HDTWizardComputerName {
             who finds out - so they find out while looking at the box rather
             than after answering every remaining question.
 
-            NOTHING IS EVER REPAIRED. A wizard that quietly trimmed a name to
-            fifteen characters would deploy a machine called something nobody
-            chose, and the log would say it was asked for. The name is shown as
-            it is, and the reason it cannot be used is shown beside it.
+            FIFTEEN CHARACTERS, WHATEVER IT CAME FROM, AND THE CUT IS SAID
+            OUT LOUD. A real VM is why: the lab rule builds
+            PC-%HDTSerialNumber% and that machine's serial is a 32-character
+            UUID, so the box opened holding a 35-character name in a control
+            whose own MaxLength is 15 - because MaxLength governs TYPING and a
+            prefilled value walks straight past it. The technician was left
+            holding a name that cannot be used with no clue which part to
+            delete.
+
+            So it is cut, and the name BEFORE the cut goes into the reason: a
+            silent trim would deploy a machine under a name nobody chose and
+            nothing recorded. What is never done is repair of any other kind -
+            an illegal character or a name that is not DNS-safe is reported and
+            left exactly as it is.
 
         .PARAMETER Variable
             The resolved variables. HDTComputerName and HDTSerialNumber are read
@@ -101,6 +111,7 @@ function Get-HDTWizardComputerName {
 
     $value = ''
     $source = 'None'
+    $untrimmed = ''
 
     # -- 1. what the rules said ---------------------------------------------
 
@@ -147,6 +158,23 @@ function Get-HDTWizardComputerName {
         }
     }
 
+    # -- fifteen characters, whatever it came from --------------------------
+    #
+    # A REAL MACHINE IS WHY THIS EXISTS. The lab's rule builds
+    # PC-%HDTSerialNumber% and the VM's serial is a 32-character UUID, so the
+    # box opened holding PC-2333-7717-4451-0293-3355-6067-32 - thirty-five
+    # characters in a control whose own MaxLength is 15. MaxLength only governs
+    # TYPING; a prefilled value walks straight past it, and the technician is
+    # left holding a name that cannot be used and no clue which part to delete.
+    #
+    # AND IT IS SAID OUT LOUD. Cutting silently would deploy a machine under a
+    # name nobody chose and nothing recorded, so the name before the cut goes
+    # into the reason, onto the log and onto the summary.
+    if ($value.Length -gt 15) {
+        $untrimmed = $value
+        $value = $value.Substring(0, 15)
+    }
+
     # -- the verdict, on whatever is in the box now -------------------------
 
     $severity = 'None'
@@ -157,6 +185,14 @@ function Get-HDTWizardComputerName {
 
         $severity = [string] $verdict.Severity
         $reason = [string] $verdict.Reason
+    }
+
+    # THE CUT OUTRANKS A DNS WARNING and never a hard refusal: a name that was
+    # too long AND carries an illegal character still has to say so.
+    if (-not [string]::IsNullOrWhiteSpace($untrimmed) -and $severity -ne 'Error') {
+        $severity = 'Warning'
+        $reason = ("'{0}' is {1} characters and a computer name may be 15, so it was cut to '{2}'. Check it before deploying." -f
+            $untrimmed, $untrimmed.Length, $value)
     }
 
     return [pscustomobject] @{

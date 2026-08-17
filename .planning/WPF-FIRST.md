@@ -37,10 +37,58 @@ four are done:
 |---|---|---|---|
 | **W1** | a window, a title, Next/Cancel | `Show-HDTWizard` | WPF renders in WinPE at all, and `startnet.cmd` can launch it |
 | **W2** | deployment share + credentials: **UserID, UserPassword, UserDomain** | `Get-HDTWizardCredential` | MDT's Bootstrap.ini quartet, prefilled from `bootstrap.json`, validated by actually connecting |
-| **W3** | task sequence picker | `Get-HDTWizardSequence` | reads `TaskSequences\` off the share and sets `HDTTaskSequenceID` |
-| **W4** | computer name | `Get-HDTWizardComputerName` | prefilled from the rules, with the 15-character NetBIOS refusal visible |
-| **W5** | summary, and a Deploy button | `Start-HDTWizardDeployment` | the wizard hands the engine a resolved variable set |
-| **W6** | progress: current step, N of M, elapsed | `Write-HDTStatus` -> the window | replaces console output during the sequence |
+| **W3** (built) | task sequence picker | `Get-HDTWizardSequence` | reads `TaskSequences\` off the share and sets `HDTTaskSequenceID` |
+| **W4** (built) | computer name | `Get-HDTWizardComputerName` | prefilled from the rules, with the 15-character NetBIOS refusal visible |
+| **W5** (built) | summary, and a Deploy button | `Start-HDTWizardDeployment` | the wizard hands the engine a resolved variable set |
+| **W6** (built) | progress: current step, N of M, elapsed | the progress window, below | replaces console output during the sequence |
+
+### What each increment turned out to be
+
+**W3.** The picker was `<ListBoxItem>`s typed into `Scripts\UI\TaskSequence.xaml`
+by hand, and the file said so in its own comment. A lab share holding eight
+sequences offered one. `Get-HDTWizardSequence` reads the folder now; the page
+carries no rows at all, only `SelectedValuePath="Id"` and
+`DisplayMemberPath="Text"`.
+
+Two things it cost, both found by running it rather than by reading it:
+
+- **The folder is the id, not the document's `id:` field.** The lab's `001`
+  sequence declares `id: 001`, which YAML reads as the NUMBER 1 - so a picker
+  trusting the document offers `1`, and the deployment then looks for
+  `TaskSequences\1\sequence.yaml`, which is not there. `HDTTaskSequenceID` names
+  a folder.
+- **A page written before W3 must not stop the wizard opening.** WPF throws
+  "Items collection must be empty before using ItemsSource" when a `ListBox`
+  carries inline rows - which every page on every existing share does. The host
+  clears them first, so a share nobody has updated still gets a wizard rather
+  than a black screen in WinPE.
+
+**W4.** The convention stays in `rules.yaml`: `Add-HDTRule`'s own examples are
+`PC-%HDTSerialNumber%` and `LT-%HDTSerialNumber%`, which is how an MDT site has
+always named machines. The command shows what resolved and falls back to the
+serial cut to fifteen, then to the name the machine already answers to (never
+`MINWINPC`, which is what WinPE calls itself), then to an empty box. The verdict
+comes from the same `Test-HDTComputerName` the page validates with, so a rule
+that built a sixteen-character name is visible before Next rather than after
+every remaining question.
+
+**W5.** The Deploy caption already existed - `Step-HDTWizardPage` captions the
+last page's Next as Deploy, MDT's Finish. What was missing was the handoff, and
+it was sitting in the entry point: the allow-list, the second resolution that
+gives a typed value its provenance, and the engine's case-insensitive bag.
+`Start-HDTWizardDeployment` owns all three, and the payload switches on its
+answer.
+
+**W6 arrived by a different route, and its backend is not `Write-HDTStatus`.**
+That command writes `status.json`, the heartbeat a console tails. The progress
+SCREEN is DESIGN 11.1's, driven by the JSONL event stream rather than by a
+status file or a progress API: `Get-HDTDeploymentProgress` derives what to show,
+`New-HDTProgressHost` draws it, `Update-HDTProgressDisplay` is the subscription,
+and `Format-HDTProgressLine` is the console fallback for an image that cannot
+draw a window. One source of truth means the screen and the log cannot disagree,
+which a second progress API would have broken. A step long enough to need its
+own bar reports `step.progress` on that same stream - an apply is nine minutes
+of a single step.
 
 W1 is deliberately almost nothing. Its whole job is to fail fast if WPF does not
 render in this WinPE build, before any wizard logic exists to throw away.

@@ -56,15 +56,15 @@ Describe 'Get-HDTWizardComputerName' {
             [string] $answer.Reason | Should -BeNullOrEmpty
         }
 
-        It 'shows the refusal for a name the rules produced that is too long' {
-            # THE ONE W4 NAMES. A rule that builds PC-%HDTSerialNumber% out of a
-            # long serial produces a name nothing can use, and the technician is
-            # the person who finds out - so they find out while looking at it
-            # rather than after pressing Next.
+        It 'cuts a name the rules produced that is too long' {
+            # A REAL VM IS WHY. The lab rule builds PC-%HDTSerialNumber% and
+            # that machine's serial is a 32-character UUID, so the box opened
+            # holding 35 characters in a control whose own MaxLength is 15 -
+            # MaxLength governs typing, and a prefill walks past it.
             $answer = Get-HDTWizardComputerName -Variable (& $script:bag ([ordered] @{ HDTComputerName = 'PC-ABCDEFGHIJKLMNOP' }))
 
-            [string] $answer.Severity | Should -BeExactly 'Error'
-            [string] $answer.Reason | Should -BeLike '*15*'
+            [string] $answer.Value | Should -BeExactly 'PC-ABCDEFGHIJKL'
+            [string] $answer.Value.Length | Should -Be 15
         }
 
         It 'shows the warning for a name that is legal but not DNS-safe' {
@@ -74,12 +74,23 @@ Describe 'Get-HDTWizardComputerName' {
             [string] $answer.Reason | Should -Not -BeNullOrEmpty
         }
 
-        It 'never repairs the name it was given' {
-            # A wizard that silently trimmed a name would deploy a machine
-            # called something nobody chose.
+        It 'says what the name was before it was cut' {
+            # CUTTING SILENTLY WOULD DEPLOY A MACHINE UNDER A NAME NOBODY CHOSE
+            # and nothing recorded. The name before the cut is in the reason,
+            # which reaches the log and the summary.
             $answer = Get-HDTWizardComputerName -Variable (& $script:bag ([ordered] @{ HDTComputerName = 'PC-ABCDEFGHIJKLMNOP' }))
 
-            [string] $answer.Value | Should -BeExactly 'PC-ABCDEFGHIJKLMNOP'
+            [string] $answer.Severity | Should -BeExactly 'Warning'
+            [string] $answer.Reason | Should -BeLike '*PC-ABCDEFGHIJKLMNOP*'
+            [string] $answer.Reason | Should -BeLike '*15*'
+        }
+
+        It 'still refuses a name that is illegal rather than calling it a cut' {
+            # A name with a forbidden character is an Error whether or not it
+            # was also too long, and the hard refusal outranks the trim note.
+            $answer = Get-HDTWizardComputerName -Variable (& $script:bag ([ordered] @{ HDTComputerName = 'LAB*01' }))
+
+            [string] $answer.Severity | Should -BeExactly 'Error'
         }
     }
 
