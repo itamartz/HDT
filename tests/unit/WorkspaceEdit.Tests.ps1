@@ -1,4 +1,4 @@
-# Authoring workspace.yaml from a command, the way rules.yaml and sequence.yaml
+﻿# Authoring workspace.yaml from a command, the way rules.yaml and sequence.yaml
 # are authored.
 #
 # WORKSPACE.YAML IS HAND-EDITED FROM THE DAY IT IS WRITTEN. New-HDTWorkspace
@@ -799,6 +799,7 @@ Describe 'Save-HDTWorkspaceDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -815,6 +816,7 @@ Describe 'Save-HDTWorkspaceDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -828,6 +830,7 @@ Describe 'Save-HDTWorkspaceDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -843,6 +846,7 @@ Describe 'Save-HDTWorkspaceDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $lf }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -857,6 +861,7 @@ Describe 'Save-HDTWorkspaceDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -1097,6 +1102,7 @@ Describe 'the workspace commands against the workspace.yaml the toolkit itself w
             $fake = New-HDTFakeFileSystem -File @{ $script:share.Path = $script:written }
             $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
                 param([string] $Path, [string] $Text)
+                $script:capturedPath = $Path
                 $script:captured = $Text
             }
 
@@ -1124,6 +1130,7 @@ Describe 'the workspace commands against the workspace.yaml the toolkit itself w
             $fake = New-HDTFakeFileSystem -File @{ $script:share.Path = $script:written }
             $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
                 param([string] $Path, [string] $Text)
+                $script:capturedPath = $Path
                 $script:captured = $Text
             }
 

@@ -1,4 +1,4 @@
-# Authoring rules.yaml from a command, the way sequence.yaml is authored.
+﻿# Authoring rules.yaml from a command, the way sequence.yaml is authored.
 #
 # RULES.YAML IS HAND-EDITED FROM THE DAY IT IS WRITTEN. New-HDTWorkspace creates
 # it with a comment header carrying a worked conditional example, and an
@@ -438,6 +438,7 @@ Describe 'Save-HDTRuleDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -454,6 +455,7 @@ Describe 'Save-HDTRuleDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -467,6 +469,7 @@ Describe 'Save-HDTRuleDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -482,6 +485,7 @@ Describe 'Save-HDTRuleDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $lf }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -495,6 +499,7 @@ Describe 'Save-HDTRuleDocument (<Style>)' -ForEach $script:style {
         $fake = New-HDTFakeFileSystem -File @{ $script:path = $Text }
         $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
             param([string] $Path, [string] $Text)
+            $script:capturedPath = $Path
             $script:captured = $Text
         }
 
@@ -688,6 +693,7 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
             $fake = New-HDTFakeFileSystem -File @{ $script:share.RulePath = $script:written }
             $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
                 param([string] $Path, [string] $Text)
+                $script:capturedPath = $Path
                 $script:captured = $Text
             }
 
@@ -708,6 +714,7 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
             $fake = New-HDTFakeFileSystem -File @{ $script:share.RulePath = $script:written }
             $fake | Add-Member -MemberType ScriptMethod -Name WriteAllText -Force -Value {
                 param([string] $Path, [string] $Text)
+                $script:capturedPath = $Path
                 $script:captured = $Text
             }
 

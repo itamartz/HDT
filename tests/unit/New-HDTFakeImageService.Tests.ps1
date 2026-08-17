@@ -264,7 +264,10 @@ Describe 'the apply that talks back' {
     It 'records the same three arguments whether or not a callback was given' {
         $image = New-HDTFakeImageService -ApplyOutput $script:meter
 
-        $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) })
+        # THE CALLBACK TAKES A LINE AND DOES NOTHING WITH IT, which is the point
+        # of this test - but a parameter declared and never read is an analyzer
+        # warning, so it is discarded out loud.
+        $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) [void] $Text })
 
         @($image.Operations[0].Arguments) | Should -Be @('Z:\install.wim', 1, 'W:\')
     }

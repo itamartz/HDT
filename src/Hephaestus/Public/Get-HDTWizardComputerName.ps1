@@ -1,4 +1,4 @@
-function Get-HDTWizardComputerName {
+﻿function Get-HDTWizardComputerName {
     <#
         .SYNOPSIS
             What the computer name box should say before the technician types,
@@ -82,6 +82,10 @@ function Get-HDTWizardComputerName {
             by name like every other.
     #>
     [CmdletBinding()]
+    # $Variable is read inside the $read closure below, which the analyzer does
+    # not follow - the same suppression Start-HDTDeployment.ps1 carries.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
+        Justification = 'Used inside a closure, which PSReviewUnusedParameter does not follow.')]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Position = 0)]
