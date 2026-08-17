@@ -1677,3 +1677,90 @@ rd /s /q C:\HDTLab\scratch\HDT-dism-fixture
 
 No VM was created, started or removed. Everything written went to
 `C:\HDTLab\scratch\`, into directories this work created.
+
+
+## S17 — Open CMD shut the machine down, and elevation is not the privilege ✅⚠
+
+Run on 2026-08-17 against `HDT-Wizard-01` (Generation 2, `HDT External`,
+`C:\HDTLab\vms`) booting a freshly built `HDTPE_wiz_x64.iso`. Everything here
+was observed on the VM or on the build host, not reasoned about.
+
+### ⚠ The one button for debugging a machine ended the machine
+
+Pressing **Open CMD** on the Welcome screen opened a prompt, and then:
+
+1. the payload threw `HDTDeploymentCancelled` - which is how it deliberately
+   stops - and the catch classified every throw as `Failed`, printing `FATAL`
+   plus an `Out-String` of the whole error record into the parent console;
+2. the tail slept five seconds and ran `wpeutil shutdown`.
+
+So the technician got a command prompt for five seconds and then a powered-off
+machine. Fixed by `$result['leftAtCommandPrompt']`, set at both request sites
+and guarding the `wpeutil` call; a `HDTDeploymentCancelled*` message now reports
+`Cancelled` and one Warning line. `$ending` still holds only `shutdown` or
+`reboot`, because a test pins its two values against `Get-HDTPowerCommand`.
+
+Verified after the rebuild: prompt at `X:\Windows\System32>`, VM still Running
+minutes later, and `X:\HDT\RESULT.json` reading
+
+    Cancelled
+    nothing - the technician was left at a command prompt
+    True
+
+### ⚠ SeTakeOwnershipPrivilege is DISABLED in an elevated token
+
+`Update-HDTBootImage` could not brand a clean mount:
+
+    the WinPE background could not be written over
+    '...\mount\Windows\System32\winpe.jpg': Exception calling "TakeOwnership"...
+    "Attempted to perform an unauthorized operation."
+
+The build was fully elevated - `IsInRole(Administrator)` was `True` in the
+process AND in the child. `whoami /priv` is what told the truth:
+
+    SeTakeOwnershipPrivilege    Take ownership of files or other objects    Disabled
+
+The privilege is in the token and switched off, and .NET's `SetAccessControl`
+never enables it. **An "unauthorized operation" from SetOwner therefore reads
+exactly like "run as administrator" while already being administrator.**
+`takeown.exe` enables the privilege itself, which is the entire reason the tool
+exists; `IFileSystem.TakeOwnership` now runs `takeown.exe` then `icacls.exe`
+with an exit-code check apiece. The rebuild that followed took 244 s and wrote
+both artifacts.
+
+Ownership goes to the **caller**, not to Administrators: `takeown /A` needs
+`SeRestorePrivilege` as well - a second privilege to be defeated by - and owning
+the file is enough to grant the rest. The grant names `*S-1-5-32-544`, because
+`BUILTIN\Administrators` is a localised name icacls resolves against the host.
+
+### ✅ BGInfo works in WinPE, and the wizard is what hides it
+
+The image's `startCommand` runs
+`Bginfo64.exe "X:\Tools\Bginfo\WinPE.bgi" /timer:0 /silent /nolicprompt`, and it
+does paint: the captured screen shows
+`DHCP Server: 192.168.2.1 | IP Address: 192.168.2.30 | MAC Address: 00-15-5D-86-01-29`
+and `Model: Virtual Machine` along the bottom.
+
+It is invisible during a deployment because **BGInfo paints the desktop
+wallpaper** and DESIGN 11.1's wizard and progress window are full-screen. It
+shows around and behind windows, and only where the `.bgi` positions it - the
+lab's config puts it at the bottom.
+
+A `.bgi` records the host's own wallpaper path in a `Wallpaper` entry
+(`...\DisplayFusion\WallpaperGenerated_1_Full.png` on this host, a file WinPE
+does not have). **That is not what makes it fail, and it did not fail** - the
+entry is BGInfo's record of the machine the config was saved on. It was worth
+half an hour of a wrong theory; the screenshot settled it in one frame.
+
+### ⚠ The suite cannot be gated from a git worktree
+
+`git worktree add` plus `./build.ps1 test` reports three failures that are not
+defects: `ProtectedPath.Contract` does a `Substring` on the repository root, and
+two `ConsoleTreeNode` cases read the workspace by its canonical path. All three
+pass in the repository itself. Gate in the repository, not in a copy of it.
+
+### Lab safety
+
+`HDT-Wizard-01` was started and left running with its prompt open. No VM was
+created or removed, and nothing outside `C:\HDTLab\Share\Boot` and
+`C:\HDTLab\scratch\bootimage` was written.
