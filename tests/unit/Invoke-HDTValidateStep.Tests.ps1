@@ -335,3 +335,84 @@ Describe 'Get-HDTValidateStepDescription' {
         Get-HDTValidateStepDescription -Step $step | Should -Not -BeNullOrEmpty
     }
 }
+
+Describe 'the TPM check' {
+
+    # WINDOWS 11 REQUIRES TPM 2.0, and a machine without one gets all the way
+    # through partitioning and imaging before Setup says so - on a disk that has
+    # already been wiped. Checking it in the pre-flight costs nothing and is the
+    # difference between a refusal and a rebuild.
+    #
+    # HDTTPMVersion IS ALREADY GATHERED: Win32_Tpm.SpecVersion's first component,
+    # or null where there is no TPM or it cannot be read.
+
+    BeforeEach {
+        $script:journal = [System.Collections.ArrayList]::new()
+        $script:fileSystem = New-HDTFakeFileSystem
+        $script:clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 17, 0, 0, 0, [System.DateTimeKind]::Utc))
+        $script:disk = New-HDTFakeDiskService -Disk @($script:targetDisk)
+        $script:image = New-HDTFakeImageService
+
+        $script:tpmContextFor = {
+            param([object] $Value)
+
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
+                -Disk $script:disk -Image $script:image
+
+            $log = New-HDTLogContext -RunId 'run-0002' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTMemory'] = 4096
+            $live['HDTIsUEFI'] = $true
+            $live['HDTTPMVersion'] = $Value
+
+            return (New-HDTExecutionContext -RunId 'run-0002' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                    -Variable $live -Service $catalog -Log $log)
+        }
+    }
+
+    It 'passes a machine whose TPM meets the minimum' {
+        $context = & $script:tpmContextFor '2.0'
+        $step = & $script:newStep ([ordered] @{ minTpmVersion = '2.0' })
+
+        (Invoke-HDTValidateStep -Step $step -Context $context).Status | Should -BeExactly 'Completed'
+    }
+
+    It 'refuses a machine whose TPM is older than the minimum' {
+        $context = & $script:tpmContextFor '1.2'
+        $step = & $script:newStep ([ordered] @{ minTpmVersion = '2.0' })
+
+        $result = Invoke-HDTValidateStep -Step $step -Context $context
+
+        $result.Status | Should -BeExactly 'Failed'
+        $result.Message | Should -BeLike '*1.2*'
+        $result.Message | Should -BeLike '*2.0*'
+    }
+
+    It 'refuses a machine with no TPM at all, and says so rather than comparing nothing' {
+        $context = & $script:tpmContextFor $null
+        $step = & $script:newStep ([ordered] @{ minTpmVersion = '2.0' })
+
+        $result = Invoke-HDTValidateStep -Step $step -Context $context
+
+        $result.Status | Should -BeExactly 'Failed'
+        $result.Message | Should -BeLike '*no TPM*'
+    }
+
+    It 'checks nothing when the step does not ask' {
+        # EVERY CHECK IS OPT-IN. A Validate step that says nothing about the TPM
+        # must not start refusing machines that deployed yesterday.
+        $context = & $script:tpmContextFor $null
+        $step = & $script:newStep ([ordered] @{ minRamMB = 2048 })
+
+        (Invoke-HDTValidateStep -Step $step -Context $context).Status | Should -BeExactly 'Completed'
+    }
+
+    It 'refuses a version it cannot read rather than passing it' {
+        $context = & $script:tpmContextFor 'not a version'
+        $step = & $script:newStep ([ordered] @{ minTpmVersion = '2.0' })
+
+        (Invoke-HDTValidateStep -Step $step -Context $context).Status | Should -BeExactly 'Failed'
+    }
+}

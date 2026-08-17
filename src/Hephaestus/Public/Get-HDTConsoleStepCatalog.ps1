@@ -94,7 +94,22 @@ function Get-HDTConsoleStepCatalog {
         'Restart'       = @{ Text = 'Restart Computer'; Category = 'General'; Order = 5 }
         'NoOp'          = @{ Text = 'Do Nothing'; Category = 'General'; Order = 6 }
         'InstallApplications' = @{ Text = 'Install Applications'; Category = 'General'; Order = 7 }
-        'DiskPartition' = @{ Text = 'Format and Partition Disk'; Category = 'Disks'; Order = 1 }
+        # TWO ENTRIES FOR ONE TYPE, AS MDT'S OWN SEQUENCE HAS. Its Standard
+        # Client task sequence carries "Format and Partition Disk (BIOS)" and
+        # "(UEFI)", each conditioned on the firmware, because the two disks are
+        # laid out differently and one sequence has to deploy to both kinds of
+        # machine. Offering one and leaving the author to add the condition is
+        # how a sequence comes to lay a GPT disk out on a BIOS machine.
+        #
+        # Variant is what the template is called with; a type without one is
+        # offered once, exactly as before.
+        'DiskPartition' = @{
+            Text = 'Format and Partition Disk'; Category = 'Disks'; Order = 1
+            Variant = @(
+                @{ Suffix = ' (UEFI)'; Argument = @{ Firmware = 'UEFI' } }
+                @{ Suffix = ' (BIOS)'; Argument = @{ Firmware = 'BIOS' } }
+            )
+        }
         'ApplyImage'    = @{ Text = 'Apply Operating System'; Category = 'Images'; Order = 1 }
         'ApplyUnattend' = @{ Text = 'Apply Windows Settings'; Category = 'Images'; Order = 2 }
         'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 3 }
@@ -125,33 +140,58 @@ function Get-HDTConsoleStepCatalog {
         $category = 'Custom'
         $order = 0
 
+        # ONE VARIANT BY DEFAULT, WHICH IS THE TYPE ITSELF. A type that needs
+        # more than one menu item says so in the table above; everything else
+        # goes round this loop once and is unchanged by the existence of the
+        # mechanism.
+        $variant = @(@{ Suffix = ''; Argument = @{} })
+
         if ($known.ContainsKey($name)) {
             $text = [string] $known[$name].Text
             $category = [string] $known[$name].Category
             $order = [int] $known[$name].Order
+
+            if ($known[$name].ContainsKey('Variant')) { $variant = @($known[$name].Variant) }
         }
 
-        # The display name goes to the template as -Name, so the label an
-        # administrator picked and the name written into the file are the same
-        # string. The type keeps its own default for anything not in the table
-        # above, which is the vendor's wording rather than ours.
-        $block = [string[]] @(& $template -Name $text)
+        $offset = 0
 
-        [void] $entry.Add([pscustomobject] @{
-                Text     = $text
-                Type     = $name
-                Kind     = 'Step'
-                Source   = [string] $type.Source
-                Category = $category
-                Order    = $order
-                Command  = ("Add-HDTStep -Line `$line -After '<the selected step>' -Name '{0}' -Type {1}" -f $text, $name)
+        foreach ($current in $variant) {
+            $offset++
 
-                # The lines the menu item actually splices in, straight from the
-                # step type. Every item carries one, group and step alike, so the
-                # handler behind the menu calls Add-HDTStep -Block and
-                # never has to choose a parameter set.
-                Block    = $block
-            })
+            $label = '{0}{1}' -f $text, [string] $current.Suffix
+            $argument = @{}
+            foreach ($key in @($current.Argument.Keys)) { $argument[$key] = $current.Argument[$key] }
+
+            # The display name goes to the template as -Name, so the label an
+            # administrator picked and the name written into the file are the
+            # same string. The type keeps its own default for anything not in
+            # the table above, which is the vendor's wording rather than ours.
+            $block = [string[]] @(& $template -Name $label @argument)
+
+            [void] $entry.Add([pscustomobject] @{
+                    Text     = $label
+                    Type     = $name
+                    Kind     = 'Step'
+                    Source   = [string] $type.Source
+
+                    Category = $category
+
+                    # Variants keep their declared order among themselves rather
+                    # than sorting alphabetically, so (UEFI) stays above (BIOS):
+                    # the list is read top to bottom by somebody choosing, and
+                    # the common answer belongs first.
+                    Order    = ($order * 100) + $offset
+
+                    Command  = ("Add-HDTStep -Line `$line -After '<the selected step>' -Name '{0}' -Type {1}" -f $label, $name)
+
+                    # The lines the menu item actually splices in, straight from
+                    # the step type. Every item carries one, group and step
+                    # alike, so the handler behind the menu calls Add-HDTStep
+                    # -Block and never has to choose a parameter set.
+                    Block    = $block
+                })
+        }
     }
 
     $result = New-Object -TypeName System.Collections.ArrayList

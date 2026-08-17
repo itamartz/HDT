@@ -131,10 +131,33 @@ Describe 'Get-HDTConsoleStepCatalog' {
             # the ten types the engine ships.
             @($known).Count | Should -BeGreaterOrEqual 10
 
+            # DISTINCT, BECAUSE A TYPE MAY BE OFFERED MORE THAN ONCE. MDT's own
+            # sequence carries two Format and Partition Disk steps - one per
+            # firmware - so the menu does too. What must not happen is a type on
+            # the menu that the engine does not have, or one it has that the
+            # menu does not offer; both are still asserted.
             $offered = @($script:item | Where-Object { $_.Kind -eq 'Step' } |
-                    ForEach-Object { $_.Type } | Sort-Object)
+                    ForEach-Object { $_.Type } | Sort-Object -Unique)
 
             $offered | Should -Be $known
+        }
+
+        It 'offers the firmware pair MDT ships, and both write a real layout' {
+            $disk = @($script:item | Where-Object { $_.Type -eq 'DiskPartition' })
+
+            @($disk).Count | Should -Be 2
+            @($disk | ForEach-Object { $_.Text }) |
+                Should -Be @('Format and Partition Disk (UEFI)', 'Format and Partition Disk (BIOS)')
+
+            # THE UEFI ONE IS FIRST. The list is read top to bottom by somebody
+            # choosing, and a machine bought this decade is UEFI.
+            foreach ($one in $disk) {
+                $layout = @($one.Block | Where-Object { $_ -match '^\s*layout:' })
+                @($layout).Count | Should -Be 1
+
+                { Get-HDTDiskLayout -Name ([string] ($layout[0] -replace '^\s*layout:\s*', '')) } |
+                    Should -Not -Throw
+            }
         }
 
         It 'offers them to a session that ran nothing but the one import' {
@@ -160,7 +183,10 @@ Describe 'Get-HDTConsoleStepCatalog' {
             foreach ($entry in $script:item) { if ($entry.Kind -eq 'Step') { $byType[$entry.Type] = $entry } }
 
             $byType['ApplyImage'].Text | Should -BeExactly 'Apply Operating System'
-            $byType['DiskPartition'].Text | Should -BeExactly 'Format and Partition Disk'
+
+            # DiskPartition is offered twice, so the assertion is on the words
+            # both entries share rather than on one exact string.
+            $byType['DiskPartition'].Text | Should -BeLike 'Format and Partition Disk*'
             $byType['CommandLine'].Text | Should -BeExactly 'Run Command Line'
             $byType['PowerShell'].Text | Should -BeExactly 'Run PowerShell Script'
             $byType['SetVariable'].Text | Should -BeExactly 'Set Task Sequence Variable'

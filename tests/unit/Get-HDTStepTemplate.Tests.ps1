@@ -200,3 +200,80 @@ Describe 'the step template contract' {
         }
     }
 }
+
+Describe 'a template that names a layout names one the engine has' {
+
+    # THE ROUND TRIP CANNOT CATCH THIS ONE. A layout name is resolved when the
+    # step RUNS, not when the document is read - so 'layout: UEFI' parsed
+    # cleanly, sat in the menu, and refused on a machine with
+    # "'UEFI' is not a disk layout this engine knows".
+
+    It '<Type> names a layout Get-HDTDiskLayout answers to' -ForEach @(
+        @{ Type = 'DiskPartition' }
+    ) {
+        $wanted = $Type
+        $emitted = @(& ('Get-HDT{0}StepTemplate' -f $wanted))
+
+        foreach ($line in $emitted) {
+            if ($line -notmatch '^\s*layout:\s*(.+?)\s*$') { continue }
+
+            { Get-HDTDiskLayout -Name ([string] $Matches[1]) } | Should -Not -Throw
+        }
+    }
+}
+
+Describe 'the firmware pair MDT ships' {
+
+    # MDT'S STANDARD CLIENT SEQUENCE HAS TWO OF THIS STEP - "Format and
+    # Partition Disk (BIOS)" and "(UEFI)" - each conditioned on the firmware,
+    # because the two disks are laid out differently and a sequence has to carry
+    # both to deploy to both kinds of machine.
+
+    It 'writes the <Firmware> layout' -ForEach @(
+        @{ Firmware = 'UEFI'; Layout = 'uefi-standard' }
+        @{ Firmware = 'BIOS'; Layout = 'bios-standard' }
+    ) {
+        $wantedLayout = $Layout
+
+        $emitted = @(Get-HDTDiskPartitionStepTemplate -Firmware $Firmware) -join "`n"
+
+        $emitted | Should -BeLike ('*layout: {0}*' -f $wantedLayout)
+    }
+
+    It 'conditions the <Firmware> one so only that machine runs it' -ForEach @(
+        @{ Firmware = 'UEFI'; Expected = $true }
+        @{ Firmware = 'BIOS'; Expected = $false }
+    ) {
+        $wanted = $Expected
+
+        # READ BACK THROUGH THE DOCUMENT, not off the line: the line carries
+        # YAML quoting, and what the engine evaluates is what the reader hands
+        # it. Comparing the raw text would assert the quotes.
+        $document = Get-HDTTemplateProbe -Line (Get-HDTDiskPartitionStepTemplate -Firmware $Firmware)
+        $text = [string] @($document.Step)[0].Condition
+
+        $text | Should -Not -BeNullOrEmpty
+
+        # AND THE ENGINE AGREES WITH IT. A condition the runtime reads
+        # differently is worse than none: it looks deliberate.
+
+        Test-HDTStepCondition -Condition $text -Variable @{ HDTIsUEFI = $wanted } | Should -BeTrue
+        Test-HDTStepCondition -Condition $text -Variable @{ HDTIsUEFI = (-not $wanted) } | Should -BeFalse
+    }
+
+    It 'still refuses to name a disk, whichever firmware' -ForEach @(
+        @{ Firmware = 'UEFI' }
+        @{ Firmware = 'BIOS' }
+    ) {
+        # The whole point of this template: it is the step that wipes a machine,
+        # and a disk number written once into the file every future step is
+        # copied from is a guess made on every machine after it.
+        $emitted = @(Get-HDTDiskPartitionStepTemplate -Firmware $Firmware)
+
+        @($emitted | Where-Object { $_ -match '^\s*disk:' }) | Should -BeNullOrEmpty
+    }
+
+    It 'defaults to UEFI, which is what a machine bought this decade is' {
+        (@(Get-HDTDiskPartitionStepTemplate) -join "`n") | Should -BeLike '*uefi-standard*'
+    }
+}

@@ -91,6 +91,7 @@ function Invoke-HDTValidateStep {
         $requireUefi = Get-HDTStepProperty -Step $Step -Name 'requireUefi' -Default $false -Context $Context -Expand -As Bool
         $allowExistingData = Get-HDTStepProperty -Step $Step -Name 'wipe' -Default $false -Context $Context -Expand -As Bool
         $requireVariable = Get-HDTStepProperty -Step $Step -Name 'requireVariable'
+        $minimumTpmVersion = Get-HDTStepProperty -Step $Step -Name 'minTpmVersion' -Context $Context -Expand
     } catch {
         $message = [string] $_.Exception.Message
 
@@ -132,6 +133,43 @@ function Invoke-HDTValidateStep {
 
         if (-not $isUefi) {
             [void] $failure.Add('this sequence requires UEFI firmware and HDTIsUEFI is not true for this machine.')
+        }
+    }
+
+    # -- TPM ---------------------------------------------------------------
+    #
+    # WINDOWS 11 REQUIRES TPM 2.0, and a machine without one gets all the way
+    # through partitioning and imaging before Setup says so - on a disk that has
+    # already been wiped. Checking it here costs nothing and is the difference
+    # between a refusal and a rebuild.
+    #
+    # HDTTPMVersion IS Win32_Tpm.SpecVersion'S FIRST COMPONENT, gathered before
+    # the sequence began. SpecVersion is '2.0, 0, 1.38'; only the first part is
+    # the spec, and Get-HDTMachineFact has already taken it.
+
+    if (-not [string]::IsNullOrWhiteSpace([string] $minimumTpmVersion)) {
+        $wanted = $null
+
+        if (-not [version]::TryParse(([string] $minimumTpmVersion).Trim(), [ref] $wanted)) {
+            [void] $failure.Add(("minTpmVersion is '{0}', which is not a version number." -f $minimumTpmVersion))
+        } else {
+            $reported = & $lookup 'HDTTPMVersion'
+
+            # NO TPM IS ITS OWN MESSAGE. 'this machine reports TPM version ' with
+            # nothing after it is the kind of sentence that sends a technician to
+            # look for a setting that is not the problem.
+            if ($null -eq $reported -or [string]::IsNullOrWhiteSpace([string] $reported)) {
+                [void] $failure.Add(('this machine reports no TPM, and the sequence requires version {0} or later. On a virtual machine, a TPM has to be added to the VM.' -f $wanted))
+            } else {
+                $actualVersion = $null
+
+                if (-not [version]::TryParse(([string] $reported).Trim(), [ref] $actualVersion)) {
+                    [void] $failure.Add(("HDTTPMVersion is '{0}', which is not a version number." -f $reported))
+                } elseif ($actualVersion -lt $wanted) {
+                    [void] $failure.Add(('this machine has TPM {0} and the sequence requires {1} or later.' -f
+                            $actualVersion, $wanted))
+                }
+            }
         }
     }
 
