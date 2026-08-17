@@ -149,10 +149,15 @@ function Show-HDTBootImageWindow {
 
     $size = Resolve-HDTConsoleEditorSize -OwnerWidth $OwnerWidth -OwnerHeight $OwnerHeight -Screen $Screen
 
+    # THE TIME ZONES THIS BUILD HOST KNOWS. Read here rather than in the view
+    # model for the same reason the ADK list is: it comes off this machine's
+    # registry, and a window is the only caller that needs it.
+    $timeZone = @(Get-HDTTimeZone)
+
     $answer = [string] $ConsoleHost.ShowBootImage(
         [System.IO.File]::ReadAllText($XamlPath), $Path, $line,
         [object[]] @($component), [object[]] @($driverGroup),
-        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme)
+        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, [object[]] @($timeZone))
 
     $action = 'Close'
     if (-not [string]::IsNullOrWhiteSpace($answer)) { $action = $answer }
