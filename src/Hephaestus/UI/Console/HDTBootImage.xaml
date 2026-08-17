@@ -453,7 +453,7 @@
                                       HorizontalAlignment="Left" />
                             <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0"
                                        MaxWidth="620" HorizontalAlignment="Left"
-                                       Text="Off boots straight into WinPE, which is what an unattended deployment needs. On waits, so a machine that boots the DVD first can fall through to its disk. UEFI only." />
+                                       Text="Off boots straight into WinPE, which is what an unattended deployment needs." />
                         </StackPanel>
 
                         <!--
