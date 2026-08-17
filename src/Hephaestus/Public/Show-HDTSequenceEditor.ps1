@@ -84,6 +84,10 @@ function Show-HDTSequenceEditor {
         [string] $XamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTSequenceEditor.xaml'),
 
         [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $PartitionXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTPartitionProperties.xaml'),
+
+        [Parameter()]
         [AllowNull()]
         [object] $ConsoleHost,
 
@@ -125,6 +129,14 @@ function Show-HDTSequenceEditor {
 
     $xaml = [System.IO.File]::ReadAllText($XamlPath)
 
+    # THE VOLUME DIALOG'S MARKUP TRAVELS WITH THE EDITOR'S. It is opened from a
+    # button on the Disk tab, so reading it here means the host never touches the
+    # file system - the same reason the editor's own markup arrives as a string.
+    $partitionXaml = ''
+    if (Test-Path -LiteralPath $PartitionXamlPath) {
+        $partitionXaml = [System.IO.File]::ReadAllText($PartitionXamlPath)
+    }
+
     # THE DOCUMENT'S OWN LINES, WHICH ARE WHAT THE EDITOR EDITS. Every editing
     # cmdlet splices a string array, and the whole reason for that (see
     # ConsoleStepEdit.Tests.ps1) is that the comments survive - so the text is
@@ -145,7 +157,8 @@ function Show-HDTSequenceEditor {
 
     $answer = [string] $ConsoleHost.ShowEditor($xaml, $editor.Title, $editor.DocumentPath,
         [object[]] @($editor.Root), $line,
-        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme), $size)
+        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme), $size,
+        $partitionXaml)
 
     $action = 'Close'
     if (-not [string]::IsNullOrWhiteSpace($answer)) { $action = $answer }

@@ -184,11 +184,85 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTConditionClearButton' }
         @{ Name = 'HDTRunInText' }
 
-        # The Properties tab, which now writes.
+        # The Properties tab, which now writes - and is named, because a step
+        # with a page of its own does not get one.
+        @{ Name = 'HDTPropertyTab' }
         @{ Name = 'HDTPropertyApplyButton' }
         @{ Name = 'HDTPropertyRevertButton' }
+
+        # The name, above the tabs as MDT has it: renaming a step cannot depend
+        # on a tab that is not always there.
+        @{ Name = 'HDTStepNameBox' }
+
+        # The Disk tab - MDT's Format and Partition Disk page. Which disk and
+        # how it is laid out at the top, then the volume list and its buttons.
+        @{ Name = 'HDTDiskTab' }
+        @{ Name = 'HDTDiskNumberBox' }
+        @{ Name = 'HDTDiskStyleBox' }
+        @{ Name = 'HDTDiskWipeCheck' }
+        @{ Name = 'HDTPartitionList' }
+        @{ Name = 'HDTPartitionStyleText' }
+        @{ Name = 'HDTPartitionAddButton' }
+        @{ Name = 'HDTPartitionEditButton' }
+        @{ Name = 'HDTPartitionRemoveButton' }
+        @{ Name = 'HDTPartitionUpButton' }
+        @{ Name = 'HDTPartitionDownButton' }
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
+    }
+}
+
+Describe 'the Partition Properties dialog' {
+
+    # MDT OPENS A MODAL FOR New AND Edit, and so does this. The names here are
+    # the same kind of contract the editor's are: renaming one in the markup
+    # breaks FindName silently, and the dialog opens with one box that never
+    # fills and an OK that hands back nothing.
+
+    BeforeAll {
+        $script:dialogPath = Join-Path -Path $script:repoRoot `
+            -ChildPath 'src/Hephaestus/UI/Console/HDTPartitionProperties.xaml'
+
+        $script:dialogMarkup = [System.IO.File]::ReadAllText($script:dialogPath)
+    }
+
+    It 'is shipped beside the editor it is opened from' {
+        Test-Path -LiteralPath $script:dialogPath | Should -BeTrue
+    }
+
+    It 'is markup WPF can load' {
+        Add-Type -AssemblyName PresentationFramework
+        Add-Type -AssemblyName WindowsBase
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $script:dialogMarkup)
+
+        { [System.Windows.Markup.XamlReader]::Load($reader) } | Should -Not -Throw
+    }
+
+    It 'declares <Name>, which the host finds by name' -ForEach @(
+        @{ Name = 'HDTVolumeNameBox' }
+        @{ Name = 'HDTVolumeTypeBox' }
+        @{ Name = 'HDTVolumeSizeBox' }
+        @{ Name = 'HDTVolumeUnitBox' }
+        @{ Name = 'HDTVolumeFileSystemBox' }
+        @{ Name = 'HDTVolumeVariableBox' }
+        @{ Name = 'HDTVolumeQuickFormatCheck' }
+        @{ Name = 'HDTVolumeBootableCheck' }
+        @{ Name = 'HDTVolumeMessageText' }
+        @{ Name = 'HDTVolumeOkButton' }
+    ) {
+        $script:dialogMarkup | Should -Match ('x:Name="{0}"' -f $Name)
+    }
+
+    It 'has no code-behind, like every other window here' {
+        $script:dialogMarkup | Should -Not -Match 'x:Class='
+    }
+
+    It 'paints from the console theme rather than from its own colours' {
+        # One decision repaints every window. A dialog with literal colours is
+        # the one that stays light when the console goes dark.
+        $script:dialogMarkup | Should -Match 'DynamicResource HDTPanelBrush'
+        $script:dialogMarkup | Should -Match 'DynamicResource HDTBorderBrush'
     }
 
     It 'lets each properties row decide its own box rather than keeping a list of labels' {
@@ -495,6 +569,34 @@ Describe 'Resolve-HDTConsoleEditorSize' {
 
             [int] $size.Left | Should -Be 0
             [int] $size.Top | Should -Be 0
+        }
+    }
+}
+
+Describe 'every brush the markup names' {
+
+    # AN UNDEFINED DynamicResource DOES NOT FAIL. WPF silently paints the
+    # control's default instead, so a window whose theme is missing a key looks
+    # almost right - which is how the editor's hint text came out the same
+    # weight as the labels above it, and an error message came out black.
+    #
+    # THE MARKUP IS THE LIST. Reading the keys out of the XAML rather than
+    # naming them here means a brush added to a window tomorrow is checked
+    # tomorrow, without anybody remembering to.
+
+    It 'is defined in the <Name> theme' -ForEach @(
+        @{ Name = 'Light' }
+        @{ Name = 'Dark' }
+    ) {
+        $theme = Get-HDTConsoleTheme -Name $Name
+
+        $named = @([regex]::Matches($script:markup, 'DynamicResource\s+(HDT\w+)') |
+                ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+
+        @($named).Count | Should -BeGreaterThan 5
+
+        foreach ($key in $named) {
+            $theme.Contains($key) | Should -BeTrue -Because ("the editor's markup paints with {0}" -f $key)
         }
     }
 }

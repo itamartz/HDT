@@ -164,3 +164,150 @@ Describe 'Move-HDTStepPartition' {
             Should -Be @('System', 'Windows')
     }
 }
+
+Describe 'Set-HDTStepPartition' {
+
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Set-HDTStepPartition' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'rewrites the row without moving it' {
+        # DELETE AND ADD AGAIN WOULD PUT IT AT THE BOTTOM, which is a change to
+        # the disk rather than to the volume. This is why Edit is its own
+        # command and not two of the others.
+        $after = Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'System' -Type EFI -Size 512MB
+
+        $row = @(Get-HDTTestPartition -Line $after)
+
+        @($row | ForEach-Object { [string] $_['name'] }) | Should -Be @('System', 'Windows')
+        [string] $row[0]['size'] | Should -BeExactly '512MB'
+    }
+
+    It 'renames one, keeping its place' {
+        $after = Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'Windows' -NewName 'OS' -Type Primary -Size remainder
+
+        @(Get-HDTTestPartition -Line $after | ForEach-Object { [string] $_['name'] }) |
+            Should -Be @('System', 'OS')
+    }
+
+    It 'writes the whole row, so a cleared field is cleared' {
+        # A MERGE WOULD LEAVE THE OLD FILESYSTEM BEHIND and no combination of
+        # parameters could remove it again. The dialog has every field on
+        # screen and OK writes all of them; so does this.
+        $with = Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'Windows' -Type Primary -Size remainder -FileSystem NTFS -Variable OSDisk
+
+        @(Get-HDTTestPartition -Line $with)[1]['filesystem'] | Should -BeExactly 'NTFS'
+
+        $without = Set-HDTStepPartition -Line $with -Name 'Format and Partition' `
+            -Partition 'Windows' -Type Primary -Size remainder
+
+        @(Get-HDTTestPartition -Line $without)[1].Contains('filesystem') | Should -BeFalse
+        @(Get-HDTTestPartition -Line $without)[1].Contains('variable') | Should -BeFalse
+    }
+
+    It 'keeps the comment written above the row it rewrites' {
+        # The fixture's own comment sits above the STEP. This one has to sit
+        # above the partition, or the assertion passes without the code being
+        # asked anything.
+        $noted = [string[]] @(@($script:line) | ForEach-Object {
+                if ($_ -eq '          - name: Windows') { '          # the volume the OS lands on'; $_ } else { $_ }
+            })
+
+        $after = Set-HDTStepPartition -Line $noted -Name 'Format and Partition' `
+            -Partition 'Windows' -Type Primary -Size remainder
+
+        @($after) -join "`n" | Should -BeLike '*the volume the OS lands on*'
+
+        # And still directly above it, rather than pushed anywhere else.
+        $at = [array]::IndexOf(@($after), '          # the volume the OS lands on')
+        $after[$at + 1] | Should -BeExactly '          - name: Windows'
+    }
+
+    It 'refuses a size the engine cannot read, before the disk sees it' {
+        { Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+                -Partition 'Windows' -Type Primary -Size 'about half' } |
+            Should -Throw
+    }
+
+    It 'refuses one the step does not have' {
+        { Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+                -Partition 'Nope' -Type Primary -Size 1GB } |
+            Should -Throw -ExpectedMessage '*Nope*'
+    }
+
+    It 'changes nothing under -WhatIf' {
+        $after = Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'System' -Type EFI -Size 512MB -WhatIf
+
+        @($after) | Should -Be @($script:line)
+    }
+}
+
+Describe 'quick format and bootable' {
+
+    # MDT'S "Quick format" AND "Make this a boot partition" CHECKBOXES. The
+    # engine already reads both keys; before this the commands could not write
+    # either, so the two boxes on that dialog had nothing behind them.
+    #
+    # THEY TAKE A BOOLEAN RATHER THAN BEING SWITCHES, because unspecified and
+    # false are different answers. The engine makes the FIRST partition bootable
+    # when nothing says otherwise, so a row that means "not this one" has to be
+    # able to say `bootable: false` out loud.
+
+    It 'writes nothing when neither is named, so the engine defaults stand' {
+        $after = Add-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'Data' -Type Primary -Size 1GB
+
+        $row = @(Get-HDTTestPartition -Line $after)[-1]
+
+        $row.Contains('quickFormat') | Should -BeFalse
+        $row.Contains('bootable') | Should -BeFalse
+    }
+
+    It 'writes <Key>: <Written> when told to' -ForEach @(
+        @{ Key = 'quickFormat'; Argument = 'QuickFormat'; Value = $false; Written = 'False' }
+        @{ Key = 'bootable'; Argument = 'Bootable'; Value = $true; Written = 'True' }
+        @{ Key = 'bootable'; Argument = 'Bootable'; Value = $false; Written = 'False' }
+    ) {
+        $wantedKey = $Key
+        $wantedValue = $Value
+
+        $argument = @{ $Argument = $Value }
+
+        $after = Add-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'Data' -Type Primary -Size 1GB @argument
+
+        $row = @(Get-HDTTestPartition -Line $after)[-1]
+
+        $row.Contains($wantedKey) | Should -BeTrue
+        [bool] $row[$wantedKey] | Should -Be $wantedValue
+    }
+
+    It 'lets Edit clear one that was set' {
+        $with = Add-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'Data' -Type Primary -Size 1GB -Bootable $true
+
+        @(Get-HDTTestPartition -Line $with)[-1].Contains('bootable') | Should -BeTrue
+
+        $without = Set-HDTStepPartition -Line $with -Name 'Format and Partition' `
+            -Partition 'Data' -Type Primary -Size 1GB
+
+        @(Get-HDTTestPartition -Line $without)[-1].Contains('bootable') | Should -BeFalse
+    }
+
+    It 'still refuses two bootable partitions, at authoring time' {
+        # The build refuses it - the firmware picks one and which one is then
+        # not the author's decision - so authoring has to refuse it too, or the
+        # window writes a document that cannot run.
+        $first = Set-HDTStepPartition -Line $script:line -Name 'Format and Partition' `
+            -Partition 'System' -Type EFI -Size 260MB -Bootable $true
+
+        { Set-HDTStepPartition -Line $first -Name 'Format and Partition' `
+                -Partition 'Windows' -Type Primary -Size remainder -Bootable $true } |
+            Should -Throw -ExpectedMessage '*bootable*'
+    }
+}

@@ -301,3 +301,88 @@ steps:
         }
     }
 }
+
+Describe 'a property that is not a value' {
+
+    BeforeAll {
+        $script:tableText = @'
+schemaVersion: 1
+id: DEMO-TABLE
+name: a step with a table on it
+
+steps:
+  - group: Preinstall
+    steps:
+      - name: Format and Partition
+        type: DiskPartition
+        wipe: true
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+          - name: Windows
+            type: Primary
+            size: remainder
+'@
+
+        $script:tableLine = $script:tableText -split "`r?`n"
+
+        $script:tableState = Get-HDTConsoleEditorState -Line $script:tableLine `
+            -Path $script:path -SelectedName 'Format and Partition'
+
+        $script:tableField = @($script:tableState.Selected.Field |
+                Where-Object { $_.Label -eq 'partition' })
+    }
+
+    It 'is not on the Properties tab at all, because the Disk page owns it' {
+        # MDT NEVER SHOWS A SETTING ON TWO TABS of the same dialog: its Format
+        # and Partition Disk page IS that step's Properties tab. Listing the
+        # table here as well meant a row saying
+        # 'System.Collections.Specialized.OrderedDictionary' - and it was
+        # EDITABLE, so Apply properties would have written those words over a
+        # two-volume disk layout.
+        @($script:tableField).Count | Should -Be 0
+    }
+
+    It 'does not list the other keys that page owns either' {
+        $label = @($script:tableState.Selected.Field | ForEach-Object { $_.Label })
+
+        # A disk number in two boxes is a disk number that can disagree with
+        # itself while both look authoritative.
+        $label | Should -Not -Contain 'disk'
+        $label | Should -Not -Contain 'wipe'
+        $label | Should -Not -Contain 'style'
+    }
+
+    It 'carries none of the facts the rest of the window already shows' {
+        # THE TAB IS THE STEP'S OWN SETTINGS AND NOTHING ELSE. The name is the
+        # box above the tabs; the type and the group are the row that was
+        # clicked in the tree; Enabled, Runs in, Condition and Continue on error
+        # are the Options tab. Ten rows of which two were the step's own is why
+        # it read as a data dump rather than a properties page.
+        $label = @($script:tableState.Selected.Field | ForEach-Object { $_.Label })
+
+        $label | Should -Not -Contain 'Name'
+        $label | Should -Not -Contain 'Type'
+        $label | Should -Not -Contain 'Runs'
+        $label | Should -Not -Contain 'Enabled'
+        $label | Should -Not -Contain 'Condition'
+    }
+
+    It 'leaves a step type with no page of its own its properties' {
+        # The tab is not being emptied - it is the only editor most step types
+        # have, and this is the assertion that keeps the exclusion narrow.
+        # Validate is no longer the example: it has a page of its own now, and
+        # its keys moved onto it.
+        $generic = [string[]] @(@($script:tableLine) + @(
+                '      - name: Run something'
+                '        type: CommandLine'
+                '        command: wpeutil.exe reboot'))
+
+        $other = Get-HDTConsoleEditorState -Line $generic -Path $script:path -SelectedName 'Run something'
+        $field = @($other.Selected.Field | Where-Object { $_.Label -eq 'command' })
+
+        @($field).Count | Should -Be 1
+        $field[0].Editable | Should -BeTrue
+    }
+}

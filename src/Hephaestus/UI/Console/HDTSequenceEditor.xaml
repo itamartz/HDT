@@ -443,7 +443,53 @@
                           Background="{DynamicResource HDTBorderBrush}"
                           ShowsPreview="False" />
 
-            <TabControl Grid.Row="0" Grid.RowSpan="2" Grid.Column="2"
+            <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!--
+                    THE STEP'S NAME, ABOVE THE TABS - which is where MDT puts
+                    it, and it has to be somewhere that is not a tab: a step
+                    with a page of its own has no Properties tab, and renaming
+                    it cannot depend on a tab that is not there.
+
+                    IT WRITES ON LOSING FOCUS, like every other box that writes
+                    a key here. The name is what every editing command refers to
+                    the step by, so a rename is a splice like any other.
+                -->
+                <Grid Grid.Row="0" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- THE SAME COLOUR AS EVERY OTHER FIELD LABEL. The blue is
+                         this console's heading colour - 'Steps', 'Conditions' -
+                         and using it here made the one label above the tabs
+                         read as a section title beside rows that are its
+                         peers. -->
+                    <TextBlock Grid.Column="0" Text="Name"
+                               Foreground="{DynamicResource HDTPanelTextBrush}"
+                               FontSize="12" VerticalAlignment="Center"
+                               Margin="0,0,10,0" />
+
+                    <!-- WHITE, WHICH IS WHAT AN EDITABLE BOX IS IN THIS WINDOW.
+                         HDTFieldBrush is the READ-ONLY wash - the Properties
+                         rows switch to it through a DataTrigger - so painting
+                         an editable box with it says "you cannot type here". -->
+                    <TextBox Grid.Column="1" x:Name="HDTStepNameBox"
+                             Background="{DynamicResource HDTPanelBrush}"
+                             Foreground="{DynamicResource HDTPanelTextBrush}"
+                             BorderBrush="{DynamicResource HDTBorderBrush}"
+                             BorderThickness="1"
+                             FontFamily="Segoe UI" FontSize="12"
+                             Padding="6,5,6,5"
+                             ToolTip="What this step is called. Every command refers to it by this name, so renaming it rewrites those references in the document." />
+                </Grid>
+
+            <TabControl Grid.Row="1"
                         x:Name="HDTOptionTab"
                         Background="{DynamicResource HDTPanelBrush}"
                         BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
@@ -469,7 +515,7 @@
                     lose whatever was typed into the last box before the button
                     was pressed, because pressing it is what moves the focus.
                 -->
-                <TabItem Header="Properties">
+                <TabItem Header="Properties" x:Name="HDTPropertyTab">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
@@ -529,6 +575,356 @@
                                         Content="Revert" IsEnabled="False" />
                             </StackPanel>
                         </Border>
+                    </Grid>
+                </TabItem>
+
+                <!--
+                    THE VALIDATION. MDT's Validate dialog is a column of
+                    checkboxes, each with the value it checks against, and this
+                    is that page.
+
+                    NOTHING HERE NAMES A CHECK. The rows are bound from
+                    Get-HDTConsoleValidateCheck, which reads one table in the
+                    engine - so a check added tomorrow appears on this page
+                    without this file being touched. That is the difference
+                    between a list of settings and six hand-written rows that
+                    have to be kept in step with the step that reads them.
+
+                    UNTICKED MEANS THE KEY IS REMOVED, not set to zero: a bound
+                    of nothing still reads as a declared bound.
+                -->
+                <TabItem Header="Validation" x:Name="HDTValidateTab">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <ScrollViewer Grid.Row="0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      Padding="14,12,14,12">
+                            <ItemsControl x:Name="HDTValidateList">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="34" />
+                                                <ColumnDefinition Width="26" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <CheckBox Grid.Column="0"
+                                                      Content="{Binding Label}"
+                                                      IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                      Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                      VerticalAlignment="Center" />
+
+                                            <!-- THE VALUE FOLLOWS THE TICK. An
+                                                 unticked check is not being
+                                                 made, so its value is not being
+                                                 read - and a live box beside a
+                                                 dark checkbox invites a number
+                                                 that changes nothing. -->
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     IsEnabled="{Binding Enabled}"
+                                                     Visibility="{Binding ValueVisibility}"
+                                                     Background="{DynamicResource HDTPanelBrush}"
+                                                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                     BorderBrush="{DynamicResource HDTBorderBrush}"
+                                                     BorderThickness="1"
+                                                     FontFamily="Consolas, Courier New" FontSize="12"
+                                                     Padding="6,4,6,4" VerticalContentAlignment="Center" />
+
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding Unit}"
+                                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center" Margin="8,0,0,0" />
+
+                                            <!--
+                                                THE HINT IS BEHIND A ? RATHER
+                                                THAN UNDER THE ROW. Six
+                                                paragraphs of explanation turn a
+                                                short list into a page that has
+                                                to be scrolled to be counted -
+                                                and the explanations are read
+                                                once, when a check is new, not
+                                                every time the page is opened.
+
+                                                A ToolTip AND NOT A POPUP: it
+                                                needs no handler, so the
+                                                untested adapter gains nothing
+                                                to get wrong.
+                                            -->
+                                            <!-- A BARE GLYPH IS A HIT TARGET THE
+                                                 SIZE OF THE INK. WPF only
+                                                 raises the tooltip over what
+                                                 is actually painted, so a
+                                                 question mark with no surface
+                                                 has to be hit within a couple
+                                                 of pixels - which reads as a
+                                                 tooltip that does not work.
+                                                 The Border is transparent and
+                                                 hit-testable, so the whole
+                                                 square answers.
+
+                                                 ShowDuration IS RAISED because
+                                                 these hints are two sentences
+                                                 and the default five seconds
+                                                 is not enough to read them. -->
+                                            <Border Grid.Column="3"
+                                                    Background="Transparent"
+                                                    Width="22" Height="22"
+                                                    CornerRadius="11"
+                                                    BorderBrush="{DynamicResource HDTBorderBrush}"
+                                                    BorderThickness="1"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Cursor="Help"
+                                                    ToolTipService.ShowDuration="60000"
+                                                    ToolTipService.InitialShowDelay="200">
+                                                <Border.ToolTip>
+                                                    <ToolTip MaxWidth="380">
+                                                        <TextBlock Text="{Binding Hint}" TextWrapping="Wrap" />
+                                                    </ToolTip>
+                                                </Border.ToolTip>
+
+                                                <TextBlock Text="?"
+                                                           Foreground="{DynamicResource HDTLabelBrush}"
+                                                           FontFamily="Segoe UI" FontSize="12" FontWeight="Bold"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Border Grid.Row="1" Padding="14,10,14,12"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <!-- ONE PRESS WRITES THE WHOLE PAGE, which is
+                                     MDT's OK. Writing on every keystroke would
+                                     splice the document six times while
+                                     somebody types a number. -->
+                                <Button x:Name="HDTValidateApplyButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Apply checks" />
+                                <Button x:Name="HDTValidateRevertButton"
+                                        Style="{StaticResource HDTToolButton}"
+                                        Content="Revert" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!--
+                    THE DISK. MDT's Format and Partition Disk page, and laid out
+                    the way that page is: which disk and how it is partitioned
+                    at the top, the volume list below it, and the list's own
+                    buttons above its right-hand corner.
+
+                    IT IS HIDDEN FOR EVERY OTHER STEP TYPE, by the host, and
+                    hidden rather than empty: a Disk tab over Apply OS is a tab
+                    that has nothing to say and invites a click that finds out.
+
+                    EVERY BUTTON HERE IS A COMMAND. New and Edit open the
+                    Partition Properties dialog and end in Add-HDTStepPartition
+                    or Set-HDTStepPartition; the delete glyph is
+                    Remove-HDTStepPartition and the arrows are
+                    Move-HDTStepPartition. The strip at the bottom of the window
+                    shows the one that just ran.
+                -->
+                <TabItem Header="Disk" x:Name="HDTDiskTab">
+                    <Grid Margin="14,12,14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!-- WHICH DISK, AND LAID OUT HOW. Both belong to the
+                             same decision, so they sit together at the top of
+                             the page as they do in MDT - rather than one here
+                             and one over on Properties. -->
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="190" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Disk number"
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       VerticalAlignment="Center" />
+
+                            <TextBox Grid.Column="1" x:Name="HDTDiskNumberBox"
+                                     ToolTip="The disk to lay out. Empty lets the engine select one, and it refuses to guess when more than one qualifies." />
+
+                            <TextBlock Grid.Column="3" Text="Disk type"
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       VerticalAlignment="Center" />
+
+                            <ComboBox Grid.Column="4" x:Name="HDTDiskStyleBox"
+                                      ToolTip="GPT, MBR, or let the firmware decide - which is what most sequences should keep." />
+                        </Grid>
+
+                        <CheckBox Grid.Row="1" x:Name="HDTDiskWipeCheck"
+                                  Content="Wipe the disk first"
+                                  Foreground="{DynamicResource HDTPanelTextBrush}"
+                                  Margin="0,0,0,12"
+                                  ToolTip="Clears an existing partition table. A disk carrying data is refused without this." />
+
+                        <!-- THE LIST'S OWN BUTTONS, ABOVE THE LIST, as they are
+                             in Workbench. Glyphs rather than words because the
+                             row of them is what says "these act on the list" -
+                             and Segoe UI Symbol because WinPE has no icon
+                             pipeline and the console should not need one. -->
+                        <Grid Grid.Row="2" Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Volume"
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       VerticalAlignment="Center" />
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <Button x:Name="HDTPartitionAddButton" Content="&#xE109;"
+                                        FontFamily="Segoe UI Symbol" FontSize="13"
+                                        MinWidth="34" Margin="0,0,4,0"
+                                        ToolTip="New volume" />
+                                <Button x:Name="HDTPartitionEditButton" Content="&#xE104;"
+                                        FontFamily="Segoe UI Symbol" FontSize="13"
+                                        MinWidth="34" Margin="0,0,4,0"
+                                        ToolTip="Edit this volume" />
+                                <Button x:Name="HDTPartitionRemoveButton" Content="&#xE10A;"
+                                        FontFamily="Segoe UI Symbol" FontSize="13"
+                                        MinWidth="34" Margin="0,0,12,0"
+                                        ToolTip="Delete this volume" />
+                                <Button x:Name="HDTPartitionUpButton" Content="&#xE010;"
+                                        FontFamily="Segoe UI Symbol" FontSize="13"
+                                        MinWidth="34" Margin="0,0,4,0"
+                                        ToolTip="Move it one place earlier on the disk" />
+                                <Button x:Name="HDTPartitionDownButton" Content="&#xE011;"
+                                        FontFamily="Segoe UI Symbol" FontSize="13"
+                                        MinWidth="34" Margin="0"
+                                        ToolTip="Move it one place later on the disk" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!--
+                            THE HEADER IS A ROW OF ITS OWN, not a GridView: the
+                            rest of this console is ItemsControl and DataTemplate
+                            against the theme's brushes, and one ListView here
+                            would arrive with a whole second set of default
+                            colours to override.
+
+                            The widths are repeated in the row template below.
+                            They have to match, and a shared-size group would be
+                            three more lines to say what two matching sets of
+                            numbers already say.
+                        -->
+                        <Grid Grid.Row="3" Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="24" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="50" />
+                                <ColumnDefinition Width="46" />
+                                <ColumnDefinition Width="120" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="#" />
+                            <TextBlock Grid.Column="1" Text="Name" />
+                            <TextBlock Grid.Column="2" Text="Type" />
+                            <TextBlock Grid.Column="3" Text="Size" />
+                            <TextBlock Grid.Column="4" Text="Format" />
+                            <TextBlock Grid.Column="5" Text="Quick" />
+                            <TextBlock Grid.Column="6" Text="Boot" />
+                            <TextBlock Grid.Column="7" Text="Variable" />
+
+                            <Grid.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground"
+                                            Value="{DynamicResource HDTHintTextBrush}" />
+                                    <Setter Property="FontFamily" Value="Segoe UI" />
+                                    <Setter Property="FontSize" Value="11" />
+                                    <Setter Property="Margin" Value="0,0,8,0" />
+                                </Style>
+                            </Grid.Resources>
+                        </Grid>
+
+                        <Border Grid.Row="4" MinHeight="120"
+                                Background="{DynamicResource HDTFieldBrush}"
+                                BorderBrush="{DynamicResource HDTBorderBrush}"
+                                BorderThickness="1">
+                            <ListBox x:Name="HDTPartitionList" BorderThickness="0"
+                                     Background="Transparent"
+                                     HorizontalContentAlignment="Stretch"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,1,0,1">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="70" />
+                                                <ColumnDefinition Width="50" />
+                                                <ColumnDefinition Width="46" />
+                                                <ColumnDefinition Width="120" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Order}" />
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding Type}" />
+
+                                            <!--
+                                                AS AUTHORED. 60% and remainder
+                                                are not byte counts and what
+                                                they come to depends on the
+                                                machine, so the grid prints the
+                                                words the document uses.
+                                            -->
+                                            <TextBlock Grid.Column="3" Text="{Binding Size}" />
+                                            <TextBlock Grid.Column="4" Text="{Binding FileSystem}" />
+                                            <TextBlock Grid.Column="5" Text="{Binding QuickText}" />
+                                            <TextBlock Grid.Column="6" Text="{Binding BootText}" />
+                                            <TextBlock Grid.Column="7" Text="{Binding Variable}" />
+
+                                            <Grid.Resources>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="FontFamily"
+                                                            Value="Consolas, Courier New" />
+                                                    <Setter Property="FontSize" Value="12" />
+                                                    <Setter Property="TextTrimming"
+                                                            Value="CharacterEllipsis" />
+                                                    <Setter Property="Margin" Value="0,0,8,0" />
+                                                </Style>
+                                            </Grid.Resources>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Border>
+
+                        <TextBlock Grid.Row="5" x:Name="HDTPartitionStyleText"
+                                   Foreground="{DynamicResource HDTHintTextBrush}"
+                                   FontFamily="Segoe UI" FontSize="11"
+                                   TextWrapping="Wrap" Margin="0,10,0,0" />
                     </Grid>
                 </TabItem>
 
@@ -656,6 +1052,7 @@
                     </ScrollViewer>
                 </TabItem>
             </TabControl>
+            </Grid>
         </Grid>
 
         <!-- the cmdlet for the selected row, and the way out -->

@@ -1439,6 +1439,40 @@ the document.
 partition. Two bootable partitions are refused — the firmware picks one, and
 which one is then not the author's decision.
 
+#### Editing that table, and the tab that shows it
+
+MDT's dialog is five buttons over a list of volumes, so this is five commands and
+a window that is their face — the console may not do anything the cmdlets cannot:
+
+| Button | Command | What it refuses |
+|---|---|---|
+| New | `Add-HDTStepPartition` | a size the engine cannot read; a step that names a layout instead |
+| Edit | `Set-HDTStepPartition` | the same size grammar; a row the step does not have |
+| Delete | `Remove-HDTStepPartition` | the last row — a step with an empty table is not a layout |
+| ▲ ▼ | `Move-HDTStepPartition` | nothing; at the ends it is a press with nowhere to go |
+
+**Edit is its own command rather than Delete and New again**, because the order of
+the table is the order on the disk: re-adding would move the volume to the bottom,
+which is a change to the disk and not to the volume. It writes the **whole row** —
+a merge would leave behind a filesystem the author had just cleared, and no
+combination of parameters could clear it again.
+
+**They splice lines and take a row's comments with it.** A note written above a
+partition is about that partition; a move that left it behind would attach it to
+whichever row slid into its place. `Get-HDTStepPartitionItem` is the shared
+locator, so "which lines does `Windows` own" is answered once.
+
+**The size is a number and a unit** — MDT's *Size* and *Size units* — and the unit
+carries the format that composes it, so the window joins nothing. A percentage is
+one of the units rather than a separate checkbox that then ignores the dropdown,
+which is the part of MDT's dialog worth not copying.
+
+`Get-HDTConsolePartitionRow` decides everything the tab shows, including whether
+it belongs on screen: a Disk tab over `Apply OS` is a tab with nothing to say that
+invites a click to find out. It shows the size **as authored** — `60%` and
+`remainder` are not byte counts, and only `New-HDTDiskLayoutPlan` in front of a
+real disk is entitled to say what they come to.
+
 **Layouts live in `Get-HDTDiskLayout`'s built-ins until `workspace.yaml` exists**
 (M4 introduces that document for the boot image). `Get-HDTDiskLayout -Definition`
 is the hook a `diskLayouts:` block will arrive through: a supplied definition

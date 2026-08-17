@@ -224,8 +224,26 @@ function Get-HDTConsoleStepNode {
         # deliberately among the reports - a step's properties belong to its
         # type, so retyping one leaves keys the new type has never heard of, and
         # Set-HDTStepProperty refuses it for the same reason.
-        $field = @(
-            New-HDTConsoleField -Label 'Name' -Value $current.Name -Property 'name'
+        # THE STEP'S OWN SETTINGS, AND NOTHING ELSE. This list used to open with
+        # eight rows that repeat what the window already shows: the name is in
+        # the box above the tabs, the type and the group are the row you clicked
+        # in the tree, and Enabled, Runs in, Condition and Continue on error are
+        # the Options tab. Ten rows of which two were the step's own is why the
+        # tab read as a data dump rather than as a properties page.
+        #
+        # MDT'S Properties TAB IS THE PER-TYPE PAGE - "Command line", "Start in",
+        # "Run as" - and this is the generic version of exactly that. A step type
+        # with a page of its own does not get this tab at all.
+        #
+        # THE FACTS ARE NOT LOST, they are where they were already being read:
+        # the tree, the Options tab, and the name box.
+        $field = @()
+
+        # WHAT THE ROW REPORTS, which is not what the tab edits. These are read
+        # in the tree - what the step is, which phase it runs in, whether it may
+        # fail - and every one of them is answered somewhere else in the window
+        # too, which is why none of them is a box.
+        $report = @(
             New-HDTConsoleField -Label 'Type' -Value $current.Type
             New-HDTConsoleField -Label 'Runs' -Value ('step {0} of {1}' -f $current.Index, $step.Count)
             New-HDTConsoleField -Label 'Group' -Value (Get-HDTConsoleDisplayText -Text ($path -join ' \ ') -Fallback '(none)')
@@ -235,12 +253,67 @@ function Get-HDTConsoleStepNode {
             New-HDTConsoleField -Label 'Continue on error' -Value (Get-HDTConsoleFlagText -Value $current.ContinueOnError)
         )
 
+        # THE KEYS A DEDICATED PAGE OWNS ARE NOT LISTED HERE. MDT never shows a
+        # setting on two tabs of the same dialog - its Format and Partition Disk
+        # page IS that step's Properties tab - and a disk number in two places
+        # is a disk number that can disagree with itself while both boxes look
+        # authoritative.
+        #
+        # Properties remains for everything else, including the step's name:
+        # most step types have no page of their own, and this is the only tab
+        # they get.
+        $owned = @()
+        if ($current.Type -eq 'DiskPartition') {
+            $owned = @('diskNumber', 'wipe', 'style', 'partition', 'layout')
+        }
+
+        if ($current.Type -eq 'Validate') {
+            $owned = @(Get-HDTValidateCheckDefinition | ForEach-Object { [string] $_.Key })
+        }
+
         # The per-type properties, each writing the key it is named after - the
         # difference between "Apply OS" and "apply THAT image", and the reason
         # the tab exists.
         foreach ($name in @($current.Property.Keys | Sort-Object)) {
+            $value = $current.Property[$name]
+
+            # A KEY A DEDICATED PAGE OWNS IS STILL REPORTED, just not offered as
+            # a box here. Dropping it outright took it out of the tree row's
+            # summary as well - so a Validate step stopped saying what it
+            # checks, which is the one thing that row is read for.
+            if ($owned -contains [string] $name) {
+                $report = $report + @(New-HDTConsoleField -Label $name -Value ([string] $value))
+                continue
+            }
+
+            # A PROPERTY THAT IS NOT A VALUE GETS NO TEXT BOX. [string] on a
+            # list of ordered dictionaries prints
+            # 'System.Collections.Specialized.OrderedDictionary', which says
+            # nothing about the disk - and the row was EDITABLE, so Apply
+            # properties would have written those words into the document and
+            # replaced a partition table with them.
+            #
+            # IT IS STILL SHOWN. The key is in the file, and a Properties tab
+            # that silently omitted one would be lying about what the step
+            # declares. It says how many entries and stays read-only; the tab
+            # that owns the shape is where it is edited.
+            $isTable = $false
+            if ($value -is [System.Collections.IDictionary]) { $isTable = $true }
+            elseif ($value -isnot [string] -and $value -is [System.Collections.IEnumerable]) { $isTable = $true }
+
+            if (-not $isTable) {
+                $field = $field + @(
+                    New-HDTConsoleField -Label $name -Value ([string] $value) -Property $name
+                )
+
+                continue
+            }
+
+            $entry = @($value).Count
+            if ($value -is [System.Collections.IDictionary]) { $entry = @($value.Keys).Count }
+
             $field = $field + @(
-                New-HDTConsoleField -Label $name -Value ([string] $current.Property[$name]) -Property $name
+                New-HDTConsoleField -Label $name -Value ('{0} entries - a table, not a value' -f $entry)
             )
         }
 
@@ -287,7 +360,7 @@ function Get-HDTConsoleStepNode {
         }
 
         $row = New-HDTConsoleNode -Depth $path.Count -Kind 'Step' -Status 'Ok' `
-            -Text $text -Name $current.Name -Field $field `
+            -Text $text -Name $current.Name -Field $field -Report $report `
             -Command ('{0}.Step[{1}]' -f $document, $index) `
             -Header $Header -Icon $icon -IconColor $iconColor
 

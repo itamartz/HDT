@@ -95,6 +95,17 @@ function Add-HDTStepPartition {
         [ValidateNotNullOrEmpty()]
         [string] $Variable,
 
+        # A BOOLEAN AND NOT A SWITCH, because unspecified and false are
+        # different answers. The engine formats quick and makes the first
+        # partition bootable when nothing says otherwise, so a row that means
+        # "not this one" has to be able to say it out loud - and a switch can
+        # only ever say yes.
+        [Parameter()]
+        [bool] $QuickFormat,
+
+        [Parameter()]
+        [bool] $Bootable,
+
         [Parameter()]
         [switch] $First
     )
@@ -143,6 +154,17 @@ function Add-HDTStepPartition {
         [void] $written.Add(('{0}variable: {1}' -f $inner, (Get-HDTConsoleScalarText -Value $Variable)))
     }
 
+    # NAMED OR ABSENT, never "the default written out". A document that repeats
+    # the engine's own defaults on every row is a document that will disagree
+    # with the engine the day one of them changes.
+    if ($PSBoundParameters.ContainsKey('QuickFormat')) {
+        [void] $written.Add(('{0}quickFormat: {1}' -f $inner, $QuickFormat.ToString().ToLowerInvariant()))
+    }
+
+    if ($PSBoundParameters.ContainsKey('Bootable')) {
+        [void] $written.Add(('{0}bootable: {1}' -f $inner, $Bootable.ToString().ToLowerInvariant()))
+    }
+
     # WHERE IT GOES: after the key for the first row, after the last row's last
     # line otherwise, and directly after the key when -First.
     $at = [int] $key.Index + 1
@@ -164,6 +186,11 @@ function Add-HDTStepPartition {
     if ($at -ge @($Line).Count) {
         foreach ($row in $written) { [void] $result.Add($row) }
     }
+
+    # AND THE TABLE THAT CAME OUT, not just the row that went in. Two bootable
+    # partitions, two claiming the remainder, percentages past a hundred - none
+    # of those can be seen from one row.
+    Assert-HDTStepPartitionTable -Line ([string[]] @($result)) -Name $Name
 
     return [string[]] @($result)
 }

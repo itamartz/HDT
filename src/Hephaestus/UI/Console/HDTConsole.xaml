@@ -101,6 +101,8 @@
         <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
         <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
         <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFFAFAFA" />
+        <SolidColorBrush x:Key="HDTHintTextBrush"     Color="#FF6B6B6B" />
+        <SolidColorBrush x:Key="HDTErrorBrush"        Color="#FFA31515" />
         <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
         <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />

@@ -103,6 +103,13 @@ function New-HDTConsoleNode {
         [AllowEmptyCollection()]
         [object[]] $Field,
 
+        # READ-ONLY ROWS THAT BELONG IN Detail AND NOWHERE ELSE - what the step
+        # IS, rather than what may be typed into it. A caller with nothing to
+        # report passes none, and Detail is then exactly the fields.
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [object[]] $Report = @(),
+
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
         [string] $Command,
@@ -155,15 +162,21 @@ function New-HDTConsoleNode {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    # ONE SOURCE, TWO READINGS. The window shows the fields; a console, a
-    # Format-List and a test read Detail. Rendering Detail from the same fields
-    # is what stops the two describing different things after the next edit.
+    # TWO READINGS, AND THEY ARE NO LONGER THE SAME LIST. Detail is a REPORT -
+    # what this step is, which phase it runs in, whether it may fail - read by a
+    # console, a Format-List and a test. Field is an EDITOR: the rows the
+    # properties tab puts a box around, every one of which writes a key.
+    #
+    # They were one list, and the properties tab was the cost: it opened with
+    # eight rows repeating the tree and the Options tab, of which none could be
+    # typed into. Report carries those now, so the row still says what the step
+    # is without the tab pretending they are settings.
     $glyph = $Icon
     if ([string]::IsNullOrEmpty($glyph)) {
         $glyph = Get-HDTConsoleIcon -Kind $Kind -Status $Status
     }
 
-    $line = foreach ($current in @($Field)) {
+    $line = foreach ($current in (@($Report) + @($Field))) {
         if ([string]::IsNullOrEmpty($current.Label)) {
             $current.Value
         } else {

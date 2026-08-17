@@ -298,11 +298,145 @@ function New-HDTConsoleHost {
     # that a command cannot be handed. After every edit the lines go back
     # through Get-HDTConsoleEditorState, so the tree on screen is what the
     # ENGINE reads and not a parallel model of it.
+    # =====================================================================
+    # MDT'S Partition Properties DIALOG
+    # =====================================================================
+    #
+    # A modal over the editor, and the only place a volume's eight fields are
+    # edited. It decides nothing: the unit list and what each unit composes come
+    # from Get-HDTConsolePartitionRow, and what comes back is a hashtable ready
+    # to splat at the command the caller chose.
+    #
+    # OK RUNS NOTHING. The dialog hands values back and closes; the command runs
+    # in the editor, where its refusal has a strip to be printed on. A dialog
+    # that ran the command itself would have to decide what to do with the
+    # failure, and that is a decision in an adapter.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowPartitionProperties -Value {
+        param(
+            [string] $Xaml, [object] $Row, [object[]] $Unit, [object] $Theme, [object] $Owner
+        )
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        $nameBox = $dialog.FindName('HDTVolumeNameBox')
+        $typeBox = $dialog.FindName('HDTVolumeTypeBox')
+        $sizeBox = $dialog.FindName('HDTVolumeSizeBox')
+        $unitBox = $dialog.FindName('HDTVolumeUnitBox')
+        $fileSystemBox = $dialog.FindName('HDTVolumeFileSystemBox')
+        $variableBox = $dialog.FindName('HDTVolumeVariableBox')
+        $quickCheck = $dialog.FindName('HDTVolumeQuickFormatCheck')
+        $bootCheck = $dialog.FindName('HDTVolumeBootableCheck')
+        $messageText = $dialog.FindName('HDTVolumeMessageText')
+        $ok = $dialog.FindName('HDTVolumeOkButton')
+
+        $unitBox.ItemsSource = $Unit
+        $unitBox.SelectedIndex = 0
+
+        # THE NUMBER GOES FLAT FOR A UNIT THAT TAKES NONE. "the rest of the
+        # disk" is not a quantity, and a live box beside it invites a number
+        # that is then dropped without a word.
+        $followUnit = {
+            $picked = $unitBox.SelectedItem
+            if ($null -eq $picked) { return }
+
+            $sizeBox.IsEnabled = [bool] $picked.NeedsAmount
+        }.GetNewClosure()
+
+        $unitBox.Add_SelectionChanged({ & $followUnit }.GetNewClosure())
+
+        # NEW STARTS BLANK; EDIT STARTS FULL. Edit writes the whole row back, so
+        # everything it will write has to be on screen before anything is
+        # changed - which is exactly what filling from the row does.
+        $quickCheck.IsChecked = $true
+
+        if ($null -ne $Row) {
+            $dialog.Title = 'Partition Properties - {0}' -f $Row.Name
+
+            $nameBox.Text = [string] $Row.Name
+            $sizeBox.Text = [string] $Row.Amount
+            $variableBox.Text = [string] $Row.Variable
+            $quickCheck.IsChecked = [bool] $Row.QuickFormat
+            $bootCheck.IsChecked = [bool] $Row.Bootable
+
+            foreach ($entry in @($unitBox.ItemsSource)) {
+                if ([string] $entry.Display -eq [string] $Row.Unit) { $unitBox.SelectedItem = $entry }
+            }
+
+            foreach ($entry in @($typeBox.Items)) {
+                if ([string] $entry.Content -eq [string] $Row.Type) { $typeBox.SelectedItem = $entry }
+            }
+
+            $fileSystemBox.SelectedIndex = 0
+            foreach ($entry in @($fileSystemBox.Items)) {
+                if ([string] $entry.Content -eq [string] $Row.FileSystem) { $fileSystemBox.SelectedItem = $entry }
+            }
+        }
+
+        & $followUnit
+
+        $this.PartitionAnswer = $null
+
+        # CAPTURED BEFORE THE HANDLER IS BUILT, not after: GetNewClosure takes
+        # the value the variable has at that moment, and inside Add_Click $this
+        # is the button rather than the host.
+        $dialogHost = $this
+
+        $ok.Add_Click({
+                $written = [string] $nameBox.Text
+
+                if ([string]::IsNullOrWhiteSpace($written)) {
+                    $messageText.Text = 'A volume needs a name - it is how every command refers to this row.'
+                    return
+                }
+
+                $picked = $unitBox.SelectedItem
+
+                $answer = @{
+                    Partition = $written
+                    Type      = [string] $typeBox.SelectedItem.Content
+                    Size      = ([string] $picked.Format -f [string] $sizeBox.Text)
+
+                    # NAMED EITHER WAY. The engine defaults to quick and to the
+                    # first row being bootable, and a dialog with both boxes on
+                    # screen has been asked both questions - so it answers them
+                    # rather than leaving the file to imply one.
+                    QuickFormat = ($quickCheck.IsChecked -eq $true)
+                    Bootable    = ($bootCheck.IsChecked -eq $true)
+                }
+
+                $chosenFileSystem = [string] $fileSystemBox.SelectedItem.Content
+                if ($chosenFileSystem -ne '(default)') { $answer['FileSystem'] = $chosenFileSystem }
+
+                if (-not [string]::IsNullOrWhiteSpace($variableBox.Text)) {
+                    $answer['Variable'] = [string] $variableBox.Text
+                }
+
+                $dialogHost.PartitionAnswer = $answer
+                $dialog.DialogResult = $true
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return $this.PartitionAnswer
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name PartitionAnswer -Value $null
+
     $service | Add-Member -MemberType ScriptMethod -Name ShowEditor -Value {
         param(
             [string] $Xaml, [string] $Title, [string] $Path,
             [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme,
-            [object] $Size
+            [object] $Size, [string] $PartitionXaml
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -367,6 +501,25 @@ function New-HDTConsoleHost {
         $conditionApply = $window.FindName('HDTConditionApplyButton')
         $conditionClear = $window.FindName('HDTConditionClearButton')
 
+        $diskTab = $window.FindName('HDTDiskTab')
+        $partitionStyleText = $window.FindName('HDTPartitionStyleText')
+        $partitionList = $window.FindName('HDTPartitionList')
+        $tabBook = $window.FindName('HDTOptionTab')
+        $propertyTab = $window.FindName('HDTPropertyTab')
+        $validateTab = $window.FindName('HDTValidateTab')
+        $validateList = $window.FindName('HDTValidateList')
+        $validateApply = $window.FindName('HDTValidateApplyButton')
+        $validateRevert = $window.FindName('HDTValidateRevertButton')
+        $stepNameBox = $window.FindName('HDTStepNameBox')
+        $diskNumberBox = $window.FindName('HDTDiskNumberBox')
+        $diskStyleBox = $window.FindName('HDTDiskStyleBox')
+        $diskWipeCheck = $window.FindName('HDTDiskWipeCheck')
+        $partitionUp = $window.FindName('HDTPartitionUpButton')
+        $partitionDown = $window.FindName('HDTPartitionDownButton')
+        $partitionAdd = $window.FindName('HDTPartitionAddButton')
+        $partitionEdit = $window.FindName('HDTPartitionEditButton')
+        $partitionRemove = $window.FindName('HDTPartitionRemoveButton')
+
         # THE CONDITION PICKER. Filled once - the variables the engine knows and
         # the four operators it implements do not change while a window is open -
         # and composed by Get-HDTConsoleConditionOption's own format string, so
@@ -424,6 +577,7 @@ function New-HDTConsoleHost {
             Clipboard = $null
             Dirty     = $false
             Selected  = ''
+            Partition = ''
             Quiet     = $false
         }
 
@@ -469,6 +623,95 @@ function New-HDTConsoleHost {
             $runInText.Text = [string] ($option | ForEach-Object { $_.RunInText })
 
             $window.Title = '{0} - {1}' -f $Title, $state.StatusText
+
+            # THE DISK TAB, WHICH MOST STEPS DO NOT HAVE. Get-HDTConsolePartitionRow
+            # decides both whether it belongs on screen and everything on it; this
+            # assigns. The selection is put back by name because the row objects
+            # are rebuilt every time.
+            $view = Get-HDTConsolePartitionRow -Line $book.Line -Path $Path -Name $book.Selected
+
+            $diskTab.Visibility = [System.Windows.Visibility]::Collapsed
+            if ($view.IsDiskStep) { $diskTab.Visibility = [System.Windows.Visibility]::Visible }
+
+            # THE VALIDATION PAGE, on the same rule as the disk one. MDT's
+            # Validate dialog IS that step's properties page, so the generic tab
+            # goes with it.
+            $validate = Get-HDTConsoleValidateCheck -Line $book.Line -Path $Path -Name $book.Selected
+
+            $validateTab.Visibility = [System.Windows.Visibility]::Collapsed
+            if ($validate.IsValidateStep) {
+                $validateTab.Visibility = [System.Windows.Visibility]::Visible
+                $validateList.ItemsSource = $validate.Check
+            }
+
+            $validateApply.IsEnabled = $validate.IsValidateStep
+            $validateRevert.IsEnabled = $validate.IsValidateStep
+
+            # AND THE GENERIC TAB GOES WHEN A DEDICATED PAGE ARRIVES. With the
+            # disk keys on their own page and the name above the tabs, what was
+            # left on Properties for this step was eight rows of facts and
+            # nothing to do about any of them.
+            #
+            # Properties stays for every other step type: most have no page of
+            # their own, and it is the only editor they get.
+            $propertyTab.Visibility = [System.Windows.Visibility]::Visible
+            if ($view.IsDiskStep -or $validate.IsValidateStep) {
+                $propertyTab.Visibility = [System.Windows.Visibility]::Collapsed
+            }
+
+            # A COLLAPSED TAB STAYS SELECTED, AND WPF GOES ON DRAWING IT. Hiding
+            # the tab hides its header and nothing else - so selecting a Validate
+            # step after a DiskPartition one left the Disk page on screen, over a
+            # step that has no disk. The selection has to be moved off a tab that
+            # is no longer there.
+            if ($tabBook.SelectedItem.Visibility -ne [System.Windows.Visibility]::Visible) {
+                $tabBook.SelectedItem = @($tabBook.Items |
+                        Where-Object { $_.Visibility -eq [System.Windows.Visibility]::Visible })[0]
+            }
+
+            $stepNameBox.Text = [string] $book.Selected
+            $stepNameBox.IsEnabled = $state.CanRemove
+
+            $partitionStyleText.Text = $view.Summary
+            $partitionList.ItemsSource = $view.Row
+
+            # THE TOP OF THE PAGE, from the document rather than from what was
+            # last typed into it. Quiet is already true here, so assigning these
+            # does not run the handlers that write them back.
+            $diskNumberBox.Text = [string] $view.DiskNumber
+            $diskWipeCheck.IsChecked = [bool] $view.Wipe
+
+            if ($null -eq $diskStyleBox.ItemsSource) { $diskStyleBox.ItemsSource = $view.StyleOption }
+
+            $diskStyleBox.SelectedItem = @($view.StyleOption |
+                    Where-Object { $_ -eq [string] $view.Style })[0]
+
+            if ($null -eq $diskStyleBox.SelectedItem) { $diskStyleBox.SelectedIndex = 0 }
+
+            $partitionList.SelectedItem = @($view.Row | Where-Object { $_.Name -eq $book.Partition })[0]
+
+            # AT THE ENDS THE ARROWS ARE OFF rather than pressed for nothing.
+            # Move-HDTStepPartition returns the document unchanged there, so this
+            # is presentation, not the rule.
+            $at = -1
+            if ($null -ne $partitionList.SelectedItem) { $at = [int] $partitionList.SelectedItem.Order }
+
+            # A ROW THAT CAME FROM A NAMED LAYOUT IS NOT IN THE DOCUMENT, so
+            # nothing that edits the document may act on it. Editing one would
+            # have to write a table into the step, silently converting it from
+            # "the standard layout, whatever that becomes" into a frozen copy of
+            # today's - a decision to make deliberately, not by pressing Edit.
+            $ownRow = ($at -gt 0 -and -not $partitionList.SelectedItem.FromLayout)
+
+            $partitionUp.IsEnabled = ($ownRow -and $at -gt 1)
+            $partitionDown.IsEnabled = ($ownRow -and $at -lt @($view.Row).Count)
+            $partitionRemove.IsEnabled = ($ownRow -and @($view.Row).Count -gt 1)
+            $partitionEdit.IsEnabled = $ownRow
+
+            # New needs a table to add to. A step that names a layout has none,
+            # and swapping one for the other is a decision to make in the
+            # Properties tab rather than as a side effect of pressing New.
+            $partitionAdd.IsEnabled = $view.HasTable
 
             $book.Quiet = $false
         }.GetNewClosure()
@@ -634,6 +877,244 @@ function New-HDTConsoleHost {
                 $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected -Condition '')
                 $book.Dirty = $true
                 & $rebuild
+            }.GetNewClosure())
+
+        # =================================================================
+        # THE DISK TAB
+        # =================================================================
+        #
+        # MDT's Format and Partition Disk dialog. Five buttons, five commands,
+        # and nothing on this tab decides anything: which row is where came from
+        # Get-HDTConsolePartitionRow, and what each press does is one call.
+
+        # SELECTING A ROW IS ALL THIS PAGE DOES ON ITS OWN. Every value a volume
+        # has is edited in the Partition Properties dialog, which is where MDT
+        # puts them and the only place eight fields and two checkboxes read as
+        # the thing being edited rather than as filters over the list.
+        $partitionList.Add_SelectionChanged({
+                # Reflect assigns SelectedItem, which raises this.
+                if ($book.Quiet) { return }
+
+                $chosen = $partitionList.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $book.Partition = [string] $chosen.Name
+                $command.Text = [string] $chosen.RemoveCommand
+
+                & $reflect
+            }.GetNewClosure())
+
+        # A FAILED EDIT IS SHOWN, NOT SWALLOWED. Every one of these refuses
+        # something - a size the engine cannot read, the last row, a second boot
+        # partition - and a button that did nothing without saying why would
+        # leave the person pressing it to guess which refusal they hit.
+        $partitionAttempt = {
+            param([scriptblock] $Attempt, [string] $Echo)
+
+            try {
+                & $Attempt
+                $book.Dirty = $true
+                $command.Text = $Echo
+                & $rebuild
+            } catch {
+                $command.Text = [string] $_.Exception.Message
+            }
+        }.GetNewClosure()
+
+        # THE DIALOG, AND WHAT COMES BACK FROM IT. It returns a hashtable ready
+        # to splat at Add-HDTStepPartition or Set-HDTStepPartition, or $null if
+        # it was cancelled - so the two handlers below differ only in which
+        # command they call.
+        $partitionDialog = {
+            param([object] $Row)
+
+            $view = Get-HDTConsolePartitionRow -Line $book.Line -Path $Path -Name $book.Selected
+
+            $dialog = $editorHost.ShowPartitionProperties($PartitionXaml, $Row, $view.Unit, $Theme, $window)
+            if ($null -eq $dialog) { return $null }
+
+            return $dialog
+        }.GetNewClosure()
+
+        $partitionAdd.Add_Click({
+                $answer = & $partitionDialog $null
+                if ($null -eq $answer) { return }
+
+                $written = [string] $answer['Partition']
+
+                & $partitionAttempt {
+                    $book.Line = @(Add-HDTStepPartition -Line $book.Line -Name $book.Selected `
+                            @answer -Confirm:$false)
+
+                    $book.Partition = $written
+                } ("Add-HDTStepPartition -Line `$line -Name '{0}' -Partition '{1}'" -f $book.Selected, $written)
+            }.GetNewClosure())
+
+        # EDIT IS ITS OWN COMMAND BECAUSE DELETE AND ADD AGAIN WOULD MOVE THE
+        # ROW to the bottom of the table, and the table's order is the order on
+        # the disk - a change to the disk rather than to the volume.
+        $partitionEdit.Add_Click({
+                $chosen = $partitionList.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $answer = & $partitionDialog $chosen
+                if ($null -eq $answer) { return }
+
+                $subject = [string] $chosen.Name
+                $written = [string] $answer['Partition']
+
+                # The dialog always returns a name; on Edit it is -NewName, and
+                # only when it is actually a new one.
+                [void] $answer.Remove('Partition')
+                [void] $answer.Remove('First')
+
+                if ($written -ne $subject) { $answer['NewName'] = $written }
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepPartition -Line $book.Line -Name $book.Selected `
+                            -Partition $subject @answer -Confirm:$false)
+
+                    $book.Partition = $written
+                } ("Set-HDTStepPartition -Line `$line -Name '{0}' -Partition '{1}'" -f $book.Selected, $subject)
+            }.GetNewClosure())
+
+        $partitionRemove.Add_Click({
+                if ([string]::IsNullOrWhiteSpace($book.Partition)) { return }
+                $subject = [string] $book.Partition
+
+                & $partitionAttempt {
+                    $book.Line = @(Remove-HDTStepPartition -Line $book.Line -Name $book.Selected `
+                            -Partition $subject -Confirm:$false)
+
+                    $book.Partition = ''
+                } ("Remove-HDTStepPartition -Line `$line -Name '{0}' -Partition '{1}'" -f $book.Selected, $subject)
+            }.GetNewClosure())
+
+        $partitionUp.Add_Click({
+                if ([string]::IsNullOrWhiteSpace($book.Partition)) { return }
+                $subject = [string] $book.Partition
+
+                & $partitionAttempt {
+                    $book.Line = @(Move-HDTStepPartition -Line $book.Line -Name $book.Selected `
+                            -Partition $subject -Direction Up -Confirm:$false)
+                } ("Move-HDTStepPartition -Line `$line -Name '{0}' -Partition '{1}' -Direction Up" -f $book.Selected, $subject)
+            }.GetNewClosure())
+
+        $partitionDown.Add_Click({
+                if ([string]::IsNullOrWhiteSpace($book.Partition)) { return }
+                $subject = [string] $book.Partition
+
+                & $partitionAttempt {
+                    $book.Line = @(Move-HDTStepPartition -Line $book.Line -Name $book.Selected `
+                            -Partition $subject -Direction Down -Confirm:$false)
+                } ("Move-HDTStepPartition -Line `$line -Name '{0}' -Partition '{1}' -Direction Down" -f $book.Selected, $subject)
+            }.GetNewClosure())
+
+        # THE TOP OF THE PAGE WRITES THE STEP'S OWN KEYS, through the same
+        # Set-HDTStepProperty every other property box uses. Disk number and
+        # disk type are one decision with the table below them, which is why
+        # they are on this page and not on Properties.
+        # THE VALIDATION PAGE WRITES ON ONE PRESS, which is MDT's OK. Writing on
+        # every keystroke would splice the document six times while somebody
+        # types a number, and each splice rebuilds the tree under their hands.
+        #
+        # UNTICKED REMOVES THE KEY rather than writing a zero: 'minRamMB: 0' is a
+        # bound of nothing that still reads as a declared bound, and there would
+        # then be no way to say "I do not care about memory".
+        $validateApply.Add_Click({
+                $written = New-Object -TypeName System.Collections.ArrayList
+
+                foreach ($check in @($validateList.ItemsSource)) {
+                    $key = [string] $check.Key
+
+                    if ($check.Enabled -ne $true) {
+                        [void] $written.Add(@{ Key = $key; Value = '' })
+                        continue
+                    }
+
+                    # A SWITCH CARRIES NO VALUE, so ticking it writes true - the
+                    # word the engine reads - rather than an empty string that
+                    # would read as absent.
+                    $value = [string] $check.Value
+                    if (-not $check.HasValue) { $value = 'true' }
+
+                    [void] $written.Add(@{ Key = $key; Value = $value })
+                }
+
+                & $partitionAttempt {
+                    foreach ($one in $written) {
+                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                                -Property ([string] $one.Key) -Value ([string] $one.Value) -Confirm:$false)
+                    }
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property '<each check>' -Value '<value>'" -f $book.Selected)
+            }.GetNewClosure())
+
+        $validateRevert.Add_Click({
+                # THE DOCUMENT IS THE TRUTH, so reverting is re-reading it. The
+                # rows are rebuilt from the file rather than remembered, which
+                # is the same reason the tree is.
+                & $reflect
+            }.GetNewClosure())
+
+        # RENAMING IS A SPLICE LIKE ANY OTHER, and it has to update what the
+        # window then refers to the step by - otherwise the next press acts on a
+        # name the document no longer has.
+        $stepNameBox.Add_LostFocus({
+                if ($book.Quiet) { return }
+
+                $typed = [string] $stepNameBox.Text
+                if ([string]::IsNullOrWhiteSpace($typed)) { return }
+                if ($typed -eq [string] $book.Selected) { return }
+
+                $was = [string] $book.Selected
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $was `
+                            -Property 'name' -Value $typed -Confirm:$false)
+
+                    $book.Selected = $typed
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'name' -Value '{1}'" -f $was, $typed)
+            }.GetNewClosure())
+
+        $diskNumberBox.Add_LostFocus({
+                if ($book.Quiet) { return }
+
+                $typed = [string] $diskNumberBox.Text
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                            -Property 'diskNumber' -Value $typed -Confirm:$false)
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'diskNumber' -Value '{1}'" -f $book.Selected, $typed)
+            }.GetNewClosure())
+
+        $diskStyleBox.Add_SelectionChanged({
+                if ($book.Quiet) { return }
+
+                $picked = [string] $diskStyleBox.SelectedItem
+                if ([string]::IsNullOrWhiteSpace($picked)) { return }
+
+                # FOLLOWING THE FIRMWARE IS THE ABSENCE OF THE KEY, which is why
+                # it is an empty value rather than a word written into the file:
+                # 'style: follows the firmware' is not something the engine reads.
+                $value = $picked
+                if ($picked -eq 'follows the firmware') { $value = '' }
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                            -Property 'style' -Value $value -Confirm:$false)
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'style' -Value '{1}'" -f $book.Selected, $value)
+            }.GetNewClosure())
+
+        $diskWipeCheck.Add_Click({
+                if ($book.Quiet) { return }
+
+                $value = 'false'
+                if ($diskWipeCheck.IsChecked -eq $true) { $value = 'true' }
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                            -Property 'wipe' -Value $value -Confirm:$false)
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'wipe' -Value '{1}'" -f $book.Selected, $value)
             }.GetNewClosure())
 
         # THE SELECTION IS REMEMBERED BY NAME, not by row. A splice rebuilds the

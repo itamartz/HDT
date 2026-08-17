@@ -64,6 +64,14 @@ function Get-HDTConsoleTheme {
             HDTBannerLabelBrush = '#FFBEDCF0'
             HDTPanelBrush       = '#FF252526'
             HDTPanelTextBrush   = '#FFE6E6E6'
+
+            # SECONDARY TEXT AND A REFUSAL. Both are named by markup that had
+            # nothing behind them: an undefined DynamicResource does not fail,
+            # it silently paints the control's default - which is how a hint
+            # meant to be quiet came out the same weight as the label above it,
+            # and an error message came out black.
+            HDTHintTextBrush    = '#FF9A9A9A'
+            HDTErrorBrush       = '#FFF48771'
             HDTBorderBrush      = '#FF3C3C3C'
             HDTLabelBrush       = '#FF9CDCFE'
             HDTCommandBrush     = '#FF1B1B1B'
@@ -85,6 +93,11 @@ function Get-HDTConsoleTheme {
         HDTBannerLabelBrush = '#FFD6E9F5'
         HDTPanelBrush       = '#FFFFFFFF'
         HDTPanelTextBrush   = '#FF1B1B1B'
+
+        # See the dark theme for why these two exist. Grey enough to read as
+        # secondary, dark enough to read at 11pt on white.
+        HDTHintTextBrush    = '#FF6B6B6B'
+        HDTErrorBrush       = '#FFA31515'
         HDTBorderBrush      = '#FFC8C8C8'
         HDTLabelBrush       = '#FF0E639C'
         HDTCommandBrush     = '#FFF7F7F7'

@@ -149,6 +149,7 @@ Describe 'Set-HDTStepProperty' {
     }
 }
 
+
 Describe 'the Properties rows, which now say what may be typed into them' {
 
     BeforeAll {
@@ -156,6 +157,22 @@ Describe 'the Properties rows, which now say what may be typed into them' {
         $script:field = @($script:state.Selected.Field)
         $script:byLabel = @{}
         foreach ($row in $script:field) { $script:byLabel[$row.Label] = $row }
+
+        # New-HDTConsoleField is private, so the rows this suite hands to
+        # Get-HDTConsoleStepChange are built here in the shape it consumes -
+        # which also stops the suite depending on where the editor gets its rows.
+        $script:newField = {
+            param([string] $Label, [string] $Value, [string] $Property = '')
+
+            return [pscustomobject] @{
+                Label    = $Label
+                Value    = $Value
+                Property = $Property
+                Editable = (-not [string]::IsNullOrEmpty($Property))
+                ReadOnly = [string]::IsNullOrEmpty($Property)
+                Original = $Value
+            }
+        }
     }
 
     It 'marks the per-type properties editable, and names the key each one writes' {
@@ -163,18 +180,20 @@ Describe 'the Properties rows, which now say what may be typed into them' {
         $script:byLabel['index'].Property | Should -BeExactly 'index'
     }
 
-    It 'marks the name editable' {
-        $script:byLabel['Name'].Editable | Should -BeTrue
-        $script:byLabel['Name'].Property | Should -BeExactly 'name'
+    It 'carries only the keys the step declares' {
+        # A STEP'S PAGE IS ITS OWN SETTINGS. The name is the box above the tabs,
+        # the type and the group are the tree row, and Enabled, Runs in,
+        # Condition and Continue on error are the Options tab - so every row
+        # here writes a key, and none of them is a report.
+        foreach ($row in $script:field) {
+            $row.Editable | Should -BeTrue -Because ("'{0}' is on the step's own page" -f $row.Label)
+        }
     }
 
-    It 'leaves the type read-only' {
-        $script:byLabel['Type'].Editable | Should -BeFalse
-    }
+    It 'shows a group its own rows still, because a group has no other page' {
+        $group = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Install'
 
-    It 'leaves the derived rows read-only, because there is nothing in the file to write' {
-        # 'Runs' is 'step 3 of 5' - a position, not a key.
-        $script:byLabel['Runs'].Editable | Should -BeFalse
+        @($group.Selected.Field | Where-Object { $_.Label -eq 'Group' }) | Should -Not -BeNullOrEmpty
     }
 
     It 'remembers what each row said when it was built' {
@@ -256,7 +275,11 @@ Describe 'Get-HDTConsoleStepChange' {
     }
 
     It 'ignores a read-only row even if something changed its value' {
-        $field = @($script:state.Selected.Field)
+        # THE ROWS ARE BUILT HERE, not taken from the editor state: what is
+        # under test is which changes this command turns into commands, and the
+        # Properties tab no longer carries a read-only Type row to borrow.
+        $field = @($script:state.Selected.Field) + @(& $script:newField 'Type' 'ApplyImage')
+
         @($field | Where-Object { $_.Label -eq 'Type' })[0].Value = 'Restart'
 
         @(Get-HDTConsoleStepChange -Field $field -Name 'Apply OS') | Should -BeNullOrEmpty
@@ -265,7 +288,10 @@ Describe 'Get-HDTConsoleStepChange' {
     It 'puts a rename last, so the other edits still find the step by its old name' {
         # Every editing cmdlet takes the NAME. Renaming first would leave the
         # remaining changes looking for a step that no longer answers to it.
-        $field = @($script:state.Selected.Field)
+        # A rename row is built here for the same reason: renaming moved to the
+        # name box above the tabs, so the Properties list no longer carries one.
+        $field = @($script:state.Selected.Field) + @(& $script:newField 'Name' 'Apply OS' 'name')
+
         @($field | Where-Object { $_.Label -eq 'index' })[0].Value = '4'
         @($field | Where-Object { $_.Label -eq 'Name' })[0].Value = 'Apply Windows 11'
 
@@ -277,7 +303,10 @@ Describe 'Get-HDTConsoleStepChange' {
     }
 
     It 'says what the step answers to after each change, so the caller need not know which keys are names' {
-        $field = @($script:state.Selected.Field)
+        # A rename row is built here for the same reason: renaming moved to the
+        # name box above the tabs, so the Properties list no longer carries one.
+        $field = @($script:state.Selected.Field) + @(& $script:newField 'Name' 'Apply OS' 'name')
+
         @($field | Where-Object { $_.Label -eq 'index' })[0].Value = '4'
         @($field | Where-Object { $_.Label -eq 'Name' })[0].Value = 'Apply Windows 11'
 
