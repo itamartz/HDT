@@ -135,6 +135,14 @@ function New-HDTWizardHost {
                 $property = [string] $current.Property
             }
 
+            # A FIELD MAY CARRY ROWS AS WELL AS A VALUE - W3's task sequence
+            # picker is a field like any other - AND THE ROWS GO FIRST.
+            # SelectedValue means nothing until the item carrying that value
+            # exists, which is the same order the console's driver list needs.
+            if ($null -ne $current.PSObject.Properties['Item']) {
+                $control.ItemsSource = @($current.Item)
+            }
+
             $control.$property = [string] $current.Text
         }
 

@@ -665,6 +665,27 @@ try {
 
                 $field = @(Get-HDTWizardField -NetworkConfiguration $network -Bootstrap $bootstrap)
 
+                # W3: THE TASK SEQUENCE PICKER IS THE FOLDER, NOT A LIST
+                # SOMEBODY TYPED. Scripts\UI\TaskSequence.xaml used to carry one
+                # row per sequence and a share with eight offered one. This is
+                # one more field, applied by name like every other.
+                #
+                # A PROBLEM IS LOGGED AND THE WIZARD STILL OPENS. A sequence
+                # whose document will not parse, or an HDTTaskSequenceID naming
+                # something this share does not carry, is a sentence in the log
+                # and never a reason to leave the technician with no screen.
+                $sequenceChoice = Get-HDTWizardSequence -WorkspaceRoot $workspaceRoot `
+                    -FileSystem $fileSystem -Variable $resolved.Variable
+
+                foreach ($problem in @($sequenceChoice.Problem)) {
+                    & $say ("task sequence picker: {0}" -f $problem) 'Warning'
+                }
+
+                & $say ("task sequence picker: {0} sequence(s) on the share, opening on '{1}'" -f
+                    @($sequenceChoice.Choice).Count, $sequenceChoice.Selected)
+
+                $field = @($field) + @($sequenceChoice.Field)
+
                 $answer = Show-HDTWizardShell -ShellXamlPath $WizardShellPath -ThemeXamlPath $WizardThemePath `
                     -Page $ask.Page -Title $wizard.Title -Field $field
 
@@ -712,6 +733,22 @@ try {
     foreach ($name in @($resolved.Variable.Keys)) {
         $variable[[string] $name] = $resolved.Variable[$name]
     }
+
+    # WHAT THIS BOOT IMAGE CARRIES, so a sequence can ask before it acts. The
+    # client template's Install Certificates step is conditioned on it, and it
+    # is set here rather than gathered because it is a fact about the IMAGE, not
+    # about the machine - Get-HDTMachineFact reads hardware and knows nothing of
+    # bootstrap.json.
+    #
+    # SET EITHER WAY, TRUE OR FALSE. An image built before this existed sets
+    # neither, the token stays unresolved, and the engine reads that as false -
+    # which skips the step, which is right. Writing False here is for the log
+    # and for Export-HDTVariableProvenance, so "why did that not run" has an
+    # answer on the machine rather than in this file.
+    $hasCertificate = (@($bootstrap.RootCertificate).Count -gt 0 -or
+        -not [string]::IsNullOrWhiteSpace([string] $bootstrap.ClientCertificate))
+
+    $variable['HDTHasCertificate'] = $hasCertificate
 
     # WHICH SEQUENCE: the command line, else the boot image, else the rules.
     # None of the three set is a NAMED FAILURE, not a guess.

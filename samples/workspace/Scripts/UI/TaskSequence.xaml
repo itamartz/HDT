@@ -20,18 +20,27 @@
     <TextBlock Grid.Row="0" Text="Task sequence" Foreground="#FFCCCCCC" FontSize="14" Margin="0,0,0,8" />
 
     <!--
-        SelectedValuePath="Tag" IS WHAT MAKES THIS COLLECTABLE. The page
-        declares that HDTTaskSequenceID is read from SelectedValue, and the host
-        reads that named property and nothing else - so a ListBox and a TextBox
-        are the same thing to it. Without a value path, SelectedValue would be
-        the ListBoxItem, and the summary would show a control's type name where
-        a sequence ID belongs.
+        NO ROWS IN THIS FILE ANY MORE, AND THAT IS W3. It used to carry one
+        <ListBoxItem> per sequence, typed by whoever added the sequence - so a
+        share holding eight sequences offered whatever this file happened to
+        say, which on the lab share was one of them. Get-HDTWizardSequence now
+        reads TaskSequences\ and the host fills this list, so the picker cannot
+        disagree with the share.
+
+        SelectedValuePath="Id" IS WHAT MAKES IT COLLECTABLE. The page declares
+        that HDTTaskSequenceID is read from SelectedValue, and the host reads
+        that named property and nothing else - so a ListBox and a TextBox are
+        the same thing to it. Without a value path, SelectedValue would be the
+        whole row object and the summary would show a type name where a
+        sequence ID belongs.
+
+        DisplayMemberPath="Text" IS THE OTHER HALF: the row carries Id, Name,
+        Description and Text, and Text is the one written for a human -
+        "WIN11-LAB  -  Windows 11 lab build". Without it a ListBox renders each
+        row's ToString(), which is the type name.
     -->
-    <ListBox Grid.Row="1" x:Name="HDTTaskSequenceList" SelectedValuePath="Tag"
+    <ListBox Grid.Row="1" x:Name="HDTTaskSequenceList"
+             SelectedValuePath="Id" DisplayMemberPath="Text"
              Background="#FF252526" Foreground="White" BorderBrush="#FF3A3A3C"
-             FontSize="15" Padding="4">
-        <ListBoxItem Tag="STD-CLIENT" Content="STD-CLIENT  -  Standard Windows 11 client" IsSelected="True" />
-        <ListBoxItem Tag="DEMO-M4" Content="DEMO-M4  -  Five-step demonstration" />
-        <ListBoxItem Tag="WS2025-STD" Content="WS2025-STD  -  Windows Server 2025, Desktop Experience" />
-    </ListBox>
+             FontSize="15" Padding="4" />
 </Grid>
