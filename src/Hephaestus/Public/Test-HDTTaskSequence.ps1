@@ -110,6 +110,23 @@ function Test-HDTTaskSequence {
         }
     }
 
+    # AND EVERYTHING THE ENGINE ITSELF SUPPLIES - the facts the gather reads
+    # before the sequence begins, and the volumes a partition step publishes as
+    # it runs. Neither is a sequence variable, a rule or a SetVariable, so a
+    # checker that knew only those three warned about the client template's own
+    # Install Operating System step, which reads %HDTOSVolume%.
+    #
+    # A WARNING THAT IS ALWAYS WRONG IS WORSE THAN NO WARNING: it teaches
+    # everybody to ignore the column it appears in.
+    #
+    # THE LIST IS THE VARIABLE MAP'S, not one kept here: a fact added to the
+    # gather stops being warned about without anybody remembering this file.
+    foreach ($known in @(Get-HDTVariableMap)) {
+        if ([string] $known.Origin -eq 'authored') { continue }
+
+        $supplied[[string] $known.HDTName] = ''
+    }
+
     $finding = New-Object -TypeName System.Collections.ArrayList
 
     $add = {

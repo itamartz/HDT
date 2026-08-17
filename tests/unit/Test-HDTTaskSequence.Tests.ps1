@@ -321,3 +321,74 @@ steps:
         }
     }
 }
+
+Describe 'a variable an earlier step publishes' {
+
+    # THE GATHERED AND PUBLISHED FACTS ARE SUPPLIED. HDTOSVolume is written by
+    # the partition step, HDTMake by the gather before the sequence began - and
+    # neither is a sequence variable, a rule or a SetVariable, so a checker that
+    # only knows those three warned about the client template's own Install
+    # Operating System step.
+    #
+    # A WARNING THAT IS ALWAYS WRONG IS WORSE THAN NO WARNING: it teaches
+    # everybody to ignore the column it appears in.
+
+    It 'does not warn about a volume the partition step publishes' {
+        $document = & $script:import @'
+schemaVersion: 1
+id: X
+name: X
+steps:
+  - name: Format and Partition
+    type: DiskPartition
+    layout: uefi-standard
+    wipe: true
+  - name: Install Operating System
+    type: ApplyImage
+    os: Win11
+    target: "%HDTOSVolume%"
+'@
+
+        $finding = @(Test-HDTTaskSequence -Sequence $document |
+                Where-Object { $_.Message -like '*HDTOSVolume*' })
+
+        @($finding).Count | Should -Be 0
+    }
+
+    It 'does not warn about a fact the gather supplies' {
+        $document = & $script:import @'
+schemaVersion: 1
+id: X
+name: X
+steps:
+  - name: Only on a laptop
+    type: NoOp
+    condition: '$HDTIsLaptop -eq $true'
+'@
+
+        $finding = @(Test-HDTTaskSequence -Sequence $document |
+                Where-Object { $_.Message -like '*HDTIsLaptop*' })
+
+        @($finding).Count | Should -Be 0
+    }
+
+    It 'still warns about a name nothing supplies' {
+        # THE CHECK HAS TO KEEP ITS TEETH. A token nobody sets is the thing this
+        # was written for.
+        $document = & $script:import @'
+schemaVersion: 1
+id: X
+name: X
+steps:
+  - name: Apply
+    type: ApplyImage
+    os: Win11
+    target: "%HDTNobodySetsThis%"
+'@
+
+        $finding = @(Test-HDTTaskSequence -Sequence $document |
+                Where-Object { $_.Message -like '*HDTNobodySetsThis*' })
+
+        @($finding).Count | Should -Be 1
+    }
+}

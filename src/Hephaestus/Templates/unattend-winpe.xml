@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE ANSWER FILE WinPE ITSELF READS, which is a different document from the one
+  a task sequence stages for Windows Setup. wpeinit consumes it -
+  Get-HDTStartnetScript writes 'wpeinit -unattend:X:\Unattend.xml' when the boot
+  image names one - and Windows PE has applied it before the engine starts.
+
+  HDT starts itself from startnet.cmd instead - that is what M4's "no key is ever pressed" rests on -
+  so a RunSynchronous launcher here would start the engine a SECOND time, in
+  parallel with the first, both mounting the same share and writing the same
+  log.
+
+  WHAT IS LEFT IS THE DISPLAY, and it is worth having. WinPE's default is
+  800x600 on hardware that reports nothing better, which is smaller than the
+  deployment wizard was laid out for; MDT sets 1024x768 for the same reason.
+
+  IT IS NOT COPIED INTO A TASK SEQUENCE. This belongs to the BOOT IMAGE - one
+  per share, chosen on the Windows PE page - while unattend.xml beside a
+  sequence belongs to that sequence. They are named alike because Microsoft
+  named them alike.
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+  <settings pass="windowsPE">
+    <component name="Microsoft-Windows-Setup" processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <Display>
+        <ColorDepth>32</ColorDepth>
+        <HorizontalResolution>1024</HorizontalResolution>
+        <RefreshRate>60</RefreshRate>
+        <VerticalResolution>768</VerticalResolution>
+      </Display>
+    </component>
+  </settings>
+</unattend>

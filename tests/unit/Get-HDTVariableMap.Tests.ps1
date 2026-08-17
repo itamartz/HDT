@@ -167,3 +167,32 @@ Describe 'HDTDeploymentType' {
         (Get-HDTVariableMap -Name 'HDTDeploymentType').Description | Should -BeLike '*NEWCOMPUTER*'
     }
 }
+
+Describe "the wizard's own settings" {
+
+    # MDT'S New Task Sequence WIZARD ASKS FOR THESE by name - Full Name,
+    # Organization, Administrator Password - and writes them where the unattend
+    # can read them. They are variables here for the same reason: an unattend
+    # template substitutes %HDTAdminPassword% already.
+
+    It '<HDTName> is known, and carries MDT''s name for it' -ForEach @(
+        @{ HDTName = 'HDTFullName'; MdtName = 'FullName' }
+        @{ HDTName = 'HDTOrgName'; MdtName = 'OrgName' }
+        @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword' }
+    ) {
+        $wanted = $MdtName
+
+        $row = Get-HDTVariableMap -Name $HDTName
+
+        $row | Should -Not -BeNullOrEmpty
+        $row.MdtName | Should -BeExactly $wanted
+    }
+
+    It 'says the administrator password is readable in the file' {
+        # IT IS NOT A SECRET AND THE DESCRIPTION SAYS SO. A value WinPE must use
+        # with no human present cannot be protected by a key that also ships in
+        # the boot image; the control is to treat the workspace and the media as
+        # credentials.
+        (Get-HDTVariableMap -Name 'HDTAdminPassword').Description | Should -BeLike '*log*'
+    }
+}

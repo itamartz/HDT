@@ -117,6 +117,14 @@ function Get-HDTVariableMap {
         @{ HDTName = 'HDTDeploymentType'; MdtName = 'DeploymentType'; Origin = 'engine'
             Description = 'Which deployment scenario is running. This engine performs bare-metal installs only, so it is always NEWCOMPUTER; MDT also has REFRESH, REPLACE and UPGRADE, and those arrive with the steps that implement them.'
         }
+        # WHAT THE BOOT IMAGE CARRIES, SO A SEQUENCE CAN ASK. The template's
+        # Install Certificates step is conditioned on it, and an image built
+        # without certificates never sets it - which leaves the token unresolved,
+        # which the engine reads as false. Silence skips the step, and that is
+        # the behaviour every image built before this existed needs.
+        @{ HDTName = 'HDTHasCertificate'; MdtName = $null; Origin = 'engine'
+            Description = 'True when the boot image carries certificates - a certificate authority, a machine certificate, or both. Published from bootstrap.json when the deployment starts.'
+        }
         @{ HDTName = 'HDTIsUEFI'; MdtName = 'IsUEFI'; Origin = 'environment.firmware_type'
             Description = 'True when the machine booted UEFI firmware, which decides the disk layout.'
         }
@@ -169,6 +177,16 @@ function Get-HDTVariableMap {
         }
         @{ HDTName = 'HDTJoinWorkgroup'; MdtName = 'JoinWorkgroup'; Origin = 'authored'
             Description = 'Workgroup to join instead of a domain.'
+        }
+        # MDT'S New Task Sequence WIZARD ASKS FOR BOTH, on its "OS Settings"
+        # page, and writes them where the unattend reads them. They are
+        # authored variables here for the same reason: an unattend template
+        # substitutes %HDTFullName% exactly as it substitutes the password.
+        @{ HDTName = 'HDTFullName'; MdtName = 'FullName'; Origin = 'authored'
+            Description = 'Registered owner written into the answer file - a person or a team, not a computer name.'
+        }
+        @{ HDTName = 'HDTOrgName'; MdtName = 'OrgName'; Origin = 'authored'
+            Description = 'Registered organisation written into the answer file.'
         }
         @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword'; Origin = 'authored'
             Description = 'Local administrator password for the deployed machine; never written to a log.'

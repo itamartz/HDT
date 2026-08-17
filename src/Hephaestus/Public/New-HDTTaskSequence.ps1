@@ -79,6 +79,14 @@ function New-HDTTaskSequence {
         [ValidateNotNullOrEmpty()]
         [string] $TemplatePath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'Templates'),
 
+        # WHAT THE WIZARD ASKED FOR - the image, the full name, the
+        # organisation, the administrator password. They land in the document's
+        # own variables block, which is what every step already substitutes
+        # from, rather than in a second file that would have to agree with it.
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $Variable,
+
         [Parameter()]
         [AllowNull()]
         [object] $FileSystem
@@ -141,7 +149,89 @@ function New-HDTTaskSequence {
         [void] $written.Add([string] $current)
     }
 
+    # THE WIZARD'S SETTINGS, SPLICED INTO THE VARIABLES BLOCK. A key the
+    # template already carries is REPLACED rather than appended: a document with
+    # the same key twice is one the reader takes the last of, and an author
+    # reading the first is then wrong about their own file.
+    if ($null -ne $Variable -and @($Variable.Keys).Count -gt 0) {
+        $spliced = New-Object -TypeName System.Collections.ArrayList
+        $pending = New-Object -TypeName System.Collections.ArrayList
+        foreach ($key in @($Variable.Keys)) { [void] $pending.Add([string] $key) }
+
+        $inVariables = $false
+        $indent = '  '
+
+        for ($index = 0; $index -lt @($written).Count; $index++) {
+            $line = [string] $written[$index]
+
+            if ($line -match '^variables:\s*$') {
+                $inVariables = $true
+                [void] $spliced.Add($line)
+                continue
+            }
+
+            # BACK OUT TO COLUMN ZERO AND THE BLOCK IS OVER - the next top-level
+            # key of the document has started, and anything still pending goes
+            # in before it.
+            if ($inVariables -and $line -match '^\S') {
+                foreach ($key in @($pending)) {
+                    [void] $spliced.Add(('{0}{1}: {2}' -f $indent, $key,
+                            (Get-HDTConsoleScalarText -Value ([string] $Variable[$key]))))
+                }
+
+                $pending.Clear()
+                $inVariables = $false
+            }
+
+            if ($inVariables -and $line -match '^(\s+)([A-Za-z_][A-Za-z0-9_]*):') {
+                $indent = [string] $Matches[1]
+                $key = [string] $Matches[2]
+
+                if ($Variable.Contains($key)) {
+                    [void] $spliced.Add(('{0}{1}: {2}' -f $indent, $key,
+                            (Get-HDTConsoleScalarText -Value ([string] $Variable[$key]))))
+
+                    [void] $pending.Remove($key)
+                    continue
+                }
+            }
+
+            [void] $spliced.Add($line)
+        }
+
+        # A DOCUMENT THAT ENDED INSIDE THE BLOCK, or one with no variables block
+        # at all: whatever is left is written where it can still be read.
+        if (@($pending).Count -gt 0) {
+            if (-not $inVariables) { [void] $spliced.Add('variables:') }
+
+            foreach ($key in @($pending)) {
+                [void] $spliced.Add(('{0}{1}: {2}' -f '  ', $key,
+                        (Get-HDTConsoleScalarText -Value ([string] $Variable[$key]))))
+            }
+        }
+
+        $written = $spliced
+    }
+
     $FileSystem.WriteAllText($path, (@($written) -join [System.Environment]::NewLine))
+
+    # AND THE ANSWER FILE THE SEQUENCE NAMES. The template's Apply Windows
+    # Settings step says 'template: unattend.xml'; without this, every sequence
+    # created from it referenced a file nobody supplied and failed at the
+    # machine. MDT copies its Unattend_x64.xml into the new sequence's folder
+    # for the same reason.
+    #
+    # IT NEVER OVERWRITES ONE THAT IS THERE. Somebody's answer file is not this
+    # command's to replace, and an existing sequence is refused above - so the
+    # only way here is a folder holding an unattend and no sequence.
+    $answerSource = Join-Path -Path $TemplatePath -ChildPath 'unattend.xml'
+    $answerPath = Join-Path -Path $folder -ChildPath 'unattend.xml'
+
+    $moduleFileSystem = New-HDTFileSystem
+
+    if ($moduleFileSystem.TestPath($answerSource) -and -not $FileSystem.TestPath($answerPath)) {
+        $FileSystem.WriteAllText($answerPath, [string] $moduleFileSystem.ReadAllText($answerSource))
+    }
 
     # READ BACK THROUGH THE ENGINE, which is the only honest way to report what
     # was created: a count taken from the lines would be this command's opinion
