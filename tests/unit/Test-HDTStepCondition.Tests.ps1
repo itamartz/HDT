@@ -151,3 +151,55 @@ Describe 'Test-HDTStepCondition' {
         }
     }
 }
+
+Describe 'PowerShell-shaped conditions' {
+
+    # THE FORM PEOPLE ACTUALLY TYPE. Every author of these documents writes
+    # PowerShell all day, and '$HDTIsUEFI -eq $true' is what their hands
+    # produce. Before this it PARSED - the grammar has always taken -eq - and
+    # then compared the literal string '$HDTIsUEFI' to the literal string
+    # '$true', which is false on every machine forever. A condition that is
+    # silently never true is worse than one that is refused.
+    #
+    # IT IS STILL A COMPARISON, NOT AN EVALUATION. The $ is a second spelling of
+    # the %Var% token, expanded by the same lookup. Nothing here reaches
+    # Invoke-Expression: a condition field that ran arbitrary code would run it
+    # in WinPE, as SYSTEM, from a file on a share.
+
+    It 'reads <Condition> as <Expected>' -ForEach @(
+        @{ Condition = '$HDTIsUEFI -eq $true'; Expected = $true }
+        @{ Condition = '$HDTIsUEFI -eq $false'; Expected = $false }
+        @{ Condition = '$HDTIsUEFI -ne $false'; Expected = $true }
+        @{ Condition = '$HDTIsUEFI -eq True'; Expected = $true }
+
+        # The old spelling keeps working, because documents already carry it.
+        @{ Condition = '%HDTIsUEFI% == True'; Expected = $true }
+
+        # And the two mix, because an author correcting half a condition should
+        # not have to correct the other half as well.
+        @{ Condition = '$HDTIsUEFI == %HDTIsUEFI%'; Expected = $true }
+    ) {
+        $wanted = $Expected
+
+        Test-HDTStepCondition -Condition $Condition -Variable @{ HDTIsUEFI = $true } |
+            Should -Be $wanted
+    }
+
+    It 'expands a $token on either side' {
+        Test-HDTStepCondition -Condition '$HDTMake -eq $HDTMake' `
+            -Variable @{ HDTMake = 'Microsoft Corporation' } | Should -BeTrue
+    }
+
+    It 'matches with wildcards, which is what -like is for' {
+        Test-HDTStepCondition -Condition '$HDTModel -like "Virtual*"' `
+            -Variable @{ HDTModel = 'Virtual Machine' } | Should -BeTrue
+    }
+
+    It 'leaves a bare dollar that names nothing alone rather than guessing' {
+        # An unresolved token is the caller's business - Unresolved decides what
+        # happens to it - and this is only a second spelling of the same token,
+        # so it behaves the same way.
+        { Test-HDTStepCondition -Condition '$HDTNotGathered -eq x' -Variable @{} } |
+            Should -Not -Throw
+    }
+}

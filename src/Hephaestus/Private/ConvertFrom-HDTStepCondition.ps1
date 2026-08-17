@@ -86,10 +86,39 @@ function ConvertFrom-HDTStepCondition {
                     -Message ("the condition '{0}' cannot be parsed. {1}" -f $Condition, $grammar)))
     }
 
+    # A SECOND SPELLING OF THE SAME TOKEN. Everybody who writes these documents
+    # writes PowerShell all day, and '$HDTIsUEFI -eq $true' is what their hands
+    # produce. It always PARSED - the grammar has taken -eq from the start - and
+    # then compared the literal '$HDTIsUEFI' to the literal '$true', which is
+    # false on every machine forever. A condition that is silently never true is
+    # worse than one that is refused.
+    #
+    # IT IS A REWRITE, NOT AN EVALUATION. $Name becomes %Name% and is expanded
+    # by the same lookup as before; $true and $false become the words the
+    # comparison already understands. Nothing reaches Invoke-Expression - a
+    # condition field that ran arbitrary code would run it inside WinPE, as
+    # SYSTEM, out of a file on a share that anybody with write access can edit.
+    #
+    # ONLY A WHOLE OPERAND IS REWRITTEN. '$100 -eq $100' is two prices, not two
+    # variables, and a $ in the middle of a value is left alone.
+    $readOperand = {
+        param([string] $Operand)
+
+        # A quoted operand is a literal and is never a token: "$true" is the
+        # five characters, which is how an author says so.
+        if ($Operand -match '^"(.*)"$') { return [string] $Matches[1] }
+
+        if ($Operand -eq '$true') { return 'True' }
+        if ($Operand -eq '$false') { return 'False' }
+        if ($Operand -match '^\$([A-Za-z_][A-Za-z0-9_]*)$') { return ('%{0}%' -f $Matches[1]) }
+
+        return $Operand
+    }
+
     return [pscustomobject] @{
-        Left     = $match.Groups['left'].Value -replace '^"(.*)"$', '$1'
+        Left     = [string] (& $readOperand $match.Groups['left'].Value)
         Operator = $match.Groups['operator'].Value
-        Right    = $match.Groups['right'].Value -replace '^"(.*)"$', '$1'
+        Right    = [string] (& $readOperand $match.Groups['right'].Value)
         Text     = $Condition
     }
 }
