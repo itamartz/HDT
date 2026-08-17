@@ -102,6 +102,7 @@ function ConvertTo-HDTDiskLayout {
     $row = New-Object -TypeName System.Collections.ArrayList
     $remainderCount = 0
     $percentTotal = 0
+    $bootableCount = 0
     $index = 0
 
     foreach ($current in @($Partition)) {
@@ -126,6 +127,8 @@ function ConvertTo-HDTDiskLayout {
         $size = & $read 'size'
         $fileSystem = & $read 'filesystem'
         $variable = & $read 'variable'
+        $quickFormatText = & $read 'quickFormat'
+        $bootableText = & $read 'bootable'
 
         $locator = 'partition {0}' -f $index
         if (-not [string]::IsNullOrWhiteSpace($label)) { $locator = "partition '{0}'" -f $label }
@@ -155,6 +158,10 @@ function ConvertTo-HDTDiskLayout {
                 if ($Style -eq 'GPT') { $gptType = $recoveryType }
             }
             'Primary' { }
+            'Logical' { $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $type `
+                        -Message ("{0} is type 'Logical'. MDT's dialog offers it, and this engine has never created an extended container to put one in - so accepting the word and quietly making a Primary would produce a disk that does not match the document." -f $locator))) }
+            'Extended' { $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $type `
+                        -Message ("{0} is type 'Extended'. MDT's dialog offers it; this engine creates basic partitions on GPT or MBR and makes no extended container." -f $locator))) }
             default {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $type `
                             -Message ("{0} has type '{1}', which is not one this engine creates. Use EFI, Primary or Recovery." -f $locator, $type)))
@@ -187,10 +194,35 @@ function ConvertTo-HDTDiskLayout {
                         -Message ("{0} has size '{1}', which is not a size this engine reads. Use bytes, 260MB, 1GB, a percentage like 60%, or remainder." -f $locator, $size)))
         }
 
+        $quickFormat = $true
+        if ($quickFormatText -match '^(false|0|no)$') { $quickFormat = $false }
+
+        # UNSET IS NOT False. A row that says nothing about booting takes the
+        # positional default; a row that says bootable: false is refusing it,
+        # and the two have to be told apart or an explicit bootable on the
+        # second row could never win.
+        $isActive = ($Style -eq 'MBR' -and $index -eq 1)
+
+        if ($bootableText -match '^(true|1|yes)$') {
+            $isActive = $true
+            $bootableCount++
+        } elseif ($bootableText -match '^(false|0|no)$') {
+            $isActive = $false
+        }
+
         [void] $row.Add([pscustomobject] @{
                 Role              = $label
                 SizeByte          = $sizeByte
+
+                # TWO FLAGS, BECAUSE THEY ARE TWO QUESTIONS. UseMaximumSize is
+                # where leftover slack LANDS when the partition is created -
+                # uefi-standard puts it on Recovery. TakesRemainder is which row
+                # gets the space nothing else claimed, which in the named
+                # layouts is Windows and here is whichever row said 'remainder'.
+                # Collapsing them would give an authored layout Recovery's flag
+                # and Windows' meaning.
                 UseMaximumSize    = $useMaximum
+                TakesRemainder    = $useMaximum
                 PercentOfRemainder = $percent
                 FileSystem        = $fileSystem
                 Label             = $label
@@ -199,16 +231,29 @@ function ConvertTo-HDTDiskLayout {
                 CreateGptType     = $createGptType
 
                 # MBR BOOTS FROM AN ACTIVE PARTITION and GPT has no such
-                # concept, so the first row is marked on an MBR disk exactly as
-                # bios-standard marks its System partition.
-                IsActive          = ($Style -eq 'MBR' -and $index -eq 1)
+                # concept. The default is the first row - which is MDT's default
+                # too, "True if 1st partition" - and an explicit bootable on any
+                # row overrides it, because a System partition is not always
+                # written first.
+                IsActive          = $isActive
                 Variable          = $variable
+
+                # MDT's QUICKFORMAT, default True. A full format is hours on a
+                # large disk and the only way to know a suspect one can hold
+                # what is written to it; refusing to carry the choice would mean
+                # HDT could not express a sequence somebody already runs.
+                QuickFormat       = $quickFormat
             })
     }
 
     if ($remainderCount -gt 1) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name `
                     -Message ("{0} partitions claim the remainder of the disk. Only one can have it, and which one would otherwise be an accident of order." -f $remainderCount)))
+    }
+
+    if ($bootableCount -gt 1) {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name `
+                    -Message ("{0} partitions are declared bootable. The firmware picks one, and which one is then not the author's decision." -f $bootableCount)))
     }
 
     if ($percentTotal -gt 100) {

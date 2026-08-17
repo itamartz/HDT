@@ -253,3 +253,84 @@ Describe 'New-HDTDiskLayoutPlan' {
         }
     }
 }
+
+# =============================================================================
+# AN AUTHORED LAYOUT, WHICH THE NAMED ONES CANNOT EXPRESS
+# =============================================================================
+#
+# ConvertTo-HDTDiskLayout turns a partition table somebody wrote into the shape
+# this planner reads. Two things in it are new, and both are arithmetic, so they
+# are settled here rather than in the converter:
+#
+#   PercentOfRemainder   60% of what depends on the disk in front of us
+#   TakesRemainder       which row gets what nothing else claimed - the named
+#                        layouts mean Role 'Windows' by that, and an authored
+#                        one names it outright
+#
+# The first version of this planner gave a 60% Windows the WHOLE disk and the
+# remainder row nothing, because it only knew Role -eq 'Windows'. That was
+# measured on a converted layout, not imagined.
+
+Describe 'New-HDTDiskLayoutPlan against an authored layout' {
+
+    BeforeAll {
+        $script:disk = 137438953472   # 128 GB
+
+        $script:layout = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+            @{ name = 'System'; type = 'EFI'; size = '260MB' }
+            @{ name = 'Windows'; type = 'Primary'; size = '60%' }
+            @{ name = 'Data'; type = 'Primary'; size = 'remainder' }
+            @{ name = 'Recovery'; type = 'Recovery'; size = '1GB' })
+
+        $script:plan = @(New-HDTDiskLayoutPlan -Layout $script:layout -DiskSizeByte $script:disk)
+    }
+
+    It 'gives every partition a size' {
+        @($script:plan | Where-Object { [long] $_.SizeByte -le 0 }) | Should -BeNullOrEmpty
+    }
+
+    It 'keeps the fixed sizes exactly as authored' {
+        @($script:plan | Where-Object { $_.Role -eq 'System' })[0].SizeByte | Should -Be 272629760
+        @($script:plan | Where-Object { $_.Role -eq 'Recovery' })[0].SizeByte | Should -Be 1073741824
+    }
+
+    It 'reads a percentage as a share of what is left, not of the whole disk' {
+        # MDT's own wording is "a percentage of remaining free space". 60% of the
+        # disk and 60% of the remainder differ by more than a gigabyte here, and
+        # the difference is silent - the disk still partitions.
+        $fixed = 272629760 + 1073741824
+        $available = $script:disk - $fixed - $script:layout.ReservedSizeByte - $script:layout.AlignmentSizeByte
+
+        @($script:plan | Where-Object { $_.Role -eq 'Windows' })[0].SizeByte |
+            Should -Be ([long] [math]::Floor($available * 0.6))
+    }
+
+    It 'gives the remainder row everything nothing else claimed' {
+        $total = [long] 0
+        foreach ($current in $script:plan) { $total += [long] $current.SizeByte }
+
+        $total | Should -Be ($script:disk - $script:layout.ReservedSizeByte - $script:layout.AlignmentSizeByte)
+    }
+
+    It 'still plans a named layout exactly as it always did' {
+        # THE REGRESSION THAT MATTERS. uefi-standard carries no
+        # PercentOfRemainder and no TakesRemainder on any row - it means Windows
+        # by Role - and every assertion above this block rests on that.
+        $named = @(New-HDTDiskLayoutPlan -Layout (Get-HDTDiskLayout -Name uefi-standard) `
+                -DiskSizeByte $script:disk)
+
+        $windows = @($named | Where-Object { $_.Role -eq 'Windows' })[0]
+        $overhead = 272629760 + 1073741824 + 16777216 + 1048576
+
+        $windows.SizeByte | Should -Be ($script:disk - $overhead)
+    }
+
+    It 'refuses a layout whose percentages leave the remainder row nothing' {
+        $greedy = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+            @{ name = 'Windows'; type = 'Primary'; size = '100%' }
+            @{ name = 'Data'; type = 'Primary'; size = 'remainder' })
+
+        { New-HDTDiskLayoutPlan -Layout $greedy -DiskSizeByte $script:disk } |
+            Should -Throw -ExpectedMessage '*Data*'
+    }
+}

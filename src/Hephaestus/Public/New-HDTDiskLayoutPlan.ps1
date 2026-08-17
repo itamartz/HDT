@@ -82,25 +82,87 @@ function New-HDTDiskLayoutPlan {
 
     $row = @($Layout.Partition)
 
-    # Everything that is not Windows takes its declared size, whatever it is
-    # eventually created with. The recovery row declares 1 GB AND carries
-    # UseMaximumSize: the declared size is what Windows must leave behind, and
-    # the flag is what makes the slack land in recovery rather than unallocated.
-    $claimed = [long] 0
+    # WHICH ROW GETS WHAT NOTHING ELSE CLAIMED. A named layout means Windows by
+    # Role and says nothing else; an authored one names the row outright with
+    # TakesRemainder, because it may have no partition called Windows at all.
+    #
+    # READ THROUGH PSObject.Properties, because a named layout's rows do not
+    # carry these members and StrictMode throws on a missing one.
+    $has = {
+        param([object] $Row, [string] $Name)
+
+        if ($null -eq $Row.PSObject.Properties[$Name]) { return $false }
+        return $true
+    }
+
+    $remainderRole = 'Windows'
     foreach ($current in $row) {
-        if ($current.Role -eq 'Windows') { continue }
+        if ((& $has $current 'TakesRemainder') -and [bool] $current.TakesRemainder) {
+            $remainderRole = [string] $current.Role
+            break
+        }
+    }
+
+    # Everything that is neither the remainder row nor a percentage takes its
+    # declared size, whatever it is eventually created with. The recovery row
+    # declares 1 GB AND carries UseMaximumSize: the declared size is what
+    # Windows must leave behind, and the flag is what makes the slack land in
+    # recovery rather than unallocated.
+    $claimed = [long] 0
+    $percentTotal = 0
+
+    foreach ($current in $row) {
+        if ($current.Role -eq $remainderRole) { continue }
+
+        $percent = 0
+        if (& $has $current 'PercentOfRemainder') { $percent = [int] $current.PercentOfRemainder }
+
+        if ($percent -gt 0) {
+            $percentTotal += $percent
+            continue
+        }
+
         $claimed += [long] $current.SizeByte
     }
 
     $overhead = $claimed + [long] $Layout.ReservedSizeByte + [long] $Layout.AlignmentSizeByte
-    $windowsSizeByte = [long] $DiskSizeByte - $overhead
+
+    # WHAT THE PERCENTAGES ARE A PERCENTAGE OF: what is left after the fixed
+    # rows and the allowances, which is MDT's own wording - "a percentage of
+    # remaining free space". A percentage of the WHOLE disk differs by more
+    # than a gigabyte on a 128 GB disk, and differs silently: the disk still
+    # partitions, just not as the author meant.
+    $available = [long] $DiskSizeByte - $overhead
+    $percentByte = @{}
+    $percentClaimed = [long] 0
+
+    foreach ($current in $row) {
+        if ($current.Role -eq $remainderRole) { continue }
+        if (-not (& $has $current 'PercentOfRemainder')) { continue }
+
+        $percent = [int] $current.PercentOfRemainder
+        if ($percent -le 0) { continue }
+
+        # FLOOR, NEVER ROUND. Rounding up hands out a byte the disk does not
+        # have, and the failure lands on whichever partition is created last.
+        $size = [long] [math]::Floor($available * ($percent / 100))
+        $percentByte[[string] $current.Role] = $size
+        $percentClaimed += $size
+    }
+
+    $windowsSizeByte = $available - $percentClaimed
 
     if ($windowsSizeByte -lt $MinimumWindowsSizeByte) {
         $shortfall = $MinimumWindowsSizeByte - $windowsSizeByte
 
+        # THE ROW THAT WOULD GET NOTHING IS NAMED. On a named layout that is
+        # Windows and always was; on an authored one it is whichever row said
+        # 'remainder', and "Windows would get" would name a partition the
+        # document does not contain.
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Layout.Name `
-                    -Message ("disk layout '{0}' does not fit on a disk of {1} bytes: after {2} bytes of system, reserved and recovery space, Windows would get {3} bytes, which is {4} bytes short of the {5} byte minimum." -f
-                        $Layout.Name, $DiskSizeByte, $overhead, $windowsSizeByte, $shortfall, $MinimumWindowsSizeByte)))
+                    -Message ("disk layout '{0}' does not fit on a disk of {1} bytes: after {2} bytes of fixed partitions and allowances and {3} bytes claimed by percentages, '{4}' would get {5} bytes, which is {6} bytes short of the {7} byte minimum." -f
+                        $Layout.Name, $DiskSizeByte, $overhead, $percentClaimed, $remainderRole,
+                        $windowsSizeByte, $shortfall, $MinimumWindowsSizeByte)))
     }
 
     $plan = New-Object -TypeName System.Collections.ArrayList
@@ -110,7 +172,8 @@ function New-HDTDiskLayoutPlan {
         $order++
 
         $sizeByte = [long] $current.SizeByte
-        if ($current.Role -eq 'Windows') { $sizeByte = $windowsSizeByte }
+        if ($current.Role -eq $remainderRole) { $sizeByte = $windowsSizeByte }
+        if ($percentByte.ContainsKey([string] $current.Role)) { $sizeByte = $percentByte[[string] $current.Role] }
 
         [void] $plan.Add([pscustomobject] @{
                 Order          = $order

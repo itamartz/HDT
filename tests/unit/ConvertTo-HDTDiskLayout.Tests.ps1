@@ -202,6 +202,77 @@ Describe 'ConvertTo-HDTDiskLayout' {
         }
     }
 
+    Context 'the fields MDT has and this did not' {
+
+        # MDT's Format and Partition Disk writes one set of variables per
+        # partition - PSD's ZTIGather.xml still carries the list:
+        #
+        #   TYPE  FILESYSTEM  BOOTABLE  QUICKFORMAT  VOLUMENAME
+        #   SIZE  SIZEUNITS   VOLUMELETTERVARIABLE
+        #
+        # Everything there maps onto a row here except two, and both are things
+        # an administrator sets on the MDT dialog.
+
+        It 'quick-formats by default, as MDT does' {
+            $one = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+                [pscustomobject] @{ name = 'W'; type = 'Primary'; size = '10GB' })
+
+            @($one.Partition)[0].QuickFormat | Should -BeTrue
+        }
+
+        It 'takes a full format when it is asked for' {
+            # A FULL FORMAT IS HOURS ON A LARGE DISK, and it is the only way to
+            # know a suspect disk can hold what is written to it. MDT offers the
+            # choice; refusing to carry it would mean HDT could not express a
+            # sequence somebody already runs.
+            $one = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+                [pscustomobject] @{ name = 'W'; type = 'Primary'; size = '10GB'; quickFormat = $false })
+
+            @($one.Partition)[0].QuickFormat | Should -BeFalse
+        }
+
+        It 'marks the first partition bootable by default, which is MDT default too' {
+            $mbr = ConvertTo-HDTDiskLayout -Style MBR -Partition @(
+                [pscustomobject] @{ name = 'S'; type = 'Primary'; size = '500MB' }
+                [pscustomobject] @{ name = 'W'; type = 'Primary'; size = 'remainder' })
+
+            @($mbr.Partition)[0].IsActive | Should -BeTrue
+            @($mbr.Partition)[1].IsActive | Should -BeFalse
+        }
+
+        It 'lets a later partition be the bootable one when it is declared' {
+            $mbr = ConvertTo-HDTDiskLayout -Style MBR -Partition @(
+                [pscustomobject] @{ name = 'Data'; type = 'Primary'; size = '10GB'; bootable = $false }
+                [pscustomobject] @{ name = 'System'; type = 'Primary'; size = 'remainder'; bootable = $true })
+
+            @($mbr.Partition)[0].IsActive | Should -BeFalse
+            @($mbr.Partition)[1].IsActive | Should -BeTrue
+        }
+
+        It 'refuses two bootable partitions' {
+            # THE FIRMWARE PICKS ONE, and which one is then not the author's
+            # decision. An MBR disk with two active partitions is a disk that
+            # boots something nobody chose.
+            { ConvertTo-HDTDiskLayout -Style MBR -Partition @(
+                    [pscustomobject] @{ name = 'A'; type = 'Primary'; size = '1GB'; bootable = $true }
+                    [pscustomobject] @{ name = 'B'; type = 'Primary'; size = '1GB'; bootable = $true }) } |
+                Should -Throw -ExpectedMessage '*bootable*'
+        }
+
+        It 'refuses <_>, which MDT allows and this engine does not create' -ForEach @('Logical', 'Extended') {
+            # SAID OUT LOUD RATHER THAN IGNORED. MDT's dialog offers Primary,
+            # Logical and Extended; HDT creates basic partitions on GPT or MBR
+            # and has never made an extended container. Accepting the word and
+            # quietly making a primary would produce a disk that does not match
+            # the document.
+            $wanted = $_
+
+            { ConvertTo-HDTDiskLayout -Style MBR -Partition @(
+                    [pscustomobject] @{ name = 'A'; type = $wanted; size = '1GB' }) } |
+                Should -Throw -ExpectedMessage ('*{0}*' -f $wanted)
+        }
+    }
+
     Context 'what an empty table means' {
 
         It 'refuses one, because a disk with no partitions is not a layout' {
