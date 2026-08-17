@@ -593,6 +593,7 @@ document and the engine disagree about is not controlled:
 | `step.complete` | a step finished successfully |
 | `step.fail` | a step failed, or the loop itself did |
 | `step.skip` | a step was skipped, with the reason |
+| `step.progress` | a long step said how far through itself it is, as a percentage |
 | `var.resolve` | a variable was resolved or set, with its source |
 | `native.exec` | an external command line was run |
 | `reboot.arm` | autologon was armed before a restart (§4.5) |
@@ -1522,7 +1523,18 @@ machine is still intact.
 
 ### 9.2 Apply
 
-`Expand-WindowsImage` for WIM, `DISM /Apply-Ffu` for FFU.
+`DISM /Apply-Image` for WIM, `DISM /Apply-Ffu` for FFU.
+
+**The tool, not the cmdlet, and the reason is the progress.** `Expand-WindowsImage`
+writes its progress to PowerShell's *progress stream* — a console bar, not data.
+Nothing in WinPE reads it and no parameter turns it into something a caller can
+see, so an apply through the cmdlet is silent from the moment it starts until it
+returns: on an 18 GB image that is nine minutes in which the only screen the
+technician has does not change. `dism.exe` prints a percentage on stdout, which
+is what MDT's LiteTouch has always driven its bar from, and §11.1 carries that
+number into the log as `step.progress` — every five points, and always at 100.
+`dism.exe` is also in WinPE as shipped, where the DISM *cmdlets* need the
+`WinPE-DismCmdlets` optional component.
 
 **Index selection, and its refusal.** Selectable by number, name or edition.
 Each criterion is matched **independently and the results intersected**, which is

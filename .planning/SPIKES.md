@@ -1581,3 +1581,99 @@ action             : Cancel            showError   : (none)
 The only VM created, started or removed was `HDT-W2-Wizard`: `HDT-*`,
 Generation 2, under `C:\HDTLab\vms`, on `HDT External`. It is powered off and
 left in place.
+
+
+## S16 — dism's progress meter reaches PowerShell live, and a callback runs in somebody else's module ✅⚠
+
+Run on 2026-08-17, on this host, under Windows PowerShell 5.1. Both findings are
+measured, not reasoned about.
+
+### The question
+
+`Expand-WindowsImage` reports progress on PowerShell's *progress stream*, which
+is a console bar and not data: nothing in WinPE reads it and there is no
+parameter that turns it into something a caller can use. `dism.exe` prints a
+percentage on stdout - MDT's mechanism - but redirected native output is a known
+trap: the meter repaints with carriage returns, and if PowerShell buffers on
+newlines alone the whole transcript arrives at the end, which is a bar that
+jumps from nothing to done.
+
+### ✅ It arrives live, through the plain call operator
+
+`& dism.exe /Export-Image ... 2>&1 | ForEach-Object { ... }` on the 324 MB ADK
+`winpe.wim`: **206 pipeline objects across 12.1 seconds**, one repaint per
+object, first at 79 ms and roughly one per 1% thereafter. A
+`Diagnostics.Process` with `ReadBlock` on the raw stream was measured beside it
+and gave the same cadence (102 chunks, 12.0 s) for considerably more code.
+
+**So the adapter keeps the existing `&` + `2>&1` + exit-code pattern.** No
+`Start-Process`, no async reader, no runspace. `New-HDTImageService.ApplyImage`
+now runs `dism.exe /Apply-Image /ImageFile: /Index: /ApplyDir:` and hands every
+line to a callback as it arrives.
+
+### ✅ The captured transcript, and the shape of the meter
+
+`tests/fixtures/image/dism-apply-image-output.txt` is a real
+`dism /Apply-Image` of `winpe.wim`, 178 lines. Three things in it were not
+guessable:
+
+- at 1% the number floats in spaces, at 85% it has an `=` run on both sides,
+  and at 100% it is embedded in a solid bar with **no space around it at all**:
+  `[==========================100.0%==========================]`. A pattern
+  anchored on whitespace reads the first two and misses the one that says the
+  apply finished.
+- the run goes 1, 2, 3 ... 85 and then **jumps straight to 100**. A step that
+  only reported on a five-point stride would say 85% and then nothing at all
+  about an apply that finished, which is why `Invoke-HDTApplyImageStep` reports
+  100 unconditionally.
+- every meter line is preceded by an empty pipeline object.
+
+### ⚠ A scriptblock invoked from a PowerShell class resolves commands in THAT class's module
+
+The trap that cost the most here, and it is not about DISM at all.
+
+`Invoke-HDTApplyImageStep` builds its progress callback with `.GetNewClosure()`
+inside the Hephaestus module and hands it to `IImageService.ApplyImage`. The
+real adapter is a `pscustomobject` in the same module and it worked. The
+**fake** is a PowerShell `class` in `HDTFakes` - and a scriptblock invoked from
+a class method resolves its commands **in the class's module**, where
+`ConvertFrom-HDTDismProgressLine`, private to Hephaestus, does not exist.
+
+It failed as `The term '...' is not recognized`, into the callback's own
+`catch`, and looked exactly like an apply that printed no percentages: the step
+still returned `Completed` and every other assertion still passed.
+
+**The fix is to resolve the commands where the function is and capture the
+`CommandInfo`:**
+
+```powershell
+$parseProgress = Get-Command -Name 'ConvertFrom-HDTDismProgressLine'
+...
+$percent = & $parseProgress -Line $Line
+```
+
+A `CommandInfo` invoked with `&` does not care whose scope it is called from.
+Exported commands happen to resolve anyway - which is why `Write-HDTLog` looked
+fine and only the private function broke - so the failure is invisible until a
+callback reaches for something private. **Any scriptblock this engine hands to a
+service must assume it will run in a foreign module.**
+
+### ⚠ Applying an image to a plain directory leaves content an unelevated user cannot delete
+
+The fixture capture applied `winpe.wim` to `C:\HDTLab\scratch\HDT-dism-fixture`.
+dism applies the WIM's own security descriptors, so the tree ends up owned by
+`NT SERVICE\TrustedInstaller`; `rd /s /q` and `icacls /grant` both fail without
+elevation, and taking ownership needs it too. The integration tests apply to a
+mounted VHDX which is detached and deleted whole, so they are unaffected - but a
+scratch *directory* apply must be cleaned up from an elevated shell:
+
+```powershell
+takeown /f C:\HDTLab\scratch\HDT-dism-fixture /r /d y
+icacls C:\HDTLab\scratch\HDT-dism-fixture /grant "$env:USERNAME:(OI)(CI)F" /t /c /q
+rd /s /q C:\HDTLab\scratch\HDT-dism-fixture
+```
+
+### Lab safety
+
+No VM was created, started or removed. Everything written went to
+`C:\HDTLab\scratch\`, into directories this work created.
