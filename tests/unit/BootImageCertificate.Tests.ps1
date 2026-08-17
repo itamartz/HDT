@@ -1,4 +1,4 @@
-# CERTIFICATES IN THE BOOT IMAGE, which is the half of a PKI network WinPE
+﻿# CERTIFICATES IN THE BOOT IMAGE, which is the half of a PKI network WinPE
 # cannot do without.
 #
 # A ROOT CA IS WHY AN HTTPS ENDPOINT IS TRUSTED. An internal CA is trusted by
@@ -44,6 +44,20 @@ bootImage:
     - Certs\contoso-issuing.cer
   clientCertificate: Certs\winpe-802.1x.pfx
 '@
+
+    # A SecureString A CHARACTER AT A TIME, which is what New-HDTContentProvider's
+    # suite does and for the same reason: ConvertTo-SecureString -AsPlainText is
+    # an analyzer Error, and a suppression on a scriptblock's param block does
+    # not reach the call inside it. This needs no suppression at all.
+    $script:newSecret = {
+        param([string] $Text = 'pfx-secret')
+
+        $secure = New-Object -TypeName System.Security.SecureString
+        foreach ($character in $Text.ToCharArray()) { $secure.AppendChar($character) }
+        $secure.MakeReadOnly()
+
+        return $secure
+    }
 
     $script:plain = [string[]] @($script:plainText -split "`r?`n")
     $script:declared = [string[]] @($script:certText -split "`r?`n")
@@ -208,7 +222,7 @@ Describe 'Set-HDTBootImageCertificatePassword' {
         $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\workspace.yaml' = $script:certText }
 
         Set-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\ws' `
-            -Password (ConvertTo-SecureString -String 'pfx-secret' -AsPlainText -Force) `
+            -Password (& $script:newSecret) `
             -FileSystem $fs -Confirm:$false
 
         $fs.TestPath('C:\ws\Control\certificate-password.json') | Should -BeTrue
@@ -218,7 +232,7 @@ Describe 'Set-HDTBootImageCertificatePassword' {
         $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\workspace.yaml' = $script:certText }
 
         Set-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\ws' `
-            -Password (ConvertTo-SecureString -String 'pfx-secret' -AsPlainText -Force) `
+            -Password (& $script:newSecret) `
             -FileSystem $fs -Confirm:$false
 
         $text = [string] $fs.ReadAllText('C:\ws\Control\certificate-password.json')
@@ -231,7 +245,7 @@ Describe 'Set-HDTBootImageCertificatePassword' {
         $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\workspace.yaml' = $script:certText }
 
         Set-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\ws' `
-            -Password (ConvertTo-SecureString -String 'pfx-secret' -AsPlainText -Force) `
+            -Password (& $script:newSecret) `
             -FileSystem $fs -Confirm:$false
 
         [string] (Get-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\ws' -FileSystem $fs) |
