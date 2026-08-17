@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Task Sequence Editor"
@@ -88,7 +88,7 @@
         <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
         <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
-        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFFAFAFA" />
+        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFEDEDED" />
         <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
         <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />
@@ -230,12 +230,10 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" x:Name="HDTEditorTitleText"
-                           Text="Task Sequence"
                            Foreground="{DynamicResource HDTBannerTextBrush}"
                            FontFamily="Segoe UI" FontSize="17" FontWeight="SemiBold" />
 
                 <TextBlock Grid.Row="1" x:Name="HDTEditorPathText"
-                           Text="(document)"
                            Foreground="{DynamicResource HDTBannerLabelBrush}"
                            FontFamily="Consolas, Courier New" FontSize="11"
                            Margin="0,4,0,0"
@@ -252,34 +250,27 @@
                 <!-- The drop-down is the whole point of Add: an administrator
                      picks a step type from a list the engine's registry
                      produced, rather than typing one. -->
-                <Button x:Name="HDTAddButton" Style="{StaticResource HDTToolButton}"
-                        Content="Add  &#x25BE;">
+                <Button x:Name="HDTAddButton" Style="{StaticResource HDTToolButton}">
                     <Button.ContextMenu>
                         <ContextMenu x:Name="HDTAddMenu" />
                     </Button.ContextMenu>
                 </Button>
 
-                <Button x:Name="HDTRemoveButton" Style="{StaticResource HDTToolButton}"
-                        Content="Remove" IsEnabled="False" />
+                <Button x:Name="HDTRemoveButton" Style="{StaticResource HDTToolButton}" IsEnabled="False" />
 
                 <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
 
-                <Button x:Name="HDTUpButton"   Style="{StaticResource HDTToolButton}"
-                        Content="&#x2191;  Up"   IsEnabled="False" />
-                <Button x:Name="HDTDownButton" Style="{StaticResource HDTToolButton}"
-                        Content="&#x2193;  Down" IsEnabled="False" />
+                <Button x:Name="HDTUpButton"   Style="{StaticResource HDTToolButton}"   IsEnabled="False" />
+                <Button x:Name="HDTDownButton" Style="{StaticResource HDTToolButton}" IsEnabled="False" />
 
                 <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
 
-                <Button x:Name="HDTCopyButton"  Style="{StaticResource HDTToolButton}"
-                        Content="Copy"  IsEnabled="False" />
-                <Button x:Name="HDTPasteButton" Style="{StaticResource HDTToolButton}"
-                        Content="Paste" IsEnabled="False" />
+                <Button x:Name="HDTCopyButton"  Style="{StaticResource HDTToolButton}"  IsEnabled="False" />
+                <Button x:Name="HDTPasteButton" Style="{StaticResource HDTToolButton}" IsEnabled="False" />
 
                 <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
 
-                <Button x:Name="HDTSaveButton" Style="{StaticResource HDTToolButton}"
-                        Content="Save" IsEnabled="False" />
+                <Button x:Name="HDTSaveButton" Style="{StaticResource HDTToolButton}" IsEnabled="False" />
             </StackPanel>
         </Border>
 
@@ -295,7 +286,7 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Steps"
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTEditorStepsLabel"
                        Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
 
             <TreeView Grid.Row="1" Grid.Column="0"
@@ -470,7 +461,7 @@
                          and using it here made the one label above the tabs
                          read as a section title beside rows that are its
                          peers. -->
-                    <TextBlock Grid.Column="0" Text="Name"
+                    <TextBlock Grid.Column="0" x:Name="HDTStepNameLabel"
                                Foreground="{DynamicResource HDTPanelTextBrush}"
                                FontSize="12" VerticalAlignment="Center"
                                Margin="0,0,10,0" />
@@ -485,8 +476,7 @@
                              BorderBrush="{DynamicResource HDTBorderBrush}"
                              BorderThickness="1"
                              FontFamily="Segoe UI" FontSize="12"
-                             Padding="6,5,6,5"
-                             ToolTip="What this step is called. Every command refers to it by this name, so renaming it rewrites those references in the document." />
+                             Padding="6,5,6,5" />
                 </Grid>
 
             <TabControl Grid.Row="1"
@@ -515,7 +505,7 @@
                     lose whatever was typed into the last box before the button
                     was pressed, because pressing it is what moves the focus.
                 -->
-                <TabItem Header="Properties" x:Name="HDTPropertyTab">
+                <TabItem x:Name="HDTPropertyTab">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
@@ -568,11 +558,9 @@
                                 BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="HDTPropertyApplyButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Apply properties" IsEnabled="False" />
+                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
                                 <Button x:Name="HDTPropertyRevertButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Revert" IsEnabled="False" />
+                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -594,7 +582,7 @@
                     setting is new, and a paragraph under every row turns four
                     settings into a page that has to be scrolled.
                 -->
-                <TabItem Header="Operating System" x:Name="HDTImageTab">
+                <TabItem x:Name="HDTImageTab">
                     <Grid Margin="14,12,14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -651,7 +639,7 @@
                             </Style>
                         </Grid.Resources>
 
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Operating system"
+                        <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTImageOsLabel"
                                    Style="{StaticResource HDTFieldLabel}" />
 
                         <ComboBox Grid.Row="0" Grid.Column="1" x:Name="HDTImageBox"
@@ -661,14 +649,13 @@
                         <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                             <Border.ToolTip>
                                 <ToolTip MaxWidth="380">
-                                    <TextBlock TextWrapping="Wrap"
-                                               Text="The images this share holds. Importing one makes it appear here; an image the sequence names but the share does not have is shown as missing rather than replaced." />
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTImageOsHint" />
                                 </ToolTip>
                             </Border.ToolTip>
                             <TextBlock Style="{StaticResource HDTHelpGlyph}" />
                         </Border>
 
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Image index"
+                        <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTImageIndexLabel"
                                    Style="{StaticResource HDTFieldLabel}" />
 
                         <!-- THE EDITIONS os.yaml CARRIES, not a number to type
@@ -681,14 +668,13 @@
                         <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                             <Border.ToolTip>
                                 <ToolTip MaxWidth="380">
-                                    <TextBlock TextWrapping="Wrap"
-                                               Text="Which edition inside the image. The list is what os.yaml recorded off the media; 1 is the first image in the WIM, which is what the engine applies when a step names none." />
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTImageIndexHint" />
                                 </ToolTip>
                             </Border.ToolTip>
                             <TextBlock Style="{StaticResource HDTHelpGlyph}" />
                         </Border>
 
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Destination"
+                        <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTImageDestinationLabel"
                                    Style="{StaticResource HDTFieldLabel}" />
 
                         <ComboBox Grid.Row="2" Grid.Column="1" x:Name="HDTImageTargetBox"
@@ -697,14 +683,13 @@
                         <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                             <Border.ToolTip>
                                 <ToolTip MaxWidth="380">
-                                    <TextBlock TextWrapping="Wrap"
-                                               Text="Which volume the image is written to. %HDTOSVolume% is the one the partition step published - never a guess at C:, which in WinPE is frequently the content disk." />
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTImageDestinationHint" />
                                 </ToolTip>
                             </Border.ToolTip>
                             <TextBlock Style="{StaticResource HDTHelpGlyph}" />
                         </Border>
 
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Time limit"
+                        <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTImageTimeoutLabel"
                                    Style="{StaticResource HDTFieldLabel}" />
 
                         <Grid Grid.Row="3" Grid.Column="1">
@@ -721,7 +706,7 @@
                                      FontFamily="Consolas, Courier New" FontSize="12"
                                      Padding="6,5,6,5" />
 
-                            <TextBlock Grid.Column="1" Text="minutes"
+                            <TextBlock Grid.Column="1" x:Name="HDTImageTimeoutUnitText"
                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                        FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0" />
                         </Grid>
@@ -729,8 +714,7 @@
                         <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                             <Border.ToolTip>
                                 <ToolTip MaxWidth="380">
-                                    <TextBlock TextWrapping="Wrap"
-                                               Text="Minutes before the step is treated as hung and the attempt fails. 0 means no limit." />
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTImageTimeoutHint" />
                                 </ToolTip>
                             </Border.ToolTip>
                             <TextBlock Style="{StaticResource HDTHelpGlyph}" />
@@ -740,11 +724,9 @@
                                 BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <Button x:Name="HDTImageApplyButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Apply" />
+                                        Style="{StaticResource HDTToolButton}" />
                                 <Button x:Name="HDTImageRevertButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Revert" />
+                                        Style="{StaticResource HDTToolButton}" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -765,7 +747,7 @@
                     UNTICKED MEANS THE KEY IS REMOVED, not set to zero: a bound
                     of nothing still reads as a declared bound.
                 -->
-                <TabItem Header="Validation" x:Name="HDTValidateTab">
+                <TabItem x:Name="HDTValidateTab">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*" />
@@ -882,11 +864,9 @@
                                      splice the document six times while
                                      somebody types a number. -->
                                 <Button x:Name="HDTValidateApplyButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Apply checks" />
+                                        Style="{StaticResource HDTToolButton}" />
                                 <Button x:Name="HDTValidateRevertButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Revert" />
+                                        Style="{StaticResource HDTToolButton}" />
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -909,7 +889,7 @@
                     Move-HDTStepPartition. The strip at the bottom of the window
                     shows the one that just ran.
                 -->
-                <TabItem Header="Disk" x:Name="HDTDiskTab">
+                <TabItem x:Name="HDTDiskTab">
                     <Grid Margin="14,12,14,12">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -934,26 +914,22 @@
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0" Text="Disk number"
+                            <TextBlock Grid.Column="0" x:Name="HDTDiskNumberLabel"
                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                        VerticalAlignment="Center" />
 
-                            <TextBox Grid.Column="1" x:Name="HDTDiskNumberBox"
-                                     ToolTip="The disk to lay out. Empty lets the engine select one, and it refuses to guess when more than one qualifies." />
+                            <TextBox Grid.Column="1" x:Name="HDTDiskNumberBox" />
 
-                            <TextBlock Grid.Column="3" Text="Disk type"
+                            <TextBlock Grid.Column="3" x:Name="HDTDiskStyleLabel"
                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                        VerticalAlignment="Center" />
 
-                            <ComboBox Grid.Column="4" x:Name="HDTDiskStyleBox"
-                                      ToolTip="GPT, MBR, or let the firmware decide - which is what most sequences should keep." />
+                            <ComboBox Grid.Column="4" x:Name="HDTDiskStyleBox" />
                         </Grid>
 
                         <CheckBox Grid.Row="1" x:Name="HDTDiskWipeCheck"
-                                  Content="Wipe the disk first"
                                   Foreground="{DynamicResource HDTPanelTextBrush}"
-                                  Margin="0,0,0,12"
-                                  ToolTip="Clears an existing partition table. A disk carrying data is refused without this." />
+                                  Margin="0,0,0,12" />
 
                         <!-- THE LIST'S OWN BUTTONS, ABOVE THE LIST, as they are
                              in Workbench. Glyphs rather than words because the
@@ -966,31 +942,26 @@
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0" Text="Volume"
+                            <TextBlock Grid.Column="0" x:Name="HDTPartitionListLabel"
                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                        VerticalAlignment="Center" />
 
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <Button x:Name="HDTPartitionAddButton" Content="&#xE109;"
                                         FontFamily="Segoe UI Symbol" FontSize="13"
-                                        MinWidth="34" Margin="0,0,4,0"
-                                        ToolTip="New volume" />
+                                        MinWidth="34" Margin="0,0,4,0" />
                                 <Button x:Name="HDTPartitionEditButton" Content="&#xE104;"
                                         FontFamily="Segoe UI Symbol" FontSize="13"
-                                        MinWidth="34" Margin="0,0,4,0"
-                                        ToolTip="Edit this volume" />
+                                        MinWidth="34" Margin="0,0,4,0" />
                                 <Button x:Name="HDTPartitionRemoveButton" Content="&#xE10A;"
                                         FontFamily="Segoe UI Symbol" FontSize="13"
-                                        MinWidth="34" Margin="0,0,12,0"
-                                        ToolTip="Delete this volume" />
+                                        MinWidth="34" Margin="0,0,12,0" />
                                 <Button x:Name="HDTPartitionUpButton" Content="&#xE010;"
                                         FontFamily="Segoe UI Symbol" FontSize="13"
-                                        MinWidth="34" Margin="0,0,4,0"
-                                        ToolTip="Move it one place earlier on the disk" />
+                                        MinWidth="34" Margin="0,0,4,0" />
                                 <Button x:Name="HDTPartitionDownButton" Content="&#xE011;"
                                         FontFamily="Segoe UI Symbol" FontSize="13"
-                                        MinWidth="34" Margin="0"
-                                        ToolTip="Move it one place later on the disk" />
+                                        MinWidth="34" Margin="0" />
                             </StackPanel>
                         </Grid>
 
@@ -1019,13 +990,13 @@
                             </Grid.ColumnDefinitions>
 
                             <TextBlock Grid.Column="0" Text="#" />
-                            <TextBlock Grid.Column="1" Text="Name" />
-                            <TextBlock Grid.Column="2" Text="Type" />
-                            <TextBlock Grid.Column="3" Text="Size" />
-                            <TextBlock Grid.Column="4" Text="Format" />
-                            <TextBlock Grid.Column="5" Text="Quick" />
-                            <TextBlock Grid.Column="6" Text="Boot" />
-                            <TextBlock Grid.Column="7" Text="Variable" />
+                            <TextBlock Grid.Column="1" x:Name="HDTPartitionNameHeader" />
+                            <TextBlock Grid.Column="2" x:Name="HDTPartitionTypeHeader" />
+                            <TextBlock Grid.Column="3" x:Name="HDTPartitionSizeHeader" />
+                            <TextBlock Grid.Column="4" x:Name="HDTPartitionFormatHeader" />
+                            <TextBlock Grid.Column="5" x:Name="HDTPartitionQuickHeader" />
+                            <TextBlock Grid.Column="6" x:Name="HDTPartitionBootHeader" />
+                            <TextBlock Grid.Column="7" x:Name="HDTPartitionVariableHeader" />
 
                             <Grid.Resources>
                                 <Style TargetType="TextBlock">
@@ -1102,24 +1073,24 @@
 
                 <!-- WHETHER IT DOES IT. Workbench's Options tab: the two
                      checkboxes, then the filter. -->
-                <TabItem Header="Options">
+                <TabItem x:Name="HDTOptionsTab">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"
                                   Padding="16,14,16,14">
                         <StackPanel>
 
-                            <CheckBox x:Name="HDTDisableCheck"  Content="Disable this step" />
-                            <CheckBox x:Name="HDTContinueCheck" Content="Continue on error" />
+                            <CheckBox x:Name="HDTDisableCheck" />
+                            <CheckBox x:Name="HDTContinueCheck" />
 
                             <Border Height="1" Margin="0,6,0,14"
                                     Background="{DynamicResource HDTBorderBrush}" />
 
-                            <TextBlock Text="Conditions"
+                            <TextBlock x:Name="HDTConditionLabel"
                                        Foreground="{DynamicResource HDTLabelBrush}"
                                        FontFamily="Segoe UI" FontSize="12"
                                        Margin="0,0,0,4" />
 
-                            <TextBlock Text="This step runs only when the expression below is true. Leave it empty and the step always runs."
+                            <TextBlock x:Name="HDTConditionHint"
                                        Foreground="{DynamicResource HDTPanelTextBrush}"
                                        FontFamily="Segoe UI" FontSize="12"
                                        TextWrapping="Wrap" Margin="0,0,0,8" />
@@ -1155,8 +1126,7 @@
 
                                 <ComboBox Grid.Column="0" x:Name="HDTConditionVariableBox"
                                           DisplayMemberPath="Name" SelectedValuePath="Token"
-                                          FontFamily="Segoe UI" FontSize="12" Margin="0,0,6,0"
-                                          ToolTip="The variable to test" />
+                                          FontFamily="Segoe UI" FontSize="12" Margin="0,0,6,0" />
 
                                 <ComboBox Grid.Column="1" x:Name="HDTConditionOperatorBox"
                                           DisplayMemberPath="Display" SelectedValuePath="Token"
@@ -1175,8 +1145,7 @@
                                           Margin="0,0,6,0" />
 
                                 <Button Grid.Column="3" x:Name="HDTConditionBuildButton"
-                                        Style="{StaticResource HDTToolButton}" Content="Build"
-                                        ToolTip="Write this into the box below" />
+                                        Style="{StaticResource HDTToolButton}" />
                             </Grid>
 
                             <TextBox x:Name="HDTConditionText"
@@ -1192,11 +1161,9 @@
 
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button x:Name="HDTConditionApplyButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Apply condition" IsEnabled="False" />
+                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
                                 <Button x:Name="HDTConditionClearButton"
-                                        Style="{StaticResource HDTToolButton}"
-                                        Content="Clear" IsEnabled="False" />
+                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
                             </StackPanel>
 
                             <Border Height="1" Margin="0,16,0,14"
@@ -1211,12 +1178,11 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Runs in"
+                                <TextBlock Grid.Column="0" x:Name="HDTRunInLabel"
                                            Foreground="{DynamicResource HDTPanelTextBrush}"
                                            FontFamily="Segoe UI" FontSize="12" />
 
                                 <TextBlock Grid.Column="1" x:Name="HDTRunInText"
-                                           Text="any phase"
                                            Foreground="{DynamicResource HDTPanelTextBrush}"
                                            FontFamily="Consolas, Courier New" FontSize="12" />
                             </Grid>
@@ -1248,8 +1214,9 @@
 
             <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right"
                         Margin="0,14,0,0">
-                <Button x:Name="HDTEditorCloseButton" Content="Close" MinWidth="96" Margin="0" />
+                <Button x:Name="HDTEditorCloseButton" MinWidth="96" Margin="0" />
             </StackPanel>
         </Grid>
     </Grid>
 </Window>
+

@@ -1,4 +1,4 @@
-function New-HDTConsoleHost {
+﻿function New-HDTConsoleHost {
     <#
         .SYNOPSIS
             The real IConsoleHost: loads the console XAML with XamlReader and
@@ -86,6 +86,12 @@ function New-HDTConsoleHost {
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
+        # THE TEXT COMES OUT OF A FILE, NOT OUT OF THE MARKUP, and it is applied
+        # before anything else is written to a control: the banner is filled from
+        # the selected row a moment later, and a table applied after that would
+        # put the placeholder back.
+        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page 'Console'))
+
         $window.Title = $Title
 
         # The size the console was last left at, over the markup's first-run
@@ -135,6 +141,38 @@ function New-HDTConsoleHost {
         $command = $window.FindName('HDTCommandText')
         $close = $window.FindName('HDTCloseButton')
 
+        # -- Apply, which is the only button on this window that writes --------
+        #
+        # THE BOXES ALREADY WRITE WHEN THEY LOSE FOCUS, and that is not enough:
+        # the box somebody is typing in is the one still holding the caret when
+        # they go looking for a button, so a pane with no Apply asks them to
+        # click somewhere else before their change is real - a rule nobody can
+        # see and nobody would guess.
+        #
+        # IT WRITES EVERY CHANGED ROW, not the one with focus.
+        # Get-HDTConsoleStepChange is the same comparison the editor's Properties
+        # tab makes: an editable row whose Value differs from the Original it was
+        # built with.
+
+        $apply = $window.FindName('HDTApplyButton')
+
+        $applyState = {
+            if ($null -eq $apply) { return }
+
+            $chosen = $tree.SelectedItem
+            $ready = $false
+
+            if ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence') {
+                $pending = @(Get-HDTConsoleStepChange -Field ([object[]] @($detail.ItemsSource)) `
+                        -Name ([string] $chosen.Name))
+
+                $ready = (@($pending).Count -gt 0)
+            }
+
+            $apply.IsEnabled = $ready
+        }.GetNewClosure()
+
+
         # The roots only. WPF builds the rest from each row's Children through
         # the HierarchicalDataTemplate, so the nesting, the expanders and the
         # icons all come out of data this adapter never inspects.
@@ -151,6 +189,12 @@ function New-HDTConsoleHost {
                 $share.Text = [string] $selected.HeaderTitle
                 $deployRoot.Text = [string] $selected.HeaderDeployRoot
                 $root.Text = [string] $selected.HeaderRoot
+
+                # AND Apply GOES DARK, because a fresh pane has nothing pending.
+                # Declared below this handler and reached through the closure -
+                # $applyState is a variable, not a function, so it only has to
+                # exist by the time somebody clicks.
+                if ($null -ne $applyState) { & $applyState }
             }.GetNewClosure())
 
         # DOUBLE-CLICKING A TASK SEQUENCE OPENS THE EDITOR ON IT, which is what
@@ -262,9 +306,207 @@ function New-HDTConsoleHost {
         # commonly hold sequences with the same id, so "the selected one" is the
         # only answer that cannot write to the wrong share.
         #
+        # THE TREE, REBUILT FROM THE SHARES IT IS ALREADY SHOWING. Creating a
+        # sequence and removing one both need it, and the refresh timer only
+        # rebuilds the monitor rows.
+        #
+        # THE SAME TWO CALLS Show-HDTConsole MAKES: a share is read, its rows are
+        # built. A share that will not read becomes a failure row rather than
+        # taking the window down.
+        $rebuildTree = {
+            $shareRoot = New-Object -TypeName System.Collections.ArrayList
+
+            foreach ($root in @($tree.ItemsSource)) {
+                foreach ($share in @($root.Children)) {
+                    $one = [string] $share.HeaderRoot
+                    if (-not [string]::IsNullOrWhiteSpace($one)) { [void] $shareRoot.Add($one) }
+                }
+            }
+
+            $rebuiltShare = New-Object -TypeName System.Collections.ArrayList
+
+            foreach ($one in @($shareRoot)) {
+                try {
+                    [void] $rebuiltShare.Add((Get-HDTConsoleWorkspace -Path $one))
+                } catch {
+                    [void] $rebuiltShare.Add((New-HDTConsoleShareFailure -Path $one `
+                                -Message ([string] $_.Exception.Message)))
+                }
+            }
+
+            # THE DEPTH-0 ROWS, NOT EVERY ROW. Get-HDTConsoleTreeNode returns the
+            # tree flat and WPF builds the branches from each row's Children, so
+            # handing it everything draws every node twice.
+            $rebuiltNode = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($rebuiltShare)))
+
+            $tree.ItemsSource = @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
+        }.GetNewClosure()
+
+        # A TYPEABLE DETAIL BOX WRITES WHEN IT LOSES FOCUS, which is how every
+        # other box in this console behaves. Which boxes those are is the row's
+        # decision - New-HDTConsoleField sets ReadOnly from whether the row names
+        # a key - so this handler keeps no list of labels.
+        #
+        # ONE HANDLER FOR THE WHOLE PANE, not one per box: the boxes are made by
+        # a DataTemplate and remade on every selection, so a handler attached to
+        # each would have to be attached again on every click of the tree.
+        # LostFocus bubbles, and OriginalSource is the box that lost it.
+        #
+        # IT WRITES THE FILE, IT DOES NOT HOLD THE EDIT. There is no Save on this
+        # window - the pane is a properties sheet off a live share - so the
+        # document is read, spliced and saved in one go, and the tree is rebuilt
+        # so the row's label follows the name that was just typed.
+        # TYPING LIGHTS Apply. TextChanged fires per keystroke, which is what a
+        # button that says 'there is something to write' has to follow - waiting
+        # for focus to move would leave it dark at the moment it is wanted.
+        $detail.AddHandler([System.Windows.Controls.TextBox]::TextChangedEvent,
+            [System.Windows.RoutedEventHandler] {
+                if ($null -ne $applyState) { & $applyState }
+            }.GetNewClosure())
+
+        $detail.AddHandler([System.Windows.Controls.TextBox]::LostFocusEvent,
+            [System.Windows.RoutedEventHandler] {
+                param([object] $raiser, [System.Windows.RoutedEventArgs] $lost)
+
+                $box = $lost.OriginalSource -as [System.Windows.Controls.TextBox]
+                if ($null -eq $box) { return }
+
+                $row = $box.DataContext
+                if ($null -eq $row) { return }
+
+                # ASKED FOR, NOT ASSUMED. Not every row in this pane comes from
+                # New-HDTConsoleField - a monitor row and a share that would not
+                # open build their own - and under Set-StrictMode reading a
+                # property that is not there is a terminating error on the
+                # dispatcher, which takes the window down for a click on a box
+                # that was never editable in the first place.
+                if (@($row.PSObject.Properties.Match('Editable')).Count -eq 0) { return }
+                if (-not [bool] $row.Editable) { return }
+
+                $typed = [string] $box.Text
+                if ($typed -eq [string] $row.Original) { return }
+
+                $selected = $tree.SelectedItem
+                if ($null -eq $selected -or [string] $selected.Kind -ne 'TaskSequence') { return }
+
+                $documentPath = [string] $selected.Subject.Path
+
+                try {
+                    $fileSystem = New-HDTFileSystem
+                    $document = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                    $splat = @{ Line = $document; Confirm = $false }
+                    $splat[[string] $row.Property] = $typed
+
+                    # Save-HDTSequenceDocument, NOT Save-HDTWorkspaceDocument:
+                    # both write lines and check them first, and the workspace
+                    # one checks them against workspace.yaml's keys - so it
+                    # refuses a sequence for declaring 'description'.
+                    [void] (Save-HDTSequenceDocument -Path $documentPath `
+                            -Line @(Set-HDTTaskSequenceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+
+                    $row.Original = $typed
+
+                    # THE REBUILD IS THE EXPENSIVE HALF - it re-reads every open
+                    # share and revalidates every sequence in it, which is about
+                    # a third of a second against this lab's one share and grows
+                    # with the number open. The tree row reads 'id - name', so
+                    # it is only out of date when the NAME changed; a
+                    # description is not on it, and re-reading the share to find
+                    # that out would be paying the cost to learn nothing.
+                    if ([string] $row.Property -eq 'name') { & $rebuildTree }
+
+                    # DESIGN 12's "learn the automation surface by clicking
+                    # around": what was just run, in the box that shows it. The
+                    # key is 'name' in the document and the parameter is -Name.
+                    #
+                    # AFTER THE REBUILD, NOT BEFORE. Rebuilding the tree changes
+                    # the selection, and the selection handler writes this box -
+                    # so a line written first is gone before anybody reads it.
+                    $key = [string] $row.Property
+                    $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
+
+                    $command.Text = "Set-HDTTaskSequenceProperty -Line `$line -{0} '{1}'" -f $parameter, $typed
+                } catch {
+                    # A REFUSAL PUTS THE BOX BACK. Set-HDTTaskSequenceProperty
+                    # will not clear a name, and a box left holding a value the
+                    # document rejected is a lie about what is on disk.
+                    $box.Text = [string] $row.Original
+                    $command.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        if ($null -ne $apply) {
+            $apply.Add_Click({
+                    $chosen = $tree.SelectedItem
+                    if ($null -eq $chosen -or [string] $chosen.Kind -ne 'TaskSequence') { return }
+
+                    $documentPath = [string] $chosen.Subject.Path
+
+                    $pending = @(Get-HDTConsoleStepChange -Field ([object[]] @($detail.ItemsSource)) `
+                            -Name ([string] $chosen.Name))
+
+                    if (@($pending).Count -eq 0) { return }
+
+                    $ran = New-Object -TypeName System.Collections.ArrayList
+                    $renamed = $false
+
+                    try {
+                        $fileSystem = New-HDTFileSystem
+                        $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                        # ONE READ, EVERY CHANGE, ONE WRITE. Saving per row would
+                        # write the document twice for a name and a description
+                        # typed together, and the second write would be built
+                        # from lines read before the first.
+                        foreach ($one in @($pending)) {
+                            $key = [string] $one.Property
+                            $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
+
+                            $splat = @{ Line = $line; Confirm = $false }
+                            $splat[$parameter] = [string] $one.Value
+
+                            $line = [string[]] @(Set-HDTTaskSequenceProperty @splat)
+
+                            [void] $ran.Add(("Set-HDTTaskSequenceProperty -Line `$line -{0} '{1}'" -f
+                                    $parameter, [string] $one.Value))
+
+                            if ($key -eq 'name') { $renamed = $true }
+                        }
+
+                        [void] (Save-HDTSequenceDocument -Path $documentPath -Line $line `
+                                -FileSystem $fileSystem -Confirm:$false)
+
+                        [void] $ran.Add(("Save-HDTSequenceDocument -Line `$line -Path '{0}'" -f $documentPath))
+
+                        foreach ($one in @($pending)) {
+                            @($detail.ItemsSource) |
+                                Where-Object { [string] $_.Property -eq [string] $one.Property } |
+                                ForEach-Object { $_.Original = [string] $one.Value }
+                        }
+                    } catch {
+                        # A REFUSAL LEAVES THE PANE AS IT IS. The boxes still
+                        # hold what was typed, so it can be corrected rather than
+                        # retyped.
+                        $command.Text = [string] $_.Exception.Message
+                        return
+                    }
+
+                    # THE TREE ROW READS 'id - name', so only a rename makes it
+                    # stale - and rebuilding re-reads every open share, which is
+                    # the expensive half.
+                    if ($renamed) { & $rebuildTree }
+
+                    $command.Text = (@($ran) -join [System.Environment]::NewLine)
+
+                    & $applyState
+                }.GetNewClosure())
+        }
+
         # NO MARKUP, NO BUTTON. A button that cannot open its window is one a
         # technician presses to find out nothing happens.
         $newSequence = $window.FindName('HDTNewSequenceMenuItem')
+        $removeSequence = $window.FindName('HDTRemoveSequenceMenuItem')
 
         if ($null -ne $newSequence) {
             if ([string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
@@ -303,11 +545,64 @@ function New-HDTConsoleHost {
 
                         $chosen = $tree.SelectedItem
 
-                        $wanted = ($null -ne $chosen -and
+                        $isCategory = ($null -ne $chosen -and
                             [string] $chosen.Kind -eq 'Category' -and
                             [string] $chosen.Name -eq 'TaskSequences')
 
-                        if (-not $wanted) { $opening.Handled = $true }
+                        $isSequence = ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence')
+
+                        # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
+                        # with none opens no menu.
+                        $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
+                        $removeSequence.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        if ($isCategory) { $newSequence.Visibility = [System.Windows.Visibility]::Visible }
+                        if ($isSequence) { $removeSequence.Visibility = [System.Windows.Visibility]::Visible }
+
+                        if (-not ($isCategory -or $isSequence)) { $opening.Handled = $true }
+                    }.GetNewClosure())
+
+                # REMOVE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED.
+                # Remove-HDTTaskSequence carries ConfirmImpact High, which would
+                # otherwise prompt at a console nobody is looking at - a window
+                # that appears to hang. The answer here is passed as
+                # -Confirm:$false: one decision, made where it was offered.
+                $removeSequence.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        $which = [string] $chosen.Name
+
+                        # AND IT SAYS SO RATHER THAN DOING NOTHING. A handler
+                        # that returns quietly on a row it cannot read is a menu
+                        # item somebody presses twice and then reports as broken.
+                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                            $command.Text = 'that row does not name a share and a task sequence id, so there is nothing to remove.'
+                            return
+                        }
+
+                        $asked = [System.Windows.MessageBox]::Show($window,
+                            ("Remove the task sequence '{0}' from{1}{2}?{1}{1}Its folder goes with it - the sequence, its answer file and anything else kept beside them. This cannot be undone from here." -f
+                                $which, [System.Environment]::NewLine, $where),
+                            'Remove Task Sequence',
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Warning,
+                            [System.Windows.MessageBoxResult]::No)
+
+                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                        try {
+                            [void] (Remove-HDTTaskSequence -Workspace $where -Id $which -Confirm:$false)
+                            $command.Text = "Remove-HDTTaskSequence -Workspace '{0}' -Id '{1}'" -f $where, $which
+                        } catch {
+                            # THE REFUSAL IS THE ANSWER, and this command's
+                            # refusals are the ones worth reading: a folder that
+                            # holds no sequence, an id that is a path.
+                            $command.Text = [string] $_.Exception.Message
+                        }
+
+                        & $rebuildTree
                     }.GetNewClosure())
 
                 $newSequence.Add_Click({
@@ -328,39 +623,9 @@ function New-HDTConsoleHost {
                         # THE TREE IS REBUILT, or the sequence that was just
                         # created is not in the window that created it - the
                         # refresh timer only rebuilds the monitor rows.
-                        #
-                        # THE SAME TWO CALLS Show-HDTConsole MAKES, over the
-                        # same roots: a share is read and its rows are built.
-                        $shareRoot = New-Object -TypeName System.Collections.ArrayList
+                        & $rebuildTree
 
-                        foreach ($root in @($tree.ItemsSource)) {
-                            foreach ($share in @($root.Children)) {
-                                $one = [string] $share.HeaderRoot
-                                if (-not [string]::IsNullOrWhiteSpace($one)) { [void] $shareRoot.Add($one) }
-                            }
-                        }
-
-                        $rebuiltShare = New-Object -TypeName System.Collections.ArrayList
-
-                        foreach ($one in @($shareRoot)) {
-                            try {
-                                [void] $rebuiltShare.Add((Get-HDTConsoleWorkspace -Path $one))
-                            } catch {
-                                [void] $rebuiltShare.Add((New-HDTConsoleShareFailure -Path $one `
-                                            -Message ([string] $_.Exception.Message)))
-                            }
-                        }
-
-                        # THE DEPTH-0 ROWS, NOT EVERY ROW. Get-HDTConsoleTreeNode
-                        # returns the tree flat and WPF builds the branches from
-                        # each row's Children, so handing it everything draws
-                        # every node twice - once under its parent and once at
-                        # the top.
-                        $rebuiltNode = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($rebuiltShare)))
-
-                        $tree.ItemsSource = @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
-
-                        $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
+                                                $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
                     }.GetNewClosure())
             }
         }
@@ -435,6 +700,9 @@ function New-HDTConsoleHost {
         foreach ($key in @($Theme.Keys)) {
             $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
         }
+
+        # The text comes out of Strings\<culture>.psd1, not out of the markup.
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'NewSequence'))
 
         $rootText = $dialog.FindName('HDTNewSequenceRootText')
         $idBox = $dialog.FindName('HDTNewSequenceIdBox')
@@ -572,6 +840,9 @@ function New-HDTConsoleHost {
             $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
         }
 
+        # The text comes out of Strings\<culture>.psd1, not out of the markup.
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'PartitionProperties'))
+
         $nameBox = $dialog.FindName('HDTVolumeNameBox')
         $typeBox = $dialog.FindName('HDTVolumeTypeBox')
         $sizeBox = $dialog.FindName('HDTVolumeSizeBox')
@@ -680,7 +951,7 @@ function New-HDTConsoleHost {
         param(
             [string] $Xaml, [string] $Title, [string] $Path,
             [object[]] $Node, [string[]] $Line, [object[]] $Catalog, [object] $Theme,
-            [object] $Size, [string] $PartitionXaml
+            [object] $Size, [string] $PartitionXaml, [object] $Editor
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -689,6 +960,11 @@ function New-HDTConsoleHost {
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # The text comes out of Strings\<culture>.psd1, not out of the markup,
+        # and before the document's own name and path are written over the
+        # banner's placeholders.
+        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page 'SequenceEditor'))
 
         $window.Title = $Title
 
@@ -1413,40 +1689,71 @@ function New-HDTConsoleHost {
 
         $imageRevert.Add_Click({ & $reflect }.GetNewClosure())
 
-        # THE VALIDATION PAGE WRITES ON ONE PRESS, which is MDT's OK. Writing on
-        # every keystroke would splice the document six times while somebody
-        # types a number, and each splice rebuilds the tree under their hands.
+        # THE WHOLE PAGE, WRITTEN IN ONE SPLICE. Every check is written, ticked
+        # or not, because unticking one is as much an edit as ticking it.
         #
         # UNTICKED REMOVES THE KEY rather than writing a zero: 'minRamMB: 0' is a
         # bound of nothing that still reads as a declared bound, and there would
         # then be no way to say "I do not care about memory".
-        $validateApply.Add_Click({
-                $written = New-Object -TypeName System.Collections.ArrayList
+        $validateWrite = {
+            $written = New-Object -TypeName System.Collections.ArrayList
 
-                foreach ($check in @($validateList.ItemsSource)) {
-                    $key = [string] $check.Key
+            foreach ($check in @($validateList.ItemsSource)) {
+                $key = [string] $check.Key
 
-                    if ($check.Enabled -ne $true) {
-                        [void] $written.Add(@{ Key = $key; Value = '' })
-                        continue
-                    }
-
-                    # A SWITCH CARRIES NO VALUE, so ticking it writes true - the
-                    # word the engine reads - rather than an empty string that
-                    # would read as absent.
-                    $value = [string] $check.Value
-                    if (-not $check.HasValue) { $value = 'true' }
-
-                    [void] $written.Add(@{ Key = $key; Value = $value })
+                if ($check.Enabled -ne $true) {
+                    [void] $written.Add(@{ Key = $key; Value = '' })
+                    continue
                 }
 
-                & $partitionAttempt {
-                    foreach ($one in $written) {
-                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
-                                -Property ([string] $one.Key) -Value ([string] $one.Value) -Confirm:$false)
-                    }
-                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property '<each check>' -Value '<value>'" -f $book.Selected)
+                # A SWITCH CARRIES NO VALUE, so ticking it writes true - the
+                # word the engine reads - rather than an empty string that
+                # would read as absent.
+                $value = [string] $check.Value
+                if (-not $check.HasValue) { $value = 'true' }
+
+                [void] $written.Add(@{ Key = $key; Value = $value })
+            }
+
+            & $partitionAttempt {
+                foreach ($one in $written) {
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                            -Property ([string] $one.Key) -Value ([string] $one.Value) -Confirm:$false)
+                }
+            } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property '<each check>' -Value '<value>'" -f $book.Selected)
+        }.GetNewClosure()
+
+        # A TICK HERE WRITES, THE SAME AS EVERY OTHER TICK IN THIS WINDOW.
+        # Wipe the disk first and Disable this step both write the moment they
+        # are clicked; a validation tick did not, and waited for Apply checks.
+        # One control, two rules, and the tab that had the second one read as a
+        # tab where nothing works: ticked a check, Save stayed grey, closed the
+        # window, lost the edit.
+        #
+        # ONE HANDLER ON THE LIST, not one per row: the rows are made by a
+        # DataTemplate and remade on every selection, so a handler attached to
+        # each would need attaching again every time. Click bubbles from the
+        # CheckBox, and a value box is not a ToggleButton so typing does not
+        # come through here.
+        $validateList.AddHandler([System.Windows.Controls.Primitives.ToggleButton]::ClickEvent,
+            [System.Windows.RoutedEventHandler] {
+                if ($book.Quiet) { return }
+                & $validateWrite
             }.GetNewClosure())
+
+        # AND A TYPED NUMBER WRITES WHEN THE BOX IS LEFT, which is what the step
+        # name box and the console's detail pane already do. Writing on every
+        # keystroke would splice the document six times while somebody types a
+        # number, and each splice rebuilds the tree under their hands.
+        $validateList.AddHandler([System.Windows.Controls.TextBox]::LostFocusEvent,
+            [System.Windows.RoutedEventHandler] {
+                if ($book.Quiet) { return }
+                & $validateWrite
+            }.GetNewClosure())
+
+        # APPLY CHECKS STAYS, and now it is the same write said out loud: it is
+        # what somebody reaches for when they are not sure the page took.
+        $validateApply.Add_Click({ & $validateWrite }.GetNewClosure())
 
         $validateRevert.Add_Click({
                 # THE DOCUMENT IS THE TRUTH, so reverting is re-reading it. The
@@ -2431,6 +2738,10 @@ function New-HDTConsoleHost {
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # The text comes out of Strings\<culture>.psd1, not out of the markup,
+        # and before the first report replaces the starting step.
+        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page 'BuildProgress'))
 
         $window.Left = [double] $Size.Left
         $window.Top = [double] $Size.Top

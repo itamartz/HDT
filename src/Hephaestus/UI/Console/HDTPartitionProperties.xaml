@@ -70,13 +70,11 @@
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="Volume name" />
-        <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTVolumeNameBox" Margin="0,0,0,10"
-                 ToolTip="What the volume is called - System, Windows, Recovery." />
+        <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTVolumeNameLabel" />
+        <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTVolumeNameBox" Margin="0,0,0,10" />
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="Partition type" />
-        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="HDTVolumeTypeBox" Margin="0,0,0,10"
-                  ToolTip="A word, never a GUID. Logical and Extended are refused: this engine creates basic partitions.">
+        <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTVolumeTypeLabel" />
+        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="HDTVolumeTypeBox" Margin="0,0,0,10">
             <ComboBoxItem Content="Primary" IsSelected="True" />
             <ComboBoxItem Content="EFI" />
             <ComboBoxItem Content="Recovery" />
@@ -88,39 +86,31 @@
             which is the same choice said once - and "the rest of the disk" is
             on the same list because it is the same question.
         -->
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="Size" />
+        <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTVolumeSizeLabel" />
         <Grid Grid.Row="2" Grid.Column="1" Margin="0,0,0,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="90" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <TextBox Grid.Column="0" x:Name="HDTVolumeSizeBox" Margin="0,0,8,0"
-                     ToolTip="How much - 260, 1, 60. What of is the list beside it." />
+            <TextBox Grid.Column="0" x:Name="HDTVolumeSizeBox" Margin="0,0,8,0" />
 
-            <ComboBox Grid.Column="1" x:Name="HDTVolumeUnitBox" DisplayMemberPath="Display"
-                      ToolTip="MB, GB, TB, a percentage of what is left, raw bytes, or all of the rest." />
+            <ComboBox Grid.Column="1" x:Name="HDTVolumeUnitBox" DisplayMemberPath="Display" />
         </Grid>
 
-        <TextBlock Grid.Row="3" Grid.Column="0" Text="File system" />
-        <ComboBox Grid.Row="3" Grid.Column="1" x:Name="HDTVolumeFileSystemBox" Margin="0,0,0,10"
-                  ToolTip="Left as the engine's default, the type decides - FAT32 for an ESP, NTFS otherwise.">
+        <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTVolumeFileSystemLabel" />
+        <ComboBox Grid.Row="3" Grid.Column="1" x:Name="HDTVolumeFileSystemBox" Margin="0,0,0,10">
             <ComboBoxItem Content="(default)" IsSelected="True" />
             <ComboBoxItem Content="NTFS" />
             <ComboBoxItem Content="FAT32" />
         </ComboBox>
 
-        <TextBlock Grid.Row="4" Grid.Column="0" Text="Variable" />
-        <TextBox Grid.Row="4" Grid.Column="1" x:Name="HDTVolumeVariableBox" Margin="0,0,0,14"
-                 ToolTip="A variable to publish this volume's drive letter into - MDT's VolumeLetterVariable. The engine's own are HDTSystemVolume, HDTOSVolume and HDTRecoveryVolume." />
+        <TextBlock Grid.Row="4" Grid.Column="0" x:Name="HDTVolumeVariableLabel" />
+        <TextBox Grid.Row="4" Grid.Column="1" x:Name="HDTVolumeVariableBox" Margin="0,0,0,14" />
 
-        <CheckBox Grid.Row="5" Grid.Column="1" x:Name="HDTVolumeQuickFormatCheck"
-                  Content="Quick format" Margin="0,0,0,8"
-                  ToolTip="Unticked writes quickFormat: false. Ticked is the engine's default and writes nothing." />
+        <CheckBox Grid.Row="5" Grid.Column="1" x:Name="HDTVolumeQuickFormatCheck" Margin="0,0,0,8" />
 
-        <CheckBox Grid.Row="6" Grid.Column="1" x:Name="HDTVolumeBootableCheck"
-                  Content="Make this a boot partition"
-                  ToolTip="One partition at most. The engine makes the first one bootable when no row claims it." />
+        <CheckBox Grid.Row="6" Grid.Column="1" x:Name="HDTVolumeBootableCheck" />
 
         <!-- WHAT THE REFUSAL SAYS, WHERE IT WAS CAUSED. OK runs the command;
              if the command refuses - a size the engine cannot read, a second
@@ -132,12 +122,13 @@
 
         <StackPanel Grid.Row="8" Grid.ColumnSpan="2" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button x:Name="HDTVolumeOkButton" Content="OK" IsDefault="True" />
-            <!-- NO NAME, BECAUSE NOTHING WIRES IT. IsCancel is WPF closing
-                 its own dialog with DialogResult false; a name here would
-                 promise a handler that does not exist, which is exactly what
-                 the contract test looks for. -->
-            <Button Content="Cancel" IsCancel="True" />
+            <Button x:Name="HDTVolumeOkButton" IsDefault="True" />
+            <!-- NAMED, BUT NOT WIRED. IsCancel is WPF closing its own dialog
+                 with DialogResult false and no handler is attached to this
+                 button. The name is here for one reason: the string table
+                 finds a control by name, and a Cancel with no name is a
+                 caption nobody can translate. -->
+            <Button x:Name="HDTCancelButton" IsCancel="True" />
         </StackPanel>
     </Grid>
 </Window>

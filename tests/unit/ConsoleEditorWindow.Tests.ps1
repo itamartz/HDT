@@ -297,8 +297,15 @@ Describe 'the Partition Properties dialog' {
     }
 
     It 'splits the right-hand pane into Properties and Options, the way MDT does' {
-        $script:markup | Should -Match 'Header="Properties"'
-        $script:markup | Should -Match 'Header="Options"'
+        # THE TABS ARE IN THE MARKUP, THEIR HEADERS ARE IN THE STRING TABLE.
+        # Asserting the words here would assert them in English, and the window
+        # carries no text of its own any more.
+        $script:markup | Should -Match 'x:Name="HDTPropertyTab"'
+        $script:markup | Should -Match 'x:Name="HDTOptionsTab"'
+
+        $string = Get-HDTStringTable -Page 'SequenceEditor'
+        [string] $string['HDTPropertyTab.Header'] | Should -BeExactly 'Properties'
+        [string] $string['HDTOptionsTab.Header'] | Should -BeExactly 'Options'
     }
 
     It 'draws the actions as a toolbar rather than as a row of filled buttons' {

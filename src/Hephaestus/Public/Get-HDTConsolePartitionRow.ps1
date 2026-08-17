@@ -244,9 +244,23 @@ function Get-HDTConsolePartitionRow {
         $resolved = $null
         try { $resolved = Get-HDTDiskLayout -Name $layout } catch { $resolved = $null }
 
+        # AND $null HAS NO Partition PROPERTY. The catch above sets $resolved to
+        # $null for a layout this engine does not have, and the very next line
+        # read a property off it - which Set-StrictMode makes a terminating
+        # error, from inside a click handler, which unwinds ShowDialog and takes
+        # the whole editor down with no message.
+        #
+        # THE NAME IS USUALLY A VARIABLE, NOT A TYPO. An MDT-shaped sequence
+        # parameterises the layout - DEMO-M4 carries layout: "%HDTDiskLayout%" -
+        # and the console edits the DOCUMENT, where that token has not been
+        # expanded and never will be. So the ordinary case for this branch was
+        # the one that crashed: every such sequence was unopenable.
+        $layoutRow = @()
+        if ($null -ne $resolved) { $layoutRow = @($resolved.Partition) }
+
         $order = 0
 
-        foreach ($current in @($resolved.Partition)) {
+        foreach ($current in @($layoutRow)) {
             if ($null -eq $current) { continue }
 
             $order++

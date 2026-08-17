@@ -1,4 +1,4 @@
-# The text the console and the WinPE windows show, in the language of the
+﻿# The text the console and the WinPE windows show, in the language of the
 # file name.
 #
 # ONE BLOCK PER WINDOW, so a translator works through a screen at a time and
@@ -30,6 +30,152 @@
         'HDTNextButton.Content' = 'Next'
         'HDTOpenCmdButton.Content' = 'Open CMD'
         'HDTSaveButton.Content' = 'Save'
+    }
+
+    # The main window: Show-HDTConsole. MDT's Deployment Workbench - a tree of
+    # what the share holds on the left, the selected row's fields on the right.
+    Console = @{
+
+        'HDTShareText.Text' = 'Deployment share'
+        'HDTConsoleDeployRootLabel.Text' = 'Deploy root'
+        'HDTConsoleOpenedFromLabel.Text' = 'Opened from'
+        'HDTConsoleTreeLabel.Text' = 'Deployment share'
+        'HDTNewSequenceMenuItem.Header' = 'New Task Sequence'
+        'HDTRemoveSequenceMenuItem.Header' = 'Remove Task Sequence'
+        'HDTConsoleDetailLabel.Text' = 'Details'
+        'HDTConsoleCommandLabel.Text' = 'Command'
+        'HDTApplyButton.Content' = 'Apply'
+    }
+
+    # What the boot image build is doing while it does it:
+    # Show-HDTBuildProgressWindow.
+    BuildProgress = @{
+
+        'HDTBuildTitleText.Text' = 'Updating Boot Image'
+        'HDTBuildStepText.Text' = 'Starting...'
+        'HDTBuildCloseButton.Content' = 'Close'
+    }
+
+    # MDT's New Task Sequence wizard, as one dialog: ShowNewSequence.
+    NewSequence = @{
+
+        'HDTNewSequenceTitleText.Text' = 'New Task Sequence'
+        'HDTNewSequenceIdLabel.Text' = 'Task sequence ID'
+        'HDTNewSequenceIdHint.Text' = 'Short, no spaces. It is the folder name under TaskSequences and what a rule or a boot image names to select this sequence.'
+        'HDTNewSequenceNameLabel.Text' = 'Task sequence name'
+        'HDTNewSequenceNameHint.Text' = 'What the console and the deployment wizard show. The id is what selects it.'
+        'HDTNewSequenceTemplateLabel.Text' = 'Template'
+        'HDTNewSequenceTemplateHint.Text' = 'The sequence is copied from this file, comments and all. A shop with its own standard build adds one to the Templates folder.'
+        'HDTNewSequenceImageLabel.Text' = 'Operating system'
+        'HDTNewSequenceImageHint.Text' = 'The images this share holds. Leave it empty to decide later - the sequence carries the choice as a variable either way.'
+        'HDTNewSequenceFullNameLabel.Text' = 'Full name'
+        'HDTNewSequenceFullNameHint.Text' = 'The registered owner written into the answer file - a person or a team, not a computer name. Written as HDTFullName.'
+        'HDTNewSequenceOrgLabel.Text' = 'Organization'
+        'HDTNewSequenceOrgHint.Text' = 'The registered organisation written into the answer file. Written as HDTOrgName.'
+        'HDTNewSequencePasswordLabel.Text' = 'Administrator password'
+        'HDTNewSequenceCreateButton.Content' = 'Create'
+    }
+
+    # One volume's eight fields, over the task sequence editor:
+    # ShowPartitionProperties.
+    PartitionProperties = @{
+
+        'HDTVolumeNameLabel.Text' = 'Volume name'
+        'HDTVolumeNameBox.ToolTip' = 'What the volume is called - System, Windows, Recovery.'
+        'HDTVolumeTypeLabel.Text' = 'Partition type'
+        'HDTVolumeTypeBox.ToolTip' = 'A word, never a GUID. Logical and Extended are refused: this engine creates basic partitions.'
+        'HDTVolumeSizeLabel.Text' = 'Size'
+        'HDTVolumeSizeBox.ToolTip' = 'How much - 260, 1, 60. What of is the list beside it.'
+        'HDTVolumeUnitBox.ToolTip' = 'MB, GB, TB, a percentage of what is left, raw bytes, or all of the rest.'
+        'HDTVolumeFileSystemLabel.Text' = 'File system'
+        'HDTVolumeFileSystemBox.ToolTip' = 'Left as the engine''s default, the type decides - FAT32 for an ESP, NTFS otherwise.'
+        'HDTVolumeVariableLabel.Text' = 'Variable'
+        'HDTVolumeVariableBox.ToolTip' = 'A variable to publish this volume''s drive letter into - MDT''s VolumeLetterVariable. The engine''s own are HDTSystemVolume, HDTOSVolume and HDTRecoveryVolume.'
+        'HDTVolumeQuickFormatCheck.Content' = 'Quick format'
+        'HDTVolumeQuickFormatCheck.ToolTip' = 'Unticked writes quickFormat: false. Ticked is the engine''s default and writes nothing.'
+        'HDTVolumeBootableCheck.Content' = 'Make this a boot partition'
+        'HDTVolumeBootableCheck.ToolTip' = 'One partition at most. The engine makes the first one bootable when no row claims it.'
+        'HDTVolumeOkButton.Content' = 'OK'
+    }
+
+    # The task sequence editor: ShowEditor. The tree on the left, and one tab
+    # per step type on the right.
+    SequenceEditor = @{
+
+        'HDTEditorTitleText.Text' = 'Task Sequence'
+        'HDTEditorPathText.Text' = '(document)'
+
+        # THE GLYPH IS PART OF THE CAPTION, not decoration beside it: the arrow
+        # is what says Add opens a menu, and a translation that drops it loses
+        # the affordance rather than a character.
+        'HDTAddButton.Content' = 'Add  ▾'
+        'HDTRemoveButton.Content' = 'Remove'
+        'HDTUpButton.Content' = '↑  Up'
+        'HDTDownButton.Content' = '↓  Down'
+        'HDTCopyButton.Content' = 'Copy'
+        'HDTPasteButton.Content' = 'Paste'
+
+        'HDTEditorStepsLabel.Text' = 'Steps'
+        'HDTStepNameLabel.Text' = 'Name'
+        'HDTStepNameBox.ToolTip' = 'What this step is called. Every command refers to it by this name, so renaming it rewrites those references in the document.'
+
+        'HDTPropertyTab.Header' = 'Properties'
+        'HDTPropertyApplyButton.Content' = 'Apply properties'
+        'HDTPropertyRevertButton.Content' = 'Revert'
+
+        'HDTImageTab.Header' = 'Operating System'
+        'HDTImageOsLabel.Text' = 'Operating system'
+        'HDTImageOsHint.Text' = 'The images this share holds. Importing one makes it appear here; an image the sequence names but the share does not have is shown as missing rather than replaced.'
+        'HDTImageIndexLabel.Text' = 'Image index'
+        'HDTImageIndexHint.Text' = 'Which edition inside the image. The list is what os.yaml recorded off the media; 1 is the first image in the WIM, which is what the engine applies when a step names none.'
+        'HDTImageDestinationLabel.Text' = 'Destination'
+        'HDTImageDestinationHint.Text' = 'Which volume the image is written to. %HDTOSVolume% is the one the partition step published - never a guess at C:, which in WinPE is frequently the content disk.'
+        'HDTImageTimeoutLabel.Text' = 'Time limit'
+        'HDTImageTimeoutUnitText.Text' = 'minutes'
+        'HDTImageTimeoutHint.Text' = 'Minutes before the step is treated as hung and the attempt fails. 0 means no limit.'
+        'HDTImageApplyButton.Content' = 'Apply'
+        'HDTImageRevertButton.Content' = 'Revert'
+
+        'HDTValidateTab.Header' = 'Validation'
+        'HDTValidateApplyButton.Content' = 'Apply checks'
+        'HDTValidateRevertButton.Content' = 'Revert'
+
+        'HDTDiskTab.Header' = 'Disk'
+        'HDTDiskNumberLabel.Text' = 'Disk number'
+        'HDTDiskNumberBox.ToolTip' = 'The disk to lay out. Empty lets the engine select one, and it refuses to guess when more than one qualifies.'
+        'HDTDiskStyleLabel.Text' = 'Disk type'
+        'HDTDiskStyleBox.ToolTip' = 'GPT, MBR, or let the firmware decide - which is what most sequences should keep.'
+        'HDTDiskWipeCheck.Content' = 'Wipe the disk first'
+        'HDTDiskWipeCheck.ToolTip' = 'Clears an existing partition table. A disk carrying data is refused without this.'
+
+        'HDTPartitionListLabel.Text' = 'Volume'
+        'HDTPartitionAddButton.ToolTip' = 'New volume'
+        'HDTPartitionEditButton.ToolTip' = 'Edit this volume'
+        'HDTPartitionRemoveButton.ToolTip' = 'Delete this volume'
+        'HDTPartitionUpButton.ToolTip' = 'Move it one place earlier on the disk'
+        'HDTPartitionDownButton.ToolTip' = 'Move it one place later on the disk'
+        'HDTPartitionNameHeader.Text' = 'Name'
+        'HDTPartitionTypeHeader.Text' = 'Type'
+        'HDTPartitionSizeHeader.Text' = 'Size'
+        'HDTPartitionFormatHeader.Text' = 'Format'
+        'HDTPartitionQuickHeader.Text' = 'Quick'
+        'HDTPartitionBootHeader.Text' = 'Boot'
+        'HDTPartitionVariableHeader.Text' = 'Variable'
+
+        'HDTOptionsTab.Header' = 'Options'
+        'HDTDisableCheck.Content' = 'Disable this step'
+        'HDTContinueCheck.Content' = 'Continue on error'
+        'HDTConditionLabel.Text' = 'Conditions'
+        'HDTConditionHint.Text' = 'This step runs only when the expression below is true. Leave it empty and the step always runs.'
+        'HDTConditionVariableBox.ToolTip' = 'The variable to test'
+        'HDTConditionBuildButton.Content' = 'Build'
+        'HDTConditionBuildButton.ToolTip' = 'Write this into the box below'
+        'HDTConditionApplyButton.Content' = 'Apply condition'
+        'HDTConditionClearButton.Content' = 'Clear'
+        'HDTRunInLabel.Text' = 'Runs in'
+        'HDTRunInText.Text' = 'any phase'
+
+        'HDTEditorCloseButton.Content' = 'Close'
     }
 
     # The Windows PE window: Show-HDTBootImageWindow.

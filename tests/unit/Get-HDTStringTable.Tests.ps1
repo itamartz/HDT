@@ -123,7 +123,13 @@ Describe 'Get-HDTStringTable' {
             $table = Get-HDTStringTable -Culture 'fr-FR'
 
             $table.Count | Should -BeGreaterThan 20
-            [string] $table.Culture | Should -BeNullOrEmpty
+
+            # ASKED OF THE KEYS, NOT OF THE OBJECT. '$table.Culture' reads as
+            # the same question and is not: under Set-StrictMode -Version
+            # Latest - which build.ps1 sets and a bare Invoke-Pester does not -
+            # a missing key on a hashtable is a terminating error, so this
+            # passed all the way to the gate and failed there.
+            @($table.Keys) | Should -Not -Contain 'Culture'
         }
 
         It 'says which culture it actually loaded' {

@@ -1,4 +1,4 @@
-#requires -Modules Pester
+﻿#requires -Modules Pester
 
 # THE GRID'S VIEW MODEL. Everything the Format and Partition Disk panel draws is
 # asserted here, because the panel itself is XAML and nothing in Pester runs it.
@@ -234,6 +234,35 @@ Describe 'Get-HDTConsolePartitionRow' {
             $written | Should -BeLike "*-Size '990MB'*"
 
             Get-Command -Name 'Add-HDTStepPartition' -Module 'Hephaestus' | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context 'a step whose layout is a variable' {
+
+        # MDT-SHAPED SEQUENCES PARAMETERISE THE LAYOUT - DEMO-M4 carries
+        # layout: "%HDTDiskLayout%" - and the token is not expanded at authoring
+        # time, because the console edits the DOCUMENT rather than a run.
+        #
+        # Get-HDTDiskLayout throws for a name it does not know, this command
+        # catches that and sets $resolved to $null, and reading a property off
+        # $null under Set-StrictMode THROWS. The whole editor died on it: the
+        # window opened, the first selection reached this line, and ShowDialog
+        # unwound with no message - which looks exactly like the window closing
+        # itself.
+
+        It 'opens, with no rows, rather than throwing' {
+            # QUOTED, AS DEMO-M4 HAS IT. A bare % starts a YAML directive, so an
+            # unquoted token is a document the parser refuses before this command
+            # ever sees it.
+            $token = [string[]] @($script:named | ForEach-Object { $_ -replace 'uefi-standard', '"%HDTDiskLayout%"' })
+
+            { Get-HDTConsolePartitionRow -Line $token -Path $script:path -Name 'Format and Partition' } |
+                Should -Not -Throw
+
+            $view = Get-HDTConsolePartitionRow -Line $token -Path $script:path -Name 'Format and Partition'
+
+            @($view.Row).Count | Should -Be 0
+            $view.Layout | Should -Be '%HDTDiskLayout%'
         }
     }
 

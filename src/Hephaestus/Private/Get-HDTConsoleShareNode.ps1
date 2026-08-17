@@ -246,10 +246,19 @@ function Get-HDTConsoleShareNode {
         # machine rather than after.
         $lint = Get-HDTConsoleLintText -Finding $sequence.Finding
 
+        # THE TWO THAT CAN BE TYPED INTO, and they are typed into HERE rather
+        # than in a window that has to be opened first: renaming a sequence is
+        # the commonest edit there is, and Workbench asks for a properties
+        # dialog to do it. The id is not among them - it is the folder name, so
+        # changing it is a move rather than an edit.
+        #
+        # NO '(none)' ON THE DESCRIPTION: the fallback is for reading, and a box
+        # somebody tabs out of writes what is in it. The empty box says the same
+        # thing and writes nothing.
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value $sequence.Id
-            New-HDTConsoleField -Label 'Name' -Value $sequence.Name
-            New-HDTConsoleField -Label 'Description' -Value (Get-HDTConsoleDisplayText -Text $sequence.Description -Fallback '(none)')
+            New-HDTConsoleField -Label 'Name' -Value $sequence.Name -Property 'name'
+            New-HDTConsoleField -Label 'Description' -Value ([string] $sequence.Description) -Property 'description'
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
             New-HDTConsoleField -Label 'Groups' -Value $sequence.GroupCount
             New-HDTConsoleField -Label 'Validation' -Value $lint.Detail
@@ -277,7 +286,14 @@ function Get-HDTConsoleShareNode {
             )
         }
 
+        # THE ID IS THE NAME, and Text is only the label. Name falls back to Text
+        # when it is not given, so the tree's Remove was handed
+        # 'DEMO-M4 - Deploy Windows 11 LTSC' as an id and refused it for having
+        # spaces - a row that would not go, for a reason that appeared in the
+        # command box rather than anywhere near the row. It is also what survives
+        # somebody rewording the label.
         $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequenceStatus `
+            -Name ([string] $sequence.Id) `
             -Text $text -Field $field `
             -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
             -Header $header -Subject $sequence

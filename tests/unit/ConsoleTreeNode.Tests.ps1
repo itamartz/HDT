@@ -391,6 +391,47 @@ Describe 'Get-HDTConsoleTreeNode' {
             $sequence.Detail | Should -Match 'Steps\s*:\s*2'
         }
 
+        It 'offers the name and the description for typing, and nothing else on the row' {
+            # WHERE A SEQUENCE IS RENAMED: the detail pane, off the tree, not a
+            # window that has to be opened first. Both are keys in the document
+            # and Set-HDTTaskSequenceProperty writes them; everything else on
+            # this row is a reading - a count, a validation result, a path - and
+            # a box that took typing would be a box that threw it away.
+            $sequence = @($script:node | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $typeable = @($sequence.Field | Where-Object { $_.Editable })
+
+            @($typeable | ForEach-Object { $_.Label }) | Should -Be @('Name', 'Description')
+            @($typeable | ForEach-Object { $_.Property }) | Should -Be @('name', 'description')
+        }
+
+        It 'shows the description a sequence has not got as an empty box, not as (none)' {
+            # THE FALLBACK IS FOR READING, and this box is for typing: leaving
+            # '(none)' in it and tabbing away would write the word into the
+            # document as the description.
+            $model = New-HDTConsoleNodeTestModel
+            @($model.TaskSequence)[0].Description = ''
+
+            $row = @(Get-HDTConsoleTreeNode -Workspace $model |
+                    Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            [string] @($row.Field | Where-Object { $_.Label -eq 'Description' })[0].Value |
+                Should -BeExactly ''
+        }
+
+        It 'carries the id as its Name, which is what a menu acts on' {
+            # Name FALLS BACK TO Text WHEN IT IS NOT GIVEN, and Text is a label:
+            # 'DEMO-M4 - Deploy Windows 11 LTSC'. The tree's Remove passed that
+            # whole string to Remove-HDTTaskSequence as an id, which refused it
+            # for having spaces in it - so the row would not go and the reason
+            # was in the command box rather than anywhere near the row.
+            #
+            # The id is also what survives a reword of the label.
+            $sequence = @($script:node | Where-Object { $_.Kind -eq 'TaskSequence' })[0]
+
+            $sequence.Name | Should -BeExactly 'DEMO-M4'
+        }
+
         It 'names the operating system and the images the media carries' {
             $os = @($script:node | Where-Object { $_.Kind -eq 'OperatingSystem' })[0]
 

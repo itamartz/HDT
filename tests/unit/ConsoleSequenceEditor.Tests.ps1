@@ -1,4 +1,4 @@
-# The task sequence editor, decided in a command and asserted with no window.
+﻿# The task sequence editor, decided in a command and asserted with no window.
 #
 # WHY IT IS A SEPARATE WINDOW. Deployment Workbench lists task sequences in the
 # tree and edits their steps in a properties dialog reached by opening one -
@@ -358,5 +358,62 @@ steps:
         $both = @($script:tolerantStep | Where-Object { $_.Name -eq 'Off And Tolerant' })[0]
 
         $both.IconColor | Should -BeExactly '#FF767676'
+    }
+}
+
+Describe 'the name and description the editor can change' {
+
+    # THE EDITOR SHOWED THEM AND COULD NOT CHANGE THEM until
+    # Set-HDTTaskSequenceProperty existed, which is the console's rule producing
+    # a hole rather than breaking. Now the view carries the calls, so the window
+    # computes nothing.
+
+    BeforeAll {
+        $script:headerText = @'
+schemaVersion: 1
+id: DEMO-05
+name: Windows 11 bare metal
+description: The standard client build.
+
+steps:
+  - group: Install
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+'@
+
+        # THE SUITE'S OWN HELPER, because the editor takes what
+        # Get-HDTConsoleWorkspace projects - Status and all - not the bare
+        # document Import-HDTSequenceDocument returns.
+        $script:headerDocument = New-HDTConsoleEditorTestSequence -Id 'DEMO-05' -Yaml $script:headerText
+
+        $script:headerView = Get-HDTConsoleSequenceEditor -Sequence $script:headerDocument
+    }
+
+    It 'reads both off the document' {
+        [string] $script:headerView.Name | Should -BeExactly 'Windows 11 bare metal'
+        [string] $script:headerView.Description | Should -BeExactly 'The standard client build.'
+    }
+
+    It 'carries the call that renames it' {
+        $script:headerView.NameCommandFormat | Should -BeLike 'Set-HDTTaskSequenceProperty*-Name ''{0}''*'
+    }
+
+    It 'carries the call that rewrites the description' {
+        $script:headerView.DescriptionCommandFormat |
+            Should -BeLike 'Set-HDTTaskSequenceProperty*-Description ''{0}''*'
+    }
+
+    It 'answers empty for a sequence that describes itself with nothing' {
+        $document = New-HDTConsoleEditorTestSequence -Id 'BARE' -Yaml @'
+schemaVersion: 1
+id: BARE
+name: Bare
+steps:
+  - name: Say so
+    type: NoOp
+'@
+
+        [string] (Get-HDTConsoleSequenceEditor -Sequence $document).Description | Should -BeExactly ''
     }
 }

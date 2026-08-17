@@ -88,7 +88,7 @@
         <!-- The console's banner, so this reads as part of the same tool. -->
         <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="16,12,16,12">
             <StackPanel>
-                <TextBlock Text="New Task Sequence"
+                <TextBlock x:Name="HDTNewSequenceTitleText"
                            Foreground="{DynamicResource HDTBannerTextBrush}"
                            FontSize="18" FontWeight="SemiBold" />
                 <TextBlock x:Name="HDTNewSequenceRootText"
@@ -117,82 +117,76 @@
                 <ColumnDefinition Width="30" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Task sequence ID"
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTNewSequenceIdLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTNewSequenceIdBox"
                      FontFamily="Consolas, Courier New" />
             <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="Short, no spaces. It is the folder name under TaskSequences and what a rule or a boot image names to select this sequence." />
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewSequenceIdHint" />
                     </ToolTip>
                 </Border.ToolTip>
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
             </Border>
 
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="Task sequence name"
+            <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTNewSequenceNameLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <TextBox Grid.Row="1" Grid.Column="1" x:Name="HDTNewSequenceNameBox" />
             <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="What the console and the deployment wizard show. The id is what selects it." />
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewSequenceNameHint" />
                     </ToolTip>
                 </Border.ToolTip>
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
             </Border>
 
-            <TextBlock Grid.Row="2" Grid.Column="0" Text="Template"
+            <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTNewSequenceTemplateLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <ComboBox Grid.Row="2" Grid.Column="1" x:Name="HDTNewSequenceTemplateBox"
                       DisplayMemberPath="Name" SelectedValuePath="Id" />
             <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="The sequence is copied from this file, comments and all. A shop with its own standard build adds one to the Templates folder." />
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewSequenceTemplateHint" />
                     </ToolTip>
                 </Border.ToolTip>
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
             </Border>
 
-            <TextBlock Grid.Row="3" Grid.Column="0" Text="Operating system"
+            <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTNewSequenceImageLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <ComboBox Grid.Row="3" Grid.Column="1" x:Name="HDTNewSequenceImageBox"
                       DisplayMemberPath="Display" SelectedValuePath="Id" />
             <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="The images this share holds. Leave it empty to decide later - the sequence carries the choice as a variable either way." />
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewSequenceImageHint" />
                     </ToolTip>
                 </Border.ToolTip>
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
             </Border>
 
-            <TextBlock Grid.Row="4" Grid.Column="0" Text="Full name"
+            <TextBlock Grid.Row="4" Grid.Column="0" x:Name="HDTNewSequenceFullNameLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <TextBox Grid.Row="4" Grid.Column="1" x:Name="HDTNewSequenceFullNameBox" />
             <Border Grid.Row="4" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="The registered owner written into the answer file - a person or a team, not a computer name. Written as HDTFullName." />
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewSequenceFullNameHint" />
                     </ToolTip>
                 </Border.ToolTip>
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
             </Border>
 
-            <TextBlock Grid.Row="5" Grid.Column="0" Text="Organization"
+            <TextBlock Grid.Row="5" Grid.Column="0" x:Name="HDTNewSequenceOrgLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <TextBox Grid.Row="5" Grid.Column="1" x:Name="HDTNewSequenceOrgBox" />
             <Border Grid.Row="5" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
-                        <TextBlock TextWrapping="Wrap"
-                                   Text="The registered organisation written into the answer file. Written as HDTOrgName." />
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewSequenceOrgHint" />
                     </ToolTip>
                 </Border.ToolTip>
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
@@ -206,7 +200,7 @@
                 keeping, and the honest control is to treat the share and the
                 media as credentials.
             -->
-            <TextBlock Grid.Row="6" Grid.Column="0" Text="Administrator password"
+            <TextBlock Grid.Row="6" Grid.Column="0" x:Name="HDTNewSequencePasswordLabel"
                        Style="{StaticResource HDTFieldLabel}" />
             <TextBox Grid.Row="6" Grid.Column="1" x:Name="HDTNewSequencePasswordBox"
                      FontFamily="Consolas, Courier New" />
@@ -236,8 +230,8 @@
 
         <Border Grid.Row="3" Background="{DynamicResource HDTFooterBrush}" Padding="16,12,16,12">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="HDTNewSequenceCreateButton" Content="Create" MinWidth="96" IsDefault="True" />
-                <Button Content="Cancel" MinWidth="96" Margin="8,0,0,0" IsCancel="True" />
+                <Button x:Name="HDTNewSequenceCreateButton" MinWidth="96" IsDefault="True" />
+                <Button x:Name="HDTCancelButton" MinWidth="96" Margin="8,0,0,0" IsCancel="True" />
             </StackPanel>
         </Border>
     </Grid>

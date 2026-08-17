@@ -92,7 +92,16 @@ function Get-HDTConsoleSequenceEditor {
         DocumentPath = [string] $Sequence.Path
         Id           = [string] $Sequence.Id
         Name         = [string] $Sequence.Name
+        Description  = [string] $Sequence.Description
         StepCount    = @($Sequence.Step).Count
+
+        # THE TWO CALLS THE HEADER BOXES RUN. The id is not among them on
+        # purpose: it is the folder name, so changing it is a move - rules that
+        # name it, boot images that select it and the run state on a machine
+        # mid-deployment all point at the old one.
+        NameCommandFormat        = 'Set-HDTTaskSequenceProperty -Line $line -Name ''{0}'''
+        DescriptionCommandFormat = 'Set-HDTTaskSequenceProperty -Line $line -Description ''{0}'''
+
         Node         = [pscustomobject[]] @($step.Node)
         Root         = [pscustomobject[]] @($step.TopLevel)
         Command      = $command

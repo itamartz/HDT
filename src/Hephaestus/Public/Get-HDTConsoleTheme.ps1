@@ -102,7 +102,13 @@ function Get-HDTConsoleTheme {
         HDTLabelBrush       = '#FF0E639C'
         HDTCommandBrush     = '#FFF7F7F7'
         HDTCommandTextBrush = '#FFA31515'
-        HDTFieldBrush            = '#FFFAFAFA'
+        # THE READ-ONLY WASH, AND IT HAS TO BE SEEN TO BE ONE. It was #FAFAFA,
+        # which against a white panel is a difference nobody can see - so a box
+        # that takes a rename and a box that shows a step count looked exactly
+        # alike, on this window and in the editor's Properties pane. Grey enough
+        # to read as "not this one", light enough that a pane of them is not a
+        # grey slab.
+        HDTFieldBrush            = '#FFEDEDED'
         HDTFooterBrush           = '#FFE8E8E8'
         HDTButtonBrush           = '#FF0E639C'
         HDTButtonTextBrush       = '#FFFFFFFF'

@@ -158,7 +158,7 @@ function Show-HDTSequenceEditor {
     $answer = [string] $ConsoleHost.ShowEditor($xaml, $editor.Title, $editor.DocumentPath,
         [object[]] @($editor.Root), $line,
         [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme), $size,
-        $partitionXaml)
+        $partitionXaml, $editor)
 
     $action = 'Close'
     if (-not [string]::IsNullOrWhiteSpace($answer)) { $action = $answer }

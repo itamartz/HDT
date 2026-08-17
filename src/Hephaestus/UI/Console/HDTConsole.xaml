@@ -100,7 +100,7 @@
         <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
         <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
-        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFFAFAFA" />
+        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFEDEDED" />
         <SolidColorBrush x:Key="HDTHintTextBrush"     Color="#FF6B6B6B" />
         <SolidColorBrush x:Key="HDTErrorBrush"        Color="#FFA31515" />
         <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
@@ -178,13 +178,12 @@
 
                 <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
                            x:Name="HDTShareText"
-                           Text="Deployment share"
                            Foreground="{DynamicResource HDTBannerTextBrush}"
                            FontSize="21" FontWeight="SemiBold"
                            TextTrimming="CharacterEllipsis" />
 
                 <TextBlock Grid.Row="1" Grid.Column="0"
-                           Text="Deploy root"
+                           x:Name="HDTConsoleDeployRootLabel"
                            Foreground="{DynamicResource HDTBannerLabelBrush}"
                            FontSize="12" Margin="0,10,14,0" Width="86" />
                 <TextBlock Grid.Row="1" Grid.Column="1"
@@ -195,7 +194,7 @@
                            TextTrimming="CharacterEllipsis" />
 
                 <TextBlock Grid.Row="2" Grid.Column="0"
-                           Text="Opened from"
+                           x:Name="HDTConsoleOpenedFromLabel"
                            Foreground="{DynamicResource HDTBannerLabelBrush}"
                            FontSize="12" Margin="0,4,14,0" Width="86" />
                 <TextBlock Grid.Row="2" Grid.Column="1"
@@ -229,7 +228,7 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="Deployment share"
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTConsoleTreeLabel"
                        Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
 
             <TreeView Grid.Row="1" Grid.Column="0"
@@ -251,8 +250,18 @@
                     label carries a count and would put a parser in the window.
                 -->
                 <TreeView.ContextMenu>
+                    <!--
+                        ONE MENU, AND THE ROW DECIDES WHICH ITEMS IT HAS.
+                        New Task Sequence belongs to the Task Sequences category;
+                        Remove belongs to a sequence. Items that do not apply are
+                        collapsed rather than greyed, and a row with nothing to
+                        offer opens no menu at all - a menu that appears
+                        everywhere with one live item teaches that right-click
+                        does nothing here, on the rows where it does something.
+                    -->
                     <ContextMenu x:Name="HDTConsoleTreeMenu">
-                        <MenuItem x:Name="HDTNewSequenceMenuItem" Header="New Task Sequence" />
+                        <MenuItem x:Name="HDTNewSequenceMenuItem" />
+                        <MenuItem x:Name="HDTRemoveSequenceMenuItem" />
                     </ContextMenu>
                 </TreeView.ContextMenu>
 
@@ -313,7 +322,7 @@
                           Background="{DynamicResource HDTBorderBrush}"
                           ShowsPreview="False" />
 
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="Details"
+            <TextBlock Grid.Row="0" Grid.Column="2" x:Name="HDTConsoleDetailLabel"
                        Foreground="{DynamicResource HDTLabelBrush}" FontSize="12" Margin="0,0,0,6" />
 
             <!--
@@ -323,10 +332,12 @@
                 running off the edge, and the layout is already the shape an
                 editor needs when C2 makes these writable.
 
-                THE BOXES ARE READ-ONLY IN C1 BECAUSE THE SHARE IS LIVE and the
-                comment-preserving YAML writer DESIGN 12 requires does not exist
-                yet. A box that took typing and threw it away would be worse than
-                one that plainly does not.
+                WHICH BOXES TAKE TYPING IS THE ROW'S DECISION, not this file's:
+                IsReadOnly is bound to the row, and New-HDTConsoleField sets it
+                from whether the row names a key in the document. A task
+                sequence's name and description do; a step count, a validation
+                result and a path do not, and a box that took typing and threw it
+                away would be worse than one that plainly does not.
             -->
             <Border Grid.Row="1" Grid.Column="2"
                     Background="{DynamicResource HDTPanelBrush}"
@@ -349,16 +360,36 @@
                                                TextWrapping="Wrap"
                                                Margin="0,5,10,0" VerticalAlignment="Top" />
 
-                                    <TextBox Grid.Column="1" Text="{Binding Value}"
-                                             IsReadOnly="True"
+                                    <TextBox Grid.Column="1" x:Name="HDTDetailBox"
+                                             Text="{Binding Value}"
+                                             IsReadOnly="{Binding ReadOnly}"
                                              AcceptsReturn="True" TextWrapping="Wrap"
-                                             Background="{DynamicResource HDTFieldBrush}"
+                                             Background="{DynamicResource HDTPanelBrush}"
                                              Foreground="{DynamicResource HDTPanelTextBrush}"
                                              BorderBrush="{DynamicResource HDTBorderBrush}"
                                              BorderThickness="1"
                                              FontFamily="Consolas, Courier New" FontSize="12"
                                              Padding="6,4,6,4" />
                                 </Grid>
+
+                                <!-- WHITE MEANS TYPE HERE, and it is the only
+                                     thing on this pane that says so: seven
+                                     identical boxes of which two accept a
+                                     rename is a pane nobody discovers. The
+                                     editor's Properties rows are painted the
+                                     same way and by the same means.
+
+                                     A TRIGGER INSIDE THE TEMPLATE, NOT A STYLE.
+                                     A local Background beats a Style trigger in
+                                     WPF - the trap the wizard workstream hit
+                                     with Foreground - but a template trigger
+                                     naming the element wins. -->
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding ReadOnly}" Value="True">
+                                        <Setter TargetName="HDTDetailBox" Property="Background"
+                                                Value="{DynamicResource HDTFieldBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -376,7 +407,7 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="0" Text="Command"
+                <TextBlock Grid.Column="0" x:Name="HDTConsoleCommandLabel"
                            Foreground="{DynamicResource HDTLabelBrush}" FontSize="12"
                            VerticalAlignment="Center" Margin="0,0,12,0" />
 
@@ -402,7 +433,23 @@
                     style above, because a local value would beat the hover
                     trigger and the label would stay white on a light wash.
                 -->
-                <Button x:Name="HDTCloseButton" Content="Close"
+                <!--
+                    APPLY WRITES WHAT IS TYPED IN THE DETAIL PANE, and it is
+                    the only button on this window that touches a share. It is
+                    dark until there is something to write: a row whose value
+                    differs from what it was built with, on a task sequence.
+
+                    IT IS NEEDED EVEN THOUGH A BOX WRITES WHEN IT LOSES FOCUS.
+                    The last box somebody types in is the one still holding the
+                    caret when they look for a button - so an editor with no
+                    Apply asks them to click elsewhere before their change is
+                    real, which is a rule nobody can see.
+                -->
+                <Button x:Name="HDTApplyButton"
+                        Width="112" Height="34" Margin="0,0,10,0"
+                        IsEnabled="False" />
+
+                <Button x:Name="HDTCloseButton"
                         Width="112" Height="34"
                         IsDefault="True" IsCancel="True" />
             </StackPanel>

@@ -130,7 +130,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" x:Name="HDTBuildTitleText" Text="Updating Boot Image"
+                <TextBlock Grid.Row="0" x:Name="HDTBuildTitleText"
                            Foreground="{DynamicResource HDTBannerTextBrush}"
                            FontFamily="Segoe UI" FontSize="19" />
                 <TextBlock Grid.Row="1" x:Name="HDTBuildPathText" Text=""
@@ -152,7 +152,7 @@
             </Grid.ColumnDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTBuildStepText"
-                       Text="Starting..." FontSize="16" TextTrimming="CharacterEllipsis" />
+                       FontSize="16" TextTrimming="CharacterEllipsis" />
 
             <TextBlock Grid.Row="0" Grid.Column="1" x:Name="HDTBuildCountText" Text=""
                        Foreground="{DynamicResource HDTHintBrush}"
@@ -195,7 +195,7 @@
                        FontFamily="Consolas, Courier New" FontSize="12"
                        VerticalAlignment="Center" />
 
-            <Button Grid.Column="1" x:Name="HDTBuildCloseButton" Content="Close"
+            <Button Grid.Column="1" x:Name="HDTBuildCloseButton"
                     MinWidth="96" IsEnabled="False" />
         </Grid>
     </Grid>

@@ -587,15 +587,39 @@ Describe 'the shipped console window' {
         $script:shippedXaml | Should -Match 'ItemsControl x:Name="HDTDetailList"'
     }
 
-    It 'keeps those boxes read-only, because C1 does not write to a live share' {
+    It 'lets the row decide which of those boxes can be typed into' {
+        # THE ROW KNOWS, NOT THE WINDOW. New-HDTConsoleField sets ReadOnly from
+        # whether the row names a key in the document, so the name and the
+        # description of a task sequence are typeable and a step count is not -
+        # without the markup keeping a list of labels it would then have to be
+        # kept in step with.
         $document = [xml] $script:shippedXaml
 
         $box = @($document.SelectNodes("//*[local-name()='TextBox']"))
 
         @($box).Count | Should -BeGreaterThan 0
         foreach ($current in $box) {
-            $current.GetAttribute('IsReadOnly') | Should -BeExactly 'True'
+            $current.GetAttribute('IsReadOnly') | Should -BeIn @('True', '{Binding ReadOnly}')
         }
+
+        $script:shippedXaml | Should -Match 'IsReadOnly="\{Binding ReadOnly\}"'
+    }
+
+    It 'paints a box that can be typed into white and washes out the ones that cannot' {
+        # WHICH BOXES TAKE TYPING IS OTHERWISE INVISIBLE: seven identical boxes,
+        # two of which quietly accept a rename. The editor already answers this
+        # the same way - white by default, the read-only wash through a trigger -
+        # and TargetName inside a DataTemplate is what lets a trigger beat the
+        # local value, which a Style trigger would not.
+        $document = [xml] $script:shippedXaml
+
+        $box = @($document.SelectNodes("//*[local-name()='TextBox']") |
+                Where-Object { $_.GetAttribute('Name', 'http://schemas.microsoft.com/winfx/2006/xaml') -eq 'HDTDetailBox' })
+
+        @($box).Count | Should -Be 1
+        $box[0].GetAttribute('Background') | Should -BeExactly '{DynamicResource HDTPanelBrush}'
+
+        $script:shippedXaml | Should -Match '(?s)<DataTrigger Binding="\{Binding ReadOnly\}" Value="True">.*?TargetName="HDTDetailBox".*?HDTFieldBrush'
     }
 
     It 'sets no local Foreground on a button, which would beat the hover trigger' {
