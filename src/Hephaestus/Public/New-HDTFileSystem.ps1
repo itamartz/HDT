@@ -228,23 +228,58 @@ function New-HDTFileSystem {
         $this.Record('TakeOwnership', @($Path))
 
         $full = $this.NormalizePath($Path)
-        $administrators = New-Object -TypeName System.Security.Principal.SecurityIdentifier `
-            -ArgumentList ([System.Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid), $null
 
-        # THE OWNER IS SET IN ITS OWN Set-Acl, BEFORE THE ACE IS ADDED. Writing
-        # a DACL onto a file you do not own is itself denied, so the two cannot
-        # be one call: ownership first buys the right to change the rest.
-        $file = Get-Item -LiteralPath $full -Force
-        $owner = $file.GetAccessControl('Owner')
-        $owner.SetOwner($administrators)
-        $file.SetAccessControl($owner)
+        # A FILE THAT IS NOT THERE STAYS AN EXCEPTION, and it is stated here
+        # rather than left to the tools: takeown reports a missing file on
+        # stderr with an exit code, and "ERROR: The system cannot find the file"
+        # is a worse answer than the type every other method on this service
+        # throws for the same mistake.
+        if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not find '$full' to take ownership of.", $full)
+        }
 
-        $access = $file.GetAccessControl('Access')
-        $access.AddAccessRule((New-Object -TypeName System.Security.AccessControl.FileSystemAccessRule `
-                    -ArgumentList $administrators,
-                ([System.Security.AccessControl.FileSystemRights]::FullControl),
-                ([System.Security.AccessControl.AccessControlType]::Allow)))
-        $file.SetAccessControl($access)
+        # takeown.exe AND icacls.exe, NOT .NET's SetOwner - AND ELEVATION IS NOT
+        # WHAT DECIDES IT. Taking ownership of somebody else's file needs
+        # SeTakeOwnershipPrivilege, and that privilege is present but DISABLED
+        # in an elevated token until a process enables it. SetAccessControl
+        # never does, so it failed with "Attempted to perform an unauthorized
+        # operation" against \Windows\System32\winpe.jpg in a mounted image on a
+        # fully elevated build - an error that reads exactly like "run as
+        # administrator", which is what it had already been. takeown.exe enables
+        # the privilege itself; that is the whole reason the tool exists.
+        #
+        # OWNERSHIP GOES TO THE CALLER, NOT TO Administrators. Assigning it to a
+        # group is takeown /A, which needs SeRestorePrivilege as well - a second
+        # privilege to be defeated by. Owning it is enough to grant the rest.
+        #
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a warning kills the call before its exit code is
+        # ever consulted (SPIKES S13.5). Local to this method scope.
+        $ErrorActionPreference = 'Continue'
+
+        $takeOutput = @(& "$env:SystemRoot\System32\takeown.exe" '/F' $full 2>&1)
+
+        # Exit-code check, with the tool's own sentence attached. The only
+        # branches in this method are this and the existence guard above.
+        if ($LASTEXITCODE -ne 0) {
+            throw [System.InvalidOperationException]::new(
+                ("takeown.exe exited {0} for '{1}'{2}{3}" -f $LASTEXITCODE, $full,
+                    [System.Environment]::NewLine, (@($takeOutput) -join [System.Environment]::NewLine)))
+        }
+
+        # S-1-5-32-544 IS Administrators IN EVERY LANGUAGE. 'BUILTIN\Administrators'
+        # is not: icacls resolves names against the local system's locale, and a
+        # German build host has 'VORDEFINIERT\Administratoren'.
+        $grantOutput = @(& "$env:SystemRoot\System32\icacls.exe" $full '/grant' '*S-1-5-32-544:(F)' 2>&1)
+
+        if ($LASTEXITCODE -ne 0) {
+            throw [System.InvalidOperationException]::new(
+                ("icacls.exe exited {0} for '{1}'{2}{3}" -f $LASTEXITCODE, $full,
+                    [System.Environment]::NewLine, (@($grantOutput) -join [System.Environment]::NewLine)))
+        }
     }
 
     # THE FOLDERS ONLY, because a caller frequently means folders. A driver
