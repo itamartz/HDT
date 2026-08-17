@@ -453,7 +453,7 @@
                                       HorizontalAlignment="Left" />
                             <TextBlock Style="{StaticResource HDTHintText}" Margin="0,5,0,0"
                                        MaxWidth="620" HorizontalAlignment="Left"
-                                       Text="Off is what every HDT image has been built with: the ISO boots straight into WinPE with no keypress, which is what an unattended deployment needs. Turn it on when this machine's firmware still boots the DVD first and you need the option to fall through to the disk. UEFI only." />
+                                       Text="Off boots straight into WinPE, which is what an unattended deployment needs. On waits, so a machine that boots the DVD first can fall through to its disk. UEFI only." />
                         </StackPanel>
 
                         <!--
