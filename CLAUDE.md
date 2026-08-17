@@ -252,3 +252,14 @@ tests/fixtures/     Real .inf headers, captured CIM shapes, sample workspaces
   `New-HDTConsoleHost` and the scratchpad probes) and capture with
   `PrintWindow` — hardware rendering on this host paints blank often enough
   that `RenderOptions.ProcessRenderMode = SoftwareOnly` belongs in the probe.
+  A pane that scrolls will not scroll for a probe: `RenderTargetBitmap` on the
+  element renders its full height, which is how a row below the fold gets shown.
+- **Text on screen is one or two lines. The reasoning goes in the code.**
+  A hint under a control says what the setting does and what to do about it,
+  in the space its neighbours use. Everything else — why it exists, which real
+  machine forced it, what breaks without it — belongs in the comment above the
+  markup, where the next person to change it will read it and a technician will
+  not have to. Four lines of explanation under one tick box is a screen
+  explaining itself at the cost of the controls around it, and this repository
+  has already written that rule down twice: MDT admins are not reading the
+  manual on the deployment screen.
