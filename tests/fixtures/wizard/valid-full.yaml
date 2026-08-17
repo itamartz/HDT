@@ -78,7 +78,7 @@ pages:
         variable: HDTKeyboardLocale
         property: SelectedValue
       - control: HDTTimeZoneNameBox
-        variable: HDTTimeZoneName
+        variable: HDTTimeZone
         property: SelectedValue
 
   - id: Summary

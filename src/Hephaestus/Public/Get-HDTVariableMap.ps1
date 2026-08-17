@@ -117,6 +117,23 @@ function Get-HDTVariableMap {
         @{ HDTName = 'HDTDeploymentType'; MdtName = 'DeploymentType'; Origin = 'engine'
             Description = 'Which deployment scenario is running. This engine performs bare-metal installs only, so it is always NEWCOMPUTER; MDT also has REFRESH, REPLACE and UPGRADE, and those arrive with the steps that implement them.'
         }
+        # THE DEPLOYED MACHINE'S TIME ZONE, and the reason it is not optional in
+        # practice: Microsoft derives an unspecified one from the locale, and
+        # this toolkit's answer file sets en-US - which is Pacific Standard Time
+        # on every machine it builds. MDT's TimeZoneName, by another name.
+        @{ HDTName = 'HDTTimeZone'; MdtName = 'TimeZoneName'; Origin = 'engine'
+            Description = 'The Windows time zone id the deployed machine gets, written into the unattend''s specialize pass. Seeded from the boot image''s own time zone so one choice covers both, and overridable by a rule.'
+        }
+
+        # WHEN THE RUN STARTED, IN UTC, and UTC is the decision rather than a
+        # detail: WinPE runs on the hardware clock and the deployed OS is put
+        # into a time zone half way through, so a start read as local time and an
+        # end read as local time are hours apart for reasons that have nothing to
+        # do with how long the deployment took.
+        @{ HDTName = 'HDTDeploymentStart'; MdtName = $null; Origin = 'engine'
+            Description = 'When this deployment started, as UTC in ISO 8601 (yyyy-MM-ddTHH:mm:ssZ). Published by the engine before the sequence runs; a matching HDTDeploymentEnd is what a tattoo step would subtract it from.'
+        }
+
         # WHAT THE BOOT IMAGE CARRIES, SO A SEQUENCE CAN ASK. The template's
         # Install Certificates step is conditioned on it, and an image built
         # without certificates never sets it - which leaves the token unresolved,
@@ -217,9 +234,6 @@ function Get-HDTVariableMap {
         @{ HDTName = 'HDTKeyboardLocale'; MdtName = 'KeyboardLocale'; Origin = 'authored'
             Description = 'Keyboard layout, as a culture name or an input locale pair such as 0409:00000409.'
         }
-        @{ HDTName = 'HDTTimeZoneName'; MdtName = 'TimeZoneName'; Origin = 'authored'
-            Description = 'Windows time zone identifier applied to the deployed machine.'
-        }
         @{ HDTName = 'HDTBootMode'; MdtName = $null; Origin = 'authored'
             Description = 'PXE or Media - how this deployment was started; set by the boot path rather than by hardware.'
         }
@@ -251,6 +265,10 @@ function Get-HDTVariableMap {
         }
         @{ HDTName = 'HDTUnattendPath'; MdtName = $null; Origin = 'step'
             Description = 'Full path of the staged unattend, which is Windows\Panther\unattend.xml on the OS volume.'
+        }
+
+        @{ HDTName = 'HDTSLShare'; MdtName = 'SLShare'; Origin = 'rule'
+            Description = 'Where the deployment copies its logs. Empty means <deployRoot>\Logs, which is what every deployment did before this existed.'
         }
 
         # -- engine variables (DESIGN 4.4.1) - never writable -----------------

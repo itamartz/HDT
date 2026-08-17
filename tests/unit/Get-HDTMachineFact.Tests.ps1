@@ -597,7 +597,7 @@ Describe 'Get-HDTMachineFact' {
 
             @($fact.Keys) | Should -Not -Contain 'HDTBootMode'
             @($fact.Keys) | Should -Not -Contain 'HDTComputerName'
-            @($fact.Keys) | Should -Not -Contain 'HDTTimeZoneName'
+            @($fact.Keys) | Should -Not -Contain 'HDTTimeZone'
         }
 
         It 'does not produce any _HDT variable' {

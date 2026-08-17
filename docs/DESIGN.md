@@ -212,7 +212,7 @@ search-and-replace:
 | `DeployRoot` | `_HDTDeployRoot` | `IsUEFI` | `HDTIsUEFI` |
 | `WSUSServer` | `HDTWSUSServer` | `Memory` | `HDTMemory` |
 | `DriverGroup` | `HDTDriverGroup` | `MacAddress`/`IPAddress`/`DefaultGateway` | `HDTMacAddress`/`HDTIPAddress`/`HDTDefaultGateway` |
-| `_SMSTSLogPath` | `_HDTLogPath` | `TimeZoneName` | `HDTTimeZoneName` |
+| `_SMSTSLogPath` | `_HDTLogPath` | `TimeZoneName` | `HDTTimeZone` |
 
 HDT-specific additions with no MDT equivalent: `HDTSecureBootEnabled`,
 `HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`,
@@ -1829,7 +1829,7 @@ confirmation entirely; the skip variable is the rule.
 | ” same page ” | `HDTJoinDomain`, `HDTMachineObjectOU`, or `HDTJoinWorkgroup` | `HDTSkipDomainMembership` | `SkipDomainMembership` |
 | Credentials | Share credentials, when not embedded (§6.3) | `HDTSkipCredentials` | `SkipBDDWelcome` in part |
 | Applications | Which apps to install | `HDTSkipApplications` | `SkipApplications` |
-| Locale and time | `HDTTimeZoneName`, locale | `HDTSkipTimeZone`, `HDTSkipLocaleSelection` | same names |
+| Locale and time | `HDTTimeZone`, locale | `HDTSkipTimeZone`, `HDTSkipLocaleSelection` | same names |
 | Admin password | The local Administrator password policy (§10.3, §4.5.4) | `HDTSkipAdminPassword` | `SkipAdminPassword` |
 | Summary | Confirm before anything destructive | `HDTSkipSummary` | `SkipSummary` |
 

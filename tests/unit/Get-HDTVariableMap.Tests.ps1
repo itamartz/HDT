@@ -87,20 +87,26 @@ Describe 'Get-HDTVariableMap' {
         # MDT'S PANE ASKS FOUR THINGS and HDT named only one of them. A wizard
         # page that collects a variable the map does not know about is a
         # variable nothing can document, translate to MDT, or report on - and
-        # DESIGN 11.2 lists this page as collecting "HDTTimeZoneName, locale"
+        # DESIGN 11.2 lists this page as collecting "HDTTimeZone, locale"
         # without ever saying what "locale" is spelled.
         foreach ($pair in @(
                 @{ HDT = 'HDTUILanguage'; Mdt = 'UILanguage' }
                 @{ HDT = 'HDTUserLocale'; Mdt = 'UserLocale' }
                 @{ HDT = 'HDTKeyboardLocale'; Mdt = 'KeyboardLocale' }
-                @{ HDT = 'HDTTimeZoneName'; Mdt = 'TimeZoneName' })) {
+                @{ HDT = 'HDTTimeZone'; Mdt = 'TimeZoneName' })) {
 
             $row = @(Get-HDTVariableMap -Name $pair.HDT)
 
             $row.Count | Should -Be 1 -Because ("{0} is collected by the Locale and Time page" -f $pair.HDT)
             $row[0].MdtName | Should -BeExactly $pair.Mdt
-            $row[0].Origin | Should -BeExactly 'authored'
             $row[0].Description | Should -Not -BeNullOrEmpty
+
+            # HDTTimeZone IS THE ONE THAT IS BOTH. The engine seeds it from the
+            # boot image's own time zone so an unattended deployment gets a
+            # sensible one, and the page overrides it when somebody is there to
+            # choose - which is why it is 'engine' where the other three are
+            # 'authored'.
+            @('authored', 'engine') | Should -Contain ([string] $row[0].Origin)
         }
     }
 

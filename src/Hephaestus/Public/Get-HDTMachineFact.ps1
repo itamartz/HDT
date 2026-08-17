@@ -38,7 +38,7 @@ function Get-HDTMachineFact {
             returns the unfiltered set.
 
             What this deliberately does NOT produce: HDTBootMode, which only the
-            boot path knows (phase 05); HDTComputerName and HDTTimeZoneName,
+            boot path knows (phase 05); HDTComputerName and HDTTimeZone,
             which rules decide rather than hardware; and anything named _HDT*,
             which is engine-owned.
 
