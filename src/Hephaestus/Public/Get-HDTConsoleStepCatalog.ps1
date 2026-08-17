@@ -115,6 +115,11 @@ function Get-HDTConsoleStepCatalog {
         'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 3 }
         'EnableBitLocker' = @{ Text = 'Enable BitLocker'; Category = 'Disks'; Order = 2 }
         'InstallRoles'  = @{ Text = 'Install Roles and Features'; Category = 'Roles'; Order = 1 }
+
+        # ON THE IMAGES SHELF, AFTER Apply Windows Settings, because that is
+        # where it belongs in a sequence: it acts on the volume the image was
+        # just applied to, and it has to be there before the Restart below it.
+        'InstallCertificate' = @{ Text = 'Install Certificates'; Category = 'Images'; Order = 4 }
     }
 
     # Workbench's order, and Custom last because it is whatever this particular

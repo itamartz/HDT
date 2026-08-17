@@ -151,6 +151,21 @@ steps:
       - name: Configure Boot
         type: ConfigureBoot
 
+      # THE CERTIFICATES, CARRIED PAST THE RESTART BELOW. WinPE imported them
+      # into a store on a RAM disk and that disk is about to disappear; the OS
+      # would otherwise come up on the same 802.1X port with no identity, get no
+      # address, and never reach the share the resume leg needs.
+      #
+      # THE CONDITION IS WHY THIS IS NOT IN EVERY LOG. Most images carry no
+      # certificates at all, and a step that ran anyway would report success for
+      # work nobody asked for. HDTHasCertificate is published from bootstrap.json
+      # when the deployment starts - and an image that never set it leaves the
+      # token unresolved, which the engine reads as false. Silence skips it.
+      - name: Install Certificates
+        type: InstallCertificate
+        target: "%HDTOSVolume%"
+        condition: "$HDTHasCertificate == True"
+
       # THE HANDOVER. Everything above ran in WinPE; everything below runs in the
       # Windows that is about to start for the first time.
       - name: Restart into Windows
