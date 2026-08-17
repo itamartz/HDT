@@ -1661,7 +1661,7 @@ function New-HDTConsoleHost {
         # hint and button caption on this window is a key in Strings\<culture>.psd1,
         # so a site can translate it or reword it without editing a window - and
         # a string cannot exist twice and drift.
-        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable))
+        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page 'BootImage'))
         $backgroundBrowse = $window.FindName('HDTBootImageBackgroundBrowseButton')
         $timeZoneBox = $window.FindName('HDTBootImageTimeZoneBox')
         $timeZoneHint = $window.FindName('HDTBootImageTimeZoneHintText')

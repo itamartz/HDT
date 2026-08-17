@@ -12,11 +12,21 @@ function Get-HDTStringTable {
             .psd1 per culture in the module's Strings folder, keyed by the
             control it belongs to.
 
-            THE KEY IS Control.Property, which is what Set-HDTWindowText splits
-            on: 'HDTBootImageNameBox.ToolTip' names a control and the property
-            to write. Nothing in the key says which window - a control name is
-            already unique across this module, and a key carrying its window as
-            well would have to be renamed the day a control moves.
+            ONE BLOCK PER WINDOW, AND THE KEY INSIDE IT IS Control.Property.
+            A translator works through a screen at a time and can see when one
+            is finished, which a flat list of four hundred keys does not allow;
+            and a window's strings can be handed to Set-HDTWindowText without
+            carrying every other window's along with them.
+
+              @{
+                  BootImage = @{
+                      'HDTBootImageImageNameLabel.Text' = 'Image name'
+                  }
+              }
+
+            -Page RETURNS ONE BLOCK, and without it every block is merged into
+            one table - which is what a caller filling several windows from one
+            load wants.
 
             IT FALLS BACK RATHER THAN FAILS, TWICE. A culture nobody has
             translated loads en-us; a KEY nobody has translated takes the en-us
@@ -42,6 +52,11 @@ function Get-HDTStringTable {
         .PARAMETER Path
             The Strings folder. Defaults to the module's own.
 
+        .PARAMETER Page
+            The block to return - BootImage, Wizard. Omitted, every block is
+            merged: a control name is unique across this module, so the merge
+            cannot collide.
+
         .PARAMETER PassThruCulture
             Return the culture that was actually loaded rather than the table -
             'en-us' when the asked-for one does not exist. For a caller that
@@ -55,7 +70,7 @@ function Get-HDTStringTable {
             With -PassThruCulture, System.String.
 
         .EXAMPLE
-            $string = Get-HDTStringTable
+            $string = Get-HDTStringTable -Page BootImage
             Set-HDTWindowText -Root $window -String $string
 
         .EXAMPLE
@@ -73,6 +88,10 @@ function Get-HDTStringTable {
         [Parameter()]
         [AllowEmptyString()]
         [string] $Path = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Page = '',
 
         [Parameter()]
         [switch] $PassThruCulture
@@ -113,6 +132,7 @@ function Get-HDTStringTable {
     if ($PassThruCulture) { return $loaded }
 
     $table = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $seen = $false
 
     # ENGLISH FIRST, THE TRANSLATION OVER THE TOP. That order is what makes a
     # half-finished translation usable: every key exists, and the ones somebody
@@ -123,9 +143,37 @@ function Get-HDTStringTable {
 
         $data = Import-PowerShellDataFile -LiteralPath $file
 
-        foreach ($key in @($data.Keys)) {
-            $table[[string] $key] = [string] $data[$key]
+        foreach ($block in @($data.Keys | Sort-Object { [string]::Equals([string] $_, 'Common', [System.StringComparison]::OrdinalIgnoreCase) } -Descending)) {
+
+            # A BLOCK IS A WINDOW, EXCEPT Common, WHICH IS EVERY WINDOW. Save,
+            # Cancel, Browse: words that belong to no one screen and must be
+            # spelled the same way on all of them. It is merged FIRST, so a page
+            # naming the same control still wins.
+            $isCommon = [string]::Equals([string] $block, 'Common', [System.StringComparison]::OrdinalIgnoreCase)
+
+            if (-not [string]::IsNullOrWhiteSpace($Page) -and -not $isCommon -and
+                -not [string]::Equals([string] $block, $Page, [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            if (-not $isCommon) { $seen = $true }
+            $strings = $data[$block]
+            if ($null -eq $strings -or $strings -isnot [System.Collections.IDictionary]) { continue }
+
+            foreach ($key in @($strings.Keys)) {
+                $table[[string] $key] = [string] $strings[$key]
+            }
         }
+    }
+
+    # A PAGE NOBODY HAS IS A TYPO, AND IT USED TO BE INVISIBLE. The markup
+    # carries no text any more, so an empty table is not "nothing to translate"
+    # - it is a window of blank labels, and the mistake is a page name nobody
+    # can see from a screenshot.
+    if (-not [string]::IsNullOrWhiteSpace($Page) -and -not $seen) {
+        throw [System.Collections.Generic.KeyNotFoundException]::new(
+            ("there is no '{0}' block in '{1}'. The blocks are: {2}." -f $Page, $fallbackPath,
+                ((@((Import-PowerShellDataFile -LiteralPath $fallbackPath).Keys) | Sort-Object) -join ', ')))
     }
 
     return $table
