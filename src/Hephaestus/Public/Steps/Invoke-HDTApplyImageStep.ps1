@@ -97,6 +97,11 @@ function Invoke-HDTApplyImageStep {
         $name = Get-HDTStepProperty -Step $Step -Name 'name' -Context $Context -Expand -As String
         $edition = Get-HDTStepProperty -Step $Step -Name 'edition' -Context $Context -Expand -As String
         $target = Get-HDTStepProperty -Step $Step -Name 'target' -Default 'primary' -Context $Context -Expand -As String
+
+        # AND WHAT THE AUTHOR WROTE, unexpanded. A target of %HDTOSVolume% that
+        # nothing published arrives here as an empty string, and the refusal has
+        # to be able to name the variable that was meant to fill it.
+        $targetWritten = Get-HDTStepProperty -Step $Step -Name 'target' -Default 'primary' -As String
     } catch {
         return (& $fail ([string] $_.Exception.Message) 'HDTConfigurationError')
     }
@@ -173,8 +178,28 @@ function Invoke-HDTApplyImageStep {
         }
     }
 
-    $letter = $letter.Trim().TrimEnd(':')
+    $letter = $letter.Trim().TrimEnd('\').TrimEnd(':')
+
+    # A TARGET THAT RESOLVED TO NOTHING IS THE SITUATION 'primary' NAMES, said a
+    # different way: the partition step did not publish the volume. It used to
+    # report "target '' is not a drive letter", which describes the symptom and
+    # none of the cause - on the one step that writes an operating system
+    # somewhere.
     if ($letter.Length -eq 0) {
+        $said = "step '{0}': target '{1}' resolved to nothing." -f $Step.Name, $target
+
+        if ($targetWritten -match '^\s*%([^%]+)%\s*$') {
+            $said = ("step '{0}' applies to %{1}%, which is not set. The partition step publishes it; HDT will not guess a drive letter to apply an operating system over." -f
+                $Step.Name, [string] $Matches[1])
+        }
+
+        return (& $fail $said 'HDTConfigurationError')
+    }
+
+    # AND ONE LETTER IS ONE LETTER. Taking the first character of whatever
+    # arrived meant 'target: the big disk' applied Windows to T:\ without a word
+    # - a wrong disk, chosen by a typo, and reported as success.
+    if ($letter -notmatch '^[A-Za-z]$') {
         return (& $fail ("step '{0}': target '{1}' is not a drive letter." -f $Step.Name, $target) 'HDTConfigurationError')
     }
 

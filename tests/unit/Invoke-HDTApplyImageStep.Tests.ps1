@@ -535,3 +535,33 @@ Describe 'Get-HDTApplyImageStepDescription' {
         Get-HDTApplyImageStepDescription -Step $step | Should -Not -BeNullOrEmpty
     }
 }
+
+Describe 'a target that resolves to nothing' {
+
+    # 'primary' UNSET SAYS WHY AND NAMES WHO SHOULD HAVE SET IT. A target
+    # written as %HDTOSVolume% is the same situation said a different way - the
+    # partition step did not publish - and it used to get "target '' is not a
+    # drive letter", which describes the symptom and none of the cause.
+    #
+    # THE MESSAGE MATTERS MORE HERE THAN ALMOST ANYWHERE. This is the step that
+    # writes 18 GB of Windows somewhere, and the refusal is what stops it
+    # choosing a letter on its own.
+
+    It 'says the volume was never published, not that the empty string is a bad letter' {
+        $context = & $script:newContextFor $script:image ([ordered] @{ HDTOSVolume = '' })
+        $step = & $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; target = '%HDTOSVolume%' })
+
+        $result = Invoke-HDTApplyImageStep -Step $step -Context $context
+
+        $result.Status | Should -BeExactly 'Failed'
+        $result.Message | Should -BeLike '*HDTOSVolume*'
+        $result.Message | Should -BeLike '*publish*'
+    }
+
+    It 'still refuses a target that is genuinely not a letter' {
+        $context = & $script:newContextFor $script:image $null
+        $step = & $script:newStep ([ordered] @{ os = 'Win11-LTSC-2024'; target = 'the big disk' })
+
+        (Invoke-HDTApplyImageStep -Step $step -Context $context).Status | Should -BeExactly 'Failed'
+    }
+}

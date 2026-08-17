@@ -349,9 +349,18 @@ function Assert-HDTSequenceDocument {
             $timeout = $node['timeoutMinutes']
             $isInteger = ($timeout -is [int]) -or ($timeout -is [long])
 
-            if (-not $isInteger -or [int] $timeout -lt 1) {
+            # 0 IS HOW A DOCUMENT SAYS "no limit" OUT LOUD, and it is accepted
+            # for that. It used to be refused - the ABSENCE of the key meant
+            # unbounded and a written 0 was read as a likely mistake - but a
+            # properties page with a Time limit box has to be able to express
+            # it, and a box left blank says it worse than a number does.
+            #
+            # THE RUNNER ALREADY BEHAVED THIS WAY: Invoke-HDTStepAttempt arms a
+            # timeout only when the value is greater than zero, so this removes
+            # a refusal rather than adding a behaviour.
+            if (-not $isInteger -or [int] $timeout -lt 0) {
                 $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
-                            -Message ("{0}: timeoutMinutes must be a positive whole number of minutes, but it is '{1}'. Omit it entirely for a step that is not time limited - 0 is far more likely to be a mistake than a declaration." -f $locator, $timeout)))
+                            -Message ("{0}: timeoutMinutes must be a whole number of minutes and not negative, but it is '{1}'. Use 0, or omit it, for a step that is not time limited." -f $locator, $timeout)))
             }
         }
 

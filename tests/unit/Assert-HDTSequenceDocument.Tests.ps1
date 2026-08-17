@@ -42,6 +42,23 @@ BeforeAll {
 
         return $record
     }
+
+    # The other half: a document that must pass. Returns the record when it
+    # throws, so a failure names the reason rather than just being $null.
+    $script:assertSuccess = {
+        param([string] $Yaml)
+
+        try {
+            InModuleScope Hephaestus -Parameters @{ Yaml = $Yaml } {
+                param($Yaml)
+                $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path 'C:\ws\sequence.yaml'
+                Assert-HDTSequenceDocument -Document $document -Path 'C:\ws\sequence.yaml'
+                return $document
+            }
+        } catch {
+            throw ("the document was refused: {0}" -f [string] $_.Exception.Message)
+        }
+    }
 }
 
 Describe 'Assert-HDTSequenceDocument' {
@@ -413,10 +430,14 @@ steps:
             $record.Exception.Message | Should -BeLike '*resumable*'
         }
 
-        It 'refuses a zero timeoutMinutes' {
-            # 0 is not "unbounded" in the document. Unbounded is the ABSENCE of
-            # timeoutMinutes; writing 0 is far more likely to be a mistake.
-            $record = & $script:assertFailure @'
+        It 'takes a zero timeoutMinutes as no limit' {
+            # 0 IS HOW A DOCUMENT SAYS "no limit" OUT LOUD. It used to be
+            # refused - the absence of the key meant unbounded and 0 was read as
+            # a likely mistake - but a page with a Time limit box has to be able
+            # to express it, and a blank box is a worse way to say it than a
+            # number. The runner already treats 0 that way: it arms a timeout
+            # only when the value is greater than zero.
+            $document = & $script:assertSuccess @'
 schemaVersion: 1
 id: X
 name: X
@@ -424,6 +445,20 @@ steps:
   - name: First
     type: NoOp
     timeoutMinutes: 0
+'@
+
+            $document | Should -Not -BeNullOrEmpty
+        }
+
+        It 'still refuses a negative timeoutMinutes' {
+            $record = & $script:assertFailure @'
+schemaVersion: 1
+id: X
+name: X
+steps:
+  - name: First
+    type: NoOp
+    timeoutMinutes: -5
 '@
 
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'

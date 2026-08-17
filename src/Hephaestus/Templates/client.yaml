@@ -119,13 +119,17 @@ steps:
   - group: Install
     runIn: WinPE
     steps:
-      # target: primary means the volume the partition step published, never a
-      # guess at C: - in WinPE C: is frequently the content disk.
+      # THE VOLUME THE PARTITION STEP PUBLISHED, named rather than gestured at.
+      # 'primary' means exactly this variable - the engine resolves one to the
+      # other - and naming it is what tells a reader WHICH volume, and what to
+      # change when a sequence applies somewhere else.
+      #
+      # It is never a guess at C:, which in WinPE is frequently the content disk.
       - name: Install Operating System
         type: ApplyImage
         os: "%HDTOSImage%"
         index: "%HDTOSImageIndex%"
-        target: primary
+        target: "%HDTOSVolume%"
         timeoutMinutes: 60
 
   # --------------------------------------------------------------- Postinstall
