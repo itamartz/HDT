@@ -98,7 +98,8 @@ function Set-HDTWorkspaceKey {
     $order = @{
         ''          = @('schemaVersion', 'id', 'name', 'deployRoot', 'logLevel', 'credential', 'bootImage')
         'bootImage' = @('name', 'architecture', 'language', 'scratchSpaceMB', 'optionalComponents',
-            'extraContent', 'drivers', 'entryCommand', 'startCommand', 'skip')
+            'extraContent', 'drivers', 'unattend', 'background', 'rootCertificates',
+            'clientCertificate', 'entryCommand', 'startCommand', 'skip')
     }
 
     $existing = Get-HDTWorkspaceKey -Line $Line -Path $Path

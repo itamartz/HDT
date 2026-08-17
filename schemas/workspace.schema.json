@@ -103,6 +103,20 @@
           "type": "string",
           "minLength": 1
         },
+        "rootCertificates": {
+          "description": "Certificate authority certificates imported into WinPE's Local Machine Root store at boot. WinPE starts with Microsoft's roots and nothing else, so an internal CA is trusted by every domain-joined machine and by no machine that has just booted a WIM. Public certificates only - a .pfx here would put a private key in the trusted root store. Each is a path relative to the share, or a rooted one on the build host.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "clientCertificate": {
+          "description": "A .pfx imported into WinPE's Local Machine My store at boot, for a network that authenticates the machine before it gives it an address - 802.1X on the switch port, or PKI client authentication. Its password is NOT in this document: Set-HDTBootImageCertificatePassword writes it to Control\\certificate-password.json. A path relative to the share, or a rooted one on the build host.",
+          "type": "string",
+          "minLength": 1
+        },
         "entryCommand": {
           "description": "What startnet.cmd launches. Empty means the builder's default deployment payload.",
           "type": "string"

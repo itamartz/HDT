@@ -78,7 +78,9 @@ function Import-HDTWorkspaceDocument {
               BootImage   -> { Name, Architecture, Language, ScratchSpaceMB,
                                OptionalComponent [string[]],
                                ExtraContent [rows of { Source, Destination }],
-                               Drivers, EntryCommand, StartCommand [string[]] }
+                               Drivers, Unattend, Background,
+                               RootCertificate [string[]], ClientCertificate,
+                               EntryCommand, StartCommand [string[]] }
 
         .EXAMPLE
             Import-HDTWorkspaceDocument -Path 'X:\Deploy\workspace.yaml' -FileSystem (New-HDTFileSystem)
@@ -178,6 +180,25 @@ function Import-HDTWorkspaceDocument {
         $background = [string] $bootImage['background']
     }
 
+    # The certificate authorities WinPE is to trust. Empty is the ordinary case:
+    # an image that only ever talks to an SMB share needs none, and one that
+    # reaches an internal HTTPS endpoint needs the CA that signed it - WinPE
+    # boots with Microsoft's roots and nothing else.
+    $rootCertificate = New-Object -TypeName System.Collections.ArrayList
+    if ($null -ne $bootImage -and $bootImage.Contains('rootCertificates')) {
+        foreach ($current in @($bootImage['rootCertificates'])) {
+            [void] $rootCertificate.Add([string] $current)
+        }
+    }
+
+    # The machine's own certificate, for a network that authenticates before it
+    # gives out an address. Empty means the image has no identity of its own,
+    # which is every network that is not running 802.1X.
+    $clientCertificate = ''
+    if ($null -ne $bootImage -and $bootImage.Contains('clientCertificate')) {
+        $clientCertificate = [string] $bootImage['clientCertificate']
+    }
+
     # Empty means "the builder decides". The default command lives in
     # Get-HDTStartnetScript's parameter and is not repeated here: two defaults
     # for one string is one of them being wrong after the next edit.
@@ -264,6 +285,8 @@ function Import-HDTWorkspaceDocument {
             Drivers           = $drivers
             Unattend          = $unattend
             Background        = $background
+            RootCertificate   = [string[]] @($rootCertificate)
+            ClientCertificate = $clientCertificate
             EntryCommand      = $entryCommand
             StartCommand      = [string[]] @($startCommand)
             SkipWelcome       = $skip['SkipWelcome']

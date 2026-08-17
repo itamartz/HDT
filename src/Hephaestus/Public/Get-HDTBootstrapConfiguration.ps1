@@ -289,6 +289,51 @@ function Get-HDTBootstrapConfiguration {
         }
     }
 
+    # -- the certificates, in the image's own letters -------------------------
+    #
+    # NAMED HERE AS X:\HDT\Certs\..., NOT AS THE SHARE NAMES THEM. The share
+    # path is where the build read the file FROM; by the time anything reads
+    # this document the file is inside the image, and the share may not be
+    # reachable yet - which is the whole reason the certificates are imported
+    # before wpeinit.
+    #
+    # THE PASSWORD IS UNPROTECTED EAGERLY AND CLOSED OVER, exactly as the
+    # credential's is: this object goes into RESULT.json and into log records,
+    # so a plain property would put a private key's password in both.
+
+    $rootCertificate = New-Object -TypeName System.Collections.ArrayList
+    $clientCertificate = ''
+    $certificateProtected = ''
+
+    if ($null -ne $document.PSObject.Properties['certificate'] -and $null -ne $document.certificate) {
+        $certificate = $document.certificate
+
+        if ($null -ne $certificate.PSObject.Properties['root']) {
+            foreach ($current in @($certificate.root)) {
+                if ([string]::IsNullOrWhiteSpace([string] $current)) { continue }
+                [void] $rootCertificate.Add([string] $current)
+            }
+        }
+
+        if ($null -ne $certificate.PSObject.Properties['client']) {
+            $clientCertificate = [string] $certificate.client
+        }
+
+        if ($null -ne $certificate.PSObject.Properties['protected']) {
+            $certificateProtected = [string] $certificate.protected
+        }
+    }
+
+    $certificatePassword = ''
+    if (-not [string]::IsNullOrWhiteSpace($certificateProtected)) {
+        try {
+            $certificatePassword = Unprotect-HDTShareSecret -Protected $certificateProtected
+        } catch {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("the embedded certificate password could not be decoded: {0}. Rebuild the boot image with Update-HDTBootImage." -f $_.Exception.Message)))
+        }
+    }
+
     $result = [pscustomobject] ([ordered] @{
             SchemaVersion       = $schemaVersion
             WorkspaceId         = $workspaceId
@@ -301,6 +346,8 @@ function Get-HDTBootstrapConfiguration {
             LogLevel            = $logLevel
             UserName            = $userName
             HasCredential       = $hasCredential
+            RootCertificate     = [string[]] @($rootCertificate)
+            ClientCertificate   = $clientCertificate
             BuildId             = $buildId
             BuiltUtc            = $builtUtc
             Path                = $Path
@@ -319,6 +366,12 @@ function Get-HDTBootstrapConfiguration {
         $secure.MakeReadOnly()
 
         return (New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $userName, $secure)
+    }.GetNewClosure()
+
+    # THE SAME TREATMENT FOR THE SAME REASON. Plain text, because the caller
+    # hands it straight to an X509Certificate2 constructor, which takes one.
+    $result | Add-Member -MemberType ScriptMethod -Name GetCertificatePassword -Value {
+        return [string] $certificatePassword
     }.GetNewClosure()
 
     return $result

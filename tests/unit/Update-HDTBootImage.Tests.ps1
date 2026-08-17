@@ -108,6 +108,11 @@ bootImage:
         $seed[($script:enginePath + '\Private\ConvertFrom-HDTYaml.ps1')] = '# private'
         $seed[($script:enginePath + '\Payload\Start-HDTDeployment.ps1')] = '# the entry point'
         $seed[($script:enginePath + '\Payload\Start-HDTResume.ps1')] = '# the resume leg'
+        # STAGED INTO EVERY IMAGE, like the resume leg, whether or not this one
+        # carries certificates: startnet.cmd names it only when there are some,
+        # and an image missing the script the day somebody adds one would fail
+        # in the one place there is no operator.
+        $seed[($script:enginePath + '\Payload\Import-HDTBootCertificate.ps1')] = '# the certificate import'
 
         # UI\ is staged to X:\HDT\UI\ like Payload\, and for the same reason:
         # the window has to be findable at a fixed path inside the image.

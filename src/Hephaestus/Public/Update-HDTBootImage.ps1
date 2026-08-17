@@ -426,8 +426,9 @@ function Update-HDTBootImage {
 
     $deploymentPayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Start-HDTDeployment.ps1')
     $resumePayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Start-HDTResume.ps1')
+    $certificatePayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Import-HDTBootCertificate.ps1')
 
-    foreach ($required in @($EngineModulePath, $deploymentPayload, $resumePayload)) {
+    foreach ($required in @($EngineModulePath, $deploymentPayload, $resumePayload, $certificatePayload)) {
         if (-not $FileSystem.TestPath($required)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -ErrorId 'HDTDependencyError' -Category ObjectNotFound `
                         -TargetObject $required `
@@ -546,6 +547,69 @@ function Update-HDTBootImage {
         $unattendInImage = 'X:\Unattend.xml'
     }
 
+    # -- the certificates, resolved and judged before the mount --------------
+    #
+    # SAME RULES AS THE ANSWER FILE - rooted is taken as written, relative is
+    # read from the share, a named file that is not there is refused before
+    # anything is mounted - plus the one rule that is only about certificates:
+    # A CLIENT CERTIFICATE WITH NO PASSWORD IS REFUSED HERE. A .pfx will not
+    # import without one, and an image built anyway boots, fails to
+    # authenticate, gets no address and looks exactly like a broken share.
+    # Fifteen minutes of build to learn that is fifteen minutes too many.
+
+    $certificateSource = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($declared in @($workspace.BootImage.RootCertificate)) {
+        $source = [string] $declared
+
+        if (-not [System.IO.Path]::IsPathRooted($source)) {
+            $source = [System.IO.Path]::Combine($WorkspaceRoot, $source)
+        }
+
+        if (-not $FileSystem.TestPath($source)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $source -Category ObjectNotFound `
+                        -Message ("the certificate '{0}' is named in workspace.yaml and is not at '{1}'. An image built without it would boot trusting nothing of yours, and say nothing about why an HTTPS endpoint was unreachable." -f
+                            $declared, $source)))
+        }
+
+        [void] $certificateSource.Add([pscustomobject] @{
+                Source = $source
+                Leaf   = [System.IO.Path]::GetFileName($source)
+                Store  = 'Root'
+            })
+    }
+
+    $clientCertificateSource = ''
+    $clientCertificateLeaf = ''
+    $certificateProtected = ''
+
+    if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.ClientCertificate)) {
+        $clientDeclared = [string] $workspace.BootImage.ClientCertificate
+        $clientCertificateSource = $clientDeclared
+
+        if (-not [System.IO.Path]::IsPathRooted($clientDeclared)) {
+            $clientCertificateSource = [System.IO.Path]::Combine($WorkspaceRoot, $clientDeclared)
+        }
+
+        if (-not $FileSystem.TestPath($clientCertificateSource)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $clientCertificateSource -Category ObjectNotFound `
+                        -Message ("the machine certificate '{0}' is named in workspace.yaml and is not at '{1}'. An image built without it cannot authenticate to a network that asks it to." -f
+                            $clientDeclared, $clientCertificateSource)))
+        }
+
+        $clientCertificateLeaf = [System.IO.Path]::GetFileName($clientCertificateSource)
+
+        $certificatePassword = Get-HDTBootImageCertificatePassword -WorkspaceRoot $WorkspaceRoot -FileSystem $FileSystem
+
+        if ([string]::IsNullOrEmpty($certificatePassword)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $clientCertificateSource `
+                        -Message ("workspace.yaml names the machine certificate '{0}' and no password has been written for it, so it could not be imported on the machine that boots this image. Run Set-HDTBootImageCertificatePassword." -f
+                            $clientDeclared)))
+        }
+
+        $certificateProtected = Protect-HDTShareSecret -Secret $certificatePassword
+    }
+
     # -- the WinPE background, resolved and judged before the mount ----------
     #
     # SAME RULES AS THE ANSWER FILE: rooted is taken as written, relative is
@@ -643,6 +707,13 @@ function Update-HDTBootImage {
     # into the same call that writes the rest of startnet.cmd.
     if (-not [string]::IsNullOrWhiteSpace($unattendInImage)) {
         $startnetSplat['UnattendPath'] = $unattendInImage
+    }
+
+    # THE ONE LINE THAT GOES BEFORE wpeinit, and only when there is something
+    # for it to import. See Get-HDTStartnetScript: a machine certificate that
+    # arrives after the network came up has missed what it was carried for.
+    if (@($certificateSource).Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($clientCertificateSource)) {
+        $startnetSplat['CertificateScript'] = 'X:\HDT\Import-HDTBootCertificate.ps1'
     }
 
     $startnet = Get-HDTStartnetScript @startnetSplat
@@ -826,6 +897,65 @@ function Update-HDTBootImage {
                 SizeBytes   = [long] 0
             })
 
+        # STAGED WHETHER OR NOT THIS IMAGE CARRIES CERTIFICATES, exactly as
+        # Start-HDTResume.ps1 is staged into an image that may never resume. It
+        # is a few kilobytes, startnet.cmd names it only when there is something
+        # to import, and an image whose script is missing the day somebody adds
+        # a certificate would fail in the one place there is no operator.
+        $FileSystem.CopyItem($certificatePayload, [System.IO.Path]::Combine($hdtRoot, 'Import-HDTBootCertificate.ps1'))
+        [void] $payloadRow.Add([pscustomobject] @{
+                Destination = '\HDT\Import-HDTBootCertificate.ps1'
+                Source      = $certificatePayload
+                FileCount   = 1
+                SizeBytes   = [long] 0
+            })
+
+        # -- 11b. the certificates themselves ---------------------------------
+        #
+        # INTO \HDT\Certs\, BESIDE THE SCRIPT THAT READS THEM. The share may not
+        # be reachable when they are imported - that is the whole reason the
+        # import runs before wpeinit - so the files have to be in the image.
+        #
+        # THE LEAF NAME IS KEPT. bootstrap.json names each one as
+        # X:\HDT\Certs\<leaf>, so two certificates with the same file name in
+        # different folders would land on each other; the document forbids the
+        # same path twice and this is the remaining case, which is rare enough
+        # to be worth a plain overwrite rather than a naming scheme nobody can
+        # read in a log.
+
+        $certificateInImage = New-Object -TypeName System.Collections.ArrayList
+
+        if (@($certificateSource).Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($clientCertificateSource)) {
+            $certificateRoot = [System.IO.Path]::Combine($hdtRoot, 'Certs')
+            $FileSystem.CreateDirectory($certificateRoot)
+
+            foreach ($current in @($certificateSource)) {
+                $FileSystem.CopyItem([string] $current.Source,
+                    [System.IO.Path]::Combine($certificateRoot, [string] $current.Leaf))
+
+                [void] $certificateInImage.Add('X:\HDT\Certs\{0}' -f [string] $current.Leaf)
+
+                [void] $payloadRow.Add([pscustomobject] @{
+                        Destination = '\HDT\Certs\{0}' -f [string] $current.Leaf
+                        Source      = [string] $current.Source
+                        FileCount   = 1
+                        SizeBytes   = [long] 0
+                    })
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($clientCertificateSource)) {
+                $FileSystem.CopyItem($clientCertificateSource,
+                    [System.IO.Path]::Combine($certificateRoot, $clientCertificateLeaf))
+
+                [void] $payloadRow.Add([pscustomobject] @{
+                        Destination = '\HDT\Certs\{0}' -f $clientCertificateLeaf
+                        Source      = $clientCertificateSource
+                        FileCount   = 1
+                        SizeBytes   = [long] 0
+                    })
+            }
+        }
+
         # -- 12. bootstrap.json ----------------------------------------------
 
         $Progress.Report(12, $stepTotal, 'Writing bootstrap.json', '')
@@ -895,6 +1025,23 @@ function Update-HDTBootImage {
                 username  = $credentialUserName
                 protected = $credentialProtected
             }
+        }
+
+        # NAMED IN THE IMAGE'S OWN LETTERS, not the share's. By the time this
+        # block is read the files are on X: and the share may not be reachable.
+        if (@($certificateInImage).Count -gt 0 -or -not [string]::IsNullOrWhiteSpace($clientCertificateLeaf)) {
+            $certificateBlock = [ordered] @{}
+
+            if (@($certificateInImage).Count -gt 0) {
+                $certificateBlock['root'] = [string[]] @($certificateInImage)
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($clientCertificateLeaf)) {
+                $certificateBlock['client'] = 'X:\HDT\Certs\{0}' -f $clientCertificateLeaf
+                $certificateBlock['protected'] = $certificateProtected
+            }
+
+            $bootstrap['certificate'] = $certificateBlock
         }
 
         $FileSystem.WriteAllText([System.IO.Path]::Combine($hdtRoot, 'bootstrap.json'),

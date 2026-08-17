@@ -111,6 +111,15 @@ function Get-HDTStartnetScript {
             is a manual command at a prompt, not something an image is built
             with.
 
+        .PARAMETER CertificateScript
+            A PowerShell script inside the image that imports the boot image's
+            certificates, run BEFORE wpeinit. Empty writes no line at all.
+
+            BEFORE, NOT AFTER, unlike everything else here. A client certificate
+            exists so that a network which authenticates the machine will give
+            it an address, and wpeinit is what asks for the address - so an
+            import that ran afterwards would be an import that ran too late.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -144,7 +153,11 @@ function Get-HDTStartnetScript {
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $UnattendPath = ''
+        [string] $UnattendPath = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $CertificateScript = ''
     )
 
     Set-StrictMode -Version Latest
@@ -155,6 +168,19 @@ function Get-HDTStartnetScript {
     [void] $line.Add('@echo off')
     [void] $line.Add('rem Written by Update-HDTBootImage. Do not edit inside the image; edit HDT.')
     [void] $line.Add('set HDT_LAUNCHED_BY=startnet')
+
+    # BEFORE wpeinit, AND THAT IS THE WHOLE POINT OF THE LINE. wpeinit is what
+    # brings the network up; a machine certificate imported after it has missed
+    # the authentication it was carried for, and a root CA imported after it has
+    # missed whatever wpeinit's own answer file reached for. Everything else in
+    # this file goes after wpeinit for the opposite reason.
+    #
+    # PowerShell RUNS FINE HERE. It is an application, not a service - what
+    # wpeinit initialises is devices and networking, neither of which an
+    # X509Store needs.
+    if (-not [string]::IsNullOrWhiteSpace($CertificateScript)) {
+        [void] $line.Add('powershell.exe -NoProfile -ExecutionPolicy Bypass -File {0}' -f $CertificateScript)
+    }
 
     # QUOTED ONLY WHEN IT HAS TO BE. cmd.exe splits on the space, so a path with
     # one in it reaches wpeinit as two arguments and the answer file is silently

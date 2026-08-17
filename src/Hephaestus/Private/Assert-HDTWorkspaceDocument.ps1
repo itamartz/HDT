@@ -103,7 +103,7 @@ function Assert-HDTWorkspaceDocument {
     $allowedCredentialKey = @('username')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
         'optionalComponents', 'extraContent', 'drivers', 'unattend', 'background',
-        'entryCommand', 'startCommand', 'skip')
+        'rootCertificates', 'clientCertificate', 'entryCommand', 'startCommand', 'skip')
     $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
@@ -364,6 +364,58 @@ function Assert-HDTWorkspaceDocument {
         if (([string] $background) -notmatch '\.(jpg|jpeg)$') {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message ("bootImage: background '{0}' is not a .jpg. WinPE's background is \Windows\System32\winpe.jpg and it must be a JPEG." -f $background)))
+        }
+    }
+
+    # -- the certificates ------------------------------------------------------
+    #
+    # THE ONE RULE THAT IS NOT ABOUT PATHS IS WHICH STORE THE FILE IS FOR. A
+    # .cer is a public certificate and belongs in Root; a .pfx carries a private
+    # key and belongs in My. Swapping them produces a build that succeeds and a
+    # machine that either trusts a private key as a certificate authority or
+    # tries to authenticate with a certificate it cannot prove it owns - and the
+    # second one looks exactly like a broken share.
+    #
+    # WHETHER THE FILE EXISTS IS Update-HDTBootImage'S BUSINESS, as it is for
+    # the answer file and the background: it refuses before it mounts.
+
+    if ($bootImage.Contains('rootCertificates')) {
+        $rootCertificate = @($bootImage['rootCertificates'])
+
+        if (@($rootCertificate).Count -eq 0) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: rootCertificates is empty. Remove the key to build the image with no certificate authorities of your own.'))
+        }
+
+        foreach ($current in $rootCertificate) {
+            if ([string]::IsNullOrWhiteSpace([string] $current)) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                            -Message 'bootImage: rootCertificates has an empty entry. Each one is a path to a certificate file.'))
+            }
+
+            if (([string] $current) -match '\.pfx$') {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                            -Message ("bootImage: rootCertificates names '{0}', which is a .pfx. A .pfx carries a private key and this list is imported into the trusted root store of every machine that boots the image. Name the .cer here and the .pfx in clientCertificate." -f $current)))
+            }
+        }
+    }
+
+    if ($bootImage.Contains('clientCertificate')) {
+        $clientCertificate = $bootImage['clientCertificate']
+
+        if ($null -ne $clientCertificate -and -not ($clientCertificate -is [string])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: clientCertificate must be a path to a .pfx, but it is '{0}'." -f $clientCertificate)))
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string] $clientCertificate)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message 'bootImage: clientCertificate is empty. Remove the key to build the image with no machine certificate.'))
+        }
+
+        if (([string] $clientCertificate) -notmatch '\.pfx$') {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("bootImage: clientCertificate '{0}' is not a .pfx. This certificate is what the machine authenticates WITH, so it needs its private key, and a .cer has none - an 802.1X port stays shut for a machine holding one." -f $clientCertificate)))
         }
     }
 

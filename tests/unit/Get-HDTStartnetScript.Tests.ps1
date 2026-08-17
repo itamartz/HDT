@@ -1,4 +1,4 @@
-# startnet.cmd - five lines, and every one of them is load-bearing.
+﻿# startnet.cmd - five lines, and every one of them is load-bearing.
 #
 # This is the file WinPE runs when it finishes booting, and it is the only thing
 # standing between "a machine booted our image" and "a machine ran our engine".
@@ -356,6 +356,25 @@ Describe 'Get-HDTStartnetScript' {
         $bothLine[3] | Should -BeExactly 'wpeinit -unattend:X:\Unattend.xml'
         $bothLine[5] | Should -BeExactly 'call X:\Tools\run.cmd'
         $bothLine[6] | Should -BeLike '*X:\HDT\Start-HDTDeployment.ps1'
+    }
+
+    It 'imports the certificates BEFORE wpeinit' {
+        # THE ORDER IS THE WHOLE POINT. wpeinit is what brings the network up,
+        # and a machine certificate that arrives after it has missed the
+        # authentication it was carried for.
+        $withCertificate = InModuleScope Hephaestus {
+            Get-HDTStartnetScript -CertificateScript 'X:\HDT\Import-HDTBootCertificate.ps1'
+        }
+        $certLine = @($withCertificate.TrimEnd("`r", "`n") -split "`r`n")
+
+        $certLine[3] | Should -BeExactly 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File X:\HDT\Import-HDTBootCertificate.ps1'
+        $certLine[4] | Should -BeExactly 'wpeinit'
+    }
+
+    It 'writes no certificate line when there are none' {
+        $none = InModuleScope Hephaestus { Get-HDTStartnetScript -CertificateScript '' }
+
+        $none | Should -BeExactly $script:startnet
     }
 
     It 'is private to the module' {

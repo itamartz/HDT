@@ -1,4 +1,4 @@
-# bootstrap.json - the ONE file in the boot image that tells the engine where its
+﻿# bootstrap.json - the ONE file in the boot image that tells the engine where its
 # content is and which provider reaches it.
 #
 # 05-04's Update-HDTBootImage writes it to X:\HDT\bootstrap.json; this is the
@@ -443,5 +443,74 @@ Describe 'Get-HDTBootstrapConfiguration' {
             $help.Name | Should -BeExactly 'Get-HDTBootstrapConfiguration'
             $help.Synopsis | Should -Not -BeNullOrEmpty
         }
+    }
+}
+
+Describe 'the certificates the image carries' {
+
+    # THE BOOT-TIME HALF OF Add-HDTBootImageCertificate. Update-HDTBootImage
+    # copies the files into the image and names them here in the image's own
+    # letters; Import-HDTBootCertificate.ps1 reads this block before wpeinit.
+
+    It 'reads the root certificates' {
+        $fs = & $script:seedObject @{
+            schemaVersion = 1
+            workspaceId   = 'LAB'
+            provider      = 'Local'
+            deployRoot    = 'C:\Deploy'
+            certificate   = @{ root = @('X:\HDT\Certs\ca.cer', 'X:\HDT\Certs\issuing.cer') }
+        }
+
+        $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+        @($bootstrap.RootCertificate).Count | Should -Be 2
+        [string] @($bootstrap.RootCertificate)[0] | Should -BeExactly 'X:\HDT\Certs\ca.cer'
+    }
+
+    It 'reads the client certificate and hands its password back' {
+        $fs = & $script:seedObject @{
+            schemaVersion = 1
+            workspaceId   = 'LAB'
+            provider      = 'Local'
+            deployRoot    = 'C:\Deploy'
+            certificate   = @{ client = 'X:\HDT\Certs\winpe.pfx'; protected = $script:fixtureProtected }
+        }
+
+        $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+        [string] $bootstrap.ClientCertificate | Should -BeExactly 'X:\HDT\Certs\winpe.pfx'
+        [string] $bootstrap.GetCertificatePassword() | Should -BeExactly $script:fixturePassword
+    }
+
+    It 'keeps the password off the object itself' {
+        # THIS OBJECT IS WRITTEN INTO RESULT.json AND INTO LOG RECORDS, which is
+        # why the credential's password is a closure rather than a property. The
+        # certificate's is the same value in the same file.
+        $fs = & $script:seedObject @{
+            schemaVersion = 1
+            workspaceId   = 'LAB'
+            provider      = 'Local'
+            deployRoot    = 'C:\Deploy'
+            certificate   = @{ client = 'X:\HDT\Certs\winpe.pfx'; protected = $script:fixtureProtected }
+        }
+
+        $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+        (ConvertTo-Json -InputObject $bootstrap -Depth 4) | Should -Not -BeLike ('*{0}*' -f $script:fixturePassword)
+    }
+
+    It 'answers empty for an image that carries none' {
+        $fs = & $script:seedObject @{
+            schemaVersion = 1
+            workspaceId   = 'LAB'
+            provider      = 'Local'
+            deployRoot    = 'C:\Deploy'
+        }
+
+        $bootstrap = Get-HDTBootstrapConfiguration -Path $script:bootstrapPath -FileSystem $fs
+
+        @($bootstrap.RootCertificate).Count | Should -Be 0
+        [string] $bootstrap.ClientCertificate | Should -BeExactly ''
+        [string] $bootstrap.GetCertificatePassword() | Should -BeExactly ''
     }
 }
