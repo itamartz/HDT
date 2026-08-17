@@ -90,15 +90,6 @@ function Get-HDTValidateCheckDefinition {
         }
 
         [pscustomobject] @{
-            Order = 6
-            Key   = 'wipe'
-            Label = 'The disk may already hold data'
-            Kind  = 'Switch'
-            Unit  = ''
-            Hint  = 'Mirror of the DiskPartition step. Without it a disk carrying any formatted volume is refused - so a pre-flight that omits it fails on a machine the deployment would have handled.'
-        }
-
-        [pscustomobject] @{
             Order = 7
             Key   = 'requireVariable'
             Label = 'Ensure these variables were gathered'

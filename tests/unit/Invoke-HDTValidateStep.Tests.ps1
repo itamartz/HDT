@@ -115,6 +115,35 @@ Describe 'Invoke-HDTValidateStep' {
             $result.Message | Should -BeLike '*60*'
         }
 
+        It 'passes on a disk that already carries Windows' {
+            # A REBUILD IS THE NORMAL CASE, AND THE PRE-FLIGHT USED TO REFUSE
+            # IT. Validate ran Select-HDTTargetDisk with the same
+            # existing-data guard DiskPartition uses, so a machine with C: and
+            # D: on disk 0 - every machine that has ever been deployed - failed
+            # step 1 with "the step did not declare that it may be replaced",
+            # and the fix was to repeat `wipe: true` on a step that wipes
+            # nothing. A real VM run failed exactly this way.
+            #
+            # WHETHER THE DISK MAY BE ERASED IS DiskPartition'S QUESTION,
+            # because DiskPartition is what erases it. The pre-flight asks
+            # whether a usable disk of the right size is present, and that is
+            # all.
+            $used = New-HDTFakeDiskService -Disk @(@{
+                    Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 68719476736
+                    BusType = 'SAS'; PartitionStyle = 'GPT'
+                }) -Volume @(
+                @{ DriveLetter = 'C'; FileSystem = 'NTFS'; SizeBytes = 60000000000 }
+                @{ DriveLetter = 'D'; FileSystem = 'NTFS'; SizeBytes = 8000000000 }
+            )
+
+            $context = & $script:newContextFor $used $null
+            $step = & $script:newStep ([ordered] @{ minDiskGB = 60 })
+
+            $result = Invoke-HDTValidateStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+        }
+
         It 'fails when requireUefi is set on a BIOS machine' {
             $context = & $script:newContextFor $script:disk ([ordered] @{ HDTIsUEFI = $false })
             $step = & $script:newStep ([ordered] @{ requireUefi = $true })

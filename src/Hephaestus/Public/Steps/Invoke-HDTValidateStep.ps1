@@ -13,7 +13,6 @@ function Invoke-HDTValidateStep {
                 minDiskGB: 60
                 requireUefi: true                    # optional
                 diskNumber: 0                        # optional
-                wipe: true                           # optional, mirrors DiskPartition
                 requireVariable: [HDTComputerName]   # optional
 
             IT RUNS Select-HDTTargetDisk WITH THE ARGUMENTS DiskPartition WILL
@@ -30,7 +29,16 @@ function Invoke-HDTValidateStep {
 
             EVERY CHECK IS OPT-IN except the target disk. A Validate step that
             declares no bound imposes none; what it always does is prove that
-            exactly one disk can be wiped.
+            exactly one disk of a usable size is present.
+
+            IT DOES NOT ASK WHETHER THE DISK IS EMPTY, and it used to. Mirroring
+            DiskPartition's `wipe` guard meant a machine carrying C: and D: -
+            every machine that has ever been deployed - failed step 1 with "the
+            step did not declare that it may be replaced", and the fix was to
+            repeat `wipe: true` on a step that wipes nothing. A rebuild is the
+            normal case. Whether the target may be erased is DiskPartition's
+            question, because DiskPartition is what erases it, and that step
+            still refuses without `wipe: true`.
 
             IT READS FACTS OUT OF THE CONTEXT VARIABLES, NEVER CIM. HDTMemory and
             HDTIsUEFI were gathered by phase 02 before the sequence began; a step
@@ -89,7 +97,6 @@ function Invoke-HDTValidateStep {
         $minimumRamMb = Get-HDTStepProperty -Step $Step -Name 'minRamMB' -Context $Context -Expand -As Long
         $minimumDiskGb = Get-HDTStepProperty -Step $Step -Name 'minDiskGB' -Context $Context -Expand -As Long
         $requireUefi = Get-HDTStepProperty -Step $Step -Name 'requireUefi' -Default $false -Context $Context -Expand -As Bool
-        $allowExistingData = Get-HDTStepProperty -Step $Step -Name 'wipe' -Default $false -Context $Context -Expand -As Bool
         $requireVariable = Get-HDTStepProperty -Step $Step -Name 'requireVariable'
         $minimumTpmVersion = Get-HDTStepProperty -Step $Step -Name 'minTpmVersion' -Context $Context -Expand
     } catch {
@@ -232,9 +239,19 @@ function Invoke-HDTValidateStep {
         )
     }
 
-    if ($allowExistingData) {
-        $selectArgument['AllowExistingData'] = $true
-    }
+    # THE PRE-FLIGHT NEVER REFUSES A DISK FOR HAVING DATA ON IT, and a real VM
+    # is why. This step used to mirror DiskPartition's `wipe` guard, so a
+    # machine carrying C: and D: - which is every machine that has ever been
+    # deployed - failed step 1 with "the step did not declare that it may be
+    # replaced". A rebuild is the normal case, and the answer was to repeat
+    # `wipe: true` on a step that wipes nothing.
+    #
+    # WHETHER THE TARGET MAY BE ERASED IS DiskPartition'S QUESTION, because
+    # DiskPartition is what erases it, and that step still refuses without
+    # `wipe: true`. What the pre-flight asks is whether a usable disk of the
+    # right size is present at all - and it asks it BEFORE anything is touched,
+    # which is the whole point of asking early.
+    $selectArgument['AllowExistingData'] = $true
 
     $diskNumber = Get-HDTStepProperty -Step $Step -Name 'diskNumber' -Context $Context -Expand -As Int
     if ($null -ne $diskNumber) {
