@@ -1,4 +1,4 @@
-function Update-HDTBootImage {
+﻿function Update-HDTBootImage {
     <#
         .SYNOPSIS
             Builds the HDT boot image: one mount, two artifacts, and a manifest
@@ -1069,6 +1069,32 @@ function Update-HDTBootImage {
 
         $FileSystem.WriteAllText([System.IO.Path]::Combine($hdtRoot, 'bootstrap.json'),
             (ConvertTo-Json -InputObject $bootstrap -Depth 4))
+
+        # -- 12b. bootstrap-rules.yaml, when the share authors one ------------
+        #
+        # ONE BOOT IMAGE, MANY SHARES - MDT's Bootstrap.ini. bootstrap.json
+        # carries ONE deployRoot; this file lets the machine choose from its own
+        # facts, which is what MDT's Priority=DefaultGateway, MACAddress does.
+        #
+        # VALIDATED HERE, NOT IN WinPE. A document the engine would refuse at
+        # three in the morning on a machine nobody is watching is refused now,
+        # in front of whoever is building the image - and this is the last
+        # moment anybody is looking at it.
+        #
+        # ABSENT IS THE NORMAL CASE. A share with one deployRoot writes no such
+        # file, and an image built without one behaves exactly as it did before
+        # this existed.
+        $bootstrapRuleSource = Join-Path -Path $WorkspaceRoot -ChildPath 'bootstrap-rules.yaml'
+
+        if ($FileSystem.TestPath($bootstrapRuleSource)) {
+            [void] (Import-HDTBootstrapRuleDocument -Path $bootstrapRuleSource -FileSystem $FileSystem)
+
+            $FileSystem.WriteAllText([System.IO.Path]::Combine($hdtRoot, 'bootstrap-rules.yaml'),
+                [string] $FileSystem.ReadAllText($bootstrapRuleSource))
+
+            Write-Information ("boot image: bootstrap-rules.yaml injected from '{0}'" -f $bootstrapRuleSource)
+        }
+
 
         # -- 13. startnet.cmd -------------------------------------------------
 

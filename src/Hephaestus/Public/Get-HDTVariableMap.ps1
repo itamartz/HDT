@@ -1,4 +1,4 @@
-function Get-HDTVariableMap {
+﻿function Get-HDTVariableMap {
     <#
         .SYNOPSIS
             Returns the HDT variable namespace and its MDT translation table.
@@ -286,6 +286,9 @@ function Get-HDTVariableMap {
         }
         @{ HDTName = '_HDTStepType'; MdtName = $null; Origin = 'engine'
             Description = 'Type of the executing step.'
+        }
+        @{ HDTName = 'HDTDeployRoot'; MdtName = 'DeployRoot'; Origin = 'bootstrap'
+            Description = 'Which deployment share to connect to, chosen by bootstrap-rules.yaml from the gathered facts before the share is reached. MDT put this in Bootstrap.ini. Unset means the one the boot image was built with.'
         }
         @{ HDTName = '_HDTDeployRoot'; MdtName = 'DeployRoot'; Origin = 'engine'
             Description = 'Resolved workspace root, whether that is a share or standalone media.'

@@ -1,4 +1,4 @@
-﻿function Set-HDTWorkspaceKey {
+function Set-HDTWorkspaceKey {
     <#
         .SYNOPSIS
             Replaces, inserts or removes one key of a workspace document,
@@ -97,6 +97,7 @@
     # top of its block rather than misplaced, which is untidy and never wrong.
     $order = @{
         ''          = @('schemaVersion', 'id', 'name', 'deployRoot', 'logLevel', 'credential', 'bootImage')
+        'credential' = @('username')
         'bootImage' = @('name', 'architecture', 'language', 'scratchSpaceMB', 'optionalComponents',
             'extraContent', 'drivers', 'unattend', 'background', 'timeZone', 'rootCertificates',
             'clientCertificate', 'entryCommand', 'startCommand', 'skip')

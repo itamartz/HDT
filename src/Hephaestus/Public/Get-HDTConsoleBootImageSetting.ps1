@@ -369,6 +369,84 @@ function Get-HDTConsoleBootImageSetting {
         BackgroundClearCommand  = 'Set-HDTBootImageBackground -Line $line -Clear'
     }
 
+    # -- the Bootstrap tab ---------------------------------------------------
+    #
+    # MDT'S Bootstrap.ini IS THE FILE WinPE READS BEFORE IT HAS A SHARE: where
+    # the share is, who to sign in as, whether to ask. HDT's equivalent is
+    # bootstrap.json, written into X:\HDT\ by Update-HDTBootImage - so unlike
+    # MDT's it is GENERATED, and a tab that edited it as text would be editing
+    # something the next build overwrites.
+    #
+    # SO THIS TAB IS THE FACTS IT IS BUILT FROM. Same information, same place on
+    # the window an MDT administrator would look, edited through the commands
+    # that own those keys - the only shape that survives a rebuild.
+
+    $credentialUser = ''
+    if ($null -ne $workspace.Credential) {
+        $credentialUser = [string] $workspace.Credential.Username
+    }
+
+    $hasCredential = -not [string]::IsNullOrWhiteSpace($credentialUser)
+
+    # DECIDED HERE THE WAY THE BUILDER DECIDES IT, not asked as a second
+    # question: Update-HDTBootImage calls a UNC deployRoot Smb and everything
+    # else Local. Two places to state it is two places for them to disagree.
+    $provider = 'Local'
+    if (([string] $workspace.DeployRoot).StartsWith('\')) { $provider = 'Smb' }
+
+    # A UNC SHARE WITH NO STORED CREDENTIAL ASKS THE TECHNICIAN, which is
+    # LiteTouch's behaviour and Update-HDTBootImage's. It is worth saying on the
+    # window because the two images behave very differently in front of
+    # somebody: one runs unattended, one stops at a sign-in box.
+    $promptForCredential = [bool] ((-not $hasCredential) -and $provider -eq 'Smb')
+
+    # THE SENTENCES THE WINDOW SHOWS, WRITTEN HERE. ShowBootImage's rule about
+    # itself is "the query, and only assignment after it": a host that built
+    # 'Reached over SMB' out of a property would be computing something, and the
+    # next window wanting the same sentence would word it differently.
+    if ($provider -eq 'Smb') {
+        $providerText = 'Reached over SMB. A UNC deployRoot is what a booted machine can resolve.'
+    } else {
+        $providerText = 'Reached as a local path - a build host, or standalone media.'
+    }
+
+    if ($hasCredential) {
+        $credentialText = $credentialUser
+    } else {
+        $credentialText = '(not set)'
+    }
+
+    if ($promptForCredential) {
+        $promptText = 'No credential is stored, so the technician is asked to sign in when the machine boots.'
+    } elseif ($hasCredential) {
+        $promptText = 'The stored credential is built into the boot image, so the deployment runs unattended.'
+    } else {
+        $promptText = 'A local deployRoot needs no credential.'
+    }
+
+    $bootstrap = [pscustomobject] @{
+        WorkspaceId             = [string] $workspace.Id
+        ShareName               = [string] $workspace.Name
+        DeployRoot              = [string] $workspace.DeployRoot
+        LogLevel                = [string] $workspace.LogLevel
+        Provider                = $provider
+        CredentialUser          = $credentialUser
+        HasCredential           = $hasCredential
+        PromptForCredential     = $promptForCredential
+        ProviderText            = $providerText
+        CredentialText          = $credentialText
+        PromptText              = $promptText
+
+        Command                 = "Set-HDTWorkspaceProperty -Line `$line -Name '{0}' -DeployRoot '{1}' -LogLevel '{2}'" -f
+        [string] $workspace.Name, [string] $workspace.DeployRoot, [string] $workspace.LogLevel
+
+        # THE PASSWORD IS NEVER IN THE COMMAND. Get-Credential in the echoed
+        # line is the same rule the certificate password follows: nothing on a
+        # window, and nothing in a command an administrator can read back, is
+        # ever a secret in clear text.
+        CredentialCommandFormat = "Set-HDTShareCredential -WorkspaceRoot '{0}' -Credential (Get-Credential -Message 'The account WinPE signs in to the share as')"
+    }
+
     # -- the Drivers tab -----------------------------------------------------
     #
     # A LIST, NOT A BOX YOU TYPE INTO. A group is a folder under Drivers\ on the
@@ -425,6 +503,7 @@ function Get-HDTConsoleBootImageSetting {
         WorkspaceRoot             = [string] (Split-Path -Path $Path -Parent)
 
         General                   = $general
+        Bootstrap                 = $bootstrap
         Component                 = [pscustomobject[]] @($componentRow)
 
         # WHAT THE DOCUMENT CURRENTLY DECLARES, so a window can tell a real tick

@@ -1,4 +1,4 @@
-function Import-HDTRuleDocument {
+﻿function Import-HDTRuleDocument {
     <#
         .SYNOPSIS
             Reads, parses, validates and normalises a rules.yaml.
@@ -78,47 +78,5 @@ function Import-HDTRuleDocument {
 
     $text = $FileSystem.ReadAllText($Path)
 
-    $document = ConvertFrom-HDTYaml -Yaml $text -Path $Path
-    Assert-HDTRuleDocument -Document $document -Path $Path
-
-    $rule = New-Object -TypeName System.Collections.ArrayList
-    $index = 0
-
-    foreach ($current in @($document['rules'])) {
-        $index++
-
-        $when = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
-        if ($current.Contains('when')) {
-            foreach ($key in @($current['when'].Keys)) {
-                $when[[string] $key] = $current['when'][$key]
-            }
-        }
-
-        $set = $null
-        if ($current.Contains('set')) {
-            $set = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
-            foreach ($key in @($current['set'].Keys)) {
-                $set[[string] $key] = $current['set'][$key]
-            }
-        }
-
-        $setFrom = $null
-        if ($current.Contains('setFrom')) {
-            $setFrom = [string] $current['setFrom']
-        }
-
-        [void] $rule.Add([pscustomobject] @{
-                Index   = $index
-                Name    = [string] $current['name']
-                When    = $when
-                Set     = $set
-                SetFrom = $setFrom
-            })
-    }
-
-    return [pscustomobject] @{
-        Path          = $Path
-        SchemaVersion = [int] $document['schemaVersion']
-        Rule          = [object[]] @($rule)
-    }
+    return ConvertFrom-HDTRuleYaml -Yaml ([string] $text) -Path $Path
 }

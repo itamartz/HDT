@@ -1,4 +1,4 @@
-﻿# The WinPE window's state, worked out without a window.
+# The WinPE window's state, worked out without a window.
 #
 # HDTBootImage.xaml is four tabs over one YAML block, and every control on it is
 # the face of a command that already exists. What this file asserts is the
@@ -561,5 +561,121 @@ Describe 'the time zone row' {
         # THE ROW HAS TO SAY WHY IT MATTERS. WinPE on the hardware clock stamps
         # its logs hours away from the machine it just built.
         [string] $script:zoneView.TimeZone.Hint | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'the Bootstrap tab' {
+
+    # MDT'S Bootstrap.ini IS THE FILE WinPE READS BEFORE IT HAS A SHARE: where
+    # the share is, who to sign in as, and whether to ask. HDT's equivalent is
+    # bootstrap.json, written into X:\HDT\ by Update-HDTBootImage - so unlike
+    # MDT's it is GENERATED, and editing it as text would be editing something
+    # the next build overwrites.
+    #
+    # THIS TAB IS THEREFORE THE FACTS IT IS BUILT FROM, not the file. Same
+    # information, same place on the window, edited through the commands that
+    # own those keys - which is the only shape that survives a rebuild.
+
+    BeforeAll {
+        $script:bootstrapSetting = Get-HDTConsoleBootImageSetting -Line $script:line -Path 'C:\HDTLab\Share\workspace.yaml' `
+            -Component $script:component -DriverGroup $script:driverGroup
+    }
+
+    It 'carries the share name and where clients reach it' {
+        $script:bootstrapSetting.Bootstrap.ShareName | Should -BeExactly 'HDT lab deployment share'
+        $script:bootstrapSetting.Bootstrap.DeployRoot | Should -BeExactly '\\HDT-HOST\HdtShare'
+    }
+
+    It 'shows the workspace id, which no command here may change' {
+        # It is carried into every boot image and written into log and artifact
+        # names. Changing it after a share has produced anything leaves
+        # artifacts that no longer agree with the share that made them, which is
+        # why Set-HDTWorkspaceProperty has no -Id.
+        $script:bootstrapSetting.Bootstrap.WorkspaceId | Should -BeExactly 'HDT-LAB'
+    }
+
+    It 'names the provider the deployRoot implies, rather than asking' {
+        # Update-HDTBootImage decides it exactly this way: a UNC deployRoot is
+        # Smb, anything else is Local. A second question on the window would be
+        # a second place for the two to disagree.
+        $script:bootstrapSetting.Bootstrap.Provider | Should -BeExactly 'Smb'
+    }
+
+    It 'says the technician will be asked when no credential is stored' {
+        # A UNC share with no embedded credential turns promptForCredential on
+        # at build time and the payload asks - LiteTouch's behaviour, and worth
+        # saying out loud because the two images behave very differently in
+        # front of somebody.
+        $script:bootstrapSetting.Bootstrap.HasCredential | Should -BeFalse
+        $script:bootstrapSetting.Bootstrap.PromptForCredential | Should -BeTrue
+    }
+
+    It 'writes the sentences the window shows, so the host composes no prose' {
+        # "THE QUERY, AND ONLY ASSIGNMENT AFTER IT" is the rule ShowBootImage
+        # states about itself. A host that built 'Provider: Smb' out of a
+        # property would be computing something, and the next window to want the
+        # same sentence would build it slightly differently.
+        $script:bootstrapSetting.Bootstrap.ProviderText | Should -Not -BeNullOrEmpty
+        $script:bootstrapSetting.Bootstrap.PromptText | Should -Not -BeNullOrEmpty
+        $script:bootstrapSetting.Bootstrap.CredentialText | Should -Not -BeNullOrEmpty
+    }
+
+    It 'says nobody is stored rather than showing an empty box' {
+        # An empty field beside "Sign in as" reads as a window that failed to
+        # load, not as a share that has no credential.
+        $script:bootstrapSetting.Bootstrap.CredentialText | Should -BeLike '*not set*'
+    }
+
+    It 'runs the command that owns those keys' {
+        $script:bootstrapSetting.Bootstrap.Command |
+            Should -BeLike 'Set-HDTWorkspaceProperty -Line $line*'
+    }
+
+    It 'asks for the password rather than carrying one' {
+        # The same rule the certificate password follows: nothing on a window
+        # and nothing in an echoed command is ever a secret in clear text.
+        $script:bootstrapSetting.Bootstrap.CredentialCommandFormat | Should -BeLike '*Get-Credential*'
+        $script:bootstrapSetting.Bootstrap.CredentialCommandFormat | Should -Not -BeLike '*-Password *'
+    }
+
+    Context 'a share that states a credential and a log level' {
+
+        BeforeAll {
+            $script:statedLine = [string[]] @(
+                'schemaVersion: 1'
+                'id: HDT-LOCAL'
+                'name: Build host share'
+                'deployRoot: C:\HDTLab\Share'
+                'logLevel: Debug'
+                'credential:'
+                '  username: LAB\svc-hdt'
+                'bootImage:'
+                '  name: HDTPE_x64'
+            )
+
+            $script:stated = Get-HDTConsoleBootImageSetting -Line $script:statedLine -Path 'C:\HDTLab\Share\workspace.yaml' `
+                -Component $script:component -DriverGroup $script:driverGroup
+        }
+
+        It 'shows the user it will sign in as' {
+            $script:stated.Bootstrap.CredentialUser | Should -BeExactly 'LAB\svc-hdt'
+            $script:stated.Bootstrap.HasCredential | Should -BeTrue
+        }
+
+        It 'does not claim it will prompt when it has somebody to be' {
+            $script:stated.Bootstrap.PromptForCredential | Should -BeFalse
+        }
+
+        It 'shows the user it will sign in as in the sentence too' {
+            $script:stated.Bootstrap.CredentialText | Should -BeExactly 'LAB\svc-hdt'
+        }
+
+        It 'shows the log level the document states' {
+            $script:stated.Bootstrap.LogLevel | Should -BeExactly 'Debug'
+        }
+
+        It 'calls a local deployRoot Local' {
+            $script:stated.Bootstrap.Provider | Should -BeExactly 'Local'
+        }
     }
 }

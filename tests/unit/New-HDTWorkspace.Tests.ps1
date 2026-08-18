@@ -146,6 +146,81 @@ Describe 'New-HDTWorkspace' {
             @($document.Rule).Count | Should -BeGreaterThan 0
         }
 
+        Context 'the catalogue of variables it writes into rules.yaml' {
+
+            # WHAT CustomSettings.ini NEVER HAD. An MDT administrator learns the
+            # variable names from a wiki, a blog and somebody else's file, and
+            # gets them subtly wrong - OSDComputername, SkipWizard, JoinDomain -
+            # with no error, because an .ini has no vocabulary. A rules.yaml that
+            # ships the list cannot be wrong about it.
+            #
+            # GENERATED FROM Get-HDTVariableMap, NEVER TYPED. A hand-copied list
+            # is a list that goes stale the first time a variable is added, and
+            # a stale catalogue is worse than none: it is wrong with authority.
+
+            BeforeEach {
+                # ITS OWN FILE SYSTEM. The Describe's BeforeEach hands out a
+                # fresh fake per It, and New-HDTWorkspace refuses a directory
+                # that already holds a share - so a BeforeAll here would be
+                # writing into whatever the last It left behind.
+                $catalogueFileSystem = New-HDTFakeFileSystem
+                $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $catalogueFileSystem
+
+                $script:catalogueFileSystem = $catalogueFileSystem
+                $script:ruleText = [string] $catalogueFileSystem.ReadAllText($script:rulePath)
+                $script:ruleLine = [string[]] @($script:ruleText -split "`r?`n")
+                $script:map = @(Get-HDTVariableMap)
+            }
+
+            It 'names every variable a rule may set' {
+                $missing = @($script:map | Where-Object { $_.Writable } |
+                        Where-Object { $script:ruleText -notlike ('*{0}*' -f $_.HDTName) } |
+                        ForEach-Object { [string] $_.HDTName })
+
+                $missing | Should -BeNullOrEmpty -Because ('these are settable and unlisted: {0}' -f ($missing -join ', '))
+            }
+
+            It 'does not offer the engine-owned ones, which a rule may not assign' {
+                # They start with _ and Assert-HDTRuleDocument refuses them, so
+                # listing them would be teaching a mistake.
+                $offered = @($script:map | Where-Object { -not $_.Writable } |
+                        Where-Object { $script:ruleText -like ('*{0}*' -f $_.HDTName) } |
+                        ForEach-Object { [string] $_.HDTName })
+
+                $offered | Should -BeNullOrEmpty
+            }
+
+            It 'says what each one was called in MDT' {
+                # The reason somebody is reading this file at all.
+                $script:ruleText | Should -BeLike '*OSDComputerName*'
+                $script:ruleText | Should -BeLike '*SkipWizard*'
+            }
+
+            It 'says where the value comes from when no rule sets one' {
+                $script:ruleText | Should -BeLike '*Win32_ComputerSystem.Model*'
+            }
+
+            It 'writes the catalogue as comments, so a new share resolves exactly as before' {
+                # A set: for fifty variables would override every machine fact
+                # the gather produced, on every machine, for ever.
+                $start = [array]::IndexOf($script:ruleLine, '# EVERY VARIABLE A RULE MAY SET.')
+                $start | Should -BeGreaterThan 0
+
+                $section = @($script:ruleLine[$start..($script:ruleLine.Count - 1)])
+
+                $section.Count | Should -BeGreaterThan 20
+                @($section | Where-Object { $_.Trim() -ne '' -and $_.TrimStart() -notlike '#*' }) |
+                    Should -BeNullOrEmpty
+            }
+
+            It 'still writes a document the engine accepts' {
+                $document = Import-HDTRuleDocument -Path $script:rulePath -FileSystem $script:catalogueFileSystem
+
+                $document.SchemaVersion | Should -Be 1
+                @($document.Rule).Count | Should -BeGreaterThan 0
+            }
+        }
+
         It 'starts the administrator off with a fallback rule, not an empty stub' {
             $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
 

@@ -1,4 +1,4 @@
-# C1's second half: everything the window puts on the screen, decided in a
+﻿# C1's second half: everything the window puts on the screen, decided in a
 # command and asserted with no window.
 #
 # WHY THIS COMMAND EXISTS AT ALL. Show-HDTConsole hands an injected IConsoleHost
@@ -417,6 +417,28 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             [string] @($row.Field | Where-Object { $_.Label -eq 'Description' })[0].Value |
                 Should -BeExactly ''
+        }
+
+        It 'offers an operating system its name and description for typing too' {
+            # THE SAME PANE, THE SAME RULE. Workbench edits both on an imported
+            # OS's Properties sheet; here they are the two rows that name a key
+            # in os.yaml, and everything else on the row is a reading of the
+            # media - an index list, a source path, a document path.
+            $operatingSystem = @($script:node | Where-Object { $_.Kind -eq 'OperatingSystem' })[0]
+
+            $typeable = @($operatingSystem.Field | Where-Object { $_.Editable })
+
+            @($typeable | ForEach-Object { $_.Label }) | Should -Be @('Name', 'Description')
+            @($typeable | ForEach-Object { $_.Property }) | Should -Be @('name', 'description')
+        }
+
+        It 'carries the operating system it names, because the pane writes to it' {
+            # THE DETAIL PANE WRITES THE DOCUMENT THE ROW POINTS AT. Without a
+            # Subject the window had nothing to open but a label, and the first
+            # rename attempt came back as "the path is not of a legal form".
+            $operatingSystem = @($script:node | Where-Object { $_.Kind -eq 'OperatingSystem' })[0]
+
+            [string] $operatingSystem.Subject.Path | Should -BeExactly 'C:\ws\OperatingSystems\Win11-LTSC-2024\os.yaml'
         }
 
         It 'carries the id as its Name, which is what a menu acts on' {

@@ -52,6 +52,13 @@ function Set-HDTWorkspaceProperty {
         .PARAMETER LogLevel
             How much every deployment from this share writes.
 
+        .PARAMETER CredentialUser
+            The account a boot image signs in to the share as, written as
+            credential.username. The PASSWORD is not here and never will be -
+            Set-HDTShareCredential writes that into
+            Control\share-credential.json, because this document is hand-edited
+            and committed.
+
         .PARAMETER BootImageName
             The artifact base name, which becomes Boot\<name>.wim and
             Boot\<name>.iso.
@@ -101,6 +108,13 @@ function Set-HDTWorkspaceProperty {
         .LINK
             New-HDTWorkspace
     #>
+    # NAMED, NOT BLANKET. The analyzer reads 'Credential' in the parameter name
+    # and asks for a SecureString; this one is a USERNAME, and the reason it is
+    # a plain string is the same reason there is no -Password here at all -
+    # workspace.yaml is hand-edited and committed, so the secret lives in
+    # Control\share-credential.json and Set-HDTShareCredential writes it.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'CredentialUser',
+        Justification = 'A username, not a secret. No password may be written to workspace.yaml; Set-HDTShareCredential owns that.')]
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     [OutputType([string[]])]
     param(
@@ -120,6 +134,17 @@ function Set-HDTWorkspaceProperty {
         [Parameter()]
         [ValidateSet('Error', 'Warning', 'Info', 'Debug')]
         [string] $LogLevel,
+
+        # THE DECLARATION, NOT THE SECRET, AND THERE IS NO -Password HERE.
+        # Set-HDTShareCredential writes the password into
+        # Control\share-credential.json; workspace.yaml is the document an
+        # administrator hand-edits and commits, and a secret in it ends up in
+        # git. Update-HDTBootImage refuses a build where the document declares
+        # an account and no secret has been written for it, so both halves have
+        # to be settable.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $CredentialUser,
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -161,6 +186,7 @@ function Set-HDTWorkspaceProperty {
         @{ Parameter = 'Name'; Path = @('name') }
         @{ Parameter = 'DeployRoot'; Path = @('deployRoot') }
         @{ Parameter = 'LogLevel'; Path = @('logLevel') }
+        @{ Parameter = 'CredentialUser'; Path = @('credential', 'username') }
         @{ Parameter = 'BootImageName'; Path = @('bootImage', 'name') }
         @{ Parameter = 'Architecture'; Path = @('bootImage', 'architecture') }
         @{ Parameter = 'Language'; Path = @('bootImage', 'language') }

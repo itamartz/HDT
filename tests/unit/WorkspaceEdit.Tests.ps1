@@ -744,6 +744,26 @@ Describe 'Set-HDTWorkspaceProperty (<Style>)' -ForEach $script:style {
         $image.EntryCommand | Should -BeExactly 'powershell.exe -NoProfile -File X:\HDT\Start-HDTDiagnostic.ps1'
     }
 
+    It 'declares the account a boot image signs in to the share as' {
+        # THE DECLARATION, NOT THE SECRET. Set-HDTShareCredential writes the
+        # password into Control\share-credential.json, because workspace.yaml is
+        # hand-edited and committed and a password in it ends up in git. The
+        # USERNAME belongs in the document, and Update-HDTBootImage refuses a
+        # build where the two disagree - so the window that shows one has to be
+        # able to set the other.
+        $after = Set-HDTWorkspaceProperty -Line $script:line -CredentialUser 'LAB\svc-hdt'
+
+        (Get-HDTTestWorkspace -Line $after).Credential.Username | Should -BeExactly 'LAB\svc-hdt'
+    }
+
+    It 'refuses a password on the same call, wherever it looks like one' {
+        # There is no -Password here and there never will be. A caller reaching
+        # for one has misunderstood which file the secret lives in, and the
+        # message has to say which command they want.
+        (Get-Command -Name 'Set-HDTWorkspaceProperty').Parameters.Keys |
+            Should -Not -Contain 'Password'
+    }
+
     It 'leaves every line it was not asked to change byte-identical' {
         $after = Set-HDTWorkspaceProperty -Line $script:line -LogLevel 'Debug'
         $removed = @(Get-HDTTestRemovedLine -Before $script:line -After $after)

@@ -42,6 +42,8 @@
         'HDTConsoleTreeLabel.Text' = 'Deployment share'
         'HDTNewSequenceMenuItem.Header' = 'New Task Sequence'
         'HDTRemoveSequenceMenuItem.Header' = 'Remove Task Sequence'
+        'HDTImportOperatingSystemMenuItem.Header' = 'Import Operating System'
+        'HDTRemoveOperatingSystemMenuItem.Header' = 'Remove Operating System'
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'
@@ -241,6 +243,37 @@
         'HDTBootImageUpdateButton.ToolTip' = 'Rebuilds the .wim and the .iso from what is saved. Minutes.'
         'HDTBootImageSaveButton.Content' = 'Save'
         'HDTBootImageCloseButton.Content' = 'Close'
+        # The Rules tab - MDT's CustomSettings.ini, in the place MDT put it.
+        'HDTBootImageRules.Header' = 'Rules'
+        'HDTBootImageRulesLabel.Text' = 'rules.yaml'
+        'HDTBootImageRulesHint.Text' = 'Rules are read top to bottom and the first match wins per variable, so order matters.'
+        'HDTRulesReloadButton.Content' = 'Reload'
+        'HDTRulesReloadButton.ToolTip' = 'Read the file again and lose what is typed here'
+        'HDTRulesSaveButton.Content' = 'Save rules'
+        'HDTRulesSaveButton.ToolTip' = 'Checked against the engine first; dark while the document will not parse'
+
+        # The Bootstrap tab - MDT's Bootstrap.ini, as the facts it is built from.
+        'HDTBootImageBootstrap.Header' = 'Bootstrap'
+        'HDTBootstrapShareNameLabel.Text' = 'Share name'
+        'HDTBootstrapShareNameHint.Text' = 'What this share is called in a log and on the Welcome screen. Not used to reach it.'
+        'HDTBootstrapDeployRootLabel.Text' = 'Deploy root'
+        'HDTBootstrapDeployRootHint.Text' = 'Baked into the boot image, and used unless a rule below chooses another.'
+        'HDTBootstrapCredentialLabel.Text' = 'Sign in as'
+        'HDTBootstrapCredentialButton.Content' = 'Set'
+        'HDTBootstrapCredentialButton.ToolTip' = 'Asks for the account and password, and stores the password protected'
+        'HDTBootstrapCredentialHint.Text' = 'The password is never shown here and never appears in the command below.'
+        'HDTBootstrapLogLevelLabel.Text' = 'Log level'
+        'HDTBootstrapLogLevelHint.Text' = 'How much the engine writes to the log. Debug is for a deployment that is being diagnosed.'
+        'HDTBootstrapWorkspaceIdLabel.Text' = 'Workspace ID'
+        'HDTBootstrapWorkspaceIdHint.Text' = 'Fixed at creation. It names every log and artifact this share produces, so a share that has built anything cannot change it.'
+
+        # MDT's Bootstrap.ini proper: rules the machine walks before it has a share.
+        'HDTBootstrapRulesLabel.Text' = 'Choose the share by rule, for a machine that should not use the one above'
+        'HDTBootstrapRulesHint.Text' = 'Matched against the gathered facts before the share is reached. Empty means the deploy root above.'
+        'HDTBootstrapRulesReloadButton.Content' = 'Reload'
+        'HDTBootstrapRulesReloadButton.ToolTip' = 'Read bootstrap-rules.yaml again and lose what is typed here'
+        'HDTBootstrapRulesSaveButton.Content' = 'Save rules'
+        'HDTBootstrapRulesSaveButton.ToolTip' = 'Dark while the document would not survive the next boot image build'
     }
 
     # THE FIRST SCREEN IN WinPE: Show-HDTWizard on HDTWelcome.xaml. It is the

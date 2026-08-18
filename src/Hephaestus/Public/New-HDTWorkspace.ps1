@@ -252,8 +252,8 @@ function New-HDTWorkspace {
         '# bottom act as fallbacks. %HDTSomething% expands against the variables',
         '# already resolved.',
         '#',
-        '# Run Get-HDTVariableMap for every variable HDT knows and what it was called',
-        '# in MDT.',
+        '# Every variable a rule may set is listed at the bottom of this file with',
+        '# the name it had in MDT. Get-HDTVariableMap prints the same table.',
         '#',
         '# A conditional rule looks like this:',
         '#',
@@ -271,10 +271,55 @@ function New-HDTWorkspace {
         ''
     )
 
+    # -- the catalogue, generated ---------------------------------------------
+    #
+    # WHAT CustomSettings.ini NEVER HAD. An .ini has no vocabulary, so an MDT
+    # administrator learns the names from a wiki, a blog and somebody else's
+    # file - and gets them subtly wrong, with no error, because a misspelt key
+    # in an .ini is just a key nothing reads. A file that ships the list cannot
+    # be wrong about it.
+    #
+    # GENERATED FROM Get-HDTVariableMap, NEVER TYPED. A hand-copied list goes
+    # stale the first time a variable is added, and a stale catalogue is worse
+    # than none: it is wrong with authority.
+    #
+    # COMMENTED, EVERY LINE. A set: for fifty variables would override every
+    # fact the gather produced, on every machine, for ever. This is a reference
+    # to uncomment from, not a configuration.
+    #
+    # ENGINE-OWNED VARIABLES ARE LEFT OUT. They start with _ and
+    # Assert-HDTRuleDocument refuses them, so listing them would be teaching a
+    # mistake that the engine then has to refuse.
+    $catalogue = @(
+        '',
+        '# ---------------------------------------------------------------------',
+        '# EVERY VARIABLE A RULE MAY SET.',
+        '#',
+        '# name                     MDT name                 value when no rule sets one',
+        '# ---------------------------------------------------------------------'
+    )
+
+    foreach ($variable in @(Get-HDTVariableMap | Where-Object { $_.Writable })) {
+        $mdtName = [string] $variable.MdtName
+        if ([string]::IsNullOrWhiteSpace($mdtName)) { $mdtName = '-' }
+
+        $catalogue += ('#   {0} {1} {2}' -f
+            ([string] $variable.HDTName).PadRight(24),
+            $mdtName.PadRight(24),
+            [string] $variable.Origin)
+    }
+
+    $catalogue += ''
+
     $newLine = [System.Environment]::NewLine
 
     $workspaceText = (($workspaceComment -join $newLine) + $newLine) + (ConvertTo-HDTYaml -Document $workspaceDocument -Path $workspacePath)
-    $ruleText = (($ruleComment -join $newLine) + $newLine) + (ConvertTo-HDTYaml -Document $ruleDocument -Path $rulePath)
+    # THE CATALOGUE GOES AFTER THE RULES, not before them. It is fifty lines
+    # long; a file that opens with it buries the two rules an administrator
+    # actually has to read.
+    $ruleText = (($ruleComment -join $newLine) + $newLine) +
+    (ConvertTo-HDTYaml -Document $ruleDocument -Path $rulePath) +
+    (($catalogue -join $newLine) + $newLine)
 
     # -- write ----------------------------------------------------------------
 

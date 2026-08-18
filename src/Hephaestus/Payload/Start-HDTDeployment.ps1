@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
         THE WinPE ENTRY POINT - what startnet.cmd runs. It reads the boot
         image's bootstrap document, finds its content, runs the task sequence
@@ -455,6 +455,51 @@ try {
         $clock.Sleep(5000)
     }
 
+    # -- 6b. WHICH SHARE, WHEN THE IMAGE CARRIES RULES ------------------------
+    #
+    # MDT's Bootstrap.ini, and the reason it is a RULES file rather than a
+    # settings one: one boot image, many sites. The machine has just been
+    # gathered - it knows its gateway, its MAC, its model - and none of that
+    # needed a share, which is what makes choosing one from it possible at all.
+    #
+    # BEFORE THE DRIVE IS RESOLVED, DELIBERATELY. Resolve-HDTDeployRoot turns a
+    # volume-relative path into a letter on THIS machine; running it against the
+    # share the rules did not choose would resolve the wrong thing and then
+    # connect to it.
+    #
+    # ABSENT IS THE NORMAL CASE and costs nothing: no file, no change, and the
+    # image deploys from what it was built with.
+
+    $bootstrapRulePath = Join-Path -Path (Split-Path -Path $BootstrapPath -Parent) -ChildPath 'bootstrap-rules.yaml'
+    $bootstrapRule = $null
+
+    if ($fileSystem.TestPath($bootstrapRulePath)) {
+        try {
+            $bootstrapRule = Import-HDTBootstrapRuleDocument -Path $bootstrapRulePath -FileSystem $fileSystem
+        } catch {
+            # A BROKEN RULES FILE MUST NOT STRAND THE MACHINE. It was validated
+            # when the image was built, so reaching here means the image was
+            # edited or is damaged - and the share it was built for is still a
+            # right answer. Logged loudly, because a machine that quietly
+            # ignored its site rules deploys from the wrong place.
+            Write-HDTLog -Message ("bootstrap rules at '{0}' could not be read and were ignored: {1}" -f
+                $bootstrapRulePath, $_.Exception.Message) -Level 'Warning' -Destination $logDestination
+            $bootstrapRule = $null
+        }
+    }
+
+    $chosen = Resolve-HDTBootstrapRule -RuleDocument $bootstrapRule -Fact $fact `
+        -DeployRoot ([string] $bootstrap.DeployRoot)
+
+    $result['bootstrapRuleSource'] = [string] $chosen.Source
+    $result['bootstrapRuleName'] = [string] $chosen.RuleName
+
+    if ($chosen.Source -eq 'Rule') {
+        Write-HDTLog -Message ("bootstrap rule '{0}' chose the deployment share '{1}'; the boot image was built with '{2}'." -f
+            $chosen.RuleName, $chosen.DeployRoot, [string] $bootstrap.DeployRoot) `
+            -Level 'Info' -Destination $logDestination
+    }
+
     # -- 7. WHICH DRIVE IS THE CONTENT ON ------------------------------------
     #
     # THE ONLY REASON THIS FILE IS ALLOWED ANYWHERE NEAR A DRIVE LETTER, and it
@@ -467,7 +512,7 @@ try {
 
     $result['candidateRoot'] = $candidateRoot
 
-    $deployRoot = Resolve-HDTDeployRoot -DeployRoot ([string] $bootstrap.DeployRoot) `
+    $deployRoot = Resolve-HDTDeployRoot -DeployRoot ([string] $chosen.DeployRoot) `
         -Provider ([string] $bootstrap.Provider) -CandidateRoot $candidateRoot `
         -Marker ([string] $bootstrap.ContentMarker) -FileSystem $fileSystem
 

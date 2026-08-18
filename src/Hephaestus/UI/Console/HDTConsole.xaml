@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hephaestus Deployment Toolkit"
@@ -262,6 +262,8 @@
                     <ContextMenu x:Name="HDTConsoleTreeMenu">
                         <MenuItem x:Name="HDTNewSequenceMenuItem" />
                         <MenuItem x:Name="HDTRemoveSequenceMenuItem" />
+                        <MenuItem x:Name="HDTImportOperatingSystemMenuItem" />
+                        <MenuItem x:Name="HDTRemoveOperatingSystemMenuItem" />
                     </ContextMenu>
                 </TreeView.ContextMenu>
 

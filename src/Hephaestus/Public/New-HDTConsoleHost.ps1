@@ -225,6 +225,13 @@
                     return
                 }
 
+                # AND ONLY A TASK SEQUENCE OPENS THE EDITOR. CanOpen says a row
+                # carries a subject, which an operating system now does so the
+                # detail pane can write its document - it is not an invitation
+                # to open a sequence editor on an os.yaml. An OS's properties
+                # ARE the detail pane; there is no second window to show.
+                if ([string] $selected.Kind -ne 'TaskSequence') { return }
+
                 # AND IT COMES UP THE SIZE OF THIS WINDOW. ActualWidth, not the
                 # markup and not RestoreBounds: what was asked for is the size
                 # the administrator is looking at, so a maximised console opens
@@ -386,8 +393,16 @@
                 $typed = [string] $box.Text
                 if ($typed -eq [string] $row.Original) { return }
 
+                # WHICH DOCUMENT THIS ROW EDITS IS THE ROW'S KIND, and the pair
+                # of commands follows from it: a sequence and an imported
+                # operating system have the same flat header and two different
+                # validators, so the wrong pair writes a file the other one then
+                # refuses to read.
                 $selected = $tree.SelectedItem
-                if ($null -eq $selected -or [string] $selected.Kind -ne 'TaskSequence') { return }
+                if ($null -eq $selected) { return }
+
+                $kind = [string] $selected.Kind
+                if ($kind -ne 'TaskSequence' -and $kind -ne 'OperatingSystem') { return }
 
                 $documentPath = [string] $selected.Subject.Path
 
@@ -399,11 +414,17 @@
                     $splat[[string] $row.Property] = $typed
 
                     # Save-HDTSequenceDocument, NOT Save-HDTWorkspaceDocument:
-                    # both write lines and check them first, and the workspace
-                    # one checks them against workspace.yaml's keys - so it
-                    # refuses a sequence for declaring 'description'.
-                    [void] (Save-HDTSequenceDocument -Path $documentPath `
-                            -Line @(Set-HDTTaskSequenceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                    # every one of these checks the lines before writing them,
+                    # and the workspace one checks them against workspace.yaml's
+                    # keys - so it refuses a sequence for declaring
+                    # 'description'.
+                    if ($kind -eq 'OperatingSystem') {
+                        [void] (Save-HDTOperatingSystemDocument -Path $documentPath `
+                                -Line @(Set-HDTOperatingSystemProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                    } else {
+                        [void] (Save-HDTSequenceDocument -Path $documentPath `
+                                -Line @(Set-HDTTaskSequenceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                    }
 
                     $row.Original = $typed
 
@@ -426,7 +447,10 @@
                     $key = [string] $row.Property
                     $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
 
-                    $command.Text = "Set-HDTTaskSequenceProperty -Line `$line -{0} '{1}'" -f $parameter, $typed
+                    $setter = 'Set-HDTTaskSequenceProperty'
+                    if ($kind -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
+
+                    $command.Text = "{0} -Line `$line -{1} '{2}'" -f $setter, $parameter, $typed
                 } catch {
                     # A REFUSAL PUTS THE BOX BACK. Set-HDTTaskSequenceProperty
                     # will not clear a name, and a box left holding a value the
@@ -507,6 +531,8 @@
         # technician presses to find out nothing happens.
         $newSequence = $window.FindName('HDTNewSequenceMenuItem')
         $removeSequence = $window.FindName('HDTRemoveSequenceMenuItem')
+        $importOperatingSystem = $window.FindName('HDTImportOperatingSystemMenuItem')
+        $removeOperatingSystem = $window.FindName('HDTRemoveOperatingSystemMenuItem')
 
         if ($null -ne $newSequence) {
             if ([string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
@@ -551,15 +577,27 @@
 
                         $isSequence = ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence')
 
+                        $isOsCategory = ($null -ne $chosen -and
+                            [string] $chosen.Kind -eq 'Category' -and
+                            [string] $chosen.Name -eq 'OperatingSystems')
+
+                        $isOperatingSystem = ($null -ne $chosen -and [string] $chosen.Kind -eq 'OperatingSystem')
+
                         # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
                         # with none opens no menu.
                         $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
                         $removeSequence.Visibility = [System.Windows.Visibility]::Collapsed
+                        $importOperatingSystem.Visibility = [System.Windows.Visibility]::Collapsed
+                        $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Collapsed
 
                         if ($isCategory) { $newSequence.Visibility = [System.Windows.Visibility]::Visible }
                         if ($isSequence) { $removeSequence.Visibility = [System.Windows.Visibility]::Visible }
+                        if ($isOsCategory) { $importOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
+                        if ($isOperatingSystem) { $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
 
-                        if (-not ($isCategory -or $isSequence)) { $opening.Handled = $true }
+                        if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem)) {
+                            $opening.Handled = $true
+                        }
                     }.GetNewClosure())
 
                 # REMOVE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED.
@@ -599,6 +637,62 @@
                             # THE REFUSAL IS THE ANSWER, and this command's
                             # refusals are the ones worth reading: a folder that
                             # holds no sequence, an id that is a path.
+                            $command.Text = [string] $_.Exception.Message
+                        }
+
+                        & $rebuildTree
+                    }.GetNewClosure())
+
+                # REMOVING MEDIA IS WORSE THAN REMOVING A SEQUENCE, and the
+                # dialog says so: a sequence is a file somebody wrote, and this
+                # is several gigabytes that came off a DVD. UsedBy is why the
+                # command reads the sequences first - a deployment that would
+                # have failed at Apply Operating System, minutes in, is worth
+                # naming before it does.
+                $removeOperatingSystem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        $which = [string] $chosen.Name
+
+                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                            $command.Text = 'that row does not name a share and an operating system id, so there is nothing to remove.'
+                            return
+                        }
+
+                        # ASKED FOR WITHOUT REMOVING ANYTHING: -WhatIf returns
+                        # UsedBy, so the dialog can name the sequences before
+                        # anybody agrees to anything.
+                        $using = @()
+
+                        try {
+                            $using = @((Remove-HDTOperatingSystem -Workspace $where -Id $which -WhatIf).UsedBy)
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        $warning = ''
+                        if (@($using).Count -gt 0) {
+                            $warning = '{0}{0}These task sequences apply it and will fail without it: {1}.' -f
+                                [System.Environment]::NewLine, (@($using) -join ', ')
+                        }
+
+                        $asked = [System.Windows.MessageBox]::Show($window,
+                            ("Remove the operating system '{0}' from{1}{2}?{1}{1}Its folder goes with it - os.yaml and whatever media was imported beside it. This cannot be undone from here.{3}" -f
+                                $which, [System.Environment]::NewLine, $where, $warning),
+                            'Remove Operating System',
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Warning,
+                            [System.Windows.MessageBoxResult]::No)
+
+                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                        try {
+                            [void] (Remove-HDTOperatingSystem -Workspace $where -Id $which -Confirm:$false)
+                            $command.Text = "Remove-HDTOperatingSystem -Workspace '{0}' -Id '{1}'" -f $where, $which
+                        } catch {
                             $command.Text = [string] $_.Exception.Message
                         }
 
@@ -2008,6 +2102,42 @@
         $update = $window.FindName('HDTBootImageUpdateButton')
         $save = $window.FindName('HDTBootImageSaveButton')
         $close = $window.FindName('HDTBootImageCloseButton')
+        # THE BOOTSTRAP TAB - MDT's Bootstrap.ini, as the facts it is built
+        # from. bootstrap.json itself is generated into the image by
+        # Update-HDTBootImage, so a tab that edited it as text would be editing
+        # something the next build overwrites.
+        $bootstrapShareNameBox = $window.FindName('HDTBootstrapShareNameBox')
+        $bootstrapDeployRootBox = $window.FindName('HDTBootstrapDeployRootBox')
+        $bootstrapProviderText = $window.FindName('HDTBootstrapProviderText')
+        $bootstrapCredentialText = $window.FindName('HDTBootstrapCredentialText')
+        $bootstrapCredentialButton = $window.FindName('HDTBootstrapCredentialButton')
+        $bootstrapPromptText = $window.FindName('HDTBootstrapPromptText')
+        $bootstrapLogLevelBox = $window.FindName('HDTBootstrapLogLevelBox')
+        $bootstrapWorkspaceIdText = $window.FindName('HDTBootstrapWorkspaceIdText')
+
+        # THE RULES TAB - MDT's CustomSettings.ini, in the place MDT put it and
+        # as the text MDT made it. It is a SEPARATE FILE from the one this
+        # window otherwise edits, so it has its own read, its own Save and its
+        # own dirty state; the workspace Save at the bottom does not touch it.
+        $rulesBox = $window.FindName('HDTRulesBox')
+        $rulesSummaryText = $window.FindName('HDTRulesSummaryText')
+        $rulesProblemText = $window.FindName('HDTRulesProblemText')
+        $rulesReloadButton = $window.FindName('HDTRulesReloadButton')
+        $rulesSaveButton = $window.FindName('HDTRulesSaveButton')
+
+        $rulesPath = Join-Path -Path (Split-Path -Path $Path -Parent) -ChildPath 'rules.yaml'
+
+        $bootstrapRulesBox = $window.FindName('HDTBootstrapRulesBox')
+        $bootstrapRulesSummaryText = $window.FindName('HDTBootstrapRulesSummaryText')
+        $bootstrapRulesProblemText = $window.FindName('HDTBootstrapRulesProblemText')
+        $bootstrapRulesReloadButton = $window.FindName('HDTBootstrapRulesReloadButton')
+        $bootstrapRulesSaveButton = $window.FindName('HDTBootstrapRulesSaveButton')
+
+        # BESIDE workspace.yaml, LIKE rules.yaml. Update-HDTBootImage injects it
+        # into the image from here; a share that never writes one behaves as it
+        # always did.
+        $bootstrapRulesPath = Join-Path -Path (Split-Path -Path $Path -Parent) -ChildPath 'bootstrap-rules.yaml'
+
 
         $book = [pscustomobject] @{
             Line  = [string[]] @($Line)
@@ -2065,6 +2195,20 @@
             $timeZoneHint.Text = [string] $view.TimeZone.Hint
 
             $componentSize.Text = [string] $view.SelectedSizeText
+            # THE BOOTSTRAP TAB. Every one of these came out of the view model,
+            # including the three sentences: this method computes none of them.
+            $bootstrapShareNameBox.Text = [string] $view.Bootstrap.ShareName
+            $bootstrapDeployRootBox.Text = [string] $view.Bootstrap.DeployRoot
+            $bootstrapProviderText.Text = [string] $view.Bootstrap.ProviderText
+            $bootstrapCredentialText.Text = [string] $view.Bootstrap.CredentialText
+            $bootstrapPromptText.Text = [string] $view.Bootstrap.PromptText
+            $bootstrapWorkspaceIdText.Text = [string] $view.Bootstrap.WorkspaceId
+
+            # AFTER THE ITEMS EXIST, like the driver and time zone boxes above -
+            # SelectedValue means nothing until an item carries that value. This
+            # one's items are in the markup, so they always do.
+            $bootstrapLogLevelBox.SelectedValue = [string] $view.Bootstrap.LogLevel
+
         }
 
         # THE TWO LISTS THAT MAY BE REBUILT. Neither carries a control that
@@ -2520,6 +2664,196 @@
         # two ways to do one thing, which disagree the first time somebody
         # empties the box and presses Save expecting Clear's behaviour.
 
+        # -- the two rule editors ------------------------------------------
+        #
+        # ONE EDITOR, WIRED TWICE. rules.yaml on the Rules tab and
+        # bootstrap-rules.yaml on the Bootstrap tab are the same grammar in the
+        # same control; the only difference is the vocabulary
+        # Get-HDTConsoleRuleSetting judges them by. Two copies of this would be
+        # one copy to get wrong, and the one that rots is always the second.
+        #
+        # NEITHER IS PART OF THE WORKSPACE Save. They are their own files, saved
+        # by their own buttons, so an administrator who edits rules and presses
+        # the wrong Save has lost nothing.
+        #
+        # THE PARAMETERS ARE WHAT THE CLOSURES CAPTURE. GetNewClosure copies by
+        # VALUE at the moment the handler is made, and these are locals of this
+        # invocation - which is exactly why the two tabs cannot end up sharing a
+        # control or a path.
+        $wireRuleTab = {
+            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap)
+
+            # WHAT THE ENGINE WOULD SAY, SAID NOW. Assert-HDTRuleLine is the gate
+            # Add-HDTRule passes through and, for the bootstrap file, the one
+            # Update-HDTBootImage will apply when it injects it - so a document
+            # that would fail at three in the morning fails here, at the desk.
+            $judge = {
+                $typed = @([string] $Box.Text -split "`r?`n")
+                $judged = Get-HDTConsoleRuleSetting -Line $typed -Path $RulePath -Bootstrap:$IsBootstrap
+
+                $Summary.Text = [string] $judged.SummaryText
+                $Problem.Text = [string] $judged.Problem
+
+                if ([string]::IsNullOrWhiteSpace([string] $judged.Problem)) {
+                    $Problem.Visibility = [System.Windows.Visibility]::Collapsed
+                } else {
+                    $Problem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                $Save.IsEnabled = [bool] $judged.IsValid
+            }.GetNewClosure()
+
+            $fill = {
+                $fileSystem = New-HDTFileSystem
+
+                $ruleLine = @()
+                if ($fileSystem.TestPath($RulePath)) {
+                    $ruleLine = @([string] $fileSystem.ReadAllText($RulePath) -split "`r?`n")
+                }
+
+                $Box.Text = [string] (Get-HDTConsoleRuleSetting -Line $ruleLine -Path $RulePath -Bootstrap:$IsBootstrap).Text
+            }.GetNewClosure()
+
+            $Box.Add_TextChanged({ & $judge }.GetNewClosure())
+
+            $Reload.Add_Click({
+                    & $fill
+                    & $judge
+                }.GetNewClosure())
+
+            $Save.Add_Click({
+                    $typed = @([string] $Box.Text -split "`r?`n")
+                    $judged = Get-HDTConsoleRuleSetting -Line $typed -Path $RulePath -Bootstrap:$IsBootstrap
+
+                    # BELT AND BRACES. The button is dark while the document will
+                    # not do, but a keyboard default or an automation could still
+                    # reach this, and a corrupt rules file on the share is a
+                    # deployment that fails on a bench at midnight.
+                    if (-not $judged.IsValid) {
+                        & $judge
+                        return
+                    }
+
+                    [void] (Save-HDTRuleDocument -Path $RulePath -Line $typed `
+                            -FileSystem (New-HDTFileSystem) -Confirm:$false)
+
+                    & $fill
+                    & $judge
+
+                    $commandText.Text = [string] $judged.SaveCommand
+                }.GetNewClosure())
+
+            return [pscustomobject] @{ Fill = $fill; Judge = $judge }
+        }
+
+        $rulesTab = & $wireRuleTab $rulesBox $rulesSummaryText $rulesProblemText `
+            $rulesSaveButton $rulesReloadButton $rulesPath $false
+
+        $bootstrapRulesTab = & $wireRuleTab $bootstrapRulesBox $bootstrapRulesSummaryText `
+            $bootstrapRulesProblemText $bootstrapRulesSaveButton $bootstrapRulesReloadButton `
+            $bootstrapRulesPath $true
+
+        # FILLED NOW, not with the boxes three hundred lines above: these
+        # scriptblocks are made here, and one called before it is assigned is
+        # $null under StrictMode.
+        & $rulesTab.Fill
+        & $rulesTab.Judge
+        & $bootstrapRulesTab.Fill
+        & $bootstrapRulesTab.Judge
+
+        # -- the share credential, which is not a line in the document -------
+        #
+        # Set-HDTShareCredential stores it protected beside the share rather
+        # than writing a password into workspace.yaml, so it is not part of the
+        # workspace Save and has its own button.
+        #
+        # NOT Get-Credential. tests/contract/NoInteractivePrompt allows that
+        # command in exactly one file - Start-HDTDeployment.ps1, the wizard in
+        # front of a person in WinPE - and a console is not that file. A
+        # PasswordBox on a small dialog is also the only WPF control that does
+        # not put the password on screen, which is why the certificate password
+        # above is asked for the same way.
+        $bootstrapCredentialButton.Add_Click({
+                Add-Type -AssemblyName PresentationFramework
+
+                $prompt = New-Object -TypeName System.Windows.Window
+                $prompt.Title = 'Share credential'
+                $prompt.Width = 440
+                $prompt.SizeToContent = [System.Windows.SizeToContent]::Height
+                $prompt.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
+                $prompt.Owner = $window
+                $prompt.ResizeMode = [System.Windows.ResizeMode]::NoResize
+
+                $panel = New-Object -TypeName System.Windows.Controls.StackPanel
+                $panel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 16
+
+                $label = New-Object -TypeName System.Windows.Controls.TextBlock
+                $label.Text = 'The account WinPE signs in to the share as. DOMAIN\user, or HOST\user for a local account.'
+                $label.TextWrapping = [System.Windows.TextWrapping]::Wrap
+                $label.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 10
+
+                $user = New-Object -TypeName System.Windows.Controls.TextBox
+                $user.Text = [string] $bootstrapCredentialText.Text
+                $user.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 8
+
+                $secretLabel = New-Object -TypeName System.Windows.Controls.TextBlock
+                $secretLabel.Text = 'Password'
+                $secretLabel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 4
+
+                $entry = New-Object -TypeName System.Windows.Controls.PasswordBox
+                $entry.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 12
+
+                $accept = New-Object -TypeName System.Windows.Controls.Button
+                $accept.Content = 'Store'
+                $accept.IsDefault = $true
+                $accept.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+                $accept.Padding = New-Object -TypeName System.Windows.Thickness -ArgumentList 14, 6, 14, 6
+
+                $stored = [pscustomobject] @{ Ok = $false }
+
+                $accept.Add_Click({
+                        $stored.Ok = $true
+                        $prompt.Close()
+                    }.GetNewClosure())
+
+                [void] $panel.Children.Add($label)
+                [void] $panel.Children.Add($user)
+                [void] $panel.Children.Add($secretLabel)
+                [void] $panel.Children.Add($entry)
+                [void] $panel.Children.Add($accept)
+
+                $prompt.Content = $panel
+                [void] $prompt.ShowDialog()
+
+                if (-not $stored.Ok) { return }
+                if ([string]::IsNullOrWhiteSpace([string] $user.Text)) { return }
+
+                $credential = New-Object -TypeName System.Management.Automation.PSCredential `
+                    -ArgumentList ([string] $user.Text), $entry.SecurePassword
+
+                # BOTH HALVES, OR NEITHER IS ANY USE. The username is a line in
+                # workspace.yaml and the password is a protected file beside it,
+                # and Update-HDTBootImage refuses a build where the document
+                # declares an account no secret has been written for. A button
+                # that wrote only one of them would produce exactly that.
+                $book.Line = @(Set-HDTWorkspaceProperty -Line $book.Line `
+                        -CredentialUser ([string] $user.Text) -Confirm:$false)
+
+                [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `
+                        -FileSystem (New-HDTFileSystem) -Confirm:$false)
+
+                [void] (Set-HDTShareCredential -WorkspaceRoot (Split-Path -Path $Path -Parent) `
+                        -Credential $credential -FileSystem (New-HDTFileSystem) -Confirm:$false)
+
+                & $fillBoxes
+
+                $commandText.Text = (@(
+                        "Set-HDTWorkspaceProperty -Line `$line -CredentialUser '{0}'" -f [string] $user.Text
+                        "Save-HDTWorkspaceDocument -Line `$line -Path '{0}'" -f $Path
+                        [string] $book.View.Bootstrap.CredentialCommandFormat -f (Split-Path -Path $Path -Parent)
+                    ) -join [System.Environment]::NewLine)
+            }.GetNewClosure())
+
         $save.Add_Click({
                 $propertySplat = @{ Line = $book.Line; Confirm = $false }
 
@@ -2542,6 +2876,20 @@
                 # tells the next reader somebody decided rather than never
                 # looked.
                 $propertySplat['PromptForKey'] = [bool] $promptForKeyCheck.IsChecked
+                # THE BOOTSTRAP TAB SAVES WITH THIS ONE. Its three scalars are
+                # keys in the same document, written by the same command, so a
+                # second Save button on that tab would be a second way to write
+                # the same file and a second thing to leave unpressed.
+                if (-not [string]::IsNullOrWhiteSpace($bootstrapShareNameBox.Text)) {
+                    $propertySplat['Name'] = [string] $bootstrapShareNameBox.Text
+                }
+                if (-not [string]::IsNullOrWhiteSpace($bootstrapDeployRootBox.Text)) {
+                    $propertySplat['DeployRoot'] = [string] $bootstrapDeployRootBox.Text
+                }
+                if (-not [string]::IsNullOrWhiteSpace($bootstrapLogLevelBox.SelectedValue)) {
+                    $propertySplat['LogLevel'] = [string] $bootstrapLogLevelBox.SelectedValue
+                }
+
 
                 $book.Line = @(Set-HDTWorkspaceProperty @propertySplat)
 

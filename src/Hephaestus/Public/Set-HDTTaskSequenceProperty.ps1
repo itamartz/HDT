@@ -1,4 +1,4 @@
-function Set-HDTTaskSequenceProperty {
+﻿function Set-HDTTaskSequenceProperty {
     <#
         .SYNOPSIS
             Renames a task sequence, or rewrites its description.
@@ -115,11 +115,11 @@ function Set-HDTTaskSequenceProperty {
     $result = [string[]] @($Line)
 
     if ($setsName) {
-        $result = [string[]] @(Set-HDTSequenceHeaderKey -Line $result -Key 'name' -Value $Name)
+        $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'name' -Value $Name)
     }
 
     if ($setsDescription) {
-        $result = [string[]] @(Set-HDTSequenceHeaderKey -Line $result -Key 'description' -Value $Description)
+        $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'description' -Value $Description)
     }
 
     try {

@@ -1,4 +1,4 @@
-function Get-HDTConsoleShareNode {
+﻿function Get-HDTConsoleShareNode {
     <#
         .SYNOPSIS
             Builds the rows for one deployment share - the share itself and the
@@ -124,7 +124,12 @@ function Get-HDTConsoleShareNode {
     $osFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind OperatingSystems
     $osCommand = "Get-HDTWorkspacePath -Root '{0}' -Kind OperatingSystems" -f $Workspace.Root
 
+    # NAMED, NOT JUST LABELLED, for the same reason TaskSequences is: the window
+    # hangs Import Operating System off this row and must be able to tell it
+    # from the other three categories without parsing a label somebody may
+    # reword.
     $osCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Name 'OperatingSystems' `
         -Text ('Operating Systems ({0})' -f @($Workspace.OperatingSystem).Count) `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $osFolder
@@ -140,9 +145,15 @@ function Get-HDTConsoleShareNode {
             '{0,-3} {1} [{2}] {3}' -f $current.Index, $current.Name, $current.Edition, $current.Version
         }
 
+        # THE TWO THAT CAN BE TYPED INTO, as on a task sequence: Workbench edits
+        # both on an imported OS's Properties sheet, and everything below them
+        # is a reading of the media rather than a decision anybody made. The id
+        # is not among them - it is the folder name and what a sequence names to
+        # select the image, so changing it is a move.
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value $operatingSystem.Id
-            New-HDTConsoleField -Label 'Name' -Value $operatingSystem.Name
+            New-HDTConsoleField -Label 'Name' -Value $operatingSystem.Name -Property 'name'
+            New-HDTConsoleField -Label 'Description' -Value ([string] $operatingSystem.Description) -Property 'description'
             New-HDTConsoleField -Label 'Type' -Value $operatingSystem.Type
             New-HDTConsoleField -Label 'Architecture' -Value (Get-HDTConsoleDisplayText -Text $operatingSystem.Architecture -Fallback '(not recorded)')
             New-HDTConsoleField -Label 'Default index' -Value $operatingSystem.DefaultIndex
@@ -166,7 +177,7 @@ function Get-HDTConsoleShareNode {
             -Text $text -Field $field `
             -Command ("Get-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
                 $Workspace.Root, $operatingSystem.Id) `
-            -Header $header
+            -Header $header -Subject $operatingSystem
 
         [void] $node.Add($row)
         [void] $osCategory.Children.Add($row)

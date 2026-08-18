@@ -1,6 +1,8 @@
-# The DESIGN 3.3 example, extended with one setFrom rule so the sample exercises
-# every feature of the resolution engine: multi-key and wildcard matching, a list
-# valued fact, %Var% expansion, a script rule, and a fallback.
+# Variable rules for this deployment share - what CustomSettings.ini was.
+#
+# This one exercises every feature of the resolution engine: multi-key and
+# wildcard matching, a list valued fact, %Var% expansion, a script rule, and a
+# fallback.
 #
 # Rules are walked top to bottom. A set key only takes effect if that variable is
 # NOT already resolved, so first match wins per variable and the rules below act

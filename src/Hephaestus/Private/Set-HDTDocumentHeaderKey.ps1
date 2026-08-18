@@ -1,14 +1,21 @@
-function Set-HDTSequenceHeaderKey {
+﻿function Set-HDTDocumentHeaderKey {
     <#
         .SYNOPSIS
-            Replaces, inserts or removes one top-level key of a sequence
-            document, leaving every other line byte-identical.
+            Replaces, inserts or removes one top-level key of a document,
+            leaving every other line byte-identical.
 
         .DESCRIPTION
-            The splice behind Set-HDTTaskSequenceProperty, and the sequence
-            equivalent of Set-HDTWorkspaceKey's simplest case: sequence.yaml's
-            header is flat - schemaVersion, id, name, description - so there are
-            no blocks to build.
+            The splice behind Set-HDTTaskSequenceProperty and
+            Set-HDTOperatingSystemProperty, and the flat-header equivalent of
+            Set-HDTWorkspaceKey's simplest case. sequence.yaml and os.yaml both
+            open with a run of scalars and then a block, so there is nothing to
+            build - only a line to replace, insert or drop.
+
+            IT TAKES THE ORDER AND THE BLOCK RATHER THAN KNOWING THEM. A
+            sequence header is schemaVersion, id, name, description and ends at
+            steps: or variables:; an os header carries type, architecture,
+            sourcePath and the rest and ends at images:. Two documents, one
+            splice, and the caller says which it is holding.
 
             A TOP-LEVEL KEY IS ONE AT COLUMN ZERO. `name:` under a step is a
             step's name and is nested; matching on the word alone would rename
@@ -32,6 +39,14 @@ function Set-HDTSequenceHeaderKey {
         .PARAMETER Key
             The top-level key: name or description.
 
+        .PARAMETER Order
+            The header's keys in the order the document writes them. A key that
+            is not there yet lands after the last of these that is.
+
+        .PARAMETER Block
+            The keys whose line ends the header - everything below one is
+            nested. As a regex alternation: 'steps|variables'.
+
         .PARAMETER Value
             The value. Empty removes the key.
 
@@ -42,7 +57,7 @@ function Set-HDTSequenceHeaderKey {
             System.String[]
 
         .EXAMPLE
-            Set-HDTSequenceHeaderKey -Line $line -Key 'name' -Value 'Windows 11'
+            Set-HDTDocumentHeaderKey -Line $line -Key 'name' -Value 'Windows 11'
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Returns a copy of in-memory lines. Save-HDTSequenceDocument is the only command that writes, and it carries ShouldProcess.')]
@@ -60,15 +75,22 @@ function Set-HDTSequenceHeaderKey {
 
         [Parameter(Mandatory = $true, Position = 2)]
         [AllowEmptyString()]
-        [string] $Value
+        [string] $Value,
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string[]] $Order = @('schemaVersion', 'id', 'name', 'description'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $Block = 'steps|variables'
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    # The order a sequence header is written in. A new key lands after the last
-    # of these that is actually present.
-    $order = @('schemaVersion', 'id', 'name', 'description')
+    # A new key lands after the last of these that is actually present.
+    $order = @($Order)
     $rank = [array]::IndexOf($order, $Key)
 
     $clear = [string]::IsNullOrWhiteSpace($Value)
@@ -82,7 +104,7 @@ function Set-HDTSequenceHeaderKey {
 
         # A LINE THAT OPENS A BLOCK ENDS THE HEADER. Everything below it is
         # nested, and a `name:` down there belongs to a step.
-        if ($current -match '^(steps|variables)\s*:') { break }
+        if ($current -match ('^({0})\s*:' -f $Block)) { break }
 
         if ($current -match ('^{0}\s*:' -f [regex]::Escape($Key))) { $at = $i; break }
 
