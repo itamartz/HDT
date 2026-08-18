@@ -3,9 +3,14 @@ name: CI
 # DESIGN 12.2.5: unit + contract + PSScriptAnalyzer on every push, Windows
 # runner, a red suite blocks merge.
 #
-# shell: powershell on windows-latest IS Windows PowerShell 5.1. Running the
-# matrix over both shells is what makes the "engine must run in WinPE" constraint
-# enforced rather than aspirational.
+# ONE EDITION, AND IT IS WINDOWS POWERSHELL 5.1. The engine runs inside WinPE,
+# which has no pwsh, so 5.1 is the edition that decides whether HDT works -
+# a green pwsh leg proves nothing WinPE cares about, and a red one blocks a
+# merge over a shell the product never runs under. `shell: powershell` on
+# windows-latest IS 5.1.
+#
+# The matrix over both editions is in the history if it is ever wanted back; it
+# was removed while the work was 5.1-only, not because running 7 is wrong.
 
 on:
   push:
@@ -15,22 +20,12 @@ on:
 
 jobs:
   windows:
-    name: ${{ matrix.shell }}
+    name: powershell
     runs-on: windows-latest
-    strategy:
-      # Both editions always report. Failing fast would hide a 5.1-only break
-      # behind a pwsh-only break, or the other way round.
-      fail-fast: false
-      matrix:
-        shell: [ pwsh, powershell ]
 
-    # The matrix context is NOT available on a step's `shell:` key -- GitHub
-    # rejects the whole workflow with "Unrecognized named-value: 'matrix'" and
-    # produces a run with zero jobs. It IS available on jobs.<id>.defaults.run,
-    # so the shell is selected once here and inherited by every `run:` step.
     defaults:
       run:
-        shell: ${{ matrix.shell }}
+        shell: powershell
 
     steps:
       - uses: actions/checkout@v4
@@ -39,13 +34,7 @@ jobs:
         run: |
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-          # Install-PackageProvider -Name NuGet is a Windows PowerShell 5.1
-          # bootstrap. On pwsh 7 (Server 2025 runner) it fails outright with
-          # "No match was found ... for the provider 'NuGet'" -- PowerShell 7
-          # ships PowerShellGet and does not need it. Guard by edition.
-          if ($PSVersionTable.PSEdition -eq 'Desktop') {
-              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-          }
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
 
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
@@ -61,5 +50,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pester-${{ matrix.shell }}
+          name: pester-powershell
           path: out/testResults/*.xml

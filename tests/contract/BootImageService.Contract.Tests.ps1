@@ -95,10 +95,21 @@ Describe 'IBootImageService contract: <Name>' -ForEach $script:HDTImplementation
         Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
         # Recomputed here rather than read across the discovery boundary
-        # (SPIKES S9.15). A path that does not resolve is '' and the Context is
-        # skipped anyway.
+        # (SPIKES S9.15).
+        #
+        # A PATH THAT DOES NOT RESOLVE FALLS BACK TO THE ADK'S OWN LAYOUT, and
+        # that fallback is what keeps the FAKE row running on a machine with no
+        # ADK - CI, for one. The real row is skipped there, so nothing ever
+        # opens this file; the fake only needs a key to seed its image table
+        # with, exactly as the IImageService contract keys its fake on a literal
+        # media path. Handing the fake '' instead cost the CI 5.1 leg ten
+        # failures reading 'Path must not be empty'.
         $script:winPeWim = ''
         try { $script:winPeWim = Get-HDTAdkPath -Asset WinPeWim -ErrorAction Stop } catch { $script:winPeWim = '' }
+
+        if ([string]::IsNullOrWhiteSpace($script:winPeWim)) {
+            $script:winPeWim = 'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation Environment\amd64\en-us\winpe.wim'
+        }
 
         $script:winPeWimImageSize = 2009251937
         $script:winPeWimFileSize = 340134390

@@ -1,7 +1,13 @@
 # DESIGN 12.2.5: unit + contract + PSScriptAnalyzer on every push, on a Windows
-# runner, and a red suite blocks merge. The dual-engine requirement is only real
-# if CI actually runs both editions, so that is asserted here rather than
-# eyeballed in a review.
+# runner, and a red suite blocks merge.
+#
+# ONE EDITION, AND IT IS 5.1. The engine runs inside WinPE, which has no pwsh,
+# so 5.1 is the edition that decides whether HDT works. CI used to run a matrix
+# over both; a pwsh leg proves nothing WinPE cares about and can block a merge
+# over a shell the product never runs under, so the matrix came out. Which
+# edition the runner uses is therefore asserted here rather than eyeballed in a
+# review - a silent drift back to pwsh would move the gate off the only edition
+# that counts.
 #
 # YAML 1.1 gotcha: ConvertFrom-Yaml turns the GitHub Actions 'on:' key into the
 # BOOLEAN $true. Never assert on a key named 'on' - trigger assertions are made
@@ -50,16 +56,22 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:job['runs-on'] | Should -BeExactly 'windows-latest'
     }
 
-    It 'runs a matrix over pwsh and powershell' -Skip:$script:HDTYamlMissing {
+    It 'runs every step under Windows PowerShell 5.1' -Skip:$script:HDTYamlMissing {
         # shell: powershell on windows-latest IS Windows PowerShell 5.1. This is
         # what makes the 5.1 constraint enforced rather than aspirational.
-        $shell = @($script:job['strategy']['matrix']['shell'])
-        $shell | Should -Contain 'pwsh'
-        $shell | Should -Contain 'powershell'
+        #
+        # It is set once on defaults.run and inherited by every run: step. A
+        # step-level shell: key cannot read the matrix context - GitHub rejects
+        # the whole workflow with "Unrecognized named-value: 'matrix'" and
+        # produces a run with zero jobs - which is why it lives here even now
+        # that there is no matrix to read.
+        $script:job['defaults']['run']['shell'] | Should -BeExactly 'powershell'
     }
 
-    It 'does not fail fast, so both editions always report' -Skip:$script:HDTYamlMissing {
-        $script:job['strategy']['fail-fast'] | Should -BeFalse
+    It 'runs no second edition' -Skip:$script:HDTYamlMissing {
+        # A matrix leg over pwsh gates a merge on a shell WinPE does not ship.
+        $script:job.ContainsKey('strategy') | Should -BeFalse
+        $script:workflowText | Should -Not -Match '(?m)^\s*shell:\s*\[?.*pwsh'
     }
 
     It 'checks out the repository' {
