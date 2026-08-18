@@ -21,6 +21,15 @@ function New-HDTPesterConfiguration {
             Path of the NUnitXml result file to write. Test result output is
             disabled when this is not supplied.
 
+        .PARAMETER CoveragePath
+            Files or directories to measure code coverage over. Coverage is off
+            when this is not supplied: it profiles every command the suite
+            executes, and a developer running one file should not pay for it.
+
+        .PARAMETER CoverageResultPath
+            Path of the JaCoCo coverage file to write. JaCoCo because every
+            coverage reader - shields, Codecov, the VS Code gutters - reads it.
+
         .PARAMETER ExcludeTag
             Tags to exclude from the run, for example Integration or E2E.
 
@@ -49,6 +58,12 @@ function New-HDTPesterConfiguration {
         [string] $ResultPath,
 
         [Parameter()]
+        [string[]] $CoveragePath,
+
+        [Parameter()]
+        [string] $CoverageResultPath,
+
+        [Parameter()]
         [string[]] $ExcludeTag,
 
         [Parameter()]
@@ -70,6 +85,30 @@ function New-HDTPesterConfiguration {
 
     if ($ExcludeTag) {
         $configuration.Filter.ExcludeTag = $ExcludeTag
+    }
+
+    if ($CoveragePath) {
+        $configuration.CodeCoverage.Enabled = $true
+        $configuration.CodeCoverage.Path = $CoveragePath
+        $configuration.CodeCoverage.OutputFormat = 'JaCoCo'
+
+        # PROFILER, NOT BREAKPOINTS. Pester's original coverage sets a line
+        # breakpoint on every command and runs the whole suite under the
+        # debugger; on a suite this size that is not a slowdown, it is a
+        # different order of magnitude. UseBreakpoints = $false selects the
+        # profiler-based tracer added in Pester 5.2.
+        $configuration.CodeCoverage.UseBreakpoints = $false
+
+        if ($CoverageResultPath) {
+            $coverageDirectory = Split-Path -Parent $CoverageResultPath
+            if ($coverageDirectory -and -not (Test-Path -Path $coverageDirectory)) {
+                New-Item -Path $coverageDirectory -ItemType Directory -Force | Out-Null
+            }
+
+            $configuration.CodeCoverage.OutputPath = $CoverageResultPath
+        }
+    } else {
+        $configuration.CodeCoverage.Enabled = $false
     }
 
     if ($ResultPath) {

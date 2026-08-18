@@ -25,6 +25,15 @@
     .PARAMETER Verbosity
         Pester output verbosity for the test task.
 
+    .PARAMETER Coverage
+        Measure code coverage over src/Hephaestus during the test task and write
+        out/coverage/coverage.xml, plus the two shields.io badge documents in
+        out/badges/ that the README renders from.
+
+        OFF BY DEFAULT BECAUSE IT IS NOT FREE. Coverage profiles every command
+        the suite executes; a developer running one file should not pay for a
+        number nobody is going to read. CI asks for it once per push.
+
     .EXAMPLE
         ./build.ps1 -Task test
 
@@ -47,7 +56,9 @@ param(
     [string[]] $Task = @('test'),
 
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
-    [string] $Verbosity = 'Detailed'
+    [string] $Verbosity = 'Detailed',
+
+    [switch] $Coverage
 )
 
 Set-StrictMode -Version Latest
@@ -176,13 +187,27 @@ function Invoke-HDTTest {
     <#
         .SYNOPSIS
             Runs the unit and contract suites and fails the build on any failure.
+
+        .DESCRIPTION
+            With -Coverage it also profiles src/Hephaestus, writes JaCoCo to
+            out/coverage/coverage.xml and emits the two badge documents the
+            README renders. See the -Coverage help on build.ps1 itself.
+
+        .PARAMETER OutputVerbosity
+            Pester output verbosity.
+
+        .PARAMETER Coverage
+            Measure coverage and write the badges.
     #>
     [CmdletBinding()]
     [OutputType([void])]
     param(
         [Parameter()]
         [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
-        [string] $OutputVerbosity = 'Detailed'
+        [string] $OutputVerbosity = 'Detailed',
+
+        [Parameter()]
+        [switch] $Coverage
     )
 
     # tests/fixtures and tests/selfcheck are never in Run.Path.
@@ -202,12 +227,98 @@ function Invoke-HDTTest {
     $resultName = 'pester-{0}-{1}.xml' -f $PSVersionTable.PSEdition, $PSVersionTable.PSVersion
     $resultPath = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'testResults') -ChildPath $resultName
 
-    $configuration = New-HDTPesterConfiguration -Path $path -ResultPath $resultPath -Verbosity $OutputVerbosity
+    $coverageArgument = @{}
+    if ($Coverage) {
+        # THE ENGINE, NOT THE TESTS AND NOT THE HELPERS. Coverage of a test file
+        # is a tautology - it ran, or it did not - and coverage of the fakes
+        # measures the harness rather than the product.
+        $coverageArgument['CoveragePath'] = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'src/Hephaestus'
+        $coverageArgument['CoverageResultPath'] = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'coverage') -ChildPath 'coverage.xml'
+    }
+
+    $configuration = New-HDTPesterConfiguration -Path $path -ResultPath $resultPath -Verbosity $OutputVerbosity @coverageArgument
     $result = Invoke-Pester -Configuration $configuration
 
     Write-Information ("test: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
 
+    # BEFORE THE JUDGEMENT, DELIBERATELY. A red run still writes its badges, and
+    # they say so - a badge that only exists when the build is green is a badge
+    # that always reads green.
+    if ($Coverage) {
+        Write-HDTBuildBadge -Result $result
+    }
+
     Assert-HDTPesterResult -Result $result -Suite 'test'
+}
+
+function Write-HDTBuildBadge {
+    <#
+        .SYNOPSIS
+            Writes the two shields.io badge documents the README renders.
+
+        .DESCRIPTION
+            THE NUMBERS COME FROM THE RUN THAT PRODUCED THEM. out/badges/ holds
+            tests.json and coverage.json; CI pushes them to the orphan `badges`
+            branch and the README points shields.io at their raw URL. Nothing
+            signs up for a coverage service and no token is stored.
+
+            IT IS HERE RATHER THAN IN THE WORKFLOW because CI must never grow
+            its own private build logic (DESIGN 12.2.5): `./build.ps1 -Task ci
+            -Coverage` produces exactly what the runner uploads, so the badges
+            can be reproduced locally by running the same line.
+
+        .PARAMETER Result
+            The object Invoke-Pester -PassThru returned.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Writes two files into the build output directory. New-HDTBadgeFile, which does the writing, carries ShouldProcess.')]
+    [CmdletBinding()]
+    [OutputType([void])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNull()]
+        [object] $Result
+    )
+
+    $badgeDirectory = Join-Path -Path $script:HDTOutputPath -ChildPath 'badges'
+
+    # A FILE THAT COULD NOT BE DISCOVERED COUNTS AS A FAILURE HERE TOO, for the
+    # reason Assert-HDTPesterResult spells out: no test failing is not the same
+    # as every test passing.
+    $failed = [int] $Result.FailedCount + [int] $Result.FailedContainersCount
+
+    if ($failed -gt 0) {
+        $testMessage = '{0} failed, {1} passed' -f $failed, $Result.PassedCount
+        $testColor = 'red'
+    } else {
+        $testMessage = '{0} passed' -f $Result.PassedCount
+        $testColor = 'brightgreen'
+    }
+
+    New-HDTBadgeFile -Path (Join-Path -Path $badgeDirectory -ChildPath 'tests.json') `
+        -Label 'tests' -Message $testMessage -Color $testColor
+
+    # Pester reports CoveragePercent only when coverage actually ran; a suite
+    # that died in discovery has no coverage object at all.
+    $percent = $null
+    if ($null -ne $Result.CodeCoverage) {
+        $percent = [double] $Result.CodeCoverage.CoveragePercent
+    }
+
+    if ($null -eq $percent) {
+        New-HDTBadgeFile -Path (Join-Path -Path $badgeDirectory -ChildPath 'coverage.json') `
+            -Label 'coverage' -Message 'unknown' -Color 'lightgrey'
+        Write-Information 'badge: coverage unknown - the run produced no coverage report'
+        return
+    }
+
+    $rounded = [math]::Round($percent, 1)
+
+    New-HDTBadgeFile -Path (Join-Path -Path $badgeDirectory -ChildPath 'coverage.json') `
+        -Label 'coverage' -Message ('{0}%' -f $rounded) -Color (Get-HDTBadgeColor -Percent $percent)
+
+    Write-Information ("coverage: {0}% of {1} command(s) in src/Hephaestus -> {2}" -f
+        $rounded, $Result.CodeCoverage.CommandsAnalyzedCount, (Join-Path -Path $script:HDTOutputPath -ChildPath 'coverage/coverage.xml'))
 }
 
 function Assert-HDTPesterResult {
@@ -592,7 +703,7 @@ try {
             'clean' { Clear-HDTBuildOutput -Confirm:$false }
             'build' { Invoke-HDTBuild }
             'lint' { Invoke-HDTLint }
-            'test' { Invoke-HDTTest -OutputVerbosity $Verbosity }
+            'test' { Invoke-HDTTest -OutputVerbosity $Verbosity -Coverage:$Coverage }
             'selfcheck' { Invoke-HDTSelfCheck }
             'integration' { Invoke-HDTIntegrationTest -OutputVerbosity $Verbosity }
             'e2e' { Invoke-HDTEndToEndTest -OutputVerbosity $Verbosity }

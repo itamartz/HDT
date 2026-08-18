@@ -1,5 +1,9 @@
 # Hephaestus Deployment Toolkit (HDT)
 
+[![CI](https://github.com/itamartz/HDT/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
+
 A replacement for the Microsoft Deployment Toolkit, which has been in maintenance
 mode since 2019. HDT keeps MDT's operational model — deployment share, task
 sequences, driver store, application catalog — and rebuilds the engine on
@@ -15,8 +19,9 @@ there is no `pwsh` there. Everything under `src/Hephaestus/` must therefore pars
 and run under 5.1. No `??`, no `?.`, no ternary, no `ForEach-Object -Parallel`,
 no `$PSStyle`, no `clean` blocks, no `ConvertFrom-Json -AsHashtable`.
 
-The full suite runs under **both** engines, and a change is not done until it is
-green under both.
+5.1 is also the edition the gate runs under. CI used to run a matrix over both
+engines; a green `pwsh` leg proves nothing WinPE cares about, and a red one
+blocks a merge over a shell the product never runs under.
 
 ## Repo layout
 
@@ -48,10 +53,10 @@ Tasks always run in the canonical order
 `clean -> build -> lint -> test -> selfcheck`, whatever order they are given in.
 The script exits 0 on success and 1 on failure.
 
-Run it under both engines before calling anything done:
+Verify under Windows PowerShell 5.1 before calling anything done — that is the
+edition WinPE ships and the one CI gates on:
 
 ```powershell
-pwsh -NoProfile -File ./build.ps1 -Task test
 & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -File ./build.ps1 -Task test
 ```
 
@@ -59,8 +64,7 @@ pwsh -NoProfile -File ./build.ps1 -Task test
 under Windows PowerShell 5.1 on every machine, and the exit criterion is that
 `test` passes under 5.1. `lint` fails with an actionable message where the
 analyzer is unavailable, so `./build.ps1 -Task ci` is expected to fail under 5.1
-on such a machine — and to pass in CI, where the workflow installs the analyzer
-for both editions.
+on such a machine — and to pass in CI, where the workflow installs the analyzer.
 
 Pester imports are pinned — `-MinimumVersion 5.0.0 -MaximumVersion 5.99.99`.
 Pester 6.0.0 is installed on some machines and wins a bare import under 5.1.
@@ -86,12 +90,40 @@ turn the real suite red. See `tests/helpers/README.md` section 9.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on `windows-latest` in a matrix over `pwsh` and
-`powershell` — the latter *is* Windows PowerShell 5.1, which is what makes the
-dual-engine requirement real rather than aspirational. `fail-fast` is disabled so
-both editions always report. Module versions are pinned, and the workflow runs
-`./build.ps1 -Task ci`, the same entry point developers use; CI never grows its
-own build logic (DESIGN §12.2.5).
+`.github/workflows/ci.yml` runs on `windows-latest` under `shell: powershell`,
+which *is* Windows PowerShell 5.1 — the edition the engine has to work under.
+Module versions are pinned, and the workflow runs `./build.ps1 -Task ci
+-Coverage`, the same entry point developers use; CI never grows its own build
+logic (DESIGN §12.2.5).
+
+### Reports
+
+```powershell
+./build.ps1 -Task test -Coverage
+```
+
+writes three things into `out/`:
+
+| Path | What it is |
+|---|---|
+| `out/testResults/pester-<edition>-<version>.xml` | NUnit results — one file per engine, so two runs cannot overwrite each other |
+| `out/coverage/coverage.xml` | JaCoCo coverage of `src/Hephaestus` |
+| `out/badges/{tests,coverage}.json` | shields.io endpoint documents — the numbers on the badges above |
+
+Both XML files are uploaded as artifacts of every run, pass or fail, and the two
+numbers are written to the run's own summary page.
+
+Coverage measures **the engine only** — coverage of a test file is a tautology,
+and coverage of the fakes measures the harness rather than the product. It runs
+on Pester's profiler rather than its breakpoint tracer (`UseBreakpoints = $false`),
+which is the difference between a slower suite and an unusable one. It is off by
+default: a developer running one file should not pay for a number nobody is
+going to read.
+
+The badges are not fetched from a coverage service. The build writes the two
+endpoint documents, CI pushes them to the orphan `badges` branch, and shields.io
+renders them from the raw URL — so no account is signed up to, no token is
+stored, and the numbers come from the run that produced them.
 
 ## Variables and rules
 

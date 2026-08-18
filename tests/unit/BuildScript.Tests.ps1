@@ -190,6 +190,59 @@ Describe 'build.ps1' {
         }
     }
 
+    Context 'the reports' {
+
+        # WHAT THE README SHOWS HAS TO COME FROM THE BUILD. A workflow that
+        # computed its own numbers would be a second implementation of the test
+        # run, and the one that rots is always the one nobody runs locally.
+
+        It 'offers a Coverage switch' {
+            $script:buildText | Should -Match '\[switch\]\s*\$Coverage'
+        }
+
+        It 'leaves coverage off unless it is asked for' {
+            # It profiles every command the suite executes. A developer running
+            # one file should not pay for a number nobody is going to read.
+            $script:buildText | Should -Not -Match '\[switch\]\s*\$Coverage\s*=\s*\$true'
+
+            $body = & $script:functionBody 'Invoke-HDTTest'
+            $body | Should -Match '(?s)if\s*\(\$Coverage\)'
+        }
+
+        It 'measures the engine, not the tests that exercise it' {
+            $body = & $script:functionBody 'Invoke-HDTTest'
+
+            $body | Should -BeLike '*src/Hephaestus*'
+            $body | Should -Not -BeLike '*CoveragePath*tests/unit*'
+        }
+
+        It 'writes the badges in one place' {
+            @($script:functionAst | Where-Object { $_.Name -eq 'Write-HDTBuildBadge' }).Count |
+                Should -Be 1
+        }
+
+        It 'writes them before it judges the run' {
+            # A badge that only exists when the build is green is a badge that
+            # always reads green. A red run writes its badges and they say so.
+            $body = & $script:functionBody 'Invoke-HDTTest'
+
+            $badgeAt = $body.IndexOf('Write-HDTBuildBadge')
+            $judgeAt = $body.IndexOf('Assert-HDTPesterResult')
+
+            $badgeAt | Should -BeGreaterThan 0
+            $badgeAt | Should -BeLessThan $judgeAt
+        }
+
+        It 'counts a file that could not be discovered as a failure' {
+            # Same trap as Assert-HDTPesterResult: no test failing is not the
+            # same as every test passing, and the badge must not disagree with
+            # the build about which it was.
+            $body = & $script:functionBody 'Write-HDTBuildBadge'
+
+            $body | Should -BeLike '*FailedContainersCount*'
+        }
+    }
+
     Context 'how it judges a Pester result' {
 
         # FOUND BY 05-06, THE HARD WAY, AND IT IS THE HEADER'S TRAP IN A NEW

@@ -88,6 +88,66 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:workflowText | Should -Match 'Install-Module\s+PSScriptAnalyzer'
     }
 
+    It 'asks the build for coverage, because the badges are built from it' {
+        # The reports are build.ps1's output, not the workflow's: -Coverage
+        # produces the JaCoCo file AND the two badge documents, so what the
+        # README shows can be reproduced by running the same line locally.
+        $script:workflowText | Should -Match '\./build\.ps1\s+-Task\s+ci\s+-Coverage'
+    }
+
+    It 'uploads the coverage report even when the build fails' {
+        $uploadStep = @($script:job['steps'] | Where-Object {
+                $_.ContainsKey('uses') -and $_['uses'] -like 'actions/upload-artifact*'
+            })
+
+        $coverageStep = @($uploadStep | Where-Object { $_['with']['path'] -like '*coverage*' })
+
+        $coverageStep.Count | Should -Be 1
+        $coverageStep[0]['if'] | Should -BeExactly 'always()'
+    }
+
+    It 'writes the run its own summary' {
+        # Twenty thousand lines of Pester output is not a report. The two
+        # numbers belong on the run page.
+        $script:workflowText | Should -Match 'GITHUB_STEP_SUMMARY'
+    }
+
+    Context 'the badges branch' {
+
+        BeforeAll {
+            $script:badgeStep = @($script:job['steps'] | Where-Object {
+                    $_.ContainsKey('name') -and $_['name'] -eq 'Publish badges'
+                })
+        }
+
+        It 'has a step that publishes them' {
+            $script:badgeStep.Count | Should -Be 1
+        }
+
+        It 'publishes only from a push to main' {
+            # A pull request from a fork has a read-only token, and a badge that
+            # moved with every PR would report whatever was proposed last rather
+            # than what is on main.
+            $script:badgeStep[0]['if'] | Should -BeLike '*refs/heads/main*'
+            $script:badgeStep[0]['if'] | Should -BeLike "*push*"
+        }
+
+        It 'pushes to a branch and never to the checkout the build ran from' {
+            # An orphan checkout of THIS working tree is one `git rm -rf .` away
+            # from deleting the tree the build just ran in.
+            $script:badgeStep[0]['run'] | Should -BeLike '*RUNNER_TEMP*'
+            $script:badgeStep[0]['run'] | Should -Not -BeLike '*checkout --orphan*'
+        }
+
+        It 'asks for write on contents and nothing else' {
+            $permission = $script:workflow['permissions']
+
+            $permission | Should -Not -BeNullOrEmpty
+            $permission['contents'] | Should -BeExactly 'write'
+            @($permission.Keys) | Should -Be @('contents')
+        }
+    }
+
     It 'invokes ./build.ps1 with the ci task' {
         # CI must never grow its own private build logic (DESIGN 12.2.5): it runs
         # the same entry point developers run.

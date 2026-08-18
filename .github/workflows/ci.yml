@@ -11,12 +11,21 @@ name: CI
 #
 # The matrix over both editions is in the history if it is ever wanted back; it
 # was removed while the work was 5.1-only, not because running 7 is wrong.
+#
+# THE REPORTS ARE BUILT BY build.ps1, NOT BY THIS FILE. `-Coverage` produces the
+# NUnit result, the JaCoCo coverage report and the two shields.io badge
+# documents; the runner only uploads them and pushes the badges. CI never grows
+# its own private build logic, so anybody can reproduce what the badges say by
+# running the same line locally.
 
 on:
   push:
     branches: [ main ]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write        # the badges branch, below. Nothing else is written.
 
 jobs:
   windows:
@@ -44,7 +53,7 @@ jobs:
           "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
 
       - name: Build, lint, test, self-check
-        run: ./build.ps1 -Task ci
+        run: ./build.ps1 -Task ci -Coverage
 
       - name: Upload test results
         if: always()
@@ -52,3 +61,80 @@ jobs:
         with:
           name: pester-powershell
           path: out/testResults/*.xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-jacoco
+          path: out/coverage/coverage.xml
+
+      # The two numbers on the run's own summary page, so a failure does not
+      # have to be read out of twenty thousand lines of Pester output.
+      - name: Summarise the run
+        if: always()
+        run: |
+          $summary = @('## HDT build', '')
+
+          foreach ($name in 'tests', 'coverage') {
+              $path = "out/badges/$name.json"
+              if (Test-Path -LiteralPath $path) {
+                  $badge = ConvertFrom-Json ([System.IO.File]::ReadAllText((Resolve-Path $path)))
+                  $summary += ('- **{0}**: {1}' -f $badge.label, $badge.message)
+              }
+          }
+
+          [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")
+
+      # THE BADGES BRANCH. shields.io renders a badge from an endpoint document
+      # at any public URL, so the two files build.ps1 wrote are pushed to an
+      # orphan branch that holds nothing else and the README points at their raw
+      # URL. No coverage service is signed up to and no token is stored - the
+      # job's own GITHUB_TOKEN does it, with contents: write and nothing more.
+      #
+      # ONLY FROM main. A pull request from a fork has a read-only token, and a
+      # badge that moved with every PR would report whatever was merged last
+      # rather than what is on main.
+      - name: Publish badges
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not (Test-Path -LiteralPath 'out/badges')) {
+              Write-Warning 'No badges were produced by this run; nothing to publish.'
+              exit 0
+          }
+
+          $work = Join-Path $env:RUNNER_TEMP 'hdt-badges'
+          $remote = "https://x-access-token:$env:GITHUB_TOKEN@github.com/$env:GITHUB_REPOSITORY"
+
+          git config --global user.name  'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # A fresh clone of the branch if it exists; a brand new empty
+          # repository if it does not. Never an orphan checkout of THIS working
+          # tree - that is one `git rm -rf .` away from deleting the checkout
+          # the build just ran from.
+          git clone --depth 1 --branch badges --quiet $remote $work 2>$null
+
+          if (-not (Test-Path -LiteralPath (Join-Path $work '.git'))) {
+              New-Item -ItemType Directory -Force -Path $work | Out-Null
+              git -C $work init --quiet --initial-branch=badges
+              git -C $work remote add origin $remote
+          }
+
+          Copy-Item -Path 'out/badges/*.json' -Destination $work -Force
+
+          git -C $work add -A
+
+          if (git -C $work diff --cached --quiet; $LASTEXITCODE -eq 0) {
+              "badges: unchanged, nothing to push"
+              exit 0
+          }
+
+          git -C $work commit --quiet -m "badges: $env:GITHUB_SHA"
+          git -C $work push --quiet origin badges
+
+          "badges: pushed to the badges branch"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

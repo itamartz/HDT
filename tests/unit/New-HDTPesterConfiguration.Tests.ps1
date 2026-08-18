@@ -6,6 +6,7 @@ BeforeAll {
 
     $script:unitPath = Join-Path -Path $script:repoRoot -ChildPath 'tests/unit'
     $script:contractPath = Join-Path -Path $script:repoRoot -ChildPath 'tests/contract'
+    $script:sourcePath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus'
 }
 
 Describe 'New-HDTPesterConfiguration' {
@@ -61,6 +62,37 @@ Describe 'New-HDTPesterConfiguration' {
     It 'sets Should.ErrorAction to Stop' {
         $config = New-HDTPesterConfiguration -Path $script:unitPath
         $config.Should.ErrorAction.Value | Should -BeExactly 'Stop'
+    }
+
+    It 'leaves code coverage off when no CoveragePath is supplied' {
+        # Coverage is not free: it profiles every command the suite executes.
+        # Every caller that does not ask for a coverage report - the selfcheck
+        # fixtures, a developer running one file - pays nothing.
+        $config = New-HDTPesterConfiguration -Path $script:unitPath
+        $config.CodeCoverage.Enabled.Value | Should -BeFalse
+    }
+
+    It 'covers the supplied CoveragePath' {
+        $config = New-HDTPesterConfiguration -Path $script:unitPath -CoveragePath $script:sourcePath
+        $config.CodeCoverage.Enabled.Value | Should -BeTrue
+        @($config.CodeCoverage.Path.Value) | Should -Be @($script:sourcePath)
+    }
+
+    It 'writes JaCoCo, which is what every coverage reader understands' {
+        $coveragePath = Join-Path -Path $TestDrive -ChildPath 'coverage/coverage.xml'
+        $config = New-HDTPesterConfiguration -Path $script:unitPath -CoveragePath $script:sourcePath -CoverageResultPath $coveragePath
+
+        $config.CodeCoverage.OutputFormat.Value | Should -BeExactly 'JaCoCo'
+        $config.CodeCoverage.OutputPath.Value | Should -BeExactly $coveragePath
+    }
+
+    It 'profiles rather than setting a breakpoint on every command' {
+        # Pester's original coverage sets a line breakpoint per command and runs
+        # the suite under the debugger. On a suite this size that is not a
+        # slowdown, it is a different order of magnitude. UseBreakpoints = $false
+        # selects the profiler-based tracer added in Pester 5.2.
+        $config = New-HDTPesterConfiguration -Path $script:unitPath -CoveragePath $script:sourcePath
+        $config.CodeCoverage.UseBreakpoints.Value | Should -BeFalse
     }
 
     It 'throws when Path is empty' {
