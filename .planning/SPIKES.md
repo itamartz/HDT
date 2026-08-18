@@ -102,11 +102,25 @@ work via the Hyper-V WMI namespace `root\virtualization\v2`:
 passing the VM's `Msvm_VirtualSystemSettingData`. Returns raw 16-bit pixels
 (2 bytes/pixel, `ReturnValue 0`, 960004 bytes at 800×600).
 
-⚠ **Byte order caveat:** decoding as little-endian RGB565 rendered the image with
-colours wrong (black background came out saturated). Text was legible either way,
-so verification worked, but a harness that asserts on colour must first calibrate
-against a known frame — try big-endian (`($d[$i] -shl 8) -bor $d[$i+1]`) before
-trusting the channel mapping.
+⚠ **Byte order — THIS ENTRY WAS WRONG, and was corrected on 2026-08-18.** It said
+little-endian rendered the colours wrong and to prefer big-endian. It is the other
+way round: the frames are **little-endian RGB565**, `($d[$i+1] -shl 8) -bor $d[$i]`,
+and the big-endian reading is what turned a dark WinPE background into saturated
+magenta. Text was legible either way, which is why the mistake survived — the
+screenshots were used to read words, and nobody who saw the colours believed them
+enough to check.
+
+Proven against a frame whose true colours were known (the WinPE background image
+decodes correctly one way and only one). The decode now lives in
+`ConvertFrom-HDTThumbnailImage` with a test that pins black, white and each
+saturated channel, because arithmetic inside a TDD-exempt adapter is exactly how
+this happened. `Save-HDTLabVmScreen` calls it and holds no maths of its own.
+
+Two other things the frames do here: the call returns **four bytes more** than
+`width × height × 2` — not pixels, and a decoder reading to the end of the buffer
+walks off the last row — and `SetPixel` per pixel cost ~10 s a frame at 1024×768,
+which is long enough for a capture loop to miss what it was watching. `LockBits`
+makes it under four.
 
 **Keyboard input** — `Msvm_Keyboard`, filtered by `SystemName = <VM GUID>`
 (the `Name` property of `Msvm_ComputerSystem`, not its `ElementName`):

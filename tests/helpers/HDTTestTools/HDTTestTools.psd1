@@ -1,4 +1,4 @@
-@{
+﻿@{
     RootModule           = 'HDTTestTools.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = 'b5d9ae60-03f1-4c7a-9ee1-c2dc7be42dc4'
@@ -14,6 +14,7 @@
         'Assert-HDTLabScratchDisk',
         'Assert-HDTLabVmName',
         'Assert-HDTLabVmPath',
+        'ConvertFrom-HDTThumbnailImage',
         'Get-HDTAutoLogonArtifact',
         'Get-HDTBadgeColor',
         'Get-HDTFunctionNameViolation',

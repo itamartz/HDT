@@ -1,4 +1,4 @@
-function Save-HDTLabVmScreen {
+﻿function Save-HDTLabVmScreen {
     <#
         .SYNOPSIS
             Saves a screenshot of a lab VM's console as a PNG.
@@ -15,11 +15,12 @@ function Save-HDTLabVmScreen {
             never reports and full Windows always does - a deterministic signal,
             where reading pixels is not.
 
-            S4's byte-order caveat is honoured: it decodes big-endian, because
-            little-endian rendered a black background as saturated colour. Text
-            was legible either way. A harness that asserted on COLOUR would have
-            to calibrate against a known frame first; this one does not assert
-            on the image at all.
+            THE DECODE LIVES IN ConvertFrom-HDTThumbnailImage, which is tested.
+            It reads LITTLE-endian, and SPIKES S4 - which said big-endian - had
+            the symptom backwards: every capture this lab took came out in false
+            colour, a dark WinPE background as saturated magenta. Text stayed
+            legible, which is how it survived unnoticed for so long. Proven on
+            this host against a frame whose true colours were known.
 
         .PARAMETER Name
             The VM. Must be HDT-*.
@@ -102,29 +103,12 @@ function Save-HDTLabVmScreen {
         return ''
     }
 
-    $data = [byte[]] $result.ImageData
-
-    Add-Type -AssemblyName 'System.Drawing'
-    $bitmap = New-Object -TypeName 'System.Drawing.Bitmap' -ArgumentList $Width, $Height
+    # THE PIXELS ARE ARITHMETIC AND THE ARITHMETIC IS TESTED. See
+    # ConvertFrom-HDTThumbnailImage: this function is an adapter over WMI and
+    # holds no maths of its own.
+    $bitmap = ConvertFrom-HDTThumbnailImage -Data ([byte[]] $result.ImageData) -Width $Width -Height $Height
 
     try {
-        for ($y = 0; $y -lt $Height; $y++) {
-            for ($x = 0; $x -lt $Width; $x++) {
-                $i = (($y * $Width) + $x) * 2
-                if ($i + 1 -ge $data.Length) { continue }
-
-                # BIG ENDIAN (SPIKES S4): little-endian rendered black as
-                # saturated colour.
-                $pixel = ([int] $data[$i] -shl 8) -bor [int] $data[$i + 1]
-
-                $r = (($pixel -shr 11) -band 0x1F) * 255 / 31
-                $g = (($pixel -shr 5) -band 0x3F) * 255 / 63
-                $b = ($pixel -band 0x1F) * 255 / 31
-
-                $bitmap.SetPixel($x, $y, [System.Drawing.Color]::FromArgb([int] $r, [int] $g, [int] $b))
-            }
-        }
-
         $directory = Split-Path -Parent $Path
         if ($directory -and -not (Test-Path -LiteralPath $directory -PathType Container)) {
             New-Item -Path $directory -ItemType Directory -Force | Out-Null
