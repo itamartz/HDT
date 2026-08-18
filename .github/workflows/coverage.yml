@@ -1,40 +1,34 @@
-name: CI
+name: Coverage
 
-# DESIGN 12.2.5: unit + contract + PSScriptAnalyzer on every push, Windows
-# runner, a red suite blocks merge.
+# THE NUMBER ON THE FRONT PAGE, MEASURED ONCE A NIGHT.
 #
-# ONE EDITION, AND IT IS WINDOWS POWERSHELL 5.1. The engine runs inside WinPE,
-# which has no pwsh, so 5.1 is the edition that decides whether HDT works -
-# a green pwsh leg proves nothing WinPE cares about, and a red one blocks a
-# merge over a shell the product never runs under. `shell: powershell` on
-# windows-latest IS 5.1.
+# WHY IT IS NOT IN ci.yml. Pester measures coverage by tracing every command the
+# suite executes, and this suite executes a great many: 10 minutes becomes 98 on
+# a developer machine, which on a hosted runner is a multi-hour job standing in
+# front of every push. A gate nobody waits for is not a gate.
 #
-# The matrix over both editions is in the history if it is ever wanted back; it
-# was removed while the work was 5.1-only, not because running 7 is wrong.
+# Nightly, therefore, and on demand. The badge says what was true at the last
+# measurement rather than at the last commit, which is the honest thing for a
+# number that costs this much to compute.
 #
-# THE REPORTS ARE BUILT BY build.ps1, NOT BY THIS FILE. The test task writes the
-# NUnit result and the shields.io tests badge; the runner only uploads and
-# pushes them. CI never grows its own private build logic, so anybody can
-# reproduce what the badge says by running the same line locally.
-#
-# COVERAGE IS NOT HERE. Measured, it turns a 10 minute suite into a 98 minute
-# one on a developer machine - Pester traces every command 8000 tests execute -
-# which on this runner is a multi-hour job in front of every push. It lives in
-# coverage.yml, nightly, where nobody is waiting for it.
+# 03:00 UTC: after the working day here and before the next one.
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  schedule:
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write        # the badges branch, below. Nothing else is written.
 
 jobs:
-  windows:
-    name: powershell
+  coverage:
+    name: coverage
     runs-on: windows-latest
+
+    # The suite takes 20 minutes here without coverage. This one is allowed to
+    # take two hours, and is killed rather than left burning if it takes six.
+    timeout-minutes: 240
 
     defaults:
       run:
@@ -51,29 +45,33 @@ jobs:
 
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
           Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
-          Install-Module PSScriptAnalyzer  -RequiredVersion 1.25.0 -Scope CurrentUser -Force
           Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
 
           "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
 
-      - name: Build, lint, test, self-check
-        run: ./build.ps1 -Task ci
+      - name: Test with coverage
+        run: ./build.ps1 -Task test -Coverage -Verbosity None
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-jacoco
+          path: out/coverage/coverage.xml
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pester-powershell
+          name: pester-coverage-run
           path: out/testResults/*.xml
 
-      # The two numbers on the run's own summary page, so a failure does not
-      # have to be read out of twenty thousand lines of Pester output.
       - name: Summarise the run
         if: always()
         run: |
-          $summary = @('## HDT build', '')
+          $summary = @('## HDT coverage', '')
 
-          foreach ($name in 'tests') {
+          foreach ($name in 'tests', 'coverage') {
               $path = "out/badges/$name.json"
               if (Test-Path -LiteralPath $path) {
                   $badge = ConvertFrom-Json ([System.IO.File]::ReadAllText((Resolve-Path $path)))
@@ -83,17 +81,8 @@ jobs:
 
           [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, ($summary -join "`n") + "`n")
 
-      # THE BADGES BRANCH. shields.io renders a badge from an endpoint document
-      # at any public URL, so the two files build.ps1 wrote are pushed to an
-      # orphan branch that holds nothing else and the README points at their raw
-      # URL. No coverage service is signed up to and no token is stored - the
-      # job's own GITHUB_TOKEN does it, with contents: write and nothing more.
-      #
-      # ONLY FROM main. A pull request from a fork has a read-only token, and a
-      # badge that moved with every PR would report whatever was merged last
-      # rather than what is on main.
       - name: Publish badges
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: always()
         run: |
           # NOT ErrorActionPreference = Stop, DELIBERATELY. git writes progress
           # to stderr, and under Windows PowerShell 5.1 a native command writing

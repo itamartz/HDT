@@ -244,9 +244,12 @@ function Invoke-HDTTest {
     # BEFORE THE JUDGEMENT, DELIBERATELY. A red run still writes its badges, and
     # they say so - a badge that only exists when the build is green is a badge
     # that always reads green.
-    if ($Coverage) {
-        Write-HDTBuildBadge -Result $result
-    }
+    #
+    # ALWAYS, NOT ONLY WITH -Coverage. Counting tests is free; measuring
+    # coverage is not, and the two badges refresh on different clocks because of
+    # it - tests on every push, coverage nightly. Write-HDTBuildBadge writes the
+    # coverage document only when the run actually produced one.
+    Write-HDTBuildBadge -Result $result
 
     Assert-HDTPesterResult -Result $result -Suite 'test'
 }
@@ -305,10 +308,12 @@ function Write-HDTBuildBadge {
         $percent = [double] $Result.CodeCoverage.CoveragePercent
     }
 
+    # NO COVERAGE DOCUMENT WHEN NO COVERAGE RAN, and specifically not a grey
+    # "unknown" one: the badges branch already carries a real number from the
+    # nightly run, and overwriting it with "unknown" on every push would make
+    # the front page report the LAST run rather than the last measurement.
     if ($null -eq $percent) {
-        New-HDTBadgeFile -Path (Join-Path -Path $badgeDirectory -ChildPath 'coverage.json') `
-            -Label 'coverage' -Message 'unknown' -Color 'lightgrey'
-        Write-Information 'badge: coverage unknown - the run produced no coverage report'
+        Write-Information 'badge: tests only - this run measured no coverage, so the coverage badge is left as it was'
         return
     }
 

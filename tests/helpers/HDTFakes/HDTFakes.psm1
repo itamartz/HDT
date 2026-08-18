@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 <#
@@ -5133,6 +5133,7 @@ function New-HDTFakeWizardHost {
         LastString     = @{}
         LastState      = $null
         LastCommandPrompt = $null
+        LastCollect    = @()
         Visited        = (New-Object -TypeName System.Collections.ArrayList)
     }
 
@@ -5157,6 +5158,16 @@ function New-HDTFakeWizardHost {
         # Show-HDTWizard chose the right one.
         $this.LastString = $String
         if ($null -eq $this.LastString) { $this.LastString = @{} }
+
+        # RECORDED, NOT IGNORED. A fake that accepts a parameter and drops it is
+        # a PSReviewUnusedParameter warning that breaks lint, and the analyzer
+        # cannot be told otherwise here: a SuppressMessageAttribute inside a
+        # SCRIPTBLOCK param block is ignored outright - it only works at
+        # function level. Keeping what it was handed is also the more useful
+        # fake, since F8 and the collected panes are then assertable.
+        $this.LastCommandPrompt = $CommandPrompt
+        $this.LastCollect = @($Collect)
+
         $this.Record(('Show({0})' -f $Title))
 
         # WHAT A BOOT IMAGE WITH NO WPF DOES, and why -FailShow exists: without

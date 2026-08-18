@@ -88,22 +88,13 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:workflowText | Should -Match 'Install-Module\s+PSScriptAnalyzer'
     }
 
-    It 'asks the build for coverage, because the badges are built from it' {
-        # The reports are build.ps1's output, not the workflow's: -Coverage
-        # produces the JaCoCo file AND the two badge documents, so what the
-        # README shows can be reproduced by running the same line locally.
-        $script:workflowText | Should -Match '\./build\.ps1\s+-Task\s+ci\s+-Coverage'
-    }
-
-    It 'uploads the coverage report even when the build fails' {
-        $uploadStep = @($script:job['steps'] | Where-Object {
-                $_.ContainsKey('uses') -and $_['uses'] -like 'actions/upload-artifact*'
-            })
-
-        $coverageStep = @($uploadStep | Where-Object { $_['with']['path'] -like '*coverage*' })
-
-        $coverageStep.Count | Should -Be 1
-        $coverageStep[0]['if'] | Should -BeExactly 'always()'
+    It 'does not measure coverage on the gate' {
+        # Pester traces every command the suite executes to measure it: 10
+        # minutes becomes 98 on a developer machine, which on a hosted runner
+        # stands a multi-hour job in front of every push. It is nightly, in
+        # coverage.yml. A gate nobody waits for is not a gate.
+        $script:workflowText | Should -Match '(?m)\./build\.ps1\s+-Task\s+ci\s*$'
+        $script:workflowText | Should -Not -Match '-Task\s+ci\s+-Coverage'
     }
 
     It 'writes the run its own summary' {
@@ -169,5 +160,62 @@ Describe 'CI workflow (DESIGN 12.2.5)' {
         $script:workflowText | Should -Match '(?m)^on:'
         $script:workflowText | Should -Match '(?m)^\s+push:'
         $script:workflowText | Should -Match '(?m)^\s+pull_request:'
+    }
+}
+
+Describe 'Coverage workflow' {
+
+    # THE NUMBER ON THE FRONT PAGE, MEASURED ONCE A NIGHT, and kept out of the
+    # way of the gate. Both files publish to the same badges branch, so the two
+    # badges refresh on different clocks: tests on every push, coverage nightly.
+
+    BeforeAll {
+        $script:coverageRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $script:coveragePath = Join-Path -Path $script:coverageRoot -ChildPath '.github/workflows/coverage.yml'
+
+        $script:coverageText = ''
+        if (Test-Path -Path $script:coveragePath -PathType Leaf) {
+            $script:coverageText = Get-Content -Path $script:coveragePath -Raw
+        }
+
+        $script:coverageJob = $null
+        if ($script:coverageText -and (Test-HDTModuleAvailable -Name 'powershell-yaml')) {
+            $script:coverageJob = (ConvertFrom-Yaml $script:coverageText)['jobs']['coverage']
+        }
+    }
+
+    It 'exists at .github/workflows/coverage.yml' {
+        Test-Path -Path $script:coveragePath -PathType Leaf | Should -BeTrue
+    }
+
+    It 'runs on a schedule and on demand, never on a push' {
+        # Raw text, deliberately: ConvertFrom-Yaml maps the 'on' key to $true.
+        $script:coverageText | Should -Match '(?m)^\s+schedule:'
+        $script:coverageText | Should -Match '(?m)^\s+workflow_dispatch:'
+        $script:coverageText | Should -Not -Match '(?m)^\s+push:'
+    }
+
+    It 'asks the build for coverage' {
+        $script:coverageText | Should -Match '\./build\.ps1\s+-Task\s+test\s+-Coverage'
+    }
+
+    It 'uploads the JaCoCo report even when the run fails' -Skip:$script:HDTYamlMissing {
+        $uploadStep = @($script:coverageJob['steps'] | Where-Object {
+                $_.ContainsKey('uses') -and $_['uses'] -like 'actions/upload-artifact*'
+            })
+
+        $coverageStep = @($uploadStep | Where-Object { $_['with']['path'] -like '*coverage*' })
+
+        $coverageStep.Count | Should -Be 1
+        $coverageStep[0]['if'] | Should -BeExactly 'always()'
+    }
+
+    It 'is given a deadline rather than left burning for six hours' -Skip:$script:HDTYamlMissing {
+        $script:coverageJob['timeout-minutes'] | Should -BeGreaterThan 0
+        $script:coverageJob['timeout-minutes'] | Should -BeLessThan 360
+    }
+
+    It 'publishes the badges too' {
+        $script:coverageText | Should -Match 'Publish badges'
     }
 }

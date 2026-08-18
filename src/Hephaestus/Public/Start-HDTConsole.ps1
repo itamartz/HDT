@@ -1,4 +1,4 @@
-﻿function Start-HDTConsole {
+function Start-HDTConsole {
     <#
         .SYNOPSIS
             Opens the admin console, dealing with the apartment and the terminal.
@@ -26,6 +26,11 @@
             somebody was already working in, and hiding it takes their prompt,
             their history and, under Windows Terminal, every other tab with it.
             -Detach is the answer in that case.
+
+            IN THE ISE, -Detach STARTS powershell.exe RATHER THAN A SECOND ISE.
+            The ISE is not a console host: it takes -File, -Mta and -NoProfile
+            and has never had -STA. It is also already STA, so the window opens
+            there without -Detach at all.
 
             IT IS AN ADAPTER AND IT STAYS ONE. Win32 window state and
             Start-Process cannot be proven under Pester; what CAN be is that the
@@ -154,9 +159,15 @@ public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     foreach ($one in @($Path)) { [void] $argument.Add('"{0}"' -f $one) }
 
-    # NOT $host: that is an automatic variable, and assigning to it is both an
-    # analyzer error and a way to break every Write-Host in the session.
-    $shell = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+    # NOT THIS PROCESS'S OWN EXECUTABLE. In powershell.exe they are the same
+    # thing; in the ISE this process is powershell_ise.exe, which takes -File,
+    # -Mta and -NoProfile and has never had -STA - so -Detach started a second
+    # ISE with a switch it does not have and reported an error about apartments.
+    # Get-HDTPowerShellPath falls back to the console host in $PSHOME.
+    #
+    # NOT $host either: that is an automatic variable, and assigning to it is
+    # both an analyzer error and a way to break every Write-Host in the session.
+    $shell = Get-HDTPowerShellPath -ProcessPath ([System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName) -InstallPath $PSHOME
 
     if ($Detach) {
         [void] (Start-Process -FilePath $shell -ArgumentList ([string[]] @($argument)) -WindowStyle Hidden)
