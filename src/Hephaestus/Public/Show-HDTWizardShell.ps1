@@ -1,4 +1,4 @@
-function Show-HDTWizardShell {
+﻿function Show-HDTWizardShell {
     <#
         .SYNOPSIS
             Shows the multi-page technician wizard and returns what the
@@ -370,7 +370,21 @@ function Show-HDTWizardShell {
 
     $state = & $navigator 0 'Start' @{}
 
-    $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state, @($Field), @($Pane), $navigator, $CommandPrompt)
+    # THE SHELL'S OWN TEXT - its title, its subtitle and the four buttons on
+    # the rail. The PAGES inside it carry their own, and each page is parsed
+    # into its own name scope, so the shell's block cannot reach them.
+    #
+    # THE FILE NAME IS THE BLOCK NAME, the same rule Show-HDTWizard uses.
+    $string = @{}
+
+    try {
+        $string = Get-HDTStringTable -Page (
+            [System.IO.Path]::GetFileNameWithoutExtension($ShellXamlPath) -replace '^HDT', '')
+    } catch {
+        Write-Verbose ("no string table block for '{0}': {1}" -f $ShellXamlPath, [string] $_.Exception.Message)
+    }
+
+    $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state, @($Field), @($Pane), $navigator, $CommandPrompt, $string)
 
     # THE ALLOW-LIST, and it is the same one Show-HDTWizard holds for the same
     # reason. Matched case-sensitively, and the ALLOW-LIST's spelling is what is

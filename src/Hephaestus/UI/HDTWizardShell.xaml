@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hephaestus Deployment Toolkit"
@@ -68,9 +68,9 @@
             <DockPanel LastChildFill="True">
 
                 <StackPanel DockPanel.Dock="Top" Margin="24,28,24,24">
-                    <TextBlock x:Name="HDTShellTitle" Text="Hephaestus"
+                    <TextBlock x:Name="HDTShellTitle"
                                Foreground="White" FontSize="26" FontWeight="SemiBold" />
-                    <TextBlock x:Name="HDTShellSubtitle" Text="Deployment Toolkit"
+                    <TextBlock x:Name="HDTShellSubtitle"
                                Foreground="#FFA9CDE6" FontSize="15" Margin="0,2,0,0" />
                 </StackPanel>
 
@@ -249,13 +249,13 @@
                         WinPeUiStack.Contract.Tests.ps1 now refuses a named
                         button no engine code mentions.
                     -->
-                    <Button x:Name="HDTOpenCmdButton" Content="Open CMD"
+                    <Button x:Name="HDTOpenCmdButton"
                             Width="120" Height="38" Background="#FF3A3A3C" Margin="0,0,16,0" />
-                    <Button x:Name="HDTBackButton" Content="Back"
+                    <Button x:Name="HDTBackButton"
                             Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />
-                    <Button x:Name="HDTCancelButton" Content="Cancel"
+                    <Button x:Name="HDTCancelButton"
                             Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />
-                    <Button x:Name="HDTNextButton" Content="Next"
+                    <Button x:Name="HDTNextButton"
                             Width="130" Height="38" Background="#FF0E639C" />
                 </StackPanel>
             </Grid>

@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 <#
@@ -5130,6 +5130,7 @@ function New-HDTFakeWizardHost {
         LastTitle      = ''
         LastField      = @()
         LastPane       = @()
+        LastString     = @{}
         LastState      = $null
         LastCommandPrompt = $null
         Visited        = (New-Object -TypeName System.Collections.ArrayList)
@@ -5143,12 +5144,19 @@ function New-HDTFakeWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane)
+        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane,
+            [scriptblock] $CommandPrompt, [object[]] $Collect, [hashtable] $String)
 
         $this.LastXaml = $Xaml
         $this.LastTitle = $Title
         $this.LastField = @($Field)
         $this.LastPane = @($Pane)
+
+        # THE TEXT THE WINDOW WOULD HAVE BEEN FILLED WITH. This fake draws
+        # nothing, so the block it was handed is the only evidence that
+        # Show-HDTWizard chose the right one.
+        $this.LastString = $String
+        if ($null -eq $this.LastString) { $this.LastString = @{} }
         $this.Record(('Show({0})' -f $Title))
 
         # WHAT A BOOT IMAGE WITH NO WPF DOES, and why -FailShow exists: without

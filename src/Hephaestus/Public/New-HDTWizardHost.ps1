@@ -1,4 +1,4 @@
-function New-HDTWizardHost {
+﻿function New-HDTWizardHost {
     <#
         .SYNOPSIS
             The real IWizardHost: loads XAML with XamlReader and shows the
@@ -187,25 +187,42 @@ function New-HDTWizardHost {
 
         if ($null -ne $revealToggle -and $null -ne $passwordBox -and $null -ne $revealBox) {
 
+            # THE TWO WORDS THE TOGGLE SWAPS BETWEEN. It is the one caption on
+            # these windows that changes while the window is open, so the table
+            # cannot simply be applied to it once - it is read here and the
+            # handlers below close over it. The table has already been applied
+            # to the window by then, so the toggle's own tooltip is the shipped
+            # 'Show the password' and the other one is looked up beside it.
+            $revealShow = [string] $revealToggle.ToolTip
+            $revealHide = ''
+
+            $string = Get-HDTStringTable -Page 'Welcome'
+            if ($string.ContainsKey('HDTPasswordRevealToggle.ToolTip')) {
+                $revealShow = [string] $string['HDTPasswordRevealToggle.ToolTip']
+            }
+            if ($string.ContainsKey('HDTPasswordRevealToggle.HideToolTip')) {
+                $revealHide = [string] $string['HDTPasswordRevealToggle.HideToolTip']
+            }
+
             $revealToggle.Add_Checked({
                     $revealBox.Text = $passwordBox.Password
                     $passwordBox.Visibility = [System.Windows.Visibility]::Collapsed
                     $revealBox.Visibility = [System.Windows.Visibility]::Visible
-                    $revealToggle.ToolTip = 'Hide the password'
+                    $revealToggle.ToolTip = $revealHide
                 }.GetNewClosure())
 
             $revealToggle.Add_Unchecked({
                     $passwordBox.Password = $revealBox.Text
                     $revealBox.Visibility = [System.Windows.Visibility]::Collapsed
                     $passwordBox.Visibility = [System.Windows.Visibility]::Visible
-                    $revealToggle.ToolTip = 'Show the password'
+                    $revealToggle.ToolTip = $revealShow
                 }.GetNewClosure())
         }
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
         param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane, [scriptblock] $CommandPrompt,
-            [object[]] $Collect)
+            [object[]] $Collect, [hashtable] $String)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -213,6 +230,14 @@ function New-HDTWizardHost {
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # THE TEXT, BEFORE ANYTHING IS WRITTEN OVER IT. Show-HDTWizard chose the
+        # block; this puts it on the window and reads none of it. Apply comes
+        # after, because a field carries what a technician typed and the table
+        # carries only what the window says about itself.
+        if ($null -ne $String -and $String.Count -gt 0) {
+            [void] (Set-HDTWindowText -Root $window -String $String)
+        }
 
         $window.Title = $Title
 
@@ -326,7 +351,8 @@ function New-HDTWizardHost {
             [object[]] $Field,
             [object[]] $Pane,
             [scriptblock] $Navigator,
-            [scriptblock] $CommandPrompt)
+            [scriptblock] $CommandPrompt,
+            [hashtable] $String)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -334,6 +360,12 @@ function New-HDTWizardHost {
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $ShellXaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # The shell's own text. See Show for why it is applied here and nowhere
+        # else.
+        if ($null -ne $String -and $String.Count -gt 0) {
+            [void] (Set-HDTWindowText -Root $window -String $String)
+        }
 
         $window.Title = $Title
 

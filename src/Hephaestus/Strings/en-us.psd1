@@ -242,4 +242,84 @@
         'HDTBootImageSaveButton.Content' = 'Save'
         'HDTBootImageCloseButton.Content' = 'Close'
     }
+
+    # THE FIRST SCREEN IN WinPE: Show-HDTWizard on HDTWelcome.xaml. It is the
+    # screen that finds the deployment share, so its text is the one thing that
+    # CANNOT come from the share - it is read from the copy of this file inside
+    # the boot image, at X:\HDT\Modules\Hephaestus\Strings.
+    Welcome = @{
+
+        'HDTWelcomeTitleText.Text' = 'Welcome to Hephaestus Deployment Toolkit'
+        'HDTWelcomeSubtitleText.Text' = 'Configure the network and connect to the deployment share'
+
+        'HDTWelcomeNetworkHeading.Text' = 'Network'
+        'HDTUseDhcpRadio.Content' = 'Obtain an IP address automatically (DHCP)'
+        'HDTUseStaticRadio.Content' = 'Use the following IP address'
+        'HDTWelcomeIpAddressLabel.Text' = 'IP address'
+        'HDTWelcomeSubnetMaskLabel.Text' = 'Subnet mask'
+        'HDTWelcomeGatewayLabel.Text' = 'Default gateway'
+        'HDTWelcomeDnsLabel.Text' = 'DNS servers'
+        'HDTDnsHint.Text' = 'Separate several with a comma.'
+
+        'HDTWelcomeShareHeading.Text' = 'Deployment share'
+        'HDTWelcomeShareLabel.Text' = 'Share'
+        'HDTDeployRootHint.Text' = 'This boot image carries no deployment share. Enter one to continue.'
+
+        'HDTWelcomeAccountHeading.Text' = 'Deployment account'
+        'HDTWelcomeUserIdLabel.Text' = 'User name'
+        'HDTWelcomeUserDomainLabel.Text' = 'Domain'
+        'HDTUserDomainHint.Text' = 'Leave blank if the account is local to the server.'
+        'HDTWelcomePasswordLabel.Text' = 'Password'
+
+        # TWO STATES OF ONE TOOLTIP. The toggle swaps between them while the
+        # window is open, so the second cannot be applied to a property - the
+        # host reads it from here by name. It is the only key in this file that
+        # names a state rather than a property the control has.
+        'HDTPasswordRevealToggle.ToolTip' = 'Show the password'
+        'HDTPasswordRevealToggle.HideToolTip' = 'Hide the password'
+    }
+
+    # The one-pane wizard: HDTWizard.xaml. Its heading and body are written over
+    # by whatever page is being shown, so what is here is what an empty one says.
+    Wizard = @{
+
+        'HDTBannerTitle.Text' = 'Hephaestus Deployment Toolkit'
+        'HDTBannerSubtitle.Text' = 'Windows deployment'
+        'HDTBodyHeading.Text' = 'Welcome'
+        'HDTBodyText.Text' = 'This machine will be deployed from the HDT deployment share.'
+    }
+
+    # The multi-page shell: HDTWizardShell.xaml. The rail and the four buttons
+    # are its own; every page inside it is parsed into its own name scope and
+    # carries its own text.
+    WizardShell = @{
+
+        'HDTShellTitle.Text' = 'Hephaestus'
+        'HDTShellSubtitle.Text' = 'Deployment Toolkit'
+    }
+
+    # The second page of the WinPE wizard: HDTWizardCredential.xaml.
+    WizardCredential = @{
+
+        'HDTCredentialTitleText.Text' = 'Connect to the deployment share'
+        'HDTCredentialSubtitleText.Text' = 'Sign in with the deployment account'
+        'HDTCredentialShareLabel.Text' = 'Deployment share'
+        'HDTCredentialUserIdLabel.Text' = 'User name'
+        'HDTCredentialUserDomainLabel.Text' = 'Domain'
+        'HDTUserDomainHint.Text' = 'Leave blank if the account is local to the server.'
+        'HDTCredentialPasswordLabel.Text' = 'Password'
+    }
+
+    # WHAT A TECHNICIAN READS WHEN IT DID NOT WORK: HDTFailure.xaml. Both of its
+    # buttons override the shared word deliberately - a deployment that failed
+    # is left with a machine to restart or shut down, not a dialog to cancel.
+    Failure = @{
+
+        'HDTFailureTitleText.Text' = 'Deployment failed'
+        'HDTFailureStepLabel.Text' = 'Step'
+        'HDTFailureReasonLabel.Text' = 'Why'
+        'HDTFailureLogLabel.Text' = 'Log'
+        'HDTCancelButton.Content' = 'Shut down'
+        'HDTNextButton.Content' = 'Restart'
+    }
 }

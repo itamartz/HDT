@@ -1,4 +1,4 @@
-# W1 of the WPF-first direction (.planning/WPF-FIRST.md).
+﻿# W1 of the WPF-first direction (.planning/WPF-FIRST.md).
 #
 # THE WINDOW IS NOT UNIT TESTED AND MUST NOT BE. Show-HDTWizard holds the logic;
 # an injected IWizardHost holds the WPF. That split is what makes these
@@ -36,11 +36,15 @@ BeforeAll {
             [string] $Xaml = $script:realXaml,
 
             [Parameter()]
-            [switch] $Missing
+            [switch] $Missing,
+
+            [Parameter()]
+            [ValidateNotNullOrEmpty()]
+            [string] $Path = $script:xamlPath
         )
 
         $file = @{}
-        if (-not $Missing) { $file[$script:xamlPath] = $Xaml }
+        if (-not $Missing) { $file[$Path] = $Xaml }
 
         return New-HDTFakeFileSystem -File $file
     }
@@ -102,6 +106,32 @@ Describe 'Show-HDTWizard' {
                 -WizardHost $wizardHost -FileSystem (New-HDTWizardTestFileSystem) | Out-Null
 
             [string] $wizardHost.LastXaml | Should -BeLike '*<Window*'
+        }
+
+        It 'hands the host the block of the string table that fills this window' {
+            # THE MARKUP CARRIES NO TEXT, so something has to bring it, and the
+            # block is chosen by the FILE NAME: HDTWelcome.xaml is filled by
+            # Welcome. That convention is what stops a second table of
+            # file-to-block mappings existing beside the one in the contract.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            Show-HDTWizard -XamlPath 'C:\HDTLab\Share\Boot\HDTWizard.xaml' -Title 'HDT' `
+                -WizardHost $wizardHost -FileSystem (New-HDTWizardTestFileSystem) | Out-Null
+
+            [string] $wizardHost.LastString['HDTBodyHeading.Text'] | Should -BeExactly 'Welcome'
+        }
+
+        It 'shows a window whose name matches no block, rather than refusing it' {
+            # A SCRATCH WINDOW IS NOT A DEFECT. Tools and tests load markup that
+            # ships with nobody's block, and a wizard that threw on one would
+            # make the string table a thing that has to be fed before anything
+            # can be drawn at all.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            { Show-HDTWizard -XamlPath 'C:\HDTLab\Share\Boot\HDTNoSuchWindow.xaml' -Title 'HDT' `
+                    -WizardHost $wizardHost `
+                    -FileSystem (New-HDTWizardTestFileSystem -Path 'C:\HDTLab\Share\Boot\HDTNoSuchWindow.xaml') } |
+                Should -Not -Throw
         }
 
         It 'hands the host the fields it was given, to apply by name' {

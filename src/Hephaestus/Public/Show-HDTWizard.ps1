@@ -1,4 +1,4 @@
-function Show-HDTWizard {
+﻿function Show-HDTWizard {
     <#
         .SYNOPSIS
             Shows the technician wizard and returns what the technician chose.
@@ -162,9 +162,31 @@ function Show-HDTWizard {
                         $XamlPath, [string] $_.Exception.Message)))
     }
 
+    # -- the text --------------------------------------------------------------
+    #
+    # THE MARKUP CARRIES NO PROSE, so the block that fills it is chosen here and
+    # handed to the host, which applies it and decides nothing.
+    #
+    # THE FILE NAME IS THE BLOCK NAME, without the HDT and without the
+    # extension: HDTWelcome.xaml is filled by Welcome, HDTFailure.xaml by
+    # Failure. Every window in this module already follows it, and a convention
+    # is one fewer table to keep in step with the markup.
+    #
+    # A WINDOW WITH NO BLOCK IS SHOWN ANYWAY. Tools and tests load scratch
+    # markup that nobody has written strings for, and a wizard that refused one
+    # would make the table a thing to be fed before anything can be drawn.
+    $string = @{}
+
+    try {
+        $string = Get-HDTStringTable -Page (
+            [System.IO.Path]::GetFileNameWithoutExtension($XamlPath) -replace '^HDT', '')
+    } catch {
+        Write-Verbose ("no string table block for '{0}': {1}" -f $XamlPath, [string] $_.Exception.Message)
+    }
+
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt, @($Collect))
+    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt, @($Collect), $string)
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these three exactly is a Cancel.

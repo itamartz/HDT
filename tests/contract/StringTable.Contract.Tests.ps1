@@ -1,4 +1,4 @@
-# THE MARKUP AND THE STRING TABLE HAVE TO AGREE, and nothing else notices when
+﻿# THE MARKUP AND THE STRING TABLE HAVE TO AGREE, and nothing else notices when
 # they stop.
 #
 # A window converted to the table carries no text of its own: every label, hint
@@ -23,32 +23,30 @@
 # name its block below or be named as an exemption, with a reason, in $notYet.
 # That is what stops the table from being a thing that was done once.
 
-# WHICH WINDOW IS WHICH BLOCK.
-$script:page = @{
-    'HDTBootImage.xaml'           = 'BootImage'
-    'HDTBuildProgress.xaml'       = 'BuildProgress'
-    'HDTConsole.xaml'             = 'Console'
-    'HDTNewSequence.xaml'         = 'NewSequence'
-    'HDTPartitionProperties.xaml' = 'PartitionProperties'
-    'HDTSequenceEditor.xaml'      = 'SequenceEditor'
+# WHICH WINDOW IS WHICH BLOCK: THE FILE NAME, without the HDT and without the
+# extension. HDTBootImage.xaml is filled by BootImage, HDTWelcome.xaml by
+# Welcome. Show-HDTWizard and Show-HDTWizardShell derive it the same way, so a
+# window converted tomorrow needs no entry anywhere - which is the point.
+$script:blockOf = {
+    param([string] $File)
+
+    return ([System.IO.Path]::GetFileNameWithoutExtension($File) -replace '^HDT', '')
 }
 
-# WHAT IS NOT UNDER IT YET, AND WHY. This list only ever shrinks. Adding to it
-# is a decision somebody makes on purpose and can be seen making.
+# WHAT IS NOT UNDER IT, AND WHY. This list only ever shrinks. Adding to it is a
+# decision somebody makes on purpose and can be seen making.
 $script:notYet = @{
-    'HDTTheme.xaml'            = 'a resource dictionary - brushes and styles, no controls and no text'
-    'HDTWelcome.xaml'          = 'WinPE: converting it means rebuilding the boot image to see it'
-    'HDTWizard.xaml'           = 'WinPE'
-    'HDTWizardShell.xaml'      = 'WinPE'
-    'HDTWizardCredential.xaml' = 'WinPE'
-    'HDTProgress.xaml'         = 'WinPE'
-    'HDTFailure.xaml'          = 'WinPE'
+    'HDTTheme.xaml'    = 'a resource dictionary - brushes and styles, no controls and no text'
+    'HDTProgress.xaml' = 'every word on it is written at runtime from the event stream; the markup carries none'
 }
 
 # AT FILE SCOPE, NOT IN BeforeAll: -ForEach is read while Pester is DISCOVERING
 # tests, and BeforeAll has not run by then - a table defined there discovers as
 # an empty array and the whole file fails to load.
 $script:uiRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'src/Hephaestus/UI'
+
+$script:shipped = @(Import-PowerShellDataFile -LiteralPath (
+        Join-Path -Path (Split-Path -Parent $script:uiRoot) -ChildPath 'Strings/en-us.psd1')).Keys
 
 $script:window = @(Get-ChildItem -LiteralPath $script:uiRoot -Filter '*.xaml' -Recurse |
         ForEach-Object {
@@ -58,18 +56,18 @@ $script:window = @(Get-ChildItem -LiteralPath $script:uiRoot -Filter '*.xaml' -R
                 # DECIDED HERE, WHERE THE TABLES ARE IN SCOPE. Pester runs an It
                 # in a scope that discovery's variables do not reach, so what a
                 # run-time assertion needs has to travel as -ForEach data.
-                Covered = ($script:page.ContainsKey($_.Name) -or $script:notYet.ContainsKey($_.Name))
+                Covered = ((& $script:blockOf $_.Name) -in $script:shipped -or $script:notYet.ContainsKey($_.Name))
             }
         })
 
 $script:converted = @($script:window |
-        Where-Object { $script:page.ContainsKey($_.File) } |
-        ForEach-Object { @{ Page = $script:page[$_.File]; File = $_.File; Path = $_.Path } })
+        Where-Object { (& $script:blockOf $_.File) -in $script:shipped } |
+        ForEach-Object { @{ Page = (& $script:blockOf $_.File); File = $_.File; Path = $_.Path } })
 
 $script:ledger = @{
     Stale = @($script:notYet.Keys | Where-Object { $_ -notin @($script:window.File) })
-    Stray = @($script:page.Keys | Where-Object { $_ -notin @($script:window.File) })
-    Block = @($script:page.Values)
+    Stray = @()
+    Block = @($script:converted | ForEach-Object { $_.Page })
 }
 
 BeforeAll {
