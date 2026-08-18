@@ -264,6 +264,28 @@
                         <MenuItem x:Name="HDTRemoveSequenceMenuItem" />
                         <MenuItem x:Name="HDTImportOperatingSystemMenuItem" />
                         <MenuItem x:Name="HDTRemoveOperatingSystemMenuItem" />
+
+                        <!--
+                            WORKBENCH'S FOLDERS. MDT nests task sequences and
+                            operating systems into real directories under
+                            Control\; HDT's are a label on the document, because
+                            the directory a sequence sits in is part of the path
+                            the engine resolves its id from - so moving one
+                            between folders would break every rule and boot
+                            image that names it.
+
+                            NEW FOLDER SITS ON THE CATEGORY AND ON A FOLDER,
+                            which is the only difference between making one at
+                            the top and making one inside another. Move To
+                            belongs to an item and Delete to a folder with
+                            nothing in it - Get-HDTConsoleFolderAction is where
+                            that is decided, and it is decided there so that it
+                            can be tested.
+                        -->
+                        <Separator x:Name="HDTFolderMenuSeparator" />
+                        <MenuItem x:Name="HDTNewFolderMenuItem" />
+                        <MenuItem x:Name="HDTMoveToFolderMenuItem" />
+                        <MenuItem x:Name="HDTDeleteFolderMenuItem" />
                     </ContextMenu>
                 </TreeView.ContextMenu>
 

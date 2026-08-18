@@ -1,4 +1,4 @@
-function Assert-HDTSequenceDocument {
+﻿function Assert-HDTSequenceDocument {
     <#
         .SYNOPSIS
             Validates a parsed sequence.yaml against the authoring
@@ -98,7 +98,7 @@ function Assert-HDTSequenceDocument {
     $ErrorActionPreference = 'Stop'
 
     $supportedSchemaVersion = 1
-    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'variables', 'steps')
+    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'folder', 'variables', 'steps')
     $allowedGroupKey = @('group', 'condition', 'disabled', 'runIn', 'steps')
     $allowedRetryKey = @('count', 'delaySeconds', 'backoff')
     $allowedRunIn = @('WinPE', 'FullOS', 'Any')

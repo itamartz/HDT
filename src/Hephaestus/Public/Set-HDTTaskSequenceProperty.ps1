@@ -1,4 +1,4 @@
-﻿function Set-HDTTaskSequenceProperty {
+function Set-HDTTaskSequenceProperty {
     <#
         .SYNOPSIS
             Renames a task sequence, or rewrites its description.
@@ -77,7 +77,15 @@
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $Description
+        [string] $Description,
+
+        # WHICH FOLDER THE CONSOLE DRAWS IT UNDER. Empty takes it out of every
+        # folder; the sequence never moves on disk either way - see the key's
+        # own note in Import-HDTSequenceDocument for why HDT's folders cannot be
+        # real directories the way Deployment Workbench's are.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Folder
     )
 
     Set-StrictMode -Version Latest
@@ -85,15 +93,26 @@
 
     $setsName = $PSBoundParameters.ContainsKey('Name')
     $setsDescription = $PSBoundParameters.ContainsKey('Description')
+    $setsFolder = $PSBoundParameters.ContainsKey('Folder')
 
-    if (-not ($setsName -or $setsDescription)) {
+    if (-not ($setsName -or $setsDescription -or $setsFolder)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $null -Category InvalidArgument `
-                    -Message 'nothing was asked for. Pass -Name, -Description, or both; an omitted one is left as it is.'))
+                    -Message 'nothing was asked for. Pass -Name, -Description or -Folder; an omitted one is left as it is.'))
     }
 
     if ($setsName -and [string]::IsNullOrWhiteSpace($Name)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name -Category InvalidArgument `
                     -Message 'a task sequence name cannot be cleared - the tree, the wizard and the editor all show it, and one with none is a blank row in three places. The id identifies it; Remove-HDTTaskSequence deletes it.'))
+    }
+
+    # A FOLDER IS DRAWN FROM ITS OWN TEXT, so a leading or trailing separator
+    # produces a nameless level in the tree and a doubled one produces two.
+    # Refused here rather than drawn.
+    if ($setsFolder -and -not [string]::IsNullOrWhiteSpace($Folder) -and
+        ($Folder -match '^\\|\\$|\\\\' -or $Folder -match '/')) {
+
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Folder -Category InvalidArgument `
+                    -Message ("'{0}' is not a folder path this window can draw. Separate levels with a single backslash - 'Clients\Laptops' - with nothing before the first or after the last." -f $Folder)))
     }
 
     # The document has to be readable before it is worth editing.
@@ -106,6 +125,12 @@
     }
     if ($setsDescription -and [string]::IsNullOrWhiteSpace($Description)) {
         [void] $action.Add('description removed')
+    }
+    if ($setsFolder -and -not [string]::IsNullOrWhiteSpace($Folder)) {
+        [void] $action.Add(("folder to '{0}'" -f $Folder))
+    }
+    if ($setsFolder -and [string]::IsNullOrWhiteSpace($Folder)) {
+        [void] $action.Add('taken out of its folder')
     }
 
     if (-not $PSCmdlet.ShouldProcess('sequence.yaml', ('Set the {0}' -f (@($action) -join ', ')))) {
@@ -120,6 +145,11 @@
 
     if ($setsDescription) {
         $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'description' -Value $Description)
+    }
+
+    if ($setsFolder) {
+        $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'folder' -Value $Folder `
+                -Order @('schemaVersion', 'id', 'name', 'description', 'folder'))
     }
 
     try {

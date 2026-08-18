@@ -99,8 +99,9 @@
     $requiredRootKey = @('schemaVersion', 'id', 'name')
 
     $allowedRootKey = @('schemaVersion', 'id', 'name', 'deployRoot', 'logLevel',
-        'credential', 'bootImage')
+        'credential', 'bootImage', 'folders')
     $allowedCredentialKey = @('username')
+    $allowedFolderKey = @('taskSequences', 'operatingSystems', 'applications')
     $allowedBootImageKey = @('name', 'architecture', 'language', 'scratchSpaceMB',
         'optionalComponents', 'extraContent', 'drivers', 'unattend', 'background',
         'timeZone', 'promptForKey', 'rootCertificates', 'clientCertificate', 'entryCommand',
@@ -249,6 +250,45 @@
         if ([string]::IsNullOrWhiteSpace($username)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message 'credential is declared with no username. Name the deployment account, or remove the credential block entirely.'))
+        }
+    }
+
+    # -- the console's folders ------------------------------------------------
+    #
+    # NOTHING THE ENGINE READS. A deployment does not care which folder the
+    # console draws a sequence under, and this block exists only so a folder
+    # with nothing in it yet survives the tree being rebuilt from the documents.
+    # It is still checked here, because a document that half-parses is a window
+    # that half-draws.
+
+    if ($Document.Contains('folders')) {
+        $folders = $Document['folders']
+
+        if (-not ($folders -is [System.Collections.IDictionary])) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ('folders must be a mapping carrying a list per category. The categories are {0}.' -f ($allowedFolderKey -join ', '))))
+        }
+
+        foreach ($key in @($folders.Keys)) {
+            $keyName = [string] $key
+
+            if ($allowedFolderKey -notcontains $keyName) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                            -Message ("'{0}' is not a category folders may declare. The categories are {1}." -f $keyName, ($allowedFolderKey -join ', '))))
+            }
+
+            foreach ($current in @($folders[$keyName])) {
+                $folder = [string] $current
+
+                # A FOLDER IS DRAWN FROM ITS OWN TEXT, so a leading or trailing
+                # separator produces a nameless level in the tree and a doubled
+                # one produces two - the same rule Set-HDTTaskSequenceProperty
+                # applies to the key on a document.
+                if ([string]::IsNullOrWhiteSpace($folder) -or $folder -match '^\\|\\$|\\\\' -or $folder -match '/') {
+                    $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                                -Message ("'{0}' is not a folder path the console can draw. Separate levels with a single backslash - 'Clients\Laptops' - with nothing before the first or after the last." -f $folder)))
+                }
+            }
         }
     }
 

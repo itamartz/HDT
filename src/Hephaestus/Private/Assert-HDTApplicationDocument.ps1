@@ -1,4 +1,4 @@
-function Assert-HDTApplicationDocument {
+﻿function Assert-HDTApplicationDocument {
     <#
         .SYNOPSIS
             Validates a parsed app.yaml against the authoring rules.
@@ -87,7 +87,7 @@ function Assert-HDTApplicationDocument {
     $ErrorActionPreference = 'Stop'
 
     $supportedSchemaVersion = 1
-    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'install',
+    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'folder', 'install',
         'uninstall', 'successCodes', 'rebootCodes', 'detect', 'dependencies', 'runIn')
     $allowedPhase = @('WinPE', 'FullOS', 'Any')
 

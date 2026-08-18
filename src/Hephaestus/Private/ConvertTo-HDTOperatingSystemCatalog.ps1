@@ -1,4 +1,4 @@
-function ConvertTo-HDTOperatingSystemCatalog {
+﻿function ConvertTo-HDTOperatingSystemCatalog {
     <#
         .SYNOPSIS
             Projects a validated os.yaml document into the catalog object the
@@ -144,6 +144,10 @@ and a catalog that silently re-rooted it would send the
         Id            = [string] (& $read 'id')
         Name          = [string] (& $read 'name')
         Description   = [string] (& $read 'description')
+        # WHICH FOLDER THE CONSOLE DRAWS IT UNDER, and nothing else reads it.
+        # See Import-HDTSequenceDocument for why HDT's folders are labels on a
+        # document rather than real directories the way Workbench's are.
+        Folder        = [string] (& $read 'folder')
         Type          = [string] (& $read 'type')
         Architecture  = [string] (& $read 'architecture')
         SourcePath    = $sourcePath

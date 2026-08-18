@@ -1,4 +1,4 @@
-function Assert-HDTOperatingSystemDocument {
+﻿function Assert-HDTOperatingSystemDocument {
     <#
         .SYNOPSIS
             Validates a parsed os.yaml against the authoring
@@ -77,7 +77,7 @@ function Assert-HDTOperatingSystemDocument {
     $ErrorActionPreference = 'Stop'
 
     $supportedSchemaVersion = 1
-    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'type',
+    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'folder', 'type',
         'architecture', 'sourcePath', 'importedUtc', 'defaultIndex', 'images')
     $allowedImageKey = @('index', 'name', 'description', 'edition', 'sizeBytes', 'version')
     $allowedType = @('wim', 'ffu')

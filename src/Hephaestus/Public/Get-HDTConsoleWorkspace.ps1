@@ -172,6 +172,11 @@
             # Empty rather than absent, so a window may read it without asking
             # whether the document declared one.
             Variable    = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            # WHICH FOLDER THE TREE DRAWS IT UNDER. '' rather than absent: the
+            # key is optional and most documents do not carry it, so every
+            # reader would otherwise need a guard.
+            Folder      = ''
             Path        = $entry.DocumentPath
             Status      = 'Ok'
             Error       = ''
@@ -195,6 +200,8 @@
             $row.Group = @($sequence.Group)
             $row.StepCount = @($sequence.Step).Count
             $row.GroupCount = @($sequence.Group).Count
+
+            $row.Folder = [string] $sequence.Folder
 
             if ($null -ne $sequence.PSObject.Properties['Variable'] -and $null -ne $sequence.Variable) {
                 foreach ($name in @($sequence.Variable.Keys)) {
@@ -235,6 +242,9 @@
             Id           = $entry.Id
             Name         = $entry.Id
             Description  = ''
+
+            # WHICH FOLDER THE TREE DRAWS IT UNDER, as on a task sequence row.
+            Folder       = ''
             Type         = ''
             Architecture = ''
             DefaultIndex = 0
@@ -252,6 +262,7 @@
 
             $row.Name = [string] $operatingSystem.Name
             $row.Description = [string] $operatingSystem.Description
+            $row.Folder = [string] $operatingSystem.Folder
             $row.Type = [string] $operatingSystem.Type
             $row.Architecture = [string] $operatingSystem.Architecture
             $row.DefaultIndex = [int] $operatingSystem.DefaultIndex
@@ -304,6 +315,11 @@
         # needs to know which kind it is holding.
         Status          = 'Ok'
         Error           = ''
+        # THE FOLDERS THE SHARE DECLARES, which are the ones nothing is in
+        # yet - see Add-HDTWorkspaceFolder. A folder a document names needs
+        # no declaration, and the tree draws the union of the two.
+        Folder          = $workspace.Folder
+
         TaskSequence    = [pscustomobject[]] @($sequenceRow)
         OperatingSystem = [pscustomobject[]] @($osRow)
         Driver          = $driver

@@ -1,4 +1,4 @@
-function New-HDTConsoleShareFailure {
+﻿function New-HDTConsoleShareFailure {
     <#
         .SYNOPSIS
             Builds the console's model of a deployment share that would not open.
@@ -61,6 +61,11 @@ function New-HDTConsoleShareFailure {
         CredentialUser  = ''
         Status          = 'Error'
         Error           = $Message
+        Folder          = [pscustomobject] @{
+            TaskSequence    = [string[]] @()
+            OperatingSystem = [string[]] @()
+            Application     = [string[]] @()
+        }
         TaskSequence    = [pscustomobject[]] @()   # each would carry Finding, ErrorCount and WarningCount
         OperatingSystem = [pscustomobject[]] @()
 

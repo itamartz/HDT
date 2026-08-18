@@ -66,7 +66,15 @@
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $Description
+        [string] $Description,
+
+        # WHICH FOLDER THE CONSOLE DRAWS IT UNDER. Empty takes it out of every
+        # folder; the operating system never moves on disk either way - see the
+        # key's note in Import-HDTSequenceDocument for why HDT's folders are
+        # labels rather than the real directories Workbench uses.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Folder
     )
 
     Set-StrictMode -Version Latest
@@ -74,15 +82,25 @@
 
     $setsName = $PSBoundParameters.ContainsKey('Name')
     $setsDescription = $PSBoundParameters.ContainsKey('Description')
+    $setsFolder = $PSBoundParameters.ContainsKey('Folder')
 
-    if (-not ($setsName -or $setsDescription)) {
+    if (-not ($setsName -or $setsDescription -or $setsFolder)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $null -Category InvalidArgument `
-                    -Message 'nothing was asked for. Pass -Name, -Description, or both; an omitted one is left as it is.'))
+                    -Message 'nothing was asked for. Pass -Name, -Description or -Folder; an omitted one is left as it is.'))
     }
 
     if ($setsName -and [string]::IsNullOrWhiteSpace($Name)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name -Category InvalidArgument `
                     -Message 'an operating system name cannot be cleared - the console tree, the sequence editor and the deployment wizard all show it. The id identifies it; Remove-HDTOperatingSystem deletes it.'))
+    }
+
+    # A FOLDER IS DRAWN FROM ITS OWN TEXT, so a leading or trailing separator
+    # produces a nameless level in the tree and a doubled one produces two.
+    if ($setsFolder -and -not [string]::IsNullOrWhiteSpace($Folder) -and
+        ($Folder -match '^\\|\\$|\\\\' -or $Folder -match '/')) {
+
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Folder -Category InvalidArgument `
+                    -Message ("'{0}' is not a folder path this window can draw. Separate levels with a single backslash - 'Clients\Laptops' - with nothing before the first or after the last." -f $Folder)))
     }
 
     # Readable before it is worth editing.
@@ -95,6 +113,12 @@
     }
     if ($setsDescription -and [string]::IsNullOrWhiteSpace($Description)) {
         [void] $action.Add('description removed')
+    }
+    if ($setsFolder -and -not [string]::IsNullOrWhiteSpace($Folder)) {
+        [void] $action.Add(("folder to '{0}'" -f $Folder))
+    }
+    if ($setsFolder -and [string]::IsNullOrWhiteSpace($Folder)) {
+        [void] $action.Add('taken out of its folder')
     }
 
     if (-not $PSCmdlet.ShouldProcess('the operating system', ('set {0}' -f (@($action) -join ', ')))) {
@@ -117,6 +141,11 @@
     if ($setsDescription) {
         $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'description' -Value $Description `
                 -Order $order -Block 'images')
+    }
+
+    if ($setsFolder) {
+        $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'folder' -Value $Folder `
+                -Order ($order + @('folder')) -Block 'images')
     }
 
     return [string[]] @($result)

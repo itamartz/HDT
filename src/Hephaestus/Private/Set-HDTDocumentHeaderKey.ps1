@@ -70,7 +70,7 @@
         [string[]] $Line,
 
         [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateSet('name', 'description')]
+        [ValidateSet('name', 'description', 'folder')]
         [string] $Key,
 
         [Parameter(Mandatory = $true, Position = 2)]
@@ -94,7 +94,22 @@
     $rank = [array]::IndexOf($order, $Key)
 
     $clear = [string]::IsNullOrWhiteSpace($Value)
-    $written = '{0}: {1}' -f $Key, (Get-HDTConsoleScalarText -Value $Value)
+
+    # A HEADER KEY IS ONE LINE, and a value carrying a newline is what happens
+    # when one is read back out of a FOLDED block: YAML's > yields a string
+    # ending in a newline, so the console hands back what it was shown and the
+    # writer quoted it across three lines -
+    #
+    #     description: 'Deploys Windows to a bare machine: ... make it boot.
+    #     folder: Clients\Bare metal
+    #     '
+    #
+    # - which put the NEXT key inside the description and took the folder off
+    # the tree. Nothing in a document header is meant to carry a paragraph, so
+    # the value is collapsed rather than quoted across lines.
+    $oneLine = ($Value -replace '\s*?
+\s*', ' ').Trim()
+    $written = '{0}: {1}' -f $Key, (Get-HDTConsoleScalarText -Value $oneLine)
 
     $at = -1
     $after = -1

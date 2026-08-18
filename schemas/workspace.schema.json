@@ -51,6 +51,22 @@
         }
       }
     },
+    "folders": {
+      "description": "The folders the console draws, one list per category. A folder a document names is drawn whether or not it is listed here; a folder with nothing in it exists only here, which is what lets one be made before anything is put in it. Nothing the engine reads.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "taskSequences": {
+          "$ref": "#/definitions/folderList"
+        },
+        "operatingSystems": {
+          "$ref": "#/definitions/folderList"
+        },
+        "applications": {
+          "$ref": "#/definitions/folderList"
+        }
+      }
+    },
     "bootImage": {
       "type": "object",
       "additionalProperties": false,
@@ -165,6 +181,15 @@
     }
   },
   "definitions": {
+    "folderList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "description": "Levels separated by a single backslash, with nothing before the first or after the last.",
+        "type": "string",
+        "pattern": "^[^\\\\/]+(\\\\[^\\\\/]+)*$"
+      }
+    },
     "extraContentEntry": {
       "type": "object",
       "required": [

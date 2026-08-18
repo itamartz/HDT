@@ -1,4 +1,4 @@
-function Set-HDTApplication {
+﻿function Set-HDTApplication {
     <#
         .SYNOPSIS
             Changes an application already in the workspace catalog, leaving
@@ -137,6 +137,14 @@ function Set-HDTApplication {
         [AllowEmptyString()]
         [string] $Description,
 
+        # WHICH FOLDER THE CONSOLE DRAWS IT UNDER. Empty takes it out of every
+        # folder; the application never moves on disk either way - see the key's
+        # note in Import-HDTSequenceDocument for why HDT's folders are labels
+        # rather than the real directories Workbench uses.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Folder,
+
         [Parameter()]
         [AllowEmptyString()]
         [string] $Install,
@@ -171,7 +179,7 @@ function Set-HDTApplication {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $settable = @('Name', 'Description', 'Install', 'Uninstall', 'SuccessCode',
+    $settable = @('Name', 'Description', 'Folder', 'Install', 'Uninstall', 'SuccessCode',
         'RebootCode', 'RunIn', 'Dependency', 'Detect')
 
     $asked = @($settable | Where-Object { $PSBoundParameters.ContainsKey($_) })
@@ -196,6 +204,15 @@ function Set-HDTApplication {
                     -Message ("no application with the id '{0}' is in this workspace. Import-HDTApplication registers a new one." -f $Id)))
     }
 
+    # A FOLDER IS DRAWN FROM ITS OWN TEXT, so a leading or trailing separator
+    # produces a nameless level in the tree and a doubled one produces two.
+    if ($PSBoundParameters.ContainsKey('Folder') -and -not [string]::IsNullOrWhiteSpace($Folder) -and
+        ($Folder -match '^\\|\\$|\\\\' -or $Folder -match '/')) {
+
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Folder -Category InvalidArgument `
+                    -Message ("'{0}' is not a folder path this window can draw. Separate levels with a single backslash - 'Line of business\Finance' - with nothing before the first or after the last." -f $Folder)))
+    }
+
     $line = [string[]] @($FileSystem.ReadAllText($catalogPath) -split "`r?`n")
 
     # The keys in document order, so a file that gains one gains it in the place
@@ -203,6 +220,7 @@ function Set-HDTApplication {
     $keyForParameter = [ordered] @{
         Name        = 'name'
         Description = 'description'
+        Folder      = 'folder'
         Install     = 'install'
         Uninstall   = 'uninstall'
         SuccessCode = 'successCodes'

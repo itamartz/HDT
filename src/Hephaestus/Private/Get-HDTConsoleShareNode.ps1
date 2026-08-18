@@ -150,6 +150,8 @@
     [void] $node.Add($osCategory)
     [void] $shareNode.Children.Add($osCategory)
 
+    $osRow = New-Object -TypeName System.Collections.ArrayList
+
     foreach ($operatingSystem in @($Workspace.OperatingSystem)) {
         $image = foreach ($current in @($operatingSystem.Image)) {
             '{0,-3} {1} [{2}] {3}' -f $current.Index, $current.Name, $current.Edition, $current.Version
@@ -189,9 +191,19 @@
                 $Workspace.Root, $operatingSystem.Id) `
             -Header $header -Subject $operatingSystem
 
-        [void] $node.Add($row)
-        [void] $osCategory.Children.Add($row)
+        # THE FOLDER THE DOCUMENT NAMED, carried on the row so the grouping
+        # below can read it without going back to the document.
+        $row | Add-Member -MemberType NoteProperty -Name 'Folder' `
+            -Value ([string] $operatingSystem.Folder) -Force
+
+        [void] $osRow.Add($row)
     }
+
+    $osGrouped = Group-HDTConsoleFolderRow -Row ([object[]] @($osRow)) -Depth 3 `
+        -Declared ([string[]] @($Workspace.Folder.OperatingSystem)) -Category OperatingSystem -Header $header
+
+    foreach ($current in @($osGrouped.Node)) { [void] $node.Add($current) }
+    foreach ($current in @($osGrouped.TopLevel)) { [void] $osCategory.Children.Add($current) }
 
     if (@($Workspace.OperatingSystem).Count -eq 0) {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
@@ -258,6 +270,8 @@
 
     [void] $node.Add($sequenceCategory)
     [void] $shareNode.Children.Add($sequenceCategory)
+
+    $sequenceRow = New-Object -TypeName System.Collections.ArrayList
 
     foreach ($sequence in @($Workspace.TaskSequence)) {
         # DESIGN 12'S "VALIDATION, SURFACED INLINE". Test-HDTTaskSequence answers
@@ -326,9 +340,17 @@
         # every step of every sequence of every share would also be unusable at
         # the size an administrator runs - the lab's own sample share is four
         # sequences and over thirty step rows before a single operating system.
-        [void] $node.Add($row)
-        [void] $sequenceCategory.Children.Add($row)
+        $row | Add-Member -MemberType NoteProperty -Name 'Folder' `
+            -Value ([string] $sequence.Folder) -Force
+
+        [void] $sequenceRow.Add($row)
     }
+
+    $sequenceGrouped = Group-HDTConsoleFolderRow -Row ([object[]] @($sequenceRow)) -Depth 3 `
+        -Declared ([string[]] @($Workspace.Folder.TaskSequence)) -Category TaskSequence -Header $header
+
+    foreach ($current in @($sequenceGrouped.Node)) { [void] $node.Add($current) }
+    foreach ($current in @($sequenceGrouped.TopLevel)) { [void] $sequenceCategory.Children.Add($current) }
 
     if (@($Workspace.TaskSequence).Count -eq 0) {
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `

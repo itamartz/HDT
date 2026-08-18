@@ -1,4 +1,4 @@
-function Import-HDTSequenceDocument {
+﻿function Import-HDTSequenceDocument {
     <#
         .SYNOPSIS
             Reads, parses, validates and flattens a sequence.yaml into execution
@@ -141,6 +141,20 @@ function Import-HDTSequenceDocument {
     $description = $null
     if ($document.Contains('description')) {
         $description = [string] $document['description']
+    }
+
+    # WHICH FOLDER THE CONSOLE DRAWS IT UNDER, and nothing else reads this.
+    # Deployment Workbench's folders are real directories under Control\; HDT's
+    # cannot be, because the folder would then be part of the path the engine
+    # resolves an id from - and moving a sequence between folders would break
+    # every rule, boot image and half-finished deployment that names it.
+    #
+    # SO IT IS A LABEL ON THE DOCUMENT, not a place it lives. '' rather than
+    # $null: every sequence ever written has no folder, and the absence has to
+    # be ordinary rather than something each caller guards against.
+    $folder = ''
+    if ($document.Contains('folder')) {
+        $folder = [string] $document['folder']
     }
 
     $step = New-Object -TypeName System.Collections.ArrayList
@@ -324,6 +338,7 @@ function Import-HDTSequenceDocument {
         Id            = [string] $document['id']
         Name          = [string] $document['name']
         Description   = $description
+        Folder        = $folder
         Variable      = $variable
         Step          = [object[]] @($step)
         Group         = [object[]] @($group)

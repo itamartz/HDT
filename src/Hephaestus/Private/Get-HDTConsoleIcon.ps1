@@ -1,4 +1,4 @@
-function Get-HDTConsoleIcon {
+﻿function Get-HDTConsoleIcon {
     <#
         .SYNOPSIS
             Chooses the glyph a console row shows.
@@ -52,7 +52,7 @@ function Get-HDTConsoleIcon {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -82,6 +82,7 @@ function Get-HDTConsoleIcon {
         OperatingSystem = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
+        Folder          = [char]::ConvertFromUtf32(0x1F4C1)   # closed folder - it holds things and does nothing itself
         StepGroup       = [char]::ConvertFromUtf32(0x1F4C2)   # open folder - a group holds steps, it does not do anything
         # A GEAR, NOT A TRIANGLE. The first version used a small right triangle,
         # which in a TreeView is what an expander looks like - so every step

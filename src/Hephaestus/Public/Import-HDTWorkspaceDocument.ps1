@@ -289,6 +289,36 @@ function Import-HDTWorkspaceDocument {
     $logLevel = 'Info'
     if ($document.Contains('logLevel')) { $logLevel = [string] $document['logLevel'] }
 
+    # -- the console's folders ------------------------------------------------
+    #
+    # THE ENGINE IGNORES THESE, and the projection carries them anyway because
+    # the console reads the share through this one reader. They are the folders
+    # that would otherwise not exist: a folder a document names is drawn from
+    # the document, so what is listed here is what somebody made before putting
+    # anything in it.
+    $folderOf = @{
+        TaskSequence    = [string[]] @()
+        OperatingSystem = [string[]] @()
+        Application     = [string[]] @()
+    }
+
+    if ($document.Contains('folders')) {
+        $folders = $document['folders']
+
+        foreach ($pair in @(
+                @{ Key = 'taskSequences'; Property = 'TaskSequence' },
+                @{ Key = 'operatingSystems'; Property = 'OperatingSystem' },
+                @{ Key = 'applications'; Property = 'Application' })) {
+
+            $key = [string] $pair.Key
+
+            if ($null -ne $folders -and $folders.Contains($key)) {
+                $folderOf[[string] $pair.Property] = [string[]] @(@($folders[$key]) |
+                        ForEach-Object { [string] $_ })
+            }
+        }
+    }
+
     return [pscustomobject] @{
         SchemaVersion = [int] $document['schemaVersion']
         Id            = [string] $document['id']
@@ -297,6 +327,11 @@ function Import-HDTWorkspaceDocument {
         LogLevel      = $logLevel
         Path          = $Path
         Credential    = $credential
+        Folder        = [pscustomobject] @{
+            TaskSequence    = [string[]] @($folderOf['TaskSequence'])
+            OperatingSystem = [string[]] @($folderOf['OperatingSystem'])
+            Application     = [string[]] @($folderOf['Application'])
+        }
         BootImage     = [pscustomobject] @{
             Name              = $imageName
             Architecture      = $architecture

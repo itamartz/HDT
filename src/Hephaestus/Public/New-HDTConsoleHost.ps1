@@ -542,6 +542,10 @@
         $removeSequence = $window.FindName('HDTRemoveSequenceMenuItem')
         $importOperatingSystem = $window.FindName('HDTImportOperatingSystemMenuItem')
         $removeOperatingSystem = $window.FindName('HDTRemoveOperatingSystemMenuItem')
+        $newFolder = $window.FindName('HDTNewFolderMenuItem')
+        $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
+        $deleteFolder = $window.FindName('HDTDeleteFolderMenuItem')
+        $folderSeparator = $window.FindName('HDTFolderMenuSeparator')
 
         if ($null -ne $newSequence) {
             if ([string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
@@ -610,7 +614,48 @@
                         }
                         if ($isOperatingSystem) { $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
 
-                        if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem)) {
+                        # THE FOLDER ITEMS, AND THE ROW DECIDES WHICH.
+                        # Get-HDTConsoleFolderAction is where that is worked out,
+                        # from the row alone - re-reading the share here costs
+                        # 400ms in front of a menu that is supposed to appear
+                        # under the pointer.
+                        $folderAction = Get-HDTConsoleFolderAction -Row $chosen
+
+                        $newFolder.Visibility = [System.Windows.Visibility]::Collapsed
+                        $moveToFolder.Visibility = [System.Windows.Visibility]::Collapsed
+                        $deleteFolder.Visibility = [System.Windows.Visibility]::Collapsed
+                        $folderSeparator.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        if ($folderAction.CanCreate) { $newFolder.Visibility = [System.Windows.Visibility]::Visible }
+                        if ($folderAction.CanMove) { $moveToFolder.Visibility = [System.Windows.Visibility]::Visible }
+
+                        # DELETE IS SHOWN AND DISABLED RATHER THAN HIDDEN when
+                        # the folder still has something in it: an item that
+                        # vanishes teaches that folders cannot be deleted, and
+                        # what is true is that THIS one cannot be, yet. The
+                        # reason is on the tooltip, where a disabled item's
+                        # reason has to be.
+                        if ([string] $chosen.Kind -eq 'Folder') {
+                            $deleteFolder.Visibility = [System.Windows.Visibility]::Visible
+                            $deleteFolder.IsEnabled = [bool] $folderAction.CanDelete
+                            $deleteFolder.ToolTip = $null
+
+                            if (-not $folderAction.CanDelete) {
+                                $deleteFolder.ToolTip = [string] $folderAction.DeleteRefusal
+                            }
+                        }
+
+                        $onFolderRow = ($folderAction.CanCreate -or $folderAction.CanMove -or
+                            [string] $chosen.Kind -eq 'Folder')
+
+                        # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
+                        # SIDES OF IT. A line at the top of a menu is a line
+                        # nobody drew on purpose.
+                        if ($onFolderRow -and ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem)) {
+                            $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
+                        }
+
+                        if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $onFolderRow)) {
                             $opening.Handled = $true
                         }
                     }.GetNewClosure())
@@ -755,6 +800,209 @@
                         & $rebuildTree
 
                                                 $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
+                    }.GetNewClosure())
+
+                # -- folders ---------------------------------------------
+                #
+                # WORKBENCH'S FOLDERS, ON A TREE THAT HAS NO DIRECTORIES TO
+                # NEST. What each item offers is Get-HDTConsoleFolderAction's
+                # decision; these three handlers do what every other press in
+                # this window does - read a document, call one cmdlet, save,
+                # rebuild - and each names the cmdlet it ran in the Command box.
+                #
+                # ONE TYPED LINE IS ALL THEY ASK FOR, so the prompt is built
+                # here rather than given markup: a window with a label, a box
+                # and an OK is the whole of it, and a .xaml file for that is a
+                # file to keep in step with three call sites.
+                $askForFolder = {
+                    param([string] $Title, [string] $Prompt, [string[]] $Choice, [string] $Initial)
+
+                    Add-Type -AssemblyName PresentationFramework
+
+                    $ask = New-Object -TypeName System.Windows.Window
+                    $ask.Title = $Title
+                    $ask.Width = 440
+                    $ask.SizeToContent = [System.Windows.SizeToContent]::Height
+                    $ask.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
+                    $ask.Owner = $window
+                    $ask.ResizeMode = [System.Windows.ResizeMode]::NoResize
+
+                    $panel = New-Object -TypeName System.Windows.Controls.StackPanel
+                    $panel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 16
+
+                    $label = New-Object -TypeName System.Windows.Controls.TextBlock
+                    $label.Text = $Prompt
+                    $label.TextWrapping = [System.Windows.TextWrapping]::Wrap
+                    $label.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 10
+
+                    # EDITABLE, AND THE LIST IS A CONVENIENCE. Moving something
+                    # into a folder that does not exist yet is how the second
+                    # folder gets made, so the box has to accept a name that is
+                    # not in the list - and on a share with no folders at all
+                    # the list is empty and this is a text box.
+                    $entry = New-Object -TypeName System.Windows.Controls.ComboBox
+                    $entry.IsEditable = $true
+                    $entry.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 12
+
+                    foreach ($one in @($Choice)) { [void] $entry.Items.Add([string] $one) }
+                    $entry.Text = $Initial
+
+                    $accept = New-Object -TypeName System.Windows.Controls.Button
+                    $accept.Content = 'OK'
+                    $accept.IsDefault = $true
+                    $accept.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+                    $accept.Padding = New-Object -TypeName System.Windows.Thickness -ArgumentList 14, 6, 14, 6
+                    $accept.Add_Click({ $ask.DialogResult = $true }.GetNewClosure())
+
+                    [void] $panel.Children.Add($label)
+                    [void] $panel.Children.Add($entry)
+                    [void] $panel.Children.Add($accept)
+
+                    $ask.Content = $panel
+                    [void] $entry.Focus()
+
+                    # CANCELLED IS NOT EMPTY. An empty box means "take it out of
+                    # every folder", which is a thing to ask for, so the two
+                    # answers cannot come back as the same value.
+                    if ($ask.ShowDialog() -ne $true) { return $null }
+
+                    return ([string] $entry.Text).Trim()
+                }
+
+                $newFolder.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                        $action = Get-HDTConsoleFolderAction -Row $chosen
+                        if (-not $action.CanCreate) { return }
+
+                        $inside = ''
+                        if (-not [string]::IsNullOrWhiteSpace([string] $action.Parent)) {
+                            $inside = ' inside ''{0}''' -f [string] $action.Parent
+                        }
+
+                        $typed = & $askForFolder 'New Folder' `
+                        ('A name for the folder{0}. It organises this window and nothing else: nothing moves on disk, and a deployment does not know folders exist.' -f $inside) `
+                        @() ''
+
+                        if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                        # THE PARENT IS THE ROW IT WAS ASKED FOR ON, which is
+                        # what makes one item serve both "at the top" and
+                        # "inside this one".
+                        $path = $typed
+                        if (-not [string]::IsNullOrWhiteSpace([string] $action.Parent)) {
+                            $path = '{0}\{1}' -f [string] $action.Parent, $typed
+                        }
+
+                        $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
+
+                        try {
+                            $fileSystem = New-HDTFileSystem
+                            $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                            [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                                    -Line @(Add-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
+                                        -Folder $path -Confirm:$false))
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        & $rebuildTree
+
+                        $command.Text = "Add-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}'" -f
+                        [string] $action.Category, $path
+                    }.GetNewClosure())
+
+                # MOVING IS A ONE-KEY EDIT TO THE DOCUMENT, not a file
+                # operation: the sequence stays at TaskSequences\<id>, because
+                # its id is the path the engine resolves it from and every rule
+                # and boot image that names it would otherwise break.
+                $moveToFolder.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $action = Get-HDTConsoleFolderAction -Row $chosen
+                        if (-not $action.CanMove) { return }
+
+                        $now = ''
+                        if ($null -ne $chosen.PSObject.Properties['Folder']) { $now = [string] $chosen.Folder }
+
+                        $typed = & $askForFolder 'Move to Folder' `
+                            'The folder this window draws it under. Type a name that is not in the list to make that folder; leave it empty to take it out of every folder. Nothing moves on disk.' `
+                        ([string[]] @($action.Choice)) $now
+
+                        if ($null -eq $typed) { return }
+                        if ($typed -eq $now) { return }
+
+                        $documentPath = [string] $chosen.Subject.Path
+
+                        try {
+                            $fileSystem = New-HDTFileSystem
+                            $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                            # THE SETTER AND THE SAVER HAVE TO BE A PAIR. Each
+                            # checks the lines against its own document's keys,
+                            # so the wrong saver refuses a document the setter
+                            # just wrote correctly.
+                            if ([string] $action.Category -eq 'OperatingSystem') {
+                                [void] (Save-HDTOperatingSystemDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                                        -Line @(Set-HDTOperatingSystemProperty -Line $line -Folder $typed -Confirm:$false))
+                            } else {
+                                [void] (Save-HDTSequenceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                                        -Line @(Set-HDTTaskSequenceProperty -Line $line -Folder $typed -Confirm:$false))
+                            }
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        & $rebuildTree
+
+                        $setter = 'Set-HDTTaskSequenceProperty'
+                        if ([string] $action.Category -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
+
+                        $command.Text = "{0} -Line `$line -Folder '{1}'" -f $setter, $typed
+                    }.GetNewClosure())
+
+                $deleteFolder.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        $action = Get-HDTConsoleFolderAction -Row $chosen
+
+                        # THE REFUSAL IS SAID, NOT SWALLOWED. The item is
+                        # disabled, so this only runs if something else opened
+                        # it - and a handler that returns quietly is a menu item
+                        # somebody presses twice and then reports as broken.
+                        if (-not $action.CanDelete) {
+                            $command.Text = [string] $action.DeleteRefusal
+                            return
+                        }
+
+                        $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
+
+                        try {
+                            $fileSystem = New-HDTFileSystem
+                            $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                            [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                                    -Line @(Remove-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
+                                        -Folder ([string] $action.Parent) -Confirm:$false))
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        & $rebuildTree
+
+                        $command.Text = "Remove-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}'" -f
+                        [string] $action.Category, [string] $action.Parent
                     }.GetNewClosure())
             }
         }

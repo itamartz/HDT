@@ -1,4 +1,4 @@
-function Get-HDTConsoleIconColor {
+﻿function Get-HDTConsoleIconColor {
     <#
         .SYNOPSIS
             The colour one row's icon is drawn in.
@@ -58,7 +58,7 @@ function Get-HDTConsoleIconColor {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
-            'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -91,6 +91,7 @@ function Get-HDTConsoleIconColor {
         OperatingSystem = '#FF0F7B8A'   # teal - content brought in from outside
         BootImage       = '#FF0F7B8A'
         DriverStore     = '#FF0F7B8A'
+        Folder          = '#FFCA5010'   # the amber every other container in this tree uses
         StepGroup       = '#FF8764B8'   # a group belongs to its sequence
         Step            = '#FF6E7781'   # grey-blue: many of them, and none is news
         MonitorRun      = '#FF107C10'   # green, and the only green here: it is running

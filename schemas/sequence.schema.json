@@ -3,65 +3,174 @@
   "$id": "https://hephaestus/schemas/sequence.schema.json",
   "title": "HDT sequence.yaml",
   "type": "object",
-  "required": ["schemaVersion", "id", "name", "steps"],
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "steps"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
-    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
-    "name": { "type": "string", "minLength": 1 },
-    "description": { "type": "string" },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
     "variables": {
       "type": "object",
-      "propertyNames": { "pattern": "^HDT[A-Za-z0-9_]*$" },
-      "additionalProperties": { "type": ["string", "boolean", "integer", "number", "array"] }
+      "propertyNames": {
+        "pattern": "^HDT[A-Za-z0-9_]*$"
+      },
+      "additionalProperties": {
+        "type": [
+          "string",
+          "boolean",
+          "integer",
+          "number",
+          "array"
+        ]
+      }
     },
-    "steps": { "$ref": "#/definitions/rootNodeList" }
+    "steps": {
+      "$ref": "#/definitions/rootNodeList"
+    },
+    "folder": {
+      "type": "string",
+      "description": "Which folder the console draws this sequence under. A label for the window only - the engine ignores it, and the sequence still lives at TaskSequences\\<id>\\.",
+      "pattern": "^[^\\/]+(\\[^\\/]+)*$"
+    }
   },
   "definitions": {
     "rootNodeList": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "#/definitions/node" }
+      "items": {
+        "$ref": "#/definitions/node"
+      }
     },
     "groupNodeList": {
-      "type": ["array", "null"],
-      "items": { "$ref": "#/definitions/node" }
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/node"
+      }
     },
     "node": {
-      "oneOf": [{ "$ref": "#/definitions/group" }, { "$ref": "#/definitions/step" }]
+      "oneOf": [
+        {
+          "$ref": "#/definitions/group"
+        },
+        {
+          "$ref": "#/definitions/step"
+        }
+      ]
     },
     "group": {
       "type": "object",
-      "required": ["group", "steps"],
+      "required": [
+        "group",
+        "steps"
+      ],
       "additionalProperties": false,
       "properties": {
-        "group": { "type": "string", "minLength": 1 },
-        "condition": { "type": "string", "minLength": 1 },
-        "disabled": { "type": "boolean" },
-        "runIn": { "enum": ["WinPE", "FullOS", "Any"] },
-        "steps": { "$ref": "#/definitions/groupNodeList" }
+        "group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "runIn": {
+          "enum": [
+            "WinPE",
+            "FullOS",
+            "Any"
+          ]
+        },
+        "steps": {
+          "$ref": "#/definitions/groupNodeList"
+        }
       }
     },
     "step": {
       "type": "object",
-      "required": ["name", "type"],
+      "required": [
+        "name",
+        "type"
+      ],
       "properties": {
-        "name": { "type": "string", "minLength": 1 },
-        "type": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$" },
-        "condition": { "type": "string", "minLength": 1 },
-        "continueOnError": { "type": "boolean" },
-        "disabled": { "type": "boolean" },
-        "resumable": { "type": "boolean" },
-        "timeoutMinutes": { "type": "integer", "minimum": 1 },
-        "runIn": { "enum": ["WinPE", "FullOS", "Any"] },
-        "log": { "type": "string", "minLength": 1 },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+        },
+        "condition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "continueOnError": {
+          "type": "boolean"
+        },
+        "disabled": {
+          "type": "boolean"
+        },
+        "resumable": {
+          "type": "boolean"
+        },
+        "timeoutMinutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runIn": {
+          "enum": [
+            "WinPE",
+            "FullOS",
+            "Any"
+          ]
+        },
+        "log": {
+          "type": "string",
+          "minLength": 1
+        },
         "retry": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "count": { "type": "integer", "minimum": 0, "maximum": 10 },
-            "delaySeconds": { "type": "integer", "minimum": 0 },
-            "backoff": { "enum": ["fixed", "exponential"] }
+            "count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "delaySeconds": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "backoff": {
+              "enum": [
+                "fixed",
+                "exponential"
+              ]
+            }
           }
         }
       }

@@ -236,3 +236,54 @@ Describe 'a description written as a folded block' {
         $after | Should -Contain 'steps:'
     }
 }
+
+Describe 'a value that arrived with a newline in it' {
+
+    # WHERE IT COMES FROM. A folded block parses to a string ENDING IN A
+    # NEWLINE - that is what YAML's > means - so the console reads the
+    # description of a template-made sequence, hands it straight back, and the
+    # writer quotes it:
+    #
+    #     description: 'Deploys Windows to a bare machine: ... make it boot.
+    #     folder: Clients\Bare metal
+    #     '
+    #
+    # The scalar now spans three lines, and the next key spliced after the
+    # 'description:' LINE landed inside it. The folder disappeared from the tree
+    # because it was part of the description.
+    #
+    # A HEADER KEY IS ONE LINE. Nothing in a document header is meant to carry a
+    # paragraph, so the value is collapsed to a single line rather than quoted
+    # across several.
+
+    It 'writes it on one line' {
+        $line = [string[]] @(
+            'schemaVersion: 1'; 'id: DEMO'; 'name: Demo'
+            'steps:'; '  - name: Gather'; '    type: Gather')
+
+        $after = Set-HDTTaskSequenceProperty -Line $line `
+            -Description ("Deploys Windows to a bare machine.`r`n") -Confirm:$false
+
+        @($after | Where-Object { $_ -like 'description:*' }).Count | Should -Be 1
+        @($after | Where-Object { $_ -eq "'" }) | Should -BeNullOrEmpty
+    }
+
+    It 'keeps the document readable, and the next key outside the value' {
+        $line = [string[]] @(
+            'schemaVersion: 1'; 'id: DEMO'; 'name: Demo'
+            'steps:'; '  - name: Gather'; '    type: Gather')
+
+        $after = Set-HDTTaskSequenceProperty -Line $line `
+            -Description ("One line.`r`nAnd another.") -Confirm:$false
+        $after = Set-HDTTaskSequenceProperty -Line $after -Folder 'Clients' -Confirm:$false
+
+        $document = InModuleScope -ModuleName 'Hephaestus' -Parameters @{ Body = $after } {
+            param($Body)
+            ConvertFrom-HDTSequenceLine -Line ([string[]] $Body)
+        }
+
+        $document.Folder | Should -BeExactly 'Clients'
+        $document.Description | Should -Not -BeLike '*folder*'
+        @($document.Step).Count | Should -Be 1
+    }
+}
