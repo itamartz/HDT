@@ -57,7 +57,7 @@
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
+        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
             'DriverStore', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
@@ -89,6 +89,7 @@
         Category        = '#FF0E639C'
         TaskSequence    = '#FF8764B8'   # violet - the thing an administrator authors
         OperatingSystem = '#FF0F7B8A'   # teal - content brought in from outside
+        Application     = '#FF0F7B8A'   # teal too: a package is brought in, like media
         BootImage       = '#FF0F7B8A'
         DriverStore     = '#FF0F7B8A'
         Folder          = '#FFCA5010'   # the amber every other container in this tree uses

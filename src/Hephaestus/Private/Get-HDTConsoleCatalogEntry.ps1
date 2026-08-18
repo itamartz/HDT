@@ -1,4 +1,4 @@
-function Get-HDTConsoleCatalogEntry {
+﻿function Get-HDTConsoleCatalogEntry {
     <#
         .SYNOPSIS
             Finds the folders under one workspace directory that actually hold a
@@ -54,7 +54,7 @@ function Get-HDTConsoleCatalogEntry {
         [string] $Root,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('TaskSequences', 'OperatingSystems')]
+        [ValidateSet('TaskSequences', 'OperatingSystems', 'Applications')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]

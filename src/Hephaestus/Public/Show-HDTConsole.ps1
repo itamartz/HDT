@@ -152,6 +152,10 @@
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
+        [string] $ImportApplicationXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTImportApplication.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
         [Parameter()]
@@ -277,9 +281,14 @@
         $importOperatingSystemXaml = [System.IO.File]::ReadAllText($ImportOperatingSystemXamlPath)
     }
 
+    $importApplicationXaml = ''
+    if (Test-Path -LiteralPath $ImportApplicationXamlPath) {
+        $importApplicationXaml = [System.IO.File]::ReadAllText($ImportApplicationXamlPath)
+    }
+
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
         (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond, $newSequenceXaml,
-        $importOperatingSystemXaml)
+        $importOperatingSystemXaml, $importApplicationXaml)
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot

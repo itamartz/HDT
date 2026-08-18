@@ -68,6 +68,7 @@
         }
         TaskSequence    = [pscustomobject[]] @()   # each would carry Finding, ErrorCount and WarningCount
         OperatingSystem = [pscustomobject[]] @()
+        Application     = [pscustomobject[]] @()
 
         # THE SAME SHAPE, EMPTY. A share that could not be opened has nothing
         # running on it as far as anybody can tell, and a caller that had to

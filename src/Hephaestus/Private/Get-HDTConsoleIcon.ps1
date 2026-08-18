@@ -51,7 +51,7 @@
     [OutputType([string])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
+        [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
             'DriverStore', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
@@ -80,6 +80,7 @@
         Category        = [char]::ConvertFromUtf32(0x1F4C1)   # folder
         TaskSequence    = [char]::ConvertFromUtf32(0x1F5D2)   # spiral notepad - an ordered list of steps
         OperatingSystem = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc
+        Application     = [char]::ConvertFromUtf32(0x1F4E6)   # package - one thing that gets installed
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
         Folder          = [char]::ConvertFromUtf32(0x1F4C1)   # closed folder - it holds things and does nothing itself

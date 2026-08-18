@@ -278,6 +278,63 @@
         [void] $osRow.Add($row)
     }
 
+    # -- applications ------------------------------------------------------
+    #
+    # THE CATALOG IS THE DIRECTORY (DESIGN 2.1): one folder per application
+    # holding its app.yaml, so the rows are an enumeration and a read, exactly
+    # as the operating systems above are. Get-HDTApplication is the command an
+    # administrator would type, and it is the one used here.
+
+    $appRow = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($entry in @(Get-HDTConsoleCatalogEntry -Root $root -Kind Applications `
+                -DocumentName 'app.yaml' -FileSystem $FileSystem)) {
+
+        $row = [pscustomobject] @{
+            Id          = $entry.Id
+            Name        = $entry.Id
+            Description = ''
+
+            # WHO MAKES IT AND WHICH VERSION - Workbench's other two questions,
+            # and what tells two entries called Reader apart.
+            Publisher   = ''
+            Version     = ''
+
+            # WHICH FOLDER THE TREE DRAWS IT UNDER, as on the other two.
+            Folder      = ''
+            Install     = ''
+            Uninstall   = ''
+            RunIn       = ''
+            Detection   = ''
+            Dependency  = [string[]] @()
+            SourcePath  = ''
+            Path        = $entry.DocumentPath
+            Status      = 'Ok'
+            Error       = ''
+        }
+
+        try {
+            $application = Get-HDTApplication -WorkspaceRoot $root -Id $entry.Id -FileSystem $FileSystem
+
+            $row.Name = [string] $application.Name
+            $row.Description = [string] $application.Description
+            $row.Publisher = [string] $application.Publisher
+            $row.Version = [string] $application.Version
+            $row.Folder = [string] $application.Folder
+            $row.Install = [string] $application.Install
+            $row.Uninstall = [string] $application.Uninstall
+            $row.RunIn = [string] $application.RunIn
+            $row.Detection = Get-HDTConsoleDetectionText -Detect $application.Detect
+            $row.Dependency = [string[]] @($application.Dependencies)
+            $row.SourcePath = [string] $application.SourcePath
+        } catch {
+            $row.Status = 'Error'
+            $row.Error = [string] $_.Exception.Message
+        }
+
+        [void] $appRow.Add($row)
+    }
+
     # -- drivers -----------------------------------------------------------
     #
     # THE FOLDER, AND NOTHING ABOUT ITS CONTENTS. DESIGN 7 describes a driver
@@ -322,6 +379,7 @@
 
         TaskSequence    = [pscustomobject[]] @($sequenceRow)
         OperatingSystem = [pscustomobject[]] @($osRow)
+        Application     = [pscustomobject[]] @($appRow)
         Driver          = $driver
         BootImage       = $bootImage
 

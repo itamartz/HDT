@@ -87,8 +87,9 @@
     $ErrorActionPreference = 'Stop'
 
     $supportedSchemaVersion = 1
-    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'folder', 'install',
-        'uninstall', 'successCodes', 'rebootCodes', 'detect', 'dependencies', 'runIn')
+    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'folder', 'publisher',
+        'version', 'install', 'uninstall', 'successCodes', 'rebootCodes', 'detect',
+        'dependencies', 'runIn')
     $allowedPhase = @('WinPE', 'FullOS', 'Any')
 
     # The keys each detection type may carry, and which of them it must - shared

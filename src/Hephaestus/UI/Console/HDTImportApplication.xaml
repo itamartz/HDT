@@ -1,0 +1,269 @@
+<!--
+    MDT'S New Application WIZARD, on one page.
+
+    MDT SPREADS IT OVER SEVEN - Application Type, Details, Source, Destination,
+    Command Details, Summary, Confirmation - and the first of them asks a
+    question this engine does not have: "with source files", "no source files"
+    or "bundle". HDT copies a source folder and runs a command line, so the type
+    page would be a page with one answer on it.
+
+    WORKBENCH'S THREE QUESTIONS ARE HERE - Publisher, Name, Version - and the id
+    is composed from them by Get-HDTApplicationName, which is Workbench's own
+    rule: '7-Zip' alone is not an application, it is three of them a year apart.
+    The id stays typeable, because it is the folder name and what every task
+    sequence names, so it is decided once and never rewritten afterwards.
+
+    WHAT THE SOURCE IS, EXACTLY: the FOLDER holding the installer, not the
+    installer. That is the difference from importing media, where the source is
+    one .wim. Everything in the folder is copied to the share, because an .msi
+    usually needs its transform beside it and a setup.exe usually needs its
+    payload directory - Import-HDTApplication copies the folder for that reason,
+    and the install command line runs from inside the copy.
+
+    THE COMMAND LINE IS THE ONE FIELD NOBODY CAN GUESS. An id can be suggested
+    from the folder name and a display name can be left empty, but what makes
+    this package install silently is knowledge about the package - so the field
+    is mandatory here exactly as -Install is on the command, and its ? gives the
+    msiexec form because that is what most of them are.
+
+    DETECTION IS NOT ASKED FOR HERE, deliberately. An application with no rule
+    installs every time (DESIGN 8), which is the right default for a package
+    somebody has just added and has not decided about; the rule is four keys
+    with a type that changes what the others mean, and asking for it on the
+    import page would make the common case the hard one. Set-HDTApplication
+    -Detect adds it afterwards, and the row says "installs every time" until
+    somebody does.
+
+    NO x:Class AND NO CODE-BEHIND, as every other window here. Handlers are
+    attached in PowerShell, by name.
+
+    NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+    HDTImportAppTitleText, HDTImportAppRootText, HDTImportAppSourceBox,
+    HDTImportAppSourceBrowseButton, HDTImportAppInstallBox,
+    HDTImportAppPublisherBox, HDTImportAppNameBox, HDTImportAppVersionBox,
+    HDTImportAppIdBox, HDTImportAppMessageText, HDTImportAppCommandText,
+    HDTImportAppImportButton and HDTCancelButton - and the four hints behind the
+    ? dots, HDTImportAppSourceHint, HDTImportAppInstallHint,
+    HDTImportAppPublisherHint and HDTImportAppIdHint, which the string table
+    fills in by those names.
+-->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="New Application"
+        Width="640" Height="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource HDTWindowBrush}"
+        FontFamily="Segoe UI" FontSize="12">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTHintTextBrush"    Color="#FF6B6B6B" />
+        <SolidColorBrush x:Key="HDTErrorBrush"       Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
+
+        <Style TargetType="TextBlock" x:Key="HDTFieldLabel">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,5,6,5" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+        </Style>
+
+        <!-- THE ? THIS TOOLKIT'S PAGES USE. A Border rather than a bare glyph
+             because WPF raises a tooltip only over what is painted.
+
+             AND IT IS WHY THE HINTS ARE NOT PARAGRAPHS UNDER THE BOXES. Three
+             of those pushed the fields apart and made the page taller than the
+             four questions on it - the reasoning belongs beside the markup,
+             where the next person to change this reads it, and the technician
+             gets the sentence only when they ask for it. -->
+        <Style TargetType="Border" x:Key="HDTHelpDot">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+            <Setter Property="Text" Value="?" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- The console's banner, so this reads as part of the same tool. -->
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="16,12,16,12">
+            <StackPanel>
+                <TextBlock x:Name="HDTImportAppTitleText"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="HDTImportAppRootText"
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontFamily="Consolas, Courier New" FontSize="11"
+                           Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16,14,16,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="30" />
+            </Grid.ColumnDefinitions>
+
+            <!-- THE SOURCE COMES FIRST because everything else can be typed
+                 without it and it is the one thing that has to be found. -->
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTImportAppSourceLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTImportAppSourceBox"
+                     FontFamily="Consolas, Courier New" />
+            <Button Grid.Row="0" Grid.Column="2" x:Name="HDTImportAppSourceBrowseButton"
+                    Margin="8,0,0,10" />
+            <Border Grid.Row="0" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTImportAppSourceHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTImportAppInstallLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportAppInstallBox"
+                     FontFamily="Consolas, Courier New" />
+            <Border Grid.Row="1" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTImportAppInstallHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <!-- WORKBENCH'S THREE, AND THE ID IS MADE OF THEM. '7-Zip' on its
+                 own is not an application: it is three of them a year apart,
+                 and a share where the difference between the version everybody
+                 runs and the one being piloted is somebody's memory of which
+                 folder is which installs the wrong one. -->
+            <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTImportAppPublisherLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportAppPublisherBox" />
+            <Border Grid.Row="2" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTImportAppPublisherHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTImportAppNameLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportAppNameBox" />
+
+            <TextBlock Grid.Row="4" Grid.Column="0" x:Name="HDTImportAppVersionLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportAppVersionBox" />
+
+            <!-- COMPOSED, AND STILL TYPEABLE. It fills in from the three above
+                 until somebody edits it, and then it is theirs: an id is the
+                 folder name and what every task sequence names, so a box that
+                 rewrote itself after a decision would be a box that renames the
+                 entry behind somebody's back. -->
+            <TextBlock Grid.Row="5" Grid.Column="0" x:Name="HDTImportAppIdLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportAppIdBox"
+                     FontFamily="Consolas, Courier New" />
+            <Border Grid.Row="5" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTImportAppIdHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <!-- WHAT IS WRONG WITH THE ANSWERS, said as they are typed rather
+                 than on the last press. Test-HDTConsoleImportApplication
+                 decides it; this shows it. It stays on the page and does not go
+                 behind a dot: a refusal nobody can see is a dialog whose Add
+                 button is greyed for no stated reason. -->
+            <TextBlock Grid.Row="6" Grid.ColumnSpan="4" x:Name="HDTImportAppMessageText"
+                       Foreground="{DynamicResource HDTErrorBrush}"
+                       TextWrapping="Wrap" Margin="0,4,0,0" />
+        </Grid>
+
+        <Border Grid.Row="2" Margin="16,0,16,0" Padding="0,8,0,8">
+            <TextBlock x:Name="HDTImportAppCommandText"
+                       Foreground="{DynamicResource HDTCommandTextBrush}"
+                       FontFamily="Consolas, Courier New" FontSize="11"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <Border Grid.Row="3" Background="{DynamicResource HDTFooterBrush}" Padding="16,12,16,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="HDTImportAppImportButton" MinWidth="96" IsDefault="True" />
+                <Button x:Name="HDTCancelButton" MinWidth="96" Margin="8,0,0,0" IsCancel="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

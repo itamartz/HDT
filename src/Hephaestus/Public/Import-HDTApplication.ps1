@@ -1,4 +1,4 @@
-function Import-HDTApplication {
+﻿function Import-HDTApplication {
     <#
         .SYNOPSIS
             Promotes an installer into the workspace's application catalog.
@@ -74,6 +74,13 @@ function Import-HDTApplication {
 
         .PARAMETER Description
             A free-text note for the console.
+
+        .PARAMETER Publisher
+            Who makes it. Workbench's first question about an application, and
+            what makes two entries called Reader tellable apart.
+
+        .PARAMETER Version
+            Which version this entry installs, as text a technician reads.
 
         .PARAMETER Uninstall
             The command line that removes it. Omitted when not given.
@@ -157,6 +164,16 @@ function Import-HDTApplication {
         [Parameter()]
         [string] $Description,
 
+        # WORKBENCH'S OTHER TWO QUESTIONS. Neither is required - a package with
+        # no version stated is still a package - and both are what
+        # Get-HDTApplicationName composes the display name and the id from, so
+        # the caller that asked for them has usually passed the result as -Id.
+        [Parameter()]
+        [string] $Publisher,
+
+        [Parameter()]
+        [string] $Version,
+
         [Parameter()]
         [string] $Uninstall,
 
@@ -211,6 +228,8 @@ function Import-HDTApplication {
     $document['id'] = $Id
     $document['name'] = $displayName
     if (-not [string]::IsNullOrWhiteSpace($Description)) { $document['description'] = $Description }
+    if (-not [string]::IsNullOrWhiteSpace($Publisher)) { $document['publisher'] = $Publisher }
+    if (-not [string]::IsNullOrWhiteSpace($Version)) { $document['version'] = $Version }
     $document['install'] = $Install
     if (-not [string]::IsNullOrWhiteSpace($Uninstall)) { $document['uninstall'] = $Uninstall }
     if ($PSBoundParameters.ContainsKey('SuccessCode')) { $document['successCodes'] = [int[]] $SuccessCode }

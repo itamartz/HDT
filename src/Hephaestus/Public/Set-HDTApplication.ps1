@@ -58,6 +58,15 @@
             reads in the console, in the wizard's application list and in a log
             line.
 
+        .PARAMETER Publisher
+            Who makes it. Part of what an administrator reads on the row; it
+            never changes the id, which is the folder name and what every task
+            sequence names.
+
+        .PARAMETER Version
+            Which version this entry installs, as text a technician reads. It is
+            not compared to anything and constrains nothing.
+
         .PARAMETER Description
             A free-text note for the console. Empty removes it.
 
@@ -137,6 +146,17 @@
         [AllowEmptyString()]
         [string] $Description,
 
+        # WHO MAKES IT AND WHICH VERSION. Changing either changes what the row
+        # SAYS and never what the entry is CALLED: the id is a folder name and
+        # what every sequence names, so a rename here would break the share.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Publisher,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Version,
+
         # WHICH FOLDER THE CONSOLE DRAWS IT UNDER. Empty takes it out of every
         # folder; the application never moves on disk either way - see the key's
         # note in Import-HDTSequenceDocument for why HDT's folders are labels
@@ -179,7 +199,7 @@
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $settable = @('Name', 'Description', 'Folder', 'Install', 'Uninstall', 'SuccessCode',
+    $settable = @('Name', 'Description', 'Publisher', 'Version', 'Folder', 'Install', 'Uninstall', 'SuccessCode',
         'RebootCode', 'RunIn', 'Dependency', 'Detect')
 
     $asked = @($settable | Where-Object { $PSBoundParameters.ContainsKey($_) })
@@ -220,6 +240,8 @@
     $keyForParameter = [ordered] @{
         Name        = 'name'
         Description = 'description'
+        Publisher   = 'publisher'
+        Version     = 'version'
         Folder      = 'folder'
         Install     = 'install'
         Uninstall   = 'uninstall'

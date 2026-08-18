@@ -78,11 +78,13 @@
     $categoryOf = @{
         TaskSequences    = 'TaskSequence'
         OperatingSystems = 'OperatingSystem'
+        Applications     = 'Application'
     }
 
     $itemOf = @{
         TaskSequence    = 'TaskSequence'
         OperatingSystem = 'OperatingSystem'
+        Application     = 'Application'
     }
 
     $category = ''

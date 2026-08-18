@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://hephaestus/schemas/app.schema.json",
   "title": "HDT app.yaml",
@@ -25,6 +25,14 @@
       "minLength": 1
     },
     "description": {
+      "type": "string"
+    },
+    "publisher": {
+      "description": "Who makes it - Workbench's first question about an application, and the reason two entries called Reader are tellable apart. Part of the display name and of the id composed from it.",
+      "type": "string"
+    },
+    "version": {
+      "description": "Which version this entry installs. Not a constraint and not compared to anything: it is what a technician reads to tell the version everybody runs from the one being piloted.",
       "type": "string"
     },
     "install": {

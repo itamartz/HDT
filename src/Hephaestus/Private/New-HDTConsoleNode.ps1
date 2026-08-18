@@ -87,7 +87,7 @@
         [int] $Depth,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Root', 'Share', 'Category', 'Folder', 'TaskSequence', 'OperatingSystem', 'BootImage', 'Empty',
+        [ValidateSet('Root', 'Share', 'Category', 'Folder', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
             'DriverStore', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 

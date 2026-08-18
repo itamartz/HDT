@@ -129,6 +129,115 @@
     [void] $node.Add($bootNode)
     [void] $bootCategory.Children.Add($bootNode)
 
+    # -- applications ------------------------------------------------------
+    #
+    # WORKBENCH'S THIRD CATEGORY, and the one an administrator changes weekly:
+    # media is imported once, sequences are written once, and the application
+    # list moves every time somebody ships a new version. The engine has had the
+    # whole catalog since M7 - Import, Get, Set, detection, dependency order -
+    # and none of it was on screen, so the part that changes most was the part
+    # that could only be reached from a prompt.
+
+    $appFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind Applications
+    $appCommand = "Get-HDTApplication -WorkspaceRoot '{0}' -FileSystem (New-HDTFileSystem)" -f $Workspace.Root
+
+    # NAMED, as the other two are: the window hangs New Application off this row
+    # and must tell it from the rest without parsing a label somebody may
+    # reword.
+    $appCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Name 'Applications' `
+        -Text ('Applications ({0})' -f @($Workspace.Application).Count) `
+        -Field @(
+        New-HDTConsoleField -Label 'Folder' -Value $appFolder
+        New-HDTConsoleField -Label 'Applications' -Value @($Workspace.Application).Count
+    ) `
+        -Command $appCommand -Header $header
+
+    [void] $node.Add($appCategory)
+    [void] $shareNode.Children.Add($appCategory)
+
+    $appRow = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($application in @($Workspace.Application)) {
+
+        # THE FOUR THAT CAN BE TYPED INTO, as on the other two rows: Workbench
+        # edits name, comments and both command lines on an application's
+        # Properties sheet. The id is not among them - it is the folder name and
+        # what a sequence names to select it, so changing it is a move.
+        $field = @(
+            New-HDTConsoleField -Label 'Id' -Value $application.Id
+            New-HDTConsoleField -Label 'Name' -Value $application.Name -Property 'name'
+            New-HDTConsoleField -Label 'Publisher' -Value (Get-HDTConsoleDisplayText -Text $application.Publisher -Fallback '(not recorded)') -Property 'publisher'
+            New-HDTConsoleField -Label 'Version' -Value (Get-HDTConsoleDisplayText -Text $application.Version -Fallback '(not recorded)') -Property 'version'
+            New-HDTConsoleField -Label 'Description' -Value ([string] $application.Description) -Property 'description'
+            New-HDTConsoleField -Label 'Install' -Value $application.Install -Property 'install'
+            New-HDTConsoleField -Label 'Uninstall' -Value (Get-HDTConsoleDisplayText -Text $application.Uninstall -Fallback '(none)') -Property 'uninstall'
+            New-HDTConsoleField -Label 'Runs in' -Value $application.RunIn
+            New-HDTConsoleField -Label 'Detection' -Value $application.Detection
+            New-HDTConsoleField -Label 'Depends on' -Value (Get-HDTConsoleDisplayText -Text (@($application.Dependency) -join ', ') -Fallback '(nothing)')
+            New-HDTConsoleField -Label 'Source' -Value $application.SourcePath
+            New-HDTConsoleField -Label 'Document' -Value $application.Path
+        )
+
+        # THE NAME, AND THE VERSION IF THE NAME DOES NOT ALREADY CARRY IT.
+        #
+        # NOT 'id - name', WHICH THE OTHER TWO CATEGORIES USE. An application's
+        # id is composed FROM its name and version (Get-HDTApplicationName), so
+        # a row showing both reads 'Igor-Pavlov-7-Zip-24.09 - Igor Pavlov 7-Zip
+        # 24.09': the same sentence twice, once with the spaces hyphenated. The
+        # id is on the row's own properties pane, where it is needed by whoever
+        # is writing a sequence that names it.
+        #
+        # AND THE VERSION IS WHAT MAKES TWO ENTRIES TELLABLE APART, so an entry
+        # whose name is just 'Acrobat Reader' gets it appended - and one whose
+        # name already ends with it does not say it twice.
+        $text = [string] $application.Name
+        $stated = [string] $application.Version
+
+        if (-not [string]::IsNullOrWhiteSpace($stated) -and $text -notmatch [regex]::Escape($stated)) {
+            $text = '{0} {1}' -f $text, $stated
+        }
+
+        if ($application.Status -eq 'Error') {
+            $text = '{0} - (unreadable)' -f $application.Id
+            $field = @(
+                New-HDTConsoleField -Label 'Id' -Value $application.Id
+                New-HDTConsoleField -Label 'Document' -Value $application.Path
+                New-HDTConsoleField -Label 'Could not be read' -Value $application.Error
+            )
+        }
+
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'Application' -Status $application.Status `
+            -Text $text -Field $field `
+            -Name $application.Id `
+            -Command ("Get-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
+                $Workspace.Root, $application.Id) `
+            -Header $header -Subject $application
+
+        $row | Add-Member -MemberType NoteProperty -Name 'Folder' `
+            -Value ([string] $application.Folder) -Force
+
+        [void] $appRow.Add($row)
+    }
+
+    $appGrouped = Group-HDTConsoleFolderRow -Row ([object[]] @($appRow)) -Depth 3 `
+        -Declared ([string[]] @($Workspace.Folder.Application)) -Category Application -Header $header
+
+    foreach ($current in @($appGrouped.Node)) { [void] $node.Add($current) }
+    foreach ($current in @($appGrouped.TopLevel)) { [void] $appCategory.Children.Add($current) }
+
+    if (@($Workspace.Application).Count -eq 0) {
+        $row = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
+            -Field @(
+            New-HDTConsoleField -Label 'Folder' -Value $appFolder
+            New-HDTConsoleField -Label '' -Value 'There is no application on this share yet. Add one with Import-HDTApplication; it lands as a folder under the folder above with an app.yaml and a source\ payload in it.'
+        ) `
+            -Command $appCommand -Header $header
+
+        [void] $node.Add($row)
+        [void] $appCategory.Children.Add($row)
+    }
+
     # -- operating systems -------------------------------------------------
 
     $osFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind OperatingSystems

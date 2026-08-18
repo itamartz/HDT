@@ -163,6 +163,29 @@ Describe 'Get-HDTConsoleFolderAction' {
         }
     }
 
+    Context 'an application' {
+
+        It 'takes the same three actions the other two do' {
+            $action = Get-HDTTestFolderAction -Row ([pscustomobject] @{
+                    Kind = 'Application'; Name = '7Zip-24.09'; Text = '7Zip-24.09 - 7-Zip'
+                    FolderCategory = 'Application'; FolderChoice = [string[]] @('Utilities')
+                })
+
+            $action.Category | Should -BeExactly 'Application'
+            $action.CanMove | Should -BeTrue
+            @($action.Choice) | Should -Be @('Utilities')
+        }
+
+        It 'makes a folder from its category' {
+            $action = Get-HDTTestFolderAction -Row ([pscustomobject] @{
+                    Kind = 'Category'; Name = 'Applications'; Text = 'Applications (2)'
+                })
+
+            $action.CanCreate | Should -BeTrue
+            $action.Category | Should -BeExactly 'Application'
+        }
+    }
+
     Context 'a row folders mean nothing to' {
 
         It 'offers nothing on <Kind>' -ForEach @(

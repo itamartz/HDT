@@ -47,6 +47,8 @@
         'HDTNewFolderMenuItem.Header' = 'New Folder'
         'HDTDeleteFolderMenuItem.Header' = 'Delete Folder'
         'HDTMoveToFolderMenuItem.Header' = 'Move to Folder'
+        'HDTNewApplicationMenuItem.Header' = 'New Application'
+        'HDTRemoveApplicationMenuItem.Header' = 'Remove Application'
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'
@@ -362,6 +364,25 @@
 
     # MDT's Import Operating System wizard, as one dialog:
     # ShowImportOperatingSystem.
+    # MDT's New Application wizard, as one dialog:
+    # Show-HDTConsole -> New-HDTConsoleHost.ShowImportApplication.
+    ImportApplication = @{
+
+        'HDTImportAppTitleText.Text' = 'New Application'
+        'HDTImportAppSourceLabel.Text' = 'Source folder'
+        'HDTImportAppSourceBrowseButton.Content' = 'Browse'
+        'HDTImportAppSourceHint.Text' = 'The folder holding the installer, not the installer itself. Everything in it is copied to the share, because an .msi usually needs its transform beside it.'
+        'HDTImportAppInstallLabel.Text' = 'Install'
+        'HDTImportAppInstallHint.Text' = 'What runs, silently, from inside that folder. For an .msi: msiexec.exe /i <file> /qn /norestart.'
+        'HDTImportAppPublisherLabel.Text' = 'Publisher'
+        'HDTImportAppPublisherHint.Text' = 'Who makes it. It is what tells two entries called Reader apart, and part of the name and the id composed below.'
+        'HDTImportAppNameLabel.Text' = 'Name'
+        'HDTImportAppVersionLabel.Text' = 'Version'
+        'HDTImportAppIdLabel.Text' = 'Id'
+        'HDTImportAppIdHint.Text' = 'The folder name under Applications, and what a task sequence names to install it. Composed from the three above until you type your own; it cannot be changed afterwards from here.'
+        'HDTImportAppImportButton.Content' = 'Add'
+    }
+
     ImportOperatingSystem = @{
 
         'HDTImportOsTitleText.Text' = 'Import Operating System'

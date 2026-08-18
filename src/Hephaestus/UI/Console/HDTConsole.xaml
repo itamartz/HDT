@@ -264,6 +264,8 @@
                         <MenuItem x:Name="HDTRemoveSequenceMenuItem" />
                         <MenuItem x:Name="HDTImportOperatingSystemMenuItem" />
                         <MenuItem x:Name="HDTRemoveOperatingSystemMenuItem" />
+                        <MenuItem x:Name="HDTNewApplicationMenuItem" />
+                        <MenuItem x:Name="HDTRemoveApplicationMenuItem" />
 
                         <!--
                             WORKBENCH'S FOLDERS. MDT nests task sequences and

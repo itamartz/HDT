@@ -161,6 +161,13 @@
         Id            = [string] (& $read 'id')
         Name          = [string] (& $read 'name')
         Description   = [string] (& $read 'description')
+
+        # WHO MAKES IT AND WHICH VERSION, which Workbench asks for and composes
+        # both names from - see Get-HDTApplicationName. Kept on the document so
+        # a catalog somebody has been running for a year can still say what a
+        # given entry actually is.
+        Publisher     = [string] (& $read 'publisher')
+        Version       = [string] (& $read 'version')
         # WHICH FOLDER THE CONSOLE DRAWS IT UNDER, and nothing else reads it.
         # See Import-HDTSequenceDocument for why HDT's folders are labels on a
         # document rather than real directories the way Workbench's are.

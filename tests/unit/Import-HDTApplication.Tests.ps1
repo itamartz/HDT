@@ -1,4 +1,4 @@
-# DESIGN 8: an application is a folder under Applications\ holding app.yaml and a
+﻿# DESIGN 8: an application is a folder under Applications\ holding app.yaml and a
 # source\ payload. DESIGN 2.1 fixes where it lands. Import-HDTApplication is the
 # only writer of that document, and it is the twin of Import-HDTOperatingSystem -
 # same verb, same injected filesystem, same "validate before you write" order.
@@ -417,6 +417,35 @@ Describe 'Import-HDTApplication' {
 
             (Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' -FileSystem $script:fileSystem).Name |
                 Should -BeExactly 'First'
+        }
+    }
+
+    Context 'who makes it and which version' {
+
+        # WORKBENCH ASKS FOR BOTH, and they are what tell two entries called
+        # Reader apart. Neither is required - a package with no version stated
+        # is still a package - and neither changes the id, which is the folder
+        # name and what every task sequence names.
+
+        It 'writes them when they are given' {
+            $null = Import-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem `
+                -Publisher 'Igor Pavlov' -Version '24.09'
+
+            $read = Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' -FileSystem $script:fileSystem
+
+            [string] $read.Publisher | Should -BeExactly 'Igor Pavlov'
+            [string] $read.Version | Should -BeExactly '24.09'
+        }
+
+        It 'leaves the keys out entirely when they are not' {
+            $null = Import-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem
+
+            $read = Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' -FileSystem $script:fileSystem
+
+            [string] $read.Publisher | Should -BeExactly ''
+            [string] $script:fileSystem.ReadAllText($script:catalogPath) | Should -Not -BeLike '*publisher*'
         }
     }
 

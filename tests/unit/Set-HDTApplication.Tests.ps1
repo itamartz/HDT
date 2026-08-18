@@ -1,4 +1,4 @@
-# The other half of the application catalog: Import-HDTApplication registers an
+﻿# The other half of the application catalog: Import-HDTApplication registers an
 # entry and refuses to replace one, and this changes an entry that exists.
 #
 # IT SPLICES, IT NEVER RE-SERIALISES. app.yaml is hand-edited from the day it is
@@ -138,6 +138,39 @@ Describe 'Set-HDTApplication' {
                 -SuccessCode @() -FileSystem $script:fileSystem
 
             $script:fileSystem.ReadAllText($script:catalogPath) | Should -Not -BeLike '*successCodes:*'
+        }
+    }
+
+    Context 'who makes it and which version' {
+
+        # THE TWO WORKBENCH ASKS FOR. Changing either changes what the row SAYS
+        # and never what the entry is CALLED - the id is the folder name and
+        # what every task sequence names, which is why there is no -Id here.
+
+        It 'adds them to a document that never had them' {
+            $null = Set-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -Publisher 'Igor Pavlov' -Version '24.09' -FileSystem $script:fileSystem
+
+            $read = Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' -FileSystem $script:fileSystem
+
+            [string] $read.Publisher | Should -BeExactly 'Igor Pavlov'
+            [string] $read.Version | Should -BeExactly '24.09'
+        }
+
+        It 'leaves the comments where they were' {
+            $null = Set-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -Publisher 'Igor Pavlov' -FileSystem $script:fileSystem
+
+            $script:fileSystem.ReadAllText($script:catalogPath) |
+                Should -BeLike '*# Run the sequence twice and it installs once.*'
+        }
+
+        It 'does not touch the id' {
+            $null = Set-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -Publisher 'Somebody Else' -Version '99' -FileSystem $script:fileSystem
+
+            (Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' -FileSystem $script:fileSystem).Id |
+                Should -BeExactly '7Zip-24.09'
         }
     }
 

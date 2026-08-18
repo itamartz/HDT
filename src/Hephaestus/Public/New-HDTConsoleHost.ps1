@@ -78,7 +78,7 @@
         # along with the colours.
         param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
             [string] $ThemeName = 'Light', [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '',
-            [string] $ImportOperatingSystemXaml = '')
+            [string] $ImportOperatingSystemXaml = '', [string] $ImportApplicationXaml = '')
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -403,7 +403,46 @@
                 if ($null -eq $selected) { return }
 
                 $kind = [string] $selected.Kind
-                if (@('TaskSequence', 'OperatingSystem', 'Share') -notcontains $kind) { return }
+                if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application') -notcontains $kind) { return }
+
+                # AN APPLICATION IS THE ONE THAT WRITES ITSELF. Set-HDTApplication
+                # takes a share and an id rather than lines, and saves - there is
+                # no Save-HDTApplicationDocument to pair it with, because splicing
+                # app.yaml is what Set-HDTApplicationLine already does inside it.
+                # So this row's edit is one call, and it returns before the
+                # read-set-save the other three share.
+                if ($kind -eq 'Application') {
+                    $splat = @{
+                        WorkspaceRoot = [string] $selected.HeaderRoot
+                        Id            = [string] $selected.Name
+                        Confirm       = $false
+                    }
+
+                    $key = [string] $row.Property
+                    $splat[$key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)] = $typed
+
+                    try {
+                        [void] (Set-HDTApplication @splat)
+                    } catch {
+                        # A REFUSAL PUTS THE BOX BACK, as everywhere else: a box
+                        # holding a value the document rejected is a lie about
+                        # what is on disk.
+                        $box.Text = [string] $row.Original
+                        $command.Text = [string] $_.Exception.Message
+                        return
+                    }
+
+                    $row.Original = $typed
+
+                    # THE ROW READS 'id - name', so only a rename makes the tree
+                    # stale - and rebuilding re-reads every open share.
+                    if ($key -eq 'name') { & $rebuildTree }
+
+                    $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -{2} '{3}'" -f
+                    $splat.WorkspaceRoot, $splat.Id, ($key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)), $typed
+
+                    return
+                }
 
                 # A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, because
                 # a workspace projection carries the root it was opened from as
@@ -542,6 +581,8 @@
         $removeSequence = $window.FindName('HDTRemoveSequenceMenuItem')
         $importOperatingSystem = $window.FindName('HDTImportOperatingSystemMenuItem')
         $removeOperatingSystem = $window.FindName('HDTRemoveOperatingSystemMenuItem')
+        $newApplication = $window.FindName('HDTNewApplicationMenuItem')
+        $removeApplication = $window.FindName('HDTRemoveApplicationMenuItem')
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
         $deleteFolder = $window.FindName('HDTDeleteFolderMenuItem')
@@ -596,6 +637,12 @@
 
                         $isOperatingSystem = ($null -ne $chosen -and [string] $chosen.Kind -eq 'OperatingSystem')
 
+                        $isAppCategory = ($null -ne $chosen -and
+                            [string] $chosen.Kind -eq 'Category' -and
+                            [string] $chosen.Name -eq 'Applications')
+
+                        $isApplication = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Application')
+
                         # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
                         # with none opens no menu.
                         $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
@@ -613,6 +660,15 @@
                             $importOperatingSystem.Visibility = [System.Windows.Visibility]::Visible
                         }
                         if ($isOperatingSystem) { $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
+
+                        $newApplication.Visibility = [System.Windows.Visibility]::Collapsed
+                        $removeApplication.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        # NO MARKUP, NO ITEM, as everywhere else on this menu.
+                        if ($isAppCategory -and -not [string]::IsNullOrWhiteSpace($ImportApplicationXaml)) {
+                            $newApplication.Visibility = [System.Windows.Visibility]::Visible
+                        }
+                        if ($isApplication) { $removeApplication.Visibility = [System.Windows.Visibility]::Visible }
 
                         # THE FOLDER ITEMS, AND THE ROW DECIDES WHICH.
                         # Get-HDTConsoleFolderAction is where that is worked out,
@@ -651,11 +707,11 @@
                         # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
                         # SIDES OF IT. A line at the top of a menu is a line
                         # nobody drew on purpose.
-                        if ($onFolderRow -and ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem)) {
+                        if ($onFolderRow -and ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication)) {
                             $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
                         }
 
-                        if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $onFolderRow)) {
+                        if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $onFolderRow)) {
                             $opening.Handled = $true
                         }
                     }.GetNewClosure())
@@ -802,6 +858,84 @@
                                                 $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
                     }.GetNewClosure())
 
+                # -- applications ----------------------------------------
+                #
+                # THE PART OF A SHARE THAT CHANGES WEEKLY, and until now the one
+                # part with no window at all. Both of these are one cmdlet call,
+                # like every other press here.
+                $newApplication.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                        $made = [string] $consoleHost.ShowImportApplication(
+                            $ImportApplicationXaml, $where, $Theme, $window)
+
+                        if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                        & $rebuildTree
+
+                        $command.Text = "Import-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $made
+                    }.GetNewClosure())
+
+                # REMOVE ASKS, AND THE DIALOG NAMES WHAT WOULD BREAK. A missing
+                # dependency is worse than a missing package: Resolve-HDTApplicationOrder
+                # refuses the whole plan, so removing this one can stop an
+                # unrelated application installing at all. -WhatIf answers that
+                # without removing anything, which is why it is asked first.
+                $removeApplication.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        $which = [string] $chosen.Name
+
+                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                            $command.Text = 'that row does not name a share and an application id, so there is nothing to remove.'
+                            return
+                        }
+
+                        $answer = $null
+
+                        try {
+                            $answer = Remove-HDTApplication -Workspace $where -Id $which -WhatIf
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        $warning = ''
+                        if (@($answer.UsedBy).Count -gt 0) {
+                            $warning = '{0}{0}These task sequences install it: {1}.' -f
+                            [System.Environment]::NewLine, (@($answer.UsedBy) -join ', ')
+                        }
+                        if (@($answer.RequiredBy).Count -gt 0) {
+                            $warning = '{0}{1}{1}These applications depend on it and will not install without it: {2}.' -f
+                            $warning, [System.Environment]::NewLine, (@($answer.RequiredBy) -join ', ')
+                        }
+
+                        $asked = [System.Windows.MessageBox]::Show($window,
+                            ("Remove the application '{0}' from{1}{2}?{1}{1}Its folder goes with it - app.yaml and the installer copied beside it. This cannot be undone from here.{3}" -f
+                                $which, [System.Environment]::NewLine, $where, $warning),
+                            'Remove Application',
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Warning,
+                            [System.Windows.MessageBoxResult]::No)
+
+                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                        try {
+                            [void] (Remove-HDTApplication -Workspace $where -Id $which -Confirm:$false)
+                            $command.Text = "Remove-HDTApplication -Workspace '{0}' -Id '{1}'" -f $where, $which
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                        }
+
+                        & $rebuildTree
+                    }.GetNewClosure())
+
                 # -- folders ---------------------------------------------
                 #
                 # WORKBENCH'S FOLDERS, ON A TREE THAT HAS NO DIRECTORIES TO
@@ -942,6 +1076,21 @@
                         $documentPath = [string] $chosen.Subject.Path
 
                         try {
+                            # AN APPLICATION WRITES ITSELF. Set-HDTApplication
+                            # takes a share and an id rather than lines, and
+                            # saves - so there is nothing here to read first.
+                            if ([string] $action.Category -eq 'Application') {
+                                [void] (Set-HDTApplication -WorkspaceRoot ([string] $chosen.HeaderRoot) `
+                                        -Id ([string] $chosen.Name) -Folder $typed -Confirm:$false)
+
+                                & $rebuildTree
+
+                                $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Folder '{2}'" -f
+                                [string] $chosen.HeaderRoot, [string] $chosen.Name, $typed
+
+                                return
+                            }
+
                             $fileSystem = New-HDTFileSystem
                             $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
 
@@ -1205,6 +1354,172 @@
     }
 
     $service | Add-Member -MemberType NoteProperty -Name ImportedOperatingSystemId -Value ''
+
+    # MDT'S New Application WIZARD, as one dialog. The same adapter as the one
+    # above it: load markup, fill text from the string table, ask
+    # Test-HDTConsoleImportApplication on every keystroke, call one cmdlet on the
+    # press. Every decision it makes was made in that command, against no window.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowImportApplication -Value {
+        param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'ImportApplication'))
+
+        $rootText = $dialog.FindName('HDTImportAppRootText')
+        $sourceBox = $dialog.FindName('HDTImportAppSourceBox')
+        $sourceBrowse = $dialog.FindName('HDTImportAppSourceBrowseButton')
+        $installBox = $dialog.FindName('HDTImportAppInstallBox')
+        $idBox = $dialog.FindName('HDTImportAppIdBox')
+        $publisherBox = $dialog.FindName('HDTImportAppPublisherBox')
+        $nameBox = $dialog.FindName('HDTImportAppNameBox')
+        $versionBox = $dialog.FindName('HDTImportAppVersionBox')
+        $messageText = $dialog.FindName('HDTImportAppMessageText')
+        $commandText = $dialog.FindName('HDTImportAppCommandText')
+        $import = $dialog.FindName('HDTImportAppImportButton')
+
+        $rootText.Text = $Workspace
+
+        # THE ID IS COMPOSED UNTIL SOMEBODY TYPES ONE, and from then on it is
+        # theirs. Workbench composes both names from publisher, name and version
+        # (Get-HDTApplicationName); an id is the folder name and what every task
+        # sequence names, so a box that rewrote itself after a decision would
+        # rename the entry behind somebody's back.
+        #
+        # $mine IS SET BY THE TYPING, NOT BY THE WRITING - assigning .Text
+        # raises TextChanged too, so the flag is lowered around the assignment
+        # and a real keystroke is the only thing that can raise it.
+        $mine = @{ Id = $false; Writing = $false }
+
+        $idBox.Add_TextChanged({
+                if (-not $mine.Writing) { $mine.Id = $true }
+            }.GetNewClosure())
+
+        $check = {
+            $composed = Get-HDTApplicationName -Publisher ([string] $publisherBox.Text) `
+                -Name ([string] $nameBox.Text) -Version ([string] $versionBox.Text)
+
+            if (-not $mine.Id) {
+                $wanted = [string] $composed.Id
+
+                # THE SOURCE FOLDER IS THE FALLBACK, as it was before there were
+                # three boxes to compose from: a package dropped in with nothing
+                # typed still gets an id offered.
+                if ([string]::IsNullOrWhiteSpace($wanted)) {
+                    $fromSource = Test-HDTConsoleImportApplication -Workspace $Workspace `
+                        -SourcePath ([string] $sourceBox.Text)
+
+                    $wanted = [string] $fromSource.SuggestedId
+                }
+
+                if ([string] $idBox.Text -ne $wanted) {
+                    $mine.Writing = $true
+                    $idBox.Text = $wanted
+                    $mine.Writing = $false
+                }
+            }
+
+            $answer = Test-HDTConsoleImportApplication -Workspace $Workspace `
+                -Id ([string] $idBox.Text) -SourcePath ([string] $sourceBox.Text) `
+                -Install ([string] $installBox.Text)
+
+            $import.IsEnabled = [bool] $answer.CanImport
+            $messageText.Text = [string] $answer.Message
+
+            $commandText.Text = "Import-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -SourcePath '{2}' -Install '{3}'" -f
+            $Workspace, [string] $idBox.Text, [string] $sourceBox.Text, [string] $installBox.Text
+        }.GetNewClosure()
+
+        $sourceBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $installBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $publisherBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $nameBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $versionBox.Add_TextChanged({ & $check }.GetNewClosure())
+
+        & $check
+
+        # A FOLDER, NOT A FILE, which is what this import takes - and WPF's file
+        # picker cannot choose one. OpenFileDialog with a placeholder name is
+        # the trick every tool uses; the folder is what gets kept.
+        $sourceBrowse.Add_Click({
+                $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $picker.Title = 'Open the folder holding the installer, and press Open'
+                $picker.CheckFileExists = $false
+                $picker.FileName = 'this folder'
+                $picker.Filter = 'All files (*.*)|*.*'
+
+                if ($picker.ShowDialog() -ne $true) { return }
+
+                $sourceBox.Text = [string] [System.IO.Path]::GetDirectoryName($picker.FileName)
+            }.GetNewClosure())
+
+        $this.ImportedApplicationId = ''
+        $dialogHost = $this
+
+        $import.Add_Click({
+                try {
+                    $splat = @{
+                        WorkspaceRoot = $Workspace
+                        Id            = [string] $idBox.Text
+                        SourcePath    = [string] $sourceBox.Text
+                        Install       = [string] $installBox.Text
+                        FileSystem    = New-HDTFileSystem
+                        Confirm       = $false
+                    }
+
+                    # THE DISPLAY NAME IS COMPOSED THE WAY WORKBENCH COMPOSES
+                    # IT - publisher, name, version - so the row reads '7-Zip
+                    # 24.09' rather than '7-Zip' three times over.
+                    $composed = Get-HDTApplicationName -Publisher ([string] $publisherBox.Text) `
+                        -Name ([string] $nameBox.Text) -Version ([string] $versionBox.Text)
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $composed.Display)) {
+                        $splat['Name'] = [string] $composed.Display
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $publisherBox.Text)) {
+                        $splat['Publisher'] = [string] $publisherBox.Text
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $versionBox.Text)) {
+                        $splat['Version'] = [string] $versionBox.Text
+                    }
+
+                    # COPYING THE PAYLOAD TAKES A MOMENT, and an installer folder
+                    # is megabytes rather than the gigabytes an OS import moves -
+                    # so a wait cursor, not the progress window.
+                    $dialog.Cursor = [System.Windows.Input.Cursors]::Wait
+
+                    $made = Import-HDTApplication @splat
+
+                    $dialogHost.ImportedApplicationId = [string] $made.Id
+                    $dialog.DialogResult = $true
+                } catch {
+                    # THE REFUSAL LANDS ON THE PAGE, not in a message box over a
+                    # dialog that has already closed.
+                    $messageText.Text = [string] $_.Exception.Message
+                } finally {
+                    $dialog.Cursor = $null
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return [string] $this.ImportedApplicationId
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name ImportedApplicationId -Value ''
 
     $service | Add-Member -MemberType ScriptMethod -Name ShowNewSequence -Value {
         param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
@@ -3409,11 +3724,14 @@
         & $bootstrapRulesTab.Fill
         & $bootstrapRulesTab.Judge
 
-        # -- the share credential, which is not a line in the document -------
+        # -- Save, which writes workspace.yaml and nothing else --------------
         #
-        # Set-HDTShareCredential stores it protected beside the share rather
-        # than writing a password into workspace.yaml, so it is not part of the
-        # workspace Save and has its own button.
+        # THE SHARE CREDENTIAL IS NOT HERE, and no control on this window sets
+        # it. Setting it writes two things - credential.username into
+        # workspace.yaml and a protected secret into
+        # Control\share-credential.json - and a box writing one would leave a
+        # share declaring an account no secret exists for, which is a build that
+        # refuses. Set-HDTShareCredential does both halves.
         #
         $save.Add_Click({
                 $propertySplat = @{ Line = $book.Line; Confirm = $false }
