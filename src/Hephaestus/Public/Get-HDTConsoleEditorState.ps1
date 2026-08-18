@@ -111,6 +111,20 @@
 
         [Parameter()]
         [switch] $Dirty
+,
+
+        # WHAT THE HOST ALREADY PARSED. The editor rebuilds its whole right
+        # pane after every edit and four view models each turned the same lines
+        # back into a document to do it - about 70ms apiece, on the UI thread,
+        # while somebody waited for a checkbox to tick.
+        #
+        # THE HOST GUARANTEES THEY AGREE: it parses $book.Line once and hands
+        # the result to all four in the same refresh. Omitted, this parses the
+        # lines exactly as it always did, which is what a script or a test
+        # wants.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Document
     )
 
     Set-StrictMode -Version Latest
@@ -118,11 +132,18 @@
 
     $status = 'Ok'
     $message = ''
-    $document = $null
+    $sequence = $null
 
     try {
-        $reader = New-HDTFileSystemFromText -Path $Path -Text ($Line -join [System.Environment]::NewLine)
-        $document = Import-HDTSequenceDocument -Path $Path -FileSystem $reader
+        # HANDED IN? THEN NOTHING IS RE-READ. See the -Document help above. The
+        # try still wraps it: a document the host parsed is already known good,
+        # and one it did not is the case this catch exists for.
+        if ($null -ne $Document) {
+            $sequence = $Document
+        } else {
+            $reader = New-HDTFileSystemFromText -Path $Path -Text ($Line -join [System.Environment]::NewLine)
+            $sequence = Import-HDTSequenceDocument -Path $Path -FileSystem $reader
+        }
     } catch {
         $status = 'Error'
         $message = [string] $_.Exception.Message
@@ -154,12 +175,12 @@
     # document, so the document is presented as one. Nothing is invented: every
     # field below is either the document's own or the path it was read from.
     $sequence = [pscustomobject] @{
-        Id     = [string] $document.Id
-        Name   = [string] $document.Name
+        Id     = [string] $sequence.Id
+        Name   = [string] $sequence.Name
         Path   = [string] $Path
         Status = 'Ok'
-        Step   = @($document.Step)
-        Group  = @($document.Group)
+        Step   = @($sequence.Step)
+        Group  = @($sequence.Group)
     }
 
     # -- the Variables tab ---------------------------------------------------
@@ -176,8 +197,8 @@
 
     $variableRow = New-Object -TypeName System.Collections.ArrayList
 
-    if ($null -ne $document.PSObject.Properties['Variable'] -and $null -ne $document.Variable) {
-        foreach ($name in @($document.Variable.Keys)) {
+    if ($null -ne $sequence.PSObject.Properties['Variable'] -and $null -ne $sequence.Variable) {
+        foreach ($name in @($sequence.Variable.Keys)) {
             $hint = 'Not one of the variables HDT publishes - a step in this sequence reads it.'
             $mdtName = ''
 
@@ -188,7 +209,7 @@
 
             [void] $variableRow.Add([pscustomobject] @{
                     Name    = [string] $name
-                    Value   = [string] $document.Variable[$name]
+                    Value   = [string] $sequence.Variable[$name]
                     Hint    = $hint
                     MdtName = $mdtName
                 })
@@ -196,9 +217,9 @@
     }
 
     $header = [pscustomobject] @{
-        Title      = '{0} - {1}' -f $document.Id, $document.Name
+        Title      = '{0} - {1}' -f $sequence.Id, $sequence.Name
         Root       = [string] $Path
-        DeployRoot = [string] $document.Id
+        DeployRoot = [string] $sequence.Id
     }
 
     $built = Get-HDTConsoleStepNode -Sequence $sequence -Header $header
@@ -212,8 +233,8 @@
     $canMoveDown = $false
 
     if (-not [string]::IsNullOrEmpty($SelectedName)) {
-        $step = @($document.Step | Where-Object { $_.Name -eq $SelectedName })
-        $group = @($document.Group | Where-Object { @($_.Path).Count -gt 0 -and $_.Path[-1] -eq $SelectedName })
+        $step = @($sequence.Step | Where-Object { $_.Name -eq $SelectedName })
+        $group = @($sequence.Group | Where-Object { @($_.Path).Count -gt 0 -and $_.Path[-1] -eq $SelectedName })
 
         $subject = $null
         $sibling = @()
@@ -225,7 +246,7 @@
             # step of one group is not the neighbour of the first step of the
             # next, however adjacent they look on screen.
             $key = @($subject.GroupPath) -join "`u{001F}"
-            $sibling = @($document.Step | Where-Object { (@($_.GroupPath) -join "`u{001F}") -eq $key })
+            $sibling = @($sequence.Step | Where-Object { (@($_.GroupPath) -join "`u{001F}") -eq $key })
         } elseif (@($group).Count -gt 0) {
             $subject = $group[0]
 
@@ -240,7 +261,7 @@
             $depth = $groupPath.Count
             $parent = Get-HDTGroupParent -Path $groupPath
 
-            $sibling = @($document.Group | Where-Object {
+            $sibling = @($sequence.Group | Where-Object {
                     $other = @($_.Path)
 
                     $other.Count -eq $depth -and (Get-HDTGroupParent -Path $other) -eq $parent
@@ -272,7 +293,7 @@
 
     $found = ($null -ne $option)
 
-    $count = @($document.Step).Count
+    $count = @($sequence.Step).Count
 
     $statusText = '{0} steps' -f $count
     if ($Dirty) { $statusText = '{0} steps - unsaved changes' -f $count }

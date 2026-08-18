@@ -145,3 +145,94 @@ Describe 'Set-HDTTaskSequenceProperty' {
             Should -Throw
     }
 }
+
+Describe 'a description written as a folded block' {
+
+    # THE ONE THE TEMPLATE ITSELF WRITES, and the shape every sequence created
+    # from it carries:
+    #
+    #     description: >
+    #       Deploys Windows to a bare machine: validate it, lay out the disk
+    #       for its firmware, apply the image ...
+    #
+    # THE SPLICE REPLACED ONE LINE AND LEFT THE REST. The continuation lines
+    # stayed behind with nothing to belong to, so the next key parsed as part of
+    # a scalar and the document came back
+    #
+    #     sequence.yaml(35): ... While scanning a plain scalar value, found
+    #     invalid mapping.
+    #
+    # Reported from the console's detail pane, where the description looked as
+    # though it kept resetting - it did: the write was refused and the pane
+    # refilled from the file.
+
+    BeforeAll {
+        $script:foldedLine = [string[]] @(
+            'schemaVersion: 1'
+            'id: DEMO'
+            'name: Demo'
+            'description: >'
+            '  Deploys Windows to a bare machine: validate it, lay out the disk for its'
+            '  firmware, apply the image, stage the answer file, and make it boot.'
+            ''
+            'variables:'
+            '  HDTOSImage: Win11-LTSC-2024'
+            ''
+            'steps:'
+            '  - name: Gather'
+            '    type: Gather'
+        )
+    }
+
+    It 'replaces the whole block, not only the key line' {
+        $after = Set-HDTTaskSequenceProperty -Line $script:foldedLine -Description 'Shorter' -Confirm:$false
+
+        @($after | Where-Object { $_ -like '*lay out the disk*' }) | Should -BeNullOrEmpty
+        @($after | Where-Object { $_ -like '*stage the answer file*' }) | Should -BeNullOrEmpty
+    }
+
+    It 'leaves a document the engine can still read' {
+        $after = Set-HDTTaskSequenceProperty -Line $script:foldedLine -Description 'Shorter' -Confirm:$false
+
+        $document = InModuleScope -ModuleName 'Hephaestus' -Parameters @{ Body = $after } {
+            param($Body)
+            ConvertFrom-HDTSequenceLine -Line ([string[]] $Body)
+        }
+
+        $document.Description | Should -BeExactly 'Shorter'
+        @($document.Step).Count | Should -Be 1
+    }
+
+    It 'keeps the keys that follow it' {
+        $after = Set-HDTTaskSequenceProperty -Line $script:foldedLine -Description 'Shorter' -Confirm:$false
+
+        $after | Should -Contain 'variables:'
+        $after | Should -Contain '  HDTOSImage: Win11-LTSC-2024'
+        $after | Should -Contain 'steps:'
+    }
+
+    It 'removes the whole block when the description is cleared' {
+        $after = Set-HDTTaskSequenceProperty -Line $script:foldedLine -Description '' -Confirm:$false
+
+        @($after | Where-Object { $_ -like 'description*' }) | Should -BeNullOrEmpty
+        @($after | Where-Object { $_ -like '*lay out the disk*' }) | Should -BeNullOrEmpty
+
+        $document = InModuleScope -ModuleName 'Hephaestus' -Parameters @{ Body = $after } {
+            param($Body)
+            ConvertFrom-HDTSequenceLine -Line ([string[]] $Body)
+        }
+
+        @($document.Step).Count | Should -Be 1
+    }
+
+    It 'leaves a single-line description alone, which is the ordinary case' {
+        $plain = [string[]] @(
+            'schemaVersion: 1'; 'id: DEMO'; 'name: Demo'; 'description: One line'
+            'steps:'; '  - name: Gather'; '    type: Gather')
+
+        $after = Set-HDTTaskSequenceProperty -Line $plain -Description 'Another line' -Confirm:$false
+
+        $after | Should -Contain 'description: Another line'
+        $after | Should -Contain 'steps:'
+    }
+}

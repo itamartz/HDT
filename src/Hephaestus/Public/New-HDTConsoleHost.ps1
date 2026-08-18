@@ -1294,8 +1294,6 @@
         $paste = $window.FindName('HDTPasteButton')
         $save = $window.FindName('HDTSaveButton')
 
-        $propertyApply = $window.FindName('HDTPropertyApplyButton')
-        $propertyRevert = $window.FindName('HDTPropertyRevertButton')
 
         $disableCheck = $window.FindName('HDTDisableCheck')
         $continueCheck = $window.FindName('HDTContinueCheck')
@@ -1404,6 +1402,14 @@
             ImageVariable = ''
             IndexVariable = ''
             Choice    = [string[]] @()
+
+            # THE PROPERTY BOXES, BANKED. Set once the scriptblock exists;
+            # handlers written above it reach it through here.
+            Bank      = $null
+
+            # THE SHARE'S OPERATING SYSTEMS, read once when the editor opens.
+            # See the note beside Get-HDTConsoleImageChoice below.
+            Catalog   = $null
             IndexWritten = ''
             IndexShown = ''
             Quiet     = $false
@@ -1426,9 +1432,43 @@
         # "Not Responding" with no error anywhere to read. Reflect never touches
         # the tree; Rebuild is the only thing that does, and it runs only after
         # an edit.
+        # ONCE, HERE, RATHER THAN ON EVERY REFRESH BELOW.
+        $book.Catalog = @()
+        try {
+            $book.Catalog = @((Get-HDTConsoleWorkspace -Path $workspaceRoot `
+                        -FileSystem (New-HDTFileSystem)).OperatingSystem)
+        } catch {
+            # A share that will not read leaves the list empty and the editor
+            # open - the same bargain Get-HDTConsoleImageChoice makes.
+            $book.Catalog = @()
+        }
+
         $reflect = {
+            # ONE PARSE, HANDED TO ALL FOUR. Each of these view models used to
+            # turn the same lines back into a document - about 70ms apiece, on
+            # the UI thread, after every edit. Parsing once here is the rest of
+            # the fix that started with the catalogue.
+            #
+            # A DOCUMENT THAT WILL NOT PARSE IS $null, and each of them then
+            # falls back to reading the lines itself and reports the failure the
+            # way it always did - Get-HDTConsoleEditorState's Error status is
+            # what puts the message on the title bar.
+            $parsed = $null
+
+            try {
+                $parsed = & (Get-Module -Name 'Hephaestus') {
+                    param($Body, $Where)
+
+                    Import-HDTSequenceDocument -Path $Where -FileSystem (
+                        New-HDTFileSystemFromText -Path $Where `
+                            -Text (($Body) -join [System.Environment]::NewLine))
+                } $book.Line $Path
+            } catch {
+                $parsed = $null
+            }
+
             $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path `
-                -SelectedName $book.Selected `
+                -SelectedName $book.Selected -Document $parsed `
                 -HasClipboard:($null -ne $book.Clipboard) -Dirty:$book.Dirty
 
             $book.State = $state
@@ -1459,8 +1499,6 @@
             $conditionClear.IsEnabled = $state.CanRemove
             $disableCheck.IsEnabled = $state.CanRemove
             $continueCheck.IsEnabled = $state.CanRemove
-            $propertyApply.IsEnabled = $state.CanRemove
-            $propertyRevert.IsEnabled = $state.CanRemove
 
             $option = $state.Option
 
@@ -1475,15 +1513,23 @@
             # decides both whether it belongs on screen and everything on it; this
             # assigns. The selection is put back by name because the row objects
             # are rebuilt every time.
-            $view = Get-HDTConsolePartitionRow -Line $book.Line -Path $Path -Name $book.Selected
+            $view = Get-HDTConsolePartitionRow -Line $book.Line -Path $Path -Name $book.Selected -Document $parsed
 
             $diskTab.Visibility = [System.Windows.Visibility]::Collapsed
             if ($view.IsDiskStep) { $diskTab.Visibility = [System.Windows.Visibility]::Visible }
 
             # THE OPERATING SYSTEM PAGE, on the same rule as the disk one: MDT's
             # Install Operating System dialog IS that step's properties page.
+            # THE CATALOGUE IS HANDED IN, READ ONCE. Reading the share's whole
+            # operating system list costs about half a second, and this runs on
+            # every edit - which froze the window for roughly a second per click
+            # and made the Save button look like it was lagging behind.
+            #
+            # It belongs to the share, not to a keystroke: closing and reopening
+            # the editor picks up an image imported meanwhile, which is the same
+            # bargain the Windows PE window makes with the ADK component list.
             $imageChoice = Get-HDTConsoleImageChoice -Line $book.Line -Path $Path `
-                -Name $book.Selected -Workspace $workspaceRoot
+                -Name $book.Selected -Workspace $workspaceRoot -Catalog $book.Catalog -Document $parsed
 
             $imageTab.Visibility = [System.Windows.Visibility]::Collapsed
 
@@ -1547,7 +1593,7 @@
             # THE VALIDATION PAGE, on the same rule as the disk one. MDT's
             # Validate dialog IS that step's properties page, so the generic tab
             # goes with it.
-            $validate = Get-HDTConsoleValidateCheck -Line $book.Line -Path $Path -Name $book.Selected
+            $validate = Get-HDTConsoleValidateCheck -Line $book.Line -Path $Path -Name $book.Selected -Document $parsed
 
             $validateTab.Visibility = [System.Windows.Visibility]::Collapsed
             if ($validate.IsValidateStep) {
@@ -1832,6 +1878,16 @@
         # THE ONLY PRESS THAT TOUCHES THE SHARE. Save-HDTSequenceDocument checks
         # the result through the engine's own reader before it writes.
         $save.Add_Click({
+                # WHAT IS IN THE BOXES IS PART OF WHAT IS BEING SAVED. Without
+                # this, Save wrote the document as it was before the last thing
+                # anybody typed - which is the failure a separate Apply button
+                # was avoiding by making them press twice.
+                #
+                # THROUGH THE BOOK, because $bankProperties is created three
+                # hundred lines below this handler and GetNewClosure captures by
+                # VALUE - a closure taken here would have captured $null.
+                if ($null -ne $book.Bank) { & $book.Bank }
+
                 [void] (Save-HDTSequenceDocument -Path $Path -Line $book.Line -FileSystem (New-HDTFileSystem) -Confirm:$false)
                 $book.Dirty = $false
                 & $rebuild
@@ -1860,8 +1916,24 @@
         # Get-HDTConsoleStepChange which of them were typed into and splices
         # exactly those. A rename comes back last, so the earlier changes still
         # find the step by the name it had when the tab was filled.
-        $propertyApply.Add_Click({
+        # THE PROPERTY BOXES ARE BANKED AT THE TWO MOMENTS THEY HAVE TO BE, and
+        # there is no Apply button any more.
+        #
+        # WHY THERE WAS ONE. The rows are an edit buffer - Text is bound TwoWay -
+        # so something has to decide when typing becomes a splice.
+        # Get-HDTConsoleStepChange answers WHICH rows were typed into; the
+        # question was only WHEN to ask it.
+        #
+        # THE ANSWER IS: before Save writes, and before the pane is refilled for
+        # another step. One toolbar Save is what an administrator expects to
+        # commit a window, and a second commit button on one tab of five taught
+        # that the other four did not need one.
+        #
+        # THE RENAME COMES BACK LAST, exactly as it did before: earlier changes
+        # still find the step by the name it had when the tab was filled.
+        $bankProperties = {
                 $subject = $book.Selected
+                if ([string]::IsNullOrWhiteSpace($subject)) { return }
 
                 foreach ($one in @(Get-HDTConsoleStepChange -Field $detail.ItemsSource -Name $subject)) {
                     $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
@@ -1877,14 +1949,9 @@
                 }
 
                 $book.Selected = $subject
-                & $rebuild
-            }.GetNewClosure())
+            }.GetNewClosure()
 
-        # REVERT IS A REBUILD, because the rows are rebuilt from the lines and
-        # the lines are what has not been typed into.
-        $propertyRevert.Add_Click({
-                & $rebuild
-            }.GetNewClosure())
+        $book.Bank = $bankProperties
 
         $conditionApply.Add_Click({
                 $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected `
@@ -2264,6 +2331,12 @@
         $tree.Add_SelectedItemChanged({
                 $selected = $tree.SelectedItem
                 if ($null -eq $selected) { return }
+
+                # BANK THE LAST STEP'S BOXES BEFORE THE PANE IS REFILLED.
+                # Without this, clicking another step throws away what was typed
+                # into this one - silently, which is worse than the extra button
+                # that used to be here.
+                if ($null -ne $book.Bank -and -not $book.Quiet) { & $book.Bank }
 
                 $detail.ItemsSource = $selected.Field
                 $command.Text = [string] $selected.Command

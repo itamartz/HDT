@@ -471,3 +471,50 @@ Describe 'the editions follow the image, not the document' {
         }
     }
 }
+
+Describe 'the catalogue it is handed' {
+
+    # 577 MILLISECONDS, ON EVERY CLICK. The editor refreshes the whole right
+    # pane after every edit, and this command re-read the share's entire
+    # operating system catalogue each time - every os.yaml, off disk, while
+    # somebody was waiting for a checkbox to tick. The window froze for about a
+    # second per interaction and the Save button appeared to lag behind.
+    #
+    # INJECTED, LIKE THE ADK COMPONENTS AND THE DRIVER GROUPS ON THE Windows PE
+    # WINDOW. The list belongs to the share, not to a keystroke: the host reads
+    # it once when the editor opens and hands it to every refresh, which is the
+    # same arrangement Get-HDTConsoleBootImageSetting already uses and for the
+    # same reason.
+
+    BeforeAll {
+        $script:cataloguePath = 'C:\ws\TaskSequences\DEMO\sequence.yaml'
+        $script:catalogueLine = [string[]] @(
+            'schemaVersion: 1'; 'id: DEMO'; 'name: Demo'; 'steps:'
+            '  - name: Install Operating System'; '    type: ApplyImage'
+            '    os: WS2025-Std'; '    target: primary')
+    }
+
+    It 'uses the catalogue it was given rather than reading the share' {
+        $handed = @([pscustomobject] @{
+                Id = 'WS2025-Std'; Name = 'Windows Server 2025'
+                Image = [pscustomobject[]] @()
+            })
+
+        $choice = Get-HDTConsoleImageChoice -Line $script:catalogueLine -Path $script:cataloguePath `
+            -Name 'Install Operating System' -Workspace 'C:
+owhere-at-all' `
+            -FileSystem (New-HDTFakeFileSystem) -Catalog $handed
+
+        # The workspace path above does not exist. Reading it would have
+        # produced an empty list and 'not in this share' beside the image.
+        @($choice.Image | Where-Object { $_.Id -eq 'WS2025-Std' })[0].Missing | Should -BeFalse
+    }
+
+    It 'still reads the share when it is handed nothing' {
+        # A caller with no catalogue to hand - a test, a script - gets the old
+        # behaviour rather than an empty list.
+        (Get-Command -Name 'Get-HDTConsoleImageChoice').Parameters['Catalog'].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+            ForEach-Object { $_.Mandatory } | Should -Not -Contain $true
+    }
+}

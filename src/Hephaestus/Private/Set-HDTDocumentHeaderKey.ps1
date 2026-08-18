@@ -114,11 +114,45 @@
         }
     }
 
+    # WHERE THE KEY'S VALUE ENDS, WHICH IS NOT ALWAYS ITS OWN LINE. The template
+    # writes the description as a folded block:
+    #
+    #     description: >
+    #       Deploys Windows to a bare machine: validate it, lay out the disk
+    #       for its firmware, apply the image ...
+    #
+    # and replacing only the 'description: >' line left those continuation lines
+    # behind with nothing to belong to - so the next key parsed as part of a
+    # scalar and the whole document came back as "found invalid mapping". It was
+    # reported from the console as a description that kept resetting: the write
+    # was refused and the pane refilled from the file.
+    #
+    # A CONTINUATION IS AN INDENTED LINE, and a blank one inside the block
+    # belongs to it too - but a blank line at the END is the separator before
+    # the next key, so the run stops at the last indented line rather than at
+    # the next key.
+    $end = $at
+
+    if ($at -ge 0) {
+        $last = $at
+
+        for ($i = $at + 1; $i -lt @($Line).Count; $i++) {
+            $current = [string] $Line[$i]
+
+            if ([string]::IsNullOrWhiteSpace($current)) { continue }
+            if ($current -notmatch '^\s') { break }
+
+            $last = $i
+        }
+
+        $end = $last
+    }
+
     $result = New-Object -TypeName System.Collections.ArrayList
 
     for ($i = 0; $i -lt @($Line).Count; $i++) {
-        if ($at -ge 0 -and $i -eq $at) {
-            if (-not $clear) { [void] $result.Add($written) }
+        if ($at -ge 0 -and $i -ge $at -and $i -le $end) {
+            if ($i -eq $at -and -not $clear) { [void] $result.Add($written) }
             continue
         }
 

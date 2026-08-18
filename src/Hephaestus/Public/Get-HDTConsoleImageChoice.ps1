@@ -72,7 +72,33 @@
 
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # THE SHARE'S CATALOGUE, HANDED IN. Reading it costs about half a
+        # second, and the editor refreshes the whole right pane after every
+        # edit - so re-reading it per click froze the window for roughly a
+        # second at a time and made the Save button look like it was lagging.
+        #
+        # It belongs to the share, not to a keystroke: the host reads it once
+        # when the editor opens. Omitted, this reads the share as it always did,
+        # which is what a script or a test wants.
+        [Parameter()]
+        [AllowNull()]
+        [object[]] $Catalog
+,
+
+        # WHAT THE HOST ALREADY PARSED. The editor rebuilds its whole right
+        # pane after every edit and four view models each turned the same lines
+        # back into a document to do it - about 70ms apiece, on the UI thread,
+        # while somebody waited for a checkbox to tick.
+        #
+        # THE HOST GUARANTEES THEY AGREE: it parses $book.Line once and hands
+        # the result to all four in the same refresh. Omitted, this parses the
+        # lines exactly as it always did, which is what a script or a test
+        # wants.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Document
     )
 
     Set-StrictMode -Version Latest
@@ -80,10 +106,15 @@
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
-    $reader = New-HDTFileSystemFromText -Path $Path -Text ($Line -join [System.Environment]::NewLine)
-    $document = Import-HDTSequenceDocument -Path $Path -FileSystem $reader
+    # HANDED IN? THEN NOTHING IS RE-READ. See the -Document help above.
+    if ($null -ne $Document) {
+        $sequence = $Document
+    } else {
+        $reader = New-HDTFileSystemFromText -Path $Path -Text ($Line -join [System.Environment]::NewLine)
+        $sequence = Import-HDTSequenceDocument -Path $Path -FileSystem $reader
+    }
 
-    $step = @($document.Step | Where-Object { $_.Name -eq $Name })
+    $step = @($sequence.Step | Where-Object { $_.Name -eq $Name })
 
     $isImageStep = (@($step).Count -gt 0 -and [string] $step[0].Type -eq 'ApplyImage')
 
@@ -124,8 +155,8 @@
     if ($written -match '^\s*%([^%]+)%\s*$') {
         $token = [string] $Matches[1]
 
-        if ($null -ne $document.Variable -and $document.Variable.Contains($token)) {
-            $selected = [string] $document.Variable[$token]
+        if ($null -ne $sequence.Variable -and $sequence.Variable.Contains($token)) {
+            $selected = [string] $sequence.Variable[$token]
             $imageVariable = $token
             $note = 'This step names the image through %{0}%, which the sequence sets to {1}. Applying keeps the variable.' -f $token, $selected
         } else {
@@ -136,17 +167,26 @@
     # THE CATALOG, THROUGH THE SAME COMMAND THE BROWSER USES. A share that will
     # not read is an empty list rather than a refusal - see the description for
     # why the editor has to open anyway.
-    $catalog = @()
+    # $known, NOT $known. PowerShell variable names are CASE-INSENSITIVE, so a
+    # local $known and the -Catalog parameter are one variable: assigning the
+    # local emptied the parameter, and the injected branch then ran with nothing
+    # in it. Seven tests said so immediately; on a window it would have been
+    # every image reading "not in this share".
+    $known = @()
 
-    try {
-        $catalog = @((Get-HDTConsoleWorkspace -Path $Workspace -FileSystem $FileSystem).OperatingSystem)
-    } catch {
-        $catalog = @()
+    if ($null -ne $Catalog) {
+        $known = @($Catalog)
+    } else {
+        try {
+            $known = @((Get-HDTConsoleWorkspace -Path $Workspace -FileSystem $FileSystem).OperatingSystem)
+        } catch {
+            $known = @()
+        }
     }
 
     $image = New-Object -TypeName System.Collections.ArrayList
 
-    foreach ($current in @($catalog)) {
+    foreach ($current in @($known)) {
         if ($null -eq $current) { continue }
 
         $id = [string] $current.Id
@@ -226,8 +266,8 @@
     if ($indexWritten -match '^\s*%([^%]+)%\s*$') {
         $indexToken = [string] $Matches[1]
 
-        if ($null -ne $document.Variable -and $document.Variable.Contains($indexToken)) {
-            $index = [string] $document.Variable[$indexToken]
+        if ($null -ne $sequence.Variable -and $sequence.Variable.Contains($indexToken)) {
+            $index = [string] $sequence.Variable[$indexToken]
             $indexVariable = $indexToken
             $indexNote = 'The index comes through %{0}%.' -f $indexToken
         } else {
@@ -268,7 +308,7 @@
 
     # And the ones this sequence publishes itself: a partition row naming a
     # variable has created exactly the volume somebody would apply an image to.
-    foreach ($other in @($document.Step)) {
+    foreach ($other in @($sequence.Step)) {
         if ($null -eq $other) { continue }
         if ([string] $other.Type -ne 'DiskPartition') { continue }
         if ($null -eq $other.Property) { continue }

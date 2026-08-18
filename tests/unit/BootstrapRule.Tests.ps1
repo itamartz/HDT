@@ -72,9 +72,9 @@ Describe 'Import-HDTBootstrapRuleDocument' {
 
     It 'accepts <Variable>, which is decided before there is a share' -ForEach @(
         @{ Variable = 'HDTDeployRoot' }
-        @{ Variable = 'HDTSkipWizard' }
-        @{ Variable = 'HDTKeyboardLocale' }
-        @{ Variable = 'HDTUILanguage' }
+        @{ Variable = 'HDTUserId' }
+        @{ Variable = 'HDTUserDomain' }
+        @{ Variable = 'HDTUserPassword' }
     ) {
         $line = [string[]] @(
             'schemaVersion: 1'
@@ -85,6 +85,40 @@ Describe 'Import-HDTBootstrapRuleDocument' {
         )
 
         { Get-HDTTestBootstrapRule -Line $line } | Should -Not -Throw
+    }
+
+
+    It 'refuses <Variable>, which nothing here is early enough to affect' -ForEach @(
+        @{ Variable = 'HDTSkipWizard' }
+        @{ Variable = 'HDTKeyboardLocale' }
+        @{ Variable = 'HDTUILanguage' }
+    ) {
+        # THE ORDER IN Start-HDTDeployment SETTLES IT, and two of these were on
+        # the list because the comment beside them was wrong rather than because
+        # anybody checked:
+        #
+        #   step 6   the address loop, the gather, AND the Welcome screen
+        #   step 6b  this file
+        #   step 10a the technician wizard
+        #
+        # The Welcome screen has already been drawn by the time this file is
+        # read, so a locale set here cannot reach it. The technician wizard runs
+        # long after the share is connected, so HDTSkipWizard belongs in
+        # rules.yaml ON the share - which is also where MDT put SkipWizard.
+        # MDT's Bootstrap.ini carries SkipBDDWelcome, which is the WELCOME
+        # screen, and HDT's equivalents come from bootstrap.json rather than
+        # from any rule: Get-HDTWizardSkip reads them at build time because the
+        # screen runs before there is anything to resolve a rule against.
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Too late'
+            '    set:'
+            ('      {0}: "value"' -f $Variable)
+        )
+
+        { Get-HDTTestBootstrapRule -Line $line } |
+            Should -Throw -ExpectedMessage '*rules.yaml*'
     }
 
     It 'refuses one that belongs in rules.yaml, and says where it belongs' {
@@ -277,17 +311,17 @@ Describe 'Resolve-HDTBootstrapRule' {
         $line = [string[]] @(
             'schemaVersion: 1'
             'rules:'
-            '  - name: Unattended site'
+            '  - name: Site with its own account'
             '    when: { HDTDefaultGateway: "192.168.2.1" }'
             '    set:'
             '      HDTDeployRoot: \\SERVER-A\HdtShare'
-            '      HDTSkipWizard: true'
+            '      HDTUserId: svc-hdt-a'
         )
 
         $answer = Resolve-HDTBootstrapRule -RuleDocument (Get-HDTTestBootstrapRule -Line $line) `
             -Fact ([ordered] @{ HDTDefaultGateway = '192.168.2.1' }) -DeployRoot '\\FALLBACK\HdtShare'
 
-        $answer.Variable['HDTSkipWizard'] | Should -Be $true
+        $answer.Variable['HDTUserId'] | Should -BeExactly 'svc-hdt-a'
     }
 
     It 'accepts no document at all, because most images have none' {

@@ -1,4 +1,4 @@
-function Get-HDTConsolePartitionRow {
+﻿function Get-HDTConsolePartitionRow {
     <#
         .SYNOPSIS
             A DiskPartition step's table, as the editor's grid shows it.
@@ -62,6 +62,20 @@ function Get-HDTConsolePartitionRow {
         [Parameter(Mandatory = $true, Position = 2)]
         [ValidateNotNullOrEmpty()]
         [string] $Name
+,
+
+        # WHAT THE HOST ALREADY PARSED. The editor rebuilds its whole right
+        # pane after every edit and four view models each turned the same lines
+        # back into a document to do it - about 70ms apiece, on the UI thread,
+        # while somebody waited for a checkbox to tick.
+        #
+        # THE HOST GUARANTEES THEY AGREE: it parses $book.Line once and hands
+        # the result to all four in the same refresh. Omitted, this parses the
+        # lines exactly as it always did, which is what a script or a test
+        # wants.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Document
     )
 
     Set-StrictMode -Version Latest
@@ -69,10 +83,15 @@ function Get-HDTConsolePartitionRow {
 
     # THE VALUES COME OUT OF THE PARSED DOCUMENT, not off the lines: a line
     # reader would have to learn YAML quoting to tell 60% from '60%'.
-    $reader = New-HDTFileSystemFromText -Path $Path -Text ($Line -join [System.Environment]::NewLine)
-    $document = Import-HDTSequenceDocument -Path $Path -FileSystem $reader
+    # HANDED IN? THEN NOTHING IS RE-READ. See the -Document help above.
+    if ($null -ne $Document) {
+        $sequence = $Document
+    } else {
+        $reader = New-HDTFileSystemFromText -Path $Path -Text ($Line -join [System.Environment]::NewLine)
+        $sequence = Import-HDTSequenceDocument -Path $Path -FileSystem $reader
+    }
 
-    $step = @($document.Step | Where-Object { $_.Name -eq $Name })
+    $step = @($sequence.Step | Where-Object { $_.Name -eq $Name })
 
     $authored = @()
     $layout = ''

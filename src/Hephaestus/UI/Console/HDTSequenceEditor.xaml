@@ -564,15 +564,14 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Border Grid.Row="1" Padding="14,10,14,12"
-                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="HDTPropertyApplyButton"
-                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
-                                <Button x:Name="HDTPropertyRevertButton"
-                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
-                            </StackPanel>
-                        </Border>
+                        <!-- NO Apply AND NO Revert HERE ANY MORE. The rows are an
+                             edit buffer, so something has to decide when typing
+                             becomes a splice - but the toolbar Save is what an
+                             administrator expects to commit a window, and a second
+                             commit button on one tab of five taught that the other
+                             four did not need one. The boxes are banked before Save
+                             writes and before the pane is refilled for another
+                             step, which is every moment they could be lost. -->
                     </Grid>
                 </TabItem>
 

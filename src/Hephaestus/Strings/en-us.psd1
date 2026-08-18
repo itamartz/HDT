@@ -122,8 +122,6 @@
         'HDTStepNameBox.ToolTip' = 'What this step is called. Every command refers to it by this name, so renaming it rewrites those references in the document.'
 
         'HDTPropertyTab.Header' = 'Properties'
-        'HDTPropertyApplyButton.Content' = 'Apply properties'
-        'HDTPropertyRevertButton.Content' = 'Revert'
 
         'HDTImageTab.Header' = 'Operating System'
         'HDTImageOsLabel.Text' = 'Operating system'

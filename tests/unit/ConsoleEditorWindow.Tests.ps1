@@ -172,6 +172,12 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTCopyButton' }
         @{ Name = 'HDTPasteButton' }
         @{ Name = 'HDTSaveButton' }
+        @{ Name = 'HDTVariableButton' }
+        @{ Name = 'HDTVariableGrid' }
+        @{ Name = 'HDTVariableNameBox' }
+        @{ Name = 'HDTVariableValueBox' }
+        @{ Name = 'HDTVariableSetButton' }
+        @{ Name = 'HDTVariableRemoveButton' }
         @{ Name = 'HDTEditorCloseButton' }
 
         # The Add menu, and the Options tab.
@@ -187,8 +193,6 @@ Describe 'HDTSequenceEditor.xaml' {
         # The Properties tab, which now writes - and is named, because a step
         # with a page of its own does not get one.
         @{ Name = 'HDTPropertyTab' }
-        @{ Name = 'HDTPropertyApplyButton' }
-        @{ Name = 'HDTPropertyRevertButton' }
 
         # The name, above the tabs as MDT has it: renaming a step cannot depend
         # on a tab that is not always there.

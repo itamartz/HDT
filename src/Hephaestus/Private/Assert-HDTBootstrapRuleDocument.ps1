@@ -15,16 +15,33 @@
             that used the wrong computer name. Refusing at author time, naming
             the file that CAN set it, is the whole difference.
 
-            THE SEVEN:
+            THE FOUR, AND THEY ARE THE SHARE AND THE WAY INTO IT:
 
               HDTDeployRoot       the reason this file exists
               HDTUserId           the account to open it with - MDT's UserID,
               HDTUserDomain       UserDomain and UserPassword, which
               HDTUserPassword     Bootstrap.ini has always carried
-              HDTSkipWizard       whether to ask anybody anything - MDT's
-                                  SkipBDDWelcome, which Bootstrap.ini also owns
-              HDTKeyboardLocale   the wizard needs both before it can draw, and
-              HDTUILanguage       drawing happens before the share is reached
+
+            THREE MORE USED TO BE HERE AND THE ORDER OF Start-HDTDeployment
+            SAYS THEY NEVER BELONGED:
+
+              step 6    the address loop, the gather, AND the Welcome screen
+              step 6b   this file
+              step 10a  the technician wizard
+
+            HDTKeyboardLocale and HDTUILanguage were justified as "the wizard
+            needs both before it can draw" - but the Welcome screen has ALREADY
+            been drawn by the time this file is read, so a locale set here
+            reaches nothing it was meant to.
+
+            HDTSkipWizard is the TECHNICIAN wizard, which runs at 10a with the
+            share connected and rules.yaml readable - so rules.yaml is its home,
+            exactly as SkipWizard lives in CustomSettings.ini rather than in
+            Bootstrap.ini. MDT's Bootstrap.ini carries SkipBDDWelcome, which is
+            the WELCOME screen, and HDT's equivalents - HDTSkipWelcome,
+            HDTSkipStaticIp, HDTSkipDeployRoot, HDTSkipCredential - come from
+            bootstrap.json through Get-HDTWizardSkip, because that screen runs
+            before there is anything to resolve a rule against.
 
             THE ACCOUNT IS ON THE LIST BECAUSE THE SHARE IS. One boot image
             serving many sites needs an account per site as much as a share per
@@ -68,13 +85,16 @@
 
     if ($null -eq $Document) { return }
 
-    # WHAT A RULE MAY SET BEFORE THERE IS A SHARE. The account is on the list
-    # because MDT's Bootstrap.ini carries it: one boot image serving many sites
-    # needs an account per site as much as a share per site, and a rule that
-    # chose SERVER-B and left SERVER-A's account behind has chosen a share it
-    # cannot open. The password is clear text here, as it was there.
-    $allowed = @('HDTDeployRoot', 'HDTSkipWizard', 'HDTKeyboardLocale', 'HDTUILanguage',
-        'HDTUserId', 'HDTUserDomain', 'HDTUserPassword')
+    # WHAT A RULE MAY SET BEFORE THERE IS A SHARE - the share, and the account
+    # that opens it. MDT's Bootstrap.ini carries both for the same reason: one
+    # boot image serving many sites needs an account per site as much as a share
+    # per site, and a rule that chose SERVER-B while leaving SERVER-A's account
+    # behind has chosen a share it cannot open. The password is clear text here,
+    # as it was there.
+    #
+    # NOTHING ELSE. See the header for why the three that used to be here were
+    # never early enough to matter.
+    $allowed = @('HDTDeployRoot', 'HDTUserId', 'HDTUserDomain', 'HDTUserPassword')
 
     foreach ($rule in @($Document.Rule)) {
 
