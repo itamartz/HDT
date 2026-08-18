@@ -1,4 +1,4 @@
-function Test-HDTConsoleImportOperatingSystem {
+﻿function Test-HDTConsoleImportOperatingSystem {
     <#
         .SYNOPSIS
             Says whether the Import Operating System dialog's answers can be
@@ -17,10 +17,16 @@ function Test-HDTConsoleImportOperatingSystem {
             would be a rule the command line has not got, and the console would
             be describing a toolkit that does not exist (DESIGN 12).
 
-            AN EMPTY DIALOG IS NOT A MISTAKE. Nothing typed means no message at
-            all: a window that opens already complaining is a window whose
-            message line a technician learns to ignore, and the one that matters
-            arrives in the same grey text as the one that did not.
+            A BOX NOBODY HAS FILLED IN YET IS NOT A MISTAKE, and gets no
+            message. A required box that is empty simply does not offer Import;
+            what the box is FOR is on its hint, and the message line is for what
+            is WRONG. A window that complains about work in progress teaches a
+            technician that its message line is noise, and then the one that
+            matters arrives in the same text as the ones that did not.
+
+            THE EXCEPTION IS A SOURCE THAT WAS TYPED AND IS NOT THERE. That is
+            wrong now rather than later, and it is the mistake somebody makes
+            without noticing.
 
             THE ID IS SUGGESTED FROM THE MEDIA. MDT's import wizard fills the
             destination folder in from the source; an id is a folder name and
@@ -110,11 +116,22 @@ function Test-HDTConsoleImportOperatingSystem {
         SuggestedId = $suggested
     }
 
-    # NOTHING TYPED YET.
-    if ([string]::IsNullOrWhiteSpace($Id) -and [string]::IsNullOrWhiteSpace($SourcePath)) { return $answer }
+    # A BOX NOBODY HAS FILLED IN YET IS NOT A REFUSAL, and it does not get a
+    # message. Both are required, so Import is not offered without them; but
+    # what a box is FOR is on its hint, and this line is for what is WRONG.
+    #
+    # THE RED LINE HAS TO MEAN SOMETHING. A dialog that complains about work in
+    # progress teaches a technician that its message line is noise, and then the
+    # message that matters - media that is not there, an id the share already
+    # has - arrives in the same colour as the ones that did not.
+    if ([string]::IsNullOrWhiteSpace($Id) -or [string]::IsNullOrWhiteSpace($SourcePath)) {
 
-    if ([string]::IsNullOrWhiteSpace($SourcePath)) {
-        $answer.Message = 'choose the .wim or .ffu to import.'
+        # ONE EXCEPTION: media that WAS typed and is not there is wrong now,
+        # not later, and it is the mistake somebody makes without noticing.
+        if (-not [string]::IsNullOrWhiteSpace($SourcePath) -and -not $FileSystem.TestPath($SourcePath)) {
+            $answer.Message = "'{0}' is not there." -f $SourcePath
+        }
+
         return $answer
     }
 
@@ -132,10 +149,6 @@ function Test-HDTConsoleImportOperatingSystem {
         return $answer
     }
 
-    if ([string]::IsNullOrWhiteSpace($Id)) {
-        $answer.Message = 'give it an id. It becomes the folder name under OperatingSystems and what a task sequence names to select this media.'
-        return $answer
-    }
 
     # THE SAME PATTERN Import-HDTOperatingSystem ENFORCES.
     if ($Id -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {

@@ -52,6 +52,23 @@ Describe 'Test-HDTConsoleImportOperatingSystem' {
         [string] $answer.Message | Should -BeNullOrEmpty
     }
 
+    It 'says nothing while <Missing> is still empty' -ForEach @(
+        @{ Missing = 'the source'; Id = 'WS2025-Std'; Source = '' }
+        @{ Missing = 'the id'; Id = ''; Source = 'C:\media\WS2025\sources\install.wim' }
+    ) {
+        # A BOX NOBODY HAS FILLED IN YET IS NOT A REFUSAL, and the red line has
+        # to mean something: a dialog that complains about work in progress
+        # teaches a technician its message line is noise, and then the message
+        # that matters - media that is not there, an id the share already has -
+        # arrives in the same colour as the ones that did not. What a box is FOR
+        # is on its hint; a disabled Import is what says "not yet".
+        $answer = Test-HDTConsoleImportOperatingSystem -Workspace 'C:\ws' -Id $Id -SourcePath $Source `
+            -FileSystem (& $script:newFileSystem)
+
+        [bool] $answer.CanImport | Should -BeFalse
+        [string] $answer.Message | Should -BeNullOrEmpty
+    }
+
     It 'refuses an id that is not a folder name: <_>' -ForEach @('Win 11', 'Win/11', '..', 'C:\x') {
         $answer = Test-HDTConsoleImportOperatingSystem -Workspace 'C:\ws' -Id $_ `
             -SourcePath 'C:\media\WS2025\sources\install.wim' -FileSystem (& $script:newFileSystem)
