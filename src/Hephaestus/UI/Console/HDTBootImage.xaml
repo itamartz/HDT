@@ -945,6 +945,10 @@
                 those keys - the only shape that survives a rebuild.
             -->
             <TabItem x:Name="HDTBootImageBootstrap" >
+                <!-- IT SCROLLS. Six rows of fields and an editor is taller
+                     than this window on a small console, and a Save button
+                     below the fold is a button nobody finds. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
                 <Grid Margin="18,16,18,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="170" />
@@ -1051,9 +1055,9 @@
                         <TextBlock x:Name="HDTBootstrapRulesSummaryText" Grid.Row="1"
                                    Style="{StaticResource HDTHintText}" Margin="0,0,0,6" />
 
-                        <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
+                        <Border Grid.Row="2" Background="{DynamicResource HDTPanelBrush}"
                                 BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
-                                MinHeight="170">
+                                MinHeight="90">
                             <TextBox x:Name="HDTBootstrapRulesBox" BorderThickness="0"
                                      Background="{DynamicResource HDTPanelBrush}"
                                      FontFamily="Consolas" FontSize="13"
@@ -1078,6 +1082,7 @@
                     </Border>
 
                 </Grid>
+                </ScrollViewer>
             </TabItem>
         </TabControl>
 

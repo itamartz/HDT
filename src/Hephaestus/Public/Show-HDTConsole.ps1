@@ -1,4 +1,4 @@
-function Show-HDTConsole {
+﻿function Show-HDTConsole {
     <#
         .SYNOPSIS
             Opens the HDT admin console on one or more deployment shares.
@@ -148,6 +148,10 @@ function Show-HDTConsole {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
+        [string] $ImportOperatingSystemXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTImportOperatingSystem.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
         [Parameter()]
@@ -268,8 +272,14 @@ function Show-HDTConsole {
         $newSequenceXaml = [System.IO.File]::ReadAllText($NewSequenceXamlPath)
     }
 
+    $importOperatingSystemXaml = ''
+    if (Test-Path -LiteralPath $ImportOperatingSystemXamlPath) {
+        $importOperatingSystemXaml = [System.IO.File]::ReadAllText($ImportOperatingSystemXamlPath)
+    }
+
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
-        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond, $newSequenceXaml)
+        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond, $newSequenceXaml,
+        $importOperatingSystemXaml)
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot

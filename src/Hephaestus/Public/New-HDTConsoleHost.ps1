@@ -77,7 +77,8 @@
         # a key added to the hashtable would be fed to the BrushConverter below
         # along with the colours.
         param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
-            [string] $ThemeName = 'Light', [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '')
+            [string] $ThemeName = 'Light', [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '',
+            [string] $ImportOperatingSystemXaml = '')
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -592,7 +593,13 @@
 
                         if ($isCategory) { $newSequence.Visibility = [System.Windows.Visibility]::Visible }
                         if ($isSequence) { $removeSequence.Visibility = [System.Windows.Visibility]::Visible }
-                        if ($isOsCategory) { $importOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
+                        # NO MARKUP, NO ITEM - the same rule the New Task
+                        # Sequence item follows. An item that cannot open its
+                        # window is one somebody presses to find out nothing
+                        # happens.
+                        if ($isOsCategory -and -not [string]::IsNullOrWhiteSpace($ImportOperatingSystemXaml)) {
+                            $importOperatingSystem.Visibility = [System.Windows.Visibility]::Visible
+                        }
                         if ($isOperatingSystem) { $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
 
                         if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem)) {
@@ -639,6 +646,26 @@
                             # holds no sequence, an id that is a path.
                             $command.Text = [string] $_.Exception.Message
                         }
+
+                        & $rebuildTree
+                    }.GetNewClosure())
+
+                $importOperatingSystem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        # THE ROW SAYS WHICH SHARE, for the same reason the New
+                        # Task Sequence item reads it: several shares in one
+                        # window, and only the row knows which one was clicked.
+                        $where = [string] $chosen.HeaderRoot
+                        if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                        $made = [string] $consoleHost.ShowImportOperatingSystem(
+                            $ImportOperatingSystemXaml, $where, $Theme, $window)
+
+                        if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                        $command.Text = "Import-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -SourcePath ..." -f $where, $made
 
                         & $rebuildTree
                     }.GetNewClosure())
@@ -780,6 +807,149 @@
     #
     # IT RETURNS THE PATH IT CREATED, or an empty string when it was cancelled,
     # so the caller can refresh the tree without asking what happened.
+    # =====================================================================
+    # MDT'S Import Operating System WIZARD
+    # =====================================================================
+    #
+    # THE OTHER THING THE BROWSER COULD NOT DO. Everything else opens what
+    # exists; this and New Task Sequence create one.
+    #
+    # IT DECIDES NOTHING. Test-HDTConsoleImportOperatingSystem says whether the
+    # answers can be used, Import-HDTOperatingSystem does the work, and this
+    # shows a window and reports what came back.
+    #
+    # THE MEDIA IS REGISTERED WHERE IT STANDS. -Copy moves several gigabytes and
+    # would do it on the dispatcher, greying the console out for minutes - the
+    # failure the boot image build's progress window exists to prevent. The
+    # dialog says so rather than offering a tick box that freezes the window.
+    #
+    # IT RETURNS THE ID IT IMPORTED, or an empty string when it was cancelled,
+    # so the caller can refresh the tree without asking what happened.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowImportOperatingSystem -Value {
+        param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        # The text comes out of Strings\<culture>.psd1, not out of the markup.
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'ImportOperatingSystem'))
+
+        $rootText = $dialog.FindName('HDTImportOsRootText')
+        $sourceBox = $dialog.FindName('HDTImportOsSourceBox')
+        $sourceBrowse = $dialog.FindName('HDTImportOsSourceBrowseButton')
+        $idBox = $dialog.FindName('HDTImportOsIdBox')
+        $nameBox = $dialog.FindName('HDTImportOsNameBox')
+        $descriptionBox = $dialog.FindName('HDTImportOsDescriptionBox')
+        $messageText = $dialog.FindName('HDTImportOsMessageText')
+        $commandText = $dialog.FindName('HDTImportOsCommandText')
+        $import = $dialog.FindName('HDTImportOsImportButton')
+
+        $rootText.Text = $Workspace
+
+        # WHETHER THE ANSWERS CAN BE USED, ON EVERY KEYSTROKE, and the id filled
+        # in from the media the first time a source names one - typed over
+        # afterwards and never put back, because the second suggestion would
+        # overwrite what somebody had just decided.
+        $filled = @{ Id = $false }
+
+        $check = {
+            $answer = Test-HDTConsoleImportOperatingSystem -Workspace $Workspace `
+                -Id ([string] $idBox.Text) -SourcePath ([string] $sourceBox.Text)
+
+            if (-not $filled.Id -and [string]::IsNullOrWhiteSpace([string] $idBox.Text) -and
+                -not [string]::IsNullOrWhiteSpace([string] $answer.SuggestedId)) {
+
+                $filled.Id = $true
+                $idBox.Text = [string] $answer.SuggestedId
+                return
+            }
+
+            $import.IsEnabled = [bool] $answer.CanImport
+            $messageText.Text = [string] $answer.Message
+
+            $commandText.Text = "Import-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -SourcePath '{2}'" -f
+                $Workspace, [string] $idBox.Text, [string] $sourceBox.Text
+        }.GetNewClosure()
+
+        $sourceBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+
+        & $check
+
+        # THE FILE, NOT THE FOLDER. The filter names what the import can read,
+        # and the dialog opens on the media rather than on Documents.
+        $sourceBrowse.Add_Click({
+                $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $picker.Title = 'Choose the image file to import'
+                $picker.Filter = 'Windows images (*.wim;*.esd;*.ffu)|*.wim;*.esd;*.ffu|All files (*.*)|*.*'
+                $picker.CheckFileExists = $true
+
+                if ($picker.ShowDialog() -ne $true) { return }
+
+                $sourceBox.Text = [string] $picker.FileName
+            }.GetNewClosure())
+
+        $this.ImportedOperatingSystemId = ''
+        $dialogHost = $this
+
+        $import.Add_Click({
+                try {
+                    # THE SERVICES ARE REAL ONES BUILT HERE. Import-HDTOperatingSystem
+                    # takes them injected precisely so the engine never reaches
+                    # for a clock or an image reader itself - the console is the
+                    # edge, and the edge is where the real ones are made.
+                    $splat = @{
+                        WorkspaceRoot = $Workspace
+                        Id            = [string] $idBox.Text
+                        SourcePath    = [string] $sourceBox.Text
+                        FileSystem    = New-HDTFileSystem
+                        ImageService  = New-HDTImageService
+                        Clock         = New-HDTClock
+                        Confirm       = $false
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $nameBox.Text)) {
+                        $splat['Name'] = [string] $nameBox.Text
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $descriptionBox.Text)) {
+                        $splat['Description'] = [string] $descriptionBox.Text
+                    }
+
+                    # READING THE IMAGE LIST TAKES A MOMENT even without -Copy,
+                    # so the cursor says so. Minutes would need the progress
+                    # window; seconds need a wait cursor.
+                    $dialog.Cursor = [System.Windows.Input.Cursors]::Wait
+
+                    $made = Import-HDTOperatingSystem @splat
+
+                    $dialogHost.ImportedOperatingSystemId = [string] $made.Id
+                    $dialog.DialogResult = $true
+                } catch {
+                    # THE REFUSAL LANDS ON THE PAGE, not in a message box over a
+                    # dialog that has already closed.
+                    $messageText.Text = [string] $_.Exception.Message
+                } finally {
+                    $dialog.Cursor = $null
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return [string] $this.ImportedOperatingSystemId
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name ImportedOperatingSystemId -Value ''
+
     $service | Add-Member -MemberType ScriptMethod -Name ShowNewSequence -Value {
         param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
 

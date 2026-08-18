@@ -290,8 +290,8 @@
         @{ HDTName = 'HDTDeployRoot'; MdtName = 'DeployRoot'; Origin = 'bootstrap'
             Description = 'Which deployment share to connect to, chosen by bootstrap-rules.yaml from the gathered facts before the share is reached. MDT put this in Bootstrap.ini. Unset means the one the boot image was built with.'
         }
-        @{ HDTName = '_HDTDeployRoot'; MdtName = 'DeployRoot'; Origin = 'engine'
-            Description = 'Resolved workspace root, whether that is a share or standalone media.'
+        @{ HDTName = '_HDTDeployRoot'; MdtName = $null; Origin = 'engine'
+            Description = 'Resolved workspace root, whether that is a share or standalone media. MDT''s DeployRoot belongs to HDTDeployRoot, which is the one an administrator SETS - this is what the engine RESOLVED it to, and the two differ whenever a bootstrap rule chose another share or the deployment is running from media.'
         }
         @{ HDTName = '_HDTVersion'; MdtName = $null; Origin = 'engine'
             Description = 'Engine version executing this deployment.'

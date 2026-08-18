@@ -248,6 +248,7 @@
         'Get-HDTConsoleEditorState',
         'Get-HDTConsoleImageChoice',
         'Get-HDTConsoleNewSequence',
+        'Test-HDTConsoleImportOperatingSystem',
         'Test-HDTConsoleNewSequence',
         'Get-HDTConsoleMonitor',
         'Get-HDTConsolePartitionRow',

@@ -355,4 +355,19 @@
         'HDTCancelButton.Content' = 'Shut down'
         'HDTNextButton.Content' = 'Restart'
     }
+
+    # MDT's Import Operating System wizard, as one dialog:
+    # ShowImportOperatingSystem.
+    ImportOperatingSystem = @{
+
+        'HDTImportOsTitleText.Text' = 'Import Operating System'
+        'HDTImportOsSourceLabel.Text' = 'Image file'
+        'HDTImportOsSourceBrowseButton.Content' = 'Browse'
+        'HDTImportOsSourceHint.Text' = 'The .wim or .ffu itself, not the folder holding it - on Windows media, sources\install.wim. The image list is read out of it, so the catalog cannot disagree with the media.'
+        'HDTImportOsIdLabel.Text' = 'Id'
+        'HDTImportOsIdHint.Text' = 'The folder name under OperatingSystems, and what a task sequence names to select this media. Suggested from the source; it cannot be changed afterwards from here.'
+        'HDTImportOsNameLabel.Text' = 'Name'
+        'HDTImportOsDescriptionLabel.Text' = 'Description'
+        'HDTImportOsImportButton.Content' = 'Import'
+    }
 }

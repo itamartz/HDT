@@ -482,8 +482,8 @@ try {
             # edited or is damaged - and the share it was built for is still a
             # right answer. Logged loudly, because a machine that quietly
             # ignored its site rules deploys from the wrong place.
-            Write-HDTLog -Message ("bootstrap rules at '{0}' could not be read and were ignored: {1}" -f
-                $bootstrapRulePath, $_.Exception.Message) -Level 'Warning' -Destination $logDestination
+            & $say ("bootstrap rules at '{0}' could not be read and were ignored: {1}" -f
+                $bootstrapRulePath, $_.Exception.Message) 'Warning'
             $bootstrapRule = $null
         }
     }
@@ -495,9 +495,8 @@ try {
     $result['bootstrapRuleName'] = [string] $chosen.RuleName
 
     if ($chosen.Source -eq 'Rule') {
-        Write-HDTLog -Message ("bootstrap rule '{0}' chose the deployment share '{1}'; the boot image was built with '{2}'." -f
-            $chosen.RuleName, $chosen.DeployRoot, [string] $bootstrap.DeployRoot) `
-            -Level 'Info' -Destination $logDestination
+        & $say ("bootstrap rule '{0}' chose the deployment share '{1}'; the boot image was built with '{2}'." -f
+            $chosen.RuleName, $chosen.DeployRoot, [string] $bootstrap.DeployRoot)
     }
 
     # -- 7. WHICH DRIVE IS THE CONTENT ON ------------------------------------
