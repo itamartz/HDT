@@ -1,8 +1,8 @@
 # Hephaestus Deployment Toolkit (HDT)
 
 [![CI](https://github.com/itamartz/HDT/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
-[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
-[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
+[![tests](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Ftests.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
+[![coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fitamartz%2FHDT%2Fbadges%2Fcoverage.json&cacheSeconds=1800)](https://github.com/itamartz/HDT/actions/workflows/ci.yml)
 
 A replacement for the Microsoft Deployment Toolkit, which has been in maintenance
 mode since 2019. HDT keeps MDT's operational model — deployment share, task
