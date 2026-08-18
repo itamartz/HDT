@@ -1,4 +1,4 @@
-function Get-HDTConsoleEditorState {
+﻿function Get-HDTConsoleEditorState {
     <#
         .SYNOPSIS
             Everything the task sequence editor shows about a document it is
@@ -162,6 +162,39 @@ function Get-HDTConsoleEditorState {
         Group  = @($document.Group)
     }
 
+    # -- the Variables tab ---------------------------------------------------
+    #
+    # THE BLOCK THE NEW SEQUENCE WINDOW FILLS. Read on every refresh rather than
+    # once at open, because the tab edits it: a row showing what the document
+    # said before the last Set would be a row that lies after the first edit.
+    #
+    # THE MAP MAKES THE ROW READABLE. HDTOSImageIndex on its own teaches nobody;
+    # Get-HDTVariableMap carries the sentence and the name MDT used, which is
+    # what somebody arriving from Workbench is looking for.
+    $map = @{}
+    foreach ($entry in @(Get-HDTVariableMap)) { $map[[string] $entry.HDTName] = $entry }
+
+    $variableRow = New-Object -TypeName System.Collections.ArrayList
+
+    if ($null -ne $document.PSObject.Properties['Variable'] -and $null -ne $document.Variable) {
+        foreach ($name in @($document.Variable.Keys)) {
+            $hint = 'Not one of the variables HDT publishes - a step in this sequence reads it.'
+            $mdtName = ''
+
+            if ($map.ContainsKey([string] $name)) {
+                $hint = [string] $map[[string] $name].Description
+                $mdtName = [string] $map[[string] $name].MdtName
+            }
+
+            [void] $variableRow.Add([pscustomobject] @{
+                    Name    = [string] $name
+                    Value   = [string] $document.Variable[$name]
+                    Hint    = $hint
+                    MdtName = $mdtName
+                })
+        }
+    }
+
     $header = [pscustomobject] @{
         Title      = '{0} - {1}' -f $document.Id, $document.Name
         Root       = [string] $Path
@@ -260,5 +293,20 @@ function Get-HDTConsoleEditorState {
         CanMoveDown = $canMoveDown
         CanPaste    = ([bool] $HasClipboard -and $found)
         CanSave     = [bool] $Dirty
+
+        Variable    = [pscustomobject[]] @($variableRow)
+        # WHAT THE BOX OFFERS TO TYPE AGAINST. A name typed from memory is a
+        # name typed wrong - HDTOSImageIndex, HDTJoinWorkgroup, HDTAdminPassword
+        # are close enough to guess and far enough to get wrong - and a misspelt
+        # one sets something nothing reads, silently, until a deployment comes
+        # out with the wrong answer.
+        #
+        # WRITABLE ONLY. The engine-owned _HDT* names are refused by the command
+        # and by rules.yaml alike, so offering them would be offering a mistake.
+        VariableChoice = [string[]] @(Get-HDTVariableMap |
+                Where-Object { $_.Writable } | ForEach-Object { [string] $_.HDTName })
+
+        VariableCommandFormat       = 'Set-HDTSequenceVariable -Line $line -Name ''{0}'' -Value ''{1}'''
+        VariableRemoveCommandFormat = 'Set-HDTSequenceVariable -Line $line -Name ''{0}'' -Remove'
     }
 }

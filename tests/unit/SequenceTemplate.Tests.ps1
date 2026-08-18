@@ -1,4 +1,4 @@
-# TASK SEQUENCE TEMPLATES - MDT'S Templates\Client.xml, IN THIS TOOLKIT.
+﻿# TASK SEQUENCE TEMPLATES - MDT'S Templates\Client.xml, IN THIS TOOLKIT.
 #
 # MDT's New Task Sequence wizard asks which template, then copies that file into
 # the new sequence's Control folder. This is the same model: a template is a real
@@ -404,6 +404,57 @@ Describe 'the answer file a new sequence gets' {
 
         foreach ($token in @('%HDTComputerName%', '%HDTAdminPassword%', '%HDTFullName%', '%HDTOrgName%')) {
             $text | Should -BeLike ('*{0}*' -f $token)
+        }
+    }
+
+    Context 'the language and region block' {
+
+        # HARD-CODED en-US IS A DECISION NOBODY MADE. Every machine this
+        # template deployed came up with a US keyboard, a US system locale and
+        # a US display language whatever the site was - and the only way to
+        # change it was to hand-edit the XML of every task sequence.
+        #
+        # THEY ARE VARIABLES, NOT STEP PROPERTIES, and that is the same answer
+        # MDT gave: UILanguage, UserLocale and KeyboardLocale are CustomSettings
+        # entries there, so one rule can set them for a site, a model or a
+        # subnet. A step property would be a fifth place to state them and a
+        # fifth place for two answers to disagree.
+
+        BeforeAll {
+            $script:unattendText = [string] (Get-Content -LiteralPath (Join-Path -Path $script:repoRoot `
+                        -ChildPath 'src/Hephaestus/Templates/unattend.xml') -Raw)
+        }
+
+        It 'asks a variable for <Element>' -ForEach @(
+            @{ Element = 'InputLocale'; Token = '%HDTKeyboardLocale%' }
+            @{ Element = 'SystemLocale'; Token = '%HDTSystemLocale%' }
+            @{ Element = 'UILanguage'; Token = '%HDTUILanguage%' }
+            @{ Element = 'UserLocale'; Token = '%HDTUserLocale%' }
+        ) {
+            $script:unattendText | Should -BeLike ('*<{0}>{1}</{0}>*' -f $Element, $Token)
+        }
+
+        It 'hard-codes none of them' {
+            # en-US as a literal is what this replaces; a token that fell back to
+            # one would be the same defect with an extra step.
+            $script:unattendText | Should -Not -BeLike '*<SystemLocale>en-US</SystemLocale>*'
+            $script:unattendText | Should -Not -BeLike '*<UILanguage>en-US</UILanguage>*'
+        }
+
+        It 'names InputLocale s variable the one MDT called KeyboardLocale' {
+            # MDT's KeyboardLocale IS the unattend's InputLocale, and HDT already
+            # carries HDTKeyboardLocale for it. A second HDTInputLocale would be
+            # two names for one setting.
+            @(Get-HDTVariableMap | Where-Object { $_.HDTName -eq 'HDTKeyboardLocale' })[0].MdtName |
+                Should -BeExactly 'KeyboardLocale'
+        }
+
+        It 'carries the one variable that did not exist yet' {
+            $entry = @(Get-HDTVariableMap | Where-Object { $_.HDTName -eq 'HDTSystemLocale' })
+
+            $entry.Count | Should -Be 1
+            $entry[0].MdtName | Should -BeExactly 'SystemLocale'
+            $entry[0].Writable | Should -BeTrue
         }
     }
 

@@ -67,13 +67,23 @@
     # every row is also added to its parent's Children so the window has a tree
     # to expand. Building them separately is how the two would come to disagree.
 
+    # THE THREE THIS ROW SETS, and they arrived here from the Windows PE
+    # window's Bootstrap tab: a share's name, where clients reach it and how
+    # much it logs are the SHARE's settings, and that tab's subject is the rules
+    # file. The id and the schema version are fixed at creation; 'Opened from'
+    # is where this console found it.
+    #
+    # THE CREDENTIAL IS NOT AMONG THEM. Setting it writes two things - a line in
+    # workspace.yaml and a protected file beside it - so a box writing one would
+    # leave a share declaring an account no secret exists for, which is a build
+    # that refuses. Set-HDTShareCredential does both.
     $shareField = @(
-        New-HDTConsoleField -Label 'Share' -Value $Workspace.Name
+        New-HDTConsoleField -Label 'Share' -Value $Workspace.Name -Property 'name'
         New-HDTConsoleField -Label 'Id' -Value $Workspace.Id
         New-HDTConsoleField -Label 'Schema version' -Value $Workspace.SchemaVersion
         New-HDTConsoleField -Label 'Opened from' -Value $Workspace.Root
-        New-HDTConsoleField -Label 'Deploy root' -Value $Workspace.DeployRoot
-        New-HDTConsoleField -Label 'Log level' -Value $Workspace.LogLevel
+        New-HDTConsoleField -Label 'Deploy root' -Value $Workspace.DeployRoot -Property 'deployRoot'
+        New-HDTConsoleField -Label 'Log level' -Value $Workspace.LogLevel -Property 'logLevel'
         New-HDTConsoleField -Label 'Credential' -Value (Get-HDTConsoleDisplayText -Text $Workspace.CredentialUser -Fallback '(none - the share is opened as the signed-in user)')
         New-HDTConsoleField -Label 'Document' -Value $Workspace.WorkspacePath
     )
@@ -82,7 +92,7 @@
         -Text ('{0} ({1})' -f $Workspace.Name, $Workspace.Id) `
         -Field $shareField `
         -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
-        -Header $header
+        -Header $header -Subject $Workspace
 
     [void] $node.Add($shareNode)
 

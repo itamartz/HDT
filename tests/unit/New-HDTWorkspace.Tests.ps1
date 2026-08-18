@@ -1,4 +1,4 @@
-# DESIGN 2.1 fixes the workspace layout, and until now nothing in HDT could
+﻿# DESIGN 2.1 fixes the workspace layout, and until now nothing in HDT could
 # produce one. The engine could READ a deployment share - Get-HDTWorkspacePath
 # knew the folder names, Import-HDTWorkspaceDocument and Import-HDTRuleDocument
 # read the two root documents, Get-HDTConsoleWorkspace reported on the whole
@@ -144,6 +144,57 @@ Describe 'New-HDTWorkspace' {
 
             $document.SchemaVersion | Should -Be 1
             @($document.Rule).Count | Should -BeGreaterThan 0
+        }
+
+        Context 'the language and region a new share starts with' {
+
+            # VISIBLE IN THE SHARE'S OWN DOCUMENT, NOT ONLY IN THE ENGINE.
+            # unattend.xml asks for these four as tokens, and the engine seeds
+            # US English when nothing else answers - but a default nobody can
+            # see is a default nobody changes. MDT shipped CustomSettings.ini
+            # with KeyboardLocale, UILanguage and UserLocale written out for
+            # exactly this reason: the line you edit has to already be there.
+
+            BeforeEach {
+                $localeFileSystem = New-HDTFakeFileSystem
+                $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $localeFileSystem
+
+                $script:localeDocument = Import-HDTRuleDocument -Path $script:rulePath -FileSystem $localeFileSystem
+                $script:localeText = [string] $localeFileSystem.ReadAllText($script:rulePath)
+            }
+
+            It 'states <Variable>, which the answer file asks for by name' -ForEach @(
+                @{ Variable = 'HDTKeyboardLocale'; Value = '0409:00000409' }
+                @{ Variable = 'HDTSystemLocale'; Value = 'en-US' }
+                @{ Variable = 'HDTUILanguage'; Value = 'en-US' }
+                @{ Variable = 'HDTUserLocale'; Value = 'en-US' }
+            ) {
+                $set = @($script:localeDocument.Rule | Where-Object { $null -ne $_.Set } |
+                        Where-Object { @($_.Set.Keys) -contains $Variable })
+
+                $set.Count | Should -BeGreaterThan 0 -Because "$Variable is what unattend.xml asks for"
+                [string] $set[0].Set[$Variable] | Should -BeExactly $Value
+            }
+
+            It 'puts them where they can be changed without touching the fallback' {
+                # A rule of their own, named for what it does: an administrator
+                # changing the keyboard should not be reading a rule about
+                # computer names.
+                @($script:localeDocument.Rule | ForEach-Object { [string] $_.Name }) |
+                    Should -Contain 'Language and region'
+            }
+
+            It 'leaves them overridable, because a rule above wins' {
+                # No when:, so it always applies - but first match wins per
+                # variable, so a site rule ABOVE it still decides.
+                $rule = @($script:localeDocument.Rule | Where-Object { [string] $_.Name -eq 'Language and region' })[0]
+
+                @($rule.When.Keys).Count | Should -Be 0
+            }
+
+            It 'still writes a document the engine accepts' {
+                $script:localeDocument.SchemaVersion | Should -Be 1
+            }
         }
 
         Context 'the catalogue of variables it writes into rules.yaml' {

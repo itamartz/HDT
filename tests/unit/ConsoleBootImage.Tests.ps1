@@ -1,4 +1,4 @@
-# The WinPE window's state, worked out without a window.
+﻿# The WinPE window's state, worked out without a window.
 #
 # HDTBootImage.xaml is four tabs over one YAML block, and every control on it is
 # the face of a command that already exists. What this file asserts is the
@@ -677,5 +677,60 @@ Describe 'the Bootstrap tab' {
         It 'calls a local deployRoot Local' {
             $script:stated.Bootstrap.Provider | Should -BeExactly 'Local'
         }
+    }
+}
+
+Describe 'the Windows PE window, as something to type into' {
+
+    # WHITE MEANS TYPE HERE, on every window in this console. The detail pane
+    # paints its typeable boxes with the panel brush and washes the rest out
+    # with HDTFieldBrush, and the sequence editor does the same - but this
+    # window's TextBox style painted EVERY box with the wash, so the image name
+    # and the language read as facts about the image rather than as the two
+    # things an administrator most often changes.
+    #
+    # THE WASH GOT DARKER AND THAT IS WHAT EXPOSED IT. HDTFieldBrush was #FAFAFA
+    # - invisible against white - so nobody could see which rule this window was
+    # following. It is #EDEDED now, and this window was following the wrong one.
+
+    BeforeAll {
+        $script:pePath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/Console/HDTBootImage.xaml'
+        $script:peXaml = [System.IO.File]::ReadAllText($script:pePath)
+        $script:peDocument = [xml] $script:peXaml
+    }
+
+    It 'paints a box that takes typing with the panel brush, not the read-only wash' {
+        $style = @($script:peDocument.SelectNodes("//*[local-name()='Style']") |
+                Where-Object { $_.GetAttribute('TargetType') -eq 'TextBox' })
+
+        @($style).Count | Should -BeGreaterThan 0
+
+        foreach ($current in $style) {
+            $background = @($current.SelectNodes("*[local-name()='Setter']") |
+                    Where-Object { $_.GetAttribute('Property') -eq 'Background' })
+
+            foreach ($setter in $background) {
+                [string] $setter.GetAttribute('Value') | Should -BeExactly '{DynamicResource HDTPanelBrush}'
+            }
+        }
+    }
+
+    It 'sets no Background on a drop-down, because the stock template paints over it' {
+        # TRIED AND MEASURED, NOT ASSUMED: a Setter here left the box exactly as
+        # grey as before, because WPF's non-editable ComboBox draws its own
+        # chrome. A test that asserted the Setter would have passed while the
+        # screen disagreed - which is the one kind of test this repository must
+        # not have. A chooser says what it is with its arrow.
+        $style = @($script:peDocument.SelectNodes("//*[local-name()='Style']") |
+                Where-Object { $_.GetAttribute('TargetType') -eq 'ComboBox' })
+
+        @($style).Count | Should -BeGreaterThan 0
+
+        @($style[0].SelectNodes("*[local-name()='Setter']") |
+                Where-Object { $_.GetAttribute('Property') -eq 'Background' }) | Should -BeNullOrEmpty
+    }
+
+    It 'still declares the wash, because something read-only may want it' {
+        $script:peXaml | Should -Match 'x:Key="HDTFieldBrush"'
     }
 }

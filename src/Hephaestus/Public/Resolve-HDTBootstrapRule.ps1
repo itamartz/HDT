@@ -1,4 +1,4 @@
-function Resolve-HDTBootstrapRule {
+﻿function Resolve-HDTBootstrapRule {
     <#
         .SYNOPSIS
             Chooses the deployment share from the machine's own facts, before it
@@ -41,11 +41,15 @@ function Resolve-HDTBootstrapRule {
         .OUTPUTS
             System.Management.Automation.PSCustomObject
 
-              DeployRoot  the share to connect to
-              Source      'Rule' or 'BootImage'
-              RuleName    which rule chose it, '' when none did
-              Variable    everything the bootstrap rules resolved
-              Provenance  where each of those came from
+              DeployRoot        the share to connect to
+              Source            'Rule' or 'BootImage'
+              RuleName          which rule chose it, '' when none did
+              UserName          the account to open it with, composed as
+                                DOMAIN\user - empty when no rule set one
+              Password          that account's password, empty likewise
+              CredentialSource  'Rule' or 'BootImage'
+              Variable          everything the bootstrap rules resolved
+              Provenance        where each of those came from
 
         .EXAMPLE
             Resolve-HDTBootstrapRule -RuleDocument $document -Fact $fact -DeployRoot '\\SERVER\HdtShare'
@@ -76,11 +80,14 @@ function Resolve-HDTBootstrapRule {
 
     if ($null -eq $RuleDocument) {
         return [pscustomobject] @{
-            DeployRoot = $DeployRoot
-            Source     = 'BootImage'
-            RuleName   = ''
-            Variable   = $empty
-            Provenance = $empty
+            DeployRoot       = $DeployRoot
+            Source           = 'BootImage'
+            RuleName         = ''
+            UserName         = ''
+            Password         = ''
+            CredentialSource = 'BootImage'
+            Variable         = $empty
+            Provenance       = $empty
         }
     }
 
@@ -111,11 +118,46 @@ function Resolve-HDTBootstrapRule {
         }
     }
 
+    # THE ACCOUNT, COMPOSED HERE SO THE PAYLOAD DECIDES NOTHING. MDT's
+    # Bootstrap.ini carries UserID, UserDomain and UserPassword as three keys
+    # and joins them at the point of use; a payload that did the joining would
+    # be a payload with a rule in it.
+    #
+    # A DOMAIN IS OPTIONAL, because an account local to the file server has
+    # none - 'CONTOSO\svc' and 'svc' are both answers, and 'svc' with an empty
+    # domain must not become '\svc'.
+    $userName = ''
+    $password = ''
+    $credentialSource = 'BootImage'
+
+    if ($resolved.Variable.Contains('HDTUserId')) {
+        $userId = [string] $resolved.Variable['HDTUserId']
+
+        if (-not [string]::IsNullOrWhiteSpace($userId)) {
+            $userName = $userId
+            $credentialSource = 'Rule'
+
+            if ($resolved.Variable.Contains('HDTUserDomain')) {
+                $domain = [string] $resolved.Variable['HDTUserDomain']
+                if (-not [string]::IsNullOrWhiteSpace($domain)) {
+                    $userName = '{0}\{1}' -f $domain, $userId
+                }
+            }
+
+            if ($resolved.Variable.Contains('HDTUserPassword')) {
+                $password = [string] $resolved.Variable['HDTUserPassword']
+            }
+        }
+    }
+
     return [pscustomobject] @{
-        DeployRoot = $chosen
-        Source     = $source
-        RuleName   = $ruleName
-        Variable   = $resolved.Variable
-        Provenance = $resolved.Provenance
+        DeployRoot       = $chosen
+        Source           = $source
+        RuleName         = $ruleName
+        UserName         = $userName
+        Password         = $password
+        CredentialSource = $credentialSource
+        Variable         = $resolved.Variable
+        Provenance       = $resolved.Provenance
     }
 }

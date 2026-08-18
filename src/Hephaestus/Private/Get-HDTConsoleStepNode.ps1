@@ -1,4 +1,4 @@
-function Get-HDTConsoleStepNode {
+﻿function Get-HDTConsoleStepNode {
     <#
         .SYNOPSIS
             Builds the group and step rows that hang beneath one task sequence.
@@ -271,10 +271,20 @@ function Get-HDTConsoleStepNode {
             $owned = @(Get-HDTValidateCheckDefinition | ForEach-Object { [string] $_.Key })
         }
 
+        # THE ORDER THE DOCUMENT DECLARES, NOT THE ALPHABET. These rows were
+        # sorted, which put 'value' above 'variable' on a Set Task Sequence
+        # Variable step: a page that asks what to set it to before it asks what
+        # to set. MDT's dialog is Task Sequence Variable then Value, the
+        # template writes them that way round, and the file is the thing being
+        # edited - a page whose order disagrees with it makes somebody translate
+        # between the two every time they look.
+        #
+        # Import-HDTSequenceDocument keeps the keys ordered for exactly this.
+        #
         # The per-type properties, each writing the key it is named after - the
         # difference between "Apply OS" and "apply THAT image", and the reason
         # the tab exists.
-        foreach ($name in @($current.Property.Keys | Sort-Object)) {
+        foreach ($name in @($current.Property.Keys)) {
             $value = $current.Property[$name]
 
             # A KEY A DEDICATED PAGE OWNS IS STILL REPORTED, just not offered as
@@ -303,7 +313,8 @@ function Get-HDTConsoleStepNode {
 
             if (-not $isTable) {
                 $field = $field + @(
-                    New-HDTConsoleField -Label $name -Value ([string] $value) -Property $name
+                    New-HDTConsoleField -Label (Get-HDTConsolePropertyLabel -Key $name) `
+                        -Value ([string] $value) -Property $name
                 )
 
                 continue

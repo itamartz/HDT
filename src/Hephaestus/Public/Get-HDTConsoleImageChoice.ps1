@@ -1,4 +1,4 @@
-function Get-HDTConsoleImageChoice {
+﻿function Get-HDTConsoleImageChoice {
     <#
         .SYNOPSIS
             An ApplyImage step's operating system, and the ones the share offers.
@@ -110,11 +110,23 @@ function Get-HDTConsoleImageChoice {
     # AND THE FILE KEEPS THE VARIABLE. Resolving for display and then saving the
     # resolution would quietly delete the indirection the sequence was built on,
     # the first time somebody pressed Apply on an unrelated box.
+    # THE NAME, WHEN THE SEQUENCE IS THE ONE THAT SETS IT. Apply writes THIS
+    # rather than replacing the token: choosing a different image used to put a
+    # literal in the step, so the step and the variables block then disagreed
+    # about which OS the sequence deploys - and the Variables tab went on
+    # showing the old one, which is how it was found.
+    #
+    # EMPTY WHEN THE SEQUENCE DOES NOT SET IT. A token from rules.yaml or the
+    # wizard answers for every machine; a sequence that wrote it would be
+    # deciding for all of them from one editor.
+    $imageVariable = ''
+
     if ($written -match '^\s*%([^%]+)%\s*$') {
         $token = [string] $Matches[1]
 
         if ($null -ne $document.Variable -and $document.Variable.Contains($token)) {
             $selected = [string] $document.Variable[$token]
+            $imageVariable = $token
             $note = 'This step names the image through %{0}%, which the sequence sets to {1}. Applying keeps the variable.' -f $token, $selected
         } else {
             $note = 'This step names the image through %{0}%, which this sequence does not set - it comes from rules.yaml or the wizard.' -f $token
@@ -209,11 +221,14 @@ function Get-HDTConsoleImageChoice {
     if ([string]::IsNullOrWhiteSpace($index)) { $index = '1' }
     $indexNote = ''
 
+    $indexVariable = ''
+
     if ($indexWritten -match '^\s*%([^%]+)%\s*$') {
         $indexToken = [string] $Matches[1]
 
         if ($null -ne $document.Variable -and $document.Variable.Contains($indexToken)) {
             $index = [string] $document.Variable[$indexToken]
+            $indexVariable = $indexToken
             $indexNote = 'The index comes through %{0}%.' -f $indexToken
         } else {
             $indexNote = 'The index comes through %{0}%, which this sequence does not set.' -f $indexToken
@@ -287,6 +302,8 @@ function Get-HDTConsoleImageChoice {
         # WHAT APPLY PUTS BACK IN THE FILE when nothing on the page was
         # changed - the author's own text, variable and all.
         Written            = $written
+        ImageVariable      = $imageVariable
+        IndexVariable      = $indexVariable
         Note               = $note
         Index              = $index
         IndexWritten       = $indexWritten

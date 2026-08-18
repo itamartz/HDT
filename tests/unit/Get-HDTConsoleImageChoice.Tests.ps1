@@ -217,6 +217,35 @@ steps:
             $script:resolved.Note | Should -BeLike '*%HDTOSImage%*'
         }
 
+        It 'names the variable, so Apply can write THAT instead of the token' {
+            # THE DEFECT THIS FIXES. Apply kept the variable only while nothing
+            # changed; choosing a different image replaced '%HDTOSImage%' with a
+            # literal, so the step and the variables block then disagreed about
+            # which OS the sequence deploys - and the Variables tab still showed
+            # the old one, which is how it was noticed.
+            $script:resolved.ImageVariable | Should -BeExactly 'HDTOSImage'
+        }
+
+        It 'names no variable when the step holds a plain image' {
+            $plain = Get-HDTConsoleImageChoice -Line $script:line -Path $script:path `
+                -Name 'Install Operating System' -Workspace 'C:\ws' -FileSystem $script:fileSystem
+
+            $plain.ImageVariable | Should -BeExactly ''
+        }
+
+        It 'names no variable the sequence does not set' {
+            # It comes from rules.yaml or the wizard, and a sequence that wrote
+            # it would be answering for every machine rather than this one.
+            $foreign = Get-HDTConsoleImageChoice -Line ([string[]] @(
+                    'schemaVersion: 1'; 'id: DEMO'; 'name: Demo'; 'steps:'
+                    '  - name: Install Operating System'; '    type: ApplyImage'
+                    '    os: "%HDTFromRules%"'; '    target: primary')) `
+                -Path $script:path -Name 'Install Operating System' `
+                -Workspace 'C:\ws' -FileSystem $script:fileSystem
+
+            $foreign.ImageVariable | Should -BeExactly ''
+        }
+
         It 'still writes the variable back, not the image it resolved to' {
             # THE FILE KEEPS WHAT THE AUTHOR WROTE. Resolving for display and
             # then saving the resolution would quietly delete the indirection

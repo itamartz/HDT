@@ -1,4 +1,4 @@
-# New-HDTExecutionContext is the single argument every step receives besides the
+﻿# New-HDTExecutionContext is the single argument every step receives besides the
 # step itself. It carries the LIVE variable dictionary, the service catalog, the
 # 03-01 log context, the run state and the attempt number.
 #
@@ -70,6 +70,60 @@ Describe 'New-HDTExecutionContext' {
 
     It 'seeds _HDTVersion from Get-HDTModuleVersion' {
         $script:context.Variable['_HDTVersion'] | Should -BeExactly ([string] (Get-HDTModuleVersion))
+    }
+
+    Context 'HDTDeploymentEnd' {
+
+        # THE OTHER HALF OF HDTDeploymentStart, and the reason a tattoo step can
+        # write a duration at all.
+        #
+        # IT IS THE CLOCK, REFRESHED BEFORE EVERY STEP, and it has to be: the
+        # deployment's real end is after the last step, when nothing is left to
+        # read it. A tattoo step is the last step, so the value it reads IS the
+        # end to the second - and RESULT.json carries the true final one for
+        # anything reading afterwards.
+        #
+        # UTC, LIKE THE START. WinPE runs on the hardware clock and the deployed
+        # OS is put into a time zone half way through, so two local readings are
+        # hours apart for reasons that have nothing to do with the duration.
+
+        It 'is published before a step runs' {
+            $script:context.SetStep(1, 'Gather', 'Gather')
+
+            $script:context.Variable['HDTDeploymentEnd'] | Should -Not -BeNullOrEmpty
+        }
+
+        It 'is ISO 8601 in UTC, so it subtracts from the start' {
+            $script:context.SetStep(1, 'Gather', 'Gather')
+
+            $stamp = [string] $script:context.Variable['HDTDeploymentEnd']
+
+            $stamp | Should -Match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$'
+            { [System.DateTime]::Parse($stamp, [System.Globalization.CultureInfo]::InvariantCulture) } |
+                Should -Not -Throw
+        }
+
+        It 'moves with the sequence rather than being stamped once' {
+            $script:context.SetStep(1, 'Gather', 'Gather')
+            $first = [System.DateTime]::Parse([string] $script:context.Variable['HDTDeploymentEnd'],
+                [System.Globalization.CultureInfo]::InvariantCulture)
+
+            Start-Sleep -Milliseconds 1100
+            $script:context.SetStep(2, 'Tattoo', 'RunCommand')
+            $second = [System.DateTime]::Parse([string] $script:context.Variable['HDTDeploymentEnd'],
+                [System.Globalization.CultureInfo]::InvariantCulture)
+
+            $second | Should -BeGreaterThan $first
+        }
+
+        It 'is a variable a rule may set, not an engine-owned one' {
+            # It has no _ prefix on purpose: a site that stamps its own end -
+            # from a monitoring system, say - may, and the map says so.
+            $entry = @(Get-HDTVariableMap | Where-Object { $_.HDTName -eq 'HDTDeploymentEnd' })
+
+            $entry.Count | Should -Be 1
+            $entry[0].Writable | Should -BeTrue
+        }
     }
 
     It 'sets _HDTStepName and _HDTStepType from SetStep' {

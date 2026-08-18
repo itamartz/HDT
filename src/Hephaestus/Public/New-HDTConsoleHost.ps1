@@ -403,9 +403,13 @@
                 if ($null -eq $selected) { return }
 
                 $kind = [string] $selected.Kind
-                if ($kind -ne 'TaskSequence' -and $kind -ne 'OperatingSystem') { return }
+                if (@('TaskSequence', 'OperatingSystem', 'Share') -notcontains $kind) { return }
 
+                # A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, because
+                # a workspace projection carries the root it was opened from as
+                # well as the document.
                 $documentPath = [string] $selected.Subject.Path
+                if ($kind -eq 'Share') { $documentPath = [string] $selected.Subject.WorkspacePath }
 
                 try {
                     $fileSystem = New-HDTFileSystem
@@ -419,7 +423,10 @@
                     # and the workspace one checks them against workspace.yaml's
                     # keys - so it refuses a sequence for declaring
                     # 'description'.
-                    if ($kind -eq 'OperatingSystem') {
+                    if ($kind -eq 'Share') {
+                        [void] (Save-HDTWorkspaceDocument -Path $documentPath `
+                                -Line @(Set-HDTWorkspaceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                    } elseif ($kind -eq 'OperatingSystem') {
                         [void] (Save-HDTOperatingSystemDocument -Path $documentPath `
                                 -Line @(Set-HDTOperatingSystemProperty @splat) -FileSystem $fileSystem -Confirm:$false)
                     } else {
@@ -450,6 +457,7 @@
 
                     $setter = 'Set-HDTTaskSequenceProperty'
                     if ($kind -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
+                    if ($kind -eq 'Share') { $setter = 'Set-HDTWorkspaceProperty' }
 
                     $command.Text = "{0} -Line `$line -{1} '{2}'" -f $setter, $parameter, $typed
                 } catch {
@@ -1299,6 +1307,14 @@
         $conditionApply = $window.FindName('HDTConditionApplyButton')
         $conditionClear = $window.FindName('HDTConditionClearButton')
 
+        $variableButton = $window.FindName('HDTVariableButton')
+        $variableTab = $window.FindName('HDTVariableTab')
+        $variableGrid = $window.FindName('HDTVariableGrid')
+        $variableNameBox = $window.FindName('HDTVariableNameBox')
+        $variableValueBox = $window.FindName('HDTVariableValueBox')
+        $variableSet = $window.FindName('HDTVariableSetButton')
+        $variableRemove = $window.FindName('HDTVariableRemoveButton')
+
         $diskTab = $window.FindName('HDTDiskTab')
         $partitionStyleText = $window.FindName('HDTPartitionStyleText')
         $partitionList = $window.FindName('HDTPartitionList')
@@ -1385,9 +1401,16 @@
             Partition = ''
             Image     = ''
             ImageShown = ''
+            ImageVariable = ''
+            IndexVariable = ''
+            Choice    = [string[]] @()
             IndexWritten = ''
             IndexShown = ''
             Quiet     = $false
+
+            # THE LAST STATE, so a handler can echo the command format the
+            # view model owns rather than composing a second copy of it.
+            State     = $null
         }
 
         $tree.ItemsSource = $Node
@@ -1408,7 +1431,22 @@
                 -SelectedName $book.Selected `
                 -HasClipboard:($null -ne $book.Clipboard) -Dirty:$book.Dirty
 
+            $book.State = $state
+
             $book.Quiet = $true
+
+            # THE VARIABLES TAB. Rebuilt every refresh: the tab edits the
+            # block, so a grid still showing what the document said before
+            # the last Set would be a grid that lies.
+            $variableGrid.ItemsSource = $state.Variable
+
+            # THE WHOLE LIST, KEPT, so the filter has something to widen back
+            # to. The box's own ItemsSource is whatever the last keystroke
+            # narrowed it to.
+            $book.Choice = [string[]] @($state.VariableChoice)
+            if (@($variableNameBox.ItemsSource).Count -eq 0) {
+                $variableNameBox.ItemsSource = $book.Choice
+            }
 
             $remove.IsEnabled = $state.CanRemove
             $up.IsEnabled = $state.CanMoveUp
@@ -1487,6 +1525,8 @@
                 # author's own text. Changing the selection replaces it; leaving
                 # it alone keeps the variable the sequence was built on.
                 $book.Image = [string] $imageChoice.Written
+                $book.ImageVariable = [string] $imageChoice.ImageVariable
+                $book.IndexVariable = [string] $imageChoice.IndexVariable
 
                 # AND WHAT THE BOX WAS SET TO, so the handler can tell "nobody
                 # touched it" from "somebody picked the same thing". $imageChoice
@@ -1600,6 +1640,115 @@
 
             & $reflect
         }.GetNewClosure()
+
+
+        # -- the Variables tab ---------------------------------------------
+        #
+        # THE BLOCK THE NEW SEQUENCE WINDOW FILLS, and until this existed
+        # nothing could change it: an administrator who mistyped the
+        # administrator password re-created the sequence.
+        #
+        # IT EDITS THE SAME $book.Line AS EVERY OTHER TAB, so Save is still one
+        # write and the dirty flag still means what it says. Set-HDTSequenceVariable
+        # returns lines and touches nothing.
+        # THE TOOLBAR IS THE WAY IN. The tab's own header is collapsed: a tab
+        # about the SEQUENCE among tabs about the SELECTED STEP is what hid it,
+        # and the toolbar is where sequence-level actions already live.
+        $variableButton.Add_Click({
+                $tabBook.SelectedItem = $variableTab
+            }.GetNewClosure())
+
+
+        # TYPE TO NARROW. WPF's own TextSearch only matches a PREFIX and jumps
+        # the selection rather than shortening the list, which is no use for
+        # names that all begin HDT - so the filter is done here, on Contains,
+        # and IsTextSearchEnabled is off in the markup to stop the two fighting.
+        #
+        # THE TEXT IS NEVER REWRITTEN BY THIS. Assigning ItemsSource while
+        # somebody is typing would move the caret to the end of whatever WPF
+        # decided to select; the box keeps what was typed and only the list
+        # under it changes.
+        $filterVariable = {
+            $typed = [string] $variableNameBox.Text
+
+            $all = @($book.Choice)
+            if (@($all).Count -eq 0) { return }
+
+            if ([string]::IsNullOrWhiteSpace($typed)) {
+                $variableNameBox.ItemsSource = $all
+                return
+            }
+
+            $matched = @($all | Where-Object { $_ -like ('*{0}*' -f $typed) })
+
+            # NOTHING MATCHING LEAVES THE WHOLE LIST, not an empty drop-down. A
+            # name of this sequence's own is legitimate, and a list that
+            # vanished as it was typed would read as a refusal.
+            if (@($matched).Count -eq 0) { $matched = $all }
+
+            $variableNameBox.ItemsSource = $matched
+            $variableNameBox.IsDropDownOpen = $true
+        }.GetNewClosure()
+
+        # THE EDITABLE PART OF A ComboBox IS A TextBox INSIDE ITS TEMPLATE, and
+        # it does not exist until the control has been rendered - so the handler
+        # is attached to the class event rather than to a control that is not
+        # there yet.
+        [void] $variableNameBox.AddHandler(
+            [System.Windows.Controls.Primitives.TextBoxBase]::TextChangedEvent,
+            [System.Windows.Controls.TextChangedEventHandler] { & $filterVariable }.GetNewClosure())
+
+        # THE GRID FILLS THE BOXES. Clicking a row and pressing Set is how a
+        # value is changed; typing the name again would be a way to mistype it.
+        $variableGrid.Add_SelectionChanged({
+                $chosen = $variableGrid.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $variableNameBox.Text = [string] $chosen.Name
+                $variableValueBox.Text = [string] $chosen.Value
+            }.GetNewClosure())
+
+        $variableSet.Add_Click({
+                $name = ([string] $variableNameBox.Text).Trim()
+                if ([string]::IsNullOrWhiteSpace($name)) { return }
+
+                try {
+                    $book.Line = @(Set-HDTSequenceVariable -Line $book.Line -Name $name `
+                            -Value ([string] $variableValueBox.Text) -Confirm:$false)
+                } catch {
+                    # THE REFUSAL IS THE ANSWER. A name that is not an HDT
+                    # variable, or an engine-owned one, is refused by the command
+                    # with a sentence saying why - and the window shows that
+                    # rather than a stack trace or nothing at all.
+                    $commandText.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $book.Dirty = $true
+                & $rebuild
+
+                $commandText.Text = ([string] $book.State.VariableCommandFormat -f
+                    $name, ([string] $variableValueBox.Text))
+            }.GetNewClosure())
+
+        $variableRemove.Add_Click({
+                $name = ([string] $variableNameBox.Text).Trim()
+                if ([string]::IsNullOrWhiteSpace($name)) { return }
+
+                try {
+                    $book.Line = @(Set-HDTSequenceVariable -Line $book.Line -Name $name -Remove -Confirm:$false)
+                } catch {
+                    $commandText.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $book.Dirty = $true
+                $variableNameBox.Text = ''
+                $variableValueBox.Text = ''
+                & $rebuild
+
+                $commandText.Text = ([string] $book.State.VariableRemoveCommandFormat -f $name)
+            }.GetNewClosure())
 
         # THE ADD MENU, BUILT FROM THE CATALOG AND NOTHING ELSE. A category
         # becomes a submenu, an entry becomes an item carrying its own YAML in
@@ -1923,6 +2072,22 @@
                     $image = [string] $imageBox.SelectedValue
                 }
 
+                # THE VARIABLE, NOT THE TOKEN. When the step names its image
+                # through a %Var% this sequence sets, a new choice belongs in
+                # the variables block - writing the literal into the step would
+                # delete the indirection the sequence was built on, and leave
+                # the Variables tab showing an image the step no longer uses.
+                $imageChanged = ([string] $imageBox.SelectedValue -ne [string] $book.ImageShown)
+
+                if ($imageChanged -and -not [string]::IsNullOrWhiteSpace([string] $book.ImageVariable)) {
+                    $book.Line = @(Set-HDTSequenceVariable -Line $book.Line `
+                            -Name ([string] $book.ImageVariable) `
+                            -Value ([string] $imageBox.SelectedValue) -Confirm:$false)
+
+                    # And the step keeps saying %HDTOSImage%.
+                    $image = [string] $book.Image
+                }
+
                 $written = @(
                     @{ Key = 'os'; Value = $image }
                     @{ Key = 'index'; Value = $(
@@ -1947,8 +2112,14 @@
                         $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
                                 -Property ([string] $one.Key) -Value ([string] $one.Value) -Confirm:$false)
                     }
-                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'os' -Value '{1}'" -f
-                    $book.Selected, [string] $imageBox.SelectedValue)
+                } $(
+                    if ($imageChanged -and -not [string]::IsNullOrWhiteSpace([string] $book.ImageVariable)) {
+                        "Set-HDTSequenceVariable -Line `$line -Name '{0}' -Value '{1}'" -f
+                        [string] $book.ImageVariable, [string] $imageBox.SelectedValue
+                    } else {
+                        "Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'os' -Value '{1}'" -f
+                        $book.Selected, [string] $imageBox.SelectedValue
+                    })
             }.GetNewClosure())
 
         $imageRevert.Add_Click({ & $reflect }.GetNewClosure())
@@ -2272,18 +2443,11 @@
         $update = $window.FindName('HDTBootImageUpdateButton')
         $save = $window.FindName('HDTBootImageSaveButton')
         $close = $window.FindName('HDTBootImageCloseButton')
-        # THE BOOTSTRAP TAB - MDT's Bootstrap.ini, as the facts it is built
-        # from. bootstrap.json itself is generated into the image by
-        # Update-HDTBootImage, so a tab that edited it as text would be editing
-        # something the next build overwrites.
-        $bootstrapShareNameBox = $window.FindName('HDTBootstrapShareNameBox')
-        $bootstrapDeployRootBox = $window.FindName('HDTBootstrapDeployRootBox')
-        $bootstrapProviderText = $window.FindName('HDTBootstrapProviderText')
-        $bootstrapCredentialText = $window.FindName('HDTBootstrapCredentialText')
-        $bootstrapCredentialButton = $window.FindName('HDTBootstrapCredentialButton')
-        $bootstrapPromptText = $window.FindName('HDTBootstrapPromptText')
-        $bootstrapLogLevelBox = $window.FindName('HDTBootstrapLogLevelBox')
-        $bootstrapWorkspaceIdText = $window.FindName('HDTBootstrapWorkspaceIdText')
+        # THE BOOTSTRAP TAB IS THE RULES FILE NOW. The five fields that used to
+        # sit above it - share name, deploy root, sign-in account, log level,
+        # workspace id - were a second answer to the question the rules below
+        # answer, and the account among them is a key the rules may now set.
+        # See HDTBootImage.xaml for the whole reasoning.
 
         # THE RULES TAB - MDT's CustomSettings.ini, in the place MDT put it and
         # as the text MDT made it. It is a SEPARATE FILE from the one this
@@ -2367,17 +2531,10 @@
             $componentSize.Text = [string] $view.SelectedSizeText
             # THE BOOTSTRAP TAB. Every one of these came out of the view model,
             # including the three sentences: this method computes none of them.
-            $bootstrapShareNameBox.Text = [string] $view.Bootstrap.ShareName
-            $bootstrapDeployRootBox.Text = [string] $view.Bootstrap.DeployRoot
-            $bootstrapProviderText.Text = [string] $view.Bootstrap.ProviderText
-            $bootstrapCredentialText.Text = [string] $view.Bootstrap.CredentialText
-            $bootstrapPromptText.Text = [string] $view.Bootstrap.PromptText
-            $bootstrapWorkspaceIdText.Text = [string] $view.Bootstrap.WorkspaceId
 
             # AFTER THE ITEMS EXIST, like the driver and time zone boxes above -
             # SelectedValue means nothing until an item carries that value. This
             # one's items are in the markup, so they always do.
-            $bootstrapLogLevelBox.SelectedValue = [string] $view.Bootstrap.LogLevel
 
         }
 
@@ -2937,93 +3094,6 @@
         # than writing a password into workspace.yaml, so it is not part of the
         # workspace Save and has its own button.
         #
-        # NOT Get-Credential. tests/contract/NoInteractivePrompt allows that
-        # command in exactly one file - Start-HDTDeployment.ps1, the wizard in
-        # front of a person in WinPE - and a console is not that file. A
-        # PasswordBox on a small dialog is also the only WPF control that does
-        # not put the password on screen, which is why the certificate password
-        # above is asked for the same way.
-        $bootstrapCredentialButton.Add_Click({
-                Add-Type -AssemblyName PresentationFramework
-
-                $prompt = New-Object -TypeName System.Windows.Window
-                $prompt.Title = 'Share credential'
-                $prompt.Width = 440
-                $prompt.SizeToContent = [System.Windows.SizeToContent]::Height
-                $prompt.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
-                $prompt.Owner = $window
-                $prompt.ResizeMode = [System.Windows.ResizeMode]::NoResize
-
-                $panel = New-Object -TypeName System.Windows.Controls.StackPanel
-                $panel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 16
-
-                $label = New-Object -TypeName System.Windows.Controls.TextBlock
-                $label.Text = 'The account WinPE signs in to the share as. DOMAIN\user, or HOST\user for a local account.'
-                $label.TextWrapping = [System.Windows.TextWrapping]::Wrap
-                $label.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 10
-
-                $user = New-Object -TypeName System.Windows.Controls.TextBox
-                $user.Text = [string] $bootstrapCredentialText.Text
-                $user.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 8
-
-                $secretLabel = New-Object -TypeName System.Windows.Controls.TextBlock
-                $secretLabel.Text = 'Password'
-                $secretLabel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 4
-
-                $entry = New-Object -TypeName System.Windows.Controls.PasswordBox
-                $entry.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 12
-
-                $accept = New-Object -TypeName System.Windows.Controls.Button
-                $accept.Content = 'Store'
-                $accept.IsDefault = $true
-                $accept.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
-                $accept.Padding = New-Object -TypeName System.Windows.Thickness -ArgumentList 14, 6, 14, 6
-
-                $stored = [pscustomobject] @{ Ok = $false }
-
-                $accept.Add_Click({
-                        $stored.Ok = $true
-                        $prompt.Close()
-                    }.GetNewClosure())
-
-                [void] $panel.Children.Add($label)
-                [void] $panel.Children.Add($user)
-                [void] $panel.Children.Add($secretLabel)
-                [void] $panel.Children.Add($entry)
-                [void] $panel.Children.Add($accept)
-
-                $prompt.Content = $panel
-                [void] $prompt.ShowDialog()
-
-                if (-not $stored.Ok) { return }
-                if ([string]::IsNullOrWhiteSpace([string] $user.Text)) { return }
-
-                $credential = New-Object -TypeName System.Management.Automation.PSCredential `
-                    -ArgumentList ([string] $user.Text), $entry.SecurePassword
-
-                # BOTH HALVES, OR NEITHER IS ANY USE. The username is a line in
-                # workspace.yaml and the password is a protected file beside it,
-                # and Update-HDTBootImage refuses a build where the document
-                # declares an account no secret has been written for. A button
-                # that wrote only one of them would produce exactly that.
-                $book.Line = @(Set-HDTWorkspaceProperty -Line $book.Line `
-                        -CredentialUser ([string] $user.Text) -Confirm:$false)
-
-                [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `
-                        -FileSystem (New-HDTFileSystem) -Confirm:$false)
-
-                [void] (Set-HDTShareCredential -WorkspaceRoot (Split-Path -Path $Path -Parent) `
-                        -Credential $credential -FileSystem (New-HDTFileSystem) -Confirm:$false)
-
-                & $fillBoxes
-
-                $commandText.Text = (@(
-                        "Set-HDTWorkspaceProperty -Line `$line -CredentialUser '{0}'" -f [string] $user.Text
-                        "Save-HDTWorkspaceDocument -Line `$line -Path '{0}'" -f $Path
-                        [string] $book.View.Bootstrap.CredentialCommandFormat -f (Split-Path -Path $Path -Parent)
-                    ) -join [System.Environment]::NewLine)
-            }.GetNewClosure())
-
         $save.Add_Click({
                 $propertySplat = @{ Line = $book.Line; Confirm = $false }
 
@@ -3046,19 +3116,6 @@
                 # tells the next reader somebody decided rather than never
                 # looked.
                 $propertySplat['PromptForKey'] = [bool] $promptForKeyCheck.IsChecked
-                # THE BOOTSTRAP TAB SAVES WITH THIS ONE. Its three scalars are
-                # keys in the same document, written by the same command, so a
-                # second Save button on that tab would be a second way to write
-                # the same file and a second thing to leave unpressed.
-                if (-not [string]::IsNullOrWhiteSpace($bootstrapShareNameBox.Text)) {
-                    $propertySplat['Name'] = [string] $bootstrapShareNameBox.Text
-                }
-                if (-not [string]::IsNullOrWhiteSpace($bootstrapDeployRootBox.Text)) {
-                    $propertySplat['DeployRoot'] = [string] $bootstrapDeployRootBox.Text
-                }
-                if (-not [string]::IsNullOrWhiteSpace($bootstrapLogLevelBox.SelectedValue)) {
-                    $propertySplat['LogLevel'] = [string] $bootstrapLogLevelBox.SelectedValue
-                }
 
 
                 $book.Line = @(Set-HDTWorkspaceProperty @propertySplat)

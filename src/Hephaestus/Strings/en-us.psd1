@@ -164,6 +164,21 @@
         'HDTPartitionBootHeader.Text' = 'Boot'
         'HDTPartitionVariableHeader.Text' = 'Variable'
 
+        # The variables block, which the New Task Sequence window fills and
+        # nothing could change until this tab existed.
+        'HDTVariableButton.Content' = 'Variables'
+        'HDTVariableButton.ToolTip' = 'What this task sequence sets before it runs'
+        'HDTVariableTab.Header' = 'Variables'
+        'HDTVariableHint.Text' = 'What this task sequence sets before it runs. A rule in rules.yaml wins over anything here.'
+        'HDTVariableNameColumn.Header' = 'Variable'
+        'HDTVariableValueColumn.Header' = 'Value'
+        'HDTVariableHintColumn.Header' = 'What it does'
+        'HDTVariableNameLabel.Text' = 'Variable'
+        'HDTVariableValueLabel.Text' = 'Value'
+        'HDTVariableSetButton.Content' = 'Set'
+        'HDTVariableSetButton.ToolTip' = 'Adds it, or changes the one already there'
+        'HDTVariableRemoveButton.Content' = 'Remove'
+        'HDTVariableRemoveButton.ToolTip' = 'Takes the named variable out of the block'
         'HDTOptionsTab.Header' = 'Options'
         'HDTDisableCheck.Content' = 'Disable this step'
         'HDTContinueCheck.Content' = 'Continue on error'
@@ -254,22 +269,10 @@
 
         # The Bootstrap tab - MDT's Bootstrap.ini, as the facts it is built from.
         'HDTBootImageBootstrap.Header' = 'Bootstrap'
-        'HDTBootstrapShareNameLabel.Text' = 'Share name'
-        'HDTBootstrapShareNameHint.Text' = 'What this share is called in a log and on the Welcome screen. Not used to reach it.'
-        'HDTBootstrapDeployRootLabel.Text' = 'Deploy root'
-        'HDTBootstrapDeployRootHint.Text' = 'Baked into the boot image, and used unless a rule below chooses another.'
-        'HDTBootstrapCredentialLabel.Text' = 'Sign in as'
-        'HDTBootstrapCredentialButton.Content' = 'Set'
-        'HDTBootstrapCredentialButton.ToolTip' = 'Asks for the account and password, and stores the password protected'
-        'HDTBootstrapCredentialHint.Text' = 'The password is never shown here and never appears in the command below.'
-        'HDTBootstrapLogLevelLabel.Text' = 'Log level'
-        'HDTBootstrapLogLevelHint.Text' = 'How much the engine writes to the log. Debug is for a deployment that is being diagnosed.'
-        'HDTBootstrapWorkspaceIdLabel.Text' = 'Workspace ID'
-        'HDTBootstrapWorkspaceIdHint.Text' = 'Fixed at creation. It names every log and artifact this share produces, so a share that has built anything cannot change it.'
 
         # MDT's Bootstrap.ini proper: rules the machine walks before it has a share.
-        'HDTBootstrapRulesLabel.Text' = 'Choose the share by rule, for a machine that should not use the one above'
-        'HDTBootstrapRulesHint.Text' = 'Matched against the gathered facts before the share is reached. Empty means the deploy root above.'
+        'HDTBootstrapRulesLabel.Text' = 'Which share this image connects to, and the account that opens it'
+        'HDTBootstrapRulesHint.Text' = 'Matched against the gathered facts before the share is reached. No rule matching means the share the image was built with.'
         'HDTBootstrapRulesReloadButton.Content' = 'Reload'
         'HDTBootstrapRulesReloadButton.ToolTip' = 'Read bootstrap-rules.yaml again and lose what is typed here'
         'HDTBootstrapRulesSaveButton.Content' = 'Save rules'

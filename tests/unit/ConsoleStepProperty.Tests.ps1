@@ -1,4 +1,4 @@
-# Editing what a step DOES, which is the Properties tab.
+﻿# Editing what a step DOES, which is the Properties tab.
 #
 # THE OTHER TAB WRITES ALREADY. Options - disabled, continueOnError, condition -
 # went in first because those are the three an administrator changes while
@@ -317,5 +317,52 @@ Describe 'Get-HDTConsoleStepChange' {
 
         $change[1].Renames | Should -BeTrue
         $change[1].NameAfter | Should -BeExactly 'Apply Windows 11'
+    }
+}
+
+Describe 'the Properties rows of a Set Task Sequence Variable step' {
+
+    # TWO BOXES, AND THE ORDER WAS BACKWARDS. The rows were sorted
+    # alphabetically, so 'value' came before 'variable' - a page that asks what
+    # to set it to before it asks what to set. MDT's own dialog is Task Sequence
+    # Variable then Value, and so is the YAML the step's template writes.
+    #
+    # SO THE ROWS FOLLOW THE DOCUMENT, not the alphabet. The file is the thing
+    # being edited, and a page whose order disagrees with it makes an
+    # administrator translate between the two every time they look.
+
+    BeforeAll {
+        $script:setLine = [string[]] @(
+            'schemaVersion: 1'
+            'id: DEMO'
+            'name: Demo'
+            'steps:'
+            '  - name: Name the machine'
+            '    type: SetVariable'
+            '    variable: HDTComputerName'
+            '    value: PC-%HDTSerialNumber%'
+        )
+
+        $script:setState = Get-HDTConsoleEditorState -Line $script:setLine -Path 'C:\ws\TaskSequences\DEMO\sequence.yaml' `
+            -SelectedName 'Name the machine'
+
+        $script:setRow = @($script:setState.Selected.Field | Where-Object { $_.Editable })
+    }
+
+    It 'asks for the variable before what to set it to' {
+        @($script:setRow | ForEach-Object { $_.Property }) | Should -Be @('variable', 'value')
+    }
+
+    It 'calls them what an administrator calls them' {
+        # 'variable' and 'value' are the YAML keys. A label is for reading.
+        $label = @($script:setRow | ForEach-Object { $_.Label })
+
+        $label | Should -Contain 'Variable name'
+        $label | Should -Contain 'Value'
+    }
+
+    It 'still writes the keys the document uses' {
+        @($script:setRow | Where-Object { $_.Label -eq 'Variable name' })[0].Property | Should -BeExactly 'variable'
+        @($script:setRow | Where-Object { $_.Label -eq 'Value' })[0].Property | Should -BeExactly 'value'
     }
 }

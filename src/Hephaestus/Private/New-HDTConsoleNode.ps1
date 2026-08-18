@@ -1,4 +1,4 @@
-function New-HDTConsoleNode {
+﻿function New-HDTConsoleNode {
     <#
         .SYNOPSIS
             Builds one display row for the console window.
@@ -149,8 +149,11 @@ function New-HDTConsoleNode {
         # and never an id, because two shares commonly hold a sequence with the
         # same id and an editor opened by id could write to the wrong one.
         #
-        # A row without a subject does not open, and CanOpen says so rather than
-        # leaving the window to work out which Kinds are which.
+        # A SUBJECT IS NOT THE SAME AS A WINDOW TO OPEN, and it stopped being so
+        # the day the detail pane learned to write: a share and an operating
+        # system carry theirs so the pane knows which document a typed box
+        # belongs to, and neither has a second window behind a double-click.
+        # CanOpen is therefore a subject AND a kind that opens one - see below.
         [Parameter()]
         [AllowNull()]
         [object] $Subject = $null,
@@ -191,7 +194,12 @@ function New-HDTConsoleNode {
         Text             = $Text
         Name             = $(if ([string]::IsNullOrEmpty($Name)) { $Text } else { $Name })
         Subject          = $Subject
-        CanOpen          = ($null -ne $Subject)
+        # WHICH KINDS OPEN SOMETHING, decided here rather than in the window.
+        # A task sequence opens the editor and the boot image opens the Windows
+        # PE window; a share and an operating system are edited in the detail
+        # pane, and a row that reported CanOpen without having anywhere to go
+        # would be a double-click that appears to do nothing.
+        CanOpen          = (($null -ne $Subject) -and @('TaskSequence', 'BootImage') -contains $Kind)
         Display          = ((' ' * (4 * $Depth)) + $Text)
         Field            = [pscustomobject[]] @($Field)
         Detail           = (@($line) -join [System.Environment]::NewLine)

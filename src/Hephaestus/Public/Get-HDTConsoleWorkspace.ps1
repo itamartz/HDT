@@ -1,4 +1,4 @@
-function Get-HDTConsoleWorkspace {
+﻿function Get-HDTConsoleWorkspace {
     <#
         .SYNOPSIS
             Reads a deployment share and returns everything the admin console
@@ -64,7 +64,7 @@ function Get-HDTConsoleWorkspace {
               Root, WorkspacePath, SchemaVersion, Id, Name, DeployRoot,
               LogLevel, CredentialUser, Status, Error
               TaskSequence    [pscustomobject[]] Id, Name, Description,
-                              StepCount, GroupCount, Step, Group, Path,
+                              StepCount, GroupCount, Step, Group, Variable, Path,
                               Status, Error. Step is the engine's flat ordered
                               step list, each carrying its GroupPath; Group is
                               the group list. Both are empty when Status is
@@ -166,6 +166,12 @@ function Get-HDTConsoleWorkspace {
             GroupCount  = 0
             Step        = @()
             Group       = @()
+
+            # WHAT THE NEW SEQUENCE WINDOW WROTE, and what its editor's
+            # Variables tab shows: the block an author is expected to change.
+            # Empty rather than absent, so a window may read it without asking
+            # whether the document declared one.
+            Variable    = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
             Path        = $entry.DocumentPath
             Status      = 'Ok'
             Error       = ''
@@ -189,6 +195,12 @@ function Get-HDTConsoleWorkspace {
             $row.Group = @($sequence.Group)
             $row.StepCount = @($sequence.Step).Count
             $row.GroupCount = @($sequence.Group).Count
+
+            if ($null -ne $sequence.PSObject.Properties['Variable'] -and $null -ne $sequence.Variable) {
+                foreach ($name in @($sequence.Variable.Keys)) {
+                    $row.Variable[[string] $name] = $sequence.Variable[$name]
+                }
+            }
 
             # THE LINT IS NOT ALLOWED TO TAKE THE SEQUENCE OFF THE SCREEN. It is
             # a lint: it returns findings rather than throwing, but a step type

@@ -105,6 +105,15 @@
 # does not follow.
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
     Justification = 'Used inside a closure, which PSReviewUnusedParameter does not follow.')]
+
+# The share password a bootstrap rule chose arrives as text, because
+# bootstrap-rules.yaml is a document inside the boot image and MDT's
+# Bootstrap.ini carried UserPassword the same way. PSCredential requires a
+# SecureString, so the conversion happens at the last possible moment rather
+# than the file pretending the value was ever secret - anybody holding the
+# image already holds the credential baked into it.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+    Justification = 'The share password comes from bootstrap-rules.yaml inside the boot image, as MDT Bootstrap.ini UserPassword did. PSCredential requires a SecureString; the value was never protected and this does not pretend otherwise. The control is the one DESIGN 14 names - treat the boot media as a credential.')]
 [CmdletBinding()]
 param(
     [Parameter()]
@@ -219,6 +228,12 @@ $result = [ordered] @{
     engineVersion      = ''
     psVersion          = [string] $PSVersionTable.PSVersion
     elapsedSecond      = 0
+
+    # THE TWO ENDS OF THE RUN, IN UTC. deploymentStart is what the sequence saw
+    # as HDTDeploymentStart; deploymentEnd is the true final value, stamped
+    # after the last step, which no step could have read.
+    deploymentStart    = ''
+    deploymentEnd      = ''
     logPath            = ''
     logDestination     = ''
 
@@ -535,6 +550,20 @@ try {
             & $say 'prompting for the deployment credential - this image deliberately stops for a human' 'Warning'
 
             $credential = Get-Credential -Message 'The HDT deployment account for the content share'
+        } elseif ([string] $chosen.CredentialSource -eq 'Rule') {
+            # THE RULE CHOSE THE SHARE AND THE ACCOUNT TO OPEN IT WITH. MDT's
+            # Bootstrap.ini did both, and it has to: an image serving many sites
+            # that picked SERVER-B while keeping SERVER-A's account has picked a
+            # share it cannot open.
+            #
+            # THE PASSWORD NEVER REACHES THE LOG. It is turned into a credential
+            # here and the account name is all that is said out loud.
+            $credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @(
+                [string] $chosen.UserName,
+                (ConvertTo-SecureString -String ([string] $chosen.Password) -AsPlainText -Force)
+            )
+
+            & $say ("bootstrap rule '{0}' chose the deployment account '{1}'" -f $chosen.RuleName, $chosen.UserName)
         } else {
             $credential = $bootstrap.GetCredential()
             & $say ("using the embedded deployment account '{0}'" -f $bootstrap.UserName)
@@ -833,6 +862,29 @@ try {
     $variable['HDTDeploymentStart'] = [System.DateTime]::UtcNow.ToString(
         'yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
 
+    $result['deploymentStart'] = [string] $variable['HDTDeploymentStart']
+
+    # LANGUAGE AND REGION, WHEN NOBODY SAID. unattend.xml asks these four as
+    # tokens rather than carrying en-US as a literal, and Invoke-HDTApplyUnattend
+    # REFUSES a document with an unresolved token - correctly, because a machine
+    # named %HDTComputerName% is worse than a failed step. So a share that never
+    # mentions them needs an answer, and it is the one the template hard-coded
+    # before it was a variable: US English.
+    #
+    # ONLY WHEN NOTHING ELSE SPOKE, like the time zone below. DESIGN 3.1's
+    # precedence puts the command line, a machine override and a rule above the
+    # engine, and Contains is what keeps them there.
+    foreach ($pair in @(
+            @{ Name = 'HDTKeyboardLocale'; Value = '0409:00000409' },
+            @{ Name = 'HDTSystemLocale'; Value = 'en-US' },
+            @{ Name = 'HDTUILanguage'; Value = 'en-US' },
+            @{ Name = 'HDTUserLocale'; Value = 'en-US' })) {
+
+        if (-not $variable.Contains([string] $pair.Name)) {
+            $variable[[string] $pair.Name] = [string] $pair.Value
+        }
+    }
+
     # THE TIME ZONE THE DEPLOYED MACHINE GETS, from the boot image, unless a rule
     # already answered. The unattend's specialize pass reads it; without it
     # Windows derives the zone from the locale and every en-US machine comes up
@@ -1003,6 +1055,12 @@ if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
 }
 
 $result['elapsedSecond'] = [int] $started.Elapsed.TotalSeconds
+
+# THE END, AFTER EVERYTHING. The context refreshes HDTDeploymentEnd before every
+# step so a tattoo can read it, but the last refresh is the last STEP, not the
+# end of the run - this is.
+$result['deploymentEnd'] = [System.DateTime]::UtcNow.ToString(
+    'yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
 
 if ($null -ne $log) {
     $result['logPath'] = [string] $log.LogPath

@@ -1,0 +1,112 @@
+name: Publish
+
+# THE POWERSHELL GALLERY, AND ONLY WHEN SOMEBODY ASKS.
+#
+# A published version cannot be replaced and cannot really be withdrawn: Unlist
+# hides it from search and leaves it installable by exact version for ever. So
+# this runs on a tag or on a human pressing Run workflow, and never on a push to
+# a branch. `Install-Module Hephaestus` is a promise, and the first version that
+# keeps it badly is the one everybody has.
+#
+# IT SHIPS WHAT THE BUILD STAGED. out/Hephaestus/<version> is what
+# Invoke-HDTBuild produced, with the manifest's exports checked against the
+# module's own - the source tree has tests, fixtures and .planning beside it.
+#
+# THE SUITE RUNS FIRST. An unpublishable build is a bad afternoon; a published
+# broken one is somebody else's.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      whatIf:
+        description: 'Dry run: build and validate, but do not publish'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read        # it publishes outward. Nothing here writes to the repo.
+
+jobs:
+  publish:
+    name: powershell gallery
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: powershell
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Pester            -RequiredVersion 5.7.1  -Scope CurrentUser -Force -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer  -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+          Install-Module powershell-yaml   -RequiredVersion 0.4.12 -Scope CurrentUser -Force
+
+          "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
+
+      - name: Build, lint, test, self-check
+        run: ./build.ps1 -Task ci
+
+      # THE VERSION IS THE TAG, OR THE TAG IS WRONG. A tag that does not match
+      # the manifest publishes a version nobody asked for and leaves the
+      # repository disagreeing with the Gallery about what v1.2.3 is.
+      - name: Check the tag against the manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          $manifest = Import-PowerShellDataFile './src/Hephaestus/Hephaestus.psd1'
+          $tagged = "$env:GITHUB_REF_NAME".TrimStart('v')
+
+          if ($tagged -ne [string] $manifest.ModuleVersion) {
+              throw ("the tag says $tagged and Hephaestus.psd1 says $($manifest.ModuleVersion). " +
+                  'Tag the commit that carries the version you mean to publish.')
+          }
+
+          "publishing version $tagged"
+
+      - name: Publish to the PowerShell Gallery
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $manifest = Import-PowerShellDataFile './src/Hephaestus/Hephaestus.psd1'
+          $staged = "out/Hephaestus/$($manifest.ModuleVersion)"
+
+          if (-not (Test-Path -LiteralPath $staged)) {
+              throw "the build staged nothing at '$staged'. ./build.ps1 -Task build is what puts it there."
+          }
+
+          # NAMED, NOT DISCOVERED IN A NuGet ERROR. Without this the run fails
+          # inside Publish-Module with a message about an anonymous request,
+          # which sends somebody reading NuGet documentation rather than adding
+          # a repository secret.
+          if ([string]::IsNullOrWhiteSpace($env:PSGALLERY_API_KEY)) {
+              throw ('PSGALLERY_API_KEY is not set on this repository. Create an API key at ' +
+                  'https://www.powershellgallery.com/account/apikeys and add it under ' +
+                  'Settings > Secrets and variables > Actions.')
+          }
+
+          # THE DRY RUN IS THE DEFAULT ON THE MANUAL PATH, so pressing Run
+          # workflow to see whether it would work cannot publish by accident. A
+          # tag is the deliberate act, and publishes.
+          $dryRun = ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.whatIf }}' -eq 'true')
+
+          if ($dryRun) {
+              Publish-Module -Path $staged -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -WhatIf -Verbose
+              "dry run only - nothing was published"
+              exit 0
+          }
+
+          Publish-Module -Path $staged -NuGetApiKey $env:PSGALLERY_API_KEY -Repository PSGallery -Verbose
+
+          "published Hephaestus $($manifest.ModuleVersion)"

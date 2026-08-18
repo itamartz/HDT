@@ -63,10 +63,25 @@
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <InputLocale>0409:00000409</InputLocale>
-      <SystemLocale>en-US</SystemLocale>
-      <UILanguage>en-US</UILanguage>
-      <UserLocale>en-US</UserLocale>
+      <!--
+        LANGUAGE AND REGION, AND NOT en-US BECAUSE NOBODY DECIDED IT. These four
+        were literals here, so every machine this template deployed came up with
+        a US keyboard, a US system locale and a US display language whatever the
+        site was - changeable only by hand-editing the XML of every task
+        sequence.
+
+        THEY ARE VARIABLES, WHICH IS THE ANSWER MDT GAVE: UILanguage, UserLocale
+        and KeyboardLocale are CustomSettings.ini entries there, so one rule sets
+        them for a site, a model or a subnet. InputLocale IS MDT's
+        KeyboardLocale - the same setting under two names, so HDT keeps one.
+
+        Start-HDTDeployment seeds all four when nothing else resolved them, so a
+        share that never mentions them deploys exactly as it did before.
+      -->
+      <InputLocale>%HDTKeyboardLocale%</InputLocale>
+      <SystemLocale>%HDTSystemLocale%</SystemLocale>
+      <UILanguage>%HDTUILanguage%</UILanguage>
+      <UserLocale>%HDTUserLocale%</UserLocale>
     </component>
 
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"

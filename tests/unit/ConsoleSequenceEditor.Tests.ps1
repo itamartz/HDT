@@ -417,3 +417,80 @@ steps:
         [string] (Get-HDTConsoleSequenceEditor -Sequence $document).Description | Should -BeExactly ''
     }
 }
+
+Describe 'the editor s Variables tab' {
+
+    # THE BLOCK THE NEW SEQUENCE WINDOW FILLS AND NOTHING COULD CHANGE. Its
+    # window asks for the administrator password, the OS image and the
+    # organisation, writes them into variables:, and until Set-HDTSequenceVariable
+    # existed that was the end of it - an administrator who mistyped the
+    # password re-created the sequence.
+    #
+    # SECRETS ARE SHOWN, NOT MASKED, AND THE HINT SAYS WHY. HDTAdminPassword is
+    # stored readable in the document because WinPE uses it with nobody present;
+    # a masked box over a readable file is theatre, and it stops an
+    # administrator checking what they typed.
+
+    BeforeAll {
+        $script:variableSequence = New-HDTConsoleEditorTestSequence -Yaml (([string[]] @(
+                        'schemaVersion: 1'
+                        'id: DEMO-M4'
+                        'name: Demo'
+                        'variables:'
+                        '  HDTOSImage: Win11-LTSC-2024'
+                        '  HDTAdminPassword: P@ssw0rd!'
+                        'steps:'
+                        '  - name: Gather'
+                        '    type: Gather'
+                    )) -join "`r`n")
+
+        $script:variableView = Get-HDTConsoleSequenceEditor -Sequence $script:variableSequence
+    }
+
+    It 'lists what the sequence declares, in document order' {
+        @($script:variableView.Variable | ForEach-Object { [string] $_.Name }) |
+            Should -Be @('HDTOSImage', 'HDTAdminPassword')
+    }
+
+    It 'carries the value, so the row shows what will be used' {
+        @($script:variableView.Variable | Where-Object { $_.Name -eq 'HDTOSImage' })[0].Value |
+            Should -BeExactly 'Win11-LTSC-2024'
+    }
+
+    It 'says what each one means where the map knows' {
+        # Get-HDTVariableMap carries the description and the MDT name; a row
+        # showing only HDTOSImageIndex teaches nothing.
+        @($script:variableView.Variable | Where-Object { $_.Name -eq 'HDTAdminPassword' })[0].Hint |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'offers every variable a sequence may set, to type against' {
+        # A NAME TYPED FROM MEMORY IS A NAME TYPED WRONG. HDTOSImageIndex,
+        # HDTAdminPassword, HDTJoinWorkgroup - close enough to guess and far
+        # enough to get wrong, and a misspelt one sets something nothing reads.
+        # The list is Get-HDTVariableMap's, which is the same list the
+        # catalogue in rules.yaml is generated from.
+        @($script:variableView.VariableChoice) | Should -Contain 'HDTAdminPassword'
+        @($script:variableView.VariableChoice) | Should -Contain 'HDTComputerName'
+    }
+
+    It 'offers no engine-owned name, which a document may not assign' {
+        @($script:variableView.VariableChoice) | Should -Not -Contain '_HDTStepName'
+    }
+
+    It 'runs the command that owns the block' {
+        $script:variableView.VariableCommandFormat | Should -BeLike 'Set-HDTSequenceVariable -Line $line -Name*-Value*'
+    }
+
+    It 'offers a way to take one out' {
+        $script:variableView.VariableRemoveCommandFormat | Should -BeLike 'Set-HDTSequenceVariable -Line $line -Name*-Remove'
+    }
+
+    It 'is empty rather than absent on a sequence that declares none' {
+        $bare = New-HDTConsoleEditorTestSequence -Yaml (([string[]] @(
+                        'schemaVersion: 1'; 'id: DEMO-M4'; 'name: Bare'
+                        'steps:'; '  - name: Gather'; '    type: Gather')) -join "`r`n")
+
+        @((Get-HDTConsoleSequenceEditor -Sequence $bare).Variable).Count | Should -Be 0
+    }
+}

@@ -1,4 +1,4 @@
-function New-HDTExecutionContext {
+﻿function New-HDTExecutionContext {
     <#
         .SYNOPSIS
             Builds the execution context every step is handed alongside its step.
@@ -121,6 +121,22 @@ function New-HDTExecutionContext {
 
         $this.Variable['_HDTStepName'] = $Name
         $this.Variable['_HDTStepType'] = $Type
+
+        # THE OTHER HALF OF HDTDeploymentStart, and the reason a tattoo step can
+        # write a duration at all.
+        #
+        # IT IS THE CLOCK, REFRESHED BEFORE EVERY STEP, and it has to be: the
+        # deployment's real end is after the last step, when there is nothing
+        # left to read it. A tattoo is the last step, so what it reads IS the
+        # end to the second - and RESULT.json carries the true final value for
+        # anything reading afterwards.
+        #
+        # UTC AND ISO 8601, LIKE THE START, and for its reason: WinPE runs on
+        # the hardware clock and the deployed OS is put into a time zone half
+        # way through, so two local readings are hours apart for reasons that
+        # have nothing to do with how long the deployment took.
+        $this.Variable['HDTDeploymentEnd'] = [System.DateTime]::UtcNow.ToString(
+            'yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
 
         $this.Log.SetStep($Index, $Name, $Type, $StepLogPath)
     }

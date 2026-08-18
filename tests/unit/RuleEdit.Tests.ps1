@@ -634,8 +634,13 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
             $script:shareLine = [string[]] @($script:written -split "`r?`n")
         }
 
-        It 'wrote a rules.yaml the engine reads as holding the fallback rule' {
-            Get-HDTTestRuleName -Line $script:shareLine | Should -Be @('Fallback')
+        It 'wrote a rules.yaml the engine reads as holding the rules a new share gets' {
+            # A NEW SHARE IS NOT EMPTY. New-HDTWorkspace writes the locale rule
+            # every deployment needs an answer for and the fallback that names
+            # the machine, and these tests edit around them - so this asserts
+            # what the toolkit writes rather than pinning a count that grows
+            # whenever a sensible default is added.
+            Get-HDTTestRuleName -Line $script:shareLine | Should -Be @('Language and region', 'Fallback')
         }
 
         It 'takes a rule added above the fallback' {
@@ -643,7 +648,7 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
                 -When ([ordered] @{ HDTModel = 'Latitude*' }) `
                 -Set ([ordered] @{ HDTComputerName = 'LT-%HDTSerialNumber%' })
 
-            Get-HDTTestRuleName -Line $after | Should -Be @('Latitude naming', 'Fallback')
+            Get-HDTTestRuleName -Line $after | Should -Be @('Latitude naming', 'Language and region', 'Fallback')
             (Get-HDTTestRule -Line $after -Name 'Latitude naming').When['HDTModel'] |
                 Should -BeExactly 'Latitude*'
         }
@@ -652,7 +657,7 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
             $after = Add-HDTRule -Line $script:shareLine -Name 'Applications' `
                 -Set ([ordered] @{ HDTApplication = @('Office', 'Reader') })
 
-            Get-HDTTestRuleName -Line $after | Should -Be @('Fallback', 'Applications')
+            Get-HDTTestRuleName -Line $after | Should -Be @('Language and region', 'Fallback', 'Applications')
             @((Get-HDTTestRule -Line $after -Name 'Applications').Set['HDTApplication']) |
                 Should -Be @('Office', 'Reader')
         }
@@ -668,7 +673,7 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
         It 'renames the fallback rule on its own entry line' {
             $after = Set-HDTRule -Line $script:shareLine -Name 'Fallback' -NewName 'Last resort'
 
-            Get-HDTTestRuleName -Line $after | Should -Be @('Last resort')
+            Get-HDTTestRuleName -Line $after | Should -Be @('Language and region', 'Last resort')
         }
 
         It 'removes a rule that was added to it' {
@@ -676,12 +681,18 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
                 -Set ([ordered] @{ HDTApplication = @('Office') })
             $after = Remove-HDTRule -Line $after -Name 'Applications'
 
-            Get-HDTTestRuleName -Line $after | Should -Be @('Fallback')
+            Get-HDTTestRuleName -Line $after | Should -Be @('Language and region', 'Fallback')
         }
 
-        It 'refuses to remove the fallback, which is the only rule the share has' {
-            { Remove-HDTRule -Line $script:shareLine -Name 'Fallback' } |
-                Should -Throw -ExpectedMessage '*only rule*'
+        It 'removes the fallback, now that a new share has more than one rule' {
+            # IT USED TO BE THE ONLY ONE, and removing it was refused for that
+            # reason - a rules.yaml with no rules is not a document the engine
+            # reads. A new share carries two now, so this is an ordinary
+            # removal, and the refusal is proven elsewhere against a file that
+            # really does hold one.
+            $after = Remove-HDTRule -Line $script:shareLine -Name 'Fallback'
+
+            Get-HDTTestRuleName -Line $after | Should -Be @('Language and region')
         }
 
         It 'keeps the comment header the share was created with through a full edit and save' {
@@ -704,7 +715,7 @@ Describe 'the rules commands against the rules.yaml the toolkit itself writes' {
             $result = Save-HDTRuleDocument -Path $script:share.RulePath -Line $after `
                 -FileSystem $fake -Confirm:$false
 
-            $result.RuleCount | Should -Be 2
+            $result.RuleCount | Should -Be 3
             $script:captured | Should -Match 'what CustomSettings\.ini was'
             $script:captured | Should -Match '#   - name: Naming service'
         }

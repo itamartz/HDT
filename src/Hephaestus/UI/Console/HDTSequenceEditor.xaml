@@ -271,6 +271,16 @@
                 <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
 
                 <Button x:Name="HDTSaveButton" Style="{StaticResource HDTToolButton}" IsEnabled="False" />
+
+                <Border Width="1" Margin="7,4,7,4" Background="{DynamicResource HDTBorderBrush}" />
+
+                <!-- THE TABS BELONG TO THE SELECTED STEP; THIS BELONGS TO THE
+                     SEQUENCE. Properties, Disk and Options all change as the
+                     tree selection moves, so the variables block - which is the
+                     document's, not any step's - was in the wrong strip and
+                     nobody found it. Sequence-level actions live on the
+                     toolbar, beside Save. -->
+                <Button x:Name="HDTVariableButton" Style="{StaticResource HDTToolButton}" />
             </StackPanel>
         </Border>
 
@@ -1073,6 +1083,83 @@
 
                 <!-- WHETHER IT DOES IT. Workbench's Options tab: the two
                      checkboxes, then the filter. -->
+                <!--
+                    THE BLOCK THE NEW SEQUENCE WINDOW FILLS. Its wizard asks for
+                    the administrator password, the OS image and the
+                    organisation, writes them into variables:, and until this tab
+                    existed nothing could change them again - an administrator
+                    who mistyped the password re-created the sequence.
+
+                    NOTHING IS MASKED, INCLUDING THE PASSWORD. It is stored
+                    readable in the document because WinPE uses it with nobody
+                    present; a masked box over a readable file is theatre, and it
+                    stops somebody checking what they typed.
+                -->
+                <!-- Header collapsed: the toolbar button selects it. A tab about
+                     the sequence sitting among tabs about the selected step is
+                     what hid it in the first place. -->
+                <TabItem x:Name="HDTVariableTab" Visibility="Collapsed">
+                    <Grid Margin="16,14,16,14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock x:Name="HDTVariableHint" Grid.Row="0"
+                                   Foreground="{DynamicResource HDTHintTextBrush}"
+                                   FontFamily="Segoe UI" FontSize="12"
+                                   TextWrapping="Wrap" Margin="0,0,0,10" />
+
+                        <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+                            <DataGrid x:Name="HDTVariableGrid"
+                                      AutoGenerateColumns="False"
+                                      HeadersVisibility="Column"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      CanUserResizeRows="False"
+                                      GridLinesVisibility="Horizontal"
+                                      BorderThickness="0"
+                                      Background="Transparent"
+                                      RowBackground="Transparent"
+                                      FontFamily="Segoe UI" FontSize="13">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn x:Name="HDTVariableNameColumn"
+                                                        Binding="{Binding Name}" Width="220" IsReadOnly="True" />
+                                    <DataGridTextColumn x:Name="HDTVariableValueColumn"
+                                                        Binding="{Binding Value}" Width="240" />
+                                    <DataGridTextColumn x:Name="HDTVariableHintColumn"
+                                                        Binding="{Binding Hint}" Width="*" IsReadOnly="True" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock x:Name="HDTVariableNameLabel" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource HDTLabelBrush}"
+                                       FontFamily="Segoe UI" FontSize="12" Margin="0,0,8,0" />
+                            <!-- EDITABLE, NOT A FIXED LIST. Every variable HDT
+                                 publishes is offered, and typing filters them - but a
+                                 sequence may carry a name of its own for a custom step
+                                 to read, so the box still takes anything. IsEditable
+                                 with StaysOpenOnEdit is what keeps the list up while
+                                 somebody types into it. -->
+                            <ComboBox x:Name="HDTVariableNameBox" Width="230" Margin="0,0,10,0"
+                                      IsEditable="True" StaysOpenOnEdit="True"
+                                      IsTextSearchEnabled="False" MaxDropDownHeight="220" />
+
+                            <TextBlock x:Name="HDTVariableValueLabel" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource HDTLabelBrush}"
+                                       FontFamily="Segoe UI" FontSize="12" Margin="0,0,8,0" />
+                            <TextBox x:Name="HDTVariableValueBox" Width="220" Margin="0,0,10,0" />
+
+                            <Button x:Name="HDTVariableSetButton" MinWidth="80" Margin="0,0,10,0" />
+                            <Button x:Name="HDTVariableRemoveButton" MinWidth="90" Margin="0" />
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
                 <TabItem x:Name="HDTOptionsTab">
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled"

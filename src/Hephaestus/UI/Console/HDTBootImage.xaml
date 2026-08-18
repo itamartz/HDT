@@ -178,8 +178,15 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
+        <!-- WHITE, BECAUSE THESE ARE TYPED INTO. HDTFieldBrush is the read-only
+             wash the console's detail pane puts on rows that are a reading
+             rather than a setting; every box on this window is a setting. It
+             wore the wash for months and nobody could tell, because the wash
+             was #FAFAFA and invisible against white - the moment it became a
+             grey somebody could see, this window started claiming its image
+             name could not be changed. -->
         <Style TargetType="TextBox">
-            <Setter Property="Background" Value="{DynamicResource HDTFieldBrush}" />
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
@@ -945,109 +952,43 @@
                 those keys - the only shape that survives a rebuild.
             -->
             <TabItem x:Name="HDTBootImageBootstrap" >
-                <!-- IT SCROLLS. Six rows of fields and an editor is taller
-                     than this window on a small console, and a Save button
-                     below the fold is a button nobody finds. -->
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,4,0">
+                <!--
+                    THE BOOTSTRAP TAB IS THE RULES FILE, AND NOTHING ELSE.
+
+                    It carried two blocks: five fields for what the image is
+                    built with - share name, deploy root, sign-in account, log
+                    level, workspace id - and, under a rule, the rules that
+                    override the share for a machine that should not use it.
+                    Two blocks answering the same question is what an
+                    administrator reads as a window that has not decided, and it
+                    was reported as exactly that.
+
+                    MDT DOES NOT SPLIT THEM EITHER. Bootstrap.ini is rules all
+                    the way down: [Default] is a section like any other, and
+                    DeployRoot, UserID, UserDomain and UserPassword sit in it.
+                    So the account moved into the rules file with the share -
+                    bootstrap-rules.yaml may now set HDTUserId, HDTUserDomain
+                    and HDTUserPassword - and a machine no rule matches still
+                    falls back to what the image was built with.
+
+                    THE PASSWORD IS CLEAR TEXT IN THAT FILE, as it was in
+                    Bootstrap.ini. The file is copied INTO the boot image, so
+                    anybody holding the image already holds the credential baked
+                    into it.
+
+                    WHAT WAS NEVER A BOOTSTRAP SETTING WENT WHERE IT BELONGS.
+                    The share's name and log level are the SHARE's, not the boot
+                    image's; they are on the share's own row in the console
+                    tree, with the workspace id, which is fixed at creation.
+                -->
                 <Grid Margin="18,16,18,16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="170" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-
-                    <TextBlock x:Name="HDTBootstrapShareNameLabel" Grid.Row="0" Grid.Column="0"
-                               Margin="0,6,12,0" />
-                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,14">
-                        <TextBox x:Name="HDTBootstrapShareNameBox" Width="470" HorizontalAlignment="Left" />
-                        <TextBlock x:Name="HDTBootstrapShareNameHint" Style="{StaticResource HDTHintText}"
-                                   Margin="0,5,0,0" MaxWidth="560" />
-                    </StackPanel>
-
-                    <TextBlock x:Name="HDTBootstrapDeployRootLabel" Grid.Row="1" Grid.Column="0"
-                               Margin="0,6,12,0" />
-                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,14">
-                        <TextBox x:Name="HDTBootstrapDeployRootBox" Width="470" HorizontalAlignment="Left" />
-                        <TextBlock x:Name="HDTBootstrapProviderText" Style="{StaticResource HDTHintText}"
-                                   Margin="0,5,0,0" MaxWidth="560" />
-                        <TextBlock x:Name="HDTBootstrapDeployRootHint" Style="{StaticResource HDTHintText}"
-                                   Margin="0,3,0,0" MaxWidth="560" />
-                    </StackPanel>
-
-                    <TextBlock x:Name="HDTBootstrapCredentialLabel" Grid.Row="2" Grid.Column="0"
-                               Margin="0,6,12,0" />
-                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,14">
-                        <StackPanel Orientation="Horizontal">
-                            <!-- A TextBlock, not a read-only TextBox: the theme
-                                 makes TextBox.IsReadOnly unsettable as an
-                                 attribute for the rest of the process, and no
-                                 password is ever shown here anyway. -->
-                            <TextBlock x:Name="HDTBootstrapCredentialText" MinWidth="360"
-                                       VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <Button x:Name="HDTBootstrapCredentialButton" MinWidth="90" Margin="0" />
-                        </StackPanel>
-                        <TextBlock x:Name="HDTBootstrapPromptText" Style="{StaticResource HDTHintText}"
-                                   Margin="0,6,0,0" MaxWidth="560" />
-                        <TextBlock x:Name="HDTBootstrapCredentialHint" Style="{StaticResource HDTHintText}"
-                                   Margin="0,3,0,0" MaxWidth="560" />
-                    </StackPanel>
-
-                    <TextBlock x:Name="HDTBootstrapLogLevelLabel" Grid.Row="3" Grid.Column="0"
-                               Margin="0,6,12,0" />
-                    <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,0,0,14">
-                        <ComboBox x:Name="HDTBootstrapLogLevelBox" Width="180" HorizontalAlignment="Left"
-                                  SelectedValuePath="Tag">
-                            <ComboBoxItem Tag="Error"   Content="Error" />
-                            <ComboBoxItem Tag="Warning" Content="Warning" />
-                            <ComboBoxItem Tag="Info"    Content="Info" />
-                            <ComboBoxItem Tag="Debug"   Content="Debug" />
-                        </ComboBox>
-                        <TextBlock x:Name="HDTBootstrapLogLevelHint" Style="{StaticResource HDTHintText}"
-                                   Margin="0,5,0,0" MaxWidth="560" />
-                    </StackPanel>
-
-                    <TextBlock x:Name="HDTBootstrapWorkspaceIdLabel" Grid.Row="4" Grid.Column="0"
-                               Margin="0,6,12,0" />
-                    <StackPanel Grid.Row="4" Grid.Column="1" Margin="0,0,0,14">
-                        <TextBlock x:Name="HDTBootstrapWorkspaceIdText" FontFamily="Consolas"
-                                   VerticalAlignment="Center" />
-                        <TextBlock x:Name="HDTBootstrapWorkspaceIdHint" Style="{StaticResource HDTHintText}"
-                                   Margin="0,5,0,0" MaxWidth="560" />
-                    </StackPanel>
-
-                    <!--
-                        WHICH SHARE, DECIDED BY THE MACHINE. Everything above is
-                        one answer baked into the image; this is MDT's
-                        Bootstrap.ini proper - rules the machine walks against
-                        its own gateway, MAC and model before it has connected
-                        to anything, so one image can serve many sites.
-
-                        Empty is the normal case, and costs nothing: no file, no
-                        change, and the image deploys from the share above.
-                    -->
-                    <!-- THE DEFAULT ABOVE, THE EXCEPTIONS BELOW. A separate
-                         section rather than a fifth field: the deploy root is
-                         one answer baked into the image, and these are the
-                         machines that get a different one. Two boxes on the
-                         same row read as two ways to set the same thing. -->
-                    <Border Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
-                            BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0"
-                            Margin="0,8,0,0" Padding="0,14,0,0">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
 
                             <TextBlock x:Name="HDTBootstrapRulesLabel" Grid.Row="0" FontSize="14"
                                        Margin="0,0,0,4" />
@@ -1078,11 +1019,7 @@
                             <Button x:Name="HDTBootstrapRulesReloadButton" MinWidth="90" Margin="0,0,10,0" />
                             <Button x:Name="HDTBootstrapRulesSaveButton" MinWidth="90" Margin="0" />
                         </StackPanel>
-                        </Grid>
-                    </Border>
-
                 </Grid>
-                </ScrollViewer>
             </TabItem>
         </TabControl>
 

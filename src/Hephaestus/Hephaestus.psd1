@@ -184,6 +184,7 @@
         'Set-HDTAutoLogon',
         'Set-HDTLogPath',
         'Set-HDTShareCredential',
+        'Set-HDTSequenceVariable',
         'Set-HDTStaticAddress',
         'Set-HDTWindowText',
         'Show-HDTDeploymentFailure',
@@ -276,6 +277,10 @@
     PrivateData          = @{
         PSData = @{
             Tags = @('MDT', 'Deployment', 'OSD', 'WinPE')
+
+            # WHERE TO REPORT A BUG. A Gallery page with no project link is a
+            # dead end for anybody who hit one.
+            ProjectUri = 'https://github.com/itamartz/HDT'
         }
     }
 }

@@ -1,4 +1,4 @@
-# THE RULES TAB, worked out without a window.
+﻿# THE RULES TAB, worked out without a window.
 #
 # MDT PUT CustomSettings.ini ON THE DEPLOYMENT SHARE'S PROPERTIES, in a tab
 # called Rules, as text you edit in place. HDT's equivalent is rules.yaml and it
@@ -137,7 +137,7 @@ Describe 'Get-HDTConsoleRuleSetting -Bootstrap' {
             '  - name: Site A'
             '    when: { HDTDefaultGateway: "192.168.2.1" }'
             '    set:'
-            '      HDTDeployRoot: \SERVER-A\HdtShare'
+            '      HDTDeployRoot: \\SERVER-A\HdtShare'
         )
     }
 
@@ -161,7 +161,8 @@ Describe 'Get-HDTConsoleRuleSetting -Bootstrap' {
         )
 
         $bootstrap = Get-HDTConsoleRuleSetting -Line $line -Path $script:bootstrapPath -Bootstrap
-        $plain = Get-HDTConsoleRuleSetting -Line $line -Path 'C:\HDTLab\Shareules.yaml'
+        $plain = Get-HDTConsoleRuleSetting -Line $line -Path 'C:\HDTLab\Share
+ules.yaml'
 
         $bootstrap.IsValid | Should -BeFalse
         $bootstrap.Problem | Should -BeLike '*rules.yaml*'

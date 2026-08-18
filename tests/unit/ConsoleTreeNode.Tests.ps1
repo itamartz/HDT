@@ -419,6 +419,30 @@ Describe 'Get-HDTConsoleTreeNode' {
                 Should -BeExactly ''
         }
 
+        It 'offers the share its own three, which used to live on the Windows PE window' {
+            # THE BOOTSTRAP TAB CARRIED THEM and should not have: a share's
+            # name, where clients reach it and how much it logs are the SHARE's
+            # settings, not the boot image's. They were a second block on a tab
+            # whose subject is the rules file, and this row is where they belong.
+            #
+            # THE CREDENTIAL IS NOT AMONG THEM. Setting it writes two things -
+            # a line in workspace.yaml and a protected file beside it - so a box
+            # that wrote one of them would leave a share declaring an account no
+            # secret exists for, which is a build that refuses.
+            $share = @($script:node | Where-Object { $_.Kind -eq 'Share' })[0]
+
+            $typeable = @($share.Field | Where-Object { $_.Editable })
+
+            @($typeable | ForEach-Object { $_.Label }) | Should -Be @('Share', 'Deploy root', 'Log level')
+            @($typeable | ForEach-Object { $_.Property }) | Should -Be @('name', 'deployRoot', 'logLevel')
+        }
+
+        It 'carries the workspace document, because the pane writes to it' {
+            $share = @($script:node | Where-Object { $_.Kind -eq 'Share' })[0]
+
+            [string] $share.Subject.WorkspacePath | Should -BeExactly 'C:\ws\workspace.yaml'
+        }
+
         It 'offers an operating system its name and description for typing too' {
             # THE SAME PANE, THE SAME RULE. Workbench edits both on an imported
             # OS's Properties sheet; here they are the two rows that name a key

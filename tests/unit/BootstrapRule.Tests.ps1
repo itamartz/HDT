@@ -1,4 +1,4 @@
-# ONE BOOT IMAGE, MANY SHARES - which is what MDT's Bootstrap.ini is for and
+﻿# ONE BOOT IMAGE, MANY SHARES - which is what MDT's Bootstrap.ini is for and
 # what HDT could not do.
 #
 # MDT'S Bootstrap.ini IS NOT A SETTINGS FILE, IT IS A RULES FILE. ZTIGather runs
@@ -118,10 +118,35 @@ Describe 'Import-HDTBootstrapRuleDocument' {
             Should -Throw -ExpectedMessage '*HDTDeployRoot*'
     }
 
-    It 'refuses a password, which is where MDT and HDT part company' {
-        # Bootstrap.ini carries UserID and UserPassword in clear text. The
-        # account lives in Control\share-credential.json here, and the message
-        # has to say so rather than just refusing an unknown name.
+    It 'takes the deployment account, because that is what Bootstrap.ini is for' {
+        # MDT'S Bootstrap.ini CARRIES UserID, UserDomain AND UserPassword, and
+        # one boot image serving many sites needs an account per site as much as
+        # it needs a share per site - a rule that chose \\SERVER-B\Share and
+        # left SERVER-A's account behind has chosen a share it cannot open.
+        #
+        # THE PASSWORD IS CLEAR TEXT IN THIS FILE. So is MDT's, and the file
+        # travels inside the boot image; anybody holding the image already holds
+        # the credential that was baked into it.
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Site-B'
+            '    set:'
+            '      HDTDeployRoot: \\SERVER-B\HdtShare'
+            '      HDTUserId: svc-deploy-b'
+            '      HDTUserDomain: CONTOSO'
+            '      HDTUserPassword: Passw0rd!'
+        )
+
+        $document = Get-HDTTestBootstrapRule -Line $line
+
+        @($document.Rule).Count | Should -Be 1
+    }
+
+    It 'still refuses the DOMAIN JOIN account, which is a different animal' {
+        # HDTDomainAdminPassword joins the machine to a domain, long after the
+        # share is open. It belongs in rules.yaml ON the share, where the file
+        # is not carried around inside a boot image.
         $line = [string[]] @(
             'schemaVersion: 1'
             'rules:'
@@ -130,8 +155,44 @@ Describe 'Import-HDTBootstrapRuleDocument' {
             '      HDTDomainAdminPassword: Passw0rd!'
         )
 
-        { Get-HDTTestBootstrapRule -Line $line } |
-            Should -Throw -ExpectedMessage '*Set-HDTShareCredential*'
+        { Get-HDTTestBootstrapRule -Line $line } | Should -Throw
+    }
+
+    It 'refuses a deploy root with one backslash, which is a UNC nobody can reach' {
+        # FOUND ON THE LAB SHARE, WRITTEN BY HAND: '\192.168.2.29\HDTShare'
+        # with a single leading slash. YAML is not to blame - a plain scalar
+        # keeps both, and the double-quoted form throws on \S rather than
+        # eating one - so it was typed, and nothing noticed.
+        #
+        # IT WOULD HAVE NOTICED AT THREE IN THE MORNING. The rule matches, WinPE
+        # is handed a path that is not a UNC and not a local one either, and the
+        # machine deploys from somewhere else or not at all. Refusing here is
+        # refusing at the desk.
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Lab'
+            '    set:'
+            '      HDTDeployRoot: \192.168.2.29\HDTShare'
+        )
+
+        { Get-HDTTestBootstrapRule -Line $line } | Should -Throw -ExpectedMessage '*192.168.2.29*'
+    }
+
+    It 'takes the shapes a machine can actually connect to: <_>' -ForEach @(
+        '\\SERVER\HdtShare', '\\192.168.2.29\HDTShare', 'D:\HDTShare') {
+
+        # A LOCAL PATH IS LEGAL: standalone media resolves its own drive, and a
+        # variable is expanded before anybody looks at it.
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Lab'
+            '    set:'
+            ('      HDTDeployRoot: {0}' -f $_)
+        )
+
+        { Get-HDTTestBootstrapRule -Line $line } | Should -Not -Throw
     }
 
     It 'refuses a setFrom rule, because there is no share to hold the script' {
@@ -251,6 +312,78 @@ Describe 'Resolve-HDTBootstrapRule' {
             -Fact ([ordered] @{ HDTModel = 'Latitude' }) -DeployRoot '\\FALLBACK\HdtShare'
 
         $answer.DeployRoot | Should -BeExactly '\\SERVER\Latitude'
+    }
+}
+
+Describe 'the account a bootstrap rule chooses' {
+
+    It 'comes back composed, so the payload builds a credential and decides nothing' {
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Site-B'
+            '    when:'
+            '      HDTDefaultGateway: 192.168.9.1'
+            '    set:'
+            '      HDTDeployRoot: \\SERVER-B\HdtShare'
+            '      HDTUserId: svc-deploy-b'
+            '      HDTUserDomain: CONTOSO'
+            '      HDTUserPassword: Passw0rd!'
+        )
+
+        $chosen = Resolve-HDTBootstrapRule -RuleDocument (Get-HDTTestBootstrapRule -Line $line) `
+            -Fact ([ordered] @{ HDTDefaultGateway = '192.168.9.1' }) -DeployRoot '\\SERVER-A\HdtShare'
+
+        [string] $chosen.DeployRoot | Should -BeExactly '\\SERVER-B\HdtShare'
+        [string] $chosen.UserName | Should -BeExactly 'CONTOSO\svc-deploy-b'
+        [string] $chosen.Password | Should -BeExactly 'Passw0rd!'
+        [string] $chosen.CredentialSource | Should -BeExactly 'Rule'
+    }
+
+    It 'leaves the account alone when the rules named none' {
+        # A RULE THAT CHOSE ONLY A SHARE KEEPS THE IMAGE'S ACCOUNT. The
+        # commonest site rule is one line, and it must not blank the credential
+        # the image was built with.
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Site-B'
+            '    set:'
+            '      HDTDeployRoot: \\SERVER-B\HdtShare'
+        )
+
+        $chosen = Resolve-HDTBootstrapRule -RuleDocument (Get-HDTTestBootstrapRule -Line $line) `
+            -Fact ([ordered] @{}) -DeployRoot '\\SERVER-A\HdtShare'
+
+        [string] $chosen.UserName | Should -BeNullOrEmpty
+        [string] $chosen.CredentialSource | Should -BeExactly 'BootImage'
+    }
+
+    It 'takes a local account, with no domain in front of it' {
+        $line = [string[]] @(
+            'schemaVersion: 1'
+            'rules:'
+            '  - name: Workgroup'
+            '    set:'
+            '      HDTUserId: svc-deploy'
+            '      HDTUserPassword: Passw0rd!'
+        )
+
+        $chosen = Resolve-HDTBootstrapRule -RuleDocument (Get-HDTTestBootstrapRule -Line $line) `
+            -Fact ([ordered] @{}) -DeployRoot '\\SERVER-A\HdtShare'
+
+        [string] $chosen.UserName | Should -BeExactly 'svc-deploy'
+    }
+
+    It 'is in the map under MDT s own names' -ForEach @(
+        @{ HDTName = 'HDTUserId'; MdtName = 'UserID' }
+        @{ HDTName = 'HDTUserDomain'; MdtName = 'UserDomain' }
+        @{ HDTName = 'HDTUserPassword'; MdtName = 'UserPassword' }) {
+
+        $entry = @(Get-HDTVariableMap | Where-Object { $_.HDTName -eq $HDTName })
+
+        $entry.Count | Should -Be 1
+        [string] $entry[0].MdtName | Should -BeExactly $MdtName
     }
 }
 

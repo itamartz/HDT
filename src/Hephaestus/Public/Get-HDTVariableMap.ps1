@@ -133,6 +133,9 @@
         @{ HDTName = 'HDTDeploymentStart'; MdtName = $null; Origin = 'engine'
             Description = 'When this deployment started, as UTC in ISO 8601 (yyyy-MM-ddTHH:mm:ssZ). Published by the engine before the sequence runs; a matching HDTDeploymentEnd is what a tattoo step would subtract it from.'
         }
+        @{ HDTName = 'HDTDeploymentEnd'; MdtName = $null; Origin = 'engine'
+            Description = 'The clock, in UTC ISO 8601, refreshed before every step. A tattoo step at the end of a sequence subtracts HDTDeploymentStart from it to record how long the deployment took; the true final value is in RESULT.json.'
+        }
 
         # WHAT THE BOOT IMAGE CARRIES, SO A SEQUENCE CAN ASK. The template's
         # Install Certificates step is conditioned on it, and an image built
@@ -231,6 +234,9 @@
         @{ HDTName = 'HDTUserLocale'; MdtName = 'UserLocale'; Origin = 'authored'
             Description = 'Time, date, number and currency formats the user sees, as a culture name such as en-US.'
         }
+        @{ HDTName = 'HDTSystemLocale'; MdtName = 'SystemLocale'; Origin = 'authored'
+            Description = "The unattend's SystemLocale - the language a non-Unicode program assumes. Seeded to en-US when nothing sets it, which is what the template hard-coded before it was a variable."
+        }
         @{ HDTName = 'HDTKeyboardLocale'; MdtName = 'KeyboardLocale'; Origin = 'authored'
             Description = 'Keyboard layout, as a culture name or an input locale pair such as 0409:00000409.'
         }
@@ -286,6 +292,15 @@
         }
         @{ HDTName = '_HDTStepType'; MdtName = $null; Origin = 'engine'
             Description = 'Type of the executing step.'
+        }
+        @{ HDTName = 'HDTUserId'; MdtName = 'UserID'; Origin = 'bootstrap'
+            Description = 'The account the boot image connects to the deployment share with, chosen by bootstrap-rules.yaml before the share is reached. MDT put this in Bootstrap.ini, and so does this - a rule that chose another site''s share and left this behind has chosen a share it cannot open.'
+        }
+        @{ HDTName = 'HDTUserDomain'; MdtName = 'UserDomain'; Origin = 'bootstrap'
+            Description = 'The account''s domain, or empty for one local to the file server.'
+        }
+        @{ HDTName = 'HDTUserPassword'; MdtName = 'UserPassword'; Origin = 'bootstrap'
+            Description = 'The account''s password. Clear text in bootstrap-rules.yaml, exactly as MDT''s Bootstrap.ini kept it: the file travels inside the boot image, and anybody holding the image already holds the credential baked into it.'
         }
         @{ HDTName = 'HDTDeployRoot'; MdtName = 'DeployRoot'; Origin = 'bootstrap'
             Description = 'Which deployment share to connect to, chosen by bootstrap-rules.yaml from the gathered facts before the share is reached. MDT put this in Bootstrap.ini. Unset means the one the boot image was built with.'

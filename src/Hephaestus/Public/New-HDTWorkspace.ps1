@@ -1,4 +1,4 @@
-function New-HDTWorkspace {
+﻿function New-HDTWorkspace {
     <#
         .SYNOPSIS
             Creates a deployment share: the folder tree, workspace.yaml and
@@ -203,6 +203,28 @@ function New-HDTWorkspace {
 
     $workspaceDocument['logLevel'] = 'Info'
 
+    # THE LANGUAGE AND REGION, WRITTEN OUT RATHER THAN ASSUMED. unattend.xml asks
+    # for these four by name, and the engine seeds US English when nothing else
+    # answers - but a default nobody can see is a default nobody changes. MDT
+    # shipped CustomSettings.ini with KeyboardLocale, UILanguage and UserLocale
+    # already in it for the same reason: the line you edit has to be there.
+    #
+    # ITS OWN RULE, ABOVE THE FALLBACK. An administrator changing the keyboard
+    # should not have to read a rule about computer names, and a site rule added
+    # above this one still wins - first match wins per variable.
+    #
+    # KeyboardLocale IS THE UNATTEND'S InputLocale. 0409:00000409 is US English
+    # with the US keyboard; the pair is language:layout, and both halves change
+    # together.
+    $locale = [System.Collections.Specialized.OrderedDictionary]::new()
+    $locale['name'] = 'Language and region'
+    $localeSet = [System.Collections.Specialized.OrderedDictionary]::new()
+    $localeSet['HDTKeyboardLocale'] = '0409:00000409'
+    $localeSet['HDTSystemLocale'] = 'en-US'
+    $localeSet['HDTUILanguage'] = 'en-US'
+    $localeSet['HDTUserLocale'] = 'en-US'
+    $locale['set'] = $localeSet
+
     $fallback = [System.Collections.Specialized.OrderedDictionary]::new()
     $fallback['name'] = 'Fallback'
     $fallbackSet = [System.Collections.Specialized.OrderedDictionary]::new()
@@ -212,7 +234,7 @@ function New-HDTWorkspace {
 
     $ruleDocument = [System.Collections.Specialized.OrderedDictionary]::new()
     $ruleDocument['schemaVersion'] = 1
-    $ruleDocument['rules'] = [object[]] @($fallback)
+    $ruleDocument['rules'] = [object[]] @($locale, $fallback)
 
     # The writer is held to the engine's own validators, here, before anything
     # is written - the same arrangement Import-HDTOperatingSystem uses. A share
