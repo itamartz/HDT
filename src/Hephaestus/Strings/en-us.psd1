@@ -40,6 +40,9 @@
         'HDTConsoleDeployRootLabel.Text' = 'Deploy root'
         'HDTConsoleOpenedFromLabel.Text' = 'Opened from'
         'HDTConsoleTreeLabel.Text' = 'Deployment share'
+        'HDTNewWorkspaceMenuItem.Header' = 'New Deployment Share'
+        'HDTOpenWorkspaceMenuItem.Header' = 'Open Deployment Share'
+        'HDTCloseWorkspaceMenuItem.Header' = 'Close Deployment Share'
         'HDTNewSequenceMenuItem.Header' = 'New Task Sequence'
         'HDTRemoveSequenceMenuItem.Header' = 'Remove Task Sequence'
         'HDTImportOperatingSystemMenuItem.Header' = 'Import Operating System'
@@ -49,6 +52,8 @@
         'HDTMoveToFolderMenuItem.Header' = 'Move to Folder'
         'HDTNewApplicationMenuItem.Header' = 'New Application'
         'HDTRemoveApplicationMenuItem.Header' = 'Remove Application'
+        'HDTApplicationDependencyMenuItem.Header' = 'Depends On'
+        'HDTApplicationDetectionMenuItem.Header' = 'Detection'
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'
@@ -364,6 +369,41 @@
 
     # MDT's Import Operating System wizard, as one dialog:
     # ShowImportOperatingSystem.
+    # MDT's New Deployment Share wizard, as one dialog:
+    # Show-HDTConsole -> New-HDTConsoleHost.ShowNewWorkspace.
+    NewWorkspace = @{
+
+        'HDTNewWorkspaceTitleText.Text' = 'New Deployment Share'
+        'HDTNewWorkspaceSubtitleText.Text' = 'A folder of YAML and content. Nothing is shared over SMB by this - that is the server''s to do, and the deploy root below is how clients reach it.'
+        'HDTNewWorkspacePathLabel.Text' = 'Folder'
+        'HDTNewWorkspacePathBrowseButton.Content' = 'Browse'
+        'HDTNewWorkspacePathHint.Text' = 'Where the share is created on this machine. It does not have to exist yet; what it must not do is already hold a workspace.yaml.'
+        'HDTNewWorkspaceIdLabel.Text' = 'Id'
+        'HDTNewWorkspaceIdHint.Text' = 'Carried into every boot image built here, and written into log and artifact names - so it is decided once. Letters, digits, underscore and hyphen.'
+        'HDTNewWorkspaceNameLabel.Text' = 'Name'
+        'HDTNewWorkspaceDeployRootLabel.Text' = 'Deploy root'
+        'HDTNewWorkspaceDeployRootHint.Text' = 'The path a machine that has booted the image uses to reach this share, usually a UNC path - not necessarily the folder above. Leave it empty and the Welcome screen asks the technician for one.'
+        'HDTNewWorkspaceCreateButton.Content' = 'Create'
+    }
+
+    # How an application is detected, as a type and the boxes that type takes:
+    # Show-HDTConsole -> New-HDTConsoleHost.ShowApplicationDetection.
+    ApplicationDetection = @{
+
+        'HDTDetectionTitleText.Text' = 'Detection'
+        'HDTDetectionTypeLabel.Text' = 'Detect by'
+        'HDTDetectionSaveButton.Content' = 'Save'
+    }
+
+    # What an application has to be installed after, picked rather than typed:
+    # Show-HDTConsole -> New-HDTConsoleHost.ShowApplicationDependency.
+    ApplicationDependency = @{
+
+        'HDTDependencyTitleText.Text' = 'Depends on'
+        'HDTDependencyEmptyText.Text' = 'There is nothing else on this share to depend on yet. Add another application, and it will be offered here.'
+        'HDTDependencySaveButton.Content' = 'Save'
+    }
+
     # MDT's New Application wizard, as one dialog:
     # Show-HDTConsole -> New-HDTConsoleHost.ShowImportApplication.
     ImportApplication = @{

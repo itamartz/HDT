@@ -1,4 +1,4 @@
-# C1's window, asserted on a machine with no display.
+﻿# C1's window, asserted on a machine with no display.
 #
 # THE WINDOW IS NOT UNIT TESTED AND MUST NOT BE. Show-HDTConsole holds the
 # decisions; an injected IConsoleHost holds the WPF. That is the same split
@@ -72,10 +72,20 @@ steps:
             # What the real host reports back after the window closes.
             Width      = 1640
             Height     = 880
+
+            # WHAT THE WINDOW OPENED WITH, before the share was read, and how
+            # many times it was asked to read one.
+            PendingNode = @()
+            FillCount   = 0
+            Handed      = [ordered] @{}
         }
 
         $fake | Add-Member -MemberType ScriptMethod -Name Show -Value {
-            param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size)
+            param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
+                [string] $ThemeName, [int] $RefreshSecond, [string] $NewSequenceXaml,
+                [string] $ImportOperatingSystemXaml, [string] $ImportApplicationXaml,
+                [string] $ApplicationDependencyXaml, [string] $ApplicationDetectionXaml,
+                [object] $Fill = $null)
 
             $this.ShowCount = $this.ShowCount + 1
             $this.Xaml = $Xaml
@@ -83,6 +93,38 @@ steps:
             $this.Node = $Node
             $this.Theme = $Theme
             $this.OpenedSize = $Size
+
+            # RECORDED, NOT IGNORED - the same rule the wizard's fake states: a
+            # fake that accepts a parameter and drops it is a
+            # PSReviewUnusedParameter warning that breaks lint, and a
+            # SuppressMessageAttribute inside a SCRIPT BLOCK param block is
+            # ignored outright. Keeping them is also the more useful double,
+            # since which markup each dialog was handed is then assertable.
+            $this.Handed = [ordered] @{
+                ThemeName                 = $ThemeName
+                RefreshSecond             = $RefreshSecond
+                NewSequenceXaml           = $NewSequenceXaml
+                ImportOperatingSystemXaml = $ImportOperatingSystemXaml
+                ImportApplicationXaml     = $ImportApplicationXaml
+                ApplicationDependencyXaml = $ApplicationDependencyXaml
+                ApplicationDetectionXaml  = $ApplicationDetectionXaml
+            }
+
+            # THE REAL HOST READS THE SHARE ONCE ITS WINDOW IS UP, and so does
+            # this: the window opens holding a row that says it is reading, and
+            # what it shows afterwards is whatever the block returns. A fake
+            # that ignored the block would be a fake that never sees a share -
+            # which is exactly how this contract announced itself, as six tests
+            # asserting rows against a tree nobody had filled.
+            #
+            # The unfilled rows are kept too, because "what the window opened
+            # with" is a thing to be able to assert.
+            $this.PendingNode = $Node
+
+            if ($null -ne $Fill) {
+                $this.Node = @(& $Fill)
+                $this.FillCount = $this.FillCount + 1
+            }
 
             return [string] $this.Action
         }

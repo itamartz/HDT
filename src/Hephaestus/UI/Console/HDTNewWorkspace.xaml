@@ -1,0 +1,208 @@
+<!--
+    MDT'S New Deployment Share WIZARD, on one page.
+
+    MDT SPREADS IT OVER SEVEN - Path, Share, Descriptive Name, Options, Summary,
+    Progress, Confirmation - and three of those ask questions this toolkit does
+    not have. MDT's Share page creates an SMB share and sets its permissions;
+    HDT writes a folder and leaves sharing to whoever owns the server, because a
+    deployment share reached over SMB is a share somebody's storage team has
+    opinions about. MDT's Options page is five tick boxes for behaviour that is
+    rules.yaml here.
+
+    WHAT IS ASKED FOR IS WHAT New-HDTWorkspace TAKES: where it goes, what its id
+    is, what to call it, and where clients reach it.
+
+    THE DEPLOY ROOT IS THE ONE NOBODY CAN GUESS, and it is optional here for the
+    same reason it is optional in the document: an image built without one
+    reaches the Welcome screen with an empty share box and a hint, rather than
+    failing to boot. A lab that deploys from the same machine it authors on can
+    leave it empty and fill it in later.
+
+    NO x:Class AND NO CODE-BEHIND, as every other window here. Handlers are
+    attached in PowerShell, by name.
+
+    NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+    HDTNewWorkspaceTitleText, HDTNewWorkspacePathBox,
+    HDTNewWorkspacePathBrowseButton, HDTNewWorkspaceIdBox,
+    HDTNewWorkspaceNameBox, HDTNewWorkspaceDeployRootBox,
+    HDTNewWorkspaceMessageText, HDTNewWorkspaceCommandText,
+    HDTNewWorkspaceCreateButton and HDTCancelButton - and the three hints behind
+    the ? dots, HDTNewWorkspacePathHint, HDTNewWorkspaceIdHint and
+    HDTNewWorkspaceDeployRootHint.
+-->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="New Deployment Share"
+        Width="640" Height="440"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource HDTWindowBrush}"
+        FontFamily="Segoe UI" FontSize="12">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTHintTextBrush"    Color="#FF6B6B6B" />
+        <SolidColorBrush x:Key="HDTErrorBrush"       Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
+
+        <Style TargetType="TextBlock" x:Key="HDTFieldLabel">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,5,6,5" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+        </Style>
+
+        <Style TargetType="Border" x:Key="HDTHelpDot">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="Margin" Value="8,0,0,10" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+            <Setter Property="Text" Value="?" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="16,12,16,12">
+            <StackPanel>
+                <TextBlock x:Name="HDTNewWorkspaceTitleText"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="HDTNewWorkspaceSubtitleText"
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16,14,16,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="30" />
+            </Grid.ColumnDefinitions>
+
+            <!-- THE FOLDER COMES FIRST because the id is suggested from it. -->
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTNewWorkspacePathLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTNewWorkspacePathBox"
+                     FontFamily="Consolas, Courier New" />
+            <Button Grid.Row="0" Grid.Column="2" x:Name="HDTNewWorkspacePathBrowseButton"
+                    Margin="8,0,0,10" />
+            <Border Grid.Row="0" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewWorkspacePathHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTNewWorkspaceIdLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceIdBox"
+                     FontFamily="Consolas, Courier New" />
+            <Border Grid.Row="1" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewWorkspaceIdHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTNewWorkspaceNameLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceNameBox" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTNewWorkspaceDeployRootLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceDeployRootBox"
+                     FontFamily="Consolas, Courier New" />
+            <Border Grid.Row="3" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewWorkspaceDeployRootHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <TextBlock Grid.Row="4" Grid.ColumnSpan="4" x:Name="HDTNewWorkspaceMessageText"
+                       Foreground="{DynamicResource HDTErrorBrush}"
+                       TextWrapping="Wrap" Margin="0,4,0,0" />
+        </Grid>
+
+        <Border Grid.Row="2" Margin="16,0,16,0" Padding="0,8,0,8">
+            <TextBlock x:Name="HDTNewWorkspaceCommandText"
+                       Foreground="{DynamicResource HDTCommandTextBrush}"
+                       FontFamily="Consolas, Courier New" FontSize="11"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <Border Grid.Row="3" Background="{DynamicResource HDTFooterBrush}" Padding="16,12,16,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="HDTNewWorkspaceCreateButton" MinWidth="96" IsDefault="True" />
+                <Button x:Name="HDTCancelButton" MinWidth="96" Margin="8,0,0,0" IsCancel="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

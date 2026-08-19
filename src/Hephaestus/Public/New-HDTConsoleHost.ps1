@@ -78,7 +78,9 @@
         # along with the colours.
         param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
             [string] $ThemeName = 'Light', [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '',
-            [string] $ImportOperatingSystemXaml = '', [string] $ImportApplicationXaml = '')
+            [string] $ImportOperatingSystemXaml = '', [string] $ImportApplicationXaml = '',
+            [string] $ApplicationDependencyXaml = '', [string] $ApplicationDetectionXaml = '',
+            [object] $Fill = $null, [string] $NewWorkspaceXaml = '')
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -300,8 +302,46 @@
         # Selecting the root raises SelectedItemChanged, which is what fills the
         # two panes and the banner; the window is never shown blank.
         $window.Add_ContentRendered({
+                # THE SHARE IS READ HERE, NOT BEFORE THE WINDOW EXISTED.
+                # Get-HDTConsoleWorkspace costs 820ms on the lab share, and the
+                # tree it builds used to have to exist before this window could
+                # be shown - so that second was spent on an empty screen. The
+                # window now comes up holding one row saying it is reading, and
+                # this is where the reading happens.
+                #
+                # ON THE DISPATCHER, DELIBERATELY. The window is visible and
+                # busy for that second rather than absent for it, and a second
+                # runspace would need this module imported into it - the other
+                # second - before it could read anything.
+                #
+                # THE WAIT CURSOR IS WHAT SAYS SO. A window that ignores the
+                # mouse without one is a window somebody reports as hung.
+                if ($null -ne $Fill) {
+                    $window.Cursor = [System.Windows.Input.Cursors]::AppStarting
+
+                    try {
+                        $tree.ItemsSource = [object[]] (& $Fill)
+                        $tree.UpdateLayout()
+                    } catch {
+                        # A READ THAT FAILED STILL HAS TO LEAVE A WINDOW SOMEBODY
+                        # CAN READ. The placeholder row stays, and what went
+                        # wrong is put where a failure belongs - on the window,
+                        # in the box that shows what was run.
+                        #
+                        # ON THE WINDOW'S Tag AS WELL, because the row selected
+                        # a moment later writes that box too: an error that only
+                        # lived there would be overwritten before anybody read
+                        # it, which is exactly how this arrangement hid its own
+                        # first failure.
+                        $window.Tag = [string] $_.Exception.Message
+                        $command.Text = [string] $_.Exception.Message
+                    } finally {
+                        $window.Cursor = $null
+                    }
+                }
+
                 $first = $tree.ItemContainerGenerator.ContainerFromIndex(0)
-                $first.IsSelected = $true
+                if ($null -ne $first) { $first.IsSelected = $true }
 
                 $refresh.Start()
             }.GetNewClosure())
@@ -321,7 +361,10 @@
         # THE SAME TWO CALLS Show-HDTConsole MAKES: a share is read, its rows are
         # built. A share that will not read becomes a failure row rather than
         # taking the window down.
-        $rebuildTree = {
+        # WHICH SHARES THE WINDOW HAS OPEN, read off the tree rather than kept
+        # in a list beside it: the tree is what somebody is looking at, and a
+        # second list is a second thing to get out of step with it.
+        $openShare = {
             $shareRoot = New-Object -TypeName System.Collections.ArrayList
 
             foreach ($root in @($tree.ItemsSource)) {
@@ -331,9 +374,18 @@
                 }
             }
 
+            return [string[]] @($shareRoot)
+        }.GetNewClosure()
+
+        # REBUILT FROM A LIST, so adding a share and closing one are the same
+        # operation with a different list - and the ordinary rebuild is that
+        # operation with the list the tree already has.
+        $rebuildFrom = {
+            param([string[]] $Root)
+
             $rebuiltShare = New-Object -TypeName System.Collections.ArrayList
 
-            foreach ($one in @($shareRoot)) {
+            foreach ($one in @($Root)) {
                 try {
                     [void] $rebuiltShare.Add((Get-HDTConsoleWorkspace -Path $one))
                 } catch {
@@ -348,7 +400,14 @@
             $rebuiltNode = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($rebuiltShare)))
 
             $tree.ItemsSource = @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
+
+            # WHAT THE WINDOW ENDED UP WITH, for Show-HDTConsole to remember
+            # after it closes. Read from the rebuild rather than from the tree,
+            # because a share that would not open is still one somebody added.
+            $consoleHost.OpenShare = [string[]] @($Root)
         }.GetNewClosure()
+
+        $rebuildTree = { & $rebuildFrom (& $openShare) }.GetNewClosure()
 
         # A TYPEABLE DETAIL BOX WRITES WHEN IT LOSES FOCUS, which is how every
         # other box in this console behaves. Which boxes those are is the row's
@@ -597,12 +656,17 @@
 
         # NO MARKUP, NO BUTTON. A button that cannot open its window is one a
         # technician presses to find out nothing happens.
+        $newWorkspace = $window.FindName('HDTNewWorkspaceMenuItem')
+        $openWorkspace = $window.FindName('HDTOpenWorkspaceMenuItem')
+        $closeWorkspace = $window.FindName('HDTCloseWorkspaceMenuItem')
         $newSequence = $window.FindName('HDTNewSequenceMenuItem')
         $removeSequence = $window.FindName('HDTRemoveSequenceMenuItem')
         $importOperatingSystem = $window.FindName('HDTImportOperatingSystemMenuItem')
         $removeOperatingSystem = $window.FindName('HDTRemoveOperatingSystemMenuItem')
         $newApplication = $window.FindName('HDTNewApplicationMenuItem')
         $removeApplication = $window.FindName('HDTRemoveApplicationMenuItem')
+        $applicationDependency = $window.FindName('HDTApplicationDependencyMenuItem')
+        $applicationDetection = $window.FindName('HDTApplicationDetectionMenuItem')
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
         $deleteFolder = $window.FindName('HDTDeleteFolderMenuItem')
@@ -645,6 +709,11 @@
 
                         $chosen = $tree.SelectedItem
 
+                        # WORKBENCH'S ROOT NODE: New and Open hang off the
+                        # 'Deployment Shares' row, and Close off a share.
+                        $isRoot = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Root')
+                        $isShare = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Share')
+
                         $isCategory = ($null -ne $chosen -and
                             [string] $chosen.Kind -eq 'Category' -and
                             [string] $chosen.Name -eq 'TaskSequences')
@@ -662,6 +731,23 @@
                             [string] $chosen.Name -eq 'Applications')
 
                         $isApplication = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Application')
+
+                        $newWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
+                        $openWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
+                        $closeWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        if ($isRoot) {
+                            # NO MARKUP, NO ITEM, as everywhere else here. Open
+                            # needs no dialog of its own - it is a folder picker
+                            # and one command - so it is offered either way.
+                            if (-not [string]::IsNullOrWhiteSpace($NewWorkspaceXaml)) {
+                                $newWorkspace.Visibility = [System.Windows.Visibility]::Visible
+                            }
+
+                            $openWorkspace.Visibility = [System.Windows.Visibility]::Visible
+                        }
+
+                        if ($isShare) { $closeWorkspace.Visibility = [System.Windows.Visibility]::Visible }
 
                         # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
                         # with none opens no menu.
@@ -688,7 +774,21 @@
                         if ($isAppCategory -and -not [string]::IsNullOrWhiteSpace($ImportApplicationXaml)) {
                             $newApplication.Visibility = [System.Windows.Visibility]::Visible
                         }
-                        if ($isApplication) { $removeApplication.Visibility = [System.Windows.Visibility]::Visible }
+                        $applicationDependency.Visibility = [System.Windows.Visibility]::Collapsed
+                        $applicationDetection.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        if ($isApplication) {
+                            $removeApplication.Visibility = [System.Windows.Visibility]::Visible
+
+                            # NO MARKUP, NO ITEM, as everywhere else here.
+                            if (-not [string]::IsNullOrWhiteSpace($ApplicationDependencyXaml)) {
+                                $applicationDependency.Visibility = [System.Windows.Visibility]::Visible
+                            }
+
+                            if (-not [string]::IsNullOrWhiteSpace($ApplicationDetectionXaml)) {
+                                $applicationDetection.Visibility = [System.Windows.Visibility]::Visible
+                            }
+                        }
 
                         # THE FOLDER ITEMS, AND THE ROW DECIDES WHICH.
                         # Get-HDTConsoleFolderAction is where that is worked out,
@@ -727,11 +827,11 @@
                         # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
                         # SIDES OF IT. A line at the top of a menu is a line
                         # nobody drew on purpose.
-                        if ($onFolderRow -and ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication)) {
+                        if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication)) {
                             $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
                         }
 
-                        if (-not ($isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $onFolderRow)) {
+                        if (-not ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $onFolderRow)) {
                             $opening.Handled = $true
                         }
                     }.GetNewClosure())
@@ -878,6 +978,79 @@
                                                 $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
                     }.GetNewClosure())
 
+                # -- the shares themselves -------------------------------
+                #
+                # WORKBENCH'S ROOT NODE ACTIONS, which this console had none of:
+                # the shares in the window were the ones named on the command
+                # line, and a new one was New-HDTWorkspace at a prompt.
+                #
+                # ADDING A SHARE IS A REBUILD WITH ONE MORE PATH. The tree is
+                # what says which shares are open, so there is no second list to
+                # keep in step with it.
+                $newWorkspace.Add_Click({
+                        $made = [string] $consoleHost.ShowNewWorkspace($NewWorkspaceXaml, $Theme, $window)
+
+                        if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                        & $rebuildFrom ([string[]] @(@(& $openShare) + @($made)))
+
+                        $command.Text = "New-HDTWorkspace -Path '{0}'" -f $made
+                    }.GetNewClosure())
+
+                # OPENING NEEDS NO DIALOG OF ITS OWN: a folder picker and a
+                # check. Test-HDTConsoleOpenWorkspace is that check, and it is
+                # the one place that decides what counts as a share to open.
+                $openWorkspace.Add_Click({
+                        $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                        $picker.Title = 'Open the deployment share folder, and press Open'
+                        $picker.CheckFileExists = $false
+                        $picker.FileName = 'this folder'
+                        $picker.Filter = 'All files (*.*)|*.*'
+
+                        if ($picker.ShowDialog($window) -ne $true) { return }
+
+                        $chosenPath = [string] [System.IO.Path]::GetDirectoryName($picker.FileName)
+                        $already = [string[]] @(& $openShare)
+
+                        $answer = Test-HDTConsoleOpenWorkspace -Path $chosenPath -Open $already
+
+                        # THE REFUSAL GOES IN THE COMMAND BOX, which is where
+                        # this window says everything else that went wrong.
+                        if (-not $answer.CanOpen) {
+                            $command.Text = [string] $answer.Message
+                            return
+                        }
+
+                        $window.Cursor = [System.Windows.Input.Cursors]::AppStarting
+
+                        try {
+                            & $rebuildFrom ([string[]] @(@($already) + @($chosenPath)))
+                        } finally {
+                            $window.Cursor = $null
+                        }
+
+                        $command.Text = "Get-HDTConsoleWorkspace -Path '{0}'" -f $chosenPath
+                    }.GetNewClosure())
+
+                # CLOSING TAKES IT OUT OF THE WINDOW AND DELETES NOTHING, and
+                # the dialog says so: 'Remove' is what the task sequence and the
+                # operating system items are called, and those do delete.
+                $closeWorkspace.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                        $keep = [string[]] @(@(& $openShare) | Where-Object {
+                                -not [string]::Equals([string] $_, $where, [System.StringComparison]::OrdinalIgnoreCase)
+                            })
+
+                        & $rebuildFrom $keep
+
+                        $command.Text = "# '{0}' was closed. Nothing on it was changed; Open Deployment Share puts it back." -f $where
+                    }.GetNewClosure())
+
                 # -- applications ----------------------------------------
                 #
                 # THE PART OF A SHARE THAT CHANGES WEEKLY, and until now the one
@@ -898,6 +1071,86 @@
                         & $rebuildTree
 
                         $command.Text = "Import-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $made
+                    }.GetNewClosure())
+
+                # DETECTION IS A TYPE AND THE BOXES THAT TYPE TAKES, which is
+                # why it gets a window rather than a box: a rule is four shapes,
+                # and typing YAML into a field means knowing which keys the type
+                # takes and the indentation between them.
+                $applicationDetection.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        $which = [string] $chosen.Name
+
+                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                            $command.Text = 'that row does not name a share and an application id, so there is nothing to edit.'
+                            return
+                        }
+
+                        # THE DOCUMENT, NOT THE ROW. The row carries the rule as
+                        # a sentence for reading; the window needs the keys.
+                        $rule = $null
+
+                        try {
+                            $rule = (Get-HDTApplication -WorkspaceRoot $where -Id $which -FileSystem (New-HDTFileSystem)).Detect
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        $answer = $consoleHost.ShowApplicationDetection(
+                            $ApplicationDetectionXaml, $where, $which, $rule, $Theme, $window)
+
+                        # A CANCELLED DIALOG AND A CLEARED RULE BOTH COME BACK
+                        # NULL, so the tree is rebuilt either way rather than
+                        # left showing a rule that has just been removed.
+                        & $rebuildTree
+
+                        $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Detect {2}" -f
+                        $where, $which, (Get-HDTConsoleDetectionForm -Detect $answer).CommandText
+                    }.GetNewClosure())
+
+                # DEPENDS ON IS PICKED FROM THE SHARE, and that is the whole
+                # point of the window: a dependency is an application id in a
+                # document, and a misspelled one is not caught until a
+                # deployment runs, when Resolve-HDTApplicationOrder refuses the
+                # WHOLE plan rather than that one application.
+                #
+                # THE SHARE IS RE-READ RATHER THAN TAKEN FROM THE ROW. The tree
+                # holds what the share looked like when it was built, and the
+                # list this offers has to be what is on it now - a dialog is
+                # slow enough to open that 400ms does not show.
+                $applicationDependency.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.HeaderRoot
+                        $which = [string] $chosen.Name
+
+                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                            $command.Text = 'that row does not name a share and an application id, so there is nothing to edit.'
+                            return
+                        }
+
+                        try {
+                            $share = Get-HDTConsoleWorkspace -Path $where
+                            $offer = @(Get-HDTConsoleDependencyChoice -Application ([object[]] @($share.Application)) -Id $which)
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        $answer = $consoleHost.ShowApplicationDependency(
+                            $ApplicationDependencyXaml, $where, $which, ([object[]] $offer), $Theme, $window)
+
+                        if ($null -eq $answer) { return }
+
+                        & $rebuildTree
+
+                        $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Dependency @({2})" -f
+                        $where, $which, ((@($answer) | ForEach-Object { "'{0}'" -f $_ }) -join ', ')
                     }.GetNewClosure())
 
                 # REMOVE ASKS, AND THE DIALOG NAMES WHAT WOULD BREAK. A missing
@@ -1540,6 +1793,385 @@
     }
 
     $service | Add-Member -MemberType NoteProperty -Name ImportedApplicationId -Value ''
+
+    # WHAT AN APPLICATION HAS TO BE INSTALLED AFTER, ticked rather than typed.
+    #
+    # The list, the ticks and the entries that would close a loop are
+    # Get-HDTConsoleDependencyChoice's decision; this binds them and calls one
+    # cmdlet on Save. A tick box bound TwoWay is what carries the answer back -
+    # the rows are the same objects the list was built from.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowApplicationDependency -Value {
+        param([string] $Xaml, [string] $Workspace, [string] $Id, [object[]] $Choice,
+            [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'ApplicationDependency'))
+
+        $rootText = $dialog.FindName('HDTDependencyRootText')
+        $list = $dialog.FindName('HDTDependencyList')
+        $emptyText = $dialog.FindName('HDTDependencyEmptyText')
+        $commandText = $dialog.FindName('HDTDependencyCommandText')
+        $save = $dialog.FindName('HDTDependencySaveButton')
+
+        $rootText.Text = '{0}  -  {1}' -f $Workspace, $Id
+
+        # THE ROWS ARE BOUND, NOT COPIED, so a tick lands on the object this
+        # method reads back. Selected has to be settable for that, and a row
+        # from Get-HDTConsoleDependencyChoice is a PSCustomObject, which is.
+        $row = New-Object -TypeName System.Collections.ObjectModel.ObservableCollection[object]
+        foreach ($current in @($Choice)) { $row.Add($current) }
+
+        $list.ItemsSource = $row
+
+        if (@($Choice).Count -eq 0) {
+            $list.Visibility = [System.Windows.Visibility]::Collapsed
+            $emptyText.Visibility = [System.Windows.Visibility]::Visible
+            $save.IsEnabled = $false
+        }
+
+        $this.DependencyAnswer = $null
+        $dialogHost = $this
+
+        $save.Add_Click({
+                $chosen = @(@($row) | Where-Object { [bool] $_.Selected } | ForEach-Object { [string] $_.Id })
+
+                try {
+                    # AN EMPTY TICK LIST IS A REAL ANSWER - "this depends on
+                    # nothing any more" - and Set-HDTApplication -Dependency @()
+                    # is how that is written.
+                    [void] (Set-HDTApplication -WorkspaceRoot $Workspace -Id $Id `
+                            -Dependency ([string[]] $chosen) -Confirm:$false)
+
+                    $dialogHost.DependencyAnswer = [string[]] $chosen
+                    $dialog.DialogResult = $true
+                } catch {
+                    $commandText.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return $this.DependencyAnswer
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name DependencyAnswer -Value $null
+
+    # HOW AN APPLICATION IS DETECTED, as a type and the boxes that type takes.
+    #
+    # THE BOXES ARE BUILT HERE BECAUSE THE TYPE DECIDES THEM.
+    # Get-HDTConsoleDetectionForm says which keys, what is in them, what to call
+    # them and whether they hold a rule that can be written; this makes a
+    # TextBox per row and reads them back. Every decision is that command's; the
+    # only thing settled here is which control shows what it said.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowApplicationDetection -Value {
+        param([string] $Xaml, [string] $Workspace, [string] $Id, [object] $Detect,
+            [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'ApplicationDetection'))
+
+        $rootText = $dialog.FindName('HDTDetectionRootText')
+        $typeBox = $dialog.FindName('HDTDetectionTypeBox')
+        $panel = $dialog.FindName('HDTDetectionFieldPanel')
+        $messageText = $dialog.FindName('HDTDetectionMessageText')
+        $commandText = $dialog.FindName('HDTDetectionCommandText')
+        $save = $dialog.FindName('HDTDetectionSaveButton')
+
+        $rootText.Text = '{0}  -  {1}' -f $Workspace, $Id
+
+        # WHAT IS IN THE BOXES RIGHT NOW, keyed by the document key, so a redraw
+        # after a type change can be handed back what was typed rather than what
+        # the document said.
+        $typed = @{}
+        $state = @{ Type = ''; Loading = $false }
+
+        $form = Get-HDTConsoleDetectionForm -Detect $Detect
+
+        $typeBox.ItemsSource = @($form.Choice)
+
+        $draw = {
+            param([object] $Form)
+
+            $state.Type = [string] $Form.Type
+
+            $panel.Children.Clear()
+            $typed.Clear()
+
+            foreach ($one in @($Form.Field)) {
+                $row = New-Object -TypeName System.Windows.Controls.Grid
+
+                foreach ($width in @(150, 0, 30)) {
+                    $column = New-Object -TypeName System.Windows.Controls.ColumnDefinition
+
+                    if ($width -eq 0) {
+                        $column.Width = New-Object -TypeName System.Windows.GridLength -ArgumentList 1, ([System.Windows.GridUnitType]::Star)
+                    } else {
+                        $column.Width = New-Object -TypeName System.Windows.GridLength -ArgumentList $width
+                    }
+
+                    [void] $row.ColumnDefinitions.Add($column)
+                }
+
+                $label = New-Object -TypeName System.Windows.Controls.TextBlock
+                $label.Text = [string] $one.Label
+
+                # WHICH ONE THE RULE CANNOT DO WITHOUT, said on the label rather
+                # than only in the refusal - MDT marks them the same way.
+                if (-not [bool] $one.Required) { $label.Text = '{0} (optional)' -f [string] $one.Label }
+
+                $label.Style = $dialog.FindResource('HDTFieldLabel')
+                [System.Windows.Controls.Grid]::SetColumn($label, 0)
+
+                $box = New-Object -TypeName System.Windows.Controls.TextBox
+                $box.Text = [string] $one.Value
+                $box.FontFamily = New-Object -TypeName System.Windows.Media.FontFamily -ArgumentList 'Consolas, Courier New'
+                [System.Windows.Controls.Grid]::SetColumn($box, 1)
+
+                $typed[[string] $one.Key] = $box
+
+                $dot = New-Object -TypeName System.Windows.Controls.Border
+                $dot.Style = $dialog.FindResource('HDTHelpDot')
+                $dot.ToolTip = [string] $one.Hint
+                [System.Windows.Controls.Grid]::SetColumn($dot, 2)
+
+                $glyph = New-Object -TypeName System.Windows.Controls.TextBlock
+                $glyph.Text = '?'
+                $glyph.FontWeight = [System.Windows.FontWeights]::Bold
+                $glyph.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
+                $glyph.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+                $glyph.Foreground = $dialog.FindResource('HDTHintTextBrush')
+                $dot.Child = $glyph
+
+                [void] $row.Children.Add($label)
+                [void] $row.Children.Add($box)
+                [void] $row.Children.Add($dot)
+
+                [void] $panel.Children.Add($row)
+            }
+        }.GetNewClosure()
+
+        # WHAT THE BOXES HOLD, ASKED AGAIN. The form is rebuilt from what is
+        # typed rather than from what the document said, so Save writes what is
+        # on screen.
+        $current = {
+            $rule = [System.Collections.Specialized.OrderedDictionary]::new()
+            $rule['type'] = [string] $state.Type
+
+            foreach ($key in @($typed.Keys)) { $rule[[string] $key] = [string] $typed[$key].Text }
+
+            return Get-HDTConsoleDetectionForm -Type ([string] $state.Type) -Detect $rule
+        }.GetNewClosure()
+
+        $judge = {
+            $now = & $current
+
+            $save.IsEnabled = [bool] $now.Complete
+            $messageText.Text = [string] $now.Message
+
+            $commandText.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Detect {2}" -f
+            $Workspace, $Id, [string] $now.CommandText
+        }.GetNewClosure()
+
+        $typeBox.Add_SelectionChanged({
+                if ($state.Loading) { return }
+
+                $chosen = ''
+                if ($null -ne $typeBox.SelectedValue) { $chosen = [string] $typeBox.SelectedValue }
+
+                # THE TYPE CHANGED, SO THE BOXES DO. Values do not survive it: a
+                # product code is not a registry key.
+                & $draw (Get-HDTConsoleDetectionForm -Type $chosen -Detect $Detect)
+                & $judge
+            }.GetNewClosure())
+
+        $state.Loading = $true
+        $typeBox.SelectedValue = [string] $form.Type
+        $state.Loading = $false
+
+        & $draw $form
+        & $judge
+
+        $this.DetectionAnswer = $null
+        $dialogHost = $this
+
+        $save.Add_Click({
+                $now = & $current
+                if (-not $now.Complete) { return }
+
+                try {
+                    $splat = @{
+                        WorkspaceRoot = $Workspace
+                        Id            = $Id
+                        Confirm       = $false
+                    }
+
+                    # NO RULE IS WRITTEN AS AN EMPTY ONE, which is what clears
+                    # the key - Set-HDTApplication reads an empty -Detect as
+                    # "remove it", and DESIGN 8 reads a removed one as "install
+                    # every time".
+                    $splat['Detect'] = [System.Collections.Specialized.OrderedDictionary]::new()
+                    if ($null -ne $now.Rule) { $splat['Detect'] = $now.Rule }
+
+                    [void] (Set-HDTApplication @splat)
+
+                    $dialogHost.DetectionAnswer = $now.Rule
+                    $dialog.DialogResult = $true
+                } catch {
+                    $messageText.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return $this.DetectionAnswer
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name DetectionAnswer -Value $null
+
+    # WHICH SHARES THE WINDOW ENDED UP WITH. Show-HDTConsole reads it after the
+    # window closes and remembers them, the way it already remembers the size.
+    $service | Add-Member -MemberType NoteProperty -Name OpenShare -Value ([string[]] @())
+
+    # MDT'S New Deployment Share WIZARD, as one dialog. The same adapter as the
+    # others: load markup, fill text from the string table, ask
+    # Test-HDTConsoleNewWorkspace on every keystroke, call one cmdlet on Create.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowNewWorkspace -Value {
+        param([string] $Xaml, [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'NewWorkspace'))
+
+        $pathBox = $dialog.FindName('HDTNewWorkspacePathBox')
+        $pathBrowse = $dialog.FindName('HDTNewWorkspacePathBrowseButton')
+        $idBox = $dialog.FindName('HDTNewWorkspaceIdBox')
+        $nameBox = $dialog.FindName('HDTNewWorkspaceNameBox')
+        $deployRootBox = $dialog.FindName('HDTNewWorkspaceDeployRootBox')
+        $messageText = $dialog.FindName('HDTNewWorkspaceMessageText')
+        $commandText = $dialog.FindName('HDTNewWorkspaceCommandText')
+        $create = $dialog.FindName('HDTNewWorkspaceCreateButton')
+
+        # THE ID IS FILLED IN FROM THE FOLDER UNTIL SOMEBODY TYPES ONE, and from
+        # then on it is theirs: the id is carried into every boot image built
+        # here, so a box that rewrote itself after a decision would be a box
+        # that renamed the share behind them.
+        $mine = @{ Id = $false; Writing = $false }
+
+        $idBox.Add_TextChanged({
+                if (-not $mine.Writing) { $mine.Id = $true }
+            }.GetNewClosure())
+
+        $check = {
+            $answer = Test-HDTConsoleNewWorkspace -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
+
+            if (-not $mine.Id -and -not [string]::IsNullOrWhiteSpace([string] $answer.SuggestedId) -and
+                [string] $idBox.Text -ne [string] $answer.SuggestedId) {
+
+                $mine.Writing = $true
+                $idBox.Text = [string] $answer.SuggestedId
+                $mine.Writing = $false
+
+                $answer = Test-HDTConsoleNewWorkspace -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
+            }
+
+            $create.IsEnabled = [bool] $answer.CanCreate
+            $messageText.Text = [string] $answer.Message
+
+            $commandText.Text = "New-HDTWorkspace -Path '{0}' -Id '{1}'" -f
+            [string] $pathBox.Text, [string] $idBox.Text
+        }.GetNewClosure()
+
+        $pathBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+
+        & $check
+
+        # A FOLDER, AND IT DOES NOT HAVE TO EXIST. OpenFileDialog with a
+        # placeholder name is the only folder picker WPF has; CheckPathExists is
+        # off because creating the folder is what this dialog is for.
+        $pathBrowse.Add_Click({
+                $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $picker.Title = 'Open the folder the share should live in, and press Open'
+                $picker.CheckFileExists = $false
+                $picker.CheckPathExists = $false
+                $picker.FileName = 'this folder'
+                $picker.Filter = 'All files (*.*)|*.*'
+
+                if ($picker.ShowDialog() -ne $true) { return }
+
+                $pathBox.Text = [string] [System.IO.Path]::GetDirectoryName($picker.FileName)
+            }.GetNewClosure())
+
+        $this.CreatedWorkspacePath = ''
+        $dialogHost = $this
+
+        $create.Add_Click({
+                try {
+                    $splat = @{
+                        Path    = [string] $pathBox.Text
+                        Id      = [string] $idBox.Text
+                        Confirm = $false
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $nameBox.Text)) {
+                        $splat['Name'] = [string] $nameBox.Text
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $deployRootBox.Text)) {
+                        $splat['DeployRoot'] = [string] $deployRootBox.Text
+                    }
+
+                    $dialog.Cursor = [System.Windows.Input.Cursors]::Wait
+
+                    [void] (New-HDTWorkspace @splat)
+
+                    $dialogHost.CreatedWorkspacePath = [string] $pathBox.Text
+                    $dialog.DialogResult = $true
+                } catch {
+                    $messageText.Text = [string] $_.Exception.Message
+                } finally {
+                    $dialog.Cursor = $null
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return [string] $this.CreatedWorkspacePath
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name CreatedWorkspacePath -Value ''
 
     $service | Add-Member -MemberType ScriptMethod -Name ShowNewSequence -Value {
         param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)

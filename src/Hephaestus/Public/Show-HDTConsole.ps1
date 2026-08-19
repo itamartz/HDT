@@ -130,9 +130,14 @@
     [CmdletBinding(DefaultParameterSetName = 'FromPath')]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'FromPath')]
-        [ValidateNotNullOrEmpty()]
-        [string[]] $Path,
+        # NOT MANDATORY ANY MORE. A console opened with no path opens the
+        # shares it was last closed on, the way Workbench comes back to the ones
+        # somebody added - and on a machine that has never opened one, it opens
+        # empty with New and Open on the root row's menu, which is a window
+        # somebody can act on rather than a parameter binding error.
+        [Parameter(Position = 0, ParameterSetName = 'FromPath')]
+        [AllowEmptyCollection()]
+        [string[]] $Path = @(),
 
         [Parameter(Mandatory = $true, ParameterSetName = 'FromWorkspace')]
         [ValidateNotNull()]
@@ -153,6 +158,18 @@
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string] $ImportApplicationXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTImportApplication.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $ApplicationDependencyXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTApplicationDependency.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $ApplicationDetectionXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTApplicationDetection.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $NewWorkspaceXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTNewWorkspace.xaml'),
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
@@ -234,38 +251,78 @@
 
     # -- what it shows -----------------------------------------------------
 
-    $share = New-Object -TypeName System.Collections.ArrayList
-
-    if ($PSCmdlet.ParameterSetName -eq 'FromWorkspace') {
-        foreach ($current in @($Workspace)) {
-            [void] $share.Add($current)
-        }
-    } else {
-        foreach ($current in @($Path)) {
-            try {
-                [void] $share.Add((Get-HDTConsoleWorkspace -Path $current -FileSystem $FileSystem))
-            } catch {
-                [void] $share.Add((New-HDTConsoleShareFailure -Path $current -Message ([string] $_.Exception.Message)))
-            }
-        }
-    }
-
-    $node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($share)))
-
-    # THE HOST IS HANDED THE ROOTS, NOT EVERY ROW. WPF builds the branches from
-    # each row's Children, so the depth-0 rows are the whole ItemsSource. Which
-    # rows those are is decided here rather than in the adapter, which is not
-    # unit tested and must therefore not be the thing that knows.
-    $treeRoot = @($node | Where-Object { $_.Depth -eq 0 })
-
-    # -- show it -----------------------------------------------------------
-
     # THE SIZE IT WAS LEFT AT, FITTED TO THE SCREEN IT HAS TO OPEN ON, AND THE
     # CORNER IT OPENS IN. The window is placed rather than centred, so a
     # remembered size larger than this desktop would hang off the right and the
     # bottom - and the bottom is where the Close button is. The position is not
     # remembered: it is the origin of today's work area, measured every time.
+    #
+    # READ HERE RATHER THAN JUST BEFORE THE WINDOW, because the same file
+    # remembers which SHARES this console was last closed on, and those decide
+    # what the tree is built from.
     $size = Get-HDTConsoleSetting -FileSystem $FileSystem -Environment $Environment -Screen $Screen
+
+    # NO PATH MEANS THE ONES IT WAS LAST CLOSED ON, which is how Workbench
+    # behaves: the shares somebody added are there the next morning. A machine
+    # that has never opened one gets an empty window with New Deployment Share
+    # and Open Deployment Share on the root row - something to act on, rather
+    # than a parameter binding error.
+    if ($PSCmdlet.ParameterSetName -eq 'FromPath' -and @($Path).Count -eq 0) {
+        $Path = [string[]] @($size.Share)
+    }
+
+
+    # THE WINDOW OPENS BEFORE THE SHARE IS READ.
+    #
+    # Get-HDTConsoleWorkspace costs 820ms on the lab share - it reads and
+    # validates every task sequence in it - and until this was deferred that was
+    # 820ms with nothing on screen at all, because the tree had to exist before
+    # the window could be shown. The window now comes up holding one row saying
+    # it is reading, and the reading happens once it is up.
+    #
+    # NOT A BACKGROUND RUNSPACE. The read runs on the dispatcher after the first
+    # paint, so the window is visible and busy for that second rather than
+    # absent for it. A second runspace would need this module imported into it -
+    # which is the OTHER second the console used to spend - before it could read
+    # anything, and would then have to marshal every row back.
+    #
+    # A WORKSPACE HANDED IN HAS ALREADY BEEN READ, so that parameter set builds
+    # its tree here exactly as it always did.
+    $share = New-Object -TypeName System.Collections.ArrayList
+    $carried = @{ Node = @() }
+
+    $fill = $null
+
+    if ($PSCmdlet.ParameterSetName -eq 'FromWorkspace') {
+        foreach ($current in @($Workspace)) {
+            [void] $share.Add($current)
+        }
+
+        $carried.Node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($share)))
+
+        # THE HOST IS HANDED THE ROOTS, NOT EVERY ROW. WPF builds the branches
+        # from each row's Children, so the depth-0 rows are the whole
+        # ItemsSource. Which rows those are is decided here rather than in the
+        # adapter, which is not unit tested and must therefore not be the thing
+        # that knows.
+        $treeRoot = @($carried.Node | Where-Object { $_.Depth -eq 0 })
+    } else {
+        $treeRoot = @(New-HDTConsolePendingNode -Path ([string[]] @($Path)))
+
+        # WHAT THE RESULT REPORTS COMES OUT OF HERE TOO. This command returns
+        # NodeCount and Workspace, and neither is known until the read has
+        # happened - so both are carried in objects the block writes into rather
+        # than read from variables that were still empty when the window opened.
+        #
+        # THE BLOCK IS BUILT ELSEWHERE, and New-HDTConsoleShareReader's own
+        # notes say why: a plain script block would resolve $share against the
+        # window host that invokes it, and GetNewClosure called here would choke
+        # on the other parameter set's validated, empty parameter.
+        $fill = New-HDTConsoleShareReader -Path ([string[]] @($Path)) -FileSystem $FileSystem `
+            -Share $share -Carried $carried
+    }
+
+    # -- show it -----------------------------------------------------------
 
     # THE WIZARD'S MARKUP TRAVELS WITH THE CONSOLE'S, so the host never touches
     # the file system - the same reason the console's own markup arrives as a
@@ -286,15 +343,47 @@
         $importApplicationXaml = [System.IO.File]::ReadAllText($ImportApplicationXamlPath)
     }
 
+    $applicationDependencyXaml = ''
+    if (Test-Path -LiteralPath $ApplicationDependencyXamlPath) {
+        $applicationDependencyXaml = [System.IO.File]::ReadAllText($ApplicationDependencyXamlPath)
+    }
+
+    $applicationDetectionXaml = ''
+    if (Test-Path -LiteralPath $ApplicationDetectionXamlPath) {
+        $applicationDetectionXaml = [System.IO.File]::ReadAllText($ApplicationDetectionXamlPath)
+    }
+
+    $newWorkspaceXaml = ''
+    if (Test-Path -LiteralPath $NewWorkspaceXamlPath) {
+        $newWorkspaceXaml = [System.IO.File]::ReadAllText($NewWorkspaceXamlPath)
+    }
+
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
         (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond, $newSequenceXaml,
-        $importOperatingSystemXaml, $importApplicationXaml)
+        $importOperatingSystemXaml, $importApplicationXaml, $applicationDependencyXaml,
+        $applicationDetectionXaml, $fill, $newWorkspaceXaml)
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot
     # fail because a preference could not be written.
-    [void] (Save-HDTConsoleSetting -Width ([int] $ConsoleHost.Width) -Height ([int] $ConsoleHost.Height) `
-            -FileSystem $FileSystem -Environment $Environment)
+    # AND THE SHARES IT ENDED UP WITH, so the next console comes back to them.
+    # Only when the window said - a host that never reported any is a window
+    # that was never filled, and forgetting the list on that would lose it to
+    # any failure at all.
+    $settingSplat = @{
+        Width       = [int] $ConsoleHost.Width
+        Height      = [int] $ConsoleHost.Height
+        FileSystem  = $FileSystem
+        Environment = $Environment
+    }
+
+    if (@($ConsoleHost.PSObject.Properties.Match('OpenShare')).Count -gt 0 -and
+        $null -ne $ConsoleHost.OpenShare) {
+
+        $settingSplat['Share'] = [string[]] @($ConsoleHost.OpenShare)
+    }
+
+    [void] (Save-HDTConsoleSetting @settingSplat)
 
     # A window that was shut and a window whose Close button was pressed are the
     # same outcome here. See the header for why that differs from the wizard.
@@ -305,7 +394,7 @@
         Action    = $action
         Title     = $Title
         XamlPath  = $XamlPath
-        NodeCount = @($node).Count
+        NodeCount = @($carried.Node).Count
         Workspace = [object[]] @($share)
     }
 }

@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'Hephaestus.psm1'
-    ModuleVersion        = '0.1.0'
+    ModuleVersion        = '0.2.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
@@ -37,6 +37,7 @@
         'Add-HDTWorkspaceFolder',
         'Remove-HDTWorkspaceFolder',
         'Save-HDTWorkspaceDocument',
+        'Write-HDTModuleBundle',
         'Get-HDTAdkComponent',
         'Get-HDTAdkPath',
         'Get-HDTApplication',
@@ -252,9 +253,13 @@
         'Get-HDTConsoleClosePrompt',
         'Get-HDTConsoleEditorState',
         'Get-HDTConsoleImageChoice',
+        'Get-HDTConsoleDependencyChoice',
+        'Get-HDTConsoleDetectionForm',
         'Get-HDTConsoleNewSequence',
         'Test-HDTConsoleImportOperatingSystem',
         'Test-HDTConsoleImportApplication',
+        'Test-HDTConsoleNewWorkspace',
+        'Test-HDTConsoleOpenWorkspace',
         'Test-HDTConsoleNewSequence',
         'Get-HDTConsoleMonitor',
         'Get-HDTConsolePartitionRow',

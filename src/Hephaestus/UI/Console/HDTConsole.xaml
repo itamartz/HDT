@@ -287,12 +287,34 @@
                         does nothing here, on the rows where it does something.
                     -->
                     <ContextMenu x:Name="HDTConsoleTreeMenu">
+                        <!-- WORKBENCH'S ROOT NODE ACTIONS. Its tree roots
+                             every share under Deployment Shares and hangs New
+                             and Open off that row; HDT's root had no menu at
+                             all, so the only way to add a share was to name it
+                             on the command line and the only way to make one
+                             was New-HDTWorkspace at a prompt.
+
+                             CLOSE IS ON THE SHARE ITSELF, because that is the
+                             row somebody means. It takes the share out of this
+                             window and off the remembered list - it deletes
+                             nothing. -->
+                        <MenuItem x:Name="HDTNewWorkspaceMenuItem" />
+                        <MenuItem x:Name="HDTOpenWorkspaceMenuItem" />
+                        <MenuItem x:Name="HDTCloseWorkspaceMenuItem" />
                         <MenuItem x:Name="HDTNewSequenceMenuItem" />
                         <MenuItem x:Name="HDTRemoveSequenceMenuItem" />
                         <MenuItem x:Name="HDTImportOperatingSystemMenuItem" />
                         <MenuItem x:Name="HDTRemoveOperatingSystemMenuItem" />
                         <MenuItem x:Name="HDTNewApplicationMenuItem" />
                         <MenuItem x:Name="HDTRemoveApplicationMenuItem" />
+
+                        <!-- PICKED, NOT TYPED. A dependency is an application
+                             id in a document, and a misspelled one is not
+                             caught until a deployment runs - when
+                             Resolve-HDTApplicationOrder refuses the whole plan
+                             rather than that one application. -->
+                        <MenuItem x:Name="HDTApplicationDependencyMenuItem" />
+                        <MenuItem x:Name="HDTApplicationDetectionMenuItem" />
 
                         <!--
                             WORKBENCH'S FOLDERS. MDT nests task sequences and

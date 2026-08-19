@@ -1,4 +1,4 @@
-function Get-HDTConsoleSetting {
+﻿function Get-HDTConsoleSetting {
     <#
         .SYNOPSIS
             Reads the console's remembered window size, or the default.
@@ -64,7 +64,7 @@ function Get-HDTConsoleSetting {
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Path, Width, Height,
+            System.Management.Automation.PSCustomObject with Share, Path, Width, Height,
             Left and Top.
 
         .EXAMPLE
@@ -107,6 +107,11 @@ function Get-HDTConsoleSetting {
         Height = [int] $script:HDTConsoleDefaultHeight
         Left   = 0
         Top    = 0
+
+        # THE SHARES THIS CONSOLE WAS LAST OPEN ON. Empty is a machine that has
+        # never opened one, which is what Show-HDTConsole reads as "ask for a
+        # path" rather than "open nothing".
+        Share  = [string[]] @()
     }
 
     # A first run is clamped too: the default is 1800 x 900, and a laptop that
@@ -130,6 +135,12 @@ function Get-HDTConsoleSetting {
             $result.Width = [Math]::Max($width, $script:HDTConsoleMinimumWidth)
             $result.Height = [Math]::Max($height, $script:HDTConsoleMinimumHeight)
         }
+
+        # A REMEMBERED PATH IS NOT A PROMISE. Nothing is checked here: a share
+        # on a disconnected disk is read like any other and becomes a row that
+        # says it could not be opened, which is the console's rule everywhere.
+        $result.Share = [string[]] @(@(Get-HDTConsoleJsonProperty -InputObject $document -Name 'share' -Default @()) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     } catch {
         Write-Verbose ("The console setting at '{0}' could not be read, so the default size is used: {1}" -f
             $path, [string] $_.Exception.Message)

@@ -1,4 +1,4 @@
-function Save-HDTConsoleSetting {
+﻿function Save-HDTConsoleSetting {
     <#
         .SYNOPSIS
             Remembers the size the console was left at.
@@ -39,8 +39,15 @@ function Save-HDTConsoleSetting {
         .OUTPUTS
             System.Boolean - whether the size was written.
 
+        .PARAMETER Share
+            The deployment shares the window had open. Omitted, whatever is
+            already remembered stays; an empty list forgets them.
+
         .EXAMPLE
             [void] (Save-HDTConsoleSetting -Width 1800 -Height 900)
+
+        .EXAMPLE
+            [void] (Save-HDTConsoleSetting -Width 1800 -Height 900 -Share $open)
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Writes one preference file under the user profile and reports whether it managed to. It cannot fail a caller and has nothing to confirm.')]
@@ -52,6 +59,16 @@ function Save-HDTConsoleSetting {
 
         [Parameter(Mandatory = $true)]
         [int] $Height,
+
+        # THE SHARES THE WINDOW HAD OPEN, so the next console comes back to
+        # them. OMITTED IS NOT EMPTY: the size is saved on every close, and a
+        # close that said nothing about shares must not be the thing that
+        # forgets them - only an explicit empty list does that, which is what
+        # closing the last share means.
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [AllowNull()]
+        [string[]] $Share,
 
         [Parameter()]
         [AllowNull()]
@@ -79,10 +96,39 @@ function Save-HDTConsoleSetting {
         return $false
     }
 
+    # WHAT IS ALREADY REMEMBERED, so a save that says nothing about shares
+    # keeps them. Read raw rather than through Get-HDTConsoleSetting: that
+    # command clamps a size to the screen, and writing a clamped size back would
+    # shrink a window a little more every time it was opened on a laptop.
+    $remembered = @()
+
+    if ($FileSystem.TestPath($path)) {
+        try {
+            $existing = ConvertFrom-Json -InputObject ([string] $FileSystem.ReadAllText($path))
+            $remembered = @(Get-HDTConsoleJsonProperty -InputObject $existing -Name 'share' -Default @())
+        } catch {
+            $remembered = @()
+        }
+    }
+
+    $keep = [string[]] @($remembered)
+
+    if ($PSBoundParameters.ContainsKey('Share')) {
+        # ONE ENTRY PER SHARE, however many times it was opened, and the first
+        # spelling wins so the order somebody sees is the order they added them.
+        $seen = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList @(
+            [System.StringComparer]::OrdinalIgnoreCase)
+
+        $keep = [string[]] @(@($Share) |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                Where-Object { $seen.Add([string] $_) })
+    }
+
     $document = [pscustomobject] @{
         schemaVersion = 1
         width         = $Width
         height        = $Height
+        share         = [string[]] @($keep)
     }
 
     try {
