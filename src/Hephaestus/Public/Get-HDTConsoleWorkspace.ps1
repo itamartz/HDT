@@ -306,6 +306,19 @@
             Uninstall   = ''
             RunIn       = ''
             Detection   = ''
+
+            # THE RULE AS THE DOCUMENT WRITES IT, beside the sentence that
+            # describes it. The pane's box writes app.yaml, so it has to hold
+            # what app.yaml holds; the sentence is for reading and would become
+            # the document's detection rule if it were ever typed back.
+            DetectText  = ''
+
+            # WHAT WILL HAPPEN, INHERITED DEFAULTS INCLUDED. DESIGN 8 gives an
+            # application that declares neither key 0 and 3010 for success and
+            # 3010 for reboot, and a blank box where those are in force would
+            # read as "no code succeeds" - the opposite of what is true.
+            SuccessCode = [int[]] @()
+            RebootCode  = [int[]] @()
             Dependency  = [string[]] @()
             SourcePath  = ''
             Path        = $entry.DocumentPath
@@ -325,6 +338,9 @@
             $row.Uninstall = [string] $application.Uninstall
             $row.RunIn = [string] $application.RunIn
             $row.Detection = Get-HDTConsoleDetectionText -Detect $application.Detect
+            $row.DetectText = Get-HDTConsoleDetectRuleText -Detect $application.Detect
+            $row.SuccessCode = [int[]] @($application.SuccessCodes)
+            $row.RebootCode = [int[]] @($application.RebootCodes)
             $row.Dependency = [string[]] @($application.Dependencies)
             $row.SourcePath = [string] $application.SourcePath
         } catch {

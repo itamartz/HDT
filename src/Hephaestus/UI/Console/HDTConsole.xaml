@@ -110,6 +110,33 @@
         <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
         <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
 
+        <!-- THE ? THIS TOOLKIT'S PAGES USE, in the same shape as the New
+             Application and Windows PE windows: a Border rather than a bare
+             glyph, because WPF raises a tooltip only over what is painted. -->
+        <Style TargetType="Border" x:Key="HDTHelpDot">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="Margin" Value="8,2,0,0" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+            <Setter Property="Text" Value="?" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <!--
             THE BUTTON CARRIES ITS OWN TEMPLATE, AND ITS COLOURS ARE SETTERS
             RATHER THAN LOCAL VALUES. Two WPF traps meet on this control. A local
@@ -378,6 +405,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="150" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock Grid.Column="0" Text="{Binding Label}"
@@ -396,6 +424,31 @@
                                              BorderThickness="1"
                                              FontFamily="Consolas, Courier New" FontSize="12"
                                              Padding="6,4,6,4" />
+
+                                    <!-- THE ? THE OTHER PAGES USE, on the row
+                                         that needs one and invisible on every
+                                         row that does not. A hint under each
+                                         box would make this pane a manual;
+                                         behind a dot, the technician gets the
+                                         sentence when they ask for it.
+
+                                         WHAT IT IS FOR, IN ONE CASE: an install
+                                         command line is handed to cmd.exe with
+                                         the application's own folder as the
+                                         working directory. Nothing on the row
+                                         can show that, and typing %~dp0 into it
+                                         - which expands only inside a .cmd file
+                                         - fails as a missing file rather than
+                                         as the mistake it is. -->
+                                    <Border Grid.Column="2" x:Name="HDTDetailHelpDot"
+                                            Style="{StaticResource HDTHelpDot}">
+                                        <Border.ToolTip>
+                                            <ToolTip MaxWidth="380">
+                                                <TextBlock TextWrapping="Wrap" Text="{Binding Hint}" />
+                                            </ToolTip>
+                                        </Border.ToolTip>
+                                        <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                                    </Border>
                                 </Grid>
 
                                 <!-- WHITE MEANS TYPE HERE, and it is the only
@@ -414,6 +467,15 @@
                                     <DataTrigger Binding="{Binding ReadOnly}" Value="True">
                                         <Setter TargetName="HDTDetailBox" Property="Background"
                                                 Value="{DynamicResource HDTFieldBrush}" />
+                                    </DataTrigger>
+
+                                    <!-- COLLAPSED, NOT HIDDEN: a row with no
+                                         hint gives its width back to the box
+                                         rather than leaving a hole where the
+                                         dot would be. -->
+                                    <DataTrigger Binding="{Binding HasHint}" Value="False">
+                                        <Setter TargetName="HDTDetailHelpDot" Property="Visibility"
+                                                Value="Collapsed" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>

@@ -418,8 +418,28 @@
                         Confirm       = $false
                     }
 
+                    # NOT EVERY ROW IS A STRING ANY MORE. The exit codes are
+                    # int[], the dependencies string[] and the detection rule a
+                    # block, and their parameters are singular where the document
+                    # keys are plural - so what to pass, and what to call it, is
+                    # Get-HDTConsoleApplicationEdit's decision rather than a
+                    # capital letter's.
                     $key = [string] $row.Property
-                    $splat[$key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)] = $typed
+                    $edit = $null
+
+                    try {
+                        $edit = Get-HDTConsoleApplicationEdit -Property $key -Text $typed
+                    } catch {
+                        # A LIST THAT WILL NOT PARSE NEVER REACHES THE DOCUMENT.
+                        # The box goes back and the footer says which word was
+                        # not a number, which is the sentence a technician can
+                        # act on.
+                        $box.Text = [string] $row.Original
+                        $command.Text = [string] $_.Exception.Message
+                        return
+                    }
+
+                    $splat[$edit.Parameter] = $edit.Value
 
                     try {
                         [void] (Set-HDTApplication @splat)
@@ -438,8 +458,8 @@
                     # stale - and rebuilding re-reads every open share.
                     if ($key -eq 'name') { & $rebuildTree }
 
-                    $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -{2} '{3}'" -f
-                    $splat.WorkspaceRoot, $splat.Id, ($key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)), $typed
+                    $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -{2} {3}" -f
+                    $splat.WorkspaceRoot, $splat.Id, $edit.Parameter, $edit.Text
 
                     return
                 }

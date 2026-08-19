@@ -1,4 +1,4 @@
-function New-HDTConsoleField {
+﻿function New-HDTConsoleField {
     <#
         .SYNOPSIS
             Builds one labelled field for the console's detail pane.
@@ -24,11 +24,17 @@ function New-HDTConsoleField {
         .PARAMETER Value
             The text, which may span lines.
 
+        .PARAMETER Hint
+            One sentence behind a ? beside the box, for a row whose value has a
+            rule nobody can see by looking at it. Most rows have none, and that
+            is what makes the dot worth reading where it appears.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Label and Value.
+            System.Management.Automation.PSCustomObject with Label, Value,
+            Property, Editable, ReadOnly, Original, Hint and HasHint.
 
         .EXAMPLE
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
@@ -54,7 +60,17 @@ function New-HDTConsoleField {
         # row rather than keeping its own list of which labels are typeable.
         [Parameter()]
         [AllowEmptyString()]
-        [string] $Property = ''
+        [string] $Property = '',
+
+        # WHAT THE BOX CANNOT SAY BY ITSELF. An install command line is handed
+        # to cmd.exe with the application's own folder as the working directory
+        # - a fact with real consequences for what an administrator types, and
+        # nothing on the row shows it. A hint here rather than a paragraph under
+        # the box: three of those turn a properties sheet into a manual, and MDT
+        # admins are not reading the manual on the deployment screen.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Hint = ''
     )
 
     Set-StrictMode -Version Latest
@@ -64,6 +80,13 @@ function New-HDTConsoleField {
         Label    = $Label
         Value    = $Value
         Property = $Property
+        Hint     = $Hint
+
+        # THE SAME FACT AS A BOOLEAN, for the same reason ReadOnly exists below:
+        # XamlReader parses markup and nothing else, so a template that had to
+        # ask "is this string empty" would need a converter the window cannot
+        # load. The dot binds its visibility to this.
+        HasHint  = (-not [string]::IsNullOrEmpty($Hint))
         Editable = (-not [string]::IsNullOrEmpty($Property))
 
         # THE SAME FACT THE OTHER WAY UP, because the control that needs it is

@@ -373,7 +373,7 @@
         'HDTImportAppSourceBrowseButton.Content' = 'Browse'
         'HDTImportAppSourceHint.Text' = 'The folder holding the installer, not the installer itself. Everything in it is copied to the share, because an .msi usually needs its transform beside it.'
         'HDTImportAppInstallLabel.Text' = 'Install'
-        'HDTImportAppInstallHint.Text' = 'What runs, silently, from inside that folder. For an .msi: msiexec.exe /i <file> /qn /norestart.'
+        'HDTImportAppInstallHint.Text' = 'What runs, silently, from inside that folder - it is the working directory, so %CD% is it and %~dp0 is not expanded. For an .msi: msiexec.exe /i <file> /qn /norestart.'
         'HDTImportAppPublisherLabel.Text' = 'Publisher'
         'HDTImportAppPublisherHint.Text' = 'Who makes it. It is what tells two entries called Reader apart, and part of the name and the id composed below.'
         'HDTImportAppNameLabel.Text' = 'Name'

@@ -215,6 +215,145 @@ Describe 'the Applications category in the tree' {
         (@($empty.Field | ForEach-Object { [string] $_.Value }) -join ' ') | Should -BeLike '*Import-HDTApplication*'
     }
 
+    It 'says on the Install row where the command line runs' {
+        # THE ONE THING ABOUT A COMMAND LINE NOBODY CAN SEE. It is handed to
+        # cmd.exe with the application's own folder as the working directory, so
+        # %CD% is that folder and a relative installer name resolves - and
+        # %~dp0, which every administrator reaches for first, expands only
+        # inside a .cmd file and would otherwise be passed to msiexec as six
+        # literal characters.
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+        $install = @($row.Field | Where-Object { [string] $_.Label -eq 'Install' })[0]
+
+        $install.HasHint | Should -BeTrue
+        [string] $install.Hint | Should -BeLike '*%CD%*'
+        [string] $install.Hint | Should -BeLike '*%~dp0*'
+    }
+
+    It 'says it on the Uninstall row too, which is run exactly the same way' {
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+        $uninstall = @($row.Field | Where-Object { [string] $_.Label -eq 'Uninstall' })[0]
+
+        $uninstall.HasHint | Should -BeTrue
+        [string] $uninstall.Hint | Should -BeLike '*%CD%*'
+    }
+
+    It 'leaves the rows that explain themselves without one' {
+        # A HINT ON EVERY ROW IS A HINT ON NONE. The dot is worth looking at
+        # because most rows have not got one.
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        @($row.Field | Where-Object { [string] $_.Label -eq 'Source' })[0].HasHint | Should -BeFalse
+        @($row.Field | Where-Object { [string] $_.Label -eq 'Name' })[0].HasHint | Should -BeFalse
+    }
+
+    It 'shows what an application has not got as an empty box, not as (not recorded)' {
+        # A FALLBACK IS FOR READING AND THESE BOXES WRITE. '(not recorded)' and
+        # '(none)' were sitting in three boxes that write app.yaml, so the only
+        # way to add a publisher was to delete the words first - and an edit that
+        # kept them would put the phrase into the document as the publisher. The
+        # sequence rows settled this rule already; the application rows missed it.
+        $suite = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[1]
+
+        foreach ($label in @('Publisher', 'Version', 'Uninstall')) {
+            [string] @($suite.Field | Where-Object { [string] $_.Label -eq $label })[0].Value |
+                Should -BeExactly ''
+        }
+    }
+
+    It 'offers the four that were only readable before' {
+        # WORKBENCH EDITS THESE ON THE PROPERTIES SHEET, and HDT showed them as
+        # a report: an exit code list nobody could correct, a detection rule
+        # readable only as a sentence, and a dependency list that could only be
+        # changed from a prompt. All four are keys in app.yaml and
+        # Set-HDTApplication writes every one of them.
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        $typeable = @($row.Field | Where-Object { $_.Editable } | ForEach-Object { [string] $_.Property })
+
+        $typeable | Should -Contain 'successCodes'
+        $typeable | Should -Contain 'rebootCodes'
+        $typeable | Should -Contain 'detect'
+        $typeable | Should -Contain 'dependencies'
+    }
+
+    It 'shows the exit codes it is running with, defaults included' {
+        # AN INHERITED DEFAULT IS STILL WHAT WILL HAPPEN. A blank box where 0 and
+        # 3010 are in force would read as "no codes", which is the opposite.
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        [string] @($row.Field | Where-Object { [string] $_.Label -eq 'Success codes' })[0].Value |
+            Should -BeExactly '0, 3010'
+        [string] @($row.Field | Where-Object { [string] $_.Label -eq 'Reboot codes' })[0].Value |
+            Should -BeExactly '3010'
+    }
+
+    It 'shows the detection rule as the document writes it, not as a sentence' {
+        # A BOX FOR TYPING SHOWS THE VALUE, as the description row already does:
+        # leaving 'No rule, so it installs every time' in a box that writes the
+        # document would put that sentence into app.yaml.
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+        $detect = @($row.Field | Where-Object { [string] $_.Label -eq 'Detection' })[0]
+
+        # -BeLikeExactly, NOT -BeLike. YAML keys are case-sensitive and the
+        # catalog hands this row a projection whose properties are PascalCase -
+        # 'Type', 'ProductCode' - because that is what the engine reads off an
+        # object. A case-insensitive assertion passed while the box showed
+        # 'Type: msiProduct', which app.yaml does not accept.
+        [string] $detect.Value | Should -BeLikeExactly 'type: msiProduct*'
+        [string] $detect.Value | Should -BeLikeExactly '*productCode:*'
+        [string] $detect.Value | Should -Not -BeLike '*installs every time*'
+    }
+
+    It 'leaves out a key the rule never declared' {
+        # THE PROJECTION FILLS EVERY OPTIONAL KEY IN, empty where the file left
+        # it out, so a step reads a stable shape under StrictMode. A box is not a
+        # step: showing "version: ''" would put an empty version into app.yaml
+        # the moment somebody tabbed out of it.
+        $fileSystem = New-HDTFakeFileSystem -File @{
+            'C:\ws\workspace.yaml'                = $script:workspaceYaml
+            'C:\ws\Applications\Reader\app.yaml' = "schemaVersion: 1`nid: Reader`nname: Reader`ninstall: setup.exe`ndetect:`n  type: file`n  path: 'C:\Program Files\Reader\reader.exe'`n"
+        }
+
+        $node = Get-HDTTestTree -Workspace (Get-HDTConsoleWorkspace -Path 'C:\ws' -FileSystem $fileSystem)
+        $row = @($node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        $detect = [string] @($row.Field | Where-Object { [string] $_.Label -eq 'Detection' })[0].Value
+
+        $detect | Should -BeLikeExactly '*path:*'
+        $detect | Should -Not -BeLike '*version*'
+    }
+
+    It 'leaves the detection box empty for an application that declares no rule' {
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[1]
+
+        [string] @($row.Field | Where-Object { [string] $_.Label -eq 'Detection' })[0].Value |
+            Should -BeExactly ''
+    }
+
+    It 'shows what it depends on as the ids, and empty when it depends on nothing' {
+        $suite = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[1]
+        $sevenZip = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        [string] @($suite.Field | Where-Object { [string] $_.Label -eq 'Depends on' })[0].Value |
+            Should -BeExactly '7Zip-24.09'
+        [string] @($sevenZip.Field | Where-Object { [string] $_.Label -eq 'Depends on' })[0].Value |
+            Should -BeExactly ''
+    }
+
+    It 'says what each of the four takes, behind the ?' {
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        foreach ($label in @('Success codes', 'Reboot codes', 'Detection', 'Depends on')) {
+            @($row.Field | Where-Object { [string] $_.Label -eq $label })[0].HasHint | Should -BeTrue
+        }
+
+        [string] @($row.Field | Where-Object { [string] $_.Label -eq 'Success codes' })[0].Hint |
+            Should -BeLike '*3010*'
+        [string] @($row.Field | Where-Object { [string] $_.Label -eq 'Detection' })[0].Hint |
+            Should -BeLike '*every time*'
+    }
+
     It 'gives a broken row the command that would read it' {
         # DESIGN 12's "learn the automation surface by clicking around": every
         # row names what would reproduce it, and a broken one most of all.

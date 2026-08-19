@@ -167,14 +167,51 @@
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value $application.Id
             New-HDTConsoleField -Label 'Name' -Value $application.Name -Property 'name'
-            New-HDTConsoleField -Label 'Publisher' -Value (Get-HDTConsoleDisplayText -Text $application.Publisher -Fallback '(not recorded)') -Property 'publisher'
-            New-HDTConsoleField -Label 'Version' -Value (Get-HDTConsoleDisplayText -Text $application.Version -Fallback '(not recorded)') -Property 'version'
+            # NO FALLBACK IN A BOX THAT WRITES, which is the rule the sequence
+            # rows already follow: '(not recorded)' is for reading, and leaving
+            # it in a box that writes app.yaml means an administrator adding a
+            # publisher has to delete the words first - or, worse, tabs out and
+            # writes the phrase into the document as the publisher.
+            New-HDTConsoleField -Label 'Publisher' -Value ([string] $application.Publisher) -Property 'publisher'
+            New-HDTConsoleField -Label 'Version' -Value ([string] $application.Version) -Property 'version'
             New-HDTConsoleField -Label 'Description' -Value ([string] $application.Description) -Property 'description'
-            New-HDTConsoleField -Label 'Install' -Value $application.Install -Property 'install'
-            New-HDTConsoleField -Label 'Uninstall' -Value (Get-HDTConsoleDisplayText -Text $application.Uninstall -Fallback '(none)') -Property 'uninstall'
+            # WHERE THE COMMAND LINE RUNS, WHICH THE ROW CANNOT SHOW.
+            # Invoke-HDTInstallApplicationsStep hands the line to cmd.exe with
+            # the application's own source folder as the working directory, so a
+            # bare 'setup.msi' resolves and %CD% is that folder.
+            #
+            # %~dp0 IS THE ONE EVERY ADMINISTRATOR REACHES FOR, and it is the
+            # one that does not work: it expands only inside a .cmd file, and
+            # there is no batch file here - the string IS the command. Typed
+            # into this box it reaches msiexec as six literal characters and
+            # comes back as 1619, "the installation package could not be
+            # opened", naming a path that does not exist rather than the
+            # mistake. That is a defect a technician cannot diagnose from the
+            # error, which is exactly what a hint is for.
+            New-HDTConsoleField -Label 'Install' -Value $application.Install -Property 'install' `
+                -Hint 'Runs through cmd.exe from the application''s own folder, so %CD% is that folder and a bare file name resolves. %~dp0 expands only inside a .cmd file, not here.'
+            New-HDTConsoleField -Label 'Uninstall' -Value ([string] $application.Uninstall) -Property 'uninstall' `
+                -Hint 'Optional, and run exactly as Install is: cmd.exe, the application''s own folder, %CD% for it, no %~dp0. For an .msi: msiexec.exe /x {ProductCode} /qn /norestart.'
             New-HDTConsoleField -Label 'Runs in' -Value $application.RunIn
-            New-HDTConsoleField -Label 'Detection' -Value $application.Detection
-            New-HDTConsoleField -Label 'Depends on' -Value (Get-HDTConsoleDisplayText -Text (@($application.Dependency) -join ', ') -Fallback '(nothing)')
+
+            # THE THREE THAT WERE A REPORT AND ARE NOW A FORM. Workbench edits
+            # every one of them on an application's Properties sheet;
+            # Set-HDTApplication has written all three since M7, and the pane
+            # showed them as text nobody could correct - so the only way to fix
+            # an exit code list was a prompt.
+            #
+            # NO FALLBACK TEXT IN A BOX THAT WRITES. '(nothing)' and '(none)'
+            # are for reading, and tabbing out of a box holding one of them
+            # would put the word into app.yaml as a dependency id. The empty
+            # box IS the answer, and the ? beside it says what empty means.
+            New-HDTConsoleField -Label 'Success codes' -Value ((@($application.SuccessCode) | ForEach-Object { [string] $_ }) -join ', ') -Property 'successCodes' `
+                -Hint 'Exit codes that mean it worked, comma separated. Empty inherits 0 and 3010 - and 3010 is "installed, reboot required", not a failure.'
+            New-HDTConsoleField -Label 'Reboot codes' -Value ((@($application.RebootCode) | ForEach-Object { [string] $_ }) -join ', ') -Property 'rebootCodes' `
+                -Hint 'Exit codes that mean the machine owes a restart, comma separated. Empty inherits 3010; the sequence reboots and resumes at the next application.'
+            New-HDTConsoleField -Label 'Detection' -Value $application.DetectText -Property 'detect' `
+                -Hint 'The rule that decides it is already installed, written as app.yaml writes it: type: msiProduct, then the keys that type takes. Empty means it installs every time.'
+            New-HDTConsoleField -Label 'Depends on' -Value (@($application.Dependency) -join ', ') -Property 'dependencies' `
+                -Hint 'Ids that must install first, comma separated. Selecting this application selects them too, and they install ahead of it.'
             New-HDTConsoleField -Label 'Source' -Value $application.SourcePath
             New-HDTConsoleField -Label 'Document' -Value $application.Path
         )
