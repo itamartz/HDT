@@ -161,6 +161,22 @@ Describe 'Show-HDTWizard' {
             [bool] @($wizardHost.LastPane)[0].Visible | Should -BeFalse
         }
 
+        It 'hands the host an empty list, not a null element, when it was given no panes' {
+            # THE DESKTOP PREVIEW TOOL DIED ON THIS. @($null) is a one-element
+            # array whose element is $null, so a caller that named no panes -
+            # tools\Show-HDTWizardOnDesktop.ps1, and every page with nothing to
+            # collapse - handed the host one null pane, and the host reads .Name
+            # off it under Set-StrictMode: "The property 'Name' cannot be found
+            # on this object", thrown while the window is opening.
+            $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+            Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' -WizardHost $wizardHost `
+                -FileSystem (New-HDTWizardTestFileSystem) `
+                -Field @([pscustomobject] @{ Name = 'HDTIpAddressBox'; Text = '192.168.2.118' }) | Out-Null
+
+            @($wizardHost.LastPane).Count | Should -Be 0
+        }
+
         It 'still shows the window when every pane is hidden' {
             # HDTSkipWelcome is what suppresses the WINDOW, and it is the
             # caller's decision - not this command's. A Show-HDTWizard that

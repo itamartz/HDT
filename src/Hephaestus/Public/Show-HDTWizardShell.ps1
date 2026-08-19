@@ -384,7 +384,13 @@
         Write-Verbose ("no string table block for '{0}': {1}" -f $ShellXamlPath, [string] $_.Exception.Message)
     }
 
-    $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state, @($Field), @($Pane), $navigator, $CommandPrompt, $string)
+    # NULLS ARE STRIPPED for the same reason Show-HDTWizard strips them: @($null)
+    # is a one-element array carrying $null, and the host reads .Name off every
+    # element under Set-StrictMode.
+    $answer = [string] $WizardHost.ShowShell($shellXaml, $themeXaml, $Title, $state,
+        @($Field | Where-Object { $null -ne $_ }),
+        @($Pane | Where-Object { $null -ne $_ }),
+        $navigator, $CommandPrompt, $string)
 
     # THE ALLOW-LIST, and it is the same one Show-HDTWizard holds for the same
     # reason. Matched case-sensitively, and the ALLOW-LIST's spelling is what is

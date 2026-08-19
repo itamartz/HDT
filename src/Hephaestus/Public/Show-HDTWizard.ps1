@@ -186,7 +186,18 @@
 
     # -- show it -----------------------------------------------------------
 
-    $answer = [string] $WizardHost.Show($xaml, $Title, @($Field), @($Pane), $CommandPrompt, @($Collect), $string)
+    # NULLS ARE STRIPPED, NOT PASSED ON. @($null) is a ONE-element array whose
+    # element is $null, so a caller that named no panes - and most pages have
+    # nothing to collapse - used to hand the host a single null pane, which it
+    # reads .Name off under Set-StrictMode. The window never opened: it threw
+    # "The property 'Name' cannot be found on this object" while it was being
+    # built, in WinPE, with the console already hidden.
+    $answer = [string] $WizardHost.Show($xaml, $Title,
+        @($Field | Where-Object { $null -ne $_ }),
+        @($Pane | Where-Object { $null -ne $_ }),
+        $CommandPrompt,
+        @($Collect | Where-Object { $null -ne $_ }),
+        $string)
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these three exactly is a Cancel.
