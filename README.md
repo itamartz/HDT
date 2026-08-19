@@ -12,6 +12,35 @@ PowerShell instead of VBScript/WSH.
 **HDT depends on no MDT component.** The Windows ADK and WDS are used, and
 nothing else from Microsoft's deployment stack.
 
+![The HDT console, open on a deployment share](docs/images/console.png)
+
+## The console
+
+Deployment Workbench, by another name — and it may not do anything the cmdlets
+cannot. Every row prints the exact command it would run along the bottom, so
+clicking through the window teaches the automation surface.
+
+```powershell
+Start-HDTConsole -Detach 'C:\HDTLab\Share'
+```
+
+A task sequence is a YAML document, and the editor splices lines into it rather
+than re-serialising, so the comments in it survive a Save.
+
+![The task sequence editor](docs/images/task-sequence-editor.png)
+
+The boot image's settings are the `bootImage` block of `workspace.yaml`. **Save**
+writes that file and is instant; **Update Boot Image** mounts a WIM, injects,
+exports and builds an ISO, and takes minutes.
+
+![The Windows PE window](docs/images/boot-image.png)
+
+What the machine itself shows is the same WPF markup loaded the same way, in
+WinPE, where there is no `pwsh` and no code-behind — the Welcome screen when a
+machine cannot reach the share, so a static address can be typed and retried.
+
+![The WinPE Welcome screen](docs/images/wizard-welcome.png)
+
 ## The PowerShell 5.1 constraint
 
 The engine runs inside WinPE, and WinPE ships Windows PowerShell 5.1 only —
