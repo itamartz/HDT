@@ -1,4 +1,4 @@
-# THE ONE PLACE A PROVIDER NAME BECOMES A PROVIDER.
+﻿# THE ONE PLACE A PROVIDER NAME BECOMES A PROVIDER.
 #
 # A two-branch factory and nothing else, so the WinPE entry point does not carry
 # a switch of its own and DESIGN 6's future Http transport lands in one file
@@ -73,7 +73,7 @@ Describe 'New-HDTContentProvider' {
         $provider.Root | Should -BeExactly $script:root
         $provider.ServiceName | Should -BeExactly 'ContentProvider'
 
-        $provider.Connect() | Should -BeExactly $script:root
+        $provider.Connect() | Should -BeExactly 'Z:\'
         @($smb.GetOperationName()) | Should -Contain 'NewMapping'
     }
 
@@ -118,7 +118,7 @@ Describe 'New-HDTContentProvider' {
         $provider = New-HDTContentProvider -Provider Smb -Root $script:root -AllowAnonymous `
             -SmbService $smb -FileSystem $script:fileSystem
 
-        $provider.Connect() | Should -BeExactly $script:root
+        $provider.Connect() | Should -BeExactly 'Z:\'
     }
 
     It 'passes the shared journal through to the provider it builds' {

@@ -1,4 +1,4 @@
-# tests/helpers
+﻿# tests/helpers
 
 Conventions every test double follows. Phases 02-09 add `IDiskService`,
 `IImageService`, `IContentProvider`, `IRegistryService` and `ILsaService` fakes
@@ -31,7 +31,7 @@ The fakes that exist, and the real adapter each is the double for:
 | `New-HDTFakeDiskService` | `IDiskService` | `New-HDTDiskService` | `-Disk`, `-Partition`, `-Volume`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeImageService` | `IImageService` | `New-HDTImageService` | `-Image`, `-FixturePath`, `-Failure` |
 | `New-HDTFakeContentProvider` | `IContentProvider` | `New-HDTLocalContentProvider`, `New-HDTSmbContentProvider` | `-Root`, `-Content`, `-Failure` |
-| `New-HDTFakeSmbService` | `ISmbService` | `New-HDTSmbService` | `-Connection`, `-ClientConfiguration`, `-Failure` |
+| `New-HDTFakeSmbService` | `ISmbService` | `New-HDTSmbService` | `-Connection`, `-UsedDriveLetter`, `-ClientConfiguration`, `-Failure` |
 | `New-HDTFakeWdsService` | `IWdsService` | `New-HDTWdsService` — **never executed anywhere** | `-Image`, `-Failure` |
 | `New-HDTFakeBootImageService` | `IBootImageService` | `New-HDTBootImageService` | `-FileSystem`, `-Image`, `-Package`, `-Driver`, `-Failure` |
 | `New-HDTFakeRandomNumberGenerator` | `RandomNumberGenerator` (a .NET type, not an HDT service) | — | `-Byte` |
@@ -169,11 +169,21 @@ sentence, where the fake's class method and the adapter's `ScriptMethod` can bot
 carry them, and the contract asserts the exception *type* after unwrapping
 (section 5).
 
-`ISmbService` is four methods: `NewMapping(remotePath, userName, password)`,
-`RemoveMapping(remotePath)`, `GetConnection(serverName)` returning rows of
+`ISmbService` is five methods:
+`NewMapping(remotePath, userName, password, localPath)`,
+`RemoveMapping(remotePath)`, `GetUsedDriveLetter()` returning the letters this
+machine has already spoken for, `GetConnection(serverName)` returning rows of
 `ServerName, ShareName, UserName, Dialect, Encrypted, Signed`, and
 `GetClientConfiguration()` returning `EnableInsecureGuestLogons,
-RequireSecuritySignature`. It is `SmbShare`, which DESIGN 5.1 records as
+RequireSecuritySignature`.
+
+**The mapping takes a drive letter**, which is what MDT did and what PSD still
+does. `cmd.exe` refuses a UNC working directory — it prints "UNC paths are not
+supported", moves itself to `%SystemRoot%`, and an application whose install
+command names its own installer relatively then runs in `C:\Windows`. The
+provider picks the first free letter from `Z:` downward, which is why the fake
+takes `-UsedDriveLetter`: without letters to walk past, that rule has nothing to
+be free of. It is `SmbShare`, which DESIGN 5.1 records as
 **present in WinPE** — `NetTCPIP`, `NetAdapter` and `DnsClient` are not, so
 nothing may reach for those.
 

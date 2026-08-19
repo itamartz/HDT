@@ -1,4 +1,4 @@
-# Get-HDTApplication reads the application catalog out of the workspace.
+﻿# Get-HDTApplication reads the application catalog out of the workspace.
 #
 # THE CATALOG IS THE DIRECTORY. DESIGN 2.1 gives every application a folder under
 # Applications\ holding its app.yaml and its source\ payload, so there is no
@@ -141,6 +141,37 @@ Describe 'Get-HDTApplication' {
 
             @($content.GetOperationName()) | Should -Be @('ResolveContent')
             $app.SourcePath | Should -Not -BeNullOrEmpty
+        }
+
+        It 'resolves SourcePath onto the mapped drive over SMB' {
+            # THIS IS THE PATH THE INSTALL STEP MAKES A WORKING DIRECTORY.
+            # Invoke-HDTInstallApplicationsStep runs every install command
+            # through %ComSpec% /c with SourcePath as the current directory, and
+            # CMD.EXE REFUSES A UNC ONE - it prints "UNC paths are not
+            # supported", moves itself to %SystemRoot% and the vendor's own
+            # 'msiexec /i setup.msi' then runs in C:\Windows. A share connected
+            # without a letter cannot be a working directory at all, which is
+            # why the Smb provider maps one the way MDT did.
+            $unc = '\\hdtserver\HdtShare'
+
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                ('{0}\Applications\7Zip-24.09\app.yaml' -f $unc) = $script:fixture['valid-7zip.yaml']
+            }
+
+            $smb = New-HDTFakeSmbService -Connection @([pscustomobject] @{
+                    ServerName = 'hdtserver'; ShareName = 'HdtShare'
+                    UserName = 'CONTOSO\svc-hdt-deploy'; Dialect = '3.1.1'
+                    Encrypted = $true; Signed = $true
+                })
+
+            $content = New-HDTSmbContentProvider -Root $unc -AllowAnonymous `
+                -SmbService $smb -FileSystem $fileSystem
+            $content.Connect() | Out-Null
+
+            $app = Get-HDTApplication -WorkspaceRoot $unc -Id '7Zip-24.09' `
+                -FileSystem $fileSystem -Content $content
+
+            $app.SourcePath | Should -BeExactly 'Z:\Applications\7Zip-24.09\source'
         }
 
         It 'asks the provider for the path relative to the provider root' {

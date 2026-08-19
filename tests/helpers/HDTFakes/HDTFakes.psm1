@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 <#
@@ -4108,6 +4108,15 @@ class HDTFakeSmbService {
     # EnableInsecureGuestLogons, RequireSecuritySignature.
     [pscustomobject] $ClientConfiguration
 
+    # The letters a test says this machine has already spoken for, in the order
+    # it named them. GetUsedDriveLetter answers with these plus whatever a
+    # mapping took, which is what gives "the first free letter from Z downward"
+    # something to be free of.
+    [System.Collections.ArrayList] $Used
+
+    # Remote path -> the letter its mapping took, so RemoveMapping frees it.
+    [hashtable] $Mapped
+
     # Method name -> the message that method throws.
     [hashtable] $Failure
 
@@ -4127,6 +4136,8 @@ class HDTFakeSmbService {
         $this.Seeded = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
+        $this.Used = [System.Collections.ArrayList]::new()
+        $this.Mapped = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.ServiceName = 'SmbService'
         $this.ClientConfiguration = [pscustomobject] @{
             EnableInsecureGuestLogons = $false
@@ -4173,6 +4184,15 @@ class HDTFakeSmbService {
         return $part[1]
     }
 
+    # 'Z:' and 'z' are the same letter. The provider hands over a local path in
+    # the shape New-SmbMapping wants and a test seeds a bare letter, so both
+    # arrive here.
+    hidden [string] LetterOf([string] $LocalPath) {
+        if ([string]::IsNullOrWhiteSpace($LocalPath)) { return '' }
+
+        return $LocalPath.Trim().Substring(0, 1).ToUpperInvariant()
+    }
+
     hidden [void] AssertNoFailure([string] $Operation) {
         if ($this.Failure.ContainsKey($Operation)) {
             throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
@@ -4198,6 +4218,10 @@ class HDTFakeSmbService {
         }
     }
 
+    [void] SeedDriveLetter([string] $Letter) {
+        [void] $this.Used.Add($this.LetterOf($Letter))
+    }
+
     [void] SeedFailure([string] $Operation, [string] $Message) {
         $this.Failure[$Operation] = $Message
     }
@@ -4212,11 +4236,12 @@ class HDTFakeSmbService {
     # method cannot carry a SuppressMessageAttribute, and PSScriptAnalyzer's
     # PSAvoidUsingUsernameAndPasswordParams fires on the pair of names - the real
     # adapter suppresses the same two rules with a justification instead.
-    [void] NewMapping([string] $RemotePath, [string] $UserName, [string] $Secret) {
-        $this.Record('NewMapping', @($RemotePath, $UserName, '<redacted>'))
+    [void] NewMapping([string] $RemotePath, [string] $UserName, [string] $Secret, [string] $LocalPath) {
+        $this.Record('NewMapping', @($RemotePath, $UserName, '<redacted>', $LocalPath))
         $this.AssertNoFailure('NewMapping')
 
         $server = $this.ServerOf($RemotePath)
+        $this.Mapped[$RemotePath] = $this.LetterOf($LocalPath)
 
         if ($this.Seeded.ContainsKey($server)) {
             $this.Active[$server] = [object[]] @($this.Seeded[$server])
@@ -4247,6 +4272,7 @@ class HDTFakeSmbService {
         $this.Record('RemoveMapping', @($RemotePath))
         $this.AssertNoFailure('RemoveMapping')
 
+        $this.Mapped.Remove($RemotePath)
         $this.Active.Remove($this.ServerOf($RemotePath))
     }
 
@@ -4259,6 +4285,22 @@ class HDTFakeSmbService {
         }
 
         return [object[]] @($this.Active[$ServerName])
+    }
+
+    [string[]] GetUsedDriveLetter() {
+        $this.Record('GetUsedDriveLetter', @())
+        $this.AssertNoFailure('GetUsedDriveLetter')
+
+        $letter = [System.Collections.ArrayList]::new()
+
+        foreach ($current in (@($this.Used) + @($this.Mapped.Values))) {
+            if ([string]::IsNullOrWhiteSpace($current)) { continue }
+            if ($letter.Contains($current)) { continue }
+
+            [void] $letter.Add($current)
+        }
+
+        return [string[]] @($letter)
     }
 
     [object] GetClientConfiguration() {
@@ -4280,10 +4322,11 @@ function New-HDTFakeSmbService {
             engine refuses guest fallback" provable on a machine with no server,
             no domain account and no second machine to authenticate to.
 
-            Four methods:
+            Five methods:
 
-              NewMapping(remotePath, userName, password)
+              NewMapping(remotePath, userName, password, localPath)
               RemoveMapping(remotePath)
+              GetUsedDriveLetter()      -> the letters already spoken for
               GetConnection(serverName) -> ServerName, ShareName, UserName,
                                            Dialect, Encrypted, Signed
               GetClientConfiguration()  -> EnableInsecureGuestLogons,
@@ -4302,6 +4345,11 @@ function New-HDTFakeSmbService {
         .PARAMETER Connection
             Rows a mapping to their ServerName will produce. Each carries
             ServerName, ShareName, UserName, Dialect, Encrypted and Signed.
+
+        .PARAMETER UsedDriveLetter
+            Letters this machine is to report as already taken, so that the
+            provider's "first free letter from Z downward" has something to walk
+            past. A letter a mapping takes counts as used without being seeded.
 
         .PARAMETER ClientConfiguration
             EnableInsecureGuestLogons and RequireSecuritySignature. Both default
@@ -4339,6 +4387,9 @@ function New-HDTFakeSmbService {
         [object[]] $Connection,
 
         [Parameter()]
+        [string[]] $UsedDriveLetter,
+
+        [Parameter()]
         [hashtable] $ClientConfiguration,
 
         [Parameter()]
@@ -4355,6 +4406,12 @@ function New-HDTFakeSmbService {
     if ($PSBoundParameters.ContainsKey('Connection')) {
         foreach ($row in @($Connection)) {
             $fake.SeedConnection($row)
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('UsedDriveLetter')) {
+        foreach ($letter in @($UsedDriveLetter)) {
+            $fake.SeedDriveLetter([string] $letter)
         }
     }
 

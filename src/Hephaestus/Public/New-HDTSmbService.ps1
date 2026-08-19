@@ -1,21 +1,36 @@
-function New-HDTSmbService {
+﻿function New-HDTSmbService {
     <#
         .SYNOPSIS
             Creates the real ISmbService adapter over the SmbShare module.
 
         .DESCRIPTION
             A THIN ADAPTER, AND DELIBERATELY DUMB. It constructs arguments for
-            four SmbShare cmdlets and
+            five cmdlets and
             projects what they return; every decision that could be got wrong -
             whether the identity that came back is a guest, whether the dialect
             is acceptable, whether a credential was supplied at all - lives in
             New-HDTSmbContentProvider, where it is unit tested against
             New-HDTFakeSmbService.
 
-              NewMapping(remotePath, userName, password)  New-SmbMapping
+              NewMapping(path, user, password, drive)     New-SmbMapping
               RemoveMapping(remotePath)                   Remove-SmbMapping -Force
+              GetUsedDriveLetter()                        [IO.DriveInfo]::GetDrives
               GetConnection(serverName)                   Get-SmbConnection
               GetClientConfiguration()                    Get-SmbClientConfiguration
+
+            THE MAPPING TAKES A DRIVE LETTER, WHICH IS WHAT MDT DID. A share
+            connected without one can only be reached by its UNC path, and
+            cmd.exe REFUSES A UNC WORKING DIRECTORY - it prints "UNC paths are
+            not supported", moves itself to %SystemRoot%, and every application
+            whose install command names its own installer relatively then runs
+            in the wrong folder. The letter is chosen by the provider, which is
+            where "the first free one from Z downward" is unit tested; this
+            passes it to New-SmbMapping and nothing more.
+
+            THE LETTERS IN USE COME FROM [IO.DriveInfo], NOT Get-SmbMapping. The
+            question is which letters are free, and a local disk, the WinPE RAM
+            disk on X: and somebody else's mapping all answer it; only one of
+            the three is an SMB mapping.
 
             THE SmbShare MODULE IS THE MECHANISM BECAUSE IT IS PRESENT IN WinPE.
             The boot image contents table records SmbShare as present and NetTCPIP,
@@ -43,7 +58,7 @@ function New-HDTSmbService {
             globally across services.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the four ISmbService
+            System.Management.Automation.PSCustomObject with the five ISmbService
             ScriptMethods. Note that Get-Member -MemberType Method does NOT list
             a ScriptMethod - use -MemberType Method, ScriptMethod.
 
@@ -99,12 +114,13 @@ function New-HDTSmbService {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name NewMapping -Value {
-        param([string] $RemotePath, [string] $UserName, [string] $Password)
+        param([string] $RemotePath, [string] $UserName, [string] $Password, [string] $LocalPath)
 
-        $this.Record('NewMapping', @($RemotePath, $UserName, '<redacted>'))
+        $this.Record('NewMapping', @($RemotePath, $UserName, '<redacted>', $LocalPath))
 
         $argument = @{
             RemotePath = $RemotePath
+            LocalPath  = $LocalPath
             Persistent = $false
         }
 
@@ -123,6 +139,15 @@ function New-HDTSmbService {
         $this.Record('RemoveMapping', @($RemotePath))
 
         Remove-SmbMapping -RemotePath $RemotePath -Force | Out-Null
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name GetUsedDriveLetter -Value {
+        $this.Record('GetUsedDriveLetter', @())
+
+        $letter = @([System.IO.DriveInfo]::GetDrives() |
+                ForEach-Object { [string] $_.Name.Substring(0, 1).ToUpperInvariant() })
+
+        return , ([string[]] $letter)
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name GetConnection -Value {

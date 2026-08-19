@@ -1,4 +1,4 @@
-function Invoke-HDTInstallApplicationsStep {
+﻿function Invoke-HDTInstallApplicationsStep {
     <#
         .SYNOPSIS
             Installs the selected applications, in dependency order, surviving the
@@ -58,6 +58,15 @@ function Invoke-HDTInstallApplicationsStep {
             install. The comspec comes from the injected IEnvironmentProvider,
             never from $env:, and the working directory is the application's
             source folder so a relative installer path resolves.
+
+            THAT FOLDER HAS TO BE ONE cmd.exe CAN STAND IN, which is why the Smb
+            provider maps the share to a drive letter (DESIGN 6). Handed a UNC
+            working directory, cmd.exe prints "UNC paths are not supported",
+            moves itself to %SystemRoot%, and the vendor's own
+            'msiexec /i setup.msi' runs in C:\Windows against a file that is not
+            there. SourcePath comes from the provider for exactly that reason -
+            the mapped drive in a network deployment, the media itself on
+            standalone media.
 
             A FAILURE STOPS THE LIST. An application that returns a code in
             neither its successCodes nor its rebootCodes fails the step naming the

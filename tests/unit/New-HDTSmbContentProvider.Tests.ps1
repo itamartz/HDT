@@ -1,4 +1,4 @@
-# The Smb IContentProvider - DESIGN 6's network transport, and DESIGN 6.3's
+﻿# The Smb IContentProvider - DESIGN 6's network transport, and DESIGN 6.3's
 # refusals.
 #
 # THIS FILE IS WHERE "THE ENGINE REFUSES GUEST FALLBACK" IS EITHER TRUE OR A
@@ -25,6 +25,12 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:root = '\\hdtserver\HdtShare'
+
+    # WHAT Connect ANSWERS WITH. The share is mapped to a letter - MDT's model,
+    # and the only shape cmd.exe can hold as a working directory - so the root a
+    # step resolves against is a drive, not the UNC path. Z: because nothing in
+    # the fake has taken it.
+    $script:drive = 'Z:\'
 
     # Built a character at a time rather than with ConvertTo-SecureString
     # -AsPlainText, which PSScriptAnalyzer refuses outright
@@ -130,7 +136,7 @@ Describe 'New-HDTSmbContentProvider' {
             $provider = New-HDTSmbContentProvider -Root $script:root -AllowAnonymous `
                 -SmbService $smb -FileSystem $script:fileSystem
 
-            $provider.Connect() | Should -BeExactly $script:root
+            $provider.Connect() | Should -BeExactly $script:drive
         }
 
         It 'refuses when insecure guest logons are enabled and no credential was given' {
@@ -192,7 +198,7 @@ Describe 'New-HDTSmbContentProvider' {
 
             $captured = & $script:connectWithWarning $provider
 
-            $captured.Value | Should -Be @($script:root)
+            $captured.Value | Should -Be @($script:drive)
             $captured.Warning.Count | Should -Be 0
         }
 
@@ -222,7 +228,7 @@ Describe 'New-HDTSmbContentProvider' {
             $provider = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `
                 -SmbService $smb -FileSystem $script:fileSystem
 
-            $provider.Connect() | Should -BeExactly $script:root
+            $provider.Connect() | Should -BeExactly $script:drive
         }
 
         It 'refuses one that came back as ANONYMOUS LOGON' {
@@ -256,7 +262,8 @@ Describe 'New-HDTSmbContentProvider' {
 
             try { $provider.Connect() } catch { $null = $_ }
 
-            @($smb.GetOperationName()) | Should -Be @('NewMapping', 'GetConnection', 'RemoveMapping')
+            @($smb.GetOperationName()) |
+                Should -Be @('GetUsedDriveLetter', 'NewMapping', 'GetConnection', 'RemoveMapping')
             @($smb.GetConnection('hdtserver')).Count | Should -Be 0
         }
 
@@ -282,7 +289,7 @@ Describe 'New-HDTSmbContentProvider' {
 
             $captured = & $script:connectWithWarning $provider
 
-            $captured.Value | Should -Be @($script:root)
+            $captured.Value | Should -Be @($script:drive)
             $captured.Warning.Count | Should -Be 1
             [string] $captured.Warning[0] | Should -BeLike '*2.1*'
         }
@@ -479,6 +486,146 @@ Describe 'New-HDTSmbContentProvider' {
 
             $printed = ($script:smb.Operations | Out-String) + ($script:content.Operations | Out-String)
             $printed | Should -Not -BeLike '*P@ssw0rd-not-in-a-log*'
+        }
+    }
+
+    Context 'the drive letter, which is what MDT mapped' {
+
+        # MDT MAPS THE SHARE TO A LETTER AND RUNS EVERYTHING FROM IT, and the
+        # reason is not tidiness: cmd.exe REFUSES A UNC WORKING DIRECTORY. It
+        # prints "UNC paths are not supported" and moves itself to
+        # %SystemRoot%, so an application whose install command names its own
+        # installer relatively - which is what every vendor documents - runs in
+        # C:\Windows and cannot find it.
+
+        BeforeEach {
+            $script:smb = New-HDTFakeSmbService -Connection @(& $script:row 'CONTOSO\svc-hdt-deploy' '3.1.1' $true)
+            $script:content = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `
+                -SmbService $script:smb -FileSystem $script:fileSystem
+        }
+
+        It 'maps the share to a drive letter' {
+            $script:content.Connect() | Out-Null
+
+            $mapping = @($script:smb.Operations | Where-Object { $_.Operation -eq 'NewMapping' })[0]
+            $mapping.Arguments[3] | Should -BeExactly 'Z:'
+        }
+
+        It 'takes the first free letter from Z downward' {
+            $smb = New-HDTFakeSmbService -UsedDriveLetter @('Z', 'Y') `
+                -Connection @(& $script:row 'CONTOSO\svc-hdt-deploy' '3.1.1' $true)
+            $content = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `
+                -SmbService $smb -FileSystem $script:fileSystem
+
+            $content.Connect() | Out-Null
+
+            $mapping = @($smb.Operations | Where-Object { $_.Operation -eq 'NewMapping' })[0]
+            $mapping.Arguments[3] | Should -BeExactly 'X:'
+        }
+
+        It 'refuses when no letter is free' {
+            $taken = @([char[]] (67..90) | ForEach-Object { [string] $_ })
+            $smb = New-HDTFakeSmbService -UsedDriveLetter $taken `
+                -Connection @(& $script:row 'CONTOSO\svc-hdt-deploy' '3.1.1' $true)
+            $content = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `
+                -SmbService $smb -FileSystem $script:fileSystem
+
+            $record = $null
+            try { $content.Connect() } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.Exception.Message | Should -BeLike '*HDTEnvironmentError*'
+
+            # AND IT MAPPED NOTHING. A refusal that mapped first would leave the
+            # share attached to a letter nobody recorded.
+            @($smb.GetOperationName()) | Should -Not -Contain 'NewMapping'
+        }
+
+        It 'returns the drive from Connect' {
+            $script:content.Connect() | Should -BeExactly 'Z:\'
+        }
+
+        It 'is the drive while it is connected' {
+            $script:content.Connect() | Out-Null
+
+            $script:content.Root | Should -BeExactly 'Z:\'
+        }
+
+        It 'resolves content through the drive' {
+            $script:content.Connect() | Out-Null
+
+            $script:content.ResolveContent('Applications\7zip\install.cmd') |
+                Should -BeExactly 'Z:\Applications\7zip\install.cmd'
+        }
+
+        It 'is the UNC path again after Disconnect' {
+            $script:content.Connect() | Out-Null
+            $script:content.Disconnect()
+
+            $script:content.Root | Should -BeExactly $script:root
+            $script:content.ResolveContent('Applications\7zip\install.cmd') |
+                Should -BeExactly '\\hdtserver\HdtShare\Applications\7zip\install.cmd'
+        }
+
+        It 'unmaps by the remote path, not by the letter' {
+            $script:content.Connect() | Out-Null
+            $script:content.Disconnect()
+
+            $removal = @($script:smb.Operations | Where-Object { $_.Operation -eq 'RemoveMapping' })[0]
+            $removal.Arguments[0] | Should -BeExactly $script:root
+        }
+
+        It 'leaves the root as the UNC path when it refuses the connection' {
+            $smb = New-HDTFakeSmbService -Connection @(& $script:row 'HDTSERVER\Guest' '3.1.1' $true)
+            $content = New-HDTSmbContentProvider -Root $script:root -Credential $script:credential `
+                -SmbService $smb -FileSystem $script:fileSystem
+
+            try { $content.Connect() } catch { $null = $_ }
+
+            $content.Root | Should -BeExactly $script:root
+        }
+
+        It 'answers for a path under the share it mapped through the drive' {
+            # A CALLER THAT ALREADY HOLDS THE UNC PATH IS THE NORMAL CASE, not an
+            # odd one: the workspace root a step is given is the share it was
+            # told to deploy from, so the application catalog hands paths back
+            # under it. Those name the same files the mapping does, and a step
+            # that got the UNC form would be handed a folder cmd.exe cannot
+            # stand in - which is the whole reason the letter exists.
+            $script:content.Connect() | Out-Null
+
+            $script:content.ResolveContent('\\hdtserver\HdtShare\Applications\7Zip-24.09\source') |
+                Should -BeExactly 'Z:\Applications\7Zip-24.09\source'
+        }
+
+        It 'leaves a rooted path somewhere else alone' {
+            # DESIGN 9.3: media registered where it stands is not re-rooted. The
+            # share it mapped is not somewhere else - it is the same files by
+            # another name - but a captured image on a local disk is.
+            $script:content.Connect() | Out-Null
+
+            $script:content.ResolveContent('D:\Captures\surface.ffu') |
+                Should -BeExactly 'D:\Captures\surface.ffu'
+        }
+
+        It 'answers for the share itself as the drive' {
+            $script:content.Connect() | Out-Null
+
+            $script:content.ResolveContent('\\hdtserver\HdtShare') | Should -BeExactly 'Z:\'
+        }
+
+        It 'is the UNC path again for a path under the share after Disconnect' {
+            $script:content.Connect() | Out-Null
+            $script:content.Disconnect()
+
+            $script:content.ResolveContent('\\hdtserver\HdtShare\Applications\7Zip-24.09\source') |
+                Should -BeExactly '\\hdtserver\HdtShare\Applications\7Zip-24.09\source'
+        }
+
+        It 'exposes the share it mapped as RemoteRoot throughout' {
+            $script:content.Connect() | Out-Null
+
+            $script:content.RemoteRoot | Should -BeExactly $script:root
         }
     }
 

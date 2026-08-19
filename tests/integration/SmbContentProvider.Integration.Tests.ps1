@@ -1,4 +1,4 @@
-# THE Smb PROVIDER AGAINST A REAL SMB SERVER - which on this host is this host.
+﻿# THE Smb PROVIDER AGAINST A REAL SMB SERVER - which on this host is this host.
 #
 # WHAT THIS DOES NOT DO, AND WHY. No VM in phase 05 deploys over SMB.
 # PROJECT.md rule 2 puts every HDT test VM on the isolated 'HDT Lab' switch, and
@@ -125,11 +125,17 @@ Describe 'New-HDTSmbContentProvider against a real SMB share' {
             if ($null -ne $script:content) { $script:content.Disconnect() }
         }
 
-        It 'connects and returns the root' {
+        It 'connects and returns the drive it mapped' {
             # -AllowAnonymous means "this machine's own identity", said out loud.
             # There is no second account to authenticate as on a developer's box,
             # and inventing one is a change to the machine, not a test.
-            $script:content.Connect() | Should -BeExactly $script:remotePath
+            #
+            # AND IT IS A REAL DRIVE. The unit tests prove which letter is
+            # chosen; only a real mapping proves the letter is there afterwards.
+            $mapped = $script:content.Connect()
+
+            $mapped | Should -Match '^[E-Z]:\\$'
+            Test-Path -LiteralPath $mapped | Should -BeTrue
         }
 
         It 'reports the dialect the server negotiated' {
@@ -162,11 +168,39 @@ Describe 'New-HDTSmbContentProvider against a real SMB share' {
             $script:content.TestContent('OperatingSystems\NoSuchOs\sources\install.wim') | Should -BeFalse
         }
 
-        It 'resolves a UNC path the real filesystem can find' {
+        It 'resolves a path on the mapped drive the real filesystem can find' {
+            $script:content.Connect() | Out-Null
+
             $resolved = $script:content.ResolveContent('OperatingSystems\Win11-Integration\sources\install.wim')
 
-            $resolved | Should -BeExactly ('{0}\OperatingSystems\Win11-Integration\sources\install.wim' -f $script:remotePath)
+            $resolved | Should -BeExactly ('{0}OperatingSystems\Win11-Integration\sources\install.wim' -f $script:content.Root)
             Test-Path -LiteralPath $resolved | Should -BeTrue
+        }
+
+        It 'gives cmd.exe a working directory it can stand in' {
+            # THE DEFECT THIS MAPPING EXISTS TO FIX, on a real machine and not in
+            # a fake. Invoke-HDTInstallApplicationsStep runs every install
+            # command through %ComSpec% /c with the application's source folder
+            # as the current directory. Handed a UNC one, cmd.exe prints "UNC
+            # paths are not supported", moves itself to %SystemRoot%, and the
+            # vendor's own 'msiexec /i setup.msi' runs in C:\Windows - which is
+            # why the share is mapped to a letter the way MDT mapped it.
+            $script:content.Connect() | Out-Null
+
+            $folder = $script:content.ResolveContent('OperatingSystems\Win11-Integration\sources')
+
+            $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+            $startInfo.FileName = $env:ComSpec
+            $startInfo.Arguments = '/c echo %CD%'
+            $startInfo.WorkingDirectory = $folder
+            $startInfo.RedirectStandardOutput = $true
+            $startInfo.UseShellExecute = $false
+
+            $process = [System.Diagnostics.Process]::Start($startInfo)
+            $printed = $process.StandardOutput.ReadToEnd().Trim()
+            $process.WaitForExit()
+
+            $printed | Should -BeExactly $folder
         }
 
         It 'copies bytes that hash identical to the source' {
@@ -214,9 +248,16 @@ Describe 'New-HDTSmbContentProvider against a real SMB share' {
             @(Get-SmbMapping -RemotePath $script:remotePath -ErrorAction SilentlyContinue |
                     ForEach-Object { $_.RemotePath }) | Should -Contain $script:remotePath
 
+            $drive = [string] $provider.Root
+
             $provider.Disconnect()
 
             @(Get-SmbMapping -RemotePath $script:remotePath -ErrorAction SilentlyContinue).Count | Should -Be 0
+
+            # AND THE LETTER WENT WITH IT. A mapping removed by remote path that
+            # left the drive behind would hold the letter for the rest of the
+            # session, and the next Connect would quietly take another one.
+            Test-Path -LiteralPath $drive | Should -BeFalse
         }
 
         It 'refuses a root that is not UNC, against the real adapter' {

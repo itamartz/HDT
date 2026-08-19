@@ -1,11 +1,12 @@
-# The ISmbService double, and the reason the Smb provider's decisions are
+﻿# The ISmbService double, and the reason the Smb provider's decisions are
 # provable on a machine with no share (DESIGN 6.3, DESIGN 12.2.1).
 #
-# Four methods, all of them thin over the SmbShare module - which DESIGN 5.1
+# Five methods, all of them thin over the SmbShare module - which DESIGN 5.1
 # records as PRESENT in WinPE, unlike NetTCPIP and NetAdapter:
 #
-#   NewMapping(remotePath, userName, password)
+#   NewMapping(remotePath, userName, password, localPath)
 #   RemoveMapping(remotePath)
+#   GetUsedDriveLetter()      -> the letters this machine has spoken for
 #   GetConnection(serverName) -> ServerName, ShareName, UserName, Dialect,
 #                                Encrypted, Signed
 #   GetClientConfiguration()  -> EnableInsecureGuestLogons, RequireSecuritySignature
@@ -36,14 +37,14 @@ Describe 'New-HDTFakeSmbService' {
 
             @($smb.GetConnection('hdtserver')).Count | Should -Be 0
 
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             @($smb.GetConnection('hdtserver')).Count | Should -Be 1
         }
 
         It 'removes it when it unmaps' {
             $smb = New-HDTFakeSmbService
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             $smb.RemoveMapping($script:remotePath)
 
@@ -54,14 +55,14 @@ Describe 'New-HDTFakeSmbService' {
             $smb = New-HDTFakeSmbService -Connection @(
                 [pscustomobject] @{ ServerName = 'hdtserver'; ShareName = 'HdtShare'; UserName = 'hdtserver\Guest'; Dialect = '3.1.1'; Encrypted = $false; Signed = $true })
 
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             @($smb.GetConnection('hdtserver'))[0].UserName | Should -BeExactly 'hdtserver\Guest'
         }
 
         It 'reports the identity it was mapped with when nothing was seeded' {
             $smb = New-HDTFakeSmbService
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             $row = @($smb.GetConnection('hdtserver'))[0]
             $row.UserName | Should -BeExactly 'CONTOSO\svc-hdt-deploy'
@@ -77,7 +78,7 @@ Describe 'New-HDTFakeSmbService' {
             $smb = New-HDTFakeSmbService -Connection @(
                 [pscustomobject] @{ ServerName = 'someone-else'; ShareName = 'Other'; UserName = 'CONTOSO\svc'; Dialect = '3.1.1'; Encrypted = $true; Signed = $true })
 
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             @($smb.GetConnection('hdtserver')).Count | Should -Be 0
         }
@@ -92,6 +93,45 @@ Describe 'New-HDTFakeSmbService' {
             $smb = New-HDTFakeSmbService
 
             { $smb.RemoveMapping($script:remotePath) } | Should -Not -Throw
+        }
+    }
+
+    Context 'the drive letters' {
+
+        # THE PROVIDER PICKS THE LETTER AND THE FAKE HAS TO DISAGREE WITH IT,
+        # otherwise "the first free one from Z downward" is a rule with nothing
+        # to be free of.
+
+        It 'reports no letter in use by default' {
+            @((New-HDTFakeSmbService).GetUsedDriveLetter()).Count | Should -Be 0
+        }
+
+        It 'reports the seeded letters' {
+            $smb = New-HDTFakeSmbService -UsedDriveLetter @('C', 'X')
+
+            @($smb.GetUsedDriveLetter()) | Should -Be @('C', 'X')
+        }
+
+        It 'counts a letter it mapped as in use' {
+            $smb = New-HDTFakeSmbService
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
+
+            @($smb.GetUsedDriveLetter()) | Should -Contain 'Z'
+        }
+
+        It 'frees the letter when the mapping is removed' {
+            $smb = New-HDTFakeSmbService
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
+            $smb.RemoveMapping($script:remotePath)
+
+            @($smb.GetUsedDriveLetter()) | Should -Not -Contain 'Z'
+        }
+
+        It 'records GetUsedDriveLetter' {
+            $smb = New-HDTFakeSmbService
+            $smb.GetUsedDriveLetter() | Out-Null
+
+            $smb.GetOperationName() | Should -Be @('GetUsedDriveLetter')
         }
     }
 
@@ -119,16 +159,17 @@ Describe 'New-HDTFakeSmbService' {
 
         It 'records NewMapping with the remote path and the user name' {
             $smb = New-HDTFakeSmbService
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             $smb.GetOperationName() | Should -Be @('NewMapping')
             [string] $smb.Operations[0].Arguments[0] | Should -BeExactly $script:remotePath
             [string] $smb.Operations[0].Arguments[1] | Should -BeExactly 'CONTOSO\svc-hdt-deploy'
+            [string] $smb.Operations[0].Arguments[3] | Should -BeExactly 'Z:'
         }
 
         It 'does not record the password' {
             $smb = New-HDTFakeSmbService
-            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password)
+            $smb.NewMapping($script:remotePath, 'CONTOSO\svc-hdt-deploy', $script:password, 'Z:')
 
             $printed = ($smb.Operations | Out-String) + ($smb.Operations[0].Arguments -join ' ')
             $printed | Should -Not -BeLike ('*{0}*' -f $script:password)
@@ -156,7 +197,7 @@ Describe 'New-HDTFakeSmbService' {
             $smb = New-HDTFakeSmbService -Failure @{ NewMapping = 'The network path was not found.' }
 
             $record = $null
-            try { $smb.NewMapping($script:remotePath, 'CONTOSO\svc', $script:password) } catch { $record = $_ }
+            try { $smb.NewMapping($script:remotePath, 'CONTOSO\svc', $script:password, 'Z:') } catch { $record = $_ }
 
             $record | Should -Not -BeNullOrEmpty
             $record.Exception | Should -BeOfType ([System.InvalidOperationException])
@@ -166,7 +207,7 @@ Describe 'New-HDTFakeSmbService' {
         It 'records NewMapping before it throws' {
             $smb = New-HDTFakeSmbService -Failure @{ NewMapping = 'The network path was not found.' }
 
-            try { $smb.NewMapping($script:remotePath, 'CONTOSO\svc', $script:password) } catch { $null = $_ }
+            try { $smb.NewMapping($script:remotePath, 'CONTOSO\svc', $script:password, 'Z:') } catch { $null = $_ }
 
             $smb.GetOperationName() | Should -Be @('NewMapping')
         }
@@ -174,7 +215,7 @@ Describe 'New-HDTFakeSmbService' {
         It 'maps nothing when NewMapping throws' {
             $smb = New-HDTFakeSmbService -Failure @{ NewMapping = 'The network path was not found.' }
 
-            try { $smb.NewMapping($script:remotePath, 'CONTOSO\svc', $script:password) } catch { $null = $_ }
+            try { $smb.NewMapping($script:remotePath, 'CONTOSO\svc', $script:password, 'Z:') } catch { $null = $_ }
 
             @($smb.GetConnection('hdtserver')).Count | Should -Be 0
         }

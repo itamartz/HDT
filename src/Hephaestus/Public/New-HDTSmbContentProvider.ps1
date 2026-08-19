@@ -1,4 +1,4 @@
-function New-HDTSmbContentProvider {
+﻿function New-HDTSmbContentProvider {
     <#
         .SYNOPSIS
             Creates the Smb IContentProvider - a deployment share, mapped with
@@ -44,6 +44,23 @@ function New-HDTSmbContentProvider {
               - an unencrypted connection -> WARN once, naming the server
                 (signing and encryption "where the server supports
                 them").
+
+            IT MAPS TO A DRIVE LETTER, AND Root BECOMES THAT LETTER. MDT
+            connected the deployment share as a drive and ran everything from
+            it; HDT does the same, for a reason that is not tidiness. CMD.EXE
+            REFUSES A UNC WORKING DIRECTORY: started in one it prints "UNC paths
+            are not supported", moves itself to %SystemRoot%, and an application
+            whose install command names its own installer relatively - which is
+            what every vendor documents - then runs in C:\Windows and cannot
+            find it. The InstallApplications step runs each command through
+            %ComSpec% /c in the application's source folder, so that folder has
+            to be a path cmd.exe can stand in.
+
+            THE LETTER IS THE FIRST FREE ONE FROM Z DOWNWARD, the rule MDT used
+            and PSD still uses. RemoteRoot keeps the UNC path throughout - it is
+            what the mapping is made and torn down by, and what a refusal names -
+            and Disconnect puts Root back, because a root pointing at a letter
+            that is no longer mapped is worse than no root at all.
 
             Connect is re-entrant: calling it twice maps once.
 
@@ -97,7 +114,9 @@ function New-HDTSmbContentProvider {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with the five
-            IContentProvider ScriptMethods, plus Root, ServiceName, Operations
+            IContentProvider ScriptMethods, plus Root (the mapped drive once
+            connected, the UNC path before and after), RemoteRoot (always the
+            UNC path), ServiceName, Operations
             and GetOperationName(). Note that Get-Member -MemberType Method does
             NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.
 
@@ -155,7 +174,12 @@ function New-HDTSmbContentProvider {
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $service = [pscustomobject] @{
+        # Root MOVES: the UNC path until Connect maps it, the drive while it is
+        # mapped, the UNC path again after Disconnect. RemoteRoot never moves,
+        # and it is what every SmbService call is made with.
         Root           = $Root
+        RemoteRoot     = $Root
+        Drive          = ''
         Credential     = $Credential
         AllowAnonymous = [bool] $AllowAnonymous
         SmbService     = $SmbService
@@ -223,18 +247,69 @@ function New-HDTSmbContentProvider {
         return ($this.Root.TrimEnd('\', '/') + '\' + ($segment -join '\'))
     }
 
+    # THE SHARE UNDER ANOTHER NAME IS NOT SOMEWHERE ELSE. A caller that already
+    # holds '\\server\Share\Applications\7Zip\source' is the normal case, not an
+    # odd one: a step is given the workspace root it was told to deploy from, and
+    # the catalog builds paths under it. Those name the same files the mapping
+    # does, so once the mapping exists they are answered through it - otherwise
+    # the letter would exist and the one caller that most needs it, the install
+    # step making a working directory, would never see it.
+    #
+    # THIS IS NOT THE RE-ROOTING DESIGN 9.3 FORBIDS. That rule is about media
+    # registered where it stands - a captured image on a local disk stays where
+    # it was put. A path under this provider's own share is not another location
+    # to be dragged into the share; it IS the share.
+    $service | Add-Member -MemberType ScriptMethod -Name Localise -Value {
+        param([string] $Path)
+
+        if (-not $this.IsConnected) { return $Path }
+        if (-not $Path.StartsWith($this.RemoteRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $Path }
+
+        $tail = $Path.Substring($this.RemoteRoot.Length).TrimStart('\', '/')
+
+        if ([string]::IsNullOrEmpty($tail)) { return $this.Root }
+
+        return ($this.Root.TrimEnd('\', '/') + '\' + $tail)
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name GetServerName -Value {
-        $part = @($this.Root.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
+        $part = @($this.RemoteRoot.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
         if ($part.Count -eq 0) { return '' }
 
         return $part[0]
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name GetShareName -Value {
-        $part = @($this.Root.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
+        $part = @($this.RemoteRoot.TrimStart('\', '/') -split '[\\/]+' | Where-Object { $_ -ne '' })
         if ($part.Count -lt 2) { return '' }
 
         return $part[1]
+    }
+
+    # MDT'S RULE, KEPT: the first free letter walking DOWN from Z. Down rather
+    # than up because the low letters are spoken for by things that arrive later
+    # and expect them - a USB stick, a second disk, the optical drive - and a
+    # deployment share sitting on F: would be where one of them lands. It stops
+    # at E: for the same reason: A and B are the floppy letters Windows still
+    # reserves, C is the system volume, and D is the optical drive by convention
+    # on nearly every machine HDT will deploy.
+    $service | Add-Member -MemberType ScriptMethod -Name SelectDriveLetter -Value {
+        $used = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($current in @($this.SmbService.GetUsedDriveLetter())) {
+            if ([string]::IsNullOrWhiteSpace($current)) { continue }
+
+            $used[$current.Trim().Substring(0, 1)] = $true
+        }
+
+        foreach ($code in 90..69) {
+            $letter = [string] [char] $code
+
+            if (-not $used.ContainsKey($letter)) { return ($letter + ':') }
+        }
+
+        throw (New-Object System.InvalidOperationException (
+                "HDTEnvironmentError: there is no free drive letter between E: and Z: to map '$($this.RemoteRoot)' to. HDT maps the deployment share to a letter because cmd.exe cannot hold a UNC working directory - an application installing from the share would run in C:\Windows instead. Free a letter and run this again."))
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name TestGuestIdentity -Value {
@@ -255,9 +330,11 @@ function New-HDTSmbContentProvider {
         $this.Record('ResolveContent', @($RelativePath))
         $this.AssertUsablePath($RelativePath)
 
-        # DESIGN 9.3: media registered where it stands is not re-rooted.
+        # DESIGN 9.3: media registered where it stands is not re-rooted - but a
+        # path already under this share is the share, so it goes through the
+        # mapping. Localise leaves everything else alone.
         if ([System.IO.Path]::IsPathRooted($RelativePath)) {
-            return $RelativePath
+            return $this.Localise($RelativePath)
         }
 
         return $this.Combine($RelativePath)
@@ -269,7 +346,7 @@ function New-HDTSmbContentProvider {
         $this.Record('TestContent', @($RelativePath))
         $this.AssertUsablePath($RelativePath)
 
-        $path = $RelativePath
+        $path = $this.Localise($RelativePath)
         if (-not [System.IO.Path]::IsPathRooted($RelativePath)) {
             $path = $this.Combine($RelativePath)
         }
@@ -288,7 +365,7 @@ function New-HDTSmbContentProvider {
                     "HDTConfigurationError: CopyContent was given no destination for '$RelativePath'."))
         }
 
-        $source = $RelativePath
+        $source = $this.Localise($RelativePath)
         if (-not [System.IO.Path]::IsPathRooted($RelativePath)) {
             $source = $this.Combine($RelativePath)
         }
@@ -318,9 +395,9 @@ function New-HDTSmbContentProvider {
 
         # -- what it refuses before it maps --------------------------------
 
-        if (-not $this.Root.StartsWith('\\')) {
+        if (-not $this.RemoteRoot.StartsWith('\\')) {
             throw (New-Object System.ArgumentException (
-                    "HDTConfigurationError: the content root '$($this.Root)' is not a UNC path. The Smb provider connects to \\server\share; content on this machine is New-HDTLocalContentProvider's job."))
+                    "HDTConfigurationError: the content root '$($this.RemoteRoot)' is not a UNC path. The Smb provider connects to \\server\share; content on this machine is New-HDTLocalContentProvider's job."))
         }
 
         $userName = ''
@@ -336,19 +413,25 @@ function New-HDTSmbContentProvider {
             }
         } elseif (-not $this.AllowAnonymous) {
             throw (New-Object System.Security.SecurityException (
-                    "HDTSecurityError: no credential was supplied for '$($this.Root)'. Not supplying one is exactly the guest fallback HDT refuses. Pass -Credential, or pass -AllowAnonymous to connect as this machine's own identity on purpose."))
+                    "HDTSecurityError: no credential was supplied for '$($this.RemoteRoot)'. Not supplying one is exactly the guest fallback HDT refuses. Pass -Credential, or pass -AllowAnonymous to connect as this machine's own identity on purpose."))
         } else {
             $configuration = $this.SmbService.GetClientConfiguration()
 
             if ($configuration.EnableInsecureGuestLogons) {
                 throw (New-Object System.Security.SecurityException (
-                        "HDTSecurityError: this machine has EnableInsecureGuestLogons turned on and no credential was supplied for '$($this.Root)', so the connection could silently become a guest session. HDT reports this setting and does not change it: changing a machine's security posture to make a deployment work is the opposite of what the check is for."))
+                        "HDTSecurityError: this machine has EnableInsecureGuestLogons turned on and no credential was supplied for '$($this.RemoteRoot)', so the connection could silently become a guest session. HDT reports this setting and does not change it: changing a machine's security posture to make a deployment work is the opposite of what the check is for."))
             }
         }
 
         # -- the mapping, and the identity it actually produced --------------
+        #
+        # THE LETTER IS CHOSEN BEFORE ANYTHING IS MAPPED. A machine with none
+        # free has to fail having attached nothing, rather than leave a share
+        # connected to a letter this object never recorded and cannot tear down.
 
-        $this.SmbService.NewMapping($this.Root, $userName, $password)
+        $drive = $this.SelectDriveLetter()
+
+        $this.SmbService.NewMapping($this.RemoteRoot, $userName, $password, $drive)
 
         $server = $this.GetServerName()
         $connection = @($this.SmbService.GetConnection($server))
@@ -356,7 +439,7 @@ function New-HDTSmbContentProvider {
         if ($connection.Count -eq 0) {
             $this.SafeRemoveMapping()
             throw (New-Object System.InvalidOperationException (
-                    "HDTEnvironmentError: the mapping to '$($this.Root)' did not take - no SMB connection to '$server' came back. HDT will not read content from a path it cannot prove it is connected to."))
+                    "HDTEnvironmentError: the mapping to '$($this.RemoteRoot)' did not take - no SMB connection to '$server' came back. HDT will not read content from a path it cannot prove it is connected to."))
         }
 
         # Get-SmbConnection returns a row per share and IPC$ is always one of
@@ -399,6 +482,11 @@ function New-HDTSmbContentProvider {
             Write-Warning ("The connection to '{0}' is not encrypted. HDT uses SMB signing and encryption where the server supports them; this one does not, so the deployment credential and every file it reads cross the network in clear." -f $server)
         }
 
+        # ONLY NOW. Every refusal above tears the mapping down and leaves this
+        # object rooted where it started, so a caller that swallowed the error
+        # cannot go on to resolve content against a letter that is not there.
+        $this.Drive = $drive
+        $this.Root = $drive + '\'
         $this.IsConnected = $true
 
         return $this.Root
@@ -406,7 +494,9 @@ function New-HDTSmbContentProvider {
 
     $service | Add-Member -MemberType ScriptMethod -Name SafeRemoveMapping -Value {
         try {
-            $this.SmbService.RemoveMapping($this.Root)
+            # BY THE REMOTE PATH, not the letter: it is the one still right when
+            # Connect refused before it ever chose one.
+            $this.SmbService.RemoveMapping($this.RemoteRoot)
         } catch {
             # A refusal must not be replaced by the failure of its own cleanup:
             # the sentence the caller needs is the one about the identity.
@@ -418,6 +508,9 @@ function New-HDTSmbContentProvider {
         $this.Record('Disconnect', @())
 
         $this.SafeRemoveMapping()
+
+        $this.Drive = ''
+        $this.Root = $this.RemoteRoot
         $this.IsConnected = $false
     }
 

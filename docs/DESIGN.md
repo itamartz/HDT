@@ -1,4 +1,4 @@
-# Hephaestus Deployment Toolkit — Design
+﻿# Hephaestus Deployment Toolkit — Design
 
 **Status:** Draft v0.1 — design only, no implementation yet.
 **Date:** 2026-08-12
@@ -1133,9 +1133,23 @@ touch UNC paths directly. Three providers in v1:
 
 | Provider | Used by | Notes |
 |---|---|---|
-| `Smb` | PXE / network deploy | Mapped with per-run credentials, read-only |
+| `Smb` | PXE / network deploy | Mapped to a drive letter with per-run credentials, read-only |
 | `Local` | Standalone media | Content on the USB/ISO itself |
 | `Http` | *stub in v1* | Interface exists so a cloud transport can land later without touching step code |
+
+The `Smb` provider **maps the share to a drive letter** — the first free one
+from `Z:` downward, as MDT did — and `Connect()` answers with that drive rather
+than the UNC path. This is not cosmetic: `cmd.exe` refuses a UNC working
+directory. Started in one it prints "UNC paths are not supported", moves itself
+to `%SystemRoot%`, and an application whose install command names its own
+installer relatively — `msiexec /i AcroRead.msi`, which is what every vendor
+documents — then runs in `C:\Windows` and cannot find it. `InstallApplications`
+runs each command through `%ComSpec% /c` in the application's `source` folder,
+so that folder has to be a path `cmd.exe` can stand in.
+
+A path already under the share resolves through the mapping too: it names the
+same files, and a caller holding the UNC form is the normal case rather than an
+odd one.
 
 ### 6.1 PXE — the MDT model
 
