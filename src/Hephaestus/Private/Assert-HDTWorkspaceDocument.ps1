@@ -109,7 +109,10 @@
     $allowedSkipKey = @('welcome', 'staticIp', 'deployRoot', 'credential')
     $allowedExtraContentKey = @('source', 'destination')
     $allowedArchitecture = @('amd64', 'arm64')
-    $allowedLogLevel = @('Error', 'Warning', 'Info', 'Debug')
+    # ASKED FOR RATHER THAN REPEATED. The console offers these four in a list,
+    # and a second hand-written copy here is how the validator and the list come
+    # to disagree about what a share may log at.
+    $allowedLogLevel = @(Get-HDTWorkspaceLogLevel)
 
     $minimumScratchSpaceMB = 32
     $maximumScratchSpaceMB = 1024

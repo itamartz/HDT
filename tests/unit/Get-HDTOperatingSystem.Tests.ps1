@@ -1,4 +1,4 @@
-# Get-HDTOperatingSystem reads a catalog entry back out of the workspace and
+﻿# Get-HDTOperatingSystem reads a catalog entry back out of the workspace and
 # resolves its image to a full path.
 #
 # THE RESOLVED PATH IS THE SEAM 04-02 MARKED, AND 05-02 CLOSED. DESIGN 6
@@ -30,6 +30,62 @@ Describe 'Get-HDTOperatingSystem' {
     BeforeEach {
         $script:fileSystem = New-HDTFakeFileSystem -File @{
             $script:catalogPath = $script:fixture['valid-win11-ltsc.yaml']
+        }
+    }
+
+    Context 'reading the whole catalog' {
+
+        # "WHAT ARE THE IDS?" HAD NO ANSWER. -Id was mandatory here and optional
+        # on Get-HDTApplication, so the two readers of the same share behaved
+        # differently for no reason: omitting it on the application reader lists
+        # the catalog, and omitting it here prompted for a value somebody had no
+        # way to look up short of listing the folder themselves.
+        #
+        # THE ENUMERATION IS THE DIRECTORY, as it is for applications: DESIGN
+        # 2.1 gives every entry a folder, so there is no catalog file to read.
+
+        It 'returns every operating system when no id is given' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\ws\OperatingSystems\Win11-LTSC-2024\os.yaml' = $script:fixture['valid-win11-ltsc.yaml']
+                'C:\ws\OperatingSystems\WS2025-Std\os.yaml'      = $script:fixture['valid-win11-ltsc.yaml']
+            }
+
+            @(Get-HDTOperatingSystem -WorkspaceRoot 'C:\ws' -FileSystem $fileSystem).Count | Should -Be 2
+        }
+
+        It 'names each one by its folder, which is its id' {
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\ws\OperatingSystems\Win11-LTSC-2024\os.yaml' = $script:fixture['valid-win11-ltsc.yaml']
+            }
+
+            @(Get-HDTOperatingSystem -WorkspaceRoot 'C:\ws' -FileSystem $fileSystem)[0].Id |
+                Should -BeExactly 'Win11-LTSC-2024'
+        }
+
+        It 'returns nothing on a share with no operating systems, rather than failing' {
+            # A share that deploys nothing yet is a legitimate share, and the
+            # application reader answers the same way.
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\ws\workspace.yaml' = "schemaVersion: 1`nid: HDT`nname: HDT share`n"
+            }
+
+            @(Get-HDTOperatingSystem -WorkspaceRoot 'C:\ws' -FileSystem $fileSystem) | Should -BeNullOrEmpty
+        }
+
+        It 'is not fooled by a folder with no os.yaml in it' {
+            # A share people use collects stray folders under OperatingSystems\,
+            # and a reader that threw over one would be unusable.
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\ws\OperatingSystems\Win11-LTSC-2024\os.yaml' = $script:fixture['valid-win11-ltsc.yaml']
+                'C:\ws\OperatingSystems\Staging\notes.txt'       = 'mine'
+            }
+
+            @(Get-HDTOperatingSystem -WorkspaceRoot 'C:\ws' -FileSystem $fileSystem).Count | Should -Be 1
+        }
+
+        It 'still refuses an id that is not there, because that one was asked for' {
+            { Get-HDTOperatingSystem -WorkspaceRoot $script:workspaceRoot -Id 'WS2025-Std' `
+                    -FileSystem $script:fileSystem } | Should -Throw -ExpectedMessage '*WS2025-Std*'
         }
     }
 

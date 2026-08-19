@@ -715,19 +715,42 @@ Describe 'the Windows PE window, as something to type into' {
         }
     }
 
-    It 'sets no Background on a drop-down, because the stock template paints over it' {
-        # TRIED AND MEASURED, NOT ASSUMED: a Setter here left the box exactly as
-        # grey as before, because WPF's non-editable ComboBox draws its own
-        # chrome. A test that asserted the Setter would have passed while the
-        # screen disagreed - which is the one kind of test this repository must
-        # not have. A chooser says what it is with its arrow.
+    It 'never sets a drop-down Background without making it take effect' {
+        # TRIED AND MEASURED, NOT ASSUMED: a Setter on its own left the box
+        # exactly as grey as before, because WPF's NON-EDITABLE ComboBox draws
+        # its own chrome and ignores Background. A test that asserted the Setter
+        # would have passed while the screen disagreed - which is the one kind
+        # of test this repository must not have.
+        #
+        # AND "THE ARROW SAYS IT IS A CHOOSER" TURNED OUT NOT TO BE ENOUGH. The
+        # dropdown measured #EAEAEA against a #EDEDED read-only wash and a
+        # #FFFFFF editable box beside it, and it was reported as looking
+        # disabled by somebody using the window.
+        #
+        # IsEditable IS WHAT MAKES THE BACKGROUND REAL: it puts a text box in
+        # the closed control, which paints it - #FFFFFF, measured the same way -
+        # and IsReadOnly keeps it from being typed into, so it still behaves
+        # exactly like a chooser. So the rule is no longer "never set it": it is
+        # "never set it and leave it doing nothing".
         $style = @($script:peDocument.SelectNodes("//*[local-name()='Style']") |
                 Where-Object { $_.GetAttribute('TargetType') -eq 'ComboBox' })
 
         @($style).Count | Should -BeGreaterThan 0
 
-        @($style[0].SelectNodes("*[local-name()='Setter']") |
-                Where-Object { $_.GetAttribute('Property') -eq 'Background' }) | Should -BeNullOrEmpty
+        foreach ($current in $style) {
+            $setter = @($current.SelectNodes("*[local-name()='Setter']"))
+
+            $background = @($setter | Where-Object { $_.GetAttribute('Property') -eq 'Background' })
+            if (@($background).Count -eq 0) { continue }
+
+            @($setter | Where-Object {
+                    $_.GetAttribute('Property') -eq 'IsEditable' -and $_.GetAttribute('Value') -eq 'True'
+                }) | Should -Not -BeNullOrEmpty -Because 'a Background on a stock ComboBox template does nothing'
+
+            @($setter | Where-Object {
+                    $_.GetAttribute('Property') -eq 'IsReadOnly' -and $_.GetAttribute('Value') -eq 'True'
+                }) | Should -Not -BeNullOrEmpty -Because 'an editable chooser must not become a box somebody types into'
+        }
     }
 
     It 'still declares the wash, because something read-only may want it' {

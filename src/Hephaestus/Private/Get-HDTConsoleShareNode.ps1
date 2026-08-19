@@ -82,9 +82,36 @@
         New-HDTConsoleField -Label 'Id' -Value $Workspace.Id
         New-HDTConsoleField -Label 'Schema version' -Value $Workspace.SchemaVersion
         New-HDTConsoleField -Label 'Opened from' -Value $Workspace.Root
-        New-HDTConsoleField -Label 'Deploy root' -Value $Workspace.DeployRoot -Property 'deployRoot'
-        New-HDTConsoleField -Label 'Log level' -Value $Workspace.LogLevel -Property 'logLevel'
-        New-HDTConsoleField -Label 'Credential' -Value (Get-HDTConsoleDisplayText -Text $Workspace.CredentialUser -Fallback '(none - the share is opened as the signed-in user)')
+        # THE TWO PATHS ARE NOT THE SAME PATH, and they sit next to each other:
+        # 'Opened from' is the disk this console reached the share on, and this
+        # is what a machine in WinPE dials. A local path here is a share that
+        # deploys nothing.
+        #
+        # AND IT SHOULD BE A NAME, NOT AN ADDRESS. deployRoot is baked into the
+        # boot image at build time, and this lab's host address is a DHCP lease
+        # that moves when the Wi-Fi changes - a name survives what an octet does
+        # not. That is a sentence too many for a tooltip, so the hint carries the
+        # trap a technician hits and this comment carries the reason.
+        New-HDTConsoleField -Label 'Deploy root' -Value $Workspace.DeployRoot -Property 'deployRoot' `
+            -Hint ('What a machine in WinPE connects to - not the path above, which is only where this ' +
+            'console opened the share. A local path here is a share that deploys nothing.')
+
+        # INFO IS THE ORDINARY SETTING and Debug is not a louder version of it:
+        # it logs every variable resolution, which is what makes it the level to
+        # turn on for a deployment that is failing and off again afterwards.
+        New-HDTConsoleField -Label 'Log level' -Value $Workspace.LogLevel -Property 'logLevel' `
+            -Choice (Get-HDTWorkspaceLogLevel) `
+            -Hint ('How much every deployment from this share writes. Info is the ordinary setting; ' +
+            'Debug logs every variable resolution and is worth turning back afterwards.')
+
+        # READ-ONLY ON PURPOSE, and the hint says so rather than leaving a
+        # technician to discover it by clicking. Setting it writes two things -
+        # this line and a protected file beside it - so a box that wrote one
+        # would leave the share naming an account no secret exists for, which is
+        # a build that refuses.
+        New-HDTConsoleField -Label 'Credential' -Value (Get-HDTConsoleDisplayText -Text $Workspace.CredentialUser -Fallback '(none - the share is opened as the signed-in user)') `
+            -Hint ('Read-only here: setting it writes this line and a protected file beside it. ' +
+            'Set-HDTShareCredential writes both.')
         New-HDTConsoleField -Label 'Document' -Value $Workspace.WorkspacePath
     )
 

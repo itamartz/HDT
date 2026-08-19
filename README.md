@@ -24,6 +24,37 @@ clicking through the window teaches the automation surface.
 Start-HDTConsole -Detach 'C:\HDTLab\Share'
 ```
 
+Given no path it reopens the shares it was last closed on, the way Workbench
+comes back to the ones you added.
+
+A deployment share is made from the window: **New Deployment Share** on the root
+row writes the folder tree, publishes it over SMB, and derives the deploy root
+from the share name — `\\<server>\<share>$`, a machine NAME rather than an
+address, because an address is a lease that moves and this value is baked into
+the boot image. Publishing needs elevation, and the page says so before anything
+is typed rather than failing after the folder has been written.
+
+![New Deployment Share](docs/images/new-deployment-share.png)
+
+**Open Deployment Share** adds one that already exists, and **Close** takes a
+share out of the window without touching a byte of it.
+
+Applications are a category beside the operating systems, with everything MDT's
+are: add, remove, and a properties pane for the command lines and exit codes.
+Two of those fields are picked rather than typed — **Depends On** offers the
+applications on the share and refuses any choice that would close a dependency
+loop, naming the loop; **Detection** asks which kind of rule and then only the
+keys that kind takes. A misspelled dependency is not caught until a deployment
+runs, when the whole plan is refused rather than that one application.
+
+![An application's properties](docs/images/console-application.png)
+
+Task sequences, operating systems and applications can each be filed into
+folders. HDT's are labels on the documents rather than real directories: the
+folder a sequence sits in would otherwise be part of the path the engine
+resolves its id from, so moving one between folders would break every rule and
+boot image that names it.
+
 A task sequence is a YAML document, and the editor splices lines into it rather
 than re-serialising, so the comments in it survive a Save.
 

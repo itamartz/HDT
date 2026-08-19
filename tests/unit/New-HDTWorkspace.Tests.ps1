@@ -294,10 +294,17 @@ Describe 'New-HDTWorkspace' {
         }
 
         It 'writes both documents through the injected filesystem' {
+            # NAMED RATHER THAN COUNTED. A share is created with its technician
+            # wizard as well now - MDT's New Deployment Share populates Scripts            # the same way - so a count here would be a number that changes
+            # every time a sample page is added, asserting nothing.
             $null = New-HDTWorkspace -Path $script:workspaceRoot -Id 'HDT-LAB' -FileSystem $script:fileSystem
 
-            @($script:fileSystem.Operations | Where-Object { $_.Operation -eq 'WriteAllText' }).Count |
-                Should -Be 2
+            $written = @($script:fileSystem.Operations |
+                    Where-Object { $_.Operation -eq 'WriteAllText' } |
+                    ForEach-Object { [string] $_.Arguments[0] })
+
+            $written | Should -Contain $script:workspacePath
+            $written | Should -Contain $script:rulePath
         }
 
         It 'reports the paths it wrote' {

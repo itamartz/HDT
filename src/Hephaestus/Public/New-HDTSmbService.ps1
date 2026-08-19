@@ -133,6 +133,42 @@
         New-SmbMapping @argument | Out-Null
     }
 
+    # -- the server side ---------------------------------------------------
+    #
+    # THE OTHER HALF OF SMB, and the half MDT's New Deployment Share wizard
+    # uses: a deployment share is a folder that has been PUBLISHED, and
+    # DeployRoot is \<server>\<share> derived from that. These three are as
+    # dumb as the mapping methods above and for the same reason - they are the
+    # part no unit test can reach.
+
+    $service | Add-Member -MemberType ScriptMethod -Name NewShare -Value {
+        param([string] $Path, [string] $Name, [string] $Description)
+
+        $this.Record('NewShare', @($Path, $Name, $Description))
+
+        New-SmbShare -Name $Name -Path $Path -Description $Description | Out-Null
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name GetShare -Value {
+        param([string] $Name)
+
+        $this.Record('GetShare', @($Name))
+
+        # A NAME THAT IS NOT THERE IS AN ERROR FROM Get-SmbShare, not an empty
+        # answer, and "is this name taken" is a question with a false answer.
+        $found = Get-SmbShare -Name $Name -ErrorAction SilentlyContinue
+
+        return [bool] ($null -ne $found)
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name GrantShareAccess -Value {
+        param([string] $Name, [string] $Account, [string] $Right)
+
+        $this.Record('GrantShareAccess', @($Name, $Account, $Right))
+
+        Grant-SmbShareAccess -Name $Name -AccountName $Account -AccessRight $Right -Force | Out-Null
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name RemoveMapping -Value {
         param([string] $RemotePath)
 

@@ -1,7 +1,8 @@
 ﻿function New-HDTWorkspace {
     <#
         .SYNOPSIS
-            Creates a deployment share: the folder tree, workspace.yaml and
+            Creates a deployment share: the folder tree, the technician wizard,
+            workspace.yaml and
             rules.yaml.
 
         .DESCRIPTION
@@ -356,6 +357,37 @@
     $FileSystem.WriteAllText($workspacePath, $workspaceText)
     $FileSystem.WriteAllText($rulePath, $ruleText)
 
+    # -- the wizard the technician sees ---------------------------------------
+    #
+    # MDT'S New Deployment Share POPULATES Scripts\ WITH THE LiteTouch PANES, so
+    # a share created five minutes ago can already ask for a computer name.
+    # HDT's made Scripts\ and left it empty - and Start-HDTDeployment, finding
+    # no Scripts\UI\wizard.yaml, says "nothing is asked and nothing waits" and
+    # deploys unattended. A share whose first deployment does something nobody
+    # was asked about is a worse divergence than an empty folder looks.
+    #
+    # THEY LAND ON THE SHARE BECAUSE THEY ARE MEANT TO BE EDITED. DESIGN 11.2
+    # puts the wizard on the share for exactly that reason: an administrator
+    # changes a page without touching the toolkit. Which is also why an existing
+    # file is never written over - that file is somebody's work.
+    $wizardTemplate = Join-Path -Path $script:HDTModuleRoot -ChildPath 'Templates\Wizard'
+    $wizardTarget = Get-HDTWorkspacePath -Root $Path -Kind Scripts -ChildPath 'UI'
+
+    $written = New-Object -TypeName System.Collections.ArrayList
+
+    if (Test-Path -LiteralPath $wizardTemplate) {
+        $FileSystem.CreateDirectory($wizardTarget)
+
+        foreach ($current in @(Get-ChildItem -LiteralPath $wizardTemplate -File)) {
+            $target = Join-Path -Path $wizardTarget -ChildPath $current.Name
+
+            if ($FileSystem.TestPath($target)) { continue }
+
+            $FileSystem.WriteAllText($target, [System.IO.File]::ReadAllText($current.FullName))
+            [void] $written.Add($target)
+        }
+    }
+
     return [pscustomobject] @{
         Root       = $Path
         Path       = $workspacePath
@@ -364,5 +396,9 @@
         Name       = $displayName
         DeployRoot = $DeployRoot
         Folder     = [string[]] @($folder)
+
+        # THE WIZARD PAGES THIS CREATED, so a caller can say what a new share
+        # came with rather than going and looking.
+        WizardPage = [string[]] @($written)
     }
 }

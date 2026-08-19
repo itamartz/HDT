@@ -95,6 +95,7 @@ class HDTFakeFileSystem {
         return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
     }
 
+
     # -- path handling -----------------------------------------------------
 
     hidden [string] Normalize([string] $Path) {
@@ -4117,6 +4118,11 @@ class HDTFakeSmbService {
     # Remote path -> the letter its mapping took, so RemoveMapping frees it.
     [hashtable] $Mapped
 
+    # THE SHARES THIS MACHINE ALREADY PUBLISHES, lower-cased. A deployment
+    # share is a folder that has been shared, and "is this name taken" is the
+    # question New-HDTWorkspaceShare asks before it publishes anything.
+    [hashtable] $Share
+
     # Method name -> the message that method throws.
     [hashtable] $Failure
 
@@ -4138,6 +4144,7 @@ class HDTFakeSmbService {
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.Used = [System.Collections.ArrayList]::new()
         $this.Mapped = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Share = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.ServiceName = 'SmbService'
         $this.ClientConfiguration = [pscustomobject] @{
             EnableInsecureGuestLogons = $false
@@ -4166,6 +4173,35 @@ class HDTFakeSmbService {
 
     [string[]] GetOperationName() {
         return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- the server side ---------------------------------------------------
+    #
+    # PUBLISHING A FOLDER, which is what makes a deployment share reachable and
+    # what MDT's New Deployment Share wizard does. Recorded AND kept: "it did
+    # not publish twice" needs the recording, and "the name is taken" needs the
+    # list.
+
+    [void] NewShare([string] $Path, [string] $Name, [string] $Description) {
+        $this.Record('NewShare', @($Path, $Name, $Description))
+        $this.AssertNoFailure('NewShare')
+
+        $this.Share[$Name] = $Path
+    }
+
+    [bool] GetShare([string] $Name) {
+        $this.Record('GetShare', @($Name))
+
+        return [bool] $this.Share.ContainsKey($Name)
+    }
+
+    [void] GrantShareAccess([string] $Name, [string] $Account, [string] $Right) {
+        $this.Record('GrantShareAccess', @($Name, $Account, $Right))
+        $this.AssertNoFailure('GrantShareAccess')
+    }
+
+    [void] SeedShare([string] $Name, [string] $Path) {
+        $this.Share[$Name] = $Path
     }
 
     # -- path handling -----------------------------------------------------
@@ -4395,6 +4431,11 @@ function New-HDTFakeSmbService {
         [Parameter()]
         [hashtable] $Failure,
 
+        # THE SHARES THIS MACHINE ALREADY PUBLISHES, so "that name is taken" has
+        # something to be taken by.
+        [Parameter()]
+        [string[]] $ExistingShare,
+
         [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
@@ -4427,6 +4468,12 @@ function New-HDTFakeSmbService {
     if ($PSBoundParameters.ContainsKey('Failure')) {
         foreach ($operation in @($Failure.Keys)) {
             $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('ExistingShare')) {
+        foreach ($name in @($ExistingShare)) {
+            $fake.SeedShare([string] $name, 'C:\somewhere')
         }
     }
 

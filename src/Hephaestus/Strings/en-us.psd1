@@ -374,15 +374,17 @@
     NewWorkspace = @{
 
         'HDTNewWorkspaceTitleText.Text' = 'New Deployment Share'
-        'HDTNewWorkspaceSubtitleText.Text' = 'A folder of YAML and content. Nothing is shared over SMB by this - that is the server''s to do, and the deploy root below is how clients reach it.'
+        'HDTNewWorkspaceSubtitleText.Text' = 'A folder of YAML and content, published over SMB so a booted machine can reach it. The deploy root is this machine''s name and that share - a name rather than an address, because an address is a lease that moves.'
         'HDTNewWorkspacePathLabel.Text' = 'Folder'
         'HDTNewWorkspacePathBrowseButton.Content' = 'Browse'
         'HDTNewWorkspacePathHint.Text' = 'Where the share is created on this machine. It does not have to exist yet; what it must not do is already hold a workspace.yaml.'
         'HDTNewWorkspaceIdLabel.Text' = 'Id'
         'HDTNewWorkspaceIdHint.Text' = 'Carried into every boot image built here, and written into log and artifact names - so it is decided once. Letters, digits, underscore and hyphen.'
         'HDTNewWorkspaceNameLabel.Text' = 'Name'
+        'HDTNewWorkspaceShareNameLabel.Text' = 'Share name'
+        'HDTNewWorkspaceShareNameHint.Text' = 'The name the folder is published under, which is what makes it reachable. It ends in $ so it does not appear in network browsing - Control\ holds the deployment account, obfuscated rather than encrypted. Leave it empty to publish nothing and set the deploy root later.'
         'HDTNewWorkspaceDeployRootLabel.Text' = 'Deploy root'
-        'HDTNewWorkspaceDeployRootHint.Text' = 'The path a machine that has booted the image uses to reach this share, usually a UNC path - not necessarily the folder above. Leave it empty and the Welcome screen asks the technician for one.'
+        'HDTNewWorkspaceDeployRootHint.Text' = 'What a machine that has booted the image connects to. Filled in from the share name until you type your own - this machine''s name is only usually how clients reach it, and a file server behind a namespace or an alias is reached by something else.'
         'HDTNewWorkspaceCreateButton.Content' = 'Create'
     }
 

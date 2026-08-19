@@ -1,4 +1,4 @@
-function Get-HDTOperatingSystem {
+﻿function Get-HDTOperatingSystem {
     <#
         .SYNOPSIS
             Reads an operating system out of the workspace catalog.
@@ -40,6 +40,9 @@ function Get-HDTOperatingSystem {
 
         .PARAMETER Id
             The catalog id, which is the folder name under OperatingSystems\.
+            Omit it to read every operating system on the share - which is the
+            answer to "what is on here", and how Get-HDTApplication has always
+            behaved.
 
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production,
@@ -79,7 +82,11 @@ function Get-HDTOperatingSystem {
         [ValidateNotNullOrEmpty()]
         [string] $WorkspaceRoot,
 
-        [Parameter(Mandatory = $true)]
+        # OPTIONAL, AS IT IS ON Get-HDTApplication. It was mandatory here, so
+        # "what operating systems are on this share?" had no answer that did not
+        # involve listing the folder by hand - and the two readers of the same
+        # share behaved differently for no reason anybody could state.
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string] $Id,
 
@@ -95,29 +102,58 @@ function Get-HDTOperatingSystem {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $osFolder = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems -ChildPath $Id
-    $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems -ChildPath $Id, 'os.yaml'
+    $readOne = {
+        param([string] $OperatingSystemId)
 
-    if (-not $FileSystem.TestPath($catalogPath)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
-                    -Message ("no operating system with the id '{0}' is in this workspace. Import one with Import-HDTOperatingSystem." -f $Id) `
-                    -Category ObjectNotFound))
+        $osFolder = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems -ChildPath $OperatingSystemId
+        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems -ChildPath $OperatingSystemId, 'os.yaml'
+
+        $text = $FileSystem.ReadAllText($catalogPath)
+
+        $document = ConvertFrom-HDTYaml -Yaml $text -Path $catalogPath
+        Assert-HDTOperatingSystemDocument -Document $document -Path $catalogPath
+
+        try {
+            return (ConvertTo-HDTOperatingSystemCatalog -Document $document -OsFolder $osFolder `
+                    -CatalogPath $catalogPath -Content $Content)
+        } catch {
+            # A provider refusal - a sourcePath that escapes the content root -
+            # is a mistake in os.yaml, so it is reported naming os.yaml rather
+            # than surfacing as a MethodInvocationException from a ScriptMethod
+            # three frames down.
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
+                        -Message ("the image path could not be resolved: {0}" -f [string] $_.Exception.Message)))
+        }
     }
 
-    $text = $FileSystem.ReadAllText($catalogPath)
+    # AN ID THAT WAS ASKED FOR AND IS NOT THERE IS STILL AN ERROR. Silence is
+    # the right answer to "what is on this share"; it is the wrong answer to
+    # "read me this one".
+    if ($PSBoundParameters.ContainsKey('Id')) {
+        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems -ChildPath $Id, 'os.yaml'
 
-    $document = ConvertFrom-HDTYaml -Yaml $text -Path $catalogPath
-    Assert-HDTOperatingSystemDocument -Document $document -Path $catalogPath
+        if (-not $FileSystem.TestPath($catalogPath)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
+                        -Message ("no operating system with the id '{0}' is in this workspace. Import one with Import-HDTOperatingSystem." -f $Id) `
+                        -Category ObjectNotFound))
+        }
 
-    try {
-        return (ConvertTo-HDTOperatingSystemCatalog -Document $document -OsFolder $osFolder `
-                -CatalogPath $catalogPath -Content $Content)
-    } catch {
-        # A provider refusal - a sourcePath that escapes the content root - is a
-        # mistake in os.yaml, so it is reported naming os.yaml rather than
-        # surfacing as a MethodInvocationException from a ScriptMethod three
-        # frames down.
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
-                    -Message ("the image path could not be resolved: {0}" -f [string] $_.Exception.Message)))
+        return (& $readOne $Id)
+    }
+
+    # THE CATALOG IS THE DIRECTORY (DESIGN 2.1), so reading all of them is an
+    # enumeration - and a folder with no os.yaml is somebody's staging
+    # directory, not an operating system, exactly as it is under Applications\.
+    $operatingSystemRoot = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems
+
+    if (-not $FileSystem.TestPath($operatingSystemRoot)) { return }
+
+    foreach ($child in @($FileSystem.GetChildItem($operatingSystemRoot))) {
+        $childId = [System.IO.Path]::GetFileName([string] $child)
+        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind OperatingSystems -ChildPath $childId, 'os.yaml'
+
+        if (-not $FileSystem.TestPath($catalogPath)) { continue }
+
+        & $readOne $childId
     }
 }

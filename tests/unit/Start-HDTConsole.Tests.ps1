@@ -1,4 +1,4 @@
-# THE COMMAND AN ADMINISTRATOR TYPES, and the file they double-click.
+﻿# THE COMMAND AN ADMINISTRATOR TYPES, and the script a loose copy still needs.
 #
 # WHY THIS IS A FUNCTION AT ALL. It used to be only Start-HDTConsole.ps1, and a
 # .ps1 in a folder is not a command: Import-Module gives you functions, and
@@ -54,9 +54,12 @@ Describe 'Start-HDTConsole' {
     }
 }
 
-Describe 'the file Explorer runs' {
+Describe 'the launcher script' {
 
-    It 'is still there, because a double-click needs one' {
+    It 'is still there, because a copy off the module path has no command yet' {
+        # NOT FOR A DOUBLE-CLICK: Windows gives .ps1 no Open verb, so Explorer
+        # edits it rather than running it. It is for the working tree and any
+        # other loose copy, where nothing has imported the manifest yet.
         Test-Path -LiteralPath $script:launcherPath | Should -BeTrue
     }
 
@@ -82,9 +85,9 @@ Describe 'the file Explorer runs' {
         }
     }
 
-    It 'reports a failure where somebody who double-clicked will see it' {
-        # A console that has been hidden, or was never there, cannot show an
-        # error - so the catch puts it in a message box.
+    It 'reports a failure somewhere other than a console it may have hidden' {
+        # -Detach hides the console this process owns, so by the time anything
+        # throws there may be nowhere left to print - hence the message box.
         $script:launcherText | Should -BeLike '*MessageBox*'
     }
 }

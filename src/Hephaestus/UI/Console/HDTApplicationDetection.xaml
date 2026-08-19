@@ -49,7 +49,7 @@
         <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
         <SolidColorBrush x:Key="HDTHintTextBrush"    Color="#FF6B6B6B" />
         <SolidColorBrush x:Key="HDTErrorBrush"       Color="#FFA31515" />
-        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FF0A3069" />
         <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
         <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
@@ -93,6 +93,30 @@
             <Setter Property="Margin" Value="8,0,0,10" />
             <Setter Property="ToolTipService.ShowDuration" Value="60000" />
             <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <!-- A DROPDOWN THAT DOES NOT LOOK READ-ONLY.
+             WPF's default ComboBox template paints its own grey chrome and
+             IGNORES Background, so a combo sitting beside white editable boxes
+             and grey read-only ones reads as one of the grey ones - which is
+             how the Log level dropdown came to look disabled while it was not.
+
+             IsEditable puts a real text box in the closed control, which takes
+             the Background above; IsReadOnly keeps it from being typed into, so
+             it still behaves exactly like a dropdown - and the value can now be
+             selected and copied, which the old one refused.
+
+             NO ComboBox HERE USES AN ItemTemplate, so what the text box shows is
+             what the closed box showed before: DisplayMemberPath where one is
+             declared, ToString() otherwise. -->
+        <Style TargetType="ComboBox">
+            <Setter Property="IsEditable" Value="True" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4,6,4" />
         </Style>
     </Window.Resources>
 

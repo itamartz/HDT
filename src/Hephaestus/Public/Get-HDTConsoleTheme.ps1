@@ -1,4 +1,4 @@
-function Get-HDTConsoleTheme {
+﻿function Get-HDTConsoleTheme {
     <#
         .SYNOPSIS
             The colours the console window paints itself with.
@@ -101,7 +101,22 @@ function Get-HDTConsoleTheme {
         HDTBorderBrush      = '#FFC8C8C8'
         HDTLabelBrush       = '#FF0E639C'
         HDTCommandBrush     = '#FFF7F7F7'
-        HDTCommandTextBrush = '#FFA31515'
+
+        # NOT THE ERROR RED, AND IT USED TO BE. Both were #FFA31515, and on
+        # every dialog that has them the two lines sit one above the other: the
+        # refusal, and the command it would have run. Painted alike, a
+        # technician cannot tell a complaint from a preview, and the complaints
+        # get read as decoration.
+        #
+        # The console window has no error line at all, which is why red reads
+        # correctly THERE and this went unnoticed until somebody asked why the
+        # New Deployment Share window had red text on it.
+        #
+        # Deep blue rather than another warm tone: the dark theme separates the
+        # two with a string colour on a dark ground, and the light theme's
+        # equivalent has to stay clear of both the error red and the banner blue
+        # (#FF0E639C), which is lighter than this.
+        HDTCommandTextBrush = '#FF0A3069'
         # THE READ-ONLY WASH, AND IT HAS TO BE SEEN TO BE ONE. It was #FAFAFA,
         # which against a white panel is a difference nobody can see - so a box
         # that takes a rename and a box that shows a step count looked exactly

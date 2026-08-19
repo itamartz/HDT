@@ -362,6 +362,29 @@ Describe 'Show-HDTConsole' {
             $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem field text on field background"
         }
 
+        It 'does not say "this went wrong" and "this is what ran" in the same <_> colour' -ForEach @('Light', 'Dark') {
+            # THEY WERE THE SAME RED IN LIGHT - #FFA31515 for both - and the two
+            # lines sit one above the other on every dialog that has them: the
+            # refusal and the command it would have run. A technician cannot
+            # tell a complaint from a preview when they are the same colour, and
+            # the ones that matter get read as decoration.
+            #
+            # The console itself has no error line, which is why red reads
+            # correctly there and this went unnoticed.
+            $palette = Get-HDTConsoleTheme -Name $PSItem
+
+            $palette['HDTCommandTextBrush'] | Should -Not -BeExactly $palette['HDTErrorBrush'] `
+                -Because "$PSItem must not paint a refusal and a command preview alike"
+        }
+
+        It 'keeps the <_> command preview readable where it is shown' -ForEach @('Light', 'Dark') {
+            $palette = Get-HDTConsoleTheme -Name $PSItem
+
+            $ratio = Get-HDTContrastRatio $palette['HDTWindowBrush'] $palette['HDTCommandTextBrush']
+
+            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem command text on the window"
+        }
+
 
         It 'opens light, because the console is a desktop application and not a bench tool' {
             $consoleHost = New-HDTFakeConsoleHost

@@ -29,12 +29,18 @@
             rule nobody can see by looking at it. Most rows have none, and that
             is what makes the dot worth reading where it appears.
 
+        .PARAMETER Choice
+            The values this row may take, shown as a list instead of a box. For
+            a row the document constrains to a closed set - a log level, not a
+            path.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Label, Value,
-            Property, Editable, ReadOnly, Original, Hint and HasHint.
+            Property, Editable, ReadOnly, Original, Hint, HasHint, Choice and
+            HasChoice.
 
         .EXAMPLE
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
@@ -70,7 +76,19 @@
         # admins are not reading the manual on the deployment screen.
         [Parameter()]
         [AllowEmptyString()]
-        [string] $Hint = ''
+        [string] $Hint = '',
+
+        # THE VALUES THIS ROW MAY TAKE, for a row where the document allows a
+        # closed set and a box named none of them. Log level was the case that
+        # forced it: four levels are legal, and the only way to discover them
+        # from the pane was to type something, save, and read the refusal.
+        #
+        # A LIST IS NOT A SECOND KIND OF ROW. It writes the same key, diffs
+        # against the same Original and lights the same Apply - only the control
+        # that produces the string is different.
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]] $Choice = @()
     )
 
     Set-StrictMode -Version Latest
@@ -88,6 +106,14 @@
         # load. The dot binds its visibility to this.
         HasHint  = (-not [string]::IsNullOrEmpty($Hint))
         Editable = (-not [string]::IsNullOrEmpty($Property))
+
+        # WHAT THE LIST HOLDS, AND WHETHER THERE IS ONE. Two properties for one
+        # fact, for the reason ReadOnly exists below: the template swaps a
+        # ComboBox in for the TextBox on a DataTrigger, and a trigger compares a
+        # value - it cannot ask whether a collection is empty without a
+        # converter this markup has nowhere to load from.
+        Choice   = [string[]] $Choice
+        HasChoice = ($Choice.Count -gt 0)
 
         # THE SAME FACT THE OTHER WAY UP, because the control that needs it is
         # a TextBox and the property it exposes is IsReadOnly. XamlReader parses

@@ -1,0 +1,53 @@
+<!-- A PREVIEW PAGE, NOT A PRODUCT ONE. See HDTPreviewTaskSequence.xaml. -->
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        ONE THING ON THIS SCREEN, AND IT IS THE FILE.
+
+        This page carried a table as well - setting, value, variable, skip
+        variable - above the snippet. It said the same thing twice: every row in
+        it appears in the YAML below, spelled the way it has to be spelled to
+        work. The table was the readable half and the snippet was the usable
+        half, and a technician who wants to confirm a name can read it in the
+        YAML just as easily.
+
+        SO THE TABLE IS GONE and the snippet gets the whole page. It is what an
+        administrator leaves with; a summary that has to be transcribed is a
+        summary that gets transcribed wrongly.
+
+        Get-HDTWizardSummary STILL RETURNS THE ROWS - it is a query, and what a
+        page chooses to show is the page's business. A later page that wants a
+        table can bind HDTSummaryList without the engine changing.
+    -->
+
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <TextBlock Grid.Row="0" Margin="0,0,0,10" TextWrapping="Wrap" FontSize="13" Foreground="#FF8A8A8A"
+               Text="Everything this deployment was told, as rules.yaml. Put it on the deployment share and the next machine like this one deploys with no wizard at all - set only part of it and only those pages disappear." />
+
+    <!--
+        A TextBox RATHER THAN A TextBlock so the text can be selected: a
+        technician with a phone camera or a USB stick has to be able to get this
+        off the machine.
+
+        EVERYTHING ABOUT HOW IT LOOKS IS HDTSnippetBox, in HDTTheme.xaml, AND
+        THAT IS NOT A PREFERENCE. This page used to set IsReadOnly="True" itself
+        and killed a real deployment in WinPE with "Cannot set unknown member
+        'System.Windows.Controls.TextBox.IsReadOnly'" - the theme is merged
+        before this page loads, and parsing its HDTAddressBox style makes that
+        member unsettable as an attribute for the rest of the process. The
+        theme's own Setter still resolves it. See the comment on HDTSnippetBox.
+
+        DynamicResource, NOT StaticResource, AND THAT IS ALSO NOT A PREFERENCE.
+        New-HDTWizardHost parses this file ON ITS OWN and only then puts the
+        result inside the shell, so at parse time there is no dictionary above
+        it to look in - a StaticResource here throws "Provide value on
+        'System.Windows.StaticResourceExtension' threw an exception" before the
+        page is ever attached. A DynamicResource is resolved once it is.
+    -->
+    <TextBox Grid.Row="1" x:Name="HDTSummarySnippet" Style="{DynamicResource HDTSnippetBox}" />
+</Grid>

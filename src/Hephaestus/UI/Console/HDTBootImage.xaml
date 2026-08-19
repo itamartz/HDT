@@ -103,7 +103,7 @@
         <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTHintBrush"        Color="#FF6A6A6A" />
         <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
-        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FF0A3069" />
         <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFEDEDED" />
         <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
         <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
@@ -197,6 +197,19 @@
 
         <Style TargetType="ComboBox">
             <Setter Property="FontFamily" Value="Segoe UI" />
+            <!-- AND IT MUST NOT LOOK READ-ONLY. WPF's default ComboBox
+                 template paints its own grey chrome and ignores Background, so
+                 a dropdown beside white boxes reads as a disabled one.
+                 IsEditable puts a real text box in the closed control, which
+                 takes the Background; IsReadOnly keeps it from being typed
+                 into. No ComboBox here uses an ItemTemplate, so what it shows
+                 is what it showed before. -->
+            <Setter Property="IsEditable" Value="True" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Padding" Value="6,4,6,4" />
         </Style>

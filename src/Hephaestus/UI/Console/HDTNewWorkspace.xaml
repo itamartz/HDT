@@ -12,11 +12,20 @@
     WHAT IS ASKED FOR IS WHAT New-HDTWorkspace TAKES: where it goes, what its id
     is, what to call it, and where clients reach it.
 
-    THE DEPLOY ROOT IS THE ONE NOBODY CAN GUESS, and it is optional here for the
-    same reason it is optional in the document: an image built without one
-    reaches the Welcome screen with an empty share box and a hint, rather than
-    failing to boot. A lab that deploys from the same machine it authors on can
-    leave it empty and fill it in later.
+    THE DEPLOY ROOT IS DERIVED AND STILL TYPEABLE: the machine's name and the
+    share name, filled in as they are typed and left alone the moment somebody
+    edits it. This machine's own name is only USUALLY how clients reach the
+    share - a file server behind a DFS namespace, a CNAME, or a host with two
+    NICs is reached by something this page cannot work out, and the share's
+    properties can edit it afterwards, so a locked box would only move the
+    typing to a second screen.
+
+    Leaving it empty is allowed too: an image built without one reaches the
+    Welcome screen with an empty share box and a hint rather than failing to
+    boot, and the Bootstrap tab overrides it per machine anyway.
+
+    PUBLISHING NEEDS ELEVATION, and this page says so before anything is typed
+    rather than failing after the folder has been written.
 
     NO x:Class AND NO CODE-BEHIND, as every other window here. Handlers are
     attached in PowerShell, by name.
@@ -24,10 +33,11 @@
     NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
     HDTNewWorkspaceTitleText, HDTNewWorkspacePathBox,
     HDTNewWorkspacePathBrowseButton, HDTNewWorkspaceIdBox,
-    HDTNewWorkspaceNameBox, HDTNewWorkspaceDeployRootBox,
-    HDTNewWorkspaceMessageText, HDTNewWorkspaceCommandText,
-    HDTNewWorkspaceCreateButton and HDTCancelButton - and the three hints behind
-    the ? dots, HDTNewWorkspacePathHint, HDTNewWorkspaceIdHint and
+    HDTNewWorkspaceNameBox, HDTNewWorkspaceShareNameBox,
+    HDTNewWorkspaceDeployRootBox, HDTNewWorkspaceMessageText,
+    HDTNewWorkspaceCommandText, HDTNewWorkspaceCreateButton and HDTCancelButton
+    - and the four hints behind the ? dots, HDTNewWorkspacePathHint,
+    HDTNewWorkspaceIdHint, HDTNewWorkspaceShareNameHint and
     HDTNewWorkspaceDeployRootHint.
 -->
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -50,7 +60,7 @@
         <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
         <SolidColorBrush x:Key="HDTHintTextBrush"    Color="#FF6B6B6B" />
         <SolidColorBrush x:Key="HDTErrorBrush"       Color="#FFA31515" />
-        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FF0A3069" />
         <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
         <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
         <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
@@ -130,6 +140,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -173,11 +184,42 @@
                        Style="{StaticResource HDTFieldLabel}" />
             <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceNameBox" />
 
-            <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTNewWorkspaceDeployRootLabel"
+            <!-- THE SHARE NAME, NOT THE UNC. MDT's wizard asks for a share
+                 name, CREATES the share, and derives DeployRoot from the two -
+                 and asking for the UNC instead was a box somebody typed a path
+                 into naming a share nothing had made, which is a boot image
+                 that fails at the Welcome screen.
+
+                 THE SERVER IS THIS MACHINE'S NAME AND NOT ITS ADDRESS: a lab
+                 host's address is a DHCP lease that moves when somebody changes
+                 the Wi-Fi, and this value is baked into the boot image. -->
+            <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTNewWorkspaceShareNameLabel"
                        Style="{StaticResource HDTFieldLabel}" />
-            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceDeployRootBox"
+            <TextBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceShareNameBox"
                      FontFamily="Consolas, Courier New" />
             <Border Grid.Row="3" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="380">
+                        <TextBlock TextWrapping="Wrap" x:Name="HDTNewWorkspaceShareNameHint" />
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+            </Border>
+
+            <!-- WHAT A BOOTED MACHINE WILL REACH IT BY. Derived from the two
+                 boxes above and STILL TYPEABLE, the way the id is: this machine's
+                 own name is only USUALLY how clients reach the share, and a file
+                 server behind a DFS namespace, a CNAME, or a host with two NICs
+                 is reached by something this page cannot work out.
+
+                 IT WAS READ-ONLY FOR A DAY AND THAT WAS WRONG: the share's
+                 properties can edit it afterwards, so a locked box here only
+                 moved the typing to a second screen. -->
+            <TextBlock Grid.Row="4" Grid.Column="0" x:Name="HDTNewWorkspaceDeployRootLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTNewWorkspaceDeployRootBox"
+                     FontFamily="Consolas, Courier New" />
+            <Border Grid.Row="4" Grid.Column="3" Style="{StaticResource HDTHelpDot}">
                 <Border.ToolTip>
                     <ToolTip MaxWidth="380">
                         <TextBlock TextWrapping="Wrap" x:Name="HDTNewWorkspaceDeployRootHint" />
@@ -186,7 +228,7 @@
                 <TextBlock Style="{StaticResource HDTHelpGlyph}" />
             </Border>
 
-            <TextBlock Grid.Row="4" Grid.ColumnSpan="4" x:Name="HDTNewWorkspaceMessageText"
+            <TextBlock Grid.Row="5" Grid.ColumnSpan="4" x:Name="HDTNewWorkspaceMessageText"
                        Foreground="{DynamicResource HDTErrorBrush}"
                        TextWrapping="Wrap" Margin="0,4,0,0" />
         </Grid>

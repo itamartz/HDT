@@ -1,4 +1,4 @@
-# THE UI STACK THAT SHIPS INTO THE BOOT IMAGE IS WPF, AND ONLY WPF.
+﻿# THE UI STACK THAT SHIPS INTO THE BOOT IMAGE IS WPF, AND ONLY WPF.
 #
 # WHY THIS IS A CONTRACT. WinPE carries what WinPE-NetFx puts there. WPF -
 # PresentationFramework, PresentationCore, WindowsBase - is present because that
@@ -30,7 +30,13 @@ BeforeAll {
     # SCOPED TO THE ENGINE, NOT ALL OF src.
     $script:sourceRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus'
 
-    $script:sourceFile = @(Get-ChildItem -LiteralPath $script:sourceRoot -Recurse -File -Include '*.ps1', '*.psm1', '*.xaml')
+    # THE BUNDLE IS NOT SOURCE. Hephaestus.bundle.ps1 is every other file under
+    # src\Hephaestus concatenated - a build artefact - so scanning it reports
+    # every FindName in the module a second time, naming a file nobody edits.
+    # Get-HDTSourceFile excludes it for the same reason; this sweep has its own
+    # because it wants .xaml too.
+    $script:sourceFile = @(Get-ChildItem -LiteralPath $script:sourceRoot -Recurse -File -Include '*.ps1', '*.psm1', '*.xaml' |
+            Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' })
 
     # THE ADMIN CONSOLE IS IN THIS MODULE AND NOT IN THE BOOT IMAGE, and after
     # the two modules were folded into one those are no longer the same

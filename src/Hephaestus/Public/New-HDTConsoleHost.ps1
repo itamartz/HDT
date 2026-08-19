@@ -89,6 +89,14 @@
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
+        # THE ICON, BEFORE THE WINDOW IS SHOWN. A window that declares none
+        # wears the icon of the process hosting it, and that is powershell.exe -
+        # which put the PowerShell feather on the taskbar button and left an
+        # administrator with two identical buttons for the console and the shell
+        # that started it. Get-HDTConsoleWindowIcon draws the anvil; every window
+        # this host opens gets it, and a test counts the two against each other.
+        $window.Icon = Get-HDTConsoleWindowIcon
+
         # THE TEXT COMES OUT OF A FILE, NOT OUT OF THE MARKUP, and it is applied
         # before anything else is written to a control: the banner is filled from
         # the selected row a moment later, and a table applied after that would
@@ -431,6 +439,168 @@
                 if ($null -ne $applyState) { & $applyState }
             }.GetNewClosure())
 
+        # ONE WRITE PATH, TWO CONTROLS. A row whose document allows a closed
+        # set is a ComboBox rather than a TextBox, and a ComboBox raises neither
+        # TextChanged nor TextBox.LostFocus - so without this the Log level list
+        # would offer the four levels and write none of them.
+        #
+        # THE CONTROL IS READ BY THE HANDLER AND NOTHING ELSE. Which one lost
+        # focus, what it holds and how to put it back are the only things the
+        # two differ on; the read-splice-save below is the same work either way,
+        # and a second copy of it is the copy that would rot.
+        $writeRow = {
+            param(
+                [object] $row,
+                [string] $typed,
+                [scriptblock] $revert
+            )
+
+            # WHICH DOCUMENT THIS ROW EDITS IS THE ROW'S KIND, and the pair
+            # of commands follows from it: a sequence and an imported
+            # operating system have the same flat header and two different
+            # validators, so the wrong pair writes a file the other one then
+            # refuses to read.
+            $selected = $tree.SelectedItem
+            if ($null -eq $selected) { return }
+
+            $kind = [string] $selected.Kind
+            if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application') -notcontains $kind) { return }
+
+            # AN APPLICATION IS THE ONE THAT WRITES ITSELF. Set-HDTApplication
+            # takes a share and an id rather than lines, and saves - there is
+            # no Save-HDTApplicationDocument to pair it with, because splicing
+            # app.yaml is what Set-HDTApplicationLine already does inside it.
+            # So this row's edit is one call, and it returns before the
+            # read-set-save the other three share.
+            if ($kind -eq 'Application') {
+                $splat = @{
+                    WorkspaceRoot = [string] $selected.HeaderRoot
+                    Id            = [string] $selected.Name
+                    Confirm       = $false
+                }
+
+                # NOT EVERY ROW IS A STRING ANY MORE. The exit codes are
+                # int[], the dependencies string[] and the detection rule a
+                # block, and their parameters are singular where the document
+                # keys are plural - so what to pass, and what to call it, is
+                # Get-HDTConsoleApplicationEdit's decision rather than a
+                # capital letter's.
+                $key = [string] $row.Property
+                $edit = $null
+
+                try {
+                    $edit = Get-HDTConsoleApplicationEdit -Property $key -Text $typed
+                } catch {
+                    # A LIST THAT WILL NOT PARSE NEVER REACHES THE DOCUMENT.
+                    # The box goes back and the footer says which word was
+                    # not a number, which is the sentence a technician can
+                    # act on.
+                    & $revert ([string] $row.Original)
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $splat[$edit.Parameter] = $edit.Value
+
+                try {
+                    [void] (Set-HDTApplication @splat)
+                } catch {
+                    # A REFUSAL PUTS THE BOX BACK, as everywhere else: a box
+                    # holding a value the document rejected is a lie about
+                    # what is on disk.
+                    & $revert ([string] $row.Original)
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $row.Original = $typed
+
+                # THE ROW READS 'id - name', so only a rename makes the tree
+                # stale - and rebuilding re-reads every open share.
+                if ($key -eq 'name') { & $rebuildTree }
+
+                $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -{2} {3}" -f
+                $splat.WorkspaceRoot, $splat.Id, $edit.Parameter, $edit.Text
+
+                return
+            }
+
+            # A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, because
+            # a workspace projection carries the root it was opened from as
+            # well as the document.
+            #
+            # ONE BRANCH, NOT AN ASSIGNMENT THEN A CORRECTION. Reading .Path
+            # first and fixing it up for a Share afterwards looks equivalent and
+            # is not: the projection has no Path at all, and under Set-StrictMode
+            # reading a property that is not there is a terminating error - on
+            # the dispatcher, which takes the window down. It survived only
+            # because a click arrives with no strict mode on the stack; driving
+            # the same control from a probe that sets it is what surfaced it.
+            $documentPath = ''
+            if ($kind -eq 'Share') {
+                $documentPath = [string] $selected.Subject.WorkspacePath
+            } else {
+                $documentPath = [string] $selected.Subject.Path
+            }
+
+            try {
+                $fileSystem = New-HDTFileSystem
+                $document = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                $splat = @{ Line = $document; Confirm = $false }
+                $splat[[string] $row.Property] = $typed
+
+                # Save-HDTSequenceDocument, NOT Save-HDTWorkspaceDocument:
+                # every one of these checks the lines before writing them,
+                # and the workspace one checks them against workspace.yaml's
+                # keys - so it refuses a sequence for declaring
+                # 'description'.
+                if ($kind -eq 'Share') {
+                    [void] (Save-HDTWorkspaceDocument -Path $documentPath `
+                            -Line @(Set-HDTWorkspaceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                } elseif ($kind -eq 'OperatingSystem') {
+                    [void] (Save-HDTOperatingSystemDocument -Path $documentPath `
+                            -Line @(Set-HDTOperatingSystemProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                } else {
+                    [void] (Save-HDTSequenceDocument -Path $documentPath `
+                            -Line @(Set-HDTTaskSequenceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
+                }
+
+                $row.Original = $typed
+
+                # THE REBUILD IS THE EXPENSIVE HALF - it re-reads every open
+                # share and revalidates every sequence in it, which is about
+                # a third of a second against this lab's one share and grows
+                # with the number open. The tree row reads 'id - name', so
+                # it is only out of date when the NAME changed; a
+                # description is not on it, and re-reading the share to find
+                # that out would be paying the cost to learn nothing.
+                if ([string] $row.Property -eq 'name') { & $rebuildTree }
+
+                # DESIGN 12's "learn the automation surface by clicking
+                # around": what was just run, in the box that shows it. The
+                # key is 'name' in the document and the parameter is -Name.
+                #
+                # AFTER THE REBUILD, NOT BEFORE. Rebuilding the tree changes
+                # the selection, and the selection handler writes this box -
+                # so a line written first is gone before anybody reads it.
+                $key = [string] $row.Property
+                $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
+
+                $setter = 'Set-HDTTaskSequenceProperty'
+                if ($kind -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
+                if ($kind -eq 'Share') { $setter = 'Set-HDTWorkspaceProperty' }
+
+                $command.Text = "{0} -Line `$line -{1} '{2}'" -f $setter, $parameter, $typed
+            } catch {
+                # A REFUSAL PUTS THE BOX BACK. Set-HDTTaskSequenceProperty
+                # will not clear a name, and a box left holding a value the
+                # document rejected is a lie about what is on disk.
+                & $revert ([string] $row.Original)
+                $command.Text = [string] $_.Exception.Message
+            }
+        }
+
         $detail.AddHandler([System.Windows.Controls.TextBox]::LostFocusEvent,
             [System.Windows.RoutedEventHandler] {
                 param([object] $raiser, [System.Windows.RoutedEventArgs] $lost)
@@ -453,138 +623,37 @@
                 $typed = [string] $box.Text
                 if ($typed -eq [string] $row.Original) { return }
 
-                # WHICH DOCUMENT THIS ROW EDITS IS THE ROW'S KIND, and the pair
-                # of commands follows from it: a sequence and an imported
-                # operating system have the same flat header and two different
-                # validators, so the wrong pair writes a file the other one then
-                # refuses to read.
-                $selected = $tree.SelectedItem
-                if ($null -eq $selected) { return }
+                & $writeRow $row $typed { param([string] $text) $box.Text = $text }.GetNewClosure()
+            }.GetNewClosure())
 
-                $kind = [string] $selected.Kind
-                if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application') -notcontains $kind) { return }
+        # A PICK IS FINISHED THE MOMENT IT IS MADE. There is no equivalent of
+        # moving focus off a box - the list closes on the click - so this writes
+        # on SelectionChanged rather than waiting for LostFocus that a technician
+        # has no reason to cause.
+        $detail.AddHandler([System.Windows.Controls.ComboBox]::SelectionChangedEvent,
+            [System.Windows.RoutedEventHandler] {
+                param([object] $raiser, [System.Windows.RoutedEventArgs] $changed)
 
-                # AN APPLICATION IS THE ONE THAT WRITES ITSELF. Set-HDTApplication
-                # takes a share and an id rather than lines, and saves - there is
-                # no Save-HDTApplicationDocument to pair it with, because splicing
-                # app.yaml is what Set-HDTApplicationLine already does inside it.
-                # So this row's edit is one call, and it returns before the
-                # read-set-save the other three share.
-                if ($kind -eq 'Application') {
-                    $splat = @{
-                        WorkspaceRoot = [string] $selected.HeaderRoot
-                        Id            = [string] $selected.Name
-                        Confirm       = $false
-                    }
+                $combo = $changed.OriginalSource -as [System.Windows.Controls.ComboBox]
+                if ($null -eq $combo) { return }
 
-                    # NOT EVERY ROW IS A STRING ANY MORE. The exit codes are
-                    # int[], the dependencies string[] and the detection rule a
-                    # block, and their parameters are singular where the document
-                    # keys are plural - so what to pass, and what to call it, is
-                    # Get-HDTConsoleApplicationEdit's decision rather than a
-                    # capital letter's.
-                    $key = [string] $row.Property
-                    $edit = $null
+                $row = $combo.DataContext
+                if ($null -eq $row) { return }
 
-                    try {
-                        $edit = Get-HDTConsoleApplicationEdit -Property $key -Text $typed
-                    } catch {
-                        # A LIST THAT WILL NOT PARSE NEVER REACHES THE DOCUMENT.
-                        # The box goes back and the footer says which word was
-                        # not a number, which is the sentence a technician can
-                        # act on.
-                        $box.Text = [string] $row.Original
-                        $command.Text = [string] $_.Exception.Message
-                        return
-                    }
+                if (@($row.PSObject.Properties.Match('Editable')).Count -eq 0) { return }
+                if (-not [bool] $row.Editable) { return }
 
-                    $splat[$edit.Parameter] = $edit.Value
+                # NOTHING PICKED IS NOT A PICK. Rebuilding the pane raises this
+                # with SelectedItem null before the binding has settled, and
+                # writing that would clear the key on every click of the tree.
+                if ($null -eq $combo.SelectedItem) { return }
 
-                    try {
-                        [void] (Set-HDTApplication @splat)
-                    } catch {
-                        # A REFUSAL PUTS THE BOX BACK, as everywhere else: a box
-                        # holding a value the document rejected is a lie about
-                        # what is on disk.
-                        $box.Text = [string] $row.Original
-                        $command.Text = [string] $_.Exception.Message
-                        return
-                    }
+                $picked = [string] $combo.SelectedItem
+                if ($picked -eq [string] $row.Original) { return }
 
-                    $row.Original = $typed
+                & $writeRow $row $picked { param([string] $text) $combo.SelectedItem = $text }.GetNewClosure()
 
-                    # THE ROW READS 'id - name', so only a rename makes the tree
-                    # stale - and rebuilding re-reads every open share.
-                    if ($key -eq 'name') { & $rebuildTree }
-
-                    $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -{2} {3}" -f
-                    $splat.WorkspaceRoot, $splat.Id, $edit.Parameter, $edit.Text
-
-                    return
-                }
-
-                # A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, because
-                # a workspace projection carries the root it was opened from as
-                # well as the document.
-                $documentPath = [string] $selected.Subject.Path
-                if ($kind -eq 'Share') { $documentPath = [string] $selected.Subject.WorkspacePath }
-
-                try {
-                    $fileSystem = New-HDTFileSystem
-                    $document = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
-
-                    $splat = @{ Line = $document; Confirm = $false }
-                    $splat[[string] $row.Property] = $typed
-
-                    # Save-HDTSequenceDocument, NOT Save-HDTWorkspaceDocument:
-                    # every one of these checks the lines before writing them,
-                    # and the workspace one checks them against workspace.yaml's
-                    # keys - so it refuses a sequence for declaring
-                    # 'description'.
-                    if ($kind -eq 'Share') {
-                        [void] (Save-HDTWorkspaceDocument -Path $documentPath `
-                                -Line @(Set-HDTWorkspaceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
-                    } elseif ($kind -eq 'OperatingSystem') {
-                        [void] (Save-HDTOperatingSystemDocument -Path $documentPath `
-                                -Line @(Set-HDTOperatingSystemProperty @splat) -FileSystem $fileSystem -Confirm:$false)
-                    } else {
-                        [void] (Save-HDTSequenceDocument -Path $documentPath `
-                                -Line @(Set-HDTTaskSequenceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
-                    }
-
-                    $row.Original = $typed
-
-                    # THE REBUILD IS THE EXPENSIVE HALF - it re-reads every open
-                    # share and revalidates every sequence in it, which is about
-                    # a third of a second against this lab's one share and grows
-                    # with the number open. The tree row reads 'id - name', so
-                    # it is only out of date when the NAME changed; a
-                    # description is not on it, and re-reading the share to find
-                    # that out would be paying the cost to learn nothing.
-                    if ([string] $row.Property -eq 'name') { & $rebuildTree }
-
-                    # DESIGN 12's "learn the automation surface by clicking
-                    # around": what was just run, in the box that shows it. The
-                    # key is 'name' in the document and the parameter is -Name.
-                    #
-                    # AFTER THE REBUILD, NOT BEFORE. Rebuilding the tree changes
-                    # the selection, and the selection handler writes this box -
-                    # so a line written first is gone before anybody reads it.
-                    $key = [string] $row.Property
-                    $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
-
-                    $setter = 'Set-HDTTaskSequenceProperty'
-                    if ($kind -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
-                    if ($kind -eq 'Share') { $setter = 'Set-HDTWorkspaceProperty' }
-
-                    $command.Text = "{0} -Line `$line -{1} '{2}'" -f $setter, $parameter, $typed
-                } catch {
-                    # A REFUSAL PUTS THE BOX BACK. Set-HDTTaskSequenceProperty
-                    # will not clear a name, and a box left holding a value the
-                    # document rejected is a lie about what is on disk.
-                    $box.Text = [string] $row.Original
-                    $command.Text = [string] $_.Exception.Message
-                }
+                if ($null -ne $applyState) { & $applyState }
             }.GetNewClosure())
 
         if ($null -ne $apply) {
@@ -1227,6 +1296,7 @@
                     Add-Type -AssemblyName PresentationFramework
 
                     $ask = New-Object -TypeName System.Windows.Window
+                    $ask.Icon = Get-HDTConsoleWindowIcon
                     $ask.Title = $Title
                     $ask.Width = 440
                     $ask.SizeToContent = [System.Windows.SizeToContent]::Height
@@ -1510,6 +1580,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -1639,6 +1710,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -1808,6 +1880,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -1882,6 +1955,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -2064,6 +2138,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -2078,6 +2153,7 @@
         $pathBrowse = $dialog.FindName('HDTNewWorkspacePathBrowseButton')
         $idBox = $dialog.FindName('HDTNewWorkspaceIdBox')
         $nameBox = $dialog.FindName('HDTNewWorkspaceNameBox')
+        $shareNameBox = $dialog.FindName('HDTNewWorkspaceShareNameBox')
         $deployRootBox = $dialog.FindName('HDTNewWorkspaceDeployRootBox')
         $messageText = $dialog.FindName('HDTNewWorkspaceMessageText')
         $commandText = $dialog.FindName('HDTNewWorkspaceCommandText')
@@ -2093,6 +2169,30 @@
                 if (-not $mine.Writing) { $mine.Id = $true }
             }.GetNewClosure())
 
+        # PUBLISHING NEEDS ELEVATION, AND THE PAGE SAYS SO BEFORE ANYTHING IS
+        # TYPED. Without it New-SmbShare fails inside the SmbShare module with
+        # an access error naming a CIM class - after the folder has been
+        # written, so the share is the only half missing and nothing says which
+        # half. Here the technician learns it while the page is still empty.
+        $elevated = Test-HDTElevation
+
+        # THE SHARE NAME IS SUGGESTED FROM THE FOLDER, like the id, and stops
+        # being suggested the moment somebody types one. The deploy root
+        # follows the same rule and for a stronger reason: this machine's name
+        # is only USUALLY how clients reach the share - a file server behind a
+        # DFS namespace, a CNAME or a host with two NICs is reached by something
+        # this dialog cannot work out.
+        $mineShare = @{ Typed = $false; Writing = $false }
+        $mineRoot = @{ Typed = $false; Writing = $false }
+
+        $shareNameBox.Add_TextChanged({
+                if (-not $mineShare.Writing) { $mineShare.Typed = $true }
+            }.GetNewClosure())
+
+        $deployRootBox.Add_TextChanged({
+                if (-not $mineRoot.Writing) { $mineRoot.Typed = $true }
+            }.GetNewClosure())
+
         $check = {
             $answer = Test-HDTConsoleNewWorkspace -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
 
@@ -2106,15 +2206,56 @@
                 $answer = Test-HDTConsoleNewWorkspace -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
             }
 
+            # THE SHARE NAME AND THE DEPLOY ROOT IT PRODUCES. Empty share name
+            # means nothing is published and the deploy root stays empty, which
+            # the document allows.
+            $share = Get-HDTWorkspaceShareName -Path ([string] $pathBox.Text) `
+                -ShareName ([string] $shareNameBox.Text)
+
+            if (-not $mineShare.Typed -and [string] $shareNameBox.Text -ne [string] $share.ShareName -and
+                -not [string]::IsNullOrWhiteSpace([string] $share.ShareName)) {
+
+                $mineShare.Writing = $true
+                $shareNameBox.Text = [string] $share.ShareName
+                $mineShare.Writing = $false
+            }
+
+            if (-not $mineRoot.Typed -and [string] $deployRootBox.Text -ne [string] $share.DeployRoot) {
+                $mineRoot.Writing = $true
+                $deployRootBox.Text = [string] $share.DeployRoot
+                $mineRoot.Writing = $false
+            }
+
+            $publishing = (-not [string]::IsNullOrWhiteSpace([string] $shareNameBox.Text))
+
             $create.IsEnabled = [bool] $answer.CanCreate
             $messageText.Text = [string] $answer.Message
 
-            $commandText.Text = "New-HDTWorkspace -Path '{0}' -Id '{1}'" -f
-            [string] $pathBox.Text, [string] $idBox.Text
+            # THE ELEVATION SENTENCE OUTRANKS THE OTHERS, because it is the one
+            # nothing on this page can fix - and it does not disable Create: the
+            # folder is still worth writing, and the share can be added later.
+            if ($publishing -and -not $elevated) {
+                $messageText.Text = 'this console is not running as an administrator, so it cannot publish the share. Create the deployment share here and add the share yourself, or close this and reopen the console as an administrator - right-click, Run as administrator.'
+            } elseif ($publishing -and -not [string]::IsNullOrWhiteSpace([string] $share.Message) -and
+                [string]::IsNullOrWhiteSpace([string] $answer.Message)) {
+
+                $messageText.Text = [string] $share.Message
+                $create.IsEnabled = $false
+            }
+
+            $commandText.Text = "New-HDTWorkspace -Path '{0}' -Id '{1}' -DeployRoot '{2}'" -f
+            [string] $pathBox.Text, [string] $idBox.Text, [string] $deployRootBox.Text
+
+            if ($publishing) {
+                $commandText.Text = "{0}{1}New-HDTWorkspaceShare -Path '{2}' -ShareName '{3}'" -f
+                $commandText.Text, [System.Environment]::NewLine,
+                [string] $pathBox.Text, [string] $shareNameBox.Text
+            }
         }.GetNewClosure()
 
         $pathBox.Add_TextChanged({ & $check }.GetNewClosure())
         $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $shareNameBox.Add_TextChanged({ & $check }.GetNewClosure())
 
         & $check
 
@@ -2149,13 +2290,24 @@
                         $splat['Name'] = [string] $nameBox.Text
                     }
 
+                    # THE BOX IS WHAT GETS WRITTEN, derived or typed. One place
+                    # decides the value, so a deploy root somebody corrected is
+                    # not quietly replaced by the one the share name implies.
                     if (-not [string]::IsNullOrWhiteSpace([string] $deployRootBox.Text)) {
                         $splat['DeployRoot'] = [string] $deployRootBox.Text
                     }
 
                     $dialog.Cursor = [System.Windows.Input.Cursors]::Wait
 
+                    # THE FOLDER FIRST, THEN THE SHARE - two commands, because
+                    # writing YAML and publishing over SMB are different kinds
+                    # of act and the second needs rights the first does not.
                     [void] (New-HDTWorkspace @splat)
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $shareNameBox.Text) -and $elevated) {
+                        [void] (New-HDTWorkspaceShare -Path ([string] $pathBox.Text) `
+                                -ShareName ([string] $shareNameBox.Text) -Confirm:$false)
+                    }
 
                     $dialogHost.CreatedWorkspacePath = [string] $pathBox.Text
                     $dialog.DialogResult = $true
@@ -2180,6 +2332,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -2319,6 +2472,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
 
         $dialog.Owner = $Owner
 
@@ -2447,6 +2601,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+        $window.Icon = Get-HDTConsoleWindowIcon
 
         # The text comes out of Strings\<culture>.psd1, not out of the markup,
         # and before the document's own name and path are written over the
@@ -3658,6 +3813,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+        $window.Icon = Get-HDTConsoleWindowIcon
 
         $window.Width = [double] $Size.Width
         $window.Height = [double] $Size.Height
@@ -4070,6 +4226,7 @@
                 # a PasswordBox on a small dialog because that is the only
                 # control in WPF that does not put it on screen.
                 $prompt = New-Object -TypeName System.Windows.Window
+                $prompt.Icon = Get-HDTConsoleWindowIcon
                 $prompt.Title = 'Certificate password'
                 $prompt.Width = 420
                 $prompt.SizeToContent = [System.Windows.SizeToContent]::Height
@@ -4604,6 +4761,7 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+        $window.Icon = Get-HDTConsoleWindowIcon
 
         # The text comes out of Strings\<culture>.psd1, not out of the markup,
         # and before the first report replaces the starting step.

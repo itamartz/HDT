@@ -54,9 +54,6 @@ jobs:
 
           "$($PSVersionTable.PSEdition) $($PSVersionTable.PSVersion): dependencies installed"
 
-      - name: Build, lint, test, self-check
-        run: ./build.ps1 -Task ci
-
       # THE VERSION IS THE TAG, OR THE TAG IS WRONG. A tag that does not match
       # the manifest publishes a version nobody asked for and leaves the
       # repository disagreeing with the Gallery about what v1.2.3 is.
@@ -72,6 +69,36 @@ jobs:
           }
 
           "publishing version $tagged"
+
+      # A VERSION THE GALLERY ALREADY HAS CANNOT BE REPUBLISHED, and that is as
+      # true before the build as after it. It used to be discovered on the last
+      # line of the last step, twenty-one minutes in, when the only remedy left
+      # was to raise the manifest and run the whole thing again. Neither the
+      # manifest nor the Gallery is changed by building, so there is nothing to
+      # learn by waiting for the build first.
+      #
+      # NOT ON A DRY RUN. -WhatIf never reaches the Gallery, so rehearsing the
+      # version that is already published is a reasonable thing to ask for.
+      - name: Check the version against the Gallery
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.whatIf) }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $manifest = Import-PowerShellDataFile './src/Hephaestus/Hephaestus.psd1'
+          $version = [string] $manifest.ModuleVersion
+
+          $already = Find-Module -Name Hephaestus -RequiredVersion $version -Repository PSGallery -ErrorAction SilentlyContinue
+
+          if ($already) {
+              throw ("the Gallery already has Hephaestus $version, and a published version cannot be " +
+                  'replaced. Raise ModuleVersion in src/Hephaestus/Hephaestus.psd1, commit, and tag ' +
+                  'that commit.')
+          }
+
+          "the Gallery does not have $version yet"
+
+      - name: Build, lint, test, self-check
+        run: ./build.ps1 -Task ci
 
       - name: Publish to the PowerShell Gallery
         env:
