@@ -210,8 +210,16 @@
                 -Hint 'Exit codes that mean the machine owes a restart, comma separated. Empty inherits 3010; the sequence reboots and resumes at the next application.'
             New-HDTConsoleField -Label 'Detection' -Value $application.DetectText -Property 'detect' `
                 -Hint 'The rule that decides it is already installed, written as app.yaml writes it: type: msiProduct, then the keys that type takes. Empty means it installs every time.'
-            New-HDTConsoleField -Label 'Depends on' -Value (@($application.Dependency) -join ', ') -Property 'dependencies' `
-                -Hint 'Ids that must install first, comma separated. Selecting this application selects them too, and they install ahead of it.'
+            # SHOWN HERE, PICKED FROM THE MENU. This is the one of the four that
+            # can be checked against something: an exit code and a detection
+            # rule are knowledge about the package, and typing is the only way
+            # to state them, but a dependency is an id that either is or is not
+            # on this share. A misspelled one is not caught until a deployment
+            # runs, when Resolve-HDTApplicationOrder refuses the WHOLE plan
+            # rather than that one application - so the tree's Depends On item
+            # offers what is there and refuses what would close a loop.
+            New-HDTConsoleField -Label 'Depends on' -Value (@($application.Dependency) -join ', ') `
+                -Hint 'Ids that must install first. Right-click this application and choose Depends On to change them: they are picked from what is on the share, so an id that does not exist cannot be written here.'
             New-HDTConsoleField -Label 'Source' -Value $application.SourcePath
             New-HDTConsoleField -Label 'Document' -Value $application.Path
         )

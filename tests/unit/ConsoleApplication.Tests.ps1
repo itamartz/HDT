@@ -274,7 +274,24 @@ Describe 'the Applications category in the tree' {
         $typeable | Should -Contain 'successCodes'
         $typeable | Should -Contain 'rebootCodes'
         $typeable | Should -Contain 'detect'
-        $typeable | Should -Contain 'dependencies'
+    }
+
+    It 'does not let the dependencies be typed, because they are picked' {
+        # THE ONE OF THE FOUR THAT CAN BE CHECKED AGAINST SOMETHING. An exit
+        # code and a detection rule are knowledge about the package, and typing
+        # is the only way to state them; a dependency is an id that either is or
+        # is not on this share, and a misspelled one is not caught until a
+        # deployment runs - when Resolve-HDTApplicationOrder refuses the WHOLE
+        # plan rather than that one application.
+        #
+        # So the row shows, and the tree's Depends On item picks:
+        # Get-HDTConsoleDependencyChoice offers what is there and refuses what
+        # would close a loop.
+        $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })[0]
+
+        $typeable = @($row.Field | Where-Object { $_.Editable } | ForEach-Object { [string] $_.Property })
+
+        $typeable | Should -Not -Contain 'dependencies'
     }
 
     It 'shows the exit codes it is running with, defaults included' {
