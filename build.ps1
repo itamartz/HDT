@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
         Task runner for the Hephaestus Deployment Toolkit.
 
@@ -52,7 +52,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('clean', 'build', 'lint', 'test', 'selfcheck', 'ci', 'integration', 'e2e')]
+    [ValidateSet('clean', 'bundle', 'build', 'lint', 'test', 'selfcheck', 'ci', 'integration', 'e2e')]
     [string[]] $Task = @('test'),
 
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
@@ -111,6 +111,34 @@ function Clear-HDTBuildOutput {
     } else {
         Write-Information 'clean: nothing to remove'
     }
+}
+
+function Invoke-HDTBundle {
+    <#
+        .SYNOPSIS
+            Concatenates the module's sources into one file, so importing it
+            parses one file instead of several hundred.
+
+        .DESCRIPTION
+            2.46 seconds of dot-sourcing becomes 1.37 on the lab host - measured
+            in a fresh 5.1 process - and that second is what somebody watches
+            nothing happen for after Start-HDTConsole -Detach.
+
+            THE ARTEFACT IS NEVER COMMITTED and never has to exist:
+            Hephaestus.psm1 falls back to the individual files whenever it is
+            missing OR older than any source, so a stale one cannot run.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param()
+
+    Import-Module -Name $script:HDTModuleManifest -Force -ErrorAction Stop
+
+    $moduleRoot = Split-Path -Parent $script:HDTModuleManifest
+    $made = Write-HDTModuleBundle -ModuleRoot $moduleRoot
+
+    Write-Information ("bundle: {0} file(s), {1:n0} KB -> {2}" -f
+        $made.FileCount, ($made.Length / 1KB), $made.Path)
 }
 
 function Invoke-HDTBuild {
@@ -679,7 +707,7 @@ function Invoke-HDTSelfCheck {
 # WHAT ci MEANS. These five, and only these five. integration and e2e are
 # accepted tasks but are deliberately absent from this list, so 'ci' never
 # expands to a run that needs elevation, a disk or Hyper-V.
-$canonicalOrder = @('clean', 'build', 'lint', 'test', 'selfcheck')
+$canonicalOrder = @('clean', 'bundle', 'build', 'lint', 'test', 'selfcheck')
 
 # WHAT CAN BE DISPATCHED. Everything above, plus the two slow tasks, in the
 # order they would be run together. A task accepted by the ValidateSet but
@@ -706,6 +734,7 @@ try {
     foreach ($name in $ordered) {
         switch ($name) {
             'clean' { Clear-HDTBuildOutput -Confirm:$false }
+            'bundle' { Invoke-HDTBundle }
             'build' { Invoke-HDTBuild }
             'lint' { Invoke-HDTLint }
             'test' { Invoke-HDTTest -OutputVerbosity $Verbosity -Coverage:$Coverage }

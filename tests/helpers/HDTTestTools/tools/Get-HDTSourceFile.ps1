@@ -1,4 +1,4 @@
-function Get-HDTSourceFile {
+﻿function Get-HDTSourceFile {
     <#
         .SYNOPSIS
             Enumerates every PowerShell source file in the repository that is subject
@@ -16,6 +16,9 @@ function Get-HDTSourceFile {
               - build.ps1 in the repository root
 
             Excluded:
+              - Hephaestus.bundle.ps1 - a generated concatenation of everything
+                                    else under src/Hephaestus, so including it
+                                    would lint and scan the module twice
               - tests/fixtures/** - fixtures are deliberately malformed
               - out/**            - build output is a copy of src/
               - any .git, bin or obj directory
@@ -53,6 +56,13 @@ function Get-HDTSourceFile {
     $extension = @('.ps1', '.psm1')
     $excludedDirectory = @('.git', 'bin', 'obj')
     $excludedPrefix = @('out/', 'tests/fixtures/')
+
+    # THE MODULE BUNDLE IS NOT SOURCE. It is every file under src/Hephaestus
+    # concatenated - a build artefact Write-HDTModuleBundle generates and
+    # .gitignore keeps out - so linting it lints everything twice, and a
+    # suppression attribute that was valid in its own file is reported as
+    # unmatched once it sits beside 364 other files' diagnostics.
+    $excludedName = @('hephaestus.bundle.ps1')
 
     $candidate = New-Object -TypeName System.Collections.ArrayList
 
@@ -92,6 +102,10 @@ function Get-HDTSourceFile {
             }
         }
         if ($isExcludedDirectory) {
+            continue
+        }
+
+        if ($excludedName -contains ([System.IO.Path]::GetFileName($fullPath)).ToLowerInvariant()) {
             continue
         }
 

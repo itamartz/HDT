@@ -1,4 +1,4 @@
-# Monitoring, as a place in the tree rather than a command you have to know about.
+﻿# Monitoring, as a place in the tree rather than a command you have to know about.
 #
 # DESIGN 12 lists it among the categories: "tree navigation mirroring the
 # workspace (Operating Systems, Task Sequences, Applications, Drivers, Media,
@@ -108,8 +108,47 @@ Describe 'Get-HDTConsoleWorkspace and the monitor' {
         # it could not open into a failure row rather than refusing to start -
         # because New-HDTConsoleShareFailure is private and a test that called
         # it directly would be testing a path no administrator can take.
-        $fake = [pscustomobject] @{ Answer = 'Close'; Width = 1800; Height = 900 }
-        $fake | Add-Member -MemberType ScriptMethod -Name Show -Value { return 'Close' }
+        # AND THE HOST READS THE SHARE ONCE ITS WINDOW IS UP, so this fake has
+        # to do what the real one does: the window opens holding a row saying it
+        # is reading, and the block it was handed is what turns that into the
+        # share's rows. A fake that ignored it would see no share at all.
+        $fake = [pscustomobject] @{ Answer = 'Close'; Width = 1800; Height = 900; Handed = [ordered] @{} }
+        $fake | Add-Member -MemberType ScriptMethod -Name Show -Value {
+            # EVERY ARGUMENT NAMED, AND KEPT. Reaching the reader through $args
+            # instead worked under pwsh 7 and threw IndexOutOfRange under
+            # Windows PowerShell 5.1, which is the edition that gates this
+            # repository - $args is not populated the same way for a ScriptMethod
+            # there. Naming them is also what keeps the analyzer quiet: a
+            # SuppressMessageAttribute inside a SCRIPT BLOCK param block is
+            # ignored outright, so an unused parameter cannot be waved away and
+            # has to be used.
+            param($Xaml, $Title, $Node, $Theme, $Size, $ThemeName, $RefreshSecond, $NewSequenceXaml,
+                $ImportOperatingSystemXaml, $ImportApplicationXaml, $ApplicationDependencyXaml,
+                $ApplicationDetectionXaml, $Fill, $NewWorkspaceXaml)
+
+            $this.Handed = [ordered] @{
+                Xaml                      = $Xaml
+                Title                     = $Title
+                Node                      = $Node
+                Theme                     = $Theme
+                Size                      = $Size
+                ThemeName                 = $ThemeName
+                RefreshSecond             = $RefreshSecond
+                NewSequenceXaml           = $NewSequenceXaml
+                ImportOperatingSystemXaml = $ImportOperatingSystemXaml
+                ImportApplicationXaml     = $ImportApplicationXaml
+                ApplicationDependencyXaml = $ApplicationDependencyXaml
+                ApplicationDetectionXaml  = $ApplicationDetectionXaml
+                NewWorkspaceXaml          = $NewWorkspaceXaml
+            }
+
+            # THE REAL HOST READS THE SHARE ONCE ITS WINDOW IS UP, and so does
+            # this: without it the window would show the row that says it is
+            # reading and nothing else, and this test asserts a share.
+            if ($Fill -is [scriptblock]) { [void] (& $Fill) }
+
+            return 'Close'
+        }
 
         # The markup is checked through the SAME injected filesystem, so the
         # fake has to hold it - the real file is never read here.
