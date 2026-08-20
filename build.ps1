@@ -3,8 +3,8 @@
         Task runner for the Hephaestus Deployment Toolkit.
 
     .DESCRIPTION
-        Runs the clean / build / lint / test / selfcheck tasks, and ci as the
-        composition of all five. Every function here obeys the Verb-HDTNoun rule
+        Runs the clean / version / bundle / build / lint / test / selfcheck
+        tasks, and ci as the composition of all seven. Every function here obeys the Verb-HDTNoun rule
         (DESIGN 15.1), which applies to build functions as much as to the engine.
 
         The script must work under both pwsh 7 and Windows PowerShell 5.1, because
@@ -12,10 +12,13 @@
         importable under 5.1 on every machine, so 'test' never depends on 'lint'.
 
     .PARAMETER Task
-        One or more of clean, build, lint, test, selfcheck, ci, integration, e2e.
-        Defaults to test. Tasks always run in the canonical order clean -> build
-        -> lint -> test -> selfcheck -> integration -> e2e regardless of the
-        order given.
+        One or more of clean, version, bundle, build, lint, test, selfcheck, ci,
+        integration, e2e. Defaults to test. Tasks always run in the canonical
+        order clean -> version -> bundle -> build -> lint -> test -> selfcheck
+        -> integration -> e2e regardless of the order given.
+
+        version comes before bundle and build because it is what decides the
+        number the staged artefact in out/ is named for.
 
         integration and e2e are NOT part of ci and never will be. DESIGN 12.2.5
         puts integration on pushes to main and E2E nightly; both need an elevated
@@ -52,7 +55,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('clean', 'bundle', 'build', 'lint', 'test', 'selfcheck', 'ci', 'integration', 'e2e')]
+    [ValidateSet('clean', 'version', 'bundle', 'build', 'lint', 'test', 'selfcheck', 'ci', 'integration', 'e2e')]
     [string[]] $Task = @('test'),
 
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
@@ -110,6 +113,44 @@ function Clear-HDTBuildOutput {
         Write-Information ("clean: removed {0}" -f $script:HDTOutputPath)
     } else {
         Write-Information 'clean: nothing to remove'
+    }
+}
+
+function Invoke-HDTVersion {
+    <#
+        .SYNOPSIS
+            Bumps the engine's ModuleVersion when its sources have moved since
+            the last bump.
+
+        .DESCRIPTION
+            A file added or removed takes the minor; a file edited inside takes
+            the patch; a tree that has not moved is left alone and the manifest
+            is not written at all.
+
+            IT RUNS BEFORE bundle AND build. Invoke-HDTBuild stages the module
+            into out/<name>/<version>, and a bump after that would leave the
+            staged folder named for the version before it - the one artefact
+            somebody would go looking for by number.
+
+            THE MANIFEST IS A TRACKED SOURCE FILE, so this task really does
+            change the working tree. That is the point: the number moves with
+            the code rather than when somebody remembers.
+    #>
+    [CmdletBinding()]
+    [OutputType([void])]
+    param()
+
+    Import-Module -Name $script:HDTModuleManifest -Force -ErrorAction Stop
+
+    $moduleRoot = Split-Path -Parent $script:HDTModuleManifest
+    $answer = Update-HDTModuleVersion -ModuleRoot $moduleRoot
+
+    if ($answer.Changed) {
+        Write-Information ("version: {0} -> {1} ({2}, {3} file(s))" -f
+            $answer.PreviousVersion, $answer.Version, $answer.Reason, $answer.FileCount)
+    } else {
+        Write-Information ("version: {0} unchanged ({1}, {2} file(s))" -f
+            $answer.Version, $answer.Reason, $answer.FileCount)
     }
 }
 
@@ -704,10 +745,10 @@ function Invoke-HDTSelfCheck {
     Write-Information 'selfcheck: 4 of 4 checks passed'
 }
 
-# WHAT ci MEANS. These five, and only these five. integration and e2e are
+# WHAT ci MEANS. These seven, and only these seven. integration and e2e are
 # accepted tasks but are deliberately absent from this list, so 'ci' never
 # expands to a run that needs elevation, a disk or Hyper-V.
-$canonicalOrder = @('clean', 'bundle', 'build', 'lint', 'test', 'selfcheck')
+$canonicalOrder = @('clean', 'version', 'bundle', 'build', 'lint', 'test', 'selfcheck')
 
 # WHAT CAN BE DISPATCHED. Everything above, plus the two slow tasks, in the
 # order they would be run together. A task accepted by the ValidateSet but
@@ -734,6 +775,7 @@ try {
     foreach ($name in $ordered) {
         switch ($name) {
             'clean' { Clear-HDTBuildOutput -Confirm:$false }
+            'version' { Invoke-HDTVersion }
             'bundle' { Invoke-HDTBundle }
             'build' { Invoke-HDTBuild }
             'lint' { Invoke-HDTLint }
