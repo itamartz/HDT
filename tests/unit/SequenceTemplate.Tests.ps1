@@ -456,6 +456,36 @@ Describe 'the answer file a new sequence gets' {
             $entry[0].MdtName | Should -BeExactly 'SystemLocale'
             $entry[0].Writable | Should -BeTrue
         }
+
+        # WHAT STARTS THE DEPLOYMENT AGAIN ONCE WINDOWS IS RUNNING.
+        #
+        # The AutoLogon block above arms the first logon; on its own that is a
+        # machine that logs itself in and sits there. MDT answers this with a
+        # FirstLogonCommands entry running LTIBootstrap.vbs, and this is the
+        # same hook: the deployment continues because the ANSWER FILE says so,
+        # not because a registry key survived a reboot it could not survive.
+        #
+        # The path is C:\HDT because that is what <os volume>\HDT is once the
+        # machine has booted - Copy-HDTResumeAgent staged it there from WinPE,
+        # where the same folder had whatever letter the partition step published.
+
+        It 'launches the resume at first logon, which is what makes the machine carry on' {
+            $script:unattendText | Should -BeLike '*<FirstLogonCommands>*'
+            $script:unattendText | Should -BeLike '*C:\HDT\Start-HDTResume.ps1*'
+        }
+
+        It 'launches it the way the RunOnce entry does, so there is one command and not two' {
+            # Set-HDTAutoLogon writes this exact line for every LATER leg. Two
+            # spellings of "start the engine" is two things to keep in step, and
+            # the one that drifts is the one nothing runs until a real machine
+            # reboots.
+            $runOnce = [string] @((Get-Command -Name 'Set-HDTAutoLogon' -Module 'Hephaestus').ScriptBlock.Ast.Body.ParamBlock.Parameters |
+                    Where-Object { $_.Name.VariablePath.UserPath -eq 'ResumeCommand' } |
+                    ForEach-Object { $_.DefaultValue.Value })[0]
+
+            $runOnce | Should -Not -BeNullOrEmpty
+            $script:unattendText | Should -BeLike ('*{0}*' -f $runOnce)
+        }
     }
 
     It 'never names the password token in a comment' {

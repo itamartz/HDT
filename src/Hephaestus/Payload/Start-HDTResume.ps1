@@ -1,4 +1,4 @@
-<#
+﻿<#
     .SYNOPSIS
         The RunOnce payload: reconcile the boot, then resume the task sequence.
 
@@ -46,9 +46,16 @@
         full OS.
 
     .PARAMETER WorkspaceRoot
-        Where the sequence lives. The sequence is found at
-        <WorkspaceRoot>\Sequences\<sequenceId>\sequence.yaml, with the id taken
-        from the state document rather than guessed.
+        Where the sequence lives when there is no share to reach. The deploy root
+        from the bootstrap document wins over it: the sequence, the rules and the
+        applications live where the deployment came from, and a leg rooted at
+        C:\HDT would re-import a sequence that is not there.
+
+    .PARAMETER BootstrapPath
+        The staged bootstrap document - the deploy root, the provider and the
+        account that opens the share. Copy-HDTResumeAgent puts the boot image's
+        own copy beside this file. Absent, the leg runs against the local disk
+        alone and says so.
 
     .PARAMETER SequencePath
         The sequence file, when it is not where WorkspaceRoot would put it.
@@ -82,6 +89,14 @@ param(
     [Parameter()]
     [ValidateNotNullOrEmpty()]
     [string] $WorkspaceRoot = 'C:\HDT',
+
+    # THE SHARE, AND THE ACCOUNT THAT OPENS IT. Copy-HDTResumeAgent stages the
+    # boot image's own bootstrap.json beside this file, for the reason the
+    # description gives: the full-OS leg is the one that installs software, and
+    # the software is on the share.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $BootstrapPath = 'C:\HDT\bootstrap.json',
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
@@ -160,9 +175,77 @@ if ($decision.Action -eq 'Teardown') {
 
 $state = $decision.State
 
+# -- the share ------------------------------------------------------------
+#
+# THE FULL-OS LEG IS THE ONE THAT INSTALLS SOFTWARE, AND THE SOFTWARE IS ON THE
+# SHARE. This payload used to root itself at C:\HDT and build no content
+# provider, so InstallApplications - the step whose whole documented home is a
+# FullOS group - looked for Applications\ on the local disk and found nothing.
+# The sequence, the rules and the applications all live where the deployment
+# came from.
+#
+# THE ANSWER IS THE ONE THE WinPE ENTRY POINT ALREADY GAVE, through the same
+# commands: bootstrap.json names the deploy root, the provider and the account,
+# and Copy-HDTResumeAgent staged it beside this file.
+#
+# A SHARE THAT CANNOT BE REACHED IS NOT FATAL HERE. The machine is deployed and
+# somebody is logged into it; the steps that need content will fail and say
+# which, and the reconcile has already disarmed the autologon if it needed to.
+# Refusing to run at all would turn "one application did not install" into "the
+# machine never finished and nobody can tell why".
+$workspaceRoot = $WorkspaceRoot
+$content = $null
+
+if ($fileSystem.TestPath($BootstrapPath)) {
+    try {
+        $bootstrap = Get-HDTBootstrapConfiguration -Path $BootstrapPath -FileSystem $fileSystem
+
+        $providerArgument = @{
+            Provider   = [string] $bootstrap.Provider
+            Root       = [string] $bootstrap.DeployRoot
+            FileSystem = $fileSystem
+        }
+
+        # THE DEPLOY ROOT THE RUN ACTUALLY USED, not the one the image was built
+        # with. A bootstrap rule may have chosen another share, and the Welcome
+        # screen may have corrected it by hand - both land in the state
+        # document's variables, and both are what the WinPE leg connected to.
+        if ($null -ne $state.variable -and $state.variable.Contains('HDTDeployRoot') -and
+            -not [string]::IsNullOrWhiteSpace([string] $state.variable['HDTDeployRoot'])) {
+
+            $providerArgument['Root'] = [string] $state.variable['HDTDeployRoot']
+        }
+
+        if ([string] $bootstrap.Provider -eq 'Smb' -and -not [bool] $bootstrap.PromptForCredential) {
+            $providerArgument['Credential'] = $bootstrap.GetCredential()
+        }
+
+        $content = New-HDTContentProvider @providerArgument
+        [void] $content.Connect()
+
+        $workspaceRoot = [string] $providerArgument['Root']
+
+        # A setFrom rule and a PowerShell step both name paths relative to the
+        # workspace, so the invoker follows the root rather than the parameter.
+        $scriptInvoker = New-HDTScriptInvoker -Root $workspaceRoot
+
+        Write-HDTLog -Context $bootLog -Component 'Resume' `
+            -Message ("connected to '{0}' over {1}" -f $workspaceRoot, $bootstrap.Provider)
+    } catch {
+        $content = $null
+
+        Write-HDTLog -Context $bootLog -Severity Warning -Component 'Resume' `
+            -Message ("the deployment share could not be reached, so any step needing content will fail: {0}" -f
+                $_.Exception.Message)
+    }
+} else {
+    Write-HDTLog -Context $bootLog -Severity Warning -Component 'Resume' `
+        -Message ("no bootstrap document at '{0}', so this leg runs against the local disk alone." -f $BootstrapPath)
+}
+
 $sequenceFile = $SequencePath
 if ([string]::IsNullOrWhiteSpace($sequenceFile)) {
-    $sequenceFile = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind TaskSequences `
+    $sequenceFile = Get-HDTWorkspacePath -Root $workspaceRoot -Kind TaskSequences `
         -ChildPath ([string] $state.sequenceId), 'sequence.yaml'
 }
 
@@ -176,7 +259,8 @@ $log = New-HDTLogContext -RunId ([string] $state.runId) -Phase FullOS -LogPath $
     -FileSystem $fileSystem -Clock $clock -Seq ([long] $bootLog.Seq)
 
 $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
-    -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim -Environment $environment
+    -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
+    -Environment $environment -Content $content
 
 $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
 foreach ($name in @($state.variable.Keys)) {
@@ -184,7 +268,7 @@ foreach ($name in @($state.variable.Keys)) {
 }
 
 $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase FullOS `
-    -WorkspaceRoot $WorkspaceRoot -Variable $variable -Service $catalog -Log $log -State $state
+    -WorkspaceRoot $workspaceRoot -Variable $variable -Service $catalog -Log $log -State $state
 
 $run = Invoke-HDTTaskSequence -Sequence $sequence -Context $context -State $state -StatePath $StatePath
 

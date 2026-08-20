@@ -1,0 +1,179 @@
+function Copy-HDTResumeAgent {
+    <#
+        .SYNOPSIS
+            Stages the engine and the resume payload onto the volume the machine
+            is about to boot from.
+
+        .DESCRIPTION
+            THE HALF OF DESIGN 4.5.1 THAT WAS MISSING. The engine is "launched at
+            logon by a RunOnce entry pointing at C:\HDT\Start-HDTResume.ps1" -
+            and until this command existed, nothing ever put that file, or the
+            module it imports, on the disk. Both were staged into the BOOT IMAGE
+            at X:\HDT\, which is a RAM disk that ceases to exist at the restart.
+
+            THE FAILURE THIS ENDS DID NOT LOOK LIKE A FAILURE. WinPE deployed
+            Windows, the machine restarted, Windows autologged on - and then sat
+            at a desktop with nothing to run. Every step in a FullOS group was
+            dead, which on the shipped client template is the whole State Restore
+            group, which is where applications install. A deployment that
+            installs no software and reports success is worse than one that
+            stops, because nobody goes looking.
+
+            IT COPIES THE IMAGE'S OWN TREE, not a fresh one from the build host.
+            The engine that resumes has to be the engine that started - a machine
+            halfway through a task sequence is the worst possible place to change
+            versions - and X:\HDT\Modules is by construction the copy the boot
+            image was built with. This is also why it takes no -ModulePath: there
+            is nothing to choose.
+
+            WHAT TRAVELS, AND WHAT DOES NOT:
+
+              Start-HDTResume.ps1     what RunOnce launches
+              Modules\                the engine, and powershell-yaml, without
+                                      which it can read no document at all
+              bootstrap.json          the deploy root and the account that opens
+                                      it, so the full-OS leg can reach the share
+                                      that holds Applications\
+
+              Start-HDTDeployment.ps1 NOT staged - it is what startnet.cmd runs,
+                                      and a copy on the deployed machine would be
+                                      a second answer to "what starts a
+                                      deployment", and the one nothing launches
+              UI\                     NOT staged - the wizard runs in WinPE,
+                                      before this disk had a partition table
+
+            AN EMPTY STAGE IS REFUSED, LOUDLY, and that is the whole point of the
+            check: failing here means failing in WinPE, where the log is still
+            being written and a technician is still watching. Succeeding into a
+            desktop nobody is looking at is how this went unnoticed for five
+            milestones.
+
+            NOTHING HERE IS DELETED. The teardown (DESIGN 4.5.4) removes what
+            this wrote, on the machine, at the end of the run.
+
+        .PARAMETER TargetVolume
+            The volume the operating system was applied to - the value
+            HDTOSVolume carries, with or without a trailing separator. In WinPE
+            that is whatever letter the partition step published; on the booted
+            machine the same folder is C:\HDT.
+
+        .PARAMETER Source
+            The boot image's own payload folder. X: is the only letter a WinPE
+            payload may assume (SPIKES S9.1), and this is the one place it is
+            assumed.
+
+        .PARAMETER FileSystem
+            An IFileSystem. Defaults to the real one.
+
+        .INPUTS
+            None. This command does not accept pipeline input.
+
+        .OUTPUTS
+            System.Management.Automation.PSCustomObject with Path, FileCount and
+            Item.
+
+        .EXAMPLE
+            Copy-HDTResumeAgent -TargetVolume 'W:'
+
+            Stages W:\HDT\ from X:\HDT\, which becomes C:\HDT\ when the machine
+            boots.
+
+        .LINK
+            Set-HDTAutoLogon
+
+        .LINK
+            Invoke-HDTTaskSequence
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [ValidateNotNullOrEmpty()]
+        [string] $TargetVolume,
+
+        [Parameter(Position = 1)]
+        [ValidateNotNullOrEmpty()]
+        [string] $Source = 'X:\HDT',
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+
+    if (-not $FileSystem.TestPath($Source)) {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Source -Category ObjectNotFound `
+                    -Message ("'{0}' is not there, so there is no engine to stage onto the deployed machine. This folder is what Update-HDTBootImage writes into the boot image; a machine running a payload from somewhere else must name it with -Source." -f $Source)))
+    }
+
+    $payload = [System.IO.Path]::Combine($Source, 'Start-HDTResume.ps1')
+
+    if (-not $FileSystem.TestPath($payload)) {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $payload -Category ObjectNotFound `
+                    -Message ("'{0}' is not in this boot image, so the deployed machine would autologon with nothing to run and every step after the restart would be silently skipped. Rebuild the boot image with a version of Update-HDTBootImage that stages the resume payload." -f $payload)))
+    }
+
+    # 'W:' and 'W:\' both mean the root of W:, and callers have both: a step
+    # publishes the first, GetPathRoot answers the second.
+    $root = ([string] $TargetVolume).TrimEnd('\', '/')
+    $destination = [System.IO.Path]::Combine(($root + [System.IO.Path]::DirectorySeparatorChar), 'HDT')
+
+    if (-not $PSCmdlet.ShouldProcess($destination, ("Stage the engine and the resume payload from '{0}'" -f $Source))) {
+        return [pscustomobject] @{
+            Path      = [string] $destination
+            FileCount = 0
+            Item      = [pscustomobject[]] @()
+        }
+    }
+
+    $FileSystem.CreateDirectory($destination)
+
+    $item = New-Object -TypeName System.Collections.ArrayList
+    $count = 0
+
+    # The module tree first, so a machine that dies mid-stage has no payload
+    # standing over a missing engine - the one ordering that turns a failed
+    # stage into a RunOnce entry that throws on Import-Module.
+    $modules = [System.IO.Path]::Combine($Source, 'Modules')
+
+    if ($FileSystem.TestPath($modules)) {
+        $moduleCount = Copy-HDTContentTree -Source $modules `
+            -Destination ([System.IO.Path]::Combine($destination, 'Modules')) -FileSystem $FileSystem
+
+        $count += $moduleCount
+
+        [void] $item.Add([pscustomobject] @{
+                Name      = 'Modules'
+                Source    = [string] $modules
+                FileCount = [int] $moduleCount
+            })
+    }
+
+    # bootstrap.json is optional: an image built for the Local provider has no
+    # share to reach, and a full-OS leg of steps that need no content is a
+    # legitimate deployment.
+    foreach ($leaf in @('Start-HDTResume.ps1', 'bootstrap.json')) {
+        $from = [System.IO.Path]::Combine($Source, $leaf)
+
+        if (-not $FileSystem.TestPath($from)) { continue }
+
+        $FileSystem.CopyItem($from, [System.IO.Path]::Combine($destination, $leaf))
+        $count++
+
+        [void] $item.Add([pscustomobject] @{
+                Name      = [string] $leaf
+                Source    = [string] $from
+                FileCount = 1
+            })
+    }
+
+    return [pscustomobject] @{
+        Path      = [string] $destination
+        FileCount = [int] $count
+        Item      = [pscustomobject[]] @($item)
+    }
+}

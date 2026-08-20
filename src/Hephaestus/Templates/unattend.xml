@@ -115,6 +115,35 @@
           <PlainText>true</PlainText>
         </Password>
       </AutoLogon>
+
+      <!--
+        AND WHAT THE FIRST LOGON RUNS. The AutoLogon block above logs the
+        machine in; on its own that is a machine that logs itself in and sits
+        at a desktop, which is exactly what every deployment did before this
+        line existed - the whole State Restore group silently skipped while
+        the run reported success.
+
+        THIS IS MDT'S HOOK, NOT A NEW IDEA. LiteTouch continues through a
+        FirstLogonCommands entry running LTIBootstrap.vbs, for the reason it
+        matters here too: the answer file is the only thing that survives the
+        transition from WinPE to a Windows that did not exist yet. A registry
+        key written in WinPE is written on a RAM disk.
+
+        C:\HDT, NOT THE LETTER WinPE USED. Copy-HDTResumeAgent staged this
+        folder onto the OS volume, which had whatever letter the partition step
+        published; the machine reading this line has booted, and that volume is
+        C:. Later legs are launched by the RunOnce entry Set-HDTAutoLogon
+        writes, whose command line is this same one - one spelling of "start
+        the engine", asserted by tests/unit/SequenceTemplate.Tests.ps1.
+      -->
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <CommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\HDT\Start-HDTResume.ps1</CommandLine>
+          <Description>Hephaestus - resume the task sequence</Description>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+      </FirstLogonCommands>
     </component>
   </settings>
 </unattend>

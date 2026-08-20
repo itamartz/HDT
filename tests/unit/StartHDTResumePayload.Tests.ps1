@@ -232,4 +232,65 @@ Describe 'Start-HDTResume.ps1' {
             $script:text | Should -Not -BeLike '*New-HDTFake*'
         }
     }
+
+    Context 'reaching the deployment share' {
+
+        # THE FULL-OS LEG IS THE ONE THAT INSTALLS SOFTWARE, and the software is
+        # on the share. Until this existed the payload defaulted -WorkspaceRoot
+        # to C:\HDT and built no content provider at all, so the first thing
+        # InstallApplications did was look for Applications\ on the local disk
+        # and find nothing there - a step that cannot work in the phase it is
+        # documented to run in.
+        #
+        # THE ANSWER IS THE ONE THE WinPE PAYLOAD ALREADY GAVE. bootstrap.json
+        # carries the deploy root and the account that opens it; it is staged
+        # beside this file by Copy-HDTResumeAgent for exactly this reason, and
+        # read here with the same command.
+
+        It 'reads the bootstrap document' {
+            @(& $script:commandNamed 'Get-HDTBootstrapConfiguration').Count | Should -BeGreaterOrEqual 1
+        }
+
+        It 'takes a -BootstrapPath parameter defaulting beside itself' {
+            $parameter = @($script:ast.ParamBlock.Parameters |
+                    Where-Object { $_.Name.VariablePath.UserPath -eq 'BootstrapPath' })
+
+            $parameter.Count | Should -Be 1
+            [string] $parameter[0].DefaultValue.Value | Should -BeExactly 'C:\HDT\bootstrap.json'
+        }
+
+        It 'builds a content provider and connects it' {
+            @(& $script:commandNamed 'New-HDTContentProvider').Count | Should -BeGreaterOrEqual 1
+            $script:text | Should -BeLike '*.Connect()*'
+        }
+
+        It 'hands the provider to the service catalog' {
+            # InstallApplications reaches for $Context.Service.Content to find an
+            # application's source folder. A catalog without one makes every
+            # application in the plan unresolvable.
+            $catalog = @(& $script:commandNamed 'New-HDTServiceCatalog')
+
+            $catalog.Count | Should -Be 1
+
+            @($catalog[0].CommandElements | ForEach-Object { [string] $_.Extent.Text }) |
+                Should -Contain '-Content'
+        }
+
+        It 'runs the sequence from the share rather than from C:\HDT' {
+            # The sequence, the applications and the rules all live on the share,
+            # and the step resolves its catalog from the context's workspace root.
+            # A resume rooted at C:\HDT would re-import a sequence that is not
+            # there and fail before it reached the first step.
+            $context = @(& $script:commandNamed 'New-HDTExecutionContext')
+
+            $context.Count | Should -Be 1
+
+            $element = @($context[0].CommandElements | ForEach-Object { [string] $_.Extent.Text })
+            $element | Should -Contain '-WorkspaceRoot'
+
+            # Not the parameter, which is the fallback for a share it cannot reach.
+            $at = [array]::IndexOf($element, '-WorkspaceRoot')
+            $element[$at + 1] | Should -Not -BeExactly '$WorkspaceRoot'
+        }
+    }
 }

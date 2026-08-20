@@ -48,6 +48,7 @@
         'ConvertTo-HDTDiskLayout',
         'ConvertTo-HDTReport',
         'Copy-HDTLog',
+        'Copy-HDTResumeAgent',
         'Export-HDTMachineFact',
         'Export-HDTVariableProvenance',
         'Get-HDTAutoLogonState',

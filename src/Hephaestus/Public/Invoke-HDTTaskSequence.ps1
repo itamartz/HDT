@@ -674,6 +674,44 @@ function Invoke-HDTTaskSequence {
                     }
                 }
 
+                # THE ENGINE GOES ONTO THE DISK BEFORE THE LOGON IS ARMED.
+                #
+                # DESIGN 4.5.1 launches the resume from <os volume>\HDT\, and for
+                # five milestones nothing put it there: the payload and the
+                # module were staged into the BOOT IMAGE at X:\HDT\, and X: is a
+                # RAM disk that does not survive this restart. The machine
+                # rebooted, autologged on and ran nothing, silently skipping
+                # every step in a FullOS group while the run reported success.
+                #
+                # ONLY FROM WinPE, AND ONLY ONCE A VOLUME EXISTS. A full-OS leg
+                # is already running from the staged copy, and a sequence that
+                # restarts before it has partitioned anything has nowhere to put
+                # one - inventing a drive letter is what SPIKES S9.1 forbids.
+                #
+                # A BOOT IMAGE THAT CANNOT SUPPLY ONE DOES NOT FAIL THE
+                # DEPLOYMENT. Windows is already on the disk; refusing here would
+                # destroy a machine over a stale image. It warns, reboots, and
+                # stops after this leg - which is what it did before this existed,
+                # except that now the log says why.
+                if ([string] $Context.Phase -eq 'WinPE' -and
+                    $Context.Variable.Contains('HDTOSVolume') -and
+                    -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTOSVolume'])) {
+
+                    try {
+                        $agent = Copy-HDTResumeAgent -TargetVolume ([string] $Context.Variable['HDTOSVolume']) `
+                            -FileSystem ($Context.Service.GetRequired('FileSystem', 'Restart')) -Confirm:$false
+
+                        Write-HDTLog -Context $log -Component 'Restart' `
+                            -Message ("the resume agent was staged to '{0}' ({1} file(s))" -f
+                                $agent.Path, $agent.FileCount) `
+                            -Data ([ordered] @{ path = [string] $agent.Path; fileCount = [int] $agent.FileCount })
+                    } catch {
+                        Write-HDTLog -Context $log -Severity Warning -Component 'Restart' `
+                            -Message ("the resume agent could not be staged, so this deployment will stop after the restart and any step in a full-OS group will not run: {0}" -f
+                                $_.Exception.Message)
+                    }
+                }
+
                 # One machine, one secret per run: generated on the first reboot
                 # and reused on every one after it.
                 $password = [string] $state.deploymentPassword
