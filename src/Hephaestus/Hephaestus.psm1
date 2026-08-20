@@ -79,4 +79,26 @@ if ($null -ne $bundle) {
 
 # Enumerate with ForEach-Object rather than member enumeration: an empty array's
 # .BaseName behaves differently between engines under Set-StrictMode -Version Latest.
-Export-ModuleMember -Function ($publicFile | ForEach-Object { $_.BaseName })
+$exportName = @($publicFile | ForEach-Object { $_.BaseName })
+
+# A MODULE THAT SHIPS AS A BUNDLE AND NOTHING ELSE HAS NO Public\ TO ENUMERATE.
+#
+# That is what goes into a boot image and, from there, onto the disk of every
+# machine HDT deploys: one file instead of several hundred, read once and copied
+# twice. Without this line such a module loads every function and exports NONE of
+# them - an import with no error, and CommandNotFound for everything, on a
+# machine halfway through a deployment with nobody watching.
+#
+# THE BUNDLE CARRIES ITS OWN LIST (Write-HDTModuleBundle writes it), because the
+# names are known at the moment it is built. Reading the manifest here instead
+# would put Import-PowerShellDataFile on the path every WinPE import takes.
+# Get-Variable, not $script:HDTBundleExport: under Set-StrictMode -Version Latest
+# naming a variable that was never assigned is an error, and a module loaded from
+# its sources never assigns this one.
+$bundleExport = Get-Variable -Name 'HDTBundleExport' -Scope Script -ValueOnly -ErrorAction SilentlyContinue
+
+if (@($exportName).Count -eq 0 -and $null -ne $bundle -and $null -ne $bundleExport) {
+    $exportName = @($bundleExport)
+}
+
+Export-ModuleMember -Function $exportName

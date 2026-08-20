@@ -833,6 +833,39 @@
 
         $FileSystem.CreateDirectory($engineDestination)
 
+        # ONE FILE INSTEAD OF SEVERAL HUNDRED.
+        #
+        # The module is authored one function per file - 391 of them - and the
+        # loader dot-sources every one. The bundle is that same code
+        # concatenated, and Hephaestus.psm1 prefers it whenever it is not stale.
+        # Staging the sources meant reading, copying and parsing 391 files to
+        # build an image, and then Copy-HDTResumeAgent copying all 391 again onto
+        # the disk of every machine deployed from it.
+        #
+        # IT IS REGENERATED, NOT TRUSTED. A bundle left over from before an edit
+        # would put an engine older than its own sources inside a boot image -
+        # the one outcome worse than a slow build, and impossible to spot from
+        # the image. Writing it here means the bundle in the image is by
+        # construction the module being staged.
+        #
+        # A MODULE ROOT THAT CANNOT BE BUNDLED IS NOT FATAL. Write-HDTModuleBundle
+        # refuses a folder with no Private or Public in it, which is what a
+        # module that ALREADY ships as a bundle looks like - so the sources are
+        # staged the old way and the bundle, if there is one, travels with them.
+        # THE REGENERATION IS BEST EFFORT; THE DECISION IS NOT. Write-HDTModuleBundle
+        # works on the real module folder, so it is attempted and its failure is
+        # not fatal - a source tree that cannot be written (read-only, or a module
+        # that already ships bundled) still has whatever bundle it has, and that
+        # is the same file the build host's own loader would import. What decides
+        # the staging is the injected file system, which is what a test can see.
+        try {
+            [void] (Write-HDTModuleBundle -ModuleRoot $EngineModulePath -ErrorAction Stop)
+        } catch {
+            $Progress.Report(11, $stepTotal, 'The module bundle could not be regenerated; staging what is there', $EngineModulePath)
+        }
+
+        $bundled = $FileSystem.TestPath([System.IO.Path]::Combine($EngineModulePath, 'Hephaestus.bundle.ps1'))
+
         $engineFileCount = 0
         foreach ($child in @($FileSystem.GetChildItem($EngineModulePath))) {
             $leaf = [System.IO.Path]::GetFileName(([string] $child).TrimEnd('\', '/'))
@@ -841,6 +874,11 @@
             # Modules\Hephaestus\ would be a second answer to "where is the
             # wizard", and the one startnet.cmd does not use.
             if (@('Payload', 'UI') -contains $leaf) { continue }
+
+            # AND SO ARE THE SOURCES THE BUNDLE REPLACES. Shipping both would
+            # ship the same code twice and leave the loader deciding between them
+            # on a timestamp comparison inside WinPE.
+            if ($bundled -and @('Private', 'Public') -contains $leaf) { continue }
 
             $target = [System.IO.Path]::Combine($engineDestination, $leaf)
 

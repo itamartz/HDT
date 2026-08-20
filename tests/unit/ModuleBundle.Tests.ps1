@@ -111,3 +111,99 @@ Describe 'Write-HDTModuleBundle' {
         }
     }
 }
+
+Describe 'a module that ships as a bundle and nothing else' {
+
+    # WHAT GOES INTO A BOOT IMAGE, AND ONTO A DEPLOYED MACHINE. Update-HDTBootImage
+    # stages the engine so WinPE can run it, and Copy-HDTResumeAgent copies that
+    # staged tree onto the disk the machine boots from. Staging 391 one-function
+    # files to do it is 391 files to read, copy and parse, twice, on every
+    # deployment - and the bundle exists precisely to make that one file.
+    #
+    # THE TRAP IS THE EXPORT LIST. Hephaestus.psm1 ends with
+    #
+    #     Export-ModuleMember -Function ($publicFile | ForEach-Object { $_.BaseName })
+    #
+    # so a module with a bundle and no Public\ folder loads every function and
+    # then exports NONE of them. It would import without error and answer
+    # CommandNotFound for everything - on a machine mid-deployment, with no
+    # console to ask.
+    #
+    # SO THE BUNDLE CARRIES ITS OWN LIST. Write-HDTModuleBundle knows the public
+    # names because it just read them; the loader uses that list when there is no
+    # Public\ to enumerate. Not Import-PowerShellDataFile on the manifest: that
+    # is one more thing to be missing inside WinPE, and this needs none.
+
+    BeforeAll {
+        $script:packed = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('hdt-packed-{0}' -f [guid]::NewGuid())
+
+        $null = New-Item -Path (Join-Path -Path $script:packed -ChildPath 'Private') -ItemType Directory -Force
+        $null = New-Item -Path (Join-Path -Path $script:packed -ChildPath 'Public') -ItemType Directory -Force
+
+        Set-Content -LiteralPath (Join-Path -Path $script:packed -ChildPath 'Private/Get-HDTPackedHelper.ps1') `
+            -Value "function Get-HDTPackedHelper { 'helper' }" -Encoding UTF8
+        Set-Content -LiteralPath (Join-Path -Path $script:packed -ChildPath 'Public/Get-HDTPackedThing.ps1') `
+            -Value "function Get-HDTPackedThing { Get-HDTPackedHelper }" -Encoding UTF8
+
+        Copy-Item -LiteralPath (Join-Path -Path $script:moduleRoot -ChildPath 'Hephaestus.psm1') `
+            -Destination (Join-Path -Path $script:packed -ChildPath 'Hephaestus.psm1')
+
+        $manifest = @'
+@{
+    RootModule        = 'Hephaestus.psm1'
+    ModuleVersion     = '9.9.9'
+    GUID              = 'd0c4f7a2-11aa-4f6e-9f77-3a5b2c1d4e8f'
+    Author            = 'HDT'
+    FunctionsToExport = @('Get-HDTPackedThing')
+}
+'@
+        Set-Content -LiteralPath (Join-Path -Path $script:packed -ChildPath 'Hephaestus.psd1') -Value $manifest -Encoding UTF8
+
+        [void] (Write-HDTModuleBundle -ModuleRoot $script:packed)
+
+        # AND THEN THE SOURCES GO, which is exactly what the boot image stages.
+        Remove-Item -LiteralPath (Join-Path -Path $script:packed -ChildPath 'Private') -Recurse -Force
+        Remove-Item -LiteralPath (Join-Path -Path $script:packed -ChildPath 'Public') -Recurse -Force
+    }
+
+    AfterAll {
+        # A directory this test created, removed by the code that created it.
+        if ($null -ne $script:packed -and (Test-Path -LiteralPath $script:packed)) {
+            Remove-Item -LiteralPath $script:packed -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'has no Private or Public folder left' {
+        Test-Path -LiteralPath (Join-Path -Path $script:packed -ChildPath 'Public') | Should -BeFalse
+    }
+
+    It 'still exports its public commands' {
+        $module = Import-Module -Name (Join-Path -Path $script:packed -ChildPath 'Hephaestus.psd1') -Force -PassThru
+
+        try {
+            @($module.ExportedFunctions.Keys) | Should -Contain 'Get-HDTPackedThing'
+        } finally {
+            $module | Remove-Module -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'exports the public ones and not the private ones' {
+        $module = Import-Module -Name (Join-Path -Path $script:packed -ChildPath 'Hephaestus.psd1') -Force -PassThru
+
+        try {
+            @($module.ExportedFunctions.Keys) | Should -Not -Contain 'Get-HDTPackedHelper'
+        } finally {
+            $module | Remove-Module -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'runs, and a public command can still call a private one' {
+        $module = Import-Module -Name (Join-Path -Path $script:packed -ChildPath 'Hephaestus.psd1') -Force -PassThru
+
+        try {
+            & (Get-Command -Name 'Get-HDTPackedThing' -Module $module.Name) | Should -BeExactly 'helper'
+        } finally {
+            $module | Remove-Module -Force -ErrorAction SilentlyContinue
+        }
+    }
+}

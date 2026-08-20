@@ -96,6 +96,26 @@ function Write-HDTModuleBundle {
         [void] $text.AppendLine([System.IO.File]::ReadAllText($current.FullName))
     }
 
+    # AND WHAT TO EXPORT, BECAUSE THE FOLDER MAY NOT TRAVEL WITH IT.
+    #
+    # Hephaestus.psm1 ends with Export-ModuleMember over the Public\ FILE NAMES,
+    # which is exact and needs nothing extra - until the module ships as a bundle
+    # and NOTHING ELSE, which is what goes into a boot image and onto a deployed
+    # machine. Then Public\ is not there to enumerate, and the module loads every
+    # function and exports none of them: an import with no error and
+    # CommandNotFound for everything, on a machine mid-deployment.
+    #
+    # THE LIST IS WRITTEN HERE BECAUSE IT IS KNOWN HERE - these are the files
+    # just read. The alternative was Import-PowerShellDataFile against the
+    # manifest at load time, which is one more thing that has to exist inside
+    # WinPE for the engine to export a command.
+    $exportName = @(@($publicFile) | ForEach-Object { $_.BaseName } | Sort-Object)
+
+    [void] $text.AppendLine('')
+    [void] $text.AppendLine('# ---- the export list, for a module that ships without its Public folder ----')
+    [void] $text.AppendLine(('$script:HDTBundleExport = @({0})' -f
+            ((@($exportName) | ForEach-Object { "'{0}'" -f $_ }) -join ', ')))
+
     # NO BOM, AND THE LINE ENDINGS THE SOURCES HAD. Windows PowerShell 5.1 reads
     # a BOM-less UTF-8 file as ASCII unless it has one - and every source here is
     # ASCII by contract (the analyzer settings say so), so this is safe and keeps

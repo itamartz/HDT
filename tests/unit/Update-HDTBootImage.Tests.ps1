@@ -105,6 +105,7 @@ bootImage:
         $seed[($script:enginePath + '\Hephaestus.psd1')] = '@{ ModuleVersion = ''0.1.0'' }'
         $seed[($script:enginePath + '\Hephaestus.psm1')] = '# loader'
         $seed[($script:enginePath + '\Public\Get-HDTAdkPath.ps1')] = '# public'
+        $seed[($script:enginePath + '\Hephaestus.bundle.ps1')] = '# every function, concatenated'
         $seed[($script:enginePath + '\Private\ConvertFrom-HDTYaml.ps1')] = '# private'
         $seed[($script:enginePath + '\Payload\Start-HDTDeployment.ps1')] = '# the entry point'
         $seed[($script:enginePath + '\Payload\Start-HDTResume.ps1')] = '# the resume leg'
@@ -390,6 +391,39 @@ Describe 'Update-HDTBootImage' {
                     ($script:mountPath + '\HDT\Start-HDTResume.ps1'))) {
 
                 $script:contentContext.FileSystem.TestPath($path) | Should -BeTrue -Because "$path must be in the image"
+            }
+        }
+
+        It 'stages the bundle rather than several hundred one-function files' {
+            # ONE FILE INSTEAD OF 391. The module is authored one function per
+            # file and the loader dot-sources them all; the bundle is that same
+            # code concatenated, and Hephaestus.psm1 prefers it. Staging the
+            # sources meant reading, copying and parsing 391 files to build an
+            # image - and then Copy-HDTResumeAgent copying all 391 again onto
+            # every machine deployed from it.
+            #
+            # THE BUNDLE IS REGENERATED HERE, not trusted: a stale one would ship
+            # an engine older than the source it was built beside, which is the
+            # one outcome worse than a slow build.
+            $script:contentContext.FileSystem.TestPath(
+                $script:mountPath + '\HDT\Modules\Hephaestus\Hephaestus.bundle.ps1') | Should -BeTrue
+        }
+
+        It 'leaves the one-function sources behind' {
+            foreach ($path in @(
+                    ($script:mountPath + '\HDT\Modules\Hephaestus\Public\Get-HDTAdkPath.ps1'),
+                    ($script:mountPath + '\HDT\Modules\Hephaestus\Private\ConvertFrom-HDTYaml.ps1'))) {
+
+                $script:contentContext.FileSystem.TestPath($path) | Should -BeFalse -Because "$path is inside the bundle"
+            }
+        }
+
+        It 'still stages the manifest and the loader, which are what Import-Module reads' {
+            foreach ($path in @(
+                    ($script:mountPath + '\HDT\Modules\Hephaestus\Hephaestus.psd1'),
+                    ($script:mountPath + '\HDT\Modules\Hephaestus\Hephaestus.psm1'))) {
+
+                $script:contentContext.FileSystem.TestPath($path) | Should -BeTrue
             }
         }
 
