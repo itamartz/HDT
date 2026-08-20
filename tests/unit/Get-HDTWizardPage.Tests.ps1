@@ -213,6 +213,62 @@ Describe 'Get-HDTWizardPage' {
             @($result.Page).Count | Should -Be 2
         }
 
+        # A PAGE WITH TWO MUTUALLY EXCLUSIVE HALVES CANNOT DEMAND BOTH.
+        #
+        # MDT's Computer Details pane offers a domain OR a workgroup, and
+        # SkipDomainMembership needs whichever one the machine is actually
+        # getting - not both. HDT demanded every non-secret variable the page
+        # collected, so a workgroup machine could not skip the page without
+        # being handed a domain name, an OU and a join account it would never
+        # use. The first real zero-touch deployment failed on exactly that:
+        #
+        #   the wizard page 'ComputerDetail' is skipped by HDTSkipWizard, but
+        #   nothing supplies HDTJoinDomain
+        #
+        # on a machine whose rules said WORKGROUP.
+        #
+        # SO THE DOCUMENT SAYS WHICH ARE REQUIRED, because only the document
+        # knows. Inferring "domain things are optional when a workgroup is set"
+        # would be the engine guessing at the meaning of somebody else's page,
+        # and a third-party page would get no such courtesy.
+
+        It 'does not demand a value the page declares optional' {
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'ComputerDetail'
+                    Title   = 'Computer details'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTComputerNameBox'; Variable = 'HDTComputerName' }
+                        [pscustomobject] @{ Control = 'HDTJoinDomainBox'; Variable = 'HDTJoinDomain'; Optional = $true }
+                    )
+                    Skip    = 'HDTSkipComputerName'
+                })
+
+            $result = Get-HDTWizardPage -Page $page `
+                -Variable @{ HDTSkipComputerName = $true; HDTComputerName = 'HDT-01' }
+
+            @($result.Page).Count | Should -Be 0
+            @($result.Skipped).Count | Should -Be 1
+        }
+
+        It 'still demands the ones it does not' {
+            # Optional is a per-variable statement, not a way to turn the whole
+            # check off.
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'ComputerDetail'
+                    Title   = 'Computer details'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTComputerNameBox'; Variable = 'HDTComputerName' }
+                        [pscustomobject] @{ Control = 'HDTJoinDomainBox'; Variable = 'HDTJoinDomain'; Optional = $true }
+                    )
+                    Skip    = 'HDTSkipComputerName'
+                })
+
+            { Get-HDTWizardPage -Page $page -Variable @{ HDTSkipComputerName = $true } } |
+                Should -Throw -ExpectedMessage '*HDTComputerName*'
+        }
+
         It 'treats an empty value as missing, not as supplied' {
             {
                 Get-HDTWizardPage -Page (New-HDTCataloguePage) `

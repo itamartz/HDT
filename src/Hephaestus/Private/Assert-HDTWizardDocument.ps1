@@ -1,4 +1,4 @@
-function Assert-HDTWizardDocument {
+﻿function Assert-HDTWizardDocument {
     <#
         .SYNOPSIS
             Validates Scripts\UI\wizard.yaml - the pages the technician wizard
@@ -74,7 +74,7 @@ function Assert-HDTWizardDocument {
     $knownRootKey = @('schemaVersion', 'title', 'pages')
 
     $knownPageKey = @('id', 'title', 'heading', 'subheading', 'reference', 'skip', 'validate', 'summary', 'collect')
-    $knownCollectKey = @('control', 'variable', 'property', 'isSecret', 'split', 'splitVariable', 'splitDefaultFrom')
+    $knownCollectKey = @('control', 'variable', 'property', 'isSecret', 'optional', 'split', 'splitVariable', 'splitDefaultFrom')
 
     $knownProperty = @('Text', 'SelectedValue', 'Password', 'IsChecked')
     $knownRule = @('ComputerName')

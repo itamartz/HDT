@@ -108,6 +108,28 @@ Describe 'Start-HDTResume.ps1' {
             $statePath[0].DefaultValue.Extent.Text | Should -BeLike '*C:\HDT\state.json*'
         }
 
+        It 'puts the staged module root on PSModulePath before it imports anything' {
+            # WITHOUT THIS THE LEG DIES ON THE FIRST DOCUMENT IT READS.
+            # ConvertFrom-HDTYaml imports powershell-yaml lazily by NAME, so a
+            # copy staged at C:\HDT\Modules\powershell-yaml is invisible unless
+            # C:\HDT\Modules is a module path - and the engine cannot read a
+            # sequence, a rule or an image catalog without it. The WinPE entry
+            # point has always done this; this one never did, and nothing
+            # noticed because no full-OS leg had ever run.
+            $script:text | Should -BeLike '*PSModulePath*'
+
+            $assignment = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $node.Left.Extent.Text -like '*PSModulePath*'
+                    }, $true))
+
+            $assignment.Count | Should -BeGreaterOrEqual 1
+
+            $import = @(& $script:commandNamed 'Import-Module')[0]
+            $assignment[0].Extent.StartOffset | Should -BeLessThan $import.Extent.StartOffset
+        }
+
         It 'sets StrictMode and ErrorActionPreference' {
             @(& $script:commandNamed 'Set-StrictMode').Count | Should -Be 1
             $script:text | Should -BeLike "*ErrorActionPreference = 'Stop'*"

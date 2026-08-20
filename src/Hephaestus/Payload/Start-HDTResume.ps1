@@ -114,6 +114,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# THE STAGED MODULE ROOT GOES ON PSModulePath FIRST, and this is not a
+# convenience. ConvertFrom-HDTYaml imports powershell-yaml lazily BY NAME, so the
+# copy Copy-HDTResumeAgent staged at <root>\powershell-yaml is invisible to it
+# unless the folder holding it is a module path - and without that parser the
+# engine cannot read one document: not a sequence, not a rule, not an image
+# catalog. The WinPE entry point has always done this; this file never did, and
+# nothing noticed because no full-OS leg had ever run.
+#
+# THE PARENT OF -ModulePath, so the two stay in step. A caller pointing
+# -ModulePath at a source tree gets that tree's parent, which is where anything
+# beside it would be.
+$moduleRoot = [System.IO.Path]::GetDirectoryName($ModulePath.TrimEnd('\', '/'))
+
+if (-not [string]::IsNullOrWhiteSpace($moduleRoot)) {
+    $env:PSModulePath = '{0};{1}' -f $moduleRoot, $env:PSModulePath
+}
+
 Import-Module -Name $ModulePath -Force -ErrorAction Stop
 
 # The real adapters. A fake never appears in this file: it runs on a machine

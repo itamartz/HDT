@@ -1,4 +1,4 @@
-# Every feature of the definition, and the four pages HDT ships as samples.
+﻿# Every feature of the definition, and the four pages HDT ships as samples.
 #
 # MDT's DeployWiz_Definition_ENU.xml lists one <Pane id= reference= /> per
 # screen with a <Condition> deciding whether it appears; PSD's theme definition
@@ -37,8 +37,10 @@ pages:
         variable: HDTComputerName
       - control: HDTJoinDomainBox
         variable: HDTJoinDomain
+        optional: true
       - control: HDTMachineObjectOuBox
         variable: HDTMachineObjectOU
+        optional: true
       - control: HDTJoinWorkgroupBox
         variable: HDTJoinWorkgroup
 
@@ -46,11 +48,13 @@ pages:
       # below can see what it held and decide whether to keep it.
       - control: HDTDomainAdminDomainBox
         variable: HDTDomainAdminDomain
+        optional: true
 
       # One box, two variables: CORP\svc-hdt-join, or a bare account that
       # belongs to the domain being joined.
       - control: HDTDomainAdminBox
         variable: HDTDomainAdmin
+        optional: true
         split: AccountName
         splitVariable: HDTDomainAdminDomain
         splitDefaultFrom: HDTJoinDomain

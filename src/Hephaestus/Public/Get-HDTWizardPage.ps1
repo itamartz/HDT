@@ -142,6 +142,22 @@ function Get-HDTWizardPage {
             if ($null -ne $declaration.PSObject.Properties['IsSecret']) { $isSecret = [bool] $declaration.IsSecret }
             if ($isSecret) { continue }
 
+            # AND A PAGE WITH TWO MUTUALLY EXCLUSIVE HALVES DOES NOT DEMAND
+            # BOTH. MDT's Computer Details pane offers a domain OR a workgroup,
+            # and SkipDomainMembership needs whichever one the machine is
+            # actually getting; demanding every variable meant a workgroup
+            # machine could not skip the page without being handed a domain
+            # name, an OU and a join account it would never use. The first real
+            # zero-touch deployment in this lab failed on exactly that.
+            #
+            # THE DOCUMENT SAYS WHICH, because only the document knows. Working
+            # it out here - "domain things do not matter when a workgroup is
+            # set" - would be the engine guessing at the meaning of somebody
+            # else's page, and a third-party page would get no such courtesy.
+            $isOptional = $false
+            if ($null -ne $declaration.PSObject.Properties['Optional']) { $isOptional = [bool] $declaration.Optional }
+            if ($isOptional) { continue }
+
             $name = [string] $declaration.Variable
 
             $supplied = $false

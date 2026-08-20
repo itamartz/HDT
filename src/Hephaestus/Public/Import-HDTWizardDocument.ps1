@@ -1,4 +1,4 @@
-function Import-HDTWizardDocument {
+﻿function Import-HDTWizardDocument {
     <#
         .SYNOPSIS
             Reads Scripts\UI\wizard.yaml off the share and returns the pages the
@@ -135,11 +135,18 @@ function Import-HDTWizardDocument {
                 $isSecret = $false
                 if ($entry.Contains('isSecret')) { $isSecret = [bool] $entry['isSecret'] }
 
+                # WHICH HALF OF A TWO-HALVED PAGE THIS BELONGS TO. See
+                # Get-HDTWizardPage's skip check: a workgroup machine skipping
+                # Computer Details must not be made to supply a domain.
+                $isOptional = $false
+                if ($entry.Contains('optional')) { $isOptional = [bool] $entry['optional'] }
+
                 $collect += [pscustomobject] @{
                     Control          = & $reader 'control'
                     Variable         = & $reader 'variable'
                     Property         = & $reader 'property'
                     IsSecret         = $isSecret
+                    Optional         = $isOptional
                     Split            = & $reader 'split'
                     SplitVariable    = & $reader 'splitVariable'
                     SplitDefaultFrom = & $reader 'splitDefaultFrom'

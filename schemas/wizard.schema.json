@@ -146,6 +146,10 @@
                   "description": "The variable to fall back to when the typed value carried no domain. For a join account this is HDTJoinDomain - a bare account belongs to the domain being joined.",
                   "type": "string",
                   "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+                },
+                "optional": {
+                  "description": "The skip check does not demand this one. For a page with two mutually exclusive halves - MDT's Computer Details offers a domain OR a workgroup - only the half the machine is getting has to be supplied.",
+                  "type": "boolean"
                 }
               }
             }
