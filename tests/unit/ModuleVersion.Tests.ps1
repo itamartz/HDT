@@ -34,6 +34,8 @@ BeforeAll {
     # markup - because markup ships too, and editing a window is editing the
     # module.
     function New-HDTTestModule {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Writes a throwaway module tree under the test''s own temp path; nothing to confirm.')]
         param(
             [string] $Path,
             [string] $Version = '0.2.0',
