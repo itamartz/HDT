@@ -687,3 +687,100 @@ Describe 'Start-HDTDeployment.ps1' {
         }
     }
 }
+
+Describe 'Start-HDTDeployment.ps1 and the engine s own defaults' {
+
+    # THE ENGINE SUPPLIES FOUR LOCALES AND A TIME ZONE WHEN NOBODY ELSE DID, and
+    # for five milestones it supplied them AFTER the wizard had already refused
+    # to skip the page that collects them. A zero-touch deployment in this lab
+    # died on:
+    #
+    #   the wizard page 'LocaleTime' is skipped by HDTSkipWizard, but nothing
+    #   supplies HDTTimeZone
+    #
+    # a hundred and fifty lines above the line that supplies HDTTimeZone. The
+    # message was true about the moment it was written and false about the run.
+    #
+    # DEFAULTS BELONG BEFORE ANYTHING READS THEM. That is the whole ordering
+    # argument: a default applied after the check that wanted it is not a
+    # default, it is a value nobody can use.
+
+    It 'seeds them before the wizard decides which pages to ask' {
+        $seed = @($script:ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                    $node.Value -eq 'HDTTimeZone'
+                }, $true))
+
+        $seed.Count | Should -BeGreaterOrEqual 1
+
+        $check = @(& $script:commandNamed 'Get-HDTWizardPage')
+
+        $check.Count | Should -BeGreaterOrEqual 1
+
+        # The FIRST mention of the time zone is the seed; the check comes after.
+        $first = @($seed | Sort-Object { $_.Extent.StartOffset })[0]
+
+        $first.Extent.StartOffset | Should -BeLessThan $check[0].Extent.StartOffset
+    }
+
+    It 'keeps applying them only when nothing else spoke' {
+        # DESIGN 3.1 precedence: the command line, a machine override and a rule
+        # all beat the engine. Seeding earlier must not turn a default into an
+        # override.
+        $script:text | Should -BeLike '*Contains*'
+    }
+}
+
+Describe 'Start-HDTDeployment.ps1 and a share it cannot reach' {
+
+    # ZTI HAS NO TECHNICIAN. That is what the letters mean, and it decides this
+    # entirely: an image built to run with nobody present must never stop and
+    # wait for somebody to press Next. A machine sitting at a screen is not
+    # safer than one that failed - it is unreachable AND silent, and it stays
+    # that way until a human happens to walk past.
+    #
+    # THIS FILE ALREADY GOT IT RIGHT ONCE. The no-address path checks the same
+    # skip and throws HDTNetworkError rather than asking. The share path did the
+    # opposite, on the argument that "a share that cannot be reached has no
+    # unattended outcome left to protect" - which is exactly backwards: the
+    # outcome to protect is the REPORT, and a machine waiting at a prompt
+    # writes none.
+    #
+    # Measured, in this lab, on 2026-08-20: one transient connect failure left
+    # HDT-ZTI-01 at the Welcome screen for two hours and forty-five minutes,
+    # correctly prefilled with everything it needed, with nobody to press Next.
+    # The host was up, the share was Online, port 445 was open and the
+    # credential mapped - the second attempt that never happened would have
+    # worked.
+
+    It 'retries the connect before it gives up on the share' {
+        # A TRANSIENT IS THE COMMON CASE. WinPE has just brought a network up;
+        # the first SMB attempt is the least likely one to succeed, and it was
+        # the only one there was.
+        $script:text | Should -BeLike '*ConnectAttempt*'
+    }
+
+    It 'takes the number of attempts as a parameter rather than burying it' {
+        $parameter = @($script:ast.ParamBlock.Parameters |
+                Where-Object { $_.Name.VariablePath.UserPath -eq 'ConnectAttempt' })
+
+        $parameter.Count | Should -Be 1
+    }
+
+    It 'fails by name instead of asking, when the image says nobody is there' {
+        # Get-HDTWizardSkip's Welcome is the same test the no-address path uses,
+        # so one image gets one answer to "is anybody standing here".
+        $skip = @(& $script:commandNamed 'Get-HDTWizardSkip')
+
+        $skip.Count | Should -BeGreaterOrEqual 2 -Because 'the network path and the share path both have to ask'
+
+        $script:text | Should -BeLike '*HDTShareError:*'
+    }
+
+    It 'says what to do about it, the way the network refusal does' {
+        # A named failure that does not say what to change is a stack trace with
+        # better manners.
+        $script:text | Should -BeLike '*HDTShareError:*could not be reached*'
+    }
+}

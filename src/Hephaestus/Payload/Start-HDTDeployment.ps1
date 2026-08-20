@@ -124,6 +124,16 @@ param(
     [ValidateNotNullOrEmpty()]
     [string] $ModuleRoot = 'X:\HDT\Modules',
 
+    # HOW MANY TIMES THE SHARE IS TRIED BEFORE ANYBODY IS ASKED OR ANYTHING IS
+    # REPORTED. WinPE has just brought a network up when the first attempt
+    # happens, which makes it the least likely one to succeed - and until this
+    # existed it was the only one there was. Measured in this lab: one transient
+    # failure left a machine at the Welcome screen for two hours and forty-five
+    # minutes, on a host that was up the whole time.
+    [Parameter()]
+    [ValidateRange(1, 60)]
+    [int] $ConnectAttempt = 5,
+
     [Parameter()]
     [AllowEmptyString()]
     [string] $SequenceId = '',
@@ -614,17 +624,56 @@ try {
 
     while ($true) {
         $providerArgument['Root'] = [string] $deployRoot.Path
-        $content = New-HDTContentProvider @providerArgument
 
-        $reached = $true
-        try {
-            [void] $content.Connect()
-        } catch {
-            $reached = $false
-            & $say ("could not reach '{0}': {1}" -f $deployRoot.Path, $_.Exception.Message) 'Warning'
+        # TRIED MORE THAN ONCE, BECAUSE THE FIRST ATTEMPT IS THE WORST ONE.
+        # WinPE has just finished bringing a network up: the switch may still be
+        # learning, the lease may be seconds old, and the server may have no
+        # session yet for a client that has only just appeared. Every one of
+        # those is over in a few seconds, and none of them is a reason to end a
+        # deployment or to wake somebody up.
+        $reached = $false
+        $lastError = ''
+
+        for ($try = 1; $try -le $ConnectAttempt; $try++) {
+            $content = New-HDTContentProvider @providerArgument
+
+            try {
+                [void] $content.Connect()
+                $reached = $true
+                break
+            } catch {
+                $lastError = [string] $_.Exception.Message
+
+                & $say ("could not reach '{0}' (attempt {1} of {2}): {3}" -f
+                    $deployRoot.Path, $try, $ConnectAttempt, $lastError) 'Warning'
+            }
+
+            if ($try -lt $ConnectAttempt) { Start-Sleep -Seconds ($try * 2) }
         }
 
         if ($reached) { break }
+
+        # AND THEN, IF NOBODY IS STANDING HERE, IT FAILS BY NAME.
+        #
+        # ZTI HAS NO TECHNICIAN - that is what the letters mean. An image built
+        # to run with nobody present must never stop and wait for somebody to
+        # press Next: a machine at a screen is not safer than one that failed,
+        # it is unreachable AND silent, and it stays that way until a human
+        # happens to walk past. This file already answers that question the
+        # right way for a machine with no address, using this same skip; the
+        # share path answered it the other way, on the argument that a share
+        # that cannot be reached "has no unattended outcome left to protect".
+        # That is backwards. The outcome to protect is the REPORT, and a machine
+        # waiting at a prompt writes none.
+        #
+        # THE SCREEN REMAINS THE ANSWER FOR LITE TOUCH, where somebody IS at the
+        # bench and a mistyped share is a thing they can fix in ten seconds.
+        $shareSkip = Get-HDTWizardSkip -Bootstrap $bootstrap
+
+        if ($shareSkip.Welcome) {
+            throw ("HDTShareError: '{0}' could not be reached after {1} attempt(s) - {2}. This image runs with nobody present, so there is nobody to ask for another share. Check that the deployment share is published and reachable from this segment, that the deployment account can open it, and that the address the image was built with is still the server's - a DHCP lease moves." -f
+                $deployRoot.Path, $ConnectAttempt, $lastError)
+        }
 
         $corrected = & $showWelcome
 
@@ -694,6 +743,58 @@ try {
     }
 
     $resolved = Resolve-HDTVariable @resolveArgument
+
+    # -- 10b. THE ENGINE'S OWN DEFAULTS, BEFORE ANYTHING READS THEM -----------
+    #
+    # unattend.xml asks for four locales and a time zone as TOKENS rather than
+    # carrying en-US as a literal, and Invoke-HDTApplyUnattend refuses a document
+    # with an unresolved token - correctly, because a machine named
+    # %HDTComputerName% is worse than a failed step. So a share that never
+    # mentions them needs an answer, and it is the one the template hard-coded
+    # before it was a variable: US English, and the boot image's own zone.
+    #
+    # THEY USED TO BE APPLIED A HUNDRED AND FIFTY LINES BELOW, after the wizard
+    # had already decided which pages to ask. A zero-touch deployment in this lab
+    # died on "the wizard page 'LocaleTime' is skipped by HDTSkipWizard, but
+    # nothing supplies HDTTimeZone" - above the line that supplies HDTTimeZone.
+    # A default applied after the check that wanted it is not a default; it is a
+    # value nobody can use.
+    #
+    # ONLY WHEN NOTHING ELSE SPOKE. DESIGN 3.1's precedence puts the command
+    # line, a machine override and a rule above the engine, and Contains is what
+    # keeps them there. Seeding earlier must not turn a default into an override,
+    # which is why this is a test rather than a comment.
+    #
+    # ONE RULE, TWO CALL SITES. The bag the engine finally runs on may be the
+    # WIZARD's - a second-passed set built by Start-HDTWizardDeployment - so the
+    # same seed is applied to that below. Two copies of a default list would be
+    # two default lists as soon as one of them was corrected.
+    $seedEngineDefault = {
+        param($Bag)
+
+        foreach ($pair in @(
+                @{ Name = 'HDTKeyboardLocale'; Value = '0409:00000409' },
+                @{ Name = 'HDTSystemLocale'; Value = 'en-US' },
+                @{ Name = 'HDTUILanguage'; Value = 'en-US' },
+                @{ Name = 'HDTUserLocale'; Value = 'en-US' })) {
+
+            if (-not $Bag.Contains([string] $pair.Name)) {
+                $Bag[[string] $pair.Name] = [string] $pair.Value
+            }
+        }
+
+        # THE TIME ZONE THE DEPLOYED MACHINE GETS, from the boot image, unless a
+        # rule already answered. The unattend's specialize pass reads it; without
+        # it Windows derives the zone from the locale and every en-US machine
+        # comes up on Pacific Standard Time.
+        if (-not [string]::IsNullOrWhiteSpace([string] $bootstrap.TimeZone) -and
+            -not $Bag.Contains('HDTTimeZone')) {
+
+            $Bag['HDTTimeZone'] = [string] $bootstrap.TimeZone
+        }
+    }
+
+    & $seedEngineDefault $resolved.Variable
 
     # -- 10a. the technician wizard, IF THIS SHARE DECLARES ONE ---------------
     #
@@ -864,39 +965,11 @@ try {
 
     $result['deploymentStart'] = [string] $variable['HDTDeploymentStart']
 
-    # LANGUAGE AND REGION, WHEN NOBODY SAID. unattend.xml asks these four as
-    # tokens rather than carrying en-US as a literal, and Invoke-HDTApplyUnattend
-    # REFUSES a document with an unresolved token - correctly, because a machine
-    # named %HDTComputerName% is worse than a failed step. So a share that never
-    # mentions them needs an answer, and it is the one the template hard-coded
-    # before it was a variable: US English.
-    #
-    # ONLY WHEN NOTHING ELSE SPOKE, like the time zone below. DESIGN 3.1's
-    # precedence puts the command line, a machine override and a rule above the
-    # engine, and Contains is what keeps them there.
-    foreach ($pair in @(
-            @{ Name = 'HDTKeyboardLocale'; Value = '0409:00000409' },
-            @{ Name = 'HDTSystemLocale'; Value = 'en-US' },
-            @{ Name = 'HDTUILanguage'; Value = 'en-US' },
-            @{ Name = 'HDTUserLocale'; Value = 'en-US' })) {
-
-        if (-not $variable.Contains([string] $pair.Name)) {
-            $variable[[string] $pair.Name] = [string] $pair.Value
-        }
-    }
-
-    # THE TIME ZONE THE DEPLOYED MACHINE GETS, from the boot image, unless a rule
-    # already answered. The unattend's specialize pass reads it; without it
-    # Windows derives the zone from the locale and every en-US machine comes up
-    # on Pacific Standard Time.
-    #
-    # ONLY WHEN NOTHING ELSE SPOKE. DESIGN 3.1's precedence puts a rule above the
-    # boot image, and Contains is what keeps it there.
-    if (-not [string]::IsNullOrWhiteSpace([string] $bootstrap.TimeZone) -and
-        -not $variable.Contains('HDTTimeZone')) {
-
-        $variable['HDTTimeZone'] = [string] $bootstrap.TimeZone
-    }
+    # AND THE SAME DEFAULTS ON THE BAG THE ENGINE ACTUALLY RUNS ON. When a wizard
+    # ran, this is its second-passed set rather than the one seeded above, so the
+    # seed is applied again - idempotently, because every line of it is guarded
+    # by Contains. It is the same rule, not a second one: see $seedEngineDefault.
+    & $seedEngineDefault $variable
 
     # WHAT THIS BOOT IMAGE CARRIES, so a sequence can ask before it acts. The
     # client template's Install Certificates step is conditioned on it, and it
