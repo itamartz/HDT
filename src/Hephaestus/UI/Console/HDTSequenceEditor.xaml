@@ -1,4 +1,4 @@
-﻿<Window
+<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Task Sequence Editor"
@@ -876,6 +876,181 @@
                                         Style="{StaticResource HDTToolButton}" />
                                 <Button x:Name="HDTValidateRevertButton"
                                         Style="{StaticResource HDTToolButton}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!--
+                    THE APPLICATIONS. MDT's Install Application dialog, which
+                    asks ONE question first: does this step install what the
+                    technician chose, or a list the sequence names?
+
+                    THAT QUESTION IS THE WHOLE REASON FOR THE RADIO PAIR. The
+                    step template writes selection: '%HDTApplications%' on
+                    purpose - that is what a wizard answer or a rule fills - and
+                    a page that offered only tick boxes would delete the
+                    indirection the sequence was built on the first time
+                    anybody pressed Apply.
+
+                    NOTHING HERE NAMES AN APPLICATION. The rows are bound from
+                    Get-HDTConsoleApplicationChoice, which reads the share's own
+                    catalogue - so an application imported tomorrow appears on
+                    this page without this file being touched, and an id that
+                    does not exist cannot be produced by clicking.
+
+                    Until this tab existed the selection was a text box on the
+                    generic Properties tab: the ids were typed from memory, and
+                    a typo was not found until a deployment ran and
+                    Resolve-HDTApplicationOrder refused the whole plan on the
+                    machine in front of somebody.
+                -->
+                <TabItem x:Name="HDTApplicationTab">
+                    <Grid Margin="14,12,14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid.Resources>
+                            <!-- The ? the other two pages use. A Border rather
+                                 than a bare glyph because WPF raises a tooltip
+                                 only over what is painted. -->
+                            <Style TargetType="Border" x:Key="HDTAppHelpDot">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Width" Value="22" />
+                                <Setter Property="Height" Value="22" />
+                                <Setter Property="CornerRadius" Value="11" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                                <Setter Property="Cursor" Value="Help" />
+                                <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+                                <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+                            </Style>
+
+                            <Style TargetType="TextBlock" x:Key="HDTAppHelpGlyph">
+                                <Setter Property="Text" Value="?" />
+                                <Setter Property="Foreground" Value="{DynamicResource HDTLabelBrush}" />
+                                <Setter Property="FontFamily" Value="Segoe UI" />
+                                <Setter Property="FontSize" Value="12" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Setter Property="HorizontalAlignment" Value="Center" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                            </Style>
+                        </Grid.Resources>
+
+                        <!-- ONE: the variable. MDT's "Install multiple
+                             applications", and the default a new step is
+                             written with. -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+
+                            <RadioButton Grid.Column="0" x:Name="HDTApplicationVariableRadio"
+                                         GroupName="HDTApplicationSource"
+                                         Foreground="{DynamicResource HDTPanelTextBrush}"
+                                         VerticalAlignment="Center" />
+
+                            <TextBlock Grid.Column="1" x:Name="HDTApplicationVariableLabel"
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       FontSize="12" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                            <!-- THE NAME IS TYPED BECAUSE IT IS NOT ALWAYS
+                                 HDTApplications: a sequence built for one
+                                 department can read its own. -->
+                            <TextBox Grid.Column="2" x:Name="HDTApplicationVariableBox"
+                                     Background="{DynamicResource HDTPanelBrush}"
+                                     Foreground="{DynamicResource HDTPanelTextBrush}"
+                                     BorderBrush="{DynamicResource HDTBorderBrush}"
+                                     BorderThickness="1"
+                                     FontFamily="Consolas, Courier New" FontSize="12"
+                                     Padding="6,5,6,5" VerticalContentAlignment="Center"
+                                     IsEnabled="{Binding IsChecked, ElementName=HDTApplicationVariableRadio}" />
+
+                            <Border Grid.Column="3" Style="{StaticResource HDTAppHelpDot}"
+                                    HorizontalAlignment="Right">
+                                <Border.ToolTip>
+                                    <ToolTip MaxWidth="380">
+                                        <TextBlock TextWrapping="Wrap" x:Name="HDTApplicationVariableHint" />
+                                    </ToolTip>
+                                </Border.ToolTip>
+                                <TextBlock Style="{StaticResource HDTAppHelpGlyph}" />
+                            </Border>
+                        </Grid>
+
+                        <!-- TWO: a fixed list, ticked out of the share. -->
+                        <Grid Grid.Row="1" Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+
+                            <RadioButton Grid.Column="0" x:Name="HDTApplicationFixedRadio"
+                                         GroupName="HDTApplicationSource"
+                                         Foreground="{DynamicResource HDTPanelTextBrush}"
+                                         VerticalAlignment="Center" />
+
+                            <Border Grid.Column="1" Style="{StaticResource HDTAppHelpDot}"
+                                    HorizontalAlignment="Right">
+                                <Border.ToolTip>
+                                    <ToolTip MaxWidth="380">
+                                        <TextBlock TextWrapping="Wrap" x:Name="HDTApplicationFixedHint" />
+                                    </ToolTip>
+                                </Border.ToolTip>
+                                <TextBlock Style="{StaticResource HDTAppHelpGlyph}" />
+                            </Border>
+                        </Grid>
+
+                        <!-- A SHARE WITH NOTHING IN IT SAYS SO. An empty list
+                             control reads as a page that failed to load. -->
+                        <TextBlock Grid.Row="2" x:Name="HDTApplicationEmptyText"
+                                   Foreground="{DynamicResource HDTLabelBrush}"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Margin="22,10,0,0" Visibility="Collapsed" />
+
+                        <Border Grid.Row="3" Margin="22,8,0,0"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          Padding="10,8,10,8">
+                                <ItemsControl x:Name="HDTApplicationList"
+                                              IsEnabled="{Binding IsChecked, ElementName=HDTApplicationFixedRadio}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Content="{Binding Display}"
+                                                      IsChecked="{Binding Selected, Mode=TwoWay}"
+                                                      Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                      Margin="0,0,0,6" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <Border Grid.Row="4" Padding="0,10,0,0" Margin="0,10,0,0"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HDTApplicationApplyButton"
+                                        Style="{StaticResource HDTToolButton}" />
+                                <Button x:Name="HDTApplicationRevertButton"
+                                        Style="{StaticResource HDTToolButton}" />
+
+                                <!-- WHAT THE DOCUMENT SAYS, IN A SENTENCE,
+                                     written at run time: which variable the
+                                     step reads, or nothing when it names a
+                                     list. -->
+                                <TextBlock x:Name="HDTApplicationNoteText"
+                                           Foreground="{DynamicResource HDTLabelBrush}"
+                                           FontSize="12" TextWrapping="Wrap"
+                                           VerticalAlignment="Center" Margin="14,0,0,0" />
                             </StackPanel>
                         </Border>
                     </Grid>

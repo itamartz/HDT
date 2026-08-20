@@ -277,6 +277,7 @@
         'Get-HDTConsoleSetting',
         'Get-HDTConsoleTheme',
         'Get-HDTConsoleValidateCheck',
+        'Get-HDTConsoleApplicationChoice',
         'Get-HDTConsoleTreeNode',
         'Get-HDTConsoleWorkspace',
         'New-HDTConsoleHost',

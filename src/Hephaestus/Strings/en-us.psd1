@@ -150,6 +150,18 @@
         'HDTValidateApplyButton.Content' = 'Apply checks'
         'HDTValidateRevertButton.Content' = 'Revert'
 
+        # The Applications page - MDT's Install Application dialog, which asks
+        # which of the two answers this step is before it asks anything else.
+        'HDTApplicationTab.Header' = 'Applications'
+        'HDTApplicationVariableRadio.Content' = 'Install what the technician chose'
+        'HDTApplicationVariableLabel.Text' = 'from'
+        'HDTApplicationVariableHint.Text' = 'The variable the step reads at deployment time. HDTApplications is what the wizard''s application page and a rule in rules.yaml both write, so a step left on this setting installs whatever was chosen for that machine.'
+        'HDTApplicationFixedRadio.Content' = 'Install these applications'
+        'HDTApplicationFixedHint.Text' = 'A list this sequence names, the same for every machine that runs it. Ticking one also installs what it depends on - the engine works that out and orders them.'
+        'HDTApplicationEmptyText.Text' = 'This share holds no applications. Import one and it appears here.'
+        'HDTApplicationApplyButton.Content' = 'Apply'
+        'HDTApplicationRevertButton.Content' = 'Revert'
+
         'HDTDiskTab.Header' = 'Disk'
         'HDTDiskNumberLabel.Text' = 'Disk number'
         'HDTDiskNumberBox.ToolTip' = 'The disk to lay out. Empty lets the engine select one, and it refuses to guess when more than one qualifies.'

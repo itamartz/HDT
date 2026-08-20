@@ -2699,6 +2699,15 @@
         $validateList = $window.FindName('HDTValidateList')
         $validateApply = $window.FindName('HDTValidateApplyButton')
         $validateRevert = $window.FindName('HDTValidateRevertButton')
+        $applicationTab = $window.FindName('HDTApplicationTab')
+        $applicationList = $window.FindName('HDTApplicationList')
+        $applicationVariableRadio = $window.FindName('HDTApplicationVariableRadio')
+        $applicationVariableBox = $window.FindName('HDTApplicationVariableBox')
+        $applicationFixedRadio = $window.FindName('HDTApplicationFixedRadio')
+        $applicationEmptyText = $window.FindName('HDTApplicationEmptyText')
+        $applicationNoteText = $window.FindName('HDTApplicationNoteText')
+        $applicationApply = $window.FindName('HDTApplicationApplyButton')
+        $applicationRevert = $window.FindName('HDTApplicationRevertButton')
         $stepNameBox = $window.FindName('HDTStepNameBox')
         $diskNumberBox = $window.FindName('HDTDiskNumberBox')
         $diskStyleBox = $window.FindName('HDTDiskStyleBox')
@@ -2780,6 +2789,10 @@
             # THE SHARE'S OPERATING SYSTEMS, read once when the editor opens.
             # See the note beside Get-HDTConsoleImageChoice below.
             Catalog   = $null
+
+            # AND ITS APPLICATIONS, out of the same read, for the page that
+            # picks what an InstallApplications step installs.
+            AppCatalog = $null
             IndexWritten = ''
             IndexShown = ''
             Quiet     = $false
@@ -2803,14 +2816,22 @@
         # the tree; Rebuild is the only thing that does, and it runs only after
         # an edit.
         # ONCE, HERE, RATHER THAN ON EVERY REFRESH BELOW.
+        #
+        # AND ONE READ FOR BOTH CATALOGUES. The images and the applications come
+        # out of the same Get-HDTConsoleWorkspace call: reading the share twice
+        # to fill two tabs costs a second of somebody's time for nothing.
         $book.Catalog = @()
+        $book.AppCatalog = @()
         try {
-            $book.Catalog = @((Get-HDTConsoleWorkspace -Path $workspaceRoot `
-                        -FileSystem (New-HDTFileSystem)).OperatingSystem)
+            $share = Get-HDTConsoleWorkspace -Path $workspaceRoot -FileSystem (New-HDTFileSystem)
+
+            $book.Catalog = @($share.OperatingSystem)
+            $book.AppCatalog = @($share.Application)
         } catch {
-            # A share that will not read leaves the list empty and the editor
+            # A share that will not read leaves the lists empty and the editor
             # open - the same bargain Get-HDTConsoleImageChoice makes.
             $book.Catalog = @()
+            $book.AppCatalog = @()
         }
 
         $reflect = {
@@ -2974,6 +2995,38 @@
             $validateApply.IsEnabled = $validate.IsValidateStep
             $validateRevert.IsEnabled = $validate.IsValidateStep
 
+            # THE APPLICATIONS PAGE, on the same rule as the other two: MDT's
+            # Install Application dialog IS that step's properties page.
+            #
+            # THE CATALOGUE IS HANDED IN, READ ONCE - see $book.AppCatalog above.
+            $application = Get-HDTConsoleApplicationChoice -Line $book.Line -Path $Path `
+                -Name $book.Selected -Workspace $workspaceRoot -Catalog $book.AppCatalog -Document $parsed
+
+            $applicationTab.Visibility = [System.Windows.Visibility]::Collapsed
+
+            if ($application.IsApplicationStep) {
+                $applicationTab.Visibility = [System.Windows.Visibility]::Visible
+
+                $applicationList.ItemsSource = $application.Application
+
+                # WHICH OF MDT'S TWO ANSWERS THIS STEP IS. Quiet is already true
+                # here, so setting IsChecked does not run the handlers that write
+                # it back - which would splice the document on every refresh.
+                $applicationVariableRadio.IsChecked = [bool] $application.FromVariable
+                $applicationFixedRadio.IsChecked = -not [bool] $application.FromVariable
+
+                $applicationVariableBox.Text = [string] $application.Variable
+                $applicationNoteText.Text = [string] $application.Note
+
+                $applicationEmptyText.Visibility = [System.Windows.Visibility]::Collapsed
+                if (-not $application.HasCatalog) {
+                    $applicationEmptyText.Visibility = [System.Windows.Visibility]::Visible
+                }
+            }
+
+            $applicationApply.IsEnabled = $application.IsApplicationStep
+            $applicationRevert.IsEnabled = $application.IsApplicationStep
+
             # AND THE GENERIC TAB GOES WHEN A DEDICATED PAGE ARRIVES. With the
             # disk keys on their own page and the name above the tabs, what was
             # left on Properties for this step was eight rows of facts and
@@ -2982,7 +3035,8 @@
             # Properties stays for every other step type: most have no page of
             # their own, and it is the only editor they get.
             $propertyTab.Visibility = [System.Windows.Visibility]::Visible
-            if ($view.IsDiskStep -or $validate.IsValidateStep -or $imageChoice.IsImageStep) {
+            if ($view.IsDiskStep -or $validate.IsValidateStep -or $imageChoice.IsImageStep -or
+                $application.IsApplicationStep) {
                 $propertyTab.Visibility = [System.Windows.Visibility]::Collapsed
             }
 
@@ -3633,6 +3687,75 @@
                 # is the same reason the tree is.
                 & $reflect
             }.GetNewClosure())
+
+        # -- the Applications tab ------------------------------------------
+        #
+        # ONE KEY IS WRITTEN, `selection`, and which of MDT's two answers the
+        # page is on decides what goes in it: the variable the step reads, or
+        # the ids that are ticked.
+        #
+        # A COMMA-SEPARATED SCALAR, NOT A YAML LIST. Both are one list to the
+        # step's own reader, and a scalar is what Set-HDTStepProperty splices -
+        # writing a block sequence would leave its item lines behind the next
+        # time this rewrote the key.
+        $applicationWrite = {
+            $value = ''
+
+            if ($applicationVariableRadio.IsChecked -eq $true) {
+                $typed = ([string] $applicationVariableBox.Text).Trim()
+
+                # AN EMPTY BOX IS THE VARIABLE THE STEP FALLS BACK TO, rather
+                # than a step that installs nothing: clearing a name is not a
+                # decision to deploy no software.
+                if ([string]::IsNullOrWhiteSpace($typed)) { $typed = 'HDTApplications' }
+
+                $value = '%{0}%' -f ($typed -replace '%', '')
+            } else {
+                $value = (@(@($applicationList.ItemsSource) |
+                            Where-Object { $_.Selected -eq $true } |
+                            ForEach-Object { [string] $_.Id }) -join ', ')
+            }
+
+            & $partitionAttempt {
+                $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
+                        -Property 'selection' -Value $value -Confirm:$false)
+            } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'selection' -Value '{1}'" -f
+                $book.Selected, $value)
+        }.GetNewClosure()
+
+        # A TICK WRITES, the same as every tick on the Validation page, and for
+        # the reason found there: a tab where the tick did nothing until Apply
+        # read as a tab where nothing works.
+        #
+        # ONE HANDLER ON THE LIST, not one per row - the rows are made by a
+        # DataTemplate and remade on every selection.
+        $applicationList.AddHandler([System.Windows.Controls.Primitives.ToggleButton]::ClickEvent,
+            [System.Windows.RoutedEventHandler] {
+                if ($book.Quiet) { return }
+                & $applicationWrite
+            }.GetNewClosure())
+
+        # CHOOSING THE VARIABLE WRITES IT, because that is an unambiguous edit:
+        # the step goes back to reading %HDTApplications%.
+        $applicationVariableRadio.Add_Checked({
+                if ($book.Quiet) { return }
+                & $applicationWrite
+            }.GetNewClosure())
+
+        # CHOOSING THE LIST WRITES NOTHING YET. Nothing is ticked at that moment,
+        # so writing would clear the key - which the engine reads as the variable
+        # again, and the radio would snap back under somebody's hand. The first
+        # tick is the edit.
+        $applicationVariableBox.Add_LostFocus({
+                if ($book.Quiet) { return }
+                if ($applicationVariableRadio.IsChecked -ne $true) { return }
+
+                & $applicationWrite
+            }.GetNewClosure())
+
+        $applicationApply.Add_Click({ & $applicationWrite }.GetNewClosure())
+
+        $applicationRevert.Add_Click({ & $reflect }.GetNewClosure())
 
         # RENAMING IS A SPLICE LIKE ANY OTHER, and it has to update what the
         # window then refers to the step by - otherwise the next press acts on a

@@ -220,6 +220,18 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTImageTimeoutBox' }
         @{ Name = 'HDTImageApplyButton' }
         @{ Name = 'HDTImageRevertButton' }
+
+        # The Applications page - MDT's Install Application dialog, which asks
+        # which of its two answers the step is before it asks anything else.
+        @{ Name = 'HDTApplicationTab' }
+        @{ Name = 'HDTApplicationVariableRadio' }
+        @{ Name = 'HDTApplicationVariableBox' }
+        @{ Name = 'HDTApplicationFixedRadio' }
+        @{ Name = 'HDTApplicationList' }
+        @{ Name = 'HDTApplicationEmptyText' }
+        @{ Name = 'HDTApplicationNoteText' }
+        @{ Name = 'HDTApplicationApplyButton' }
+        @{ Name = 'HDTApplicationRevertButton' }
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
     }
