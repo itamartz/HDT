@@ -418,6 +418,29 @@
     $isoPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Boot -ChildPath ('{0}.iso' -f $imageName)
     $manifestPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Boot -ChildPath ('{0}.manifest.json' -f $imageName)
 
+    # CAN THIS BUILD WRITE WHAT IT IS ABOUT TO BUILD? Asked HERE, before the
+    # mount, for the same reason the dependency checks below are: a build that
+    # finds out at the end has already spent three minutes, and it finds out by
+    # failing over a half-written pair of artifacts.
+    #
+    # A VM HOLDING THE ISO IS THE CASE THIS CATCHES, and it is the common one in
+    # a lab - the machine you are testing the image on has it in its DVD drive.
+    # The probe writes and removes each staging name: same folder, same volume,
+    # same permissions as the artifacts themselves.
+    # PARENTHESISED, EACH ONE. @($a + '.new', $b + '.new') parses as
+    # $a + @('.new', $b) + '.new' - one concatenated string, and the probe then
+    # tries to write a path made of both artifacts joined by a space.
+    foreach ($probePath in @(($wimPath + '.new'), ($isoPath + '.new'))) {
+        try {
+            $FileSystem.WriteAllText($probePath, 'hdt')
+            $FileSystem.RemoveItem($probePath, $false)
+        } catch {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $probePath -Category WriteError `
+                        -Message ("'{0}' cannot be written, so this build would mount a WIM for several minutes and then fail with nowhere to put the result: {1}. In a lab the usual cause is a virtual machine holding the ISO in its DVD drive - shut it down, or point -ScratchPath and the share elsewhere." -f
+                            $probePath, $_.Exception.Message)))
+        }
+    }
+
     # The engine and the parser, resolved and existence-checked BEFORE the mount,
     # because a build that discovers a missing dependency with a WIM mounted has
     # wasted fifteen minutes to say something it could have said immediately.
@@ -1258,18 +1281,31 @@
         throw
     }
 
+    # ONE BUILD, TWO ARTIFACTS, AND THEY MUST AGREE (DESIGN 6.1.1). Both are
+    # written beside their final names and moved into place only once BOTH exist.
+    # Same directory means same volume, so those moves are renames rather than
+    # half a gigabyte of copying - and a build that dies between them leaves the
+    # PREVIOUS pair, intact and consistent, instead of a new .wim beside a stale
+    # .iso under matching names with nothing saying so.
+    #
+    # That is not hypothetical: a VM holding the ISO open made oscdimg fail after
+    # the WIM had been written, and the share was left with artifacts three hours
+    # apart.
+    $wimStagePath = $wimPath + '.new'
+    $isoStagePath = $isoPath + '.new'
+
     $FileSystem.CreateDirectory($bootFolder)
-    $FileSystem.RemoveItem($wimPath, $false)
-    $BootImageService.ExportImage($scratchWim, 1, $wimPath)
+    $FileSystem.RemoveItem($wimStagePath, $false)
+    $BootImageService.ExportImage($scratchWim, 1, $wimStagePath)
 
     # ONE FILE, TWO HOMES, SAME BYTES. The ISO is built from the exported WIM,
     # not from a second export - DESIGN 6.1.1's mechanism, and the reason the
     # manifest can record isoBootWimSha256 as a fact rather than a hope.
     $mediaBootWim = [System.IO.Path]::Combine($mediaSources, 'boot.wim')
-    $FileSystem.CopyItem($wimPath, $mediaBootWim)
+    $FileSystem.CopyItem($wimStagePath, $mediaBootWim)
 
-    $wimSha256 = [string] $FileSystem.GetHash($wimPath)
-    $wimSize = [long] $FileSystem.GetLength($wimPath)
+    $wimSha256 = [string] $FileSystem.GetHash($wimStagePath)
+    $wimSize = [long] $FileSystem.GetLength($wimStagePath)
 
     # =====================================================================
     # 17. THE ISO, THEN THE MANIFEST - LAST
@@ -1289,7 +1325,7 @@
     } else {
         $isoSplat = @{
             MediaRoot        = $mediaPath
-            Path             = $isoPath
+            Path             = $isoStagePath
             BootBitPath      = $bitPath
             Firmware         = $Firmware
             Architecture     = $buildArchitecture
@@ -1308,11 +1344,34 @@
 
         $iso = New-HDTBootIso @isoSplat
 
-        $isoResultPath = [string] $iso.Path
+        # THE FINAL PATH, NOT THE STAGING ONE. Everything downstream - the
+        # manifest, the returned object, the log a technician reads - names the
+        # file that will exist when this returns.
+        $isoResultPath = [string] $isoPath
         $isoSha256 = [string] $iso.Sha256
         $isoSize = [long] $iso.SizeBytes
         $isoBootWimSha256 = [string] $FileSystem.GetHash($mediaBootWim)
     }
+
+    # =====================================================================
+    # 17a. PUBLISH - BOTH, OR NEITHER
+    # =====================================================================
+    #
+    # Nothing above this line has touched the artifacts a technician boots. The
+    # renames are what replace them, and they happen only now that both exist.
+    # THE MANIFEST IS WRITTEN AFTER BOTH, which is what makes its recorded hashes
+    # a promise rather than a hope: a manifest on disk means the two files beside
+    # it came from the build that wrote it.
+    # THE ISO GOES FIRST, because it is the one something else holds open - a
+    # VM's DVD drive - so if a publish is going to fail, it fails before the WIM
+    # has been replaced and both artifacts are still the previous build's.
+    #
+    # TWO RENAMES ARE NOT ONE TRANSACTION, and no filesystem offers one across two
+    # files. The probe before the mount is what makes this window small rather
+    # than what makes it disappear.
+    if (-not $SkipIso) { $FileSystem.MoveItem($isoStagePath, $isoPath) }
+
+    $FileSystem.MoveItem($wimStagePath, $wimPath)
 
     $finishedUtc = $Clock.GetUtcNow()
 

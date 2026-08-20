@@ -75,7 +75,7 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $method = @($script:fs | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
-                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'GetChildItem', 'GetDirectory',
+                    'CreateDirectory', 'RemoveItem', 'CopyItem', 'MoveItem', 'GetChildItem', 'GetDirectory',
                     'TakeOwnership', 'GetLength', 'GetHash', 'GetVersion')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }

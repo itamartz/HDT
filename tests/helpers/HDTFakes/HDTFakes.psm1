@@ -289,6 +289,27 @@ class HDTFakeFileSystem {
         $this.AddFile($destinationPath, $this.File[$sourcePath])
     }
 
+    # See New-HDTFileSystem's MoveItem: a rename is how a build publishes an
+    # artifact, and the fake records it so a test can assert the ORDER things
+    # were published in.
+    [void] MoveItem([string] $Source, [string] $Destination) {
+        $this.Record('MoveItem', @($Source, $Destination))
+
+        $sourcePath = $this.Normalize($Source)
+        $destinationPath = $this.Normalize($Destination)
+
+        if (-not $this.File.ContainsKey($sourcePath)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find file '$sourcePath'.", $sourcePath)
+        }
+
+        # A MOVE IS A WRITE at the destination, so a path seeded to fail fails
+        # here - which is what lets a test stage "the ISO is locked".
+        $this.AssertWritable($destinationPath)
+
+        $this.AddFile($destinationPath, $this.File[$sourcePath])
+        [void] $this.File.Remove($sourcePath)
+    }
+
     [string[]] GetChildItem([string] $Path) {
         $this.Record('GetChildItem', @($Path))
         $full = $this.Normalize($Path)

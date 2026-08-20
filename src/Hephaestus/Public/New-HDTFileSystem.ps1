@@ -1,4 +1,4 @@
-function New-HDTFileSystem {
+﻿function New-HDTFileSystem {
     <#
         .SYNOPSIS
             Creates the real IFileSystem adapter over System.IO.
@@ -196,6 +196,24 @@ function New-HDTFileSystem {
         $this.EnsureParent($destinationPath)
 
         [System.IO.File]::Copy($this.NormalizePath($Source), $destinationPath, $true)
+    }
+
+    # RENAMING IS HOW AN ARTIFACT IS PUBLISHED. A boot image build writes its
+    # .wim and .iso beside their final names and moves both into place only once
+    # both exist - same directory, so same volume, so this is a rename rather
+    # than half a gigabyte of copying, and a build that dies half way leaves the
+    # previous pair intact instead of a new .wim beside a stale .iso.
+    $service | Add-Member -MemberType ScriptMethod -Name MoveItem -Value {
+        param([string] $Source, [string] $Destination)
+
+        $this.Record('MoveItem', @($Source, $Destination))
+
+        $this.EnsureParent($Destination)
+
+        # -Force overwrites the destination, which is the whole point: the file
+        # being replaced is the previous build's.
+        Move-Item -LiteralPath $this.NormalizePath($Source) `
+            -Destination $this.NormalizePath($Destination) -Force -ErrorAction Stop
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name GetChildItem -Value {

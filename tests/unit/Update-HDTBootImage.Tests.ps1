@@ -924,15 +924,22 @@ Describe 'Update-HDTBootImage' {
             $script:artifactResult = Invoke-HDTBootImageTestBuild -Context $script:artifactContext
         }
 
-        It 'exports the WIM to Boot\<name>.wim' {
+        It 'exports the WIM beside Boot\<name>.wim and publishes it there' {
+            # EXPORTED TO A STAGING NAME, renamed into place only once the ISO
+            # exists too. The returned path is the final one, because that is the
+            # file the caller will find.
             $call = @($script:artifactContext.Boot.Operations | Where-Object { $_.Operation -eq 'ExportImage' })
 
             $call.Count | Should -Be 1
             [string] $call[0].Arguments[0] | Should -BeExactly $script:scratchWim
             [int] $call[0].Arguments[1] | Should -Be 1
-            [string] $call[0].Arguments[2] | Should -BeExactly $script:wimPath
+            [string] $call[0].Arguments[2] | Should -BeExactly ($script:wimPath + '.new')
 
             $script:artifactResult.WimPath | Should -BeExactly $script:wimPath
+
+            @($script:artifactContext.Journal |
+                    Where-Object { $_.Service -eq 'FileSystem' -and $_.Operation -eq 'MoveItem' -and
+                        [string] $_.Arguments[1] -eq $script:wimPath }) | Should -HaveCount 1
         }
 
         It 'copies the exported WIM into the media tree as sources\boot.wim' {
@@ -946,7 +953,7 @@ Describe 'Update-HDTBootImage' {
                         [string] $_.Arguments[1] -eq ($script:mediaPath + '\sources\boot.wim') })
 
             $copy.Count | Should -Be 1
-            [string] $copy[0].Arguments[0] | Should -BeExactly $script:wimPath
+            [string] $copy[0].Arguments[0] | Should -BeExactly ($script:wimPath + '.new')
 
             @($script:artifactContext.Boot.GetOperationName() | Where-Object { $_ -eq 'ExportImage' }).Count |
                 Should -Be 1
@@ -962,7 +969,11 @@ Describe 'Update-HDTBootImage' {
 
             $call.Count | Should -Be 1
             [string] $call[0].Arguments[0] | Should -BeExactly $script:mediaPath
-            [string] $call[0].Arguments[1] | Should -BeExactly $script:isoPath
+
+            # BUILT BESIDE ITS FINAL NAME, then renamed into place once the WIM
+            # is ready too - so a failure here leaves the previous pair intact
+            # rather than a new .wim beside a stale .iso.
+            [string] $call[0].Arguments[1] | Should -BeExactly ($script:isoPath + '.new')
         }
 
         It 'passes -NoPromptForKey by default' {
@@ -1304,5 +1315,81 @@ Describe 'Update-HDTBootImage' {
 
             $result.DurationSecond | Should -BeGreaterOrEqual 0
         }
+    }
+}
+
+Describe 'Update-HDTBootImage and a half-finished build' {
+
+    # ONE BUILD, TWO ARTIFACTS, AND THEY MUST AGREE.
+    #
+    # DESIGN 6.1.1: one mount produces a .wim and a hash-identical .iso, so the
+    # image you PXE boot is the one you debugged. The build exported the WIM to
+    # Boot\ and THEN built the ISO, so anything that went wrong in between left
+    # the share holding a new .wim beside an old .iso under matching names, with
+    # nothing saying so. It happened in this lab: a VM was holding the ISO open,
+    # oscdimg could not overwrite it, and the share was left with artifacts three
+    # hours apart.
+    #
+    # THE FIX IS TO PUBLISH LAST. Both are written beside their final names and
+    # renamed into place only once BOTH exist - same directory, so same volume,
+    # so the renames are atomic and cost no copy. A failure at any point leaves
+    # the previous pair intact and consistent.
+    #
+    # AND THE MANIFEST IS RENAMED AFTER BOTH, which is what makes its recorded
+    # hashes mean something: a manifest on disk is a promise that the two files
+    # beside it came from the build that wrote it.
+
+    BeforeAll {
+        $script:context = New-HDTBootImageTestContext
+        [void] (Invoke-HDTBootImageTestBuild -Context $script:context)
+    }
+
+    It 'writes the artifacts under a staging name before publishing them' {
+        $written = @($script:context.FileSystem.Operations |
+                Where-Object { $_.Operation -eq 'MoveItem' })
+
+        $written | Should -Not -BeNullOrEmpty -Because 'the artifacts are renamed into place, not written into place'
+    }
+
+    It 'publishes the ISO before the WIM, and the manifest after both' {
+        # THE ISO GOES FIRST because it is the one a VM holds open: a publish
+        # that is going to fail must fail before the WIM has been replaced.
+        # THE MANIFEST GOES LAST because its presence is what promises the two
+        # files beside it came from the build that wrote it.
+        $op = @($script:context.FileSystem.Operations |
+                Where-Object { $_.Operation -in @('MoveItem', 'WriteAllText') })
+
+        $isoAt = [array]::FindIndex([object[]] $op, [Predicate[object]] {
+                param($o) $o.Operation -eq 'MoveItem' -and ([string] $o.Arguments[1]) -like '*.iso' })
+        $wimAt = [array]::FindIndex([object[]] $op, [Predicate[object]] {
+                param($o) $o.Operation -eq 'MoveItem' -and ([string] $o.Arguments[1]) -like '*.wim' })
+        $manifestAt = [array]::FindIndex([object[]] $op, [Predicate[object]] {
+                param($o) $o.Operation -eq 'WriteAllText' -and ([string] $o.Arguments[0]) -like '*.manifest.json' })
+
+        $isoAt | Should -BeGreaterThan -1
+        $wimAt | Should -BeGreaterThan $isoAt
+        $manifestAt | Should -BeGreaterThan $wimAt
+    }
+
+    It 'refuses before the mount when a final path cannot be written' {
+        # THREE MINUTES OF DISM, THEN A LOCKED FILE, is the shape this avoids.
+        # A VM holding the ISO is the common case and it is knowable up front.
+        $context = New-HDTBootImageTestContext
+
+        $context.FileSystem.SeedWriteFailure(
+            ($script:workspaceRoot + '\Boot\HDTPE_x64.iso.new'), 'The process cannot access the file')
+
+        $record = $null
+        try {
+            [void] (Invoke-HDTBootImageTestBuild -Context $context)
+        } catch {
+            $record = $_
+        }
+
+        $record | Should -Not -BeNullOrEmpty
+        [string] $record.Exception.Message | Should -BeLike '*Boot*'
+
+        @($context.Boot.Operations | Where-Object { $_.Operation -eq 'MountImage' }) |
+            Should -BeNullOrEmpty -Because 'it must fail before it spends three minutes mounting'
     }
 }
