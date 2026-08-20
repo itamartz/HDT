@@ -251,24 +251,17 @@
             New-HDTConsoleField -Label 'Document' -Value $application.Path
         )
 
-        # THE NAME, AND THE VERSION IF THE NAME DOES NOT ALREADY CARRY IT.
+        # THE NAME, AND THE VERSION IF THE NAME DOES NOT ALREADY CARRY IT -
+        # never 'id - name', which the other two categories use. See
+        # Get-HDTConsoleApplicationLabel for why.
         #
-        # NOT 'id - name', WHICH THE OTHER TWO CATEGORIES USE. An application's
-        # id is composed FROM its name and version (Get-HDTApplicationName), so
-        # a row showing both reads 'Igor-Pavlov-7-Zip-24.09 - Igor Pavlov 7-Zip
-        # 24.09': the same sentence twice, once with the spaces hyphenated. The
-        # id is on the row's own properties pane, where it is needed by whoever
-        # is writing a sequence that names it.
+        # THE ID IS ON THE ROW'S OWN PROPERTIES PANE, where it is needed by
+        # whoever is writing a sequence that names it.
         #
-        # AND THE VERSION IS WHAT MAKES TWO ENTRIES TELLABLE APART, so an entry
-        # whose name is just 'Acrobat Reader' gets it appended - and one whose
-        # name already ends with it does not say it twice.
-        $text = [string] $application.Name
-        $stated = [string] $application.Version
-
-        if (-not [string]::IsNullOrWhiteSpace($stated) -and $text -notmatch [regex]::Escape($stated)) {
-            $text = '{0} {1}' -f $text, $stated
-        }
+        # ONE RULE, SHARED WITH THE EDITOR'S APPLICATION PAGE. A row somebody
+        # ticks there has to read the same as the row they found here.
+        $text = Get-HDTConsoleApplicationLabel -Name ([string] $application.Name) `
+            -Version ([string] $application.Version) -Id ([string] $application.Id)
 
         if ($application.Status -eq 'Error') {
             $text = '{0} - (unreadable)' -f $application.Id
