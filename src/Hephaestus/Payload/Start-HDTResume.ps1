@@ -287,7 +287,39 @@ foreach ($name in @($state.variable.Keys)) {
 $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase FullOS `
     -WorkspaceRoot $workspaceRoot -Variable $variable -Service $catalog -Log $log -State $state
 
-$run = Invoke-HDTTaskSequence -Sequence $sequence -Context $context -State $state -StatePath $StatePath
+# WHERE THIS LEG'S LOGS GO WHEN IT ENDS. The loop copies the tree only when it
+# is told where, and this payload never told it - so everything the full-OS leg
+# did stayed on a machine that had already been handed over, while the
+# technician looked at the share.
+#
+# THROUGH Get-HDTLogDestination, which is what the WinPE entry point uses, so
+# HDTSLShare sends these to a log server exactly as it sends the others. A
+# second answer to "where do logs go" is a second place for them to be missing
+# from.
+#
+# NOTHING TO COPY TO IS NOT AN ERROR. A leg that could not reach the share still
+# runs, and its log stays on the machine where somebody can read it.
+$logDestination = ''
+
+if (-not [string]::IsNullOrWhiteSpace($workspaceRoot) -and $null -ne $content) {
+    try {
+        $logDestination = [string] (Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $variable).Path
+    } catch {
+        $logDestination = ''
+    }
+}
+
+$loopArgument = @{
+    Sequence  = $sequence
+    Context   = $context
+    State     = $state
+    StatePath = $StatePath
+}
+if (-not [string]::IsNullOrWhiteSpace($logDestination)) {
+    $loopArgument['LogDestination'] = $logDestination
+}
+
+$run = Invoke-HDTTaskSequence @loopArgument
 
 if ($run.Status -eq 'Failed') {
     exit 1

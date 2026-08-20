@@ -52,6 +52,42 @@ BeforeAll {
                     $node.GetCommandName() -eq $wanted
                 }, $true))
     }
+
+    # WHAT THE LOOP IS GIVEN, however it is given. The call splats, because two
+    # of its arguments are conditional - a leg with no share to copy logs to
+    # must not pass -LogDestination at all, and the loop tells the two apart
+    # with $PSBoundParameters. So an assertion that reads only the call site
+    # would report every argument missing.
+    $script:loopReceives = {
+        param([string] $Name)
+
+        $loop = @(& $script:commandNamed 'Invoke-HDTTaskSequence')[0]
+        if ($null -eq $loop) { return $false }
+
+        $element = @($loop.CommandElements | ForEach-Object { [string] $_.Extent.Text })
+
+        if ($element -contains ('-{0}' -f $Name)) { return $true }
+
+        # Splatted: find the hashtable literals assigned to the splatted
+        # variable, and every key added to it afterwards.
+        $splat = @($element | Where-Object { $_ -like '@*' })
+        if (@($splat).Count -eq 0) { return $false }
+
+        $variable = ([string] $splat[0]).TrimStart('@')
+
+        $assigned = @($script:ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.AssignmentStatementAst]
+                }, $true) | Where-Object { $_.Left.Extent.Text -like ('*{0}*' -f $variable) })
+
+        foreach ($one in $assigned) {
+            if ($one.Extent.Text -match ('(?m)^\s*\[?''?{0}''?\]?\s*=' -f [regex]::Escape($Name))) { return $true }
+            if ($one.Left.Extent.Text -like ("*['{0}']*" -f $Name)) { return $true }
+        }
+
+        return $false
+    }
+
 }
 
 Describe 'Start-HDTResume.ps1' {
@@ -184,9 +220,7 @@ Describe 'Start-HDTResume.ps1' {
     Context 'what it hands the loop' {
 
         It 'passes -State to Invoke-HDTTaskSequence' {
-            $loop = @(& $script:commandNamed 'Invoke-HDTTaskSequence')[0]
-
-            @($loop.CommandElements | ForEach-Object { $_.Extent.Text }) | Should -Contain '-State'
+            & $script:loopReceives 'State' | Should -BeTrue
         }
 
         It 'rebuilds the log context from the state seq' {
@@ -296,6 +330,22 @@ Describe 'Start-HDTResume.ps1' {
 
             @($catalog[0].CommandElements | ForEach-Object { [string] $_.Extent.Text }) |
                 Should -Contain '-Content'
+        }
+
+        It 'ships this leg s logs back to the share' {
+            # THE TECHNICIAN READS THE SHARE, NOT THE MACHINE. Invoke-HDTTaskSequence
+            # copies the log tree only when it is told where; the WinPE entry point
+            # tells it and this one did not, so everything the full-OS leg did -
+            # which applications installed, which were skipped, what a failure
+            # said - stayed on a machine that had already been handed over.
+            #
+            # THROUGH Get-HDTLogDestination, so HDTSLShare works here too. MDT
+            # sends deployment logs to a log server through exactly that
+            # variable, and a second answer to "where do logs go" is a second
+            # place for them to be missing from.
+            @(& $script:commandNamed 'Get-HDTLogDestination').Count | Should -BeGreaterOrEqual 1
+
+            & $script:loopReceives 'LogDestination' | Should -BeTrue
         }
 
         It 'runs the sequence from the share rather than from C:\HDT' {
