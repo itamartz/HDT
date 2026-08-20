@@ -165,8 +165,12 @@ steps:
         $script:state.autoLogon.armed | Should -BeFalse
     }
 
-    It 'starts with a null deployment password' {
-        $script:state.deploymentPassword | Should -BeNullOrEmpty
+    It 'carries no password field at all' {
+        # IT USED TO HOLD A GENERATED SECRET. The engine arms autologon with
+        # HDTAdminPassword now (DESIGN 4.5.2), which is already in the variable
+        # map the state saves - so a field of its own was a second place for the
+        # same secret to live and a second thing teardown had to clear.
+        $script:state.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
     }
 
     It 'defaults pauseOnError to false' {

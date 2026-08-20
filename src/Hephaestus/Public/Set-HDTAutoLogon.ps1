@@ -1,4 +1,4 @@
-function Set-HDTAutoLogon {
+﻿function Set-HDTAutoLogon {
     <#
         .SYNOPSIS
             Arms autologon for the next n reboots.
@@ -60,7 +60,7 @@ function Set-HDTAutoLogon {
 
         .PARAMETER Password
             That account's password, for this deployment only. Generate it with
-            New-HDTDeploymentPassword.
+            the HDTAdminPassword variable (DESIGN 4.5.2).
 
         .PARAMETER RemainingLeg
             How many more autologons are needed. At least 1.

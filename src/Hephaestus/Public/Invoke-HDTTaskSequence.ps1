@@ -1,4 +1,4 @@
-function Invoke-HDTTaskSequence {
+﻿function Invoke-HDTTaskSequence {
     <#
         .SYNOPSIS
             Runs a flattened task sequence: ordering, conditions, retry,
@@ -519,6 +519,36 @@ function Invoke-HDTTaskSequence {
 
             $attempt = Invoke-HDTStepAttempt -Step $step -Context $Context -StepType $registry
 
+            # A REBOOT NOBODY CAN COME BACK FROM IS A FAILED STEP, AND IT IS
+            # DECIDED HERE - before the step is recorded, so it travels through
+            # the same recording, the same log line and the same Failed branch
+            # as any other failure rather than needing a path of its own.
+            #
+            # ONE PASSWORD, AND THE ADMINISTRATOR SET IT (DESIGN 4.5.2: "The
+            # administrator sets the password; HDT does not invent one"). The
+            # unattend arms the FIRST logon with %HDTAdminPassword%, so that is
+            # what the deployed machine's Administrator account carries; arming a
+            # later leg with anything else means Winlogon trying a password the
+            # account does not have, and the resume stops at a logon screen with
+            # nothing to explain it.
+            #
+            # An earlier draft minted a random secret per deployment and kept it
+            # in the state document. It was abandoned for the reason the design
+            # gives: a deployment that fails halfway leaves a machine nobody can
+            # log into, at exactly the moment somebody needs to get into it.
+            if ([string] $attempt.Status -eq 'RebootRequested' -and
+                [string]::IsNullOrWhiteSpace([string] $(
+                    if ($Context.Variable.Contains('HDTAdminPassword')) { $Context.Variable['HDTAdminPassword'] } else { '' }))) {
+
+                # MUTATED, NOT REPLACED. Invoke-HDTStepAttempt adds Attempt and
+                # DurationMs to what New-HDTStepResult returned, and the recorder
+                # below reads both - a fresh result object carries neither and
+                # takes the whole run down through the engine's own catch.
+                $attempt.Status = 'Failed'
+                $attempt.Message = "this step asks for a restart, but nothing supplies HDTAdminPassword - so autologon cannot be armed and the sequence would not come back. Set it in the fallback rule of rules.yaml (MDT's [Default] section), in Control\machines\<UUID>.yaml for this machine, or on the wizard's administrator password page."
+                $attempt.Data = [ordered] @{ errorId = 'HDTConfigurationError' }
+            }
+
             $recordedStatus = 'Failed'
             if (@('Completed', 'RebootRequested') -contains [string] $attempt.Status) {
                 $recordedStatus = 'Completed'
@@ -712,13 +742,10 @@ function Invoke-HDTTaskSequence {
                     }
                 }
 
-                # One machine, one secret per run: generated on the first reboot
-                # and reused on every one after it.
-                $password = [string] $state.deploymentPassword
-                if ([string]::IsNullOrEmpty($password)) {
-                    $password = New-HDTDeploymentPassword
-                    $state.deploymentPassword = $password
-                }
+                # THE PASSWORD IS THE ADMINISTRATOR'S, AND IT WAS CHECKED BEFORE
+                # THIS STEP WAS EVER RECORDED - see the guard beside
+                # Invoke-HDTStepAttempt above. By here it is known to be set.
+                $password = [string] $Context.Variable['HDTAdminPassword']
 
                 $remainingLeg = 1
                 for ($ahead = $index + 1; $ahead -le $stepList.Count; $ahead++) {

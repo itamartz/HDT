@@ -160,6 +160,11 @@ BeforeAll {
         $live['HDTMemory'] = 4088
         $live['HDTIsUEFI'] = $true
 
+        # THE ONE PASSWORD (DESIGN 4.5.2). ApplyUnattend refuses to stage an
+        # answer file that asks for %HDTAdminPassword% when nothing supplies it -
+        # it used to mint one, which deployed a machine nobody could log into.
+        $live['HDTAdminPassword'] = 'E2E-P@ssw0rd'
+
         $log = New-HDTLogContext -RunId $script:runId -Phase 'WinPE' -LogPath $script:logPath `
             -FileSystem $fileSystem -Clock $clock -Level Debug -ThreadId 1
 
@@ -198,11 +203,10 @@ BeforeAll {
     $script:stopwatch.Stop()
     $script:elapsedSecond = $script:stopwatch.Elapsed.TotalSeconds
 
-    # READ BACK OUT OF THE STAGED UNATTEND, not off the state document. DESIGN
-    # 4.5.3's teardown runs in the loop's finally and NULLS state.deploymentPassword
-    # at the end of a successful run, so reading it afterwards yields nothing and
-    # the 'it never reached the log' assertion would pass against an empty string.
-    # The document Setup will read is the one place the secret still exists.
+    # READ BACK OUT OF THE STAGED UNATTEND, which is the document Setup will
+    # read and the one place the value is written for the machine. Taking it from
+    # the fixture variable instead would assert that a string this test invented
+    # is absent from the log, which is true of most strings.
     $script:deploymentPassword = [string] ([regex]::Match(
             $script:leg.FileSystem.ReadAllText($script:pantherPath),
             '<AdministratorPassword>\s*<Value>([^<]+)</Value>').Groups[1].Value)

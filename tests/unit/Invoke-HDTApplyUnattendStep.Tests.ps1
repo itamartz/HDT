@@ -71,6 +71,14 @@ Describe 'Invoke-HDTApplyUnattendStep' {
             $live['HDTOSVolume'] = 'W'
             $live['HDTComputerName'] = 'HDT-M3-01'
             $live['HDTTaskSequenceID'] = $script:sequenceId
+
+            # THE ONE PASSWORD, WHICH A REAL SHARE ALWAYS RESOLVES. The fallback
+            # rule of rules.yaml carries it (DESIGN 4.5.2, MDT's [Default]), so a
+            # deployment reaching this step without one does not exist - and the
+            # step now refuses rather than minting a secret nobody would know.
+            # A fixture that wants the refusal passes an empty string.
+            $live['HDTAdminPassword'] = 'Fixture-P@ssw0rd'
+
             if ($null -ne $Variable) {
                 foreach ($key in @($Variable.Keys)) { $live[[string] $key] = $Variable[$key] }
             }
@@ -314,46 +322,90 @@ Describe 'Invoke-HDTApplyUnattendStep' {
 
     Context 'secrets' {
 
-        It 'substitutes the deployment password for %HDTAdminPassword%' {
-            $script:state.deploymentPassword = 'State-Minted-01!'
+        It 'substitutes HDTAdminPassword for the token' {
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = 'Authored-01!' }) $script:state
 
-            Invoke-HDTApplyUnattendStep -Step $script:step -Context $script:context | Out-Null
+            Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
 
-            $script:fileSystem.ReadAllText($script:pantherPath) | Should -BeLike '*State-Minted-01!*'
+            $script:fileSystem.ReadAllText($script:pantherPath) | Should -BeLike '*Authored-01!*'
         }
 
-        It 'prefers an explicitly resolved HDTAdminPassword variable' {
-            $script:state.deploymentPassword = 'State-Minted-01!'
+        It 'refuses when nothing supplies it, rather than inventing one' {
+            # ONE PASSWORD, AND THE ADMINISTRATOR SET IT (DESIGN 4.5.2). This step
+            # used to mint a random secret here, which deployed a machine nobody
+            # could log into - the failure the design rejected randomisation over,
+            # and the one that matters most when a deployment stops halfway.
+            #
+            # The alternative is worse still: leaving the token unresolved deploys
+            # a machine whose Administrator password is the literal
+            # '%HDTAdminPassword%', identical on every machine this share builds,
+            # and it would ship green.
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = '' }) $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+            $result.Message | Should -BeLike '*HDTAdminPassword*'
+        }
+
+        It 'names where to set it, because that is the whole fix' {
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = '' }) $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Message | Should -BeLike '*rules.yaml*'
+        }
+
+        It 'stages nothing when it refuses' {
+            # A half-written answer file is worse than none: Setup would read it.
+            $fresh = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:unattendXml }
+            $catalog = New-HDTServiceCatalog -FileSystem $fresh -Clock $script:clock
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fresh -Clock $script:clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+            $live['HDTComputerName'] = 'HDT-M3-01'
+            $live['HDTTaskSequenceID'] = $script:sequenceId
+            $live['HDTAdminPassword'] = ''
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot $script:workspaceRoot -Variable $live -Service $catalog -Log $log
+
+            [void] (Invoke-HDTApplyUnattendStep -Step $script:step -Context $context)
+
+            $fresh.TestPath($script:pantherPath) | Should -BeFalse
+        }
+
+        It 'writes the same secret everywhere the document asks for it' {
+            # The fixture carries %HDTAdminPassword% twice - Setup reads
+            # UserAccounts and AutoLogon separately - and both must be the same
+            # secret or the machine cannot log itself on.
             $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = 'Authored-01!' }) $script:state
 
             Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
 
             $written = $script:fileSystem.ReadAllText($script:pantherPath)
 
-            $written | Should -BeLike '*Authored-01!*'
-            $written | Should -Not -BeLike '*State-Minted-01!*'
+            @([regex]::Matches($written, [regex]::Escape('Authored-01!'))).Count | Should -Be 2
         }
 
-        It 'mints a deployment password when neither the variable nor the state has one' {
-            # THE DEMO-M3 CASE EXACTLY: no Restart step, so the loop never minted
-            # one, and without this the machine's Administrator password would be
-            # the literal string '%HDTAdminPassword%'.
-            Invoke-HDTApplyUnattendStep -Step $script:step -Context $script:context | Out-Null
+        It 'writes a document that still parses as XML' {
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = 'Authored-01!' }) $script:state
 
-            $written = $script:fileSystem.ReadAllText($script:pantherPath)
+            Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
 
-            $written | Should -Not -BeLike '*%HDTAdminPassword%*'
-            [string] $script:state.deploymentPassword | Should -Not -BeNullOrEmpty
-            $written | Should -BeLike ('*{0}*' -f $script:state.deploymentPassword)
+            { [xml] $script:fileSystem.ReadAllText($script:pantherPath) } | Should -Not -Throw
         }
 
-        It 'writes the minted password back to the run state' {
-            # So a later Restart arms autologon with the SAME secret: one machine,
-            # one secret per run.
-            Invoke-HDTApplyUnattendStep -Step $script:step -Context $script:context | Out-Null
+        It 'tolerates a run with no state document' {
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = 'Authored-01!' }) $null
 
-            [string] $script:context.State.deploymentPassword | Should -Not -BeNullOrEmpty
-            ([string] $script:context.State.deploymentPassword).Length | Should -BeGreaterOrEqual 16
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            $script:fileSystem.ReadAllText($script:pantherPath) | Should -Not -BeLike '*%HDTAdminPassword%*'
         }
 
         It 'writes no literal HDTAdminPassword token into the document' {
@@ -372,7 +424,7 @@ Describe 'Invoke-HDTApplyUnattendStep' {
             Invoke-HDTApplyUnattendStep -Step $script:step -Context $script:context | Out-Null
 
             $written = $script:fileSystem.ReadAllText($script:pantherPath)
-            $secret = [string] $script:state.deploymentPassword
+            $secret = 'Fixture-P@ssw0rd'
 
             @([regex]::Matches($written, [regex]::Escape($secret))).Count | Should -Be 2
         }
@@ -397,7 +449,7 @@ Describe 'Invoke-HDTApplyUnattendStep' {
         It 'never writes the password to the master log' {
             Invoke-HDTApplyUnattendStep -Step $script:step -Context $script:context | Out-Null
 
-            $secret = [string] $script:state.deploymentPassword
+            $secret = 'Fixture-P@ssw0rd'
 
             $script:fileSystem.ReadAllText('X:\HDT\Logs\HDT.jsonl') | Should -Not -BeLike ('*{0}*' -f $secret)
             $script:fileSystem.ReadAllText('X:\HDT\Logs\HDT.log') | Should -Not -BeLike ('*{0}*' -f $secret)
@@ -408,7 +460,7 @@ Describe 'Invoke-HDTApplyUnattendStep' {
 
             Invoke-HDTApplyUnattendStep -Step $script:step -Context $script:context | Out-Null
 
-            $secret = [string] $script:state.deploymentPassword
+            $secret = 'Fixture-P@ssw0rd'
             $stepLog = $script:fileSystem.ReadAllText('X:\HDT\Logs\Steps\004-Apply-Unattend.log')
 
             $stepLog | Should -Not -BeLike ('*{0}*' -f $secret)

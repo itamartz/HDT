@@ -1,4 +1,4 @@
-function Clear-HDTAutoLogon {
+﻿function Clear-HDTAutoLogon {
     <#
         .SYNOPSIS
             Runs the autologon teardown checklist, item by item, best effort.
@@ -19,7 +19,7 @@ function Clear-HDTAutoLogon {
               6  AutoLogonCount              registry
               7  RunOnce\HDTResume           registry
               8  the staged unattend files   filesystem
-              9  deploymentPassword          state document, then saved
+              9  autoLogon.armed             state document, then saved
 
             ONE ITEM FAILING MUST NOT STOP THE OTHERS, and that is the whole
             design of this function. Teardown runs on machines in unknown states
@@ -50,7 +50,7 @@ function Clear-HDTAutoLogon {
             An IFileSystem. Without it, items 8 and 9's save are skipped.
 
         .PARAMETER State
-            The run state document. Its deploymentPassword is set to $null and
+            The run state document. Its autoLogon.armed is set to false and
             its autoLogon block is marked disarmed.
 
         .PARAMETER StatePath
@@ -183,18 +183,20 @@ function Clear-HDTAutoLogon {
         }
     }
 
-    # Item 9: the deployment password in the state document, and the save.
+    # Item 9: the armed flag in the state document, and the save.
+    #
+    # THERE IS NO PASSWORD TO CLEAR HERE ANY MORE. The state used to carry a
+    # generated per-deployment secret; the engine now arms autologon with
+    # HDTAdminPassword, which is the administrator's own value and belongs to the
+    # machine after the deployment - clearing it would be clearing a setting
+    # somebody chose. The LSA secret Winlogon reads is still removed, by item 5.
     if ($null -ne $State) {
         try {
-            if ($State.PSObject.Properties['deploymentPassword'] -and -not [string]::IsNullOrEmpty($State.deploymentPassword)) {
-                $State.deploymentPassword = $null
-                [void] $cleared.Add('DeploymentPassword')
-            }
             if ($State.PSObject.Properties['autoLogon']) {
                 $State.autoLogon.armed = $false
             }
         } catch {
-            [void] $failed.Add([pscustomobject] @{ Item = 'DeploymentPassword'; Message = $_.Exception.Message })
+            [void] $failed.Add([pscustomobject] @{ Item = 'AutoLogonArmed'; Message = $_.Exception.Message })
         }
 
         if ($PSBoundParameters.ContainsKey('StatePath') -and $null -ne $FileSystem -and $null -ne $Clock) {

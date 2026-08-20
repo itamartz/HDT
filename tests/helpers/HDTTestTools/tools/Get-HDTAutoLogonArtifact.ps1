@@ -1,4 +1,4 @@
-function Get-HDTAutoLogonArtifact {
+﻿function Get-HDTAutoLogonArtifact {
     <#
         .SYNOPSIS
             Lists the DESIGN 4.5.3 autologon artifacts still present on a
@@ -26,7 +26,6 @@ function Get-HDTAutoLogonArtifact {
                 LsaSecret:DefaultPassword   LSA private data
                 RunOnce:HDTResume           registry value
                 Unattend:<path>             one per staged unattend found
-                DeploymentPassword          state.json deploymentPassword
 
             PRESENCE is the artifact, not content. DESIGN 4.5.1 writes an empty
             string to DefaultDomainName on a workgroup machine, and
@@ -56,7 +55,8 @@ function Get-HDTAutoLogonArtifact {
             An IFileSystem, for the staged unattend files.
 
         .PARAMETER State
-            The run state document, for deploymentPassword.
+            The run state document. Kept for the shape of the call; the state
+            no longer carries a secret of its own.
 
         .PARAMETER UnattendPath
             Where a staged unattend might be. Defaults to the three locations
@@ -130,10 +130,16 @@ function Get-HDTAutoLogonArtifact {
         }
     }
 
-    if ($null -ne $State) {
-        if ($State.PSObject.Properties['deploymentPassword'] -and -not [string]::IsNullOrEmpty($State.deploymentPassword)) {
-            [void] $artifact.Add('DeploymentPassword')
-        }
+    # THE STATE DOCUMENT CARRIES NO SECRET OF ITS OWN. It used to hold a
+    # generated per-deployment password, and that was one of the artifacts a
+    # machine could be left armed with. The engine now arms with
+    # HDTAdminPassword - the administrator's own value, which belongs to the
+    # machine afterwards - so the only copy anything has to clear is the LSA
+    # secret above.
+    if ($null -ne $State -and $null -ne $State.PSObject.Properties['autoLogon'] -and
+        [bool] $State.autoLogon.armed) {
+
+        [void] $artifact.Add('State:autoLogon.armed')
     }
 
     # No unary comma here. The comma is mandatory in an array-returning

@@ -1,4 +1,4 @@
-function Invoke-HDTApplyUnattendStep {
+﻿function Invoke-HDTApplyUnattendStep {
     <#
         .SYNOPSIS
             Stages the unattend where Windows Setup consumes it.
@@ -19,25 +19,19 @@ function Invoke-HDTApplyUnattendStep {
             FirstLogonCommands run, and autologon armed with the password held as
             an LSA secret rather than in the registry.
 
-            THE PASSWORD HAS THREE SOURCES AND NO FOURTH OUTCOME:
+            THE PASSWORD HAS ONE SOURCE: the HDTAdminPassword variable, resolved
+            through DESIGN 3.1's precedence like any other. DESIGN 4.5.2 settles
+            it - "the administrator sets the password; HDT does not invent one" -
+            and the workspace-wide default is the fallback rule of rules.yaml,
+            which is MDT's [Default] section exactly.
 
-              1. an HDTAdminPassword variable the rules resolved - used;
-              2. otherwise $Context.State.deploymentPassword, when the state
-                 carries one (the oobeSystem AutoLogon block is
-                 what arms the first logon);
-              3. otherwise ONE IS MINTED, written back to
-                 $Context.State.deploymentPassword and used.
-
-            STEP 3 IS NOT TIDINESS - IT IS THE REASON THIS STEP IS SAFE TO RUN.
-            Invoke-HDTTaskSequence mints the deployment password only when a step
-            returns RebootRequested, and a WinPE-half sequence such as DEMO-M3
-            has no Restart step. Without step 3 the token stays unresolved,
-            Expand-HDTVariableToken leaves it literal, and HDT deploys a machine
-            whose local Administrator password is the string
-            '%HDTAdminPassword%' - identical on every machine it ever builds.
-            That is worse than a failed step, and it would have shipped green.
-            Writing it back to the state is what makes a later Restart arm
-            autologon with the SAME secret: one machine, one secret per run.
+            NOTHING SUPPLYING IT FAILS THE STEP, and both alternatives are worse.
+            Leaving the token unresolved deploys a machine whose local
+            Administrator password is the literal '%HDTAdminPassword%', identical
+            on every machine this share ever builds - and it would ship green.
+            Minting one deploys a machine nobody can log into, at exactly the
+            moment a half-finished deployment needs looking at. A named refusal
+            is the only outcome that leaves somebody able to act.
 
             THE DOCUMENT IS NEVER LOGGED, AT ANY LEVEL. Only the path and the
             byte count. It carries the secret twice - Setup reads UserAccounts
@@ -220,29 +214,19 @@ function Invoke-HDTApplyUnattendStep {
         $scope = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($key in @($Context.Variable.Keys)) { $scope[[string] $key] = $Context.Variable[$key] }
 
-        # The three sources, in order, and there is no fourth outcome.
+        # ONE SOURCE, AND IT IS THE ADMINISTRATOR'S.
         if ($text -match '%HDTAdminPassword%') {
             $secret = [string] $scope['HDTAdminPassword']
 
-            if ([string]::IsNullOrEmpty($secret) -and $null -ne $Context.State -and
-                $null -ne $Context.State.PSObject.Properties['deploymentPassword']) {
-
-                $secret = [string] $Context.State.deploymentPassword
-            }
-
-            if ([string]::IsNullOrEmpty($secret)) {
-                $secret = New-HDTDeploymentPassword
-
-                Write-HDTLog -Context $Context.Log -Component 'ApplyUnattend' `
-                    -Message 'this run had no deployment password, so one was generated for the unattend and recorded in the run state.'
-            }
-
-            if ($null -ne $Context.State -and $null -ne $Context.State.PSObject.Properties['deploymentPassword'] -and
-                [string]::IsNullOrEmpty([string] $Context.State.deploymentPassword)) {
-
-                # One machine, one secret per run: a later Restart arms autologon
-                # with this one rather than making a second.
-                $Context.State.deploymentPassword = $secret
+            # NOTHING TO PUT IN IT IS A CONFIGURATION ERROR, NOT A PASSWORD TO
+            # INVENT. Leaving the token unresolved would deploy a machine whose
+            # local Administrator password is the literal '%HDTAdminPassword%',
+            # identical on every machine ever built from this share; minting one
+            # would deploy a machine nobody can log into, which is the failure
+            # DESIGN 4.5.2 rejected randomisation over. Refusing names the fix.
+            if ([string]::IsNullOrWhiteSpace($secret)) {
+                return (& $fail ("step '{0}' stages an answer file that asks for %HDTAdminPassword%, but nothing supplies it. Set it in the fallback rule of rules.yaml (MDT's [Default] section), in Control\machines\<UUID>.yaml for this machine, or on the wizard's administrator password page." -f
+                        $Step.Name) 'HDTConfigurationError')
             }
 
             $scope['HDTAdminPassword'] = $secret

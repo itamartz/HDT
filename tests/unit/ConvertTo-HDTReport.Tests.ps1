@@ -415,9 +415,17 @@ Describe 'ConvertTo-HDTReport' {
             $script:html | Should -Match '&amp; echo done'
         }
 
-        It 'does not contain the deployment password' {
+        It 'does not contain a password the state s variable map carries' {
             # A report gets emailed. This assertion exists for that reason and
             # for no other.
+            #
+            # IT USED TO GUARD A FIELD THAT NO LONGER EXISTS. The state carried a
+            # generated deploymentPassword, and this checked the report did not
+            # print it. The engine now arms with HDTAdminPassword, which lives in
+            # the VARIABLE MAP - so the guard has to be on the map, which is
+            # where the risk actually is and what this command's own help says it
+            # reads nothing from: "a variable map may carry a join password or a
+            # share credential".
             $password = 'Hd7!qX2#pL9zV4wR'
 
             $state = [pscustomobject] ([ordered] @{
@@ -426,8 +434,10 @@ Describe 'ConvertTo-HDTReport' {
                     sequenceId         = 'DEMO-M2'
                     status             = 'Failed'
                     leg                = 2
-                    deploymentPassword = $password
-                    variable           = [ordered] @{ HDTComputerName = 'PC-FIXTURE-SERIAL-0001' }
+                    variable           = [ordered] @{
+                        HDTComputerName  = 'PC-FIXTURE-SERIAL-0001'
+                        HDTAdminPassword = $password
+                    }
                     step               = @(
                         [pscustomobject] ([ordered] @{ index = 1; name = 'Announce'; type = 'NoOp'; group = @('Preinstall')
                                 status = 'Completed'; attempt = 1; leg = 1; exitCode = 0; durationMs = 250; message = 'ok'

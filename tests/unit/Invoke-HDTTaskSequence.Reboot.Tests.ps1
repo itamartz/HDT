@@ -159,22 +159,22 @@ Describe 'Invoke-HDTTaskSequence' {
             $script:result = $script:leg.Result
         }
 
-        It 'generates a deployment password on the first reboot' {
-            $script:result.State.deploymentPassword | Should -Not -BeNullOrEmpty
+        It 'takes the administrator s password rather than generating one' {
+            $script:harness.Lsa.GetSecret('DefaultPassword') |
+                Should -BeExactly ([string] $script:harness.Variable['HDTAdminPassword'])
         }
 
-        It 'stores it in the state' {
+        It 'keeps no second copy of it in the state' {
+            # The resolved variables are saved with the state already, so a
+            # separate field was a second place for the same secret to live and a
+            # second thing teardown had to remember to clear.
             $saved = $script:harness.FileSystem.ReadAllText($script:harness.StatePath) | ConvertFrom-Json
 
-            $saved.deploymentPassword | Should -BeExactly $script:result.State.deploymentPassword
-        }
-
-        It 'stores it as the LSA secret' {
-            $script:harness.Lsa.GetSecret('DefaultPassword') | Should -BeExactly $script:result.State.deploymentPassword
+            $saved.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
         }
 
         It 'never writes it to the registry' {
-            $password = [string] $script:result.State.deploymentPassword
+            $password = [string] $script:harness.Variable['HDTAdminPassword']
 
             foreach ($entry in @($script:harness.Journal | Where-Object { $_.Service -eq 'RegistryService' })) {
                 foreach ($argument in @($entry.Arguments)) {
@@ -186,28 +186,26 @@ Describe 'Invoke-HDTTaskSequence' {
         }
 
         It 'never writes it into the log' {
-            $password = [string] $script:result.State.deploymentPassword
+            $password = [string] $script:harness.Variable['HDTAdminPassword']
             $text = Get-HDTLogRecord -FileSystem $script:harness.FileSystem -Path $script:harness.Log.JsonlPath -Raw
 
             $text | Should -Not -BeLike "*$password*"
         }
 
-        It 'is different on every run' {
-            $second = & $script:runLeg $script:rebootYaml
-
-            $second.Result.State.deploymentPassword | Should -Not -BeExactly $script:result.State.deploymentPassword
-        }
-
-        It 'reuses the same password on the second reboot' {
-            # One machine, one secret per run.
+        It 'is the same on every reboot, because it is the account s password' {
+            # It used to be a fresh random secret per run, and "different every
+            # run" was the property asserted here. It is now HDTAdminPassword -
+            # the password the unattend gave the Administrator account - so the
+            # only correct value is the SAME one on every leg. A different one
+            # would be Winlogon trying a password the account does not have.
             $state = $script:result.State
             $state.leg = 2
 
             $second = & $script:runLeg $script:rebootYaml $state $script:harness.FileSystem 'FullOS' $state.seq
 
             $second.Result.Status | Should -BeExactly 'RebootPending'
-            $second.Result.State.deploymentPassword | Should -BeExactly $state.deploymentPassword
-            $second.Harness.Lsa.GetSecret('DefaultPassword') | Should -BeExactly $state.deploymentPassword
+            $second.Harness.Lsa.GetSecret('DefaultPassword') |
+                Should -BeExactly ([string] $script:harness.Variable['HDTAdminPassword'])
         }
     }
 
@@ -299,7 +297,91 @@ Describe 'Invoke-HDTTaskSequence' {
             $artifact | Should -Contain 'AutoAdminLogon'
             $artifact | Should -Contain 'LsaSecret:DefaultPassword'
             $artifact | Should -Contain 'RunOnce:HDTResume'
-            $artifact | Should -Contain 'DeploymentPassword'
         }
+    }
+}
+
+Describe 'the password autologon is armed with' {
+
+    # ONE PASSWORD, AND IT IS HDTAdminPassword.
+    #
+    # DESIGN 4.5.2 settles this in as many words: "The administrator sets the
+    # password; HDT does not invent one." An earlier draft generated a random
+    # per-deployment secret, and New-HDTDeploymentPassword was that draft, left
+    # behind after the decision went the other way. It was worse in practice for
+    # the reason the design gives: when a deployment fails halfway the machine is
+    # sitting there with a password NOBODY KNOWS, at exactly the moment a
+    # technician needs to log into it and look.
+    #
+    # It was also quietly wrong. The unattend arms the first logon with
+    # %HDTAdminPassword%, so a machine whose Administrator account carries the
+    # ADMIN password would have had autologon armed with a DIFFERENT, generated
+    # one on its second reboot - Winlogon would try a password the account does
+    # not have, and the resume would stop at a logon screen with no explanation.
+    # DEMO-05 never hit it because it restarts once.
+
+    BeforeAll {
+        $script:twoRestartYaml = @'
+schemaVersion: 1
+id: TWO-RESTARTS
+name: Two restarts
+steps:
+  - name: First restart
+    type: Restart
+  - name: Second restart
+    type: Restart
+'@
+    }
+
+    It 'arms with HDTAdminPassword, not something it made up' {
+        $harness = New-HDTSequenceTestHarness -Yaml $script:twoRestartYaml `
+            -Variable @{ HDTAdminPassword = 'Set-By-The-Rules-1' }
+
+        [void] (Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State)
+
+        # THE JOURNAL REDACTS IT, WHICH IS THE POINT OF THE JOURNAL - so what
+        # was actually armed is read from the store Winlogon would read.
+        @($harness.Journal |
+                Where-Object { $_.Service -eq 'LsaService' -and $_.Operation -eq 'SetSecret' }) |
+            Should -HaveCount 1
+
+        $harness.Lsa.GetSecret('DefaultPassword') | Should -BeExactly 'Set-By-The-Rules-1'
+    }
+
+    It 'keeps no second copy of it in the state document' {
+        # The resolved variables are already saved with the state, so a separate
+        # deploymentPassword field was a second place for the same secret to live
+        # - and a second thing teardown had to remember to clear.
+        $harness = New-HDTSequenceTestHarness -Yaml $script:twoRestartYaml `
+            -Variable @{ HDTAdminPassword = 'Set-By-The-Rules-1' }
+
+        [void] (Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State)
+
+        $harness.State.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
+    }
+
+    It 'refuses the reboot by name when nobody set one' {
+        # BETWEEN A LOOP AND A STOP, CHOOSE THE STOP - and between a stop and a
+        # machine nobody can log into, choose the stop. The message has to name
+        # the variable and where it goes, because that is the whole fix.
+        $harness = New-HDTSequenceTestHarness -Yaml $script:twoRestartYaml `
+            -Variable @{ HDTAdminPassword = '' }
+
+        $result = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State
+
+        $result.Status | Should -BeExactly 'Failed'
+
+        $said = @($result.Result | Where-Object { $_.Status -eq 'Failed' } | ForEach-Object { $_.Message })
+        ($said -join ' ') | Should -BeLike '*HDTAdminPassword*'
+    }
+
+    It 'does not reboot a machine it could not arm' {
+        $harness = New-HDTSequenceTestHarness -Yaml $script:twoRestartYaml `
+            -Variable @{ HDTAdminPassword = '' }
+
+        [void] (Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State)
+
+        @($harness.Journal | Where-Object { $_.Service -eq 'PowerService' -and $_.Operation -eq 'Restart' }) |
+            Should -BeNullOrEmpty
     }
 }

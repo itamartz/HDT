@@ -150,7 +150,6 @@
         'New-HDTBuildProgress',
         'New-HDTClock',
         'New-HDTContentProvider',
-        'New-HDTDeploymentPassword',
         'New-HDTDiskLayoutPlan',
         'New-HDTDiskService',
         'New-HDTEnvironmentProvider',

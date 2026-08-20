@@ -100,10 +100,18 @@ BeforeAll {
         # DESIGN 3.1 source 1: what the rules resolved before the sequence began.
         $live['HDTComputerName'] = $script:computerName
 
+        # THE ONE PASSWORD (DESIGN 4.5.2). The engine arms autologon with it and
+        # the unattend gives it to the Administrator account; a sequence that
+        # reboots without one is refused, because there would be nothing to come
+        # back with.
+        $live['HDTAdminPassword'] = $script:adminPassword
+
         return $live
     }
 
     # The first leg: a fresh run in WinPE, out of the boot image.
+    $script:adminPassword = 'E2E-Admin-P@ssw0rd'
+
     $script:runFirstLeg = {
         $sequence = Import-HDTSequenceDocument -Path $script:sequencePath -FileSystem $script:fs
         $live = & $script:startVariable $sequence
@@ -199,10 +207,12 @@ BeforeAll {
 
     $script:leg1 = & $script:runFirstLeg
 
-    # The password is nulled by the teardown at the end of leg 3, so it is
-    # captured here - while the machine is still armed - for the assertion that
-    # it never reached the log.
-    $script:deploymentPassword = [string] $script:leg1.Result.State.deploymentPassword
+    # THE ONE PASSWORD, taken from the variables rather than from a state field.
+    # The engine no longer mints a per-deployment secret (DESIGN 4.5.2): it arms
+    # autologon with HDTAdminPassword, which is what the unattend gave the
+    # Administrator account. The assertions below still check it never reaches a
+    # log or a report.
+    $script:deploymentPassword = [string] $script:leg1.Variable['HDTAdminPassword']
 
     & $script:carryLogForward $script:winpeLog $script:fullosLog
 
@@ -524,7 +534,7 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
 
         It 'nulls the deployment password in the final state' {
             $script:deploymentPassword | Should -Not -BeNullOrEmpty
-            $script:finalState.deploymentPassword | Should -BeNullOrEmpty
+            $script:finalState.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
         }
 
         It 'never wrote the password into the log' {

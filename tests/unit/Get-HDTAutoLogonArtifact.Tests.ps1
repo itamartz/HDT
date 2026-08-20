@@ -78,15 +78,19 @@ Describe 'Get-HDTAutoLogonArtifact' {
         @(Get-HDTAutoLogonArtifact -Registry (New-HDTFakeRegistryService) -FileSystem $fs).Count | Should -Be 3
     }
 
-    It 'reports a deployment password left in the state' {
-        $state = [pscustomobject] @{ deploymentPassword = 'Sw0rdfish!' }
+    It 'reports a state document still marked armed' {
+        # THE STATE CARRIES NO SECRET OF ITS OWN any more - the engine arms with
+        # HDTAdminPassword, the administrator's own value, which belongs to the
+        # machine afterwards. What is left to report is the flag saying this
+        # machine is still expecting to come back.
+        $state = [pscustomobject] @{ autoLogon = [pscustomobject] @{ armed = $true } }
 
         @(Get-HDTAutoLogonArtifact -Registry (New-HDTFakeRegistryService) -State $state) |
-            Should -Be @('DeploymentPassword')
+            Should -Be @('State:autoLogon.armed')
     }
 
-    It 'does not report a state whose deployment password is already null' {
-        $state = [pscustomobject] @{ deploymentPassword = $null }
+    It 'does not report a state that has already been disarmed' {
+        $state = [pscustomobject] @{ autoLogon = [pscustomobject] @{ armed = $false } }
 
         Get-HDTAutoLogonArtifact -Registry (New-HDTFakeRegistryService) -State $state | Should -BeNullOrEmpty
     }
@@ -104,7 +108,7 @@ Describe 'Get-HDTAutoLogonArtifact' {
         }
         $lsa = New-HDTFakeLsaService -Secret @{ DefaultPassword = 'Sw0rdfish!' }
         $fs = New-HDTFakeFileSystem -File @{ $script:unattend = '<unattend/>' }
-        $state = [pscustomobject] @{ deploymentPassword = 'Sw0rdfish!' }
+        $state = [pscustomobject] @{ autoLogon = [pscustomobject] @{ armed = $true } }
 
         $artifact = @(Get-HDTAutoLogonArtifact -Registry $registry -Lsa $lsa -FileSystem $fs -State $state)
 
@@ -118,7 +122,7 @@ Describe 'Get-HDTAutoLogonArtifact' {
         $artifact | Should -Contain 'LsaSecret:DefaultPassword'
         $artifact | Should -Contain 'RunOnce:HDTResume'
         $artifact | Should -Contain "Unattend:$script:unattend"
-        $artifact | Should -Contain 'DeploymentPassword'
+        $artifact | Should -Contain 'State:autoLogon.armed'
     }
 
     It 'reports an empty DefaultDomainName as present' {

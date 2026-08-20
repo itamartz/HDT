@@ -275,13 +275,17 @@ Describe 'Set-HDTAutoLogon' {
         }
 
         It 'does not put the password in the state document' {
-            # 03-04 puts it in state.deploymentPassword deliberately; arming does
-            # not do it as a side effect.
+            # The state carries no password field, and arming must not add one:
+            # the secret belongs in the LSA store Winlogon reads and nowhere
+            # else this command writes.
             $state = New-HDTRunState -SequenceId 'seq' -RunId 'run-0001' -Phase FullOS -Clock $script:clock
 
             Set-HDTAutoLogon -Registry $script:registry -Lsa $script:lsa -UserName 'Administrator' -Password $script:password -RemainingLeg 3 -State $state
 
-            $state.deploymentPassword | Should -BeNullOrEmpty
+            $state.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
+
+            $saved = $state | ConvertTo-Json -Depth 8
+            $saved | Should -Not -BeLike ('*{0}*' -f $script:password)
         }
     }
 

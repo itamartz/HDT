@@ -24,7 +24,9 @@
   "properties": {
     "schemaVersion": {
       "description": "Exactly 1. A newer version means the workspace was written by a newer engine, and the engine is upgraded rather than the document downgraded.",
-      "enum": [ 1 ]
+      "enum": [
+        1
+      ]
     },
     "runId": {
       "description": "The deployment run id, also _HDTRunId.",
@@ -38,10 +40,17 @@
     },
     "status": {
       "description": "Running until the sequence ends. Succeeded or Failed is what makes the run abandoned to the boot reconcile.",
-      "enum": [ "Running", "Succeeded", "Failed" ]
+      "enum": [
+        "Running",
+        "Succeeded",
+        "Failed"
+      ]
     },
     "phase": {
-      "enum": [ "WinPE", "FullOS" ]
+      "enum": [
+        "WinPE",
+        "FullOS"
+      ]
     },
     "leg": {
       "description": "1-based, incremented on every resume.",
@@ -80,20 +89,25 @@
     "step": {
       "description": "One record per flattened step, in index order.",
       "type": "array",
-      "items": { "$ref": "#/definitions/step" }
+      "items": {
+        "$ref": "#/definitions/step"
+      }
     },
     "autoLogon": {
       "$ref": "#/definitions/autoLogon"
-    },
-    "deploymentPassword": {
-      "description": "The per-deployment random Administrator secret (DESIGN 4.5.2), or null once teardown has cleared it.",
-      "type": [ "string", "null" ]
     }
   },
   "definitions": {
     "step": {
       "type": "object",
-      "required": [ "index", "name", "type", "status", "attempt", "resumable" ],
+      "required": [
+        "index",
+        "name",
+        "type",
+        "status",
+        "attempt",
+        "resumable"
+      ],
       "additionalProperties": false,
       "properties": {
         "index": {
@@ -101,15 +115,32 @@
           "type": "integer",
           "minimum": 1
         },
-        "name": { "type": "string", "minLength": 1 },
-        "type": { "type": "string", "minLength": 1 },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1
+        },
         "group": {
           "description": "The group path this step sits under, outermost first.",
-          "type": [ "array", "null" ],
-          "items": { "type": "string" }
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "status": {
-          "enum": [ "Pending", "Running", "Completed", "Failed", "Skipped" ]
+          "enum": [
+            "Pending",
+            "Running",
+            "Completed",
+            "Failed",
+            "Skipped"
+          ]
         },
         "attempt": {
           "description": "How many times this step has been started. 0 until it first runs.",
@@ -118,36 +149,91 @@
         },
         "leg": {
           "description": "Which leg last touched this step, so a resume can say 'completed on leg 1' rather than 'on some earlier leg'. Null until it runs.",
-          "type": [ "integer", "null" ],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 1
         },
         "resumable": {
           "description": "DESIGN 4.3: on resume the engine re-runs an interrupted step only if it declares resumable.",
           "type": "boolean"
         },
-        "startedUtc": { "type": [ "string", "null" ] },
-        "endedUtc": { "type": [ "string", "null" ] },
-        "durationMs": { "type": [ "integer", "null" ] },
-        "exitCode": { "type": [ "integer", "null" ] },
-        "message": { "type": [ "string", "null" ] }
+        "startedUtc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "endedUtc": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "durationMs": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "exitCode": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     },
     "autoLogon": {
       "description": "DESIGN 4.5's autologon lifecycle, so the boot reconcile can tear down exactly what was armed.",
       "type": "object",
-      "required": [ "armed" ],
+      "required": [
+        "armed"
+      ],
       "additionalProperties": false,
       "properties": {
-        "armed": { "type": "boolean" },
-        "userName": { "type": [ "string", "null" ] },
-        "domainName": { "type": [ "string", "null" ] },
+        "armed": {
+          "type": "boolean"
+        },
+        "userName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "domainName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "countSet": {
           "description": "The AutoLogonCount the engine wrote: the number of legs remaining.",
-          "type": [ "integer", "null" ],
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
-        "secretName": { "type": [ "string", "null" ] },
-        "runOnceName": { "type": [ "string", "null" ] }
+        "secretName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runOnceName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
     }
   }

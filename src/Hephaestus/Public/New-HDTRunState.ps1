@@ -1,4 +1,4 @@
-function New-HDTRunState {
+﻿function New-HDTRunState {
     <#
         .SYNOPSIS
             Builds the state document for a new deployment run.
@@ -29,7 +29,6 @@ This builds it, in memory. It has NO -FileSystem
                              exitCode, message
               autoLogon      armed, userName, domainName, countSet, secretName,
                              runOnceName
-              deploymentPassword  the per-deployment secret, or null
 
             EVERY TIMESTAMP IS A FORMATTED STRING. ConvertTo-Json renders a raw
             [datetime] as "\/Date(1786579862481)\/" under Windows PowerShell
@@ -208,6 +207,5 @@ This builds it, in memory. It has NO -FileSystem
                     secretName  = $null
                     runOnceName = $null
                 })
-            deploymentPassword = $null
         })
 }

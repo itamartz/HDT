@@ -83,7 +83,6 @@ steps:
         if ($null -ne $WriteFailure) { $argument['WriteFailure'] = $WriteFailure }
 
         $harness = New-HDTSequenceTestHarness @argument
-        $harness.State.deploymentPassword = 'Sw0rdfish!'
         $harness.State.autoLogon.armed = $true
         $harness.State.autoLogon.userName = 'Administrator'
         $harness.State.autoLogon.countSet = 2
@@ -118,10 +117,13 @@ Describe 'Invoke-HDTTaskSequence' {
         }
 
         It 'nulls the deployment password in the state' {
-            $script:result.State.deploymentPassword | Should -BeNullOrEmpty
+            # THE STATE CARRIES NO PASSWORD TO NULL any more: the engine arms
+            # with HDTAdminPassword, which belongs to the machine after the
+            # deployment. The LSA secret Winlogon reads is what teardown removes.
+            $script:result.State.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
 
             $saved = $script:harness.FileSystem.ReadAllText($script:harness.StatePath) | ConvertFrom-Json
-            $saved.deploymentPassword | Should -BeNullOrEmpty
+            $saved.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
         }
 
         It 'removes the RunOnce entry' {

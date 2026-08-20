@@ -83,7 +83,6 @@ Describe 'Clear-HDTAutoLogon' {
         }
         $script:clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 5, 0, 0, [System.DateTimeKind]::Utc)) -Journal $script:journal
         $script:state = New-HDTRunState -SequenceId 'seq' -RunId 'run-0001' -Phase FullOS -Clock $script:clock
-        $script:state.deploymentPassword = 'Sw0rdfish!'
         $script:log = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
             -FileSystem $script:fs -Clock $script:clock
     }
@@ -125,10 +124,15 @@ Describe 'Clear-HDTAutoLogon' {
             $fs.TestPath($script:unattend) | Should -BeTrue
         }
 
-        It 'nulls the deployment password in the state' {
+        It 'keeps no password in the state to clear' {
+            # THE STATE USED TO CARRY A GENERATED SECRET, and teardown nulled it.
+            # The engine now arms with HDTAdminPassword - the administrator's own
+            # value, which belongs to the machine AFTER the deployment - so there
+            # is nothing here to clear and nothing to leak. The LSA secret
+            # Winlogon reads is still removed, by item 5.
             Clear-HDTAutoLogon -Registry $script:registry -Lsa $script:lsa -State $script:state | Out-Null
 
-            $script:state.deploymentPassword | Should -BeNullOrEmpty
+            $script:state.PSObject.Properties['deploymentPassword'] | Should -BeNullOrEmpty
         }
 
         It 'marks the state as no longer armed' {
@@ -144,8 +148,8 @@ Describe 'Clear-HDTAutoLogon' {
                 -State $script:state -StatePath $script:statePath -Clock $script:clock | Out-Null
 
             $script:fs.TestPath($script:statePath) | Should -BeTrue
-            (ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:statePath))).deploymentPassword |
-                Should -BeNullOrEmpty
+            (ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:statePath))).autoLogon.armed |
+                Should -BeFalse
         }
 
         It 'does not save the state when no path was given' {
@@ -173,7 +177,6 @@ Describe 'Clear-HDTAutoLogon' {
             $result.Cleared | Should -Contain 'LsaSecret:DefaultPassword'
             $result.Cleared | Should -Contain 'RunOnce:HDTResume'
             $result.Cleared | Should -Contain "Unattend:$script:unattend"
-            $result.Cleared | Should -Contain 'DeploymentPassword'
         }
 
         It 'reports nothing failed on a machine it can clear' {
@@ -195,7 +198,6 @@ Describe 'Clear-HDTAutoLogon' {
             $script:registry.GetValue($script:winlogonPath, 'AutoAdminLogon') | Should -BeNullOrEmpty
             $script:registry.GetValue($script:winlogonPath, 'DefaultUserName') | Should -BeNullOrEmpty
             $script:registry.GetValue($script:runOncePath, 'HDTResume') | Should -BeNullOrEmpty
-            $script:state.deploymentPassword | Should -BeNullOrEmpty
         }
 
         It 'reports the failing item' {
@@ -264,7 +266,6 @@ Describe 'Clear-HDTAutoLogon' {
             $script:registry.GetValue($script:winlogonPath, 'AutoAdminLogon') | Should -Be '1'
             $script:lsa.GetSecret('DefaultPassword') | Should -BeExactly 'Sw0rdfish!'
             $script:fs.TestPath($script:unattend) | Should -BeTrue
-            $script:state.deploymentPassword | Should -BeExactly 'Sw0rdfish!'
         }
     }
 

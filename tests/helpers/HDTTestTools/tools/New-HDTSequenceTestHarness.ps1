@@ -243,6 +243,17 @@ function New-HDTSequenceTestHarness {
     # DESIGN 3.1 source 5: the sequence's own defaults, then whatever the test
     # says on top of them.
     $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    # THE ADMINISTRATOR PASSWORD A REAL DEPLOYMENT ALWAYS HAS. The unattend asks
+    # for it, the reboot ceremony arms autologon with it, and the workspace-wide
+    # default lives in the fallback rule of rules.yaml (DESIGN 4.5.2, MDT's
+    # [Default]) - so a share that reboots without one does not exist.
+    #
+    # It is seeded FIRST, so the sequence's own variables and the test's -Variable
+    # both still win. A fixture that wants the "nobody set one" case passes an
+    # empty string and gets the refusal.
+    $live['HDTAdminPassword'] = 'Harness-P@ssw0rd'
+
     foreach ($name in @($sequence.Variable.Keys)) {
         $live[[string] $name] = $sequence.Variable[$name]
     }
