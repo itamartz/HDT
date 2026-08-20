@@ -90,6 +90,39 @@ function Update-HDTModuleVersion {
         }
     }
 
+    # THE HASH IS OF THE FILE'S CONTENT, NOT OF ITS LINE ENDINGS. git hands one
+    # checkout CRLF and another LF for the same committed bytes, so hashing the
+    # file as it sits on disk makes every clone disagree about the version. CI
+    # found this the first time it ran the task: "0.3.0 -> 0.3.1 (file contents
+    # changed)" on a checkout nobody had edited, and it would have bumped again
+    # on every run for a number it can never commit.
+    #
+    # ISO-8859-1 IS THE ONE ENCODING THAT ROUND-TRIPS ANY BYTE. Decoding as UTF-8
+    # to do the replacement would turn a byte sequence that is not valid UTF-8
+    # into U+FFFD and hash two different files the same; 28591 maps every byte to
+    # exactly one character and back.
+    #
+    # A FILE WITH A NUL BYTE IS NOT TEXT and is hashed as it lies. Nothing under
+    # the module root is binary today, but a branding image would be, and
+    # stripping CR out of a PNG would be nonsense.
+    function Get-HDTFileFingerprint {
+        param([string] $Path)
+
+        $bytes = [System.IO.File]::ReadAllBytes($Path)
+
+        if ([System.Array]::IndexOf($bytes, [byte] 0) -lt 0) {
+            $latin1 = [System.Text.Encoding]::GetEncoding(28591)
+            $bytes = $latin1.GetBytes($latin1.GetString($bytes).Replace("`r`n", "`n"))
+        }
+
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            return [System.BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-', '')
+        } finally {
+            $sha.Dispose()
+        }
+    }
+
     $manifestName = 'Hephaestus.psd1'
     $bundleName = 'Hephaestus.bundle.ps1'
     $manifestPath = Join-Path -Path $ModuleRoot -ChildPath $manifestName
@@ -114,7 +147,7 @@ function Update-HDTModuleVersion {
 
             [pscustomobject] @{
                 Path = $relative
-                Hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+                Hash = Get-HDTFileFingerprint -Path $_.FullName
             }
         } | Sort-Object -Property Path)
 

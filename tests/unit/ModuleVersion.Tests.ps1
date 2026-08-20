@@ -197,6 +197,34 @@ Describe 'Update-HDTModuleVersion' {
 
     Context 'what it does not count' {
 
+        # THE DEFECT THIS GUARDS AGAINST SHIPPED, AND CI CAUGHT IT. The first
+        # build after the version task landed reported "0.3.0 -> 0.3.1 (file
+        # contents changed)" on a clean checkout nobody had edited: the runner's
+        # working copy had CRLF where the developer's had LF, so the two
+        # fingerprints disagreed. Every CI run would have bumped a version it can
+        # never commit, and no two clones would ever have agreed on the number.
+        It 'ignores the line endings a checkout chose, so a fresh clone does not bump' {
+            $path = Join-Path -Path $script:moduleRoot -ChildPath 'Public\Get-HDTOther.ps1'
+
+            [System.IO.File]::WriteAllText($path, "function Get-HDTOther {`r`n    3`r`n}`r`n")
+            Update-HDTModuleVersion -ModuleRoot $script:moduleRoot | Out-Null
+
+            [System.IO.File]::WriteAllText($path, "function Get-HDTOther {`n    3`n}`n")
+
+            (Update-HDTModuleVersion -ModuleRoot $script:moduleRoot).Changed | Should -BeFalse
+        }
+
+        It 'still sees a change that is not just the line endings' {
+            $path = Join-Path -Path $script:moduleRoot -ChildPath 'Public\Get-HDTOther.ps1'
+
+            [System.IO.File]::WriteAllText($path, "function Get-HDTOther {`r`n    3`r`n}`r`n")
+            Update-HDTModuleVersion -ModuleRoot $script:moduleRoot | Out-Null
+
+            [System.IO.File]::WriteAllText($path, "function Get-HDTOther {`n    4`n}`n")
+
+            (Update-HDTModuleVersion -ModuleRoot $script:moduleRoot).Changed | Should -BeTrue
+        }
+
         It 'ignores the generated bundle, which every build rewrites' {
             Set-Content -LiteralPath (Join-Path -Path $script:moduleRoot -ChildPath 'Hephaestus.bundle.ps1') -Value '# generated'
 
