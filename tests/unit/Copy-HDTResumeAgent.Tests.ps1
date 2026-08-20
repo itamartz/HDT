@@ -98,15 +98,41 @@ Describe 'Copy-HDTResumeAgent' {
         }
     }
 
-    Context 'a volume named with a trailing separator' {
+    Context 'however the volume is spelled' {
 
-        It 'lands in the same place, because a caller passes what it was given' {
-            # Get-PathRoot answers 'W:\'; a variable a step published answers 'W:'.
+        # THE ENGINE PUBLISHES A BARE LETTER. HDTOSVolume is 'W', not 'W:' and
+        # not 'W:\', and Invoke-HDTApplyImageStep normalises with
+        # .TrimEnd('\').TrimEnd(':') before building a path from it - the
+        # convention every volume variable in HDT follows.
+        #
+        # THIS TEST USED TO ASSERT 'W:' AND 'W:\' AND NOT 'W', and the missing
+        # case is the one that happened. On a real deployment the agent went to
+        # 'W\HDT' - a RELATIVE path - so 408 files landed on the RAM disk and
+        # died with it. The machine booted, autologged on, and had nothing to
+        # run, while the test stayed green against a value the engine never
+        # produces. Fixtures come from real captured data; so do parameters.
+        It 'stages to the same place given <Spelling>' -ForEach @(
+            @{ Spelling = 'W' }
+            @{ Spelling = 'W:' }
+            @{ Spelling = 'W:\' }
+            @{ Spelling = 'w' }
+        ) {
             $fileSystem = & $script:newSource
 
-            [void] (Copy-HDTResumeAgent -TargetVolume 'W:\' -FileSystem $fileSystem -Confirm:$false)
+            $staged = Copy-HDTResumeAgent -TargetVolume $Spelling -FileSystem $fileSystem -Confirm:$false
 
             $fileSystem.TestPath('W:\HDT\Start-HDTResume.ps1') | Should -BeTrue
+            $staged.Path | Should -BeExactly 'W:\HDT'
+        }
+
+        It 'refuses something that is not a drive letter, rather than writing a relative path' {
+            # A RELATIVE DESTINATION IS THE FAILURE THIS COMMAND EXISTS TO STOP,
+            # reached from the other end: files written somewhere nobody looks,
+            # and a machine that boots into nothing.
+            $fileSystem = & $script:newSource
+
+            { Copy-HDTResumeAgent -TargetVolume 'the big disk' -FileSystem $fileSystem -Confirm:$false } |
+                Should -Throw -ExpectedMessage '*drive letter*'
         }
     }
 

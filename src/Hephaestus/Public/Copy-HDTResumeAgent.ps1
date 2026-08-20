@@ -1,4 +1,4 @@
-function Copy-HDTResumeAgent {
+﻿function Copy-HDTResumeAgent {
     <#
         .SYNOPSIS
             Stages the engine and the resume payload onto the volume the machine
@@ -52,10 +52,11 @@ function Copy-HDTResumeAgent {
             this wrote, on the machine, at the end of the run.
 
         .PARAMETER TargetVolume
-            The volume the operating system was applied to - the value
-            HDTOSVolume carries, with or without a trailing separator. In WinPE
-            that is whatever letter the partition step published; on the booted
-            machine the same folder is C:\HDT.
+            The volume the operating system was applied to - the DRIVE LETTER
+            HDTOSVolume carries. 'W', 'W:' and 'W:\' all mean the same volume
+            and all stage to W:\HDT; anything that is not one letter is refused
+            rather than turned into a relative path. On the booted machine the
+            same folder is C:\HDT.
 
         .PARAMETER Source
             The boot image's own payload folder. X: is the only letter a WinPE
@@ -117,10 +118,29 @@ function Copy-HDTResumeAgent {
                     -Message ("'{0}' is not in this boot image, so the deployed machine would autologon with nothing to run and every step after the restart would be silently skipped. Rebuild the boot image with a version of Update-HDTBootImage that stages the resume payload." -f $payload)))
     }
 
-    # 'W:' and 'W:\' both mean the root of W:, and callers have both: a step
-    # publishes the first, GetPathRoot answers the second.
-    $root = ([string] $TargetVolume).TrimEnd('\', '/')
-    $destination = [System.IO.Path]::Combine(($root + [System.IO.Path]::DirectorySeparatorChar), 'HDT')
+    # A VOLUME IS A LETTER, AND HDTOSVolume CARRIES JUST THE LETTER - 'W', not
+    # 'W:' and not 'W:\'. That is the convention every volume variable in this
+    # engine follows, and Invoke-HDTApplyImageStep normalises exactly this way
+    # before it builds a path from one.
+    #
+    # THE FIRST VERSION OF THIS TRIMMED SEPARATORS AND NOTHING ELSE, so the real
+    # value composed 'W\HDT' - a RELATIVE path. On a live deployment 408 files
+    # went onto the RAM disk, died with it, and the machine booted, autologged on
+    # and had nothing to run. The unit tests were green throughout, because they
+    # were written against 'W:' and 'W:\': two spellings the engine never
+    # produces.
+    $letter = ([string] $TargetVolume).Trim().TrimEnd('\', '/').TrimEnd(':')
+
+    # ANYTHING THAT IS NOT ONE LETTER IS REFUSED RATHER THAN MADE RELATIVE. A
+    # relative destination is the failure this command exists to prevent,
+    # reached from the other end - files written somewhere nobody will look, and
+    # a machine that boots into nothing.
+    if ($letter -notmatch '^[A-Za-z]$') {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $TargetVolume -Category InvalidArgument `
+                    -Message ("'{0}' is not a drive letter, so there is nowhere to stage the engine. HDTOSVolume carries the letter the partition step published; a value that is not one letter would compose a relative path and put the deployed machine's engine somewhere nothing will look for it." -f $TargetVolume)))
+    }
+
+    $destination = '{0}:\HDT' -f $letter.ToUpperInvariant()
 
     if (-not $PSCmdlet.ShouldProcess($destination, ("Stage the engine and the resume payload from '{0}'" -f $Source))) {
         return [pscustomobject] @{
