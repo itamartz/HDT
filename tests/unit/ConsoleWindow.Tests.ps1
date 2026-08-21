@@ -82,7 +82,7 @@ steps:
 
         $fake | Add-Member -MemberType ScriptMethod -Name Show -Value {
             param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
-                [string] $ThemeName, [int] $RefreshSecond, [string] $NewSequenceXaml,
+                [int] $RefreshSecond, [string] $NewSequenceXaml,
                 [string] $ImportOperatingSystemXaml, [string] $ImportApplicationXaml,
                 [string] $ApplicationDependencyXaml, [string] $ApplicationDetectionXaml,
                 [object] $Fill = $null)
@@ -101,7 +101,6 @@ steps:
             # ignored outright. Keeping them is also the more useful double,
             # since which markup each dialog was handed is then assertable.
             $this.Handed = [ordered] @{
-                ThemeName                 = $ThemeName
                 RefreshSecond             = $RefreshSecond
                 NewSequenceXaml           = $NewSequenceXaml
                 ImportOperatingSystemXaml = $ImportOperatingSystemXaml
@@ -334,35 +333,34 @@ Describe 'Show-HDTConsole' {
             }
         }
 
-        It 'keeps <_> readable when the pointer is over the button' -ForEach @('Light', 'Dark') {
-            # THE BUG THIS EXISTS FOR: the light theme's hover is a pale wash,
-            # and white-on-pale is a button that empties as the pointer reaches
-            # it. Measured rather than trusted, in both palettes, because the
-            # right answer differs between them.
-            $palette = Get-HDTConsoleTheme -Name $PSItem
+        It 'keeps the button readable when the pointer is over it' {
+            # THE BUG THIS EXISTS FOR: the hover is a pale wash, and
+            # white-on-pale is a button that empties as the pointer reaches it.
+            # Measured rather than trusted.
+            $palette = Get-HDTConsoleTheme
 
             $ratio = Get-HDTContrastRatio $palette['HDTButtonHoverBrush'] $palette['HDTButtonHoverTextBrush']
 
             $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem hover text on hover background"
         }
 
-        It 'keeps the <_> button readable at rest too' -ForEach @('Light', 'Dark') {
-            $palette = Get-HDTConsoleTheme -Name $PSItem
+        It 'keeps the button readable at rest too' {
+            $palette = Get-HDTConsoleTheme
 
             $ratio = Get-HDTContrastRatio $palette['HDTButtonBrush'] $palette['HDTButtonTextBrush']
 
             $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem button text on button background"
         }
 
-        It 'keeps the <_> detail pane readable' -ForEach @('Light', 'Dark') {
-            $palette = Get-HDTConsoleTheme -Name $PSItem
+        It 'keeps the detail pane readable' {
+            $palette = Get-HDTConsoleTheme
 
             $ratio = Get-HDTContrastRatio $palette['HDTFieldBrush'] $palette['HDTPanelTextBrush']
 
             $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem field text on field background"
         }
 
-        It 'does not say "this went wrong" and "this is what ran" in the same <_> colour' -ForEach @('Light', 'Dark') {
+        It 'does not say "this went wrong" and "this is what ran" in the same colour' {
             # THEY WERE THE SAME RED IN LIGHT - #FFA31515 for both - and the two
             # lines sit one above the other on every dialog that has them: the
             # refusal and the command it would have run. A technician cannot
@@ -371,14 +369,14 @@ Describe 'Show-HDTConsole' {
             #
             # The console itself has no error line, which is why red reads
             # correctly there and this went unnoticed.
-            $palette = Get-HDTConsoleTheme -Name $PSItem
+            $palette = Get-HDTConsoleTheme
 
             $palette['HDTCommandTextBrush'] | Should -Not -BeExactly $palette['HDTErrorBrush'] `
                 -Because "$PSItem must not paint a refusal and a command preview alike"
         }
 
-        It 'keeps the <_> command preview readable where it is shown' -ForEach @('Light', 'Dark') {
-            $palette = Get-HDTConsoleTheme -Name $PSItem
+        It 'keeps the command preview readable where it is shown' {
+            $palette = Get-HDTConsoleTheme
 
             $ratio = Get-HDTContrastRatio $palette['HDTWindowBrush'] $palette['HDTCommandTextBrush']
 
@@ -393,18 +391,9 @@ Describe 'Show-HDTConsole' {
                     -ConsoleHost $consoleHost -FileSystem (New-HDTConsoleWindowTestFileSystem))
 
             $consoleHost.Theme['HDTPanelBrush'] |
-                Should -BeExactly (Get-HDTConsoleTheme -Name Light)['HDTPanelBrush']
+                Should -BeExactly (Get-HDTConsoleTheme)['HDTPanelBrush']
         }
 
-        It 'hands the dark palette over when it is asked for' {
-            $consoleHost = New-HDTFakeConsoleHost
-
-            [void] (Show-HDTConsole -Path $script:root -XamlPath $script:xamlPath -Theme Dark `
-                    -ConsoleHost $consoleHost -FileSystem (New-HDTConsoleWindowTestFileSystem))
-
-            $consoleHost.Theme['HDTPanelBrush'] |
-                Should -BeExactly (Get-HDTConsoleTheme -Name Dark)['HDTPanelBrush']
-        }
     }
 
     Context 'the size it was left at' {
@@ -738,12 +727,10 @@ Describe 'the shipped console window' {
         $declared = @($document.SelectNodes("//*[local-name()='SolidColorBrush']") |
                 ForEach-Object { $_.GetAttribute('Key', 'http://schemas.microsoft.com/winfx/2006/xaml') })
 
-        foreach ($name in @('Light', 'Dark')) {
-            $key = @((Get-HDTConsoleTheme -Name $name).Keys)
+        $key = @((Get-HDTConsoleTheme).Keys)
 
-            @($key).Count | Should -BeGreaterThan 0
-            @($key | Sort-Object) | Should -Be @($declared | Sort-Object) -Because "the $name palette"
-        }
+        @($key).Count | Should -BeGreaterThan 0
+        @($key | Sort-Object) | Should -Be @($declared | Sort-Object)
     }
 
     It 'paints every colour through a DynamicResource, so a palette swap repaints it' {

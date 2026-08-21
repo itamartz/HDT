@@ -44,9 +44,6 @@
     .PARAMETER Title
         The window title.
 
-    .PARAMETER Theme
-        Light or Dark. Light by default.
-
     .PARAMETER Detach
         Start the window in its own hidden process and return at once.
 
@@ -70,9 +67,6 @@ param(
     [ValidateNotNullOrEmpty()]
     [string] $Title = 'Hephaestus Deployment Toolkit',
 
-    [Parameter()]
-    [ValidateSet('Light', 'Dark')]
-    [string] $Theme = 'Light',
 
     [Parameter()]
     [switch] $Detach
@@ -84,7 +78,7 @@ $ErrorActionPreference = 'Stop'
 try {
     Import-Module -Name (Join-Path -Path $PSScriptRoot -ChildPath 'Hephaestus.psd1') -Force -ErrorAction Stop
 
-    $answer = Start-HDTConsole -Path $Path -Title $Title -Theme $Theme -Detach:$Detach
+    $answer = Start-HDTConsole -Path $Path -Title $Title -Detach:$Detach
 
     if ($null -ne $answer) {
         Write-Verbose ('The console closed with {0} after showing {1} rows.' -f $answer.Action, $answer.NodeCount)

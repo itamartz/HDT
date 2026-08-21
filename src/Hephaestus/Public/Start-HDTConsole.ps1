@@ -1,4 +1,4 @@
-function Start-HDTConsole {
+﻿function Start-HDTConsole {
     <#
         .SYNOPSIS
             Opens the admin console, dealing with the apartment and the terminal.
@@ -45,9 +45,6 @@ function Start-HDTConsole {
         .PARAMETER Title
             The window title.
 
-        .PARAMETER Theme
-            Light or Dark. Light by default.
-
         .PARAMETER Detach
             Start the window in its own hidden process and return at once,
             leaving the prompt you ran this from usable.
@@ -76,7 +73,6 @@ function Start-HDTConsole {
             The window opens and the prompt comes straight back.
 
         .EXAMPLE
-            Start-HDTConsole 'C:\HDTLab\Share' '\\HDT-HOST\HdtShare' -Theme Dark
 
             Two shares, one window.
 
@@ -96,9 +92,6 @@ function Start-HDTConsole {
         [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
-        [Parameter()]
-        [ValidateSet('Light', 'Dark')]
-        [string] $Theme = 'Light',
 
         [Parameter()]
         [switch] $Detach
@@ -153,8 +146,6 @@ public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [void] $argument.Add('"{0}"' -f $launcher)
     [void] $argument.Add('-Title')
     [void] $argument.Add('"{0}"' -f $Title)
-    [void] $argument.Add('-Theme')
-    [void] $argument.Add('"{0}"' -f $Theme)
     [void] $argument.Add('-Path')
 
     foreach ($one in @($Path)) { [void] $argument.Add('"{0}"' -f $one) }
@@ -192,7 +183,7 @@ public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     # -- the window ----------------------------------------------------------
 
     try {
-        return Show-HDTConsole -Path $Path -Title $Title -Theme $Theme
+        return Show-HDTConsole -Path $Path -Title $Title
     } finally {
         # HIDDEN IS A PRESENTATION CHOICE, NOT A PLACE TO GET STUCK. Whether the
         # window closed cleanly or never opened, the terminal comes back - there

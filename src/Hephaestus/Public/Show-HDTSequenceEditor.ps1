@@ -1,4 +1,4 @@
-function Show-HDTSequenceEditor {
+﻿function Show-HDTSequenceEditor {
     <#
         .SYNOPSIS
             Opens the task sequence editor on one task sequence.
@@ -43,9 +43,6 @@ function Show-HDTSequenceEditor {
         .PARAMETER ConsoleHost
             An IConsoleHost with a ShowEditor method. Defaults to the real
             adapter.
-
-        .PARAMETER Theme
-            Light or Dark. Light by default, matching the console.
 
         .PARAMETER OwnerWidth
             The current width of the window the editor was opened from - the
@@ -95,9 +92,6 @@ function Show-HDTSequenceEditor {
         [AllowNull()]
         [object] $FileSystem,
 
-        [Parameter()]
-        [ValidateSet('Light', 'Dark')]
-        [string] $Theme = 'Light',
 
         [Parameter()]
         [ValidateRange(0, 100000)]
@@ -157,7 +151,7 @@ function Show-HDTSequenceEditor {
 
     $answer = [string] $ConsoleHost.ShowEditor($xaml, $editor.Title, $editor.DocumentPath,
         [object[]] @($editor.Root), $line,
-        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme -Name $Theme), $size,
+        [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme), $size,
         $partitionXaml, $editor)
 
     $action = 'Close'

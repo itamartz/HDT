@@ -1,4 +1,4 @@
-function Show-HDTBuildProgressWindow {
+﻿function Show-HDTBuildProgressWindow {
     <#
         .SYNOPSIS
             Runs Update-HDTBootImage and shows what it is doing while it does it.
@@ -40,9 +40,6 @@ function Show-HDTBuildProgressWindow {
         .PARAMETER ConsoleHost
             The host to show it through. Omitted, one is created.
 
-        .PARAMETER Theme
-            Light or Dark.
-
         .PARAMETER Screen
             The IScreen the position is taken from. Omitted, the real desktop.
 
@@ -77,9 +74,6 @@ function Show-HDTBuildProgressWindow {
         [AllowNull()]
         [object] $ConsoleHost,
 
-        [Parameter()]
-        [ValidateSet('Light', 'Dark')]
-        [string] $Theme = 'Light',
 
         [Parameter()]
         [AllowNull()]
@@ -105,7 +99,7 @@ function Show-HDTBuildProgressWindow {
 
     $answer = $ConsoleHost.ShowBuildProgress(
         [System.IO.File]::ReadAllText($XamlPath), $WorkspaceRoot, $ModulePath,
-        (Get-HDTConsoleTheme -Name $Theme),
+        (Get-HDTConsoleTheme),
         [pscustomobject] @{ Left = [double] $work.Left; Top = [double] $work.Top })
 
     return [bool] $answer

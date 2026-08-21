@@ -30,7 +30,6 @@ Describe 'Start-HDTConsole' {
     It 'takes <Parameter>' -ForEach @(
         @{ Parameter = 'Path' }
         @{ Parameter = 'Title' }
-        @{ Parameter = 'Theme' }
         @{ Parameter = 'Detach' }
     ) {
         (Get-Command -Name 'Start-HDTConsole' -Module 'Hephaestus').Parameters.Keys | Should -Contain $Parameter
@@ -46,13 +45,7 @@ Describe 'Start-HDTConsole' {
         $parameter.ParameterType | Should -Be ([string[]])
     }
 
-    It 'offers the two palettes and refuses a third' {
-        $parameter = (Get-Command -Name 'Start-HDTConsole' -Module 'Hephaestus').Parameters['Theme']
-        $allowed = @($parameter.Attributes | Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })[0]
-
-        @($allowed.ValidValues) | Should -Be @('Light', 'Dark')
     }
-}
 
 Describe 'the launcher script' {
 
@@ -75,11 +68,13 @@ Describe 'the launcher script' {
         }
     }
 
-    It 'takes the same four parameters, so the two cannot drift' {
+    It 'takes the same three parameters, so the two cannot drift' {
         $command = (Get-Command -Name 'Start-HDTConsole' -Module 'Hephaestus').Parameters
         $script = @((Get-Command -Name $script:launcherPath).Parameters.Keys)
 
-        foreach ($name in @('Path', 'Title', 'Theme', 'Detach')) {
+        # Theme is deliberately absent: the console is light, and a parameter
+        # with one legal value is a question with one answer.
+        foreach ($name in @('Path', 'Title', 'Detach')) {
             $script | Should -Contain $name
             $command.Keys | Should -Contain $name
         }

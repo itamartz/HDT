@@ -69,12 +69,6 @@
         .PARAMETER Title
             The window title.
 
-        .PARAMETER Theme
-            Light or Dark. LIGHT IS THE DEFAULT: the console is a desktop
-            application sitting beside Explorer and the Workbench it replaces,
-            in an office. The WinPE wizard keeps its dark palette, because that
-            one is read on a bench with nothing else on the screen.
-
         .PARAMETER ConsoleHost
             An IConsoleHost. Defaults to the real adapter.
 
@@ -165,8 +159,10 @@
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string] $ApplicationDetectionXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTApplicationDetection.xaml'),
-
+        [string] $ApplicationDetectionXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTApplicationDetection.xaml'),
+
+
+
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string] $NewWorkspaceXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTNewWorkspace.xaml'),
@@ -195,9 +191,6 @@
         [AllowNull()]
         [object] $Screen,
 
-        [Parameter()]
-        [ValidateSet('Light', 'Dark')]
-        [string] $Theme = 'Light',
 
         [Parameter()]
         [System.Threading.ApartmentState] $ApartmentState =
@@ -359,7 +352,7 @@
     }
 
     $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
-        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, $RefreshSecond, $newSequenceXaml,
+        (Get-HDTConsoleTheme), $size, $RefreshSecond, $newSequenceXaml,
         $importOperatingSystemXaml, $importApplicationXaml, $applicationDependencyXaml,
         $applicationDetectionXaml, $fill, $newWorkspaceXaml)
 

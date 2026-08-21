@@ -1,4 +1,4 @@
-# The task sequence editor window: what it is handed, and what its markup must
+﻿# The task sequence editor window: what it is handed, and what its markup must
 # contain for the adapter to find anything.
 #
 # THE ADAPTER IS NOT TESTED AND MUST THEREFORE DECIDE NOTHING. New-HDTConsoleHost
@@ -438,7 +438,7 @@ Describe 'Show-HDTSequenceEditor' {
         $editorHost = New-HDTFakeEditorHost
 
         [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
-                -XamlPath $script:xamlPath -ConsoleHost $editorHost -Theme 'Dark')
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost)
 
         $editorHost.Theme | Should -Not -BeNullOrEmpty
         $editorHost.Theme.Keys | Should -Contain 'HDTWindowBrush'
@@ -618,9 +618,8 @@ Describe 'every brush the markup names' {
 
     It 'is defined in the <Name> theme' -ForEach @(
         @{ Name = 'Light' }
-        @{ Name = 'Dark' }
     ) {
-        $theme = Get-HDTConsoleTheme -Name $Name
+        $theme = Get-HDTConsoleTheme
 
         $named = @([regex]::Matches($script:markup, 'DynamicResource\s+(HDT\w+)') |
                 ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)

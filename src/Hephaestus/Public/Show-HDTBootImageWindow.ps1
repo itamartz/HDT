@@ -1,4 +1,4 @@
-function Show-HDTBootImageWindow {
+﻿function Show-HDTBootImageWindow {
     <#
         .SYNOPSIS
             Opens the Windows PE window on a deployment share.
@@ -36,10 +36,6 @@ function Show-HDTBootImageWindow {
         .PARAMETER FileSystem
             The IFileSystem to read the document with.
 
-        .PARAMETER Theme
-            Light or Dark, applied through Get-HDTConsoleTheme like every other
-            console window.
-
         .PARAMETER OwnerWidth
             The width of the window this was opened from. Zero means the
             markup's own size.
@@ -61,7 +57,6 @@ function Show-HDTBootImageWindow {
             Show-HDTBootImageWindow -Path 'C:\HDTLab\Share\workspace.yaml'
 
         .EXAMPLE
-            Show-HDTBootImageWindow -Path '\\HDT-HOST\HdtShare\workspace.yaml' -Theme Dark
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -82,9 +77,6 @@ function Show-HDTBootImageWindow {
         [AllowNull()]
         [object] $FileSystem,
 
-        [Parameter()]
-        [ValidateSet('Light', 'Dark')]
-        [string] $Theme = 'Light',
 
         [Parameter()]
         [ValidateRange(0, 100000)]
@@ -157,7 +149,7 @@ function Show-HDTBootImageWindow {
     $answer = [string] $ConsoleHost.ShowBootImage(
         [System.IO.File]::ReadAllText($XamlPath), $Path, $line,
         [object[]] @($component), [object[]] @($driverGroup),
-        (Get-HDTConsoleTheme -Name $Theme), $size, $Theme, [object[]] @($timeZone))
+        (Get-HDTConsoleTheme), $size, [object[]] @($timeZone))
 
     $action = 'Close'
     if (-not [string]::IsNullOrWhiteSpace($answer)) { $action = $answer }
