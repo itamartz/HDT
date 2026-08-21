@@ -268,9 +268,15 @@ Describe 'Copy-HDTResumeAgent and the share that was actually reached' {
 # Watched on 2026-08-21: Acrobat installed, autologon torn down, run Succeeded,
 # and nothing on screen.
 #
-# ONE FILE, NOT THE FOLDER. The wizard, the progress window and the theme all
-# belong to WinPE; only the summary is shown after the reboot.
-Describe 'Copy-HDTResumeAgent and the screen the deployment ends on' {
+# TWO FILES, NOT THE FOLDER. The wizard, the Welcome screen and the theme belong
+# to WinPE and are never drawn again; the summary and the PROGRESS BOARD are
+# both shown after the reboot.
+#
+# THE BOARD WAS THE ONE NOBODY NOTICED WAS MISSING. A deployed machine had its
+# applications in appwiz.cpl and nobody had watched one install - the full-OS
+# leg drew nothing at all, and when it was given a window to draw, the markup it
+# needed was still only in the boot image.
+Describe 'Copy-HDTResumeAgent and the screens the full OS leg draws' {
 
     It 'stages the summary screen beside the engine' {
         $fs = & $script:newSource
@@ -279,6 +285,32 @@ Describe 'Copy-HDTResumeAgent and the screen the deployment ends on' {
         [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false)
 
         $fs.TestPath('W:\HDT\UI\HDTFailure.xaml') | Should -BeTrue
+    }
+
+    It 'stages the progress board beside it' {
+        $fs = & $script:newSource
+        $fs.SeedFile('X:\HDT\UI\HDTProgress.xaml', '<Window />')
+
+        [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false)
+
+        $fs.TestPath('W:\HDT\UI\HDTProgress.xaml') | Should -BeTrue
+    }
+
+    It 'counts the board too' {
+        $fs = & $script:newSource
+        $fs.SeedFile('X:\HDT\UI\HDTProgress.xaml', '<Window />')
+
+        $answer = Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false
+
+        @($answer.Item | Where-Object { $_.Name -like '*HDTProgress.xaml' }) | Should -Not -BeNullOrEmpty
+    }
+
+    It 'stages neither when the image has neither' {
+        $fs = & $script:newSource
+
+        { [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false) } | Should -Not -Throw
+
+        $fs.TestPath('W:\HDT\UI\HDTProgress.xaml') | Should -BeFalse
     }
 
     It 'counts it, so the log says what was staged' {

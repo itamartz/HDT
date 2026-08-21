@@ -107,6 +107,15 @@ param(
     [ValidateNotNullOrEmpty()]
     [string] $SummaryXamlPath,
 
+    # THE STATUS BOARD, BESIDE THE SUMMARY SCREEN AND FOUND THE SAME WAY. This
+    # leg used to draw NOTHING: applications appeared in appwiz.cpl and nobody
+    # ever saw them install, because the longest part of a deployment reported to
+    # a service catalog with no progress host in it while the technician looked
+    # at the PowerShell console RunOnce had launched.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $ProgressXamlPath,
+
     [Parameter()]
     [ValidateNotNullOrEmpty()]
     [string] $SequencePath,
@@ -245,6 +254,18 @@ $logDestination = ''
 $setupFailure = ''
 $workspaceRoot = $WorkspaceRoot
 $sequenceFile = $SequencePath
+
+# THE STATUS BOARD AND THE CONSOLE IT REPLACES, declared out here for the reason
+# every other name in this list is: the summary block below runs after the catch
+# and reads both, and a leg that threw before opening a window must not fail
+# again on an unassigned variable.
+$display = $null
+$shellHidden = $false
+
+# WHAT THE TECHNICIAN PRESSED ON THE SUMMARY, read by the finish block below
+# whether or not a screen was ever drawn. HDTSkipFinalSummary skips the screen
+# entirely, and an empty answer is what "nobody was asked" looks like.
+$summaryAction = ''
 
 try {
 
@@ -402,14 +423,69 @@ try {
     $log = New-HDTLogContext -RunId ([string] $state.runId) -Phase FullOS -LogPath $logRoot `
         -FileSystem $fileSystem -Clock $clock -Seq ([long] $bootLog.Seq)
 
-    $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
-        -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
-        -Environment $environment -Content $content
-
+    # THE BAG FIRST, BECAUSE THE BOARD IS DECIDED FROM IT. HDTSkipProgress
+    # lives here, and Start-HDTProgressDisplay reads it to answer whether there
+    # should be a window at all.
     $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($name in @($state.variable.Keys)) {
         $variable[[string] $name] = $state.variable[$name]
     }
+
+    # -- the progress window, before the loop starts --------------------------
+    #
+    # THIS LEG DREW NOTHING UNTIL NOW, AND A DEPLOYED MACHINE IS HOW THAT WAS
+    # FOUND: the applications were in appwiz.cpl and nobody had seen one
+    # install. They install SILENTLY by design - a deployment must not stop on a
+    # dialog nobody is there to click - so the board naming them was the only
+    # thing that was ever going to show it happening, and there was no board.
+    #
+    # WinPE HAD ONE THE WHOLE TIME. The short half of a deployment had a status
+    # card and the long half - applications, roles, the reboots between them -
+    # had a PowerShell console.
+    #
+    # A hashtable, because Start-HDTProgressDisplay takes one and the bag above
+    # is ordered and case-insensitive for the engine's sake.
+    $progressVariable = @{}
+    foreach ($name in @($variable.Keys)) { $progressVariable[[string] $name] = $variable[$name] }
+
+    $progressXaml = $ProgressXamlPath
+
+    if ([string]::IsNullOrWhiteSpace($progressXaml)) {
+        # BESIDE THE AGENT, NOT INSIDE THE MODULE - the same correction the
+        # summary screen's default already carries. Update-HDTBootImage keeps
+        # UI\ OUT of the module tree, so a default that pointed into the staged
+        # module would name a folder that is never there.
+        $progressXaml = [System.IO.Path]::Combine(
+            [System.IO.Path]::GetDirectoryName($StatePath), 'UI', 'HDTProgress.xaml')
+    }
+
+    $display = Start-HDTProgressDisplay -XamlPath $progressXaml -Variable $progressVariable
+
+    Write-HDTLog -Context $bootLog -Severity Info -Component 'Resume' `
+        -Message ("progress display: {0} {1}" -f $display.Mode, $display.Reason)
+
+    if ($display.Mode -ne 'Suppressed') {
+        # NOT IN THE EVENT STREAM. Every other value on that screen is derived
+        # from the log; the machine's own name is a variable, and this is the
+        # only place that has it.
+        $displayName = ''
+        if ($variable.Contains('HDTComputerName')) { $displayName = [string] $variable['HDTComputerName'] }
+
+        $display.DisplayHost.SetComputerName($displayName)
+    }
+
+    # AND THE CONSOLE GOES, BUT ONLY IF THERE IS A WINDOW INSTEAD. RunOnce
+    # launches this leg through Set-HDTAutoLogon's command, which carries no
+    # -WindowStyle Hidden, so what a technician sees is a PowerShell host. A
+    # machine that could not draw the board keeps it, because a hidden console
+    # with nothing over it is a blank screen. Step 13 puts it back.
+    if ($display.Mode -eq 'Window') {
+        $shellHidden = [bool] (Hide-HDTShellWindow)
+    }
+
+    $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
+        -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
+        -Environment $environment -Content $content -Progress $display.DisplayHost
 
     $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase FullOS `
         -WorkspaceRoot $workspaceRoot -Variable $variable -Service $catalog -Log $log -State $state
@@ -476,6 +552,18 @@ try {
 }
 
 
+# -- the board comes down, and the console comes back -------------------------
+#
+# BEFORE THE SUMMARY SCREEN, because that screen is the one a technician
+# ANSWERS and a status board left up over it is a machine that looks hung. After
+# the catch, because a leg that threw is exactly the leg whose screen must not
+# be left on a machine that is about to restart.
+if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
+    $display.DisplayHost.Close()
+}
+
+if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
+
 # -- the deployment summary, MDT's Finished screen ---------------------------
 #
 # THIS LEG USED TO END ON exit 0 OR exit 1 AND DRAW NOTHING. A machine that had
@@ -523,7 +611,14 @@ if (-not $skipSummary) {
 
         $summary = Get-HDTDeploymentFailure -Record $record -LogPath $logDestination -Reason $setupFailure
 
-        [void] (Show-HDTDeploymentFailure -Failure $summary -XamlPath $summaryXaml)
+        # AND THE ANSWER IS KEPT. It used to be discarded with [void], so the
+        # three buttons on that screen did nothing at all: HDTFinishAction
+        # decided the power state whatever the technician pressed, and Restart
+        # on a finished machine could shut it down because a rule said so.
+        $summaryAction = [string] (Show-HDTDeploymentFailure -Failure $summary -XamlPath $summaryXaml).Action
+
+        Write-HDTLog -Context $failLog -Component 'Summary' `
+            -Message ("the deployment summary was answered: {0}" -f $summaryAction)
     } catch {
         # INTO THE RUN LOG, NOT A STREAM NOBODY READS. This was
         # Write-Information, so when the screen could not be drawn the reason
@@ -561,6 +656,31 @@ if (-not $skipSummary) {
 $finishValue = ''
 if ($null -ne $variable -and $variable.Contains('HDTFinishAction')) {
     $finishValue = [string] $variable['HDTFinishAction']
+}
+
+# EXCEPT WHEN A TECHNICIAN NAMED ONE, and that is the whole reason the summary's
+# answer is now kept. HDTFinishAction is what a machine does when NOBODY SAID
+# OTHERWISE - MDT's property, MDT's meaning - and a press is saying otherwise.
+#
+#   Restart / Shutdown   the button named a power state, so it produces it
+#   Finish               MDT's own button: the screen has been read, and what
+#                        happens next is the rule's answer, unchanged
+#   CommandPrompt        the machine belongs to the technician now
+#
+# THE PROMPT CASE ENDS THE POWER STORY ENTIRELY, which is the lesson the WinPE
+# leg already learned the hard way: a run that opened a prompt and then powered
+# the machine off five seconds later gave the technician nothing at all.
+if ($summaryAction -eq 'Restart' -or $summaryAction -eq 'Shutdown') {
+    $finishValue = $summaryAction
+}
+
+if ($summaryAction -eq 'CommandPrompt') {
+    $prompt = Start-HDTCommandPrompt
+
+    Write-HDTLog -Context $failLog -Component 'Finish' `
+        -Message ("command prompt: started {0} ({1})" -f $prompt.Started, $prompt.FilePath)
+
+    $finishValue = 'NONE'
 }
 
 # THE FINISH ACTION IS NOT ALLOWED TO BECOME THE OUTCOME, the same rule the

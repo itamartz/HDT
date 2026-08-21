@@ -39,7 +39,8 @@
                                       and a copy on the deployed machine would be
                                       a second answer to "what starts a
                                       deployment", and the one nothing launches
-              UI\HDTFailure.xaml    the Deployment Summary, and ONLY that.
+              UI\HDTFailure.xaml    the Deployment Summary
+              UI\HDTProgress.xaml   the status board this leg runs behind
                                       The wizard, the progress window and the theme
                                       belong to WinPE, before this disk had a
                                       partition table; the summary is drawn AFTER
@@ -237,32 +238,37 @@
             })
     }
 
-    # -- the screen the full-OS leg ends on --------------------------------
+    # -- the screens the full-OS leg draws ----------------------------------
     #
-    # ONE FILE OUT OF UI\, AND ONLY BECAUSE IT IS SHOWN AFTER THE REBOOT.
+    # TWO FILES OUT OF UI\, AND ONLY THE TWO THAT ARE SHOWN AFTER THE REBOOT.
     # Update-HDTBootImage keeps UI\ out of the module tree deliberately and
-    # stages it to X:\HDT\UI\ for the wizard, which runs in WinPE. The
-    # Deployment Summary is the one piece of markup drawn once Windows is up,
-    # so it has to travel with the engine.
+    # stages the whole folder to X:\HDT\UI\ for the wizard, which runs in WinPE
+    # and never runs again. These two are drawn once Windows is up, so they have
+    # to travel with the engine onto the disk.
     #
-    # IT WAS NOT STAGED AT ALL, and the default path pointed into the module's
-    # own UI\ folder - which is not in the staged module. A deployment that
-    # SUCCEEDED end to end finished in silence, because the throw was caught and
-    # written to a stream nobody reads.
+    # NEITHER WAS STAGED, AND EACH FAILED QUIETLY IN ITS OWN WAY. The summary's
+    # default path pointed into the staged module's own UI\ folder, which does
+    # not exist, so a deployment that SUCCEEDED end to end finished in silence.
+    # The board was worse: the full-OS leg opened no window at all, so a machine
+    # installed its applications with nothing on screen and the first anybody
+    # knew of them was appwiz.cpl afterwards.
     #
-    # OPTIONAL, LIKE bootstrap.json. An older boot image has no such file, and a
-    # machine that cannot show a summary must still finish its sequence.
-    $summarySource = [System.IO.Path]::Combine($Source, 'UI', 'HDTFailure.xaml')
+    # OPTIONAL, LIKE bootstrap.json. An older boot image has neither file, and a
+    # machine that cannot draw a screen must still finish its sequence -
+    # Start-HDTProgressDisplay degrades to console lines and says why.
+    foreach ($screen in @('HDTFailure.xaml', 'HDTProgress.xaml')) {
 
-    if ($FileSystem.TestPath($summarySource)) {
-        $summaryFolder = [System.IO.Path]::Combine($destination, 'UI')
-        $FileSystem.CreateDirectory($summaryFolder)
-        $FileSystem.CopyItem($summarySource, [System.IO.Path]::Combine($summaryFolder, 'HDTFailure.xaml'))
+        $screenSource = [System.IO.Path]::Combine($Source, 'UI', $screen)
+        if (-not $FileSystem.TestPath($screenSource)) { continue }
+
+        $screenFolder = [System.IO.Path]::Combine($destination, 'UI')
+        $FileSystem.CreateDirectory($screenFolder)
+        $FileSystem.CopyItem($screenSource, [System.IO.Path]::Combine($screenFolder, $screen))
         $count++
 
         [void] $item.Add([pscustomobject] @{
-                Name      = 'UI\HDTFailure.xaml'
-                Source    = [string] $summarySource
+                Name      = 'UI\{0}' -f $screen
+                Source    = [string] $screenSource
                 FileCount = 1
             })
     }

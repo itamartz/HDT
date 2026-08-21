@@ -121,6 +121,116 @@ Describe 'Start-HDTResume.ps1' {
         $loader | Should -Not -BeLike '*Payload*'
     }
 
+    Context 'the screen the full OS leg draws' {
+
+        # FOUND ON A DEPLOYED MACHINE. Applications appeared in appwiz.cpl and
+        # nobody ever saw them install: the full-OS leg opened no progress
+        # window, passed no -Progress to the service catalog, and ran in the
+        # visible PowerShell console RunOnce launched it in. So the longest part
+        # of a deployment - applications and roles - reported to nothing at all,
+        # while WinPE, the short part, had a status board the whole way.
+
+        It 'opens the progress display' {
+            @(& $script:commandNamed 'Start-HDTProgressDisplay').Count | Should -Be 1
+        }
+
+        It 'takes a -ProgressXamlPath parameter' {
+            $parameter = @($script:ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
+
+            $parameter | Should -Contain 'ProgressXamlPath'
+        }
+
+        It 'hands the progress host to the service catalog' {
+            # WITHOUT THIS THE WINDOW IS DECORATION. Every step reports through
+            # the catalog's progress service; a window nothing was handed to
+            # draws the first frame and never changes again.
+            $catalog = @(& $script:commandNamed 'New-HDTServiceCatalog')[0]
+
+            $catalog | Should -Not -BeNullOrEmpty
+            @($catalog.CommandElements | ForEach-Object { [string] $_.Extent.Text }) |
+                Should -Contain '-Progress'
+        }
+
+        It 'builds the variable bag before it opens the window' {
+            # HDTSkipProgress lives in the bag, and Start-HDTProgressDisplay
+            # reads it to decide whether there should be a window at all. Opening
+            # first would be asking the question after answering it.
+            $display = @(& $script:commandNamed 'Start-HDTProgressDisplay')[0]
+            $catalog = @(& $script:commandNamed 'New-HDTServiceCatalog')[0]
+
+            $display.Extent.StartOffset | Should -BeLessThan $catalog.Extent.StartOffset
+        }
+
+        It 'hides its own console once the window is up, and puts it back' {
+            # THE CONSOLE RunOnce LAUNCHED THIS IN. Set-HDTAutoLogon writes no
+            # -WindowStyle Hidden, so a full-OS leg runs in a visible PowerShell
+            # window - which is what a technician was looking at instead of the
+            # deployment. Hidden only when there is a window to look at instead,
+            # and restored in the tail, exactly as the WinPE leg does it.
+            @(& $script:commandNamed 'Hide-HDTShellWindow').Count |
+                Should -BeGreaterOrEqual 2 -Because 'the hide and the restore'
+        }
+
+        It 'takes the progress window down before it shows the summary' {
+            # One window at a time: the summary screen is what a technician
+            # answers, and a full-screen status board left up over it is a
+            # deployment that looks hung.
+            $summary = @(& $script:commandNamed 'Show-HDTDeploymentFailure')[0]
+
+            $close = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                        [string] $node.Member.Value -eq 'Close'
+                    }, $true) | Where-Object { $_.Extent.Text -match 'DisplayHost' })
+
+            @($close).Count | Should -BeGreaterOrEqual 1
+            @($close | Where-Object { $_.Extent.StartOffset -lt $summary.Extent.StartOffset }).Count |
+                Should -BeGreaterOrEqual 1
+        }
+
+        It 'names the machine on the board, because the log does not carry it' {
+            @(& $script:commandNamed 'Start-HDTProgressDisplay').Count | Should -Be 1
+
+            $source = Get-Content -LiteralPath $script:payloadPath -Raw
+            $source | Should -Match 'SetComputerName'
+        }
+    }
+
+    Context 'the summary screen answer' {
+
+        # THE BUTTONS ON THAT SCREEN DID NOTHING. This leg discarded the answer
+        # with [void] and let HDTFinishAction decide the power state regardless,
+        # so a technician could press Restart on a finished machine and watch it
+        # shut down because a rule said so.
+
+        It 'keeps the answer instead of discarding it' {
+            $show = @(& $script:commandNamed 'Show-HDTDeploymentFailure')[0]
+
+            $show | Should -Not -BeNullOrEmpty
+            $show.Parent.Extent.Text | Should -Not -Match '^\[void\]' -Because (
+                'an answer thrown away is three buttons that lie')
+        }
+
+        It 'lets Restart and Shut down override the finish action' {
+            # A button naming a power state has to produce it. HDTFinishAction is
+            # what a machine does when nobody said otherwise - and a press is
+            # saying otherwise.
+            $source = Get-Content -LiteralPath $script:payloadPath -Raw
+
+            $source | Should -Match "summaryAction"
+            $source | Should -Match "'Restart'"
+            $source | Should -Match "'Shutdown'"
+        }
+
+        It 'still asks Get-HDTFinishAction, because Finish is MDT deferring to it' {
+            @(& $script:commandNamed 'Get-HDTFinishAction').Count | Should -Be 1
+        }
+
+        It 'opens a prompt when the technician asked for one' {
+            @(& $script:commandNamed 'Start-HDTCommandPrompt').Count | Should -BeGreaterOrEqual 1
+        }
+    }
+
     Context 'the parameters' {
 
         It 'takes a -ModulePath parameter' {
