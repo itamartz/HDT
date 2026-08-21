@@ -112,6 +112,11 @@
             recorded call is appended to it in addition to $Operations, numbered
             globally across services.
 
+            WHAT IT NOTICED ABOUT THE CONNECTION IS ON .Warning, not on the
+            warning stream. A share that negotiated SMB 2.x, or one that is not
+            encrypted, is a finding about somebody's network - it belongs in the
+            run log, and the payload is what has one. See the Warning member.
+
         .OUTPUTS
             System.Management.Automation.PSCustomObject with the five
             IContentProvider ScriptMethods, plus Root (the mapped drive once
@@ -188,6 +193,17 @@
         Journal        = $Journal
         ServiceName    = 'ContentProvider'
         IsConnected    = $false
+
+        # WHAT THE CONNECTION WAS NOT, KEPT RATHER THAN PRINTED. Connect used
+        # Write-Warning, and a deployed machine showed why that was wrong: the
+        # sentence about an unencrypted share was on a PowerShell console, over
+        # the Deployment Summary, on a machine whose log said nothing about it.
+        #
+        # THIS ADAPTER HAS NO LOG CONTEXT and should not be given one - it is
+        # built before the run log exists, by a payload that owns the log. So it
+        # records, the payload reads the list after Connect and writes each one
+        # with Write-HDTLog, and the finding ends up where a finding belongs.
+        Warning        = [System.Collections.ArrayList]::new()
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -475,11 +491,11 @@
         if ($part.Count -gt 0) { $major = [int] ($part[0] -as [int]) }
 
         if ($major -lt 3) {
-            Write-Warning ("The connection to '{0}' negotiated SMB dialect '{1}'. HDT continues - a 2.x file server is legitimate - but SMB 3 is where encryption and the strongest signing live." -f $server, $dialect)
+            [void] $this.Warning.Add(("The connection to '{0}' negotiated SMB dialect '{1}'. HDT continues - a 2.x file server is legitimate - but SMB 3 is where encryption and the strongest signing live." -f $server, $dialect))
         }
 
         if (-not $row.Encrypted) {
-            Write-Warning ("The connection to '{0}' is not encrypted. HDT uses SMB signing and encryption where the server supports them; this one does not, so the deployment credential and every file it reads cross the network in clear." -f $server)
+            [void] $this.Warning.Add(("The connection to '{0}' is not encrypted. HDT uses SMB signing and encryption where the server supports them; this one does not, so the deployment credential and every file it reads cross the network in clear." -f $server))
         }
 
         # ONLY NOW. Every refusal above tears the mapping down and leaves this

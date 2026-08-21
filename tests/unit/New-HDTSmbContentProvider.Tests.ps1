@@ -69,13 +69,23 @@ BeforeAll {
     # The warning stream of a ScriptMethod call, which is the only way to see a
     # Write-Warning raised inside one: -WarningVariable is a cmdlet parameter and
     # a method call has none.
+    # WHAT Connect NOTICED, READ OFF THE PROVIDER RATHER THAN OFF STREAM 3.
+    # These used to be Write-Warning, and a deployed machine showed the cost:
+    # "the connection to '192.168.2.42' is not encrypted" was printed on a
+    # PowerShell console that had landed over the Deployment Summary, while the
+    # run log for that deployment said nothing about it. The provider records
+    # them; the payload writes them with Write-HDTLog.
+    #
+    # STREAM 3 IS STILL CAPTURED, and asserted empty below: a Write-Warning that
+    # crept back in would otherwise pass every assertion here by being invisible.
     $script:connectWithWarning = {
         param([object] $Provider)
 
         $output = $($Provider.Connect()) 3>&1
 
         return [pscustomobject] @{
-            Warning = @($output | Where-Object { $_ -is [System.Management.Automation.WarningRecord] })
+            Warning = @($Provider.Warning)
+            Stream  = @($output | Where-Object { $_ -is [System.Management.Automation.WarningRecord] })
             Value   = @($output | Where-Object { $_ -isnot [System.Management.Automation.WarningRecord] })
         }
     }
@@ -292,6 +302,7 @@ Describe 'New-HDTSmbContentProvider' {
             $captured.Value | Should -Be @($script:drive)
             $captured.Warning.Count | Should -Be 1
             [string] $captured.Warning[0] | Should -BeLike '*2.1*'
+            $captured.Stream.Count | Should -Be 0 -Because 'it is recorded for the log, not printed'
         }
 
         It 'warns once when the connection is unencrypted' {
@@ -303,6 +314,7 @@ Describe 'New-HDTSmbContentProvider' {
 
             $captured.Warning.Count | Should -Be 1
             [string] $captured.Warning[0] | Should -BeLike '*hdtserver*'
+            $captured.Stream.Count | Should -Be 0 -Because 'it is recorded for the log, not printed'
         }
 
         It 'throws when no connection row came back at all' {
