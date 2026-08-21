@@ -310,6 +310,13 @@
             Description = 'Full path of the staged unattend, which is Windows\Panther\unattend.xml on the OS volume.'
         }
 
+        # A DEPLOYMENT USED TO END AND STAY WHERE IT WAS. A machine that had
+        # just finished sat at a desktop, logged in as the local Administrator,
+        # until somebody walked over to it - the opposite of what a technician
+        # imaging a bench of twenty machines wants, and why MDT has this.
+        @{ HDTName = 'HDTFinishAction'; MdtName = 'FinishAction'; Origin = 'authored'
+            Description = 'What the machine does when the deployment ends: REBOOT, SHUTDOWN, LOGOFF or NONE. Unset means NONE, which is what every deployment did before this existed. A value nobody meant does nothing and warns rather than acting on the nearest guess.'
+        }
         @{ HDTName = 'HDTSLShare'; MdtName = 'SLShare'; Origin = 'rule'
             Description = 'Where the deployment copies its logs. Empty means <deployRoot>\Logs, which is what every deployment did before this existed.'
         }

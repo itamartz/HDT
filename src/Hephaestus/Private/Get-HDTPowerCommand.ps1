@@ -1,4 +1,4 @@
-function Get-HDTPowerCommand {
+﻿function Get-HDTPowerCommand {
     <#
         .SYNOPSIS
             Decides which executable ends the machine, and with what arguments.
@@ -46,7 +46,8 @@ function Get-HDTPowerCommand {
             Start-HDTResume.ps1 runs in the deployed OS.
 
         .PARAMETER Operation
-            Restart or Stop.
+            Restart, Stop or Logoff. Logoff exists only in the full OS; asking
+            for one in WinPE is refused rather than answered.
 
         .PARAMETER DelaySecond
             How long to wait before the machine goes. Refused if negative:
@@ -74,7 +75,7 @@ function Get-HDTPowerCommand {
         [string] $Environment,
 
         [Parameter(Mandatory = $true)]
-        [ValidateSet('Restart', 'Stop')]
+        [ValidateSet('Restart', 'Stop', 'Logoff')]
         [string] $Operation,
 
         [Parameter()]
@@ -88,6 +89,33 @@ function Get-HDTPowerCommand {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
                     -Message ("A power delay cannot be negative, and {0} was asked for. Use 0 to go immediately." -f $DelaySecond) `
                     -TargetObject $DelaySecond))
+    }
+
+    # -- the operation only one world has ------------------------------------
+    #
+    # WinPE boots to a command prompt nobody logged into, so there is no session
+    # to leave. Get-HDTFinishAction is what turns a LOGOFF finish action into
+    # doing nothing there; a plan being ASKED for one is a caller that skipped
+    # that decision, and a refusal says so here rather than producing a command
+    # that fails at the machine.
+    if ($Environment -eq 'WinPE' -and $Operation -eq 'Logoff') {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord `
+                    -Message 'WinPE has no logon session to end, so there is no logoff command for it. Get-HDTFinishAction resolves a LOGOFF finish action to no action in WinPE; ask it first.' `
+                    -TargetObject $Operation))
+    }
+
+    # SHUTDOWN.EXE REFUSES /l WITH /t. They are mutually exclusive and it exits
+    # with a usage error rather than logging off, so the delay becomes a sleep -
+    # the WinPE arrangement appearing in the full OS for a second reason.
+    if ($Operation -eq 'Logoff') {
+        return [pscustomobject] @{
+            Environment = $Environment
+            Operation   = $Operation
+            Command     = 'shutdown.exe'
+            Argument    = [string[]] @('/l')
+            SleepSecond = $DelaySecond
+            Reason      = ('shutdown.exe /l ends the session. It refuses /t alongside /l, so the {0}s delay is a sleep rather than an argument.' -f $DelaySecond)
+        }
     }
 
     # The verb each world spells the same operation with.

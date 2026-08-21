@@ -1,4 +1,4 @@
-function New-HDTPowerService {
+﻿function New-HDTPowerService {
     <#
         .SYNOPSIS
             Creates the real IPowerService adapter, which restarts or shuts down
@@ -11,6 +11,7 @@ function New-HDTPowerService {
 
               Restart($DelaySecond)
               Stop($DelaySecond)
+              Logoff($DelaySecond)
 
             One question was answered by mounting the boot image this repository
             builds:
@@ -54,8 +55,8 @@ function New-HDTPowerService {
             and undefaulted, deliberately.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Restart and Stop
-            ScriptMethods. Note that Get-Member -MemberType Method does NOT list
+            System.Management.Automation.PSCustomObject with Restart, Stop and
+            Logoff ScriptMethods. Note that Get-Member -MemberType Method does NOT list
             a ScriptMethod - use -MemberType Method, ScriptMethod.
 
         .EXAMPLE
@@ -127,6 +128,21 @@ function New-HDTPowerService {
         $this.Record('Stop', @($DelaySecond))
 
         $plan = Get-HDTPowerCommand -Environment $this.Environment -Operation 'Stop' -DelaySecond $DelaySecond
+
+        Start-Sleep -Seconds $plan.SleepSecond
+
+        & $plan.Command @($plan.Argument)
+    }
+
+    # MDT's FinishAction LOGOFF. Refused for a WinPE service by the plan, where
+    # there is no session to end - and refused THERE rather than here, so this
+    # stays the branch-free shell-out its exemption from TDD depends on.
+    $service | Add-Member -MemberType ScriptMethod -Name Logoff -Value {
+        param([int] $DelaySecond)
+
+        $this.Record('Logoff', @($DelaySecond))
+
+        $plan = Get-HDTPowerCommand -Environment $this.Environment -Operation 'Logoff' -DelaySecond $DelaySecond
 
         Start-Sleep -Seconds $plan.SleepSecond
 

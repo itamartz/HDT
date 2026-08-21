@@ -2471,6 +2471,10 @@ class HDTFakePowerService {
     [void] Stop([int] $DelaySecond) {
         $this.Record('Stop', @($DelaySecond))
     }
+
+    [void] Logoff([int] $DelaySecond) {
+        $this.Record('Logoff', @($DelaySecond))
+    }
 }
 
 function New-HDTFakePowerService {
@@ -2480,8 +2484,9 @@ function New-HDTFakePowerService {
 
         .DESCRIPTION
             The reason the reboot ceremony (DESIGN 4.3, 4.5) can be asserted
-            without ending the test run. Restart and Stop record their delay and
-            return; there is nothing else to assert, and that is the point.
+            without ending the test run. Restart, Stop and Logoff record their
+            delay and return; there is nothing else to assert, and that is the
+            point.
 
         .PARAMETER Journal
             The shared cross-service operation journal.

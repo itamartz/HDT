@@ -1,4 +1,4 @@
-# The answer to ROADMAP M2's deferred question, as pure logic.
+﻿# The answer to ROADMAP M2's deferred question, as pure logic.
 #
 # M2 asked, and named phase 05 as the owner: "does WinPE need `wpeutil reboot`
 # rather than `shutdown.exe`". The answer is not a preference. A read-only mount
@@ -137,9 +137,41 @@ Describe 'Get-HDTPowerCommand' {
                 Should -Throw -ExpectedMessage '*does not belong to the set*WinPE*FullOS*'
         }
 
-        It 'takes no operation but Restart and Stop' {
+        It 'takes no operation but Restart, Stop and Logoff' {
             { & $script:HDTPowerPlan 'WinPE' 'Hibernate' 0 } |
                 Should -Throw -ExpectedMessage '*does not belong to the set*Restart*Stop*'
+        }
+    }
+
+    Context 'logging off, which only one of the two worlds can do' {
+
+        It 'runs shutdown.exe /l in the full OS' {
+            $plan = & $script:HDTPowerPlan 'FullOS' 'Logoff' 0
+
+            [string] $plan.Command | Should -BeExactly 'shutdown.exe'
+            @($plan.Argument) | Should -Be @('/l')
+        }
+
+        It 'never passes /t with /l' {
+            # shutdown.exe REFUSES the combination - '/l' and '/t' are mutually
+            # exclusive and it exits with a usage error rather than logging off.
+            # So the delay becomes a sleep here, in the full OS, which is the
+            # WinPE arrangement appearing for a second reason.
+            $plan = & $script:HDTPowerPlan 'FullOS' 'Logoff' 30
+
+            @($plan.Argument) | Should -Be @('/l')
+            [int] $plan.SleepSecond | Should -Be 30
+        }
+
+        It 'refuses to be asked for a logoff in WinPE' {
+            # There is no session to leave. WinPE boots to a command prompt
+            # nobody logged into, and Get-HDTFinishAction is what turns a
+            # LOGOFF finish action into doing nothing there - so a plan being
+            # ASKED for one is a caller that skipped that decision, and a
+            # refusal is what says so rather than a command that fails at the
+            # machine.
+            { & $script:HDTPowerPlan 'WinPE' 'Logoff' 0 } |
+                Should -Throw -ErrorId 'HDTConfigurationError,Get-HDTPowerCommand'
         }
     }
 

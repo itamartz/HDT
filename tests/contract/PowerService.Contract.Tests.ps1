@@ -1,7 +1,8 @@
-# The IPowerService contract (PROJECT constraint 4, DESIGN 12.2.1).
+﻿# The IPowerService contract (PROJECT constraint 4, DESIGN 12.2.1).
 #
 #   Restart($DelaySecond)
 #   Stop($DelaySecond)
+#   Logoff($DelaySecond)
 #
 # THE REAL ROW'S BEHAVIOUR IS SKIPPED, DELIBERATELY AND PERMANENTLY. A contract
 # test may not reboot the machine running it, and there is no dry-run form of
@@ -47,6 +48,17 @@ Describe 'IPowerService contract: <Name>' -ForEach $script:HDTImplementation {
             $script:power = & $Factory $script:repoRoot
         }
 
+        It 'exposes Logoff' {
+            # MDT's FinishAction LOGOFF, and the third member of the contract.
+            # It only does anything in the full OS - Get-HDTPowerCommand refuses
+            # to plan one for WinPE, where nobody is logged in - but the method
+            # is on every implementation, because a caller holding an
+            # IPowerService must not have to ask which world made it.
+            $name = @($script:power | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
+
+            $name | Should -Contain 'Logoff'
+        }
+
         It 'exposes Restart and Stop' {
             # Method, ScriptMethod: Get-Member -MemberType Method does NOT list a
             # ScriptMethod, and the real adapter is a pscustomobject carrying one.
@@ -81,6 +93,13 @@ Describe 'IPowerService contract: <Name>' -ForEach $script:HDTImplementation {
 
             @($script:power.GetOperationName()) | Should -Be @('Restart')
             @($script:power.Operations[0].Arguments) | Should -Be @(30)
+        }
+
+        It 'records Logoff with the delay' {
+            $script:power.Logoff(0)
+
+            @($script:power.GetOperationName()) | Should -Be @('Logoff')
+            @($script:power.Operations)[0].Arguments | Should -Be @(0)
         }
 
         It 'records Stop with the delay' {
