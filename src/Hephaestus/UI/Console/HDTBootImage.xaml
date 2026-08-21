@@ -115,6 +115,38 @@
         <!-- The console's button, template and all. See HDTConsole.xaml for why
              the colours are Setters inside a ControlTemplate rather than local
              values on the element. -->
+        <!--
+            THE ? THIS PRODUCT ALREADY HAS, copied verbatim from
+            HDTNewWorkspace.xaml, which shares it with HDTNewSequence,
+            HDTImportApplication, HDTApplicationDetection, HDTConsole and
+            HDTSequenceEditor. A 22px outlined dot with a bold glyph and a help
+            cursor - not a solid button, which is what this tab first got and
+            what made it read as a different kind of control.
+        -->
+<Style TargetType="Border" x:Key="HDTHelpDot">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="Margin" Value="8,0,0,10" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+            <Setter Property="Text" Value="?" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <Style TargetType="Button">
             <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
@@ -612,7 +644,11 @@
                         that only says so once the build fails has spent two and
                         a half minutes teaching it.
                     -->
-                    <Border Grid.Row="2" Background="{DynamicResource HDTPanelBrush}"
+                    <!-- ROW 1, THE ONE THAT STRETCHES. This Border and the total
+                         below it were both in row 2, so the total painted over
+                         the first component in the list, and row 1 sat empty
+                         taking all the height. -->
+                    <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
                             BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
                             <ItemsControl x:Name="HDTComponentList">
@@ -913,6 +949,24 @@
                                    Margin="10,3,0,0" VerticalAlignment="Center" />
                     </StackPanel>
 
+                    <!--
+                        THE VOCABULARY, WHERE THE VOCABULARY IS USED. A rules
+                        file is written in forty variable names, the MDT names
+                        they came from, and MDT's #Left(...)# expressions, and
+                        this window offered none of them - so the only way to
+                        find out what may be written was to read DESIGN.md on
+                        another machine, while this window is open over a share.
+
+                        RIGHT-ALIGNED IN THE SAME CELL as the label, rather than
+                        a new column: the label and its summary already own the
+                        left of that row and neither should move because a
+                        question mark was added to it.
+                    -->
+                    <Border x:Name="HDTRulesHelpButton" Grid.Row="0" Style="{StaticResource HDTHelpDot}"
+                            VerticalAlignment="Top">
+                        <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                    </Border>
+
                     <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
                             BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
                             MinHeight="220">
@@ -1006,6 +1060,13 @@
                             <TextBlock x:Name="HDTBootstrapRulesLabel" Grid.Row="0" FontSize="14"
                                        Margin="0,0,0,4" />
 
+                    <!-- The same panel, because bootstrap-rules.yaml is written
+                         in the same vocabulary as rules.yaml. -->
+                    <Border x:Name="HDTBootstrapHelpButton" Grid.Row="0" Style="{StaticResource HDTHelpDot}"
+                            VerticalAlignment="Top">
+                        <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                    </Border>
+
                         <TextBlock x:Name="HDTBootstrapRulesSummaryText" Grid.Row="1"
                                    Style="{StaticResource HDTHintText}" Margin="0,0,0,6" />
 
@@ -1037,6 +1098,90 @@
         </TabControl>
 
         <!-- the cmdlet the last action ran, and the ways out -->
+        <!--
+            THE VOCABULARY PANEL, ONE OF THEM, FOR BOTH TABS. Rules and Bootstrap
+            are the same language - bootstrap-rules.yaml sets HDTUserId the way
+            rules.yaml sets HDTComputerName - so two panels would be two things
+            to keep in step and one of them would drift.
+
+            A POPUP, NOT A WINDOW. Somebody presses ? in the middle of editing a
+            rule; a second window steals focus and covers the box they are
+            typing in, and on this window that box is the whole tab.
+
+            EVERY ROW COMES FROM Get-HDTConsoleRuleHelp, which derives it from
+            Get-HDTVariableMap. Nothing here is a list of variable names: a list
+            in markup is one that goes stale the first time a variable is added,
+            silently, which is the whole failure mode of documentation kept
+            inside a product.
+        -->
+        <Popup x:Name="HDTRuleHelpPopup" Grid.Row="1"
+               Placement="Center" StaysOpen="False" AllowsTransparency="True"
+               MaxWidth="900" MaxHeight="560">
+            <Border Background="{DynamicResource HDTPanelBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                    Padding="18,14,18,14">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock x:Name="HDTRuleHelpTitleText" Grid.Row="0" FontSize="16"
+                               FontWeight="SemiBold" Margin="0,0,0,10"
+                               Foreground="{DynamicResource HDTPanelTextBrush}" />
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled" MaxHeight="440">
+                        <!-- A ListBox, not an ItemsControl: a reference list you
+                             cannot take anything from is half a feature. Double-
+                             clicking a row puts its Insert text into the editor. -->
+                        <ListBox x:Name="HDTRuleHelpList" BorderThickness="0"
+                                 Background="Transparent"
+                                 HorizontalContentAlignment="Stretch"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="260" />
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- A heading is the same three columns
+                                             in bold, so nothing has to switch
+                                             template on a row's type. -->
+                                        <TextBlock Grid.Column="0" Text="{Binding Left}"
+                                                   TextWrapping="Wrap" Margin="0,0,12,0"
+                                                   FontFamily="Consolas, Courier New" FontSize="12"
+                                                   Foreground="{DynamicResource HDTPanelTextBrush}" />
+                                        <TextBlock Grid.Column="1" Text="{Binding Middle}"
+                                                   TextWrapping="Wrap" Margin="0,0,12,0"
+                                                   FontFamily="Consolas, Courier New" FontSize="12"
+                                                   Foreground="{DynamicResource HDTLabelBrush}" />
+                                        <TextBlock Grid.Column="2" Text="{Binding Right}"
+                                                   TextWrapping="Wrap" FontSize="12"
+                                                   Foreground="{DynamicResource HDTLabelBrush}" />
+                                    </Grid>
+
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsHeader}" Value="True">
+                                            <Setter Property="TextBlock.FontWeight" Value="Bold" />
+                                            <Setter Property="TextBlock.FontSize" Value="13" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </ScrollViewer>
+
+                    <Button x:Name="HDTRuleHelpCloseButton" Grid.Row="2" MinWidth="90"
+                            HorizontalAlignment="Right" Margin="0,12,0,0" />
+                </Grid>
+            </Border>
+        </Popup>
+
         <Grid Grid.Row="2" Margin="24,16,24,20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />

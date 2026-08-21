@@ -60,6 +60,20 @@
         'HDTApplyButton.Content' = 'Apply'
     }
 
+    # THE TRANSPARENT PANEL THAT REPLACES THE WinPE CONSOLE, between
+    # startnet.cmd and the first real window: Start-HDTBootStatus.
+    #
+    # ONLY TWO STRINGS, AND THE SECOND IS A PLACEHOLDER. Every line under them is
+    # the payload's own account of itself, written at runtime - the same
+    # sentences that go into the log - so there is nothing here to translate.
+    # This is what is on screen for the fraction of a second before the first of
+    # them arrives.
+    BootStatus = @{
+
+        'HDTBootStatusHeading.Text' = 'Hephaestus Deployment Toolkit'
+        'HDTBootStatusCurrent.Text' = 'starting'
+    }
+
     # What the boot image build is doing while it does it:
     # Show-HDTBuildProgressWindow.
     BuildProgress = @{
@@ -283,6 +297,13 @@
         'HDTBootImageRules.Header' = 'Rules'
         'HDTBootImageRulesLabel.Text' = 'rules.yaml'
         'HDTBootImageRulesHint.Text' = 'Rules are read top to bottom and the first match wins per variable, so order matters.'
+        # CLICK, NOT HOVER, AND THE TOOLTIP HAS TO SAY SO. Every other help dot
+        # in this console IS the help - hover and read it. This one opens a
+        # panel, which nothing on screen would otherwise tell anybody.
+        'HDTRulesHelpButton.ToolTip' = 'Click to see what may be written here'
+        'HDTBootstrapHelpButton.ToolTip' = 'Click to see what may be written here'
+        'HDTRuleHelpTitleText.Text' = 'What may be written in a rule'
+        'HDTRuleHelpCloseButton.Content' = 'Close'
         'HDTRulesReloadButton.Content' = 'Reload'
         'HDTRulesReloadButton.ToolTip' = 'Read the file again and lose what is typed here'
         'HDTRulesSaveButton.Content' = 'Save rules'

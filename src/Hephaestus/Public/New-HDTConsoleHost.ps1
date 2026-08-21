@@ -43,8 +43,6 @@
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state. Show is where a window appears, and it is a method.')]
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '',
-        Justification = 'ThemeName is read inside an Add_MouseDoubleClick handler built with GetNewClosure(); the analyzer does not follow a captured variable into a closure and reports it unused.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param()
@@ -77,7 +75,7 @@
         # a key added to the hashtable would be fed to the BrushConverter below
         # along with the colours.
         param([string] $Xaml, [string] $Title, [object[]] $Node, [object] $Theme, [object] $Size,
-            [string] $ThemeName = 'Light', [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '',
+            [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '',
             [string] $ImportOperatingSystemXaml = '', [string] $ImportApplicationXaml = '',
             [string] $ApplicationDependencyXaml = '', [string] $ApplicationDetectionXaml = '',
             [object] $Fill = $null, [string] $NewWorkspaceXaml = '')
@@ -221,7 +219,7 @@
 
             if ([string]::IsNullOrWhiteSpace($DocumentPath)) { return }
 
-            [void] (Show-HDTBootImageWindow -Path $DocumentPath -Theme $ThemeName `
+            [void] (Show-HDTBootImageWindow -Path $DocumentPath `
                     -ConsoleHost $consoleHost `
                     -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
         }.GetNewClosure()
@@ -269,7 +267,7 @@
                 # Show-HDTSequenceEditor builds a fresh host, whose Window is
                 # $null, so the editor is owned by nothing and drops behind the
                 # browser the first time the browser is clicked.
-                [void] (Show-HDTSequenceEditor -Sequence $selected.Subject -Theme $ThemeName `
+                [void] (Show-HDTSequenceEditor -Sequence $selected.Subject `
                         -ConsoleHost $consoleHost `
                         -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
             }.GetNewClosure())
@@ -3985,7 +3983,7 @@
         param(
             [string] $Xaml, [string] $Path, [string[]] $Line,
             [object[]] $Component, [object[]] $DriverGroup, [object] $Theme, [object] $Size,
-            [string] $ThemeName, [object[]] $TimeZone = @()
+            [object[]] $TimeZone = @()
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -4010,8 +4008,94 @@
         $this.Answer = ''
         $imageHost = $this
 
+        # Which editor the ? panel writes into; set when a ? is clicked.
+        $imageHost | Add-Member -MemberType NoteProperty -Name 'RuleHelpTarget' -Value $null -Force
+
         $titleText = $window.FindName('HDTBootImageTitleText')
         $pathText = $window.FindName('HDTBootImagePathText')
+
+        # -- the ? on the Rules and Bootstrap tabs -----------------------------
+        #
+        # WHAT MAY BE WRITTEN IN A RULE, IN THE WINDOW THAT EDITS RULES. The
+        # vocabulary is forty variable names, the MDT names they came from and
+        # MDT's #Left(...)# expressions, and none of it was on screen - so the
+        # only way to find out was DESIGN.md, on another machine, while this
+        # window is open over a share.
+        #
+        # ONE PANEL FOR BOTH BUTTONS, because bootstrap-rules.yaml is written in
+        # the same language as rules.yaml. Two would be two to keep in step.
+        #
+        # NOTHING HERE KNOWS WHAT A VARIABLE IS. Get-HDTConsoleRuleHelp derives
+        # every row from Get-HDTVariableMap and hands back a flat list; this
+        # assigns it once and opens a popup.
+        $ruleHelpPopup = $window.FindName('HDTRuleHelpPopup')
+        $ruleHelpList = $window.FindName('HDTRuleHelpList')
+        $ruleHelpClose = $window.FindName('HDTRuleHelpCloseButton')
+        $rulesHelpButton = $window.FindName('HDTRulesHelpButton')
+        $bootstrapHelpButton = $window.FindName('HDTBootstrapHelpButton')
+
+        if ($null -ne $ruleHelpList) {
+            # ONCE, NOT PER PRESS. The list is derived from a map that cannot
+            # change while this window is open, and rebuilding it on every press
+            # would lose the reader's scroll position.
+            $ruleHelpList.ItemsSource = @((Get-HDTConsoleRuleHelp).Line)
+        }
+
+        # WHICH EDITOR A DOUBLE-CLICK WRITES INTO. One panel serves both tabs, so
+        # it has to remember which ? opened it - writing a variable into the
+        # other tab's box would be worse than not writing it at all.
+        $ruleHelpTarget = $null
+
+        $openRuleHelp = {
+            param($raiser, $mouse)
+
+            $ruleHelpTarget = $window.FindName('HDTRulesBox')
+
+            if ($null -ne $raiser -and [string] $raiser.Name -eq 'HDTBootstrapHelpButton') {
+                $ruleHelpTarget = $window.FindName('HDTBootstrapRulesBox')
+            }
+
+            $imageHost.RuleHelpTarget = $ruleHelpTarget
+
+            if ($null -ne $ruleHelpPopup) { $ruleHelpPopup.IsOpen = $true }
+        }.GetNewClosure()
+
+        # AND WHAT IT WRITES IS THE ROW'S OWN Insert, decided in
+        # Get-HDTConsoleRuleHelp and tested there. This inserts at the caret,
+        # replaces a selection if there is one, and closes - somebody clicked a
+        # thing to use it, and a panel left open covers the line they changed.
+        if ($null -ne $ruleHelpList) {
+            $ruleHelpList.Add_MouseDoubleClick({
+                    $chosen = $ruleHelpList.SelectedItem
+
+                    if ($null -eq $chosen) { return }
+                    if ([string]::IsNullOrEmpty([string] $chosen.Insert)) { return }
+
+                    $box = $imageHost.RuleHelpTarget
+
+                    if ($null -eq $box) { return }
+
+                    $at = [int] $box.SelectionStart
+                    $box.SelectedText = [string] $chosen.Insert
+                    $box.SelectionStart = $at + ([string] $chosen.Insert).Length
+                    $box.SelectionLength = 0
+
+                    if ($null -ne $ruleHelpPopup) { $ruleHelpPopup.IsOpen = $false }
+
+                    [void] $box.Focus()
+                }.GetNewClosure())
+        }
+
+        # A BORDER, NOT A BUTTON - HDTHelpDot is what every other window in this
+        # console uses for a ?, so it takes a mouse event rather than a Click.
+        if ($null -ne $rulesHelpButton) { $rulesHelpButton.Add_MouseLeftButtonUp($openRuleHelp) }
+        if ($null -ne $bootstrapHelpButton) { $bootstrapHelpButton.Add_MouseLeftButtonUp($openRuleHelp) }
+
+        if ($null -ne $ruleHelpClose) {
+            $ruleHelpClose.Add_Click({
+                    if ($null -ne $ruleHelpPopup) { $ruleHelpPopup.IsOpen = $false }
+                }.GetNewClosure())
+        }
 
         $nameBox = $window.FindName('HDTBootImageNameBox')
         $architectureBox = $window.FindName('HDTBootImageArchitectureBox')
@@ -4860,7 +4944,7 @@
                 $commandText.Text = "Update-HDTBootImage -WorkspaceRoot '{0}'" -f $root
 
                 [void] (Show-HDTBuildProgressWindow -WorkspaceRoot $root -ConsoleHost $imageHost `
-                        -Theme $ThemeName -Screen (New-HDTConsoleScreen))
+                        -Screen (New-HDTConsoleScreen))
 
                 # The build wrote a manifest and possibly a warning; what this
                 # window shows came out of the document, which the build did not
