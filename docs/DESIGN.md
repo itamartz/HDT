@@ -2121,6 +2121,7 @@ cause of confusing failures.
 | Separate offline media build | Media is a projection of the share | One engine, one code path |
 | Opaque boot image contents | Recorded build manifest | Eliminates boot image drift |
 | Resume via a `PSDStartup.lnk` in the all-users Startup folder, `RunOnce` only for Server Core / `HideShell` | `RunOnce` re-registered each leg, always | A shortcut persists, so a crash mid-leg re-runs the deployment on the next logon — the loop §4.5 already refuses. `RunOnce` is consumed before it runs, so a crashed leg stops and the boot-time reconcile disarms it as abandoned. It also needs no shell, so Core and hidden-shell machines resume on the same path as everything else. See §4.5.1 |
+| Deployment logs end in `%WINDIR%\TEMP\DeploymentLogs` (`LTICleanup`) | `%WINDIR%\Logs\HDT` | `Temp` is a directory Windows itself cleans out, and these are the only record of how a machine was built. Everything else about the cleanup is MDT's: it runs on success only, the logs move before the agent folder is removed, and a failed machine keeps all of it. See `Remove-HDTResumeAgent` |
 | Full-screen progress and failure screens | Cards sized to their content, on the wallpaper | The full-screen ground existed to hide a WinPE console that is now hidden for the whole run; it had become a sheet over the BGInfo the boot image paints. See §11.1 |
 
 ---

@@ -116,6 +116,14 @@ param(
     [ValidateNotNullOrEmpty()]
     [string] $ProgressXamlPath,
 
+    # WHERE THE LOGS LIVE ONCE THE AGENT IS GONE. MDT copies them to
+    # %WINDIR%\TEMP\DeploymentLogs; HDT keeps them under %WINDIR%\Logs, because
+    # Temp is a directory Windows itself cleans out and this is the only record
+    # of how a machine was built. DESIGN 14 carries the divergence.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $FinalLogPath,
+
     [Parameter()]
     [ValidateNotNullOrEmpty()]
     [string] $SequencePath,
@@ -349,6 +357,20 @@ try {
 
             Write-HDTLog -Context $bootLog -Component 'Resume' `
                 -Message ("connected to '{0}' over {1}" -f $workspaceRoot, $bootstrap.Provider)
+
+            # WHAT THE PROVIDER NOTICED ABOUT THE CONNECTION, INTO THE LOG. It
+            # used to Write-Warning these, and a deployed machine showed the
+            # cost: "the connection to '192.168.2.42' is not encrypted" was on a
+            # PowerShell console sitting over the Deployment Summary, while the
+            # log for that run said nothing about it at all. An unencrypted share
+            # carrying a deployment credential is exactly the kind of finding
+            # somebody reads a log to find.
+            if ($null -ne $content.PSObject.Properties['Warning']) {
+                foreach ($noticed in @($content.Warning)) {
+                    Write-HDTLog -Context $bootLog -Severity Warning -Component 'Content' `
+                        -Message ([string] $noticed)
+                }
+            }
         } catch {
             $content = $null
 
@@ -552,17 +574,21 @@ try {
 }
 
 
-# -- the board comes down, and the console comes back -------------------------
+# -- the board comes down ----------------------------------------------------
 #
 # BEFORE THE SUMMARY SCREEN, because that screen is the one a technician
 # ANSWERS and a status board left up over it is a machine that looks hung. After
 # the catch, because a leg that threw is exactly the leg whose screen must not
 # be left on a machine that is about to restart.
+#
+# AND THE CONSOLE STAYS HIDDEN UNTIL THE SUMMARY HAS BEEN ANSWERED. The restore
+# was here, one line below this, and a deployed machine showed what that meant:
+# the PowerShell console came back and sat ON TOP of the Deployment Summary,
+# which is the exact window it had been hidden for. It is restored at the very
+# end instead - see below.
 if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
     $display.DisplayHost.Close()
 }
-
-if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
 
 # -- the deployment summary, MDT's Finished screen ---------------------------
 #
@@ -637,6 +663,82 @@ if (-not $skipSummary) {
         }
     }
 }
+
+# -- MDT's LTICleanup, and only on a deployment that worked -------------------
+#
+# WHAT A FINISHED MACHINE WAS STILL CARRYING. Watched on a deployed VM: the
+# Deployment Summary said the run succeeded, and the machine still held the
+# deployment share on a mapped drive, still had C:\HDT with the engine and the
+# share credential's bootstrap document in it, and its only account of how it had
+# been built was inside that same folder.
+#
+# ON SUCCESS ONLY, WHICH IS MDT'S RULE AND THE ONE THAT MATTERS. A failed
+# deployment is exactly the machine somebody walks up to with questions, and
+# every one of those questions is answered by the things this removes.
+#
+# AND NOT WHEN A TECHNICIAN ASKED FOR A PROMPT. Open CMD means they are going to
+# go and look; deleting the engine and the logs out from under them would be the
+# same defect the WinPE leg already learned - a prompt granted and then made
+# useless five seconds later.
+#
+# NOTHING HERE MAY BECOME THE OUTCOME. A share that will not unmap and a folder
+# that will not delete are both smaller problems than a green run recorded as a
+# failure, so each is caught and logged on its own.
+$cleanupWanted = ($null -ne $run -and $run.Status -eq 'Succeeded' -and $summaryAction -ne 'CommandPrompt')
+
+if ($cleanupWanted) {
+
+    # THE MAPPED DRIVE IS THE PROVIDER'S, AND THIS LEG NEVER DISCONNECTED. The
+    # WinPE payload has always done it in its tail; this one simply exited, so a
+    # deployed machine kept the share mapped for the life of the session.
+    if ($null -ne $content) {
+        try {
+            $content.Disconnect()
+
+            Write-HDTLog -Context $failLog -Component 'Cleanup' `
+                -Message 'the deployment share was disconnected'
+        } catch {
+            Write-HDTLog -Context $failLog -Severity Warning -Component 'Cleanup' `
+                -Message ("the deployment share could not be disconnected: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    # AND THE AGENT GOES, LOGS FIRST. Remove-HDTResumeAgent refuses a path that
+    # does not carry Start-HDTResume.ps1, so a bug in the parameter above cannot
+    # become a recursive delete of somewhere else.
+    #
+    # IT DELETES THE FOLDER THIS SCRIPT IS RUNNING FROM, which works because
+    # PowerShell does not hold a script file open - and if it ever stops
+    # working, the catch is what keeps a successful deployment successful.
+    $finalLogs = $FinalLogPath
+    if ([string]::IsNullOrWhiteSpace($finalLogs)) {
+        $finalLogs = '{0}\Logs\HDT' -f $env:SystemRoot
+    }
+
+    try {
+        $swept = Remove-HDTResumeAgent -Path ([System.IO.Path]::GetDirectoryName($StatePath)) `
+            -LogDestination $finalLogs -Confirm:$false
+
+        Write-HDTLog -Context $failLog -Component 'Cleanup' `
+            -Message ("the resume agent was removed: {0} log file(s) kept at '{1}'" -f
+                $swept.LogFileCount, $swept.LogDestination) `
+            -Data ([ordered] @{ path = [string] $swept.Path; removed = [bool] $swept.Removed })
+    } catch {
+        Write-HDTLog -Context $failLog -Severity Warning -Component 'Cleanup' `
+            -Message ("the resume agent could not be removed: {0}. The deployment is unaffected." -f $_.Exception.Message)
+    }
+}
+
+# -- and now the console may come back ---------------------------------------
+#
+# AFTER THE SUMMARY, NEVER BEFORE. It was before, and the console landed over
+# the Deployment Summary on a machine that had just deployed correctly.
+#
+# BEFORE THE FINISH ACTION, THOUGH. What follows may restart or power the
+# machine off, and a console restored after that is a console nobody sees; a
+# technician left at a prompt, or a machine whose finish action is NONE, gets
+# their window back.
+if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
 
 # -- what the machine does now it is finished --------------------------------
 #

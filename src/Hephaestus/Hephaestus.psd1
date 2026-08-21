@@ -245,6 +245,7 @@
         # is semantics in a rules document - first match wins per variable - so
         # Add-HDTRule takes -After and -First rather than only appending.
         'Add-HDTRule',
+        'Remove-HDTResumeAgent',
         'Remove-HDTRule',
         'Save-HDTRuleDocument',
         'Set-HDTRule',

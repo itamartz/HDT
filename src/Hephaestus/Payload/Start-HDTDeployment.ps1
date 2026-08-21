@@ -777,6 +777,13 @@ try {
             try {
                 [void] $content.Connect()
                 $reached = $true
+
+                # SAME AS THE FULL-OS LEG: what the provider noticed goes into
+                # the log and the panel, not onto a warning stream nobody keeps.
+                if ($null -ne $content.PSObject.Properties['Warning']) {
+                    foreach ($noticed in @($content.Warning)) { & $say ([string] $noticed) 'Warning' }
+                }
+
                 break
             } catch {
                 $lastError = [string] $_.Exception.Message
