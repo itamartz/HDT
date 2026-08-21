@@ -232,6 +232,22 @@
     }
 
     $statusPathValue = '{0}\status.json' -f $logRoot
+
+    # WHERE A CONSOLE WATCHING THIS SHARE LOOKS. <share>\Logs\_active\<RunId>.json
+    # is what Get-HDTConsoleMonitor tails, and -LogDestination is already the
+    # share's Logs folder - the same one the copy-back ships to at the end. This
+    # is MDT's SLShareDynamicLogging: the END of a run has always been reported;
+    # this is the part that says a machine is still working.
+    #
+    # NO DESTINATION, NO MIRROR. A full-OS leg that could not reach the share
+    # still deploys, and Write-HDTStatus writes locally either way.
+    $activeStatusPath = ''
+    if ($PSBoundParameters.ContainsKey('LogDestination') -and
+        -not [string]::IsNullOrWhiteSpace($LogDestination)) {
+
+        $activeStatusPath = '{0}\_active\{1}.json' -f
+            $LogDestination.TrimEnd('\', '/'), $Context.RunId
+    }
     if ($PSBoundParameters.ContainsKey('StatusPath')) {
         $statusPathValue = $StatusPath
     }
@@ -372,7 +388,7 @@
     # cannot count them itself - it is reading a share, not running a sequence.
     $log.StepCount = $stepList.Count
 
-    Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Running'
+    Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Running' -ActivePath $activeStatusPath
 
     if ([string] $Context.Phase -ne [string] $state.phase) {
         Write-HDTLog -Context $log -Event 'phase.change' `
@@ -551,6 +567,18 @@
             Update-HDTRunStateStep -State $state -Index $index -Status Running -Attempt 1 `
                 -Leg ([int] $state.leg) -StartedUtc ($clock.GetUtcNow()) | Out-Null
             & $saveState
+
+            # AND THE HEARTBEAT, HERE, WHERE THE STEP CHANGES. It used to be
+            # written at the start of the run, at a reboot and at the end - so a
+            # console tailing the share showed step 1 for the whole deployment
+            # and then a verdict. "Step 7 of 12" is the one thing that view is
+            # for, and it needs a write per step to say it.
+            #
+            # $log ALREADY CARRIES THE STEP: the context was told about it above,
+            # which is what Write-HDTStatus reads. This adds no new fact, only
+            # the moment at which it is published.
+            Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Running' `
+                -ActivePath $activeStatusPath
 
             $attempt = Invoke-HDTStepAttempt -Step $step -Context $Context -StepType $registry
 
@@ -808,7 +836,52 @@
                 # The second save: autoLogon.armed has to be durable too.
                 & $saveState
 
-                Write-HDTStatus -Context $log -Path $statusPathValue -Status 'RebootPending'
+                Write-HDTStatus -Context $log -Path $statusPathValue -Status 'RebootPending' -ActivePath $activeStatusPath
+
+                # -- the log goes onto the disk before the machine goes ---------
+                #
+                # MDT'S MININT, AND FOR MDT'S REASON. LiteTouch keeps its logs in
+                # MININT\SMSOSD\OSDLOGS and moves that folder onto the target
+                # volume before the WinPE leg restarts. The log then survives the
+                # reboot on the disk the machine is about to boot from, and
+                # LTICleanup collects it at the end from there.
+                #
+                # HDT HAD NO SUCH COPY, AND LOST EVERY WinPE LOG THAT REBOOTED.
+                # The WinPE log lives on X: - the RAM disk - and reached the share
+                # only from the tail of Start-HDTDeployment.ps1, after the
+                # sequence returns. A Restart step restarts from INSIDE the
+                # sequence, so that tail is not reached: X: evaporates and the
+                # share gets nothing. Observed on a real machine, whose whole
+                # WinPE leg had to be recovered from the VHDX afterwards - and
+                # the share copy could not have saved it either, because the
+                # share was what it could not reach.
+                #
+                # THE SAME VOLUME THE RESUME AGENT WENT TO, and the same folder
+                # the full-OS leg logs into, so the two legs of one deployment
+                # end up in one place. That is what reading a deployment end to
+                # end requires, and it is the only copy that needs no network.
+                #
+                # IT NEVER STOPS THE RESTART. A machine that cannot be given its
+                # log is still a machine that must reboot to carry on; the
+                # failure is worth a line, not a stalled deployment.
+                if ([string] $Context.Phase -eq 'WinPE' -and
+                    $Context.Variable.Contains('HDTOSVolume') -and
+                    -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTOSVolume'])) {
+
+                    $volumeLogRoot = '{0}\HDT\Logs' -f ([string] $Context.Variable['HDTOSVolume']).TrimEnd('\', '/')
+
+                    try {
+                        $onDisk = Copy-HDTLog -Context $log -Destination $volumeLogRoot
+
+                        Write-HDTLog -Context $log -Component 'Restart' `
+                            -Message ("the log was copied to '{0}', which survives the restart" -f $onDisk) `
+                            -Data ([ordered] @{ path = [string] $onDisk })
+                    } catch {
+                        Write-HDTLog -Context $log -Severity Warning -Component 'Restart' `
+                            -Message ("the log could not be copied to '{0}', so this leg's log lives only on the RAM disk and will not survive the restart: {1}" -f
+                                $volumeLogRoot, $_.Exception.Message)
+                    }
+                }
 
                 $power = $Context.Service.GetRequired('Power', 'Restart')
                 $power.Restart($delaySecond)
@@ -847,7 +920,7 @@
                         $index, $stepName, $statePathValue) `
                     -Data ([ordered] @{ index = $index; name = $stepName; statePath = $statePathValue })
 
-                Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Failed'
+                Write-HDTStatus -Context $log -Path $statusPathValue -Status 'Failed' -ActivePath $activeStatusPath
             }
 
             break
@@ -922,7 +995,7 @@
                 leg       = [int] $state.leg
             })
 
-        Write-HDTStatus -Context $log -Path $statusPathValue -Status $runStatus
+        Write-HDTStatus -Context $log -Path $statusPathValue -Status $runStatus -ActivePath $activeStatusPath
 
         # THE LAST THING THE SCREEN IS TOLD, and the only update that carries a
         # verdict: run.end has just been written, so this is where Running

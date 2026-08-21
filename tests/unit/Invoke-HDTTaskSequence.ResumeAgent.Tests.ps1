@@ -1,4 +1,4 @@
-# THE REBOOT CEREMONY STAGES THE ENGINE BEFORE IT ARMS THE LOGON.
+﻿# THE REBOOT CEREMONY STAGES THE ENGINE BEFORE IT ARMS THE LOGON.
 #
 # DESIGN 4.5.1 launches the engine at logon from <os volume>\HDT\Start-HDTResume.ps1.
 # The ceremony armed that logon for five milestones without ever putting the file
@@ -71,6 +71,34 @@ Describe 'Invoke-HDTTaskSequence' {
 
         It 'puts the resume payload on the volume the machine will boot from' {
             $script:fileSystem.TestPath('W:\HDT\Start-HDTResume.ps1') | Should -BeTrue
+        }
+
+        # AND THE LOG GOES WITH IT - MDT'S MININT, BY ANOTHER NAME.
+        #
+        # LiteTouch keeps its logs in MININT\SMSOSD\OSDLOGS and moves that folder
+        # onto the target volume before the WinPE leg restarts, so the log
+        # survives the reboot on the disk the machine is about to boot from.
+        # HDT wrote its WinPE log to X:\HDT\Logs - the RAM disk - and copied it
+        # to the share at the TAIL of the payload, after the sequence returned.
+        # A Restart step restarts from inside the sequence, so that tail never
+        # ran: a deployment with a reboot in it lost every WinPE log it had, and
+        # the one machine this was noticed on had nothing to read afterwards
+        # because the share it would have copied to was unreachable anyway.
+        #
+        # THE DISK IS THE COPY THAT CANNOT FAIL. It is local, it is the volume
+        # this leg has just written, and the full-OS leg logs to \HDT\Logs on
+        # that same volume - so the two legs end up in one folder, which is what
+        # reading a deployment end to end requires.
+        It 'puts the WinPE log on that volume before it restarts' {
+            @($script:fileSystem.GetChildItem('W:\HDT\Logs')).Count |
+                Should -BeGreaterThan 0 -Because 'the RAM disk goes away at the restart'
+        }
+
+        It 'keeps the log tree intact, under computer and run' {
+            $copied = @($script:fileSystem.GetChildItem('W:\HDT\Logs'))[0]
+
+            $script:fileSystem.TestPath(
+                [System.IO.Path]::Combine([string] $copied, 'HDT.log')) | Should -BeTrue
         }
 
         It 'puts the engine there too' {
@@ -154,5 +182,49 @@ Describe 'Invoke-HDTTaskSequence' {
 
             @($warned).Count | Should -BeGreaterThan 0
         }
+    }
+}
+
+
+# MDT'S SLShareDynamicLogging: SOMETHING ON THE SHARE WHILE IT IS STILL WORKING.
+#
+# The console tails <share>\Logs\_active\ and rebuilds that branch every fifteen
+# seconds. Nothing ever wrote it, so the Monitoring view could not show a live
+# deployment - and on the first machine anybody watched, it stayed empty from
+# start to finish while the deployment ran for four minutes.
+Describe 'Invoke-HDTTaskSequence and the console that is watching' {
+
+    BeforeAll {
+        $script:watchFileSystem = New-HDTFakeFileSystem
+
+        $script:watchHarness = New-HDTSequenceTestHarness -Yaml $script:yaml -Phase 'WinPE' `
+            -FileSystem $script:watchFileSystem -Variable @{ HDTOSVolume = 'W:' }
+
+        $script:watchResult = Invoke-HDTTaskSequence -Sequence $script:watchHarness.Sequence `
+            -Context $script:watchHarness.Context -State $script:watchHarness.State `
+            -LogDestination '\host\HDTShare\Logs'
+    }
+
+    It 'writes a heartbeat where the console looks for one' {
+        $script:watchFileSystem.TestPath('\host\HDTShare\Logs\_active\' +
+            $script:watchHarness.Context.RunId + '.json') | Should -BeTrue
+    }
+
+    # A ROW THAT NEVER MOVES IS A ROW NOBODY TRUSTS. The heartbeat carries the
+    # step, and the console renders "step 7 of 12" from it - so it has to be
+    # rewritten as the run steps, not only at the start and the end.
+    It 'rewrites it as the run steps, so the row moves' {
+        $written = @($script:watchFileSystem.Operations |
+                Where-Object { $_.Operation -eq 'WriteAllText' -and
+                    ([string] $_.Arguments[0]) -like '*\_active\*' })
+
+        @($written).Count | Should -BeGreaterThan 2 -Because 'start and end alone is not a heartbeat'
+    }
+
+    It 'leaves the last one carrying the run outcome, not Running' {
+        $active = $script:watchFileSystem.ReadAllText('\host\HDTShare\Logs\_active\' +
+            $script:watchHarness.Context.RunId + '.json') | ConvertFrom-Json
+
+        $active.status | Should -Not -BeExactly 'Running'
     }
 }
