@@ -77,9 +77,18 @@ jobs:
       # manifest nor the Gallery is changed by building, so there is nothing to
       # learn by waiting for the build first.
       #
+      # IT SKIPS THE PUBLISH RATHER THAN FAILING THE RUN. A tag is also how a
+      # release is RECORDED - it is what makes the repository able to say which
+      # commit a published version came from - and a version already on the
+      # Gallery must not make tagging that commit impossible. So the check says
+      # so, loudly, and the run goes on to build and validate; only the step
+      # that would upload is skipped. There is nothing wrong here to fail on:
+      # the Gallery already holds what this tag names.
+      #
       # NOT ON A DRY RUN. -WhatIf never reaches the Gallery, so rehearsing the
       # version that is already published is a reasonable thing to ask for.
       - name: Check the version against the Gallery
+        id: gallery
         if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.whatIf) }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -90,10 +99,19 @@ jobs:
           $already = Find-Module -Name Hephaestus -RequiredVersion $version -Repository PSGallery -ErrorAction SilentlyContinue
 
           if ($already) {
-              throw ("the Gallery already has Hephaestus $version, and a published version cannot be " +
-                  'replaced. Raise ModuleVersion in src/Hephaestus/Hephaestus.psd1, commit, and tag ' +
-                  'that commit.')
+              "published=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+              $said = ("the Gallery already has Hephaestus $version, and a published version cannot be " +
+                  'replaced. This run will build and validate; it will publish nothing. To ship new ' +
+                  'code, raise ModuleVersion with ./build.ps1 -Task version, commit, and tag that commit.')
+
+              Write-Warning $said
+              $said | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+              exit 0
           }
+
+          "published=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
           "the Gallery does not have $version yet"
 
@@ -113,7 +131,11 @@ jobs:
       - name: Build, lint, test, self-check
         run: ./build.ps1 -Task clean,bundle,build,lint,test,selfcheck
 
+      # SKIPPED WHEN THE GALLERY ALREADY HAS THIS VERSION, and only then. The
+      # output is empty on a dry run - that step does not run at all there - so
+      # the comparison has to be against 'false' rather than for 'true'.
       - name: Publish to the PowerShell Gallery
+        if: steps.gallery.outputs.published != 'false'
         env:
           PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
         run: |
