@@ -1,4 +1,4 @@
-# Resolve-HDTVariable is ROADMAP M1's exit criterion in one function: five-source
+﻿# Resolve-HDTVariable is ROADMAP M1's exit criterion in one function: five-source
 # precedence, first-match-wins per variable, %Var% expansion, setFrom: script
 # rules - and a provenance record for every value.
 #
@@ -678,5 +678,65 @@ rules:
             $mandatory.Count | Should -Be 0
             { Resolve-HDTVariable } | Should -Not -Throw
         }
+    }
+}
+
+# MDT'S #Left(...)#, THROUGH THE PATH A RULE ACTUALLY TAKES.
+#
+# THIS IS WHERE IT WAS BROKEN AND THE UNIT TEST DID NOT SAY SO.
+# Expand-HDTRuleExpression is called by Expand-HDTVariableToken at what it
+# believed was the outermost call - and it decided that by "-Chain was not
+# passed", because its own recursion always passes one.
+#
+# Add-HDTResolvedVariable passes -Chain @($Name) on EVERY rule value, to seed
+# cycle detection with the variable's own name. So on the one path that matters,
+# the expression step never ran: a real deployment stopped at Apply Windows
+# Settings with the computer name '#Left(PC-5784-6600-2634-7495-0127-2247-66,
+# 15)#', 47 characters, and Expand-HDTVariableToken's own tests passed because
+# they call it directly and omit -Chain.
+#
+# So the test lives HERE, at the resolver, where a rules file is what goes in.
+Describe 'Resolve-HDTVariable and MDT expressions' {
+
+    It 'shortens a name the way the rules file asks' {
+        $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: Fallback
+    set:
+      HDTComputerName: "#Left(PC-%HDTSerialNumber%, 15)#"
+'@
+
+        $result = Resolve-HDTVariable -RuleDocument $rules `
+            -Fact @{ HDTSerialNumber = '5784-6600-2634-7495-0127-2247-66' }
+
+        $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-5784-6600-26'
+        ([string] $result.Variable['HDTComputerName']).Length | Should -BeLessOrEqual 15
+    }
+
+    It 'leaves a value with no expression in it exactly as written' {
+        $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: Fallback
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"
+'@
+
+        $result = Resolve-HDTVariable -RuleDocument $rules -Fact @{ HDTSerialNumber = '0042' }
+
+        $result.Variable['HDTComputerName'] | Should -BeExactly 'PC-0042'
+    }
+
+    It 'still detects a cycle, which is what -Chain was carrying' {
+        $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: Fallback
+    set:
+      HDTComputerName: "#Left(%HDTComputerName%, 5)#"
+'@
+
+        { Resolve-HDTVariable -RuleDocument $rules -Fact @{} } | Should -Throw
     }
 }

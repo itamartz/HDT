@@ -1,4 +1,4 @@
-function Expand-HDTVariableToken {
+﻿function Expand-HDTVariableToken {
     <#
         .SYNOPSIS
             Expands %Var% tokens in a value against the resolution scope.
@@ -82,7 +82,24 @@ function Expand-HDTVariableToken {
         [string[]] $Chain,
 
         [Parameter()]
-        [string] $Path
+        [string] $Path,
+
+        # THIS FUNCTION CALLING ITSELF, and nothing else ever passes it.
+        #
+        # MDT's #Left(...)# is evaluated once, on the way out of the OUTERMOST
+        # call - running it at every level would hand a function its own output.
+        # "Outermost" was first inferred from -Chain not being passed, and that
+        # was wrong in the one place that matters: Add-HDTResolvedVariable seeds
+        # the chain with the variable's own name on EVERY rule value, so a rules
+        # file never had its expressions evaluated at all. A machine stopped at
+        # Apply Windows Settings with a 47-character name that still read
+        # '#Left(PC-...', while this function's own tests passed - they call it
+        # directly, and a direct caller does not pass a chain.
+        #
+        # A marker the recursion sets cannot be got wrong by a caller that has
+        # its own reason to pass a chain.
+        [Parameter()]
+        [switch] $Nested
     )
 
     Set-StrictMode -Version Latest
@@ -146,10 +163,24 @@ function Expand-HDTVariableToken {
         }
 
         [void] $builder.Append((Expand-HDTVariableToken -Value $text -Scope $Scope `
-                    -Unresolved $Unresolved -Chain (@($chainName) + $name) -Path $Path))
+                    -Unresolved $Unresolved -Chain (@($chainName) + $name) -Path $Path -Nested))
     }
 
     [void] $builder.Append($Value.Substring($position))
+
+    # -- and then MDT's #Left(...)# ------------------------------------------
+    #
+    # ONLY AT THE TOP, NEVER INSIDE THE RECURSION. The recursion marks itself
+    # with -Nested; a caller never passes it. Evaluating at every level would
+    # run a function over its own output - and inferring it from a missing
+    # -Chain got it wrong everywhere a rule was resolved.
+    #
+    # AFTER THE TOKENS, WHICH IS THE WHOLE POINT: what Left() receives is the
+    # expanded text, so '#Left(PC-%HDTSerialNumber%, 15)#' does what an
+    # administrator moving from CustomSettings.ini expects it to.
+    if (-not $Nested) {
+        return (Expand-HDTRuleExpression -Value $builder.ToString() -Path $Path)
+    }
 
     return $builder.ToString()
 }
