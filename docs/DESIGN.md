@@ -213,6 +213,40 @@ search-and-replace:
 | `WSUSServer` | `HDTWSUSServer` | `Memory` | `HDTMemory` |
 | `DriverGroup` | `HDTDriverGroup` | `MacAddress`/`IPAddress`/`DefaultGateway` | `HDTMacAddress`/`HDTIPAddress`/`HDTDefaultGateway` |
 | `_SMSTSLogPath` | `_HDTLogPath` | `TimeZoneName` | `HDTTimeZone` |
+| `ProductKey` | `HDTProductKey` | `AssetTag` | `HDTAssetTag` |
+| `MandatoryApplications` | `HDTMandatoryApplications` | `FinishAction` | `HDTFinishAction` |
+| `TaskSequenceName` | `HDTTaskSequenceName` | `TaskSequenceVersion` | `HDTTaskSequenceVersion` |
+| `_SMSTSOrgName` | `HDTBrandingName` | | |
+
+**Where HDT keeps one name and MDT keeps two.** `OverrideProductKey` exists in
+MDT because a task sequence could carry its own key and a rule needed a way to
+beat it. §3.1's precedence already answers that — a rule outranks a sequence
+default — so a second name would be a second way to say the same thing, and the
+pair is exactly where an MDT admin loses an afternoon.
+
+**`HDTProductKey` unset removes the element rather than emptying it.** Windows
+reads `ProductKey` in the specialize pass; an empty element fails the pass, and
+so does a literal `%HDTProductKey%`. No element at all is how every KMS, MAK-by-
+script and LTSC deployment has always run, so that is what an unsupplied key
+produces. A template that hard-codes a key and never names the variable is left
+alone — only the element still holding the unresolved token goes.
+
+**`HDTFinishAction` is decided by `Get-HDTFinishAction`, not by either payload.**
+`REBOOT`, `SHUTDOWN`, `LOGOFF` or `NONE`; `RESTART` is accepted for `REBOOT`
+because that is the word this engine uses everywhere else. A value nobody meant
+does nothing and warns — a typo resolving to the nearest match would power off a
+machine somebody was about to work on, and refusing would turn a deployment that
+succeeded into a failed one at the very last step. On the WinPE leg it applies
+only to a `Succeeded` run: `RebootPending` means the machine is going back into
+what it just built, and a finish action honoured there would leave an imaged
+machine that never ran a full-OS step.
+
+**`HDTMandatoryApplications` does not jump the queue**, which is where HDT parts
+company with MDT. MDT installs its mandatory list first because it processes two
+lists in two loops; `Resolve-HDTApplicationOrder` emits ready applications
+smallest id first precisely so a plan does not depend on the order a selection
+was written in. A site that needs its agent before everything else declares a
+dependency edge.
 
 HDT-specific additions with no MDT equivalent: `HDTSecureBootEnabled`,
 `HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`,

@@ -116,6 +116,14 @@
         [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
+        # MDT'S _SMSTSOrgName, ON THE ONE SURFACE THAT HAS A BANNER. Empty means
+        # the banner reads 'Hephaestus', which is what every machine built
+        # before this parameter existed carried.
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyString()]
+        [string] $BrandingName = '',
+
         [Parameter()]
         [AllowEmptyString()]
         [string] $ThemeXamlPath = '',
@@ -382,6 +390,23 @@
             [System.IO.Path]::GetFileNameWithoutExtension($ShellXamlPath) -replace '^HDT', '')
     } catch {
         Write-Verbose ("no string table block for '{0}': {1}" -f $ShellXamlPath, [string] $_.Exception.Message)
+    }
+
+    # THE BANNER, OVER THE TOP OF THE STRING TABLE THAT JUST SUPPLIED IT.
+    # HDTShellTitle.Text is 'Hephaestus' in en-us.psd1; a share that named
+    # itself replaces that line and keeps the subtitle, so the rail reads
+    # 'Contoso' over 'Deployment Toolkit' rather than losing half its heading.
+    #
+    # THE WINDOW TITLE IS LEFT ALONE. -Title comes from wizard.yaml, which is an
+    # author deciding what this particular wizard is called; overwriting it with
+    # the organisation name would take a decision that was already made.
+    #
+    # Get-HDTBrandingName is what knows an unset value from a value of three
+    # spaces - this file cannot be unit tested, and that distinction can.
+    if (-not [string]::IsNullOrWhiteSpace($BrandingName)) {
+        if ($null -eq $string) { $string = @{} }
+
+        $string['HDTShellTitle.Text'] = Get-HDTBrandingName -Value $BrandingName
     }
 
     # NULLS ARE STRIPPED for the same reason Show-HDTWizard strips them: @($null)
