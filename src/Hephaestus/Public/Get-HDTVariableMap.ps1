@@ -237,6 +237,11 @@
         @{ HDTName = 'HDTSkipFinalSummary'; MdtName = 'SkipFinalSummary'; Origin = 'authored'
             Description = 'True to end the full-OS leg without the Deployment Summary screen. Default false: a machine that finished and one that failed halfway must not look the same to the person standing at it.'
         }
+        # A SECOND LIST, NOT A DEFAULT FOR THE FIRST. A default is what you get
+        # when nobody chose; this is what you get when somebody did.
+        @{ HDTName = 'HDTMandatoryApplications'; MdtName = 'MandatoryApplications'; Origin = 'authored'
+            Description = 'Applications installed whatever the wizard selected, and whatever selection a step pins - the management agent or antivirus a site does not let a technician click past. Merged with HDTApplications; an id in both installs once.'
+        }
         @{ HDTName = 'HDTSkipWizard'; MdtName = 'SkipWizard'; Origin = 'authored'
             Description = 'True to skip the deployment wizard entirely; any HDTSkip<Page> name follows the same convention for a single page.'
         }

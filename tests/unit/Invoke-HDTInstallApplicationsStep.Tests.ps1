@@ -1,4 +1,4 @@
-# The InstallApplications step (DESIGN 8, DESIGN 4.2). MDT's Install
+﻿# The InstallApplications step (DESIGN 8, DESIGN 4.2). MDT's Install
 # Applications, rebuilt on the catalog, the ordering and the detection that
 # 07-01 built.
 #
@@ -162,6 +162,96 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
 
             $result.Status | Should -BeExactly 'Completed'
             @($script:process.Operations).Count | Should -Be 2
+        }
+
+        It 'installs HDTMandatoryApplications on top of what was selected' {
+            $context = & $script:newContext $script:process -Variable @{
+                HDTApplications          = 'Contoso-Agent'
+                HDTMandatoryApplications = 'Corp-Baseline'
+            }
+            $step = & $script:newStep 'Install applications' $null
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            @($result.Data.planned) | Should -Contain 'Corp-Baseline'
+            @($result.Data.planned) | Should -Contain 'Contoso-Agent'
+        }
+
+        It 'installs HDTMandatoryApplications when the step pins its own selection' {
+            # MANDATORY MEANS MANDATORY. A sequence pinning an exact list is
+            # exactly the case a site-wide agent has to survive - if a pinned
+            # selection could drop it, the property would mean "mandatory unless
+            # a sequence author forgot", which is not a guarantee anybody can
+            # build a compliance story on.
+            $context = & $script:newContext $script:process -Variable @{ HDTMandatoryApplications = 'Corp-Baseline' }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Agent') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            @($result.Data.planned) | Should -Contain 'Corp-Baseline'
+        }
+
+        It 'installs HDTMandatoryApplications when nothing else was selected' {
+            # The unattended machine whose technician picked nothing, and the
+            # early return for an empty selection is what would have swallowed
+            # the mandatory list.
+            $context = & $script:newContext $script:process -Variable @{ HDTMandatoryApplications = 'Corp-Baseline' }
+            $step = & $script:newStep 'Install applications' $null
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            @($result.Data.planned) | Should -Be @('Corp-Baseline')
+            @($script:process.Operations).Count | Should -Be 1
+        }
+
+        It 'leaves the plan order to the dependency sort, not to which list named it' {
+            # MDT installs its mandatory list first. HDT DOES NOT, and the
+            # difference is deliberate: Resolve-HDTApplicationOrder emits ready
+            # applications smallest id first precisely so the plan does not
+            # depend on the order a selection was written in, and a mandatory
+            # list that jumped the queue would spend that determinism on a
+            # convention MDT only has because it processed two lists in two
+            # loops.
+            #
+            # A SITE THAT NEEDS ITS AGENT FIRST DECLARES A DEPENDENCY, which is
+            # the mechanism that already exists and the only one that survives
+            # somebody adding a third application next year.
+            $context = & $script:newContext $script:process -Variable @{
+                HDTApplications          = 'Contoso-Agent'
+                HDTMandatoryApplications = 'Corp-Baseline'
+            }
+            $step = & $script:newStep 'Install applications' $null
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            @($result.Data.planned) | Should -Be @('Contoso-Agent', 'Corp-Baseline')
+        }
+
+        It 'installs an application named by both lists exactly once' {
+            $context = & $script:newContext $script:process -Variable @{
+                HDTApplications          = 'Corp-Baseline,Contoso-Agent'
+                HDTMandatoryApplications = 'Corp-Baseline'
+            }
+            $step = & $script:newStep 'Install applications' $null
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            @(@($result.Data.planned) | Where-Object { $_ -eq 'Corp-Baseline' }).Count | Should -Be 1
+            @($script:process.Operations).Count | Should -Be 2
+        }
+
+        It 'still reports no applications when neither list names one' {
+            $context = & $script:newContext $script:process -Variable @{ HDTMandatoryApplications = '  ' }
+            $step = & $script:newStep 'Install applications' $null
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            $result.Message | Should -BeExactly 'no applications were selected.'
+            @($script:process.Operations).Count | Should -Be 0
         }
 
         It 'falls back to HDTApplications when the step declares no selection' {

@@ -153,6 +153,45 @@
         $selection = & $split ([string] $Context.Variable['HDTApplications'])
     }
 
+    # -- what the site installs whatever the technician picked ----------------
+    #
+    # MDT's MandatoryApplications, and it is a SECOND list rather than a default
+    # for the first: a default is what you get when nobody chose, and this is
+    # what you get when somebody did. The management agent, the antivirus, the
+    # certificate deployer - the things a site does not let a person opt out of
+    # by clicking past a page.
+    #
+    # IT SURVIVES A PINNED SELECTION. A sequence naming an exact list is the
+    # case this exists for; if a pinned selection could drop it, the property
+    # would mean "mandatory unless a sequence author forgot", which is not a
+    # guarantee anybody can build a compliance story on.
+    #
+    # IT DOES NOT JUMP THE QUEUE, and that is where HDT parts company with MDT.
+    # MDT installs its mandatory list first, for no better reason than that it
+    # processes two lists in two loops. Resolve-HDTApplicationOrder emits ready
+    # applications smallest id first precisely so a plan does not depend on the
+    # order a selection was written in, and spending that determinism on the
+    # convention would be the wrong trade. A site that needs its agent in place
+    # before everything else declares a dependency edge - the mechanism that
+    # already exists, and the only one that survives somebody adding a third
+    # application next year.
+    if ($Context.Variable.Contains('HDTMandatoryApplications')) {
+        $mandatory = & $split ([string] $Context.Variable['HDTMandatoryApplications'])
+
+        if (@($mandatory).Count -gt 0) {
+            $merged = New-Object -TypeName System.Collections.ArrayList
+            $seen = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+
+            foreach ($id in (@($mandatory) + @($selection))) {
+                if ($seen.Add([string] $id)) {
+                    [void] $merged.Add([string] $id)
+                }
+            }
+
+            $selection = [string[]] @($merged)
+        }
+    }
+
     if (@($selection).Count -eq 0) {
         # A sequence that offers applications and a technician who picked none is
         # an ordinary deployment.
