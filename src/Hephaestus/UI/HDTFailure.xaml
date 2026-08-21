@@ -45,6 +45,25 @@
                 <TextBlock x:Name="HDTFailureTitleText" Foreground="#FFF48771"
                            FontSize="28" FontWeight="SemiBold" />
 
+                <!--
+                    AND THE SAME WINDOW REPORTS A RUN THAT WORKED, because MDT
+                    ends a deployment on ONE Deployment Summary rather than two
+                    windows to keep in step with each other.
+
+                    TWO HEADLINES, ONE VISIBLE. The colour is the whole reason
+                    this is a second TextBlock instead of one line of text that
+                    changes: #FFF48771 is what failure looks like everywhere in
+                    this product, and a success painted in it reads as a failure
+                    that somebody mislabelled. Red only ever means wrong.
+
+                    Which one shows is a Pane flag, the mechanism the host
+                    already has - Get-HDTDeploymentFailure decides, and this
+                    file only says what the two look like.
+                -->
+                <TextBlock x:Name="HDTFailureSuccessText" Foreground="#FF6FCF97"
+                           FontSize="28" FontWeight="SemiBold"
+                           Visibility="Collapsed" />
+
                 <TextBlock x:Name="HDTFailureSequenceText" Text="" Foreground="#FFCCCCCC"
                            FontSize="15" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
 
@@ -67,7 +86,8 @@
                 -->
                 <TextBlock x:Name="HDTFailureReasonLabel" Foreground="#FF8A8A8A" FontSize="13" Margin="0,18,0,0" />
 
-                <Border Background="#FF1E1E1E" BorderBrush="#FF3A3A3C" BorderThickness="1"
+                <Border x:Name="HDTFailureReasonBox"
+                        Background="#FF1E1E1E" BorderBrush="#FF3A3A3C" BorderThickness="1"
                         Margin="0,4,0,0" MaxHeight="220">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12,10,12,10">
                         <TextBlock x:Name="HDTFailureMessageText" Text="" Foreground="#FFF48771"

@@ -1,4 +1,4 @@
-function Get-HDTDeploymentFailure {
+﻿function Get-HDTDeploymentFailure {
     <#
         .SYNOPSIS
             What to tell the technician about a deployment that failed, derived
@@ -84,6 +84,7 @@ function Get-HDTDeploymentFailure {
     }
 
     $result = [ordered] @{
+        Pane       = @()
         IsFailure  = $false
         RunId      = ''
         SequenceId = ''
@@ -152,7 +153,29 @@ function Get-HDTDeploymentFailure {
 
     # -- what the window shows ----------------------------------------------
 
+    # ONE WINDOW REPORTS BOTH OUTCOMES, and which headline it shows is a Pane
+    # flag. MDT ends a deployment on a single Deployment Summary that states
+    # which of the two happened; a second window for the good news would be a
+    # second thing to keep in step with this one.
+    #
+    # NOT A FIELD. A Field sets text and cannot set a colour, and the failure
+    # headline is #FFF48771 in the markup - so a success written into it comes
+    # out in the colour that means "wrong" everywhere else in this product.
+    # HDTFailure.xaml carries both headlines; this decides which is visible.
+    $succeeded = ([string] $result['Status'] -eq 'Succeeded')
+
     $stepText = 'before the first step'
+
+    # A RUN THAT WORKED HAS NO STEP TO NAME, so it names what it got through.
+    # 'before the first step' under a green headline reads as a contradiction.
+    if (-not $result['IsFailure'] -and [string]::IsNullOrWhiteSpace([string] $result['StepName'])) {
+        $stepText = 'all steps completed'
+
+        if ([int] $result['StepCount'] -gt 0) {
+            $stepText = 'all {0} steps completed' -f [int] $result['StepCount']
+        }
+    }
+
     if (-not [string]::IsNullOrWhiteSpace([string] $result['StepName'])) {
         $stepText = [string] $result['StepName']
 
@@ -167,6 +190,15 @@ function Get-HDTDeploymentFailure {
 
     $logText = [string] $result['LogPath']
     if ([string]::IsNullOrWhiteSpace($logText)) { $logText = '(no log destination was resolved)' }
+
+    # AND THE REASON GOES WITH THE FAILURE. An empty 'Why' box under a green
+    # headline is a question the window is asking itself.
+    $result['Pane'] = @(
+        [pscustomobject] @{ Name = 'HDTFailureTitleText'; Visible = (-not $succeeded) }
+        [pscustomobject] @{ Name = 'HDTFailureSuccessText'; Visible = $succeeded }
+        [pscustomobject] @{ Name = 'HDTFailureReasonLabel'; Visible = (-not $succeeded) }
+        [pscustomobject] @{ Name = 'HDTFailureReasonBox'; Visible = (-not $succeeded) }
+    )
 
     $result['Field'] = @(
         [pscustomobject] @{ Name = 'HDTFailureStepText'; Text = $stepText }

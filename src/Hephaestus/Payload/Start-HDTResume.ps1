@@ -98,6 +98,15 @@ param(
     [ValidateNotNullOrEmpty()]
     [string] $BootstrapPath = 'C:\HDT\bootstrap.json',
 
+    # THE SUMMARY SCREEN, BESIDE THE MODULE THAT DRAWS IT. The WinPE leg reads
+    # its copy from X:\HDT\UI\; in the full OS the module is staged to
+    # -ModulePath and ships its own UI\ folder, so the screen travels with the
+    # engine rather than needing the share - which is exactly the resource a
+    # failed deployment may not have.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $SummaryXamlPath,
+
     [Parameter()]
     [ValidateNotNullOrEmpty()]
     [string] $SequencePath,
@@ -320,6 +329,93 @@ if (-not [string]::IsNullOrWhiteSpace($logDestination)) {
 }
 
 $run = Invoke-HDTTaskSequence @loopArgument
+
+# -- the deployment summary, MDT's Finished screen ---------------------------
+#
+# THIS LEG USED TO END ON exit 0 OR exit 1 AND DRAW NOTHING. A machine that had
+# just deployed itself and one that had failed halfway through State Restore
+# looked identical to the person standing in front of them, and the only
+# difference between them was in a log on a share they would have to go and read.
+#
+# ONE SCREEN, BOTH OUTCOMES. Get-HDTDeploymentFailure reports the run whatever
+# it did - the headline is a field on the window - so this is the same window
+# the WinPE leg shows, with the same three buttons.
+#
+# HDTSkipFinalSummary IS THE ONLY REASON NOT TO SHOW IT, and it is MDT's
+# SkipFinalSummary with MDT's meaning. Deliberately NOT gated on whether a
+# progress window was opened: that is what the WinPE failure screen does, and it
+# is why an unattended machine whose share had moved powered off with nothing on
+# it. An image that genuinely wants no screen says so in a rule.
+$skipSummary = $false
+if ($null -ne $variable -and $variable.Contains('HDTSkipFinalSummary')) {
+    $skipSummary = ('true' -eq ([string] $variable['HDTSkipFinalSummary']).Trim().ToLowerInvariant())
+}
+
+if (-not $skipSummary) {
+    # THE SCREEN IS NOT ALLOWED TO BECOME THE OUTCOME. This machine has just
+    # been deployed; a window that cannot be drawn must not change what this leg
+    # reports, and must not stop it exiting.
+    try {
+        $summaryXaml = $SummaryXamlPath
+
+        if ([string]::IsNullOrWhiteSpace($summaryXaml)) {
+            $summaryXaml = [System.IO.Path]::Combine($ModulePath, 'UI', 'HDTFailure.xaml')
+        }
+
+        $summary = Get-HDTDeploymentFailure -Record (Get-HDTRunLogRecord -Context $log) `
+            -LogPath $logDestination
+
+        [void] (Show-HDTDeploymentFailure -Failure $summary -XamlPath $summaryXaml)
+    } catch {
+        Write-Information ("the deployment summary could not be shown: {0}" -f $_.Exception.Message)
+    }
+}
+
+# -- what the machine does now it is finished --------------------------------
+#
+# MDT's FinishAction. THIS LEG USED TO END ON exit 0 AND LEAVE THE MACHINE WHERE
+# IT WAS - sitting at a desktop, logged in as the local Administrator, until
+# somebody walked over to it. That is the opposite of what a technician imaging
+# a bench of twenty machines wants, and it is why MDT has the property.
+#
+# AFTER THE SUMMARY, NEVER BEFORE. A machine that powers off while its Finished
+# screen is being drawn has shown the person standing in front of it nothing,
+# which would undo the screen above rather than complete it.
+#
+# THE PAYLOAD DECIDES NOTHING. Get-HDTFinishAction is what knows that REBOOT is
+# a restart, that RESTART means the same, that LOGOFF does nothing in WinPE and
+# that a value nobody meant does nothing at all - it is pure and unit tested,
+# and this file is neither.
+$finishValue = ''
+if ($null -ne $variable -and $variable.Contains('HDTFinishAction')) {
+    $finishValue = [string] $variable['HDTFinishAction']
+}
+
+# THE FINISH ACTION IS NOT ALLOWED TO BECOME THE OUTCOME, the same rule the
+# summary screen above runs under. A deployment that succeeded and then failed
+# to reboot still succeeded; a machine left powered on is a far smaller problem
+# than a green run recorded as a failure, and the exit code below is what the
+# state file, the monitor and the technician all read.
+try {
+    $finish = Get-HDTFinishAction -Value $finishValue -Environment FullOS
+
+    if (-not $finish.IsRecognised) {
+        Write-HDTLog -Context $log -Severity Warning -Component 'Finish' -Message ([string] $finish.Reason)
+    }
+
+    if ($finish.Action -ne 'None') {
+        Write-HDTLog -Context $log -Component 'Finish' -Message ([string] $finish.Reason) `
+            -Data ([ordered] @{ action = [string] $finish.Action; delaySecond = [int] $finish.DelaySecond })
+
+        switch ($finish.Action) {
+            'Restart' { $power.Restart([int] $finish.DelaySecond) }
+            'Stop' { $power.Stop([int] $finish.DelaySecond) }
+            'Logoff' { $power.Logoff([int] $finish.DelaySecond) }
+        }
+    }
+} catch {
+    Write-Information ("the finish action could not be performed: {0}" -f $_.Exception.Message)
+}
 
 if ($run.Status -eq 'Failed') {
     exit 1

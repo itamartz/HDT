@@ -373,6 +373,7 @@
     Failure = @{
 
         'HDTFailureTitleText.Text' = 'Deployment failed'
+        'HDTFailureSuccessText.Text' = 'Deployment completed successfully'
         'HDTFailureStepLabel.Text' = 'Step'
         'HDTFailureReasonLabel.Text' = 'Why'
         'HDTFailureLogLabel.Text' = 'Log'

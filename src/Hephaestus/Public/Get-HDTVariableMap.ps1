@@ -314,6 +314,12 @@
         # just finished sat at a desktop, logged in as the local Administrator,
         # until somebody walked over to it - the opposite of what a technician
         # imaging a bench of twenty machines wants, and why MDT has this.
+        # MDT PUTS THE ORGANISATION'S NAME ON THE DEPLOYMENT WINDOW, and it is
+        # not vanity: a technician at a bench is often looking at two toolkits,
+        # and the banner is the fastest way to know which one has this machine.
+        @{ HDTName = 'HDTBrandingName'; MdtName = '_SMSTSOrgName'; Origin = 'authored'
+            Description = "Name on the wizard's banner. Unset reads 'Hephaestus', which is what every machine built before this existed carried; a value that resolves to nothing falls back rather than painting a blank banner."
+        }
         @{ HDTName = 'HDTFinishAction'; MdtName = 'FinishAction'; Origin = 'authored'
             Description = 'What the machine does when the deployment ends: REBOOT, SHUTDOWN, LOGOFF or NONE. Unset means NONE, which is what every deployment did before this existed. A value nobody meant does nothing and warns rather than acting on the nearest guess.'
         }

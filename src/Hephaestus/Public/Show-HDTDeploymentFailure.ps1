@@ -1,4 +1,4 @@
-function Show-HDTDeploymentFailure {
+﻿function Show-HDTDeploymentFailure {
     <#
         .SYNOPSIS
             Shows the technician why the deployment failed, and reports what
@@ -91,6 +91,13 @@ function Show-HDTDeploymentFailure {
     $field = @()
     if ($null -ne $Failure.PSObject.Properties['Field']) { $field = @($Failure.Field) }
 
+    # WHICH HEADLINE, AND WHETHER THERE IS A REASON TO SHOW. The record decides;
+    # this hands the flags to the host, which is the only thing that touches
+    # visibility. A record from an older caller carries no Pane and gets the
+    # window it always got.
+    $pane = @()
+    if ($null -ne $Failure.PSObject.Properties['Pane']) { $pane = @($Failure.Pane) }
+
     # SHOWN IS PART OF THE ANSWER. A caller that cannot tell "they pressed shut
     # down" from "there was no window" cannot log the difference, and those two
     # runs look identical afterwards.
@@ -98,7 +105,7 @@ function Show-HDTDeploymentFailure {
     $shown = $false
 
     try {
-        $result = Show-HDTWizard -XamlPath $XamlPath -Title $Title -Field $field `
+        $result = Show-HDTWizard -XamlPath $XamlPath -Title $Title -Field $field -Pane $pane `
             -WizardHost $WizardHost -FileSystem $FileSystem
 
         $answer = [string] $result.Action

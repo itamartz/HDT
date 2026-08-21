@@ -1,4 +1,4 @@
-# WHAT A TECHNICIAN IS TOLD WHEN A DEPLOYMENT FAILS.
+﻿# WHAT A TECHNICIAN IS TOLD WHEN A DEPLOYMENT FAILS.
 #
 # A machine that failed used to print a FATAL line into a console nobody was
 # looking at and power itself off five seconds later. Everything needed to fix
@@ -188,5 +188,67 @@ Describe 'Get-HDTDeploymentFailure' {
             [string] $field[0].Text | Should -BeLike '*Validate*'
             [string] $field[0].Text | Should -BeLike '*1 of 12*'
         }
+    }
+}
+
+# THE SAME WINDOW REPORTS A RUN THAT WORKED. MDT ends State Restore on a
+# Deployment Summary that says which of the two happened; HDT ended it on
+# nothing at all, so a ZTI machine that finished and a ZTI machine that failed
+# looked identical to the person standing at it.
+#
+# ONE SCREEN, TWO STATES, rather than a second window to keep in step with this
+# one - the headline is a field like every other thing on it.
+Describe 'the summary for a run that succeeded' {
+
+    BeforeAll {
+        $script:goodRecord = @(
+            [pscustomobject] @{ runId = 'run-20260821-140000'; event = 'run.start'
+                data = [pscustomobject] @{ sequenceId = 'DEMO-05'; stepCount = 11 } }
+            [pscustomobject] @{ runId = 'run-20260821-140000'; event = 'run.end'
+                data = [pscustomobject] @{ status = 'Succeeded' } }
+        )
+
+        $script:good = Get-HDTDeploymentFailure -Record $script:goodRecord -LogPath '\host\HDTShare\Logs'
+    }
+
+    It 'does not call it a failure' {
+        $script:good.IsFailure | Should -BeFalse
+        $script:good.Status | Should -BeExactly 'Succeeded'
+    }
+
+    It 'shows the success headline and hides the failure one' {
+        # NOT A FIELD. A Field sets text and cannot set a colour, and the
+        # failure headline is painted #FFF48771 in the markup - red only ever
+        # means wrong, so a success must not be written into it.
+        $visible = @($script:good.Pane | Where-Object { $_.Visible } | ForEach-Object { $_.Name })
+
+        $visible | Should -Contain 'HDTFailureSuccessText'
+        $visible | Should -Not -Contain 'HDTFailureTitleText'
+    }
+
+    It 'hides the reason box, which has nothing to say' {
+        $visible = @($script:good.Pane | Where-Object { $_.Visible } | ForEach-Object { $_.Name })
+
+        $visible | Should -Not -Contain 'HDTFailureReasonLabel'
+        $visible | Should -Not -Contain 'HDTFailureReasonBox'
+    }
+
+    It 'names the steps it got through instead of the step it died on' {
+        $step = @($script:good.Field | Where-Object { $_.Name -eq 'HDTFailureStepText' })[0]
+
+        $step.Text | Should -Not -Match '(?i)before the first step'
+        $step.Text | Should -Match '11'
+    }
+
+    It 'leaves a failure the window it always had' {
+        $bad = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ runId = 'r'; event = 'run.end'; data = [pscustomobject] @{ status = 'Failed' } }
+        ) -LogPath 'C:\HDT\Logs'
+
+        $visible = @($bad.Pane | Where-Object { $_.Visible } | ForEach-Object { $_.Name })
+
+        $visible | Should -Contain 'HDTFailureTitleText'
+        $visible | Should -Contain 'HDTFailureReasonBox'
+        $visible | Should -Not -Contain 'HDTFailureSuccessText'
     }
 }

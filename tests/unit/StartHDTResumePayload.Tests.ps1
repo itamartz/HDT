@@ -1,4 +1,4 @@
-# src/Hephaestus/Payload/Start-HDTResume.ps1 - the RunOnce payload.
+﻿# src/Hephaestus/Payload/Start-HDTResume.ps1 - the RunOnce payload.
 #
 # Not a module file: the loader only dot-sources Private\ and Public\, so this is
 # staged to C:\HDT\ and launched by the RunOnce entry Set-HDTAutoLogon writes.
@@ -364,5 +364,88 @@ Describe 'Start-HDTResume.ps1' {
             $at = [array]::IndexOf($element, '-WorkspaceRoot')
             $element[$at + 1] | Should -Not -BeExactly '$WorkspaceRoot'
         }
+    }
+}
+
+# MDT ENDS State Restore ON A SCREEN, AND SO DOES THIS. A ZTI machine that
+# finished and one that failed looked identical to the person standing at it -
+# the leg ran to `exit 0` or `exit 1` and drew nothing.
+#
+# THE GATE IS THE VARIABLE AND NOTHING ELSE. The WinPE failure screen is also
+# suppressed whenever no progress window was opened, which is exactly why an
+# unattended machine saw nothing this morning. Repeating that here would ship
+# the same silence under a new name.
+Describe 'Start-HDTResume.ps1 and the deployment summary' {
+
+    It 'shows the summary when the leg ends' {
+        $script:text | Should -BeLike '*Show-HDTDeploymentFailure*'
+    }
+
+    It 'builds it from the run log, the way the WinPE leg does' {
+        $script:text | Should -BeLike '*Get-HDTDeploymentFailure*'
+        $script:text | Should -BeLike '*Get-HDTRunLogRecord*'
+    }
+
+    It 'shows it for a run that succeeded as well as one that failed' {
+        # One screen, two states - so nothing here may gate on IsFailure.
+        $script:text | Should -Not -BeLike '*if ($summary.IsFailure)*'
+    }
+
+    It 'takes HDTSkipFinalSummary as the only reason not to' {
+        # MDT's SkipFinalSummary, with MDT's meaning and HDT's prefix.
+        $script:text | Should -BeLike '*HDTSkipFinalSummary*'
+    }
+
+    It 'never lets the screen become the failure' {
+        # This machine has just been deployed. A window that cannot be drawn
+        # must not change what the leg reports.
+        $script:text | Should -Match '(?s)Show-HDTDeploymentFailure.*?catch'
+    }
+}
+
+Describe 'Start-HDTResume.ps1 and the finish action' {
+
+    # MDT's FinishAction. This leg used to end on exit 0 and leave the machine
+    # sitting at a desktop, logged in as the local Administrator, until somebody
+    # walked over to it.
+
+    It 'asks Get-HDTFinishAction what the value means' {
+        # NOT A switch IN THE PAYLOAD. The payload is not unit tested by
+        # execution - these assertions read its text - so every branch about
+        # what REBOOT means belongs in the function that IS, and this asserts
+        # the payload delegates rather than deciding.
+        @(& $script:commandNamed 'Get-HDTFinishAction') | Should -Not -BeNullOrEmpty
+    }
+
+    It 'reads HDTFinishAction from the resolved variables' {
+        $script:text | Should -BeLike '*HDTFinishAction*'
+    }
+
+    It 'tells it this is the full OS' {
+        # The leg knows which world it is in; the function does not detect one.
+        # LOGOFF means something here and nothing in WinPE, and that difference
+        # is only correct if the environment is passed truthfully.
+        $script:text | Should -Match '(?s)Get-HDTFinishAction.*?FullOS'
+    }
+
+    It 'acts through the power service rather than calling shutdown.exe' {
+        # Rule 5. The payload holds an IPowerService already, for the Restart
+        # step; a payload that shelled out directly would be the one code path
+        # in the engine that no fake can stand in front of.
+        $script:codeOnly | Should -Not -BeLike '*shutdown.exe*'
+        $script:text | Should -Match '(?s)Get-HDTFinishAction.*?\$power\.'
+    }
+
+    It 'ends the machine after the summary screen, not before' {
+        # A machine that powers off while its Finished screen is being drawn has
+        # shown the technician nothing. The order is the whole point.
+        $script:text | Should -Match '(?s)Show-HDTDeploymentFailure.*?Get-HDTFinishAction'
+    }
+
+    It 'never lets the finish action change what the leg reports' {
+        # A deployment that succeeded and then failed to reboot still succeeded,
+        # and a machine left powered on is a smaller problem than a green run
+        # recorded as a failure.
+        $script:text | Should -Match '(?s)Get-HDTFinishAction.*?catch'
     }
 }
