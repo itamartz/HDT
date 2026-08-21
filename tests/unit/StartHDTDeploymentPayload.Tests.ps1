@@ -934,3 +934,36 @@ Describe 'Start-HDTDeployment.ps1 and the finish action' {
         $script:text | Should -Match '(?s)Get-HDTFinishAction.*?catch'
     }
 }
+
+# THE SAME HOLE THE FULL-OS LEG HAD, ONE FILE OVER.
+#
+# This payload guards everything down to the loop, so a share that could not be
+# reached or a sequence that would not parse lands in its catch rather than
+# killing the script. The screen still did not appear: it was built from
+# Get-HDTRunLogRecord alone and drawn only `if ($failure.IsFailure)`, and a leg
+# that died BEFORE the loop has no step.fail record to make that true - and may
+# have no run log context at all, in which case reading records off $null throws
+# inside the try and the screen is skipped without a word.
+#
+# The reason is already in $result['message']; it just had nowhere to go.
+Describe 'Start-HDTDeployment.ps1 and a leg that died before the loop' {
+
+    It 'hands the reason to Get-HDTDeploymentFailure' {
+        $summary = @(& $script:commandNamed 'Get-HDTDeploymentFailure')[0]
+
+        $summary | Should -Not -BeNullOrEmpty
+        @($summary.CommandElements | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-Reason'
+    }
+
+    It 'reads no records at all when there is no run log context' {
+        # $log is $null until the run id is known, which is after the share is
+        # open. Get-HDTRunLogRecord -Context $null throws.
+        $script:text | Should -Match '(?s)if \(\$null -ne \$log\) \{ \$record = @\(Get-HDTRunLogRecord.*?Get-HDTDeploymentFailure'
+    }
+
+    It 'still names the step when there was one' {
+        # The reason must not cost the screen its step line on the ordinary
+        # failure - a step that failed mid-run is still the common case.
+        @(& $script:commandNamed 'Get-HDTRunLogRecord').Count | Should -BeGreaterOrEqual 1
+    }
+}

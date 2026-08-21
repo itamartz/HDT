@@ -480,3 +480,168 @@ Describe 'Start-HDTResume.ps1 and where the summary comes from' {
         $script:text | Should -Match '(?s)the deployment summary could not be shown.*?Write-HDTLog'
     }
 }
+
+# THE SCREEN WAS BUILT AND THE FAILURE NEVER REACHED IT.
+#
+# Watched on 2026-08-21 on HDT-ZTI-02. The WinPE leg deployed the machine and
+# rebooted; the full-OS leg resumed, could not open \192.168.2.42\HDTShare -
+# DHCP had handed the guest the host's own address, so it was dialling itself -
+# and the catch around the provider correctly downgraded that to a warning. That
+# left $workspaceRoot at C:\HDT, and the very next statement,
+# Import-HDTSequenceDocument, looked for C:\HDT\TaskSequences\DEMO-05\sequence.yaml
+# and threw. It threw at SCRIPT SCOPE under ErrorActionPreference = 'Stop', ~75
+# lines above the summary block, so:
+#
+#   - the window was never drawn, though the XAML was staged and correct, and
+#   - nothing was logged, because $log is built AFTER the import that threw -
+#     HDT.jsonl on that machine ends dead at the share warning, seq 96.
+#
+# THE WHOLE SPAN FROM THE SHARE TO THE LOOP IS THEREFORE GUARDED, and everything
+# it does is said out loud on the way past. A leg that dies before step 1 is the
+# case the technician can least afford to be told nothing about.
+Describe 'Start-HDTResume.ps1 and a leg that dies before the first step' {
+
+    BeforeAll {
+        # INSIDE A try WITH A catch, at any depth. Reading the text for 'try'
+        # would pass on the provider's own inner try, which is the one that let
+        # this through.
+        $script:isGuarded = {
+            param([string] $Name)
+
+            $command = @(& $script:commandNamed $Name)[0]
+            if ($null -eq $command) { return $false }
+
+            $node = $command.Parent
+
+            while ($null -ne $node) {
+                if ($node -is [System.Management.Automation.Language.TryStatementAst] -and
+                    @($node.CatchClauses).Count -ge 1 -and
+                    $command.Extent.StartOffset -ge $node.Body.Extent.StartOffset -and
+                    $command.Extent.EndOffset -le $node.Body.Extent.EndOffset) {
+
+                    return $true
+                }
+
+                $node = $node.Parent
+            }
+
+            return $false
+        }
+
+        # A Write-HDTLog call that mentions $Needle and stands EARLIER in the
+        # file than $CommandName. Ordering matters for every one of these: a
+        # line written after the statement that throws is a line nobody gets.
+        $script:logsBefore = {
+            param([string] $Needle, [string] $CommandName)
+
+            $target = @(& $script:commandNamed $CommandName)[0]
+            if ($null -eq $target) { return $false }
+
+            $wanted = $Needle
+
+            return (@(& $script:commandNamed 'Write-HDTLog' | Where-Object {
+                        $_.Extent.StartOffset -lt $target.Extent.StartOffset -and
+                        $_.Extent.Text -like ('*{0}*' -f $wanted)
+                    }).Count -ge 1)
+        }
+    }
+
+    Context 'the span that used to kill the script' {
+
+        It 'guards the sequence import' {
+            # This is the statement that threw on 2026-08-21 and took the
+            # summary screen down with it.
+            & $script:isGuarded 'Import-HDTSequenceDocument' | Should -BeTrue
+        }
+
+        It 'guards the context and catalog it builds afterwards' {
+            & $script:isGuarded 'New-HDTServiceCatalog' | Should -BeTrue
+            & $script:isGuarded 'New-HDTExecutionContext' | Should -BeTrue
+        }
+
+        It 'guards the loop itself' {
+            # Invoke-HDTTaskSequence reports a failed run rather than throwing,
+            # but a throw out of it would land in exactly the same silence.
+            & $script:isGuarded 'Invoke-HDTTaskSequence' | Should -BeTrue
+        }
+
+        It 'still ends on the summary screen after the guard' {
+            $loop = @(& $script:commandNamed 'Invoke-HDTTaskSequence')[0]
+            $screen = @(& $script:commandNamed 'Show-HDTDeploymentFailure')[0]
+
+            $loop.Extent.StartOffset | Should -BeLessThan $screen.Extent.StartOffset
+        }
+    }
+
+    Context 'what the screen is given when there was no run' {
+
+        It 'hands the reason to Get-HDTDeploymentFailure' {
+            # -Record alone cannot describe this: the run log context does not
+            # exist yet when the import throws, so there are no records.
+            $summary = @(& $script:commandNamed 'Get-HDTDeploymentFailure')[0]
+
+            $summary | Should -Not -BeNullOrEmpty
+            @($summary.CommandElements | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-Reason'
+        }
+
+        It 'reports a failure when there is no run object to read a status from' {
+            # $run is unassigned when setup threw, and StrictMode turns
+            # $run.Status into a second failure on top of the first.
+            $script:text | Should -Match ([regex]::Escape('$null -eq $run'))
+        }
+    }
+
+    Context 'saying it out loud' {
+
+        It 'names the run it is resuming before it goes near the share' {
+            & $script:logsBefore 'logRoot' 'New-HDTContentProvider' | Should -BeTrue
+        }
+
+        It 'says which share it is about to open, before it opens it' {
+            & $script:logsBefore 'deployRoot' 'New-HDTContentProvider' | Should -BeTrue
+        }
+
+        It 'names the share in the warning when it cannot be reached' {
+            # THIS IS WHAT COST THE MORNING. The warning carried the exception -
+            # "The network path was not found" - and not one character about
+            # WHICH path, so the deploy root had to be recovered by mounting the
+            # VHDX and reading bootstrap.json.
+            $script:text | Should -Match '(?s)could not be reached.*?deployRoot'
+        }
+
+        It 'logs the address this machine is holding when the share fails' {
+            # The share was \192.168.2.42\HDTShare and the machine's own lease
+            # WAS 192.168.2.42. Those two facts side by side in the log are the
+            # whole diagnosis; apart, they are a VHDX mount and a registry hive.
+            @(& $script:commandNamed 'Get-HDTNetworkConfiguration').Count | Should -BeGreaterOrEqual 1
+        }
+
+        It 'names the sequence file before it tries to read it' {
+            & $script:logsBefore 'sequenceFile' 'Import-HDTSequenceDocument' | Should -BeTrue
+        }
+
+        It 'writes the setup failure into the log, not only onto the screen' {
+            # The screen goes when the machine reboots. The log is what the
+            # technician reads afterwards, and on 2026-08-21 it held nothing.
+            $script:text | Should -Match '(?s)catch.*?Write-HDTLog.*?Severity Error'
+        }
+
+        It 'records where the failure came from, not just what it said' {
+            $script:text | Should -BeLike '*ScriptStackTrace*'
+        }
+
+        It 'logs through the boot context when the run context does not exist yet' {
+            # $log is built INSIDE the guard, after the import that is most
+            # likely to have thrown, so a handler that reached for it
+            # unconditionally would throw inside itself and lose the failure a
+            # second time. The boot context always exists by then.
+            $handler = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CatchClauseAst]
+                    }, $true) | Where-Object { $_.Extent.Text -like '*Severity Error*' })
+
+            $handler.Count | Should -BeGreaterOrEqual 1
+            $handler[0].Extent.Text | Should -BeLike '*$bootLog*'
+        }
+    }
+}

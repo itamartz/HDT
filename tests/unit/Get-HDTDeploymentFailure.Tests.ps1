@@ -252,3 +252,107 @@ Describe 'the summary for a run that succeeded' {
         $visible | Should -Not -Contain 'HDTFailureSuccessText'
     }
 }
+
+# A LEG THAT NEVER REACHED A STEP HAS NO RECORDS TO DERIVE A FAILURE FROM, and
+# it is the case that most needs the screen.
+#
+# Watched on 2026-08-21. The full-OS leg resumed, could not open
+# \192.168.2.42\HDTShare - the machine had been handed the host's own address
+# by DHCP - so the workspace root stayed C:\HDT, Import-HDTSequenceDocument
+# threw on a sequence that is not there, and the payload died at script scope
+# under ErrorActionPreference = 'Stop'. The summary block sits BELOW the loop,
+# so it never ran: no window, and no log line either, because the run log
+# context is built after the import that threw.
+#
+# THE PAYLOAD NOW CATCHES THAT AND STILL DRAWS THE SCREEN, which means this
+# command has to fill one from a sentence alone. The DESCRIPTION already
+# promised it - "a run that died before any step is still a failure with a
+# sentence" - and only delivered when a step.fail record existed to carry it.
+Describe 'the summary for a leg that never reached a step' {
+
+    It 'takes the reason as a parameter' {
+        $parameter = (Get-Command -Name Get-HDTDeploymentFailure).Parameters
+
+        $parameter.ContainsKey('Reason') | Should -BeTrue
+    }
+
+    It 'reports a failure from the reason alone, with no records at all' {
+        $failure = Get-HDTDeploymentFailure -Record @() -Reason 'the deployment share could not be reached'
+
+        $failure.IsFailure | Should -BeTrue
+        [string] $failure.Status | Should -BeExactly 'Failed'
+        [string] $failure.Message | Should -BeExactly 'the deployment share could not be reached'
+    }
+
+    It 'shows the failure headline rather than the success one' {
+        # WITHOUT THIS THE SCREEN LIES. An empty record set leaves Status empty,
+        # $succeeded false and IsFailure false - which draws the window with
+        # neither headline and an empty reason box, under a green heading on any
+        # path that checks Status alone.
+        $pane = @((Get-HDTDeploymentFailure -Record @() -Reason 'no share').Pane)
+
+        [bool] (@($pane | Where-Object { $_.Name -eq 'HDTFailureTitleText' })[0].Visible) | Should -BeTrue
+        [bool] (@($pane | Where-Object { $_.Name -eq 'HDTFailureSuccessText' })[0].Visible) | Should -BeFalse
+        [bool] (@($pane | Where-Object { $_.Name -eq 'HDTFailureReasonBox' })[0].Visible) | Should -BeTrue
+    }
+
+    It 'says the run never reached a step rather than naming one' {
+        $field = @((Get-HDTDeploymentFailure -Record @() -Reason 'no share').Field |
+                Where-Object { $_.Name -eq 'HDTFailureStepText' })
+
+        [string] $field[0].Text | Should -BeExactly 'before the first step'
+    }
+
+    It 'puts the reason where the window reads its message from' {
+        $field = @((Get-HDTDeploymentFailure -Record @() -Reason "  the network path was not found  ").Field |
+                Where-Object { $_.Name -eq 'HDTFailureMessageText' })
+
+        [string] $field[0].Text | Should -BeExactly 'the network path was not found'
+    }
+
+    It 'keeps whatever the records could still tell it' {
+        # The boot log has a run id even when the run never started, and the
+        # technician needs it to find the log on the share.
+        $record = @(New-HDTFailureRecord -Event 'run.start' -Second 0 -Data @{ sequenceId = 'DEMO-05'; stepCount = 10 })
+
+        $failure = Get-HDTDeploymentFailure -Record $record -Reason 'no share' -LogPath 'C:\HDT\Logs'
+
+        [string] $failure.RunId | Should -BeExactly 'run-20260818-090000'
+        [string] $failure.SequenceId | Should -BeExactly 'DEMO-05'
+        [string] $failure.LogPath | Should -BeExactly 'C:\HDT\Logs'
+    }
+
+    It 'defers to the sentence the step itself wrote' {
+        # BOTH PAYLOADS PASS A REASON ON EVERY FAILING RUN, not only the ones
+        # that died early - so a reason that overwrote the message would put the
+        # payload's second-hand account on screen in place of the step's own,
+        # which is the one that contains the fix.
+        $failure = Get-HDTDeploymentFailure -Record $script:failedRun -Reason 'the sequence document could not be read'
+
+        [string] $failure.Message | Should -BeExactly $script:refusal.Trim()
+        $failure.IsFailure | Should -BeTrue
+    }
+
+    It 'forces the failure even when the records described none' {
+        # A run.start with no step.fail and no run.end - a leg that got a log
+        # context and then died outside the loop. Without this the window opens
+        # under a green headline on a machine that failed.
+        $record = @(New-HDTFailureRecord -Event 'run.start' -Second 0 -Data @{ sequenceId = 'DEMO-05'; stepCount = 10 })
+
+        $failure = Get-HDTDeploymentFailure -Record $record -Reason 'the deployment share could not be reached'
+
+        $failure.IsFailure | Should -BeTrue
+        [string] $failure.Message | Should -BeExactly 'the deployment share could not be reached'
+    }
+
+    It 'changes nothing when no reason is given' {
+        $failure = Get-HDTDeploymentFailure -Record @()
+
+        $failure.IsFailure | Should -BeFalse
+        [string] $failure.Message | Should -BeExactly ''
+    }
+
+    It 'treats an empty reason as no reason' {
+        (Get-HDTDeploymentFailure -Record @() -Reason '   ').IsFailure | Should -BeFalse
+    }
+}

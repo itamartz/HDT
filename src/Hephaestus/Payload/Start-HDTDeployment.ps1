@@ -1341,8 +1341,20 @@ if ([string] $result['status'] -eq 'Failed' -and
     $null -ne $display -and $display.Mode -ne 'Suppressed') {
 
     try {
-        $failure = Get-HDTDeploymentFailure -Record (Get-HDTRunLogRecord -Context $log) `
-            -LogPath ([string] $result['logDestination'])
+        # A LEG THAT DIED BEFORE THE LOOP HAS NO RECORDS AND NO CONTEXT.
+        # $log stays $null until the run id is known, which is after the share
+        # is open - so a share that could not be reached made this line throw
+        # inside its own try, and the screen was skipped without a word. The
+        # same shape cost the full-OS leg its screen on 2026-08-21.
+        $record = @()
+        if ($null -ne $log) { $record = @(Get-HDTRunLogRecord -Context $log) }
+
+        # AND THE REASON IS ALREADY IN HAND. The catch put the exception in
+        # $result['message'] and nothing carried it any further, so a failure
+        # with no step.fail record left IsFailure false and the window shut.
+        $failure = Get-HDTDeploymentFailure -Record $record `
+            -LogPath ([string] $result['logDestination']) `
+            -Reason ([string] $result['message'])
 
         if ($failure.IsFailure) {
             $chosen = Show-HDTDeploymentFailure -Failure $failure -XamlPath $FailureXamlPath

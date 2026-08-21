@@ -37,6 +37,13 @@
             Where the log will still be after this machine is powered off. Shown
             on the screen, because the RAM disk goes with the power.
 
+        .PARAMETER Reason
+            The sentence for a leg that ended before the engine wrote anything
+            worth deriving from - a share that could not be opened, a sequence
+            that would not parse. It forces the failure and becomes the message,
+            because it IS the error that ended the leg: any step.fail in the
+            records is the older story.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -59,7 +66,18 @@
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $LogPath = ''
+        [string] $LogPath = '',
+
+        # A LEG CAN FAIL BEFORE IT HAS A LOG TO FAIL IN. The full-OS payload
+        # builds its run log context AFTER it imports the sequence, so a
+        # sequence that will not open leaves this command an empty record set
+        # and a technician a window with no headline, no reason and a step line
+        # reading 'before the first step' under a heading that is not shown at
+        # all. Watched on 2026-08-21: the leg died on the import, drew nothing,
+        # and logged nothing.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Reason = ''
     )
 
     Set-StrictMode -Version Latest
@@ -150,6 +168,24 @@
     # run that ended Failed with no step.fail - a teardown that failed after the
     # last step - is still a failure a technician must be shown.
     if ([string] $result['Status'] -eq 'Failed') { $result['IsFailure'] = $true }
+
+    # AND A REASON GIVEN OUTRIGHT IS A FAILURE WHATEVER THE RECORDS SAY. The
+    # caller passes one only when the leg was ended by something outside the
+    # step loop, which no step.fail and no run.end will ever describe - so the
+    # verdict is not up for derivation here.
+    #
+    # IT FILLS THE MESSAGE ONLY WHEN NOTHING ELSE DID. A step that failed was
+    # recorded by the engine with the sentence the STEP wrote, which is more
+    # specific than whatever the payload's catch was handed - and both payloads
+    # pass a reason on every failing run, not just the ones that died early.
+    if (-not [string]::IsNullOrWhiteSpace($Reason)) {
+        $result['IsFailure'] = $true
+        $result['Status'] = 'Failed'
+
+        if ([string]::IsNullOrWhiteSpace([string] $result['Message'])) {
+            $result['Message'] = $Reason.Trim()
+        }
+    }
 
     # -- what the window shows ----------------------------------------------
 
