@@ -6,6 +6,7 @@
     ResizeMode="NoResize"
     SizeToContent="WidthAndHeight"
     WindowStartupLocation="CenterScreen"
+    Topmost="True"
     Background="#FF1E1E1E">
 
     <!--
@@ -44,6 +45,12 @@
         the JSONL stream the engine writes anyway (DESIGN 11.1: driven by the
         event stream, not by a parallel progress API). The screen and the log
         cannot disagree, because they are the same facts.
+
+        Topmost, AND ONLY BECAUSE THIS WINDOW OUTLIVES WinPE. In WinPE there
+        is no shell to compete with - cmd.exe is it - but the full-OS leg draws
+        this board on a DESKTOP, and a deployed machine showed the taskbar and
+        the Start menu opening straight over it. It is opaque, so unlike the boot
+        status panel it obeys z-order properly and Topmost does what it says.
 
         NO x:Class AND NO MERGED DICTIONARY, for the reason every window in this
         image carries: there is no compiler in WinPE, and a second file that

@@ -984,6 +984,38 @@
         # share carries the teardown record, and so run.end is genuinely the last
         # line of the run.
         if ($runStatus -ne 'RebootPending') {
+
+            # -- the heartbeat is swept, and until now it never was ----------
+            #
+            # <share>\Logs\_active\<RunId>.json is written every step so a
+            # console watching the share can see a machine still working - MDT's
+            # SLShareDynamicLogging. NOTHING EVER REMOVED IT. A share that had
+            # deployed twenty machines carried twenty files in a folder called
+            # _active, none of which was active, and the name stopped meaning
+            # anything. Get-HDTConsoleMonitorSummary already described the gap in
+            # passing: "a finished run in Logs\_active\ is a run whose file has
+            # not been swept yet".
+            #
+            # UNDER THE SAME GUARD AS THE TEARDOWN, and for the same reason. A
+            # RebootPending run IS still active - it is coming back - and
+            # removing its heartbeat would make a restarting machine vanish from
+            # the console for the minutes it takes to return.
+            #
+            # A SWEEP THAT FAILS IS NOT A RUN THAT FAILED. The share may have
+            # gone away, which is exactly when the rest of this block matters
+            # most.
+            if (-not [string]::IsNullOrWhiteSpace($activeStatusPath)) {
+                try {
+                    if ($fileSystem.TestPath($activeStatusPath)) {
+                        $fileSystem.RemoveItem($activeStatusPath)
+                    }
+                } catch {
+                    Write-HDTLog -Context $log -Severity Warning `
+                        -Message ("The heartbeat at '{0}' could not be swept: {1}. The run is unaffected; a console watching this share will show it as finished rather than gone." -f
+                            $activeStatusPath, $_.Exception.Message)
+                }
+            }
+
             $registryService = $Context.Service.Registry
             $lsaService = $Context.Service.Lsa
 
