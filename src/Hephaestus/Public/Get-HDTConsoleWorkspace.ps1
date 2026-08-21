@@ -161,6 +161,7 @@
         $row = [pscustomobject] @{
             Id          = $entry.Id
             Name        = $entry.Id
+            Version     = ''
             Description = ''
             StepCount   = 0
             GroupCount  = 0
@@ -195,6 +196,7 @@
             $sequence = Import-HDTSequenceDocument -Path $entry.DocumentPath -FileSystem $FileSystem
 
             $row.Name = [string] $sequence.Name
+            $row.Version = [string] $sequence.Version
             $row.Description = [string] $sequence.Description
             $row.Step = @($sequence.Step)
             $row.Group = @($sequence.Group)

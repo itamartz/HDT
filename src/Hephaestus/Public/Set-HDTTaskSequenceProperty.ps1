@@ -1,4 +1,4 @@
-function Set-HDTTaskSequenceProperty {
+﻿function Set-HDTTaskSequenceProperty {
     <#
         .SYNOPSIS
             Renames a task sequence, or rewrites its description.
@@ -37,6 +37,9 @@ function Set-HDTTaskSequenceProperty {
 
         .PARAMETER Name
             The new name. An empty string is refused.
+
+        .PARAMETER Version
+            MDT's TaskSequenceVersion. Text, not a number.
 
         .PARAMETER Description
             The new description. An empty string removes the key.
@@ -79,6 +82,13 @@ function Set-HDTTaskSequenceProperty {
         [AllowEmptyString()]
         [string] $Description,
 
+        # MDT'S TaskSequenceVersion. Text whatever the author meant by it -
+        # '1.0.0', '2026-08-21' and 'rc2' are all versions somebody has used,
+        # and Import-HDTSequenceDocument has always read it that way.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Version,
+
         # WHICH FOLDER THE CONSOLE DRAWS IT UNDER. Empty takes it out of every
         # folder; the sequence never moves on disk either way - see the key's
         # own note in Import-HDTSequenceDocument for why HDT's folders cannot be
@@ -93,9 +103,10 @@ function Set-HDTTaskSequenceProperty {
 
     $setsName = $PSBoundParameters.ContainsKey('Name')
     $setsDescription = $PSBoundParameters.ContainsKey('Description')
+    $setsVersion = $PSBoundParameters.ContainsKey('Version')
     $setsFolder = $PSBoundParameters.ContainsKey('Folder')
 
-    if (-not ($setsName -or $setsDescription -or $setsFolder)) {
+    if (-not ($setsName -or $setsDescription -or $setsVersion -or $setsFolder)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $null -Category InvalidArgument `
                     -Message 'nothing was asked for. Pass -Name, -Description or -Folder; an omitted one is left as it is.'))
     }
@@ -147,9 +158,17 @@ function Set-HDTTaskSequenceProperty {
         $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'description' -Value $Description)
     }
 
+    # UNDER THE NAME, WHERE THE SCHEMA PUTS IT. A document that never had a
+    # version gets one in the place a reader looks, not appended after the
+    # steps - the same care the description already had.
+    if ($setsVersion) {
+        $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'version' -Value $Version `
+                -Order @('schemaVersion', 'id', 'name', 'version', 'description', 'folder'))
+    }
+
     if ($setsFolder) {
         $result = [string[]] @(Set-HDTDocumentHeaderKey -Line $result -Key 'folder' -Value $Folder `
-                -Order @('schemaVersion', 'id', 'name', 'description', 'folder'))
+                -Order @('schemaVersion', 'id', 'name', 'version', 'description', 'folder'))
     }
 
     try {

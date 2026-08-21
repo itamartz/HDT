@@ -407,8 +407,8 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $typeable = @($sequence.Field | Where-Object { $_.Editable })
 
-            @($typeable | ForEach-Object { $_.Label }) | Should -Be @('Name', 'Description')
-            @($typeable | ForEach-Object { $_.Property }) | Should -Be @('name', 'description')
+            @($typeable | ForEach-Object { $_.Label }) | Should -Be @('Name', 'Version', 'Description')
+            @($typeable | ForEach-Object { $_.Property }) | Should -Be @('name', 'version', 'description')
         }
 
         It 'shows the description a sequence has not got as an empty box, not as (none)' {

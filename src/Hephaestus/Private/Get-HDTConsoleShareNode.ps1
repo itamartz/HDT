@@ -472,6 +472,12 @@
         $field = @(
             New-HDTConsoleField -Label 'Id' -Value $sequence.Id
             New-HDTConsoleField -Label 'Name' -Value $sequence.Name -Property 'name'
+
+            # MDT'S Version BOX, on the row MDT puts it on. The document has
+            # always carried the key and the importer has always read it; it was
+            # the one header a sequence had that the console could neither show
+            # nor write, so changing it meant editing the YAML by hand.
+            New-HDTConsoleField -Label 'Version' -Value ([string] $sequence.Version) -Property 'version'
             New-HDTConsoleField -Label 'Description' -Value ([string] $sequence.Description) -Property 'description'
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
             New-HDTConsoleField -Label 'Groups' -Value $sequence.GroupCount

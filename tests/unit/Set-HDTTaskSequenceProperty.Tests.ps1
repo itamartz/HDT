@@ -73,6 +73,35 @@ Describe 'Set-HDTTaskSequenceProperty' {
         [string] (& $script:readBack $result).Description | Should -BeExactly 'Laptops only.'
     }
 
+    # MDT'S TaskSequenceVersion. Deployment Workbench puts a Version box on a
+    # task sequence's Properties, and Import-HDTSequenceDocument has always read
+    # the key - it was the only one of the three the console could neither show
+    # nor write, so a sequence's version could only be changed by editing the
+    # YAML by hand.
+    It 'writes the version' {
+        $result = Set-HDTTaskSequenceProperty -Line $script:line -Version '2.1' -Confirm:$false
+
+        [string] (& $script:readBack $result).Version | Should -BeExactly '2.1'
+    }
+
+    # IT IS TEXT, WHATEVER THE AUTHOR MEANT - the importer says so, and '1.0.0',
+    # '2026-08-21' and 'rc2' are all versions somebody has used.
+    It 'keeps a version that is not a number' {
+        $result = Set-HDTTaskSequenceProperty -Line $script:line -Version '2026-08-21-rc2' -Confirm:$false
+
+        [string] (& $script:readBack $result).Version | Should -BeExactly '2026-08-21-rc2'
+    }
+
+    It 'puts a new version under the name, where the schema orders it' {
+        $result = Set-HDTTaskSequenceProperty -Line $script:line -Version '3' -Confirm:$false
+
+        $index = @($result | ForEach-Object { $_ })
+        $name = [array]::FindIndex($index, [Predicate[string]] { param($l) $l -match '^name:' })
+        $version = [array]::FindIndex($index, [Predicate[string]] { param($l) $l -match '^version:' })
+
+        $version | Should -BeGreaterThan $name
+    }
+
     It 'changes both at once' {
         $result = Set-HDTTaskSequenceProperty -Line $script:line -Name 'Both' -Description 'At once.' -Confirm:$false
 

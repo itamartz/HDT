@@ -70,7 +70,7 @@
         [string[]] $Line,
 
         [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateSet('name', 'description', 'folder')]
+        [ValidateSet('name', 'version', 'description', 'folder')]
         [string] $Key,
 
         [Parameter(Mandatory = $true, Position = 2)]
