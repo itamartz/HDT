@@ -97,8 +97,21 @@ jobs:
 
           "the Gallery does not have $version yet"
 
+      # EVERY ci TASK EXCEPT version, AND THAT IS THE WHOLE POINT. The version
+      # task REWRITES ModuleVersion in the manifest when the sources have moved
+      # since the last recorded bump - it is a source edit somebody makes and
+      # commits, not something a release does to itself.
+      #
+      # ./build.ps1 -Task ci HERE PUBLISHED THE WRONG VERSION. v0.4.0 checked
+      # green against a manifest reading 0.4.0, ci then bumped it to 0.5.0, and
+      # the step below re-read the bumped manifest and put 0.5.0 on the Gallery
+      # under a tag that says 0.4.0. The guard above cannot catch what runs
+      # AFTER it, so what runs after it must not move the number.
+      #
+      # BUMP IT BEFORE YOU TAG: ./build.ps1 -Task version, commit the manifest,
+      # tag that commit.
       - name: Build, lint, test, self-check
-        run: ./build.ps1 -Task ci
+        run: ./build.ps1 -Task clean,bundle,build,lint,test,selfcheck
 
       - name: Publish to the PowerShell Gallery
         env:
@@ -111,6 +124,23 @@ jobs:
 
           if (-not (Test-Path -LiteralPath $staged)) {
               throw "the build staged nothing at '$staged'. ./build.ps1 -Task build is what puts it there."
+          }
+
+          # WHAT IS ABOUT TO BE PUBLISHED IS THE STAGED MANIFEST, not the one
+          # checked at the top of this run - Publish-Module reads the version
+          # out of the folder it is handed. So the tag is checked against THAT,
+          # last thing, where nothing else can move it afterwards. Belt as well
+          # as braces: the step above no longer bumps, and this is what would
+          # have caught it when it did.
+          if ("$env:GITHUB_REF_NAME".StartsWith('v') -and '${{ github.event_name }}' -eq 'push') {
+              $stagedVersion = [string] (Import-PowerShellDataFile "$staged/Hephaestus.psd1").ModuleVersion
+              $tagged = "$env:GITHUB_REF_NAME".TrimStart('v')
+
+              if ($stagedVersion -ne $tagged) {
+                  throw ("the tag says $tagged and the build staged $stagedVersion. Nothing between the " +
+                      'checkout and here may change ModuleVersion - publishing now would put a version on ' +
+                      'the Gallery that no tag in this repository names.')
+              }
           }
 
           # NAMED, NOT DISCOVERED IN A NuGet ERROR. Without this the run fails
