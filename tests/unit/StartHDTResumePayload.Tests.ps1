@@ -462,7 +462,11 @@ Describe 'Start-HDTResume.ps1 and the finish action' {
 Describe 'Start-HDTResume.ps1 and where the summary comes from' {
 
     It 'does not look for it inside the staged module' {
-        $script:text | Should -Not -Match [regex]::Escape("Combine($ModulePath, 'UI'")
+        # SINGLE-QUOTED, OR THE TEST IS THE BUG. In a double-quoted string
+        # PowerShell expands $ModulePath - which this scope never sets - and
+        # StrictMode turns that into a failure of the test rather than of the
+        # thing under test. Green in a direct run, red under the gate.
+        $script:text | Should -Not -BeLike '*Combine($ModulePath, ''UI''*'
     }
 
     It 'looks beside the agent, where Copy-HDTResumeAgent puts it' {
