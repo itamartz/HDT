@@ -1,4 +1,4 @@
-# src/Hephaestus/Payload/Start-HDTDeployment.ps1 - THE WinPE ENTRY POINT, what
+﻿# src/Hephaestus/Payload/Start-HDTDeployment.ps1 - THE WinPE ENTRY POINT, what
 # startnet.cmd runs (05-04 puts it in the image).
 #
 # IT IS TESTED BY PARSING AND INSPECTING IT, exactly as Start-HDTResume.ps1 and
@@ -768,19 +768,78 @@ Describe 'Start-HDTDeployment.ps1 and a share it cannot reach' {
         $parameter.Count | Should -Be 1
     }
 
-    It 'fails by name instead of asking, when the image says nobody is there' {
-        # Get-HDTWizardSkip's Welcome is the same test the no-address path uses,
-        # so one image gets one answer to "is anybody standing here".
-        $skip = @(& $script:commandNamed 'Get-HDTWizardSkip')
-
-        $skip.Count | Should -BeGreaterOrEqual 2 -Because 'the network path and the share path both have to ask'
-
-        $script:text | Should -BeLike '*HDTShareError:*'
+    # AND THEN IT SHOWS THE SCREEN, WHATEVER THE IMAGE SAYS ABOUT WHO IS THERE.
+    #
+    # THIS IS THE USER'S DECISION, TAKEN ON 2026-08-21, AND IT REVERSES HALF OF
+    # THE ONE ABOVE. The retries stay - they were the good half. The refusal
+    # does not: a ZTI machine whose share had moved died after five attempts
+    # with nothing on screen and nothing in a log, because the log destination
+    # IS the share it could not reach. Silence protected no report; there was
+    # never going to be one.
+    #
+    # HDTSkipWelcome DOES NOT HIDE THE PANES BEHIND IT. StaticIp and DeployRoot
+    # default to NOT skipped, so the screen this opens has the network pane and
+    # the share box on it, prefilled with the share that just failed - which is
+    # the one thing a person standing there can fix.
+    It 'shows the Welcome screen when the attempts are exhausted' {
+        $script:text | Should -BeLike '*$corrected = & $showWelcome*'
     }
 
-    It 'says what to do about it, the way the network refusal does' {
-        # A named failure that does not say what to change is a stack trace with
-        # better manners.
-        $script:text | Should -BeLike '*HDTShareError:*could not be reached*'
+    It 'does not refuse on the skip before it has asked' {
+        # The refusal was gated on Get-HDTWizardSkip's Welcome. Nothing between
+        # the last attempt and the screen may test it again.
+        $script:text | Should -Not -BeLike '*HDTShareError:*'
+    }
+
+    It 'still ends the deployment when the screen is left without an answer' {
+        # The bound is the person, not a timer: closing the screen ends the run
+        # rather than looping on the share that already failed.
+        $script:text | Should -BeLike '*HDTDeploymentCancelled:*left the Welcome screen*'
+    }
+}
+
+Describe 'Start-HDTDeployment.ps1 and the finish action' {
+
+    # MDT's FinishAction, on the leg where a WinPE-only sequence ends. DEMO-M3
+    # and DEMO-M4 are exactly that: they finish in WinPE and never reach a full
+    # OS, so a deployment share that sets HDTFinishAction and saw it ignored
+    # here would have a variable that works on some sequences and not others.
+
+    It 'asks Get-HDTFinishAction what the value means' {
+        @(& $script:commandNamed 'Get-HDTFinishAction') | Should -Not -BeNullOrEmpty
+    }
+
+    It 'tells it this is WinPE' {
+        # LOGOFF resolves to no action in WinPE, and only because the
+        # environment is passed truthfully. A payload that claimed FullOS here
+        # would plan a shutdown.exe /l for a machine with no shutdown.exe.
+        $script:text | Should -Match '(?s)Get-HDTFinishAction.*?WinPE'
+    }
+
+    It 'applies it only to a run that finished, never to one with a leg to come' {
+        # RebootPending MEANS THE DEPLOYMENT IS NOT OVER. The machine is going
+        # back into what it just built to run the rest of the sequence, and a
+        # finish action honoured here would power it off half way through -
+        # leaving an imaged machine that never ran a single full-OS step.
+        $script:text | Should -Match "(?s)Get-HDTFinishAction.*?Succeeded"
+    }
+
+    It 'still assigns $ending only the two verbs the engine plans' {
+        # The finish action moves between the SAME two verbs rather than
+        # introducing a third. Get-HDTPowerCommand plans reboot and shutdown for
+        # WinPE and nothing else, and the assertion above this one compares the
+        # payload's literals against them.
+        $assigned = @($script:ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                    ([string] $node.Left.Extent.Text) -eq '$ending'
+                }, $true) |
+                ForEach-Object { ([string] $_.Right.Extent.Text).Trim("'`"") }) | Sort-Object -Unique
+
+        @($assigned) | Should -Be @('reboot', 'shutdown')
+    }
+
+    It 'never lets the finish action change what the run reported' {
+        $script:text | Should -Match '(?s)Get-HDTFinishAction.*?catch'
     }
 }

@@ -247,6 +247,12 @@ $result = [ordered] @{
     logPath            = ''
     logDestination     = ''
 
+    # HDTFinishAction, AS RESOLVED, and initialised here for the reason every
+    # field in this hashtable is: the tail runs after a failure and may only
+    # read what a failed run has. A run that died before the rules resolved
+    # never had a $variable dictionary at all.
+    finishAction       = ''
+
     # HDTSLShare, DeployRoot, or None - so a run that put its logs somewhere
     # unexpected says which rule sent them there.
     logDestinationSource = ''
@@ -653,28 +659,26 @@ try {
 
         if ($reached) { break }
 
-        # AND THEN, IF NOBODY IS STANDING HERE, IT FAILS BY NAME.
+        # AND THEN THE SCREEN COMES UP, WHATEVER THE IMAGE SAYS ABOUT WHO IS HERE.
         #
-        # ZTI HAS NO TECHNICIAN - that is what the letters mean. An image built
-        # to run with nobody present must never stop and wait for somebody to
-        # press Next: a machine at a screen is not safer than one that failed,
-        # it is unreachable AND silent, and it stays that way until a human
-        # happens to walk past. This file already answers that question the
-        # right way for a machine with no address, using this same skip; the
-        # share path answered it the other way, on the argument that a share
-        # that cannot be reached "has no unattended outcome left to protect".
-        # That is backwards. The outcome to protect is the REPORT, and a machine
-        # waiting at a prompt writes none.
+        # This used to refuse instead, on HDTSkipWelcome, so that a ZTI machine
+        # could not stop and wait for a Next nobody would press. The retries
+        # above were the good half of that change; this was not. A machine whose
+        # share had moved spent five attempts and then powered off with NOTHING
+        # on screen - and nothing in a log either, because the log destination is
+        # the share it could not reach. The report that silence was protecting
+        # was never going to be written.
         #
-        # THE SCREEN REMAINS THE ANSWER FOR LITE TOUCH, where somebody IS at the
-        # bench and a mistyped share is a thing they can fix in ten seconds.
-        $shareSkip = Get-HDTWizardSkip -Bootstrap $bootstrap
-
-        if ($shareSkip.Welcome) {
-            throw ("HDTShareError: '{0}' could not be reached after {1} attempt(s) - {2}. This image runs with nobody present, so there is nobody to ask for another share. Check that the deployment share is published and reachable from this segment, that the deployment account can open it, and that the address the image was built with is still the server's - a DHCP lease moves." -f
-                $deployRoot.Path, $ConnectAttempt, $lastError)
-        }
-
+        # THIS IS THE ONE FAILURE WHERE THE SCREEN COSTS NOTHING AND IS THE ONLY
+        # THING LEFT. HDTSkipWelcome does not hide what is behind it: StaticIp
+        # and DeployRoot default to not-skipped, so what opens is the network
+        # pane and the share box, prefilled with the share that just failed -
+        # which is exactly the thing the person standing there can correct. In
+        # this lab the correction is usually one octet: the server's address is
+        # a DHCP lease and the image was built with yesterday's.
+        #
+        # AND IT IS STILL BOUNDED. Leaving the screen without an answer ends the
+        # run below rather than looping on a share that has already failed.
         $corrected = & $showWelcome
 
         if (-not $corrected.Retry) {
@@ -891,8 +895,16 @@ try {
 
                 $field = @($field) + @($sequenceChoice.Field) + @($computerName.Field)
 
+                # HDTBrandingName ON THE RAIL. A technician at a bench is often
+                # looking at two toolkits, and the banner is the fastest way to
+                # know which one has this machine. Unset leaves it 'Hephaestus'.
+                $brandingName = ''
+                if ($resolved.Variable.Contains('HDTBrandingName')) {
+                    $brandingName = [string] $resolved.Variable['HDTBrandingName']
+                }
+
                 $answer = Show-HDTWizardShell -ShellXamlPath $WizardShellPath -ThemeXamlPath $WizardThemePath `
-                    -Page $ask.Page -Title $wizard.Title -Field $field
+                    -Page $ask.Page -Title $wizard.Title -Field $field -BrandingName $brandingName
 
                 $result['wizardAction'] = [string] $answer.Action
                 & $say ("the technician chose: {0}" -f $answer.Action)
@@ -1020,6 +1032,10 @@ try {
     if ($applied.Count -gt 0) {
         & $say ("sequence defaults applied to {0} name(s) nothing else supplied: {1}" -f
             $applied.Count, (@($applied) -join ', '))
+    }
+
+    if ($variable.Contains('HDTFinishAction')) {
+        $result['finishAction'] = [string] $variable['HDTFinishAction']
     }
 
     $result['computerName'] = [string] $variable['HDTComputerName']
@@ -1155,6 +1171,47 @@ $ending = 'shutdown'
 if ([string] $result['status'] -eq 'RebootPending' -or [string] $result['status'] -eq 'Succeeded') {
     $ending = 'reboot'
 }
+
+# -- and what an administrator asked for instead -----------------------------
+#
+# MDT's FinishAction, on the leg where a WinPE-only sequence ENDS. DEMO-M3 and
+# DEMO-M4 are exactly that - they finish in WinPE and never reach a full OS - so
+# a share that set HDTFinishAction and saw it ignored here would own a variable
+# that works on some sequences and not others.
+#
+# ONLY ON Succeeded, AND THAT IS THE WHOLE CARE IN THIS BLOCK. RebootPending
+# means the deployment is NOT over: the machine is going back into what it just
+# built to run the rest of the sequence, and a finish action honoured there
+# would power it off half way through, leaving an imaged machine that never ran
+# a single full-OS step. A Failed run is left to the rule above it, which shuts
+# down rather than restarting so a machine with no image does not boot the media
+# and start the same deployment again.
+#
+# IT MOVES BETWEEN THE SAME TWO VERBS, never a third. Get-HDTPowerCommand plans
+# reboot and shutdown for WinPE and nothing else, and LOGOFF resolves to no
+# action here because WinPE has no session to end - which is why the environment
+# passed below has to be the truthful one.
+if ([string] $result['status'] -eq 'Succeeded') {
+    try {
+        $finish = Get-HDTFinishAction -Value ([string] $result['finishAction']) -Environment WinPE
+
+        if (-not $finish.IsRecognised) {
+            & $say ([string] $finish.Reason) 'Warning'
+        }
+
+        if ([string] $finish.Action -eq 'Restart') { $ending = 'reboot' }
+        if ([string] $finish.Action -eq 'Stop') { $ending = 'shutdown' }
+
+        if ([string] $finish.Action -ne 'None') {
+            & $say ([string] $finish.Reason)
+        }
+    } catch {
+        # A deployment that succeeded and then could not read a finish action
+        # still succeeded. The default two lines above stand.
+        & $say ("the finish action could not be read: {0}" -f [string] $_.Exception.Message) 'Warning'
+    }
+}
+
 $result['endedWith'] = 'wpeutil {0}' -f $ending
 
 # -- the failure screen, before anything is powered off ----------------------
