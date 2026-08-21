@@ -1,4 +1,4 @@
-# Import-HDTSequenceDocument is the public front door to sequence.yaml: read
+﻿# Import-HDTSequenceDocument is the public front door to sequence.yaml: read
 # through an injected IFileSystem, parse, validate, FLATTEN.
 #
 # FLATTENING IS THE DESIGN DECISION THIS FILE GUARDS. A group is not an
@@ -80,6 +80,51 @@ Describe 'Import-HDTSequenceDocument' {
             $document.Description | Should -BeExactly 'Bare-metal client build'
             $document.SchemaVersion | Should -Be 1
             $document.SchemaVersion | Should -BeOfType ([int])
+        }
+
+        It 'returns the version a sequence declares' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:sequencePath = @'
+schemaVersion: 1
+id: VERSIONED
+name: A versioned sequence
+version: 2.1.0
+steps:
+  - name: Only
+    type: NoOp
+'@
+            }
+
+            $document = Import-HDTSequenceDocument -Path $script:sequencePath -FileSystem $fs
+
+            $document.Version | Should -BeExactly '2.1.0'
+        }
+
+        It 'returns an empty version for a sequence that declares none' {
+            # Every sequence written before version existed. It is optional, and
+            # absent has to read as empty rather than throw under StrictMode.
+            $document = & $script:import 'valid-flat.yaml'
+
+            $document.Version | Should -BeExactly ''
+        }
+
+        It 'reads a version YAML would otherwise hand back as a number' {
+            # '2.0' unquoted is a double to a YAML parser, and a version that
+            # arrives as 2 has lost its last component. The document has to
+            # carry the text the author wrote.
+            $fs = New-HDTFakeFileSystem -File @{ $script:sequencePath = @'
+schemaVersion: 1
+id: NUMERIC
+name: A numeric-looking version
+version: "2.0"
+steps:
+  - name: Only
+    type: NoOp
+'@
+            }
+
+            $document = Import-HDTSequenceDocument -Path $script:sequencePath -FileSystem $fs
+
+            $document.Version | Should -BeExactly '2.0'
         }
 
         It 'returns the sequence variables as an ordered dictionary' {

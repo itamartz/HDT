@@ -138,6 +138,17 @@
         }
     }
 
+    # MDT'S TaskSequenceVersion, AND IT IS TEXT WHATEVER THE AUTHOR MEANT.
+    # A YAML parser reads an unquoted 2.0 as a double, and a version that
+    # arrives as 2 has silently lost a component - so it is cast through
+    # [string] like every other scalar here, and a sequence that declares none
+    # carries an empty one rather than $null. A condition compares an empty
+    # string; it cannot compare a missing variable.
+    $version = ''
+    if ($document.Contains('version')) {
+        $version = ([string] $document['version']).Trim()
+    }
+
     $description = $null
     if ($document.Contains('description')) {
         $description = [string] $document['description']
@@ -337,6 +348,7 @@
         SchemaVersion = [int] $document['schemaVersion']
         Id            = [string] $document['id']
         Name          = [string] $document['name']
+        Version       = $version
         Description   = $description
         Folder        = $folder
         Variable      = $variable

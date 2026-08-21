@@ -192,6 +192,17 @@
         @{ HDTName = 'HDTTaskSequenceID'; MdtName = 'TaskSequenceID'; Origin = 'authored'
             Description = 'Identifier of the sequence to run, which is what skipping the wizard requires.'
         }
+        # PUBLISHED BY THE ENGINE FROM THE DOCUMENT IT IS RUNNING, not authored
+        # like the id above. A sequence is chosen three ways and only one of
+        # them sets HDTTaskSequenceID, so Invoke-HDTTaskSequence publishes all
+        # three from the sequence it was handed - and overwrites the id, because
+        # the sequence being executed is the truth about which one is running.
+        @{ HDTName = 'HDTTaskSequenceName'; MdtName = 'TaskSequenceName'; Origin = 'engine'
+            Description = 'Display name of the sequence being run, as its document declares it. The id is what selects a sequence; this is what a log line and a progress window can put in front of a person.'
+        }
+        @{ HDTName = 'HDTTaskSequenceVersion'; MdtName = 'TaskSequenceVersion'; Origin = 'engine'
+            Description = "Version the sequence document declares, as text so a '2.0' keeps both components. Empty for a sequence that declares none, which is every sequence written before the field existed."
+        }
         @{ HDTName = 'HDTJoinDomain'; MdtName = 'JoinDomain'; Origin = 'authored'
             Description = 'Active Directory domain to join.'
         }

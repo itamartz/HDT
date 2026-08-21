@@ -242,6 +242,41 @@
         return
     }
 
+    # -- what the engine is running, said out loud ---------------------------
+    #
+    # MDT's TaskSequenceID, TaskSequenceName and TaskSequenceVersion, and they
+    # are published HERE rather than by whichever payload chose the sequence
+    # because this is the only place that is holding the document. Both payloads
+    # come through it, and so does every leg after a reboot - which is what
+    # makes them true of the leg rather than only of the first boot.
+    #
+    # THE ID WAS AN INPUT AND NEVER AN OUTPUT, and the gap had a misleading
+    # error on the end of it. A sequence is chosen three ways - -SequenceId,
+    # bootstrap.json's sequenceId, or the HDTTaskSequenceID variable - and only
+    # the third left the variable set. A PXE deployment driven by bootstrap.json
+    # therefore reached ApplyUnattend, which resolves a relative template
+    # against the sequence folder, and was refused with "this run does not know
+    # which sequence it is running. Set HDTTaskSequenceID" - naming a variable
+    # the administrator had deliberately not used, about a fact the engine was
+    # holding in its hand.
+    #
+    # IT OVERWRITES. A rule can resolve HDTTaskSequenceID to one id while the
+    # command line chose another; the sequence being executed is the truth, and
+    # a variable that says otherwise sends a technician to read the wrong
+    # sequence's steps. MDT overwrites it for the same reason.
+    $Context.Variable['HDTTaskSequenceID'] = [string] $Sequence.Id
+    $Context.Variable['HDTTaskSequenceName'] = [string] $Sequence.Name
+
+    # Sequence documents written before 'version' existed have no such property
+    # at all, and under Set-StrictMode -Version Latest reading one is a
+    # terminating error - so this asks before it reads, and publishes an empty
+    # string either way.
+    $sequenceVersion = ''
+    if ($null -ne $Sequence.PSObject.Properties['Version']) {
+        $sequenceVersion = [string] $Sequence.Version
+    }
+    $Context.Variable['HDTTaskSequenceVersion'] = $sequenceVersion
+
     $state = $State
     if ($null -eq $state) {
         $state = New-HDTRunState -SequenceId ([string] $Sequence.Id) -RunId ([string] $Context.RunId) `

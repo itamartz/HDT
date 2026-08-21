@@ -16,7 +16,7 @@
             The authoring rules, in the order they are checked:
 
               document  not empty; a mapping; only schemaVersion, id, name,
-                        description, variables and steps; schemaVersion present,
+                        version, description, variables and steps; schemaVersion present,
                         an integer and not newer than this engine; id matching
                         ^[A-Za-z0-9][A-Za-z0-9_-]*$; a non-empty name; steps
                         present, a list and not empty
@@ -98,7 +98,7 @@
     $ErrorActionPreference = 'Stop'
 
     $supportedSchemaVersion = 1
-    $allowedRootKey = @('schemaVersion', 'id', 'name', 'description', 'folder', 'variables', 'steps')
+    $allowedRootKey = @('schemaVersion', 'id', 'name', 'version', 'description', 'folder', 'variables', 'steps')
     $allowedGroupKey = @('group', 'condition', 'disabled', 'runIn', 'steps')
     $allowedRetryKey = @('count', 'delaySeconds', 'backoff')
     $allowedRunIn = @('WinPE', 'FullOS', 'Any')
