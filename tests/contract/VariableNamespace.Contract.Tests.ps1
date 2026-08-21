@@ -1,4 +1,4 @@
-# The HDT variable namespace contract (DESIGN 3.2).
+﻿# The HDT variable namespace contract (DESIGN 3.2).
 #
 # DESIGN 3.2 says the mapping "cannot silently drift". Drift has two directions
 # and this file closes both:
@@ -24,7 +24,7 @@ BeforeAll {
     # Class.Property origin.
     $script:cimSourcedFact = @(
         'HDTMake', 'HDTModel', 'HDTProduct', 'HDTSerialNumber', 'HDTUUID',
-        'HDTSystemSKU', 'HDTMemory', 'HDTTPMVersion',
+        'HDTSystemSKU', 'HDTMemory', 'HDTTPMVersion', 'HDTAssetTag',
         'HDTIsDesktop', 'HDTIsLaptop', 'HDTIsServer', 'HDTIsVM',
         'HDTMacAddress', 'HDTIPAddress', 'HDTDefaultGateway'
     )

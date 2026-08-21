@@ -1,4 +1,4 @@
-# Get-HDTMachineFact is HDT's replacement for ZTIGather.wsf: it produces the
+﻿# Get-HDTMachineFact is HDT's replacement for ZTIGather.wsf: it produces the
 # DESIGN 3.2 fact set from injected services and nothing else.
 #
 # Every assertion here runs with NO MACHINE ATTACHED. The facts come from
@@ -304,6 +304,56 @@ Describe 'Get-HDTMachineFact' {
             $fact['HDTIsDesktop'] | Should -BeFalse
             $fact['HDTIsLaptop'] | Should -BeFalse
             $fact['HDTIsServer'] | Should -BeFalse
+        }
+    }
+
+    Context 'asset tag' {
+
+        It 'reports HDTAssetTag from SMBIOSAssetTag' {
+            $fact = Get-HDTMachineFact -CimProvider $script:cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            $fact['HDTAssetTag'] | Should -BeExactly 'FIXTURE-ASSET-0001'
+        }
+
+        It 'trims the surrounding space an OEM pads the field with' {
+            $cim = New-HDTFactCimProvider -Override @{
+                Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(10); SMBIOSAssetTag = '  0123456789  ' })
+            }
+
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            $fact['HDTAssetTag'] | Should -BeExactly '0123456789'
+        }
+
+        It 'reports an empty HDTAssetTag when the field holds only space' {
+            $cim = New-HDTFactCimProvider -Override @{
+                Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(10); SMBIOSAssetTag = '    ' })
+            }
+
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            $fact['HDTAssetTag'] | Should -BeExactly ''
+        }
+
+        It 'reports an empty HDTAssetTag when the enclosure does not carry the property' {
+            # A VM's enclosure often has ChassisTypes and nothing else. Under
+            # Set-StrictMode -Version Latest, reading an absent property throws,
+            # so this is the assertion that the gatherer degrades instead.
+            $cim = New-HDTFactCimProvider -Override @{
+                Win32_SystemEnclosure = @([pscustomobject] @{ ChassisTypes = @(10) })
+            }
+
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            $fact['HDTAssetTag'] | Should -BeExactly ''
+        }
+
+        It 'reports an empty HDTAssetTag when Win32_SystemEnclosure is absent' {
+            $cim = New-HDTFactCimProvider -Exclude 'Win32_SystemEnclosure'
+
+            $fact = Get-HDTMachineFact -CimProvider $cim -RegistryService $script:registry -EnvironmentProvider $script:environment
+
+            $fact['HDTAssetTag'] | Should -BeExactly ''
         }
     }
 

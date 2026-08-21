@@ -99,6 +99,15 @@
         @{ HDTName = 'HDTSystemSKU'; MdtName = 'SystemSKU'; Origin = 'Win32_ComputerSystem.SystemSKUNumber'
             Description = 'Manufacturer SKU string, more specific than the model on some vendor ranges.'
         }
+        # MDT'S AssetTag, AND THE ONE FACT AN ORGANISATION OWNS RATHER THAN THE
+        # VENDOR. Make, model and serial are stamped at the factory; this field
+        # is what a site writes its own inventory number into, which is why
+        # MDT's naming rules key on it. Beware the placeholder: OEMs ship
+        # 'Default string' or 'No Asset Tag' here, and a rule matching one of
+        # those matches every unconfigured machine rather than one.
+        @{ HDTName = 'HDTAssetTag'; MdtName = 'AssetTag'; Origin = 'Win32_SystemEnclosure.SMBIOSAssetTag'
+            Description = 'Asset tag from SMBIOS, trimmed and otherwise as the machine reports it. Empty where the machine carries none, which is most machines nobody has stamped.'
+        }
         @{ HDTName = 'HDTMemory'; MdtName = 'Memory'; Origin = 'Win32_ComputerSystem.TotalPhysicalMemory'
             Description = 'Installed physical memory in whole megabytes, floored.'
         }
@@ -213,6 +222,9 @@
         }
         @{ HDTName = 'HDTApplications'; MdtName = 'Applications'; Origin = 'authored'
             Description = 'Applications to install, by catalog identifier.'
+        }
+        @{ HDTName = 'HDTSkipFinalSummary'; MdtName = 'SkipFinalSummary'; Origin = 'authored'
+            Description = 'True to end the full-OS leg without the Deployment Summary screen. Default false: a machine that finished and one that failed halfway must not look the same to the person standing at it.'
         }
         @{ HDTName = 'HDTSkipWizard'; MdtName = 'SkipWizard'; Origin = 'authored'
             Description = 'True to skip the deployment wizard entirely; any HDTSkip<Page> name follows the same convention for a single page.'

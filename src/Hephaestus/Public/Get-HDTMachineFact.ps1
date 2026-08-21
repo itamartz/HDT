@@ -1,4 +1,4 @@
-function Get-HDTMachineFact {
+﻿function Get-HDTMachineFact {
     <#
         .SYNOPSIS
             Gathers the machine facts through injected services.
@@ -183,6 +183,7 @@ function Get-HDTMachineFact {
     $isDesktop = $false
     $isLaptop = $false
     $isServer = $false
+    $assetTag = ''
     if ($enclosure.Count -gt 0) {
         $chassisType = @($enclosure[0].ChassisTypes)
         if ($chassisType.Count -gt 0) {
@@ -191,6 +192,30 @@ function Get-HDTMachineFact {
             $isLaptop = (@(8, 9, 10, 11, 12, 14, 18, 21) -contains $primaryChassis)
             $isDesktop = (@(3, 4, 5, 6, 7, 15, 16) -contains $primaryChassis)
             $isServer = (@(23) -contains $primaryChassis)
+        }
+
+        # -- the asset tag, and why it is read defensively ---------------------
+        #
+        # MDT's AssetTag, from the same SMBIOS field. It is here rather than
+        # with the identity facts because Win32_SystemEnclosure is the class
+        # that carries it, and this is the block that already has it.
+        #
+        # THE PROPERTY IS NOT ALWAYS THERE. A VM's enclosure instance often
+        # carries ChassisTypes and little else, and under
+        # Set-StrictMode -Version Latest reading a property an object does not
+        # have is a terminating error - so a gatherer that read it directly
+        # would throw on exactly the machines this toolkit is tested against.
+        #
+        # THE VALUE IS TAKEN AS THE MACHINE REPORTS IT, trimmed and no more.
+        # OEMs ship placeholders here - 'Default string', 'No Asset Tag',
+        # 'System Asset Tag' - and a rule keyed on one of those matches every
+        # unconfigured machine in the fleet rather than one. HDT does not
+        # blocklist them: a site that genuinely stamps its tags would have its
+        # real values silently blanked, and MDT reports the field raw. The trap
+        # is recorded here instead, because the person writing that rule is the
+        # one who needs to know.
+        if ($null -ne $enclosure[0].PSObject.Properties['SMBIOSAssetTag']) {
+            $assetTag = ([string] $enclosure[0].SMBIOSAssetTag).Trim()
         }
     }
 
@@ -289,6 +314,7 @@ function Get-HDTMachineFact {
     $fact['HDTIsDesktop'] = [bool] $isDesktop
     $fact['HDTIsLaptop'] = [bool] $isLaptop
     $fact['HDTIsServer'] = [bool] $isServer
+    $fact['HDTAssetTag'] = $assetTag
     $fact['HDTIsVM'] = [bool] $isVirtualMachine
     $fact['HDTMacAddress'] = [string[]] @($macAddress)
     $fact['HDTIPAddress'] = [string[]] @($ipAddress)
