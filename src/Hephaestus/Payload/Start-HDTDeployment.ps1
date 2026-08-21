@@ -223,25 +223,63 @@ $status = $null
 # context - to the engine's own stream as well. Step 5's failure is logged
 # rather than printed and lost precisely because step 4 built that context
 # first.
-# THE OVERLAY COMES DOWN BEFORE ANY OTHER WINDOW GOES UP, AND A REAL BOOT IS
-# WHY. It is not Topmost, and the Welcome screen and the wizard are both
-# full-screen, so the reasoning was that they would simply cover it. They do not:
-# a VM booted this image and the overlay's lines were drawn OVER the Welcome
-# screen, across the share box and the credential fields a technician was meant
-# to type into. A transparent window in another runspace keeps its z-order
-# against a window this thread opens afterwards.
+# ONE WINDOW AT A TIME, AND FOUR ATTEMPTS ON A BOOTED VM ARE WHY THAT IS A RULE
+# RATHER THAN A PREFERENCE.
 #
-# SO IT IS CLOSED, NOT HIDDEN, and $status is nulled: $say reads it, and a closed
-# runspace must not be written to for the rest of the deployment.
+# THE MEASUREMENT. The panel is a transparent WPF window. WinPE runs no desktop
+# compositor, so when a transparent window repaints, its pixels go to the screen
+# WITHOUT BEING CLIPPED by whatever sits above it - and its lines were drawn
+# across the Welcome screen's share box and credential fields. Pushing it to the
+# bottom of the z-order with SetWindowPos(HWND_BOTTOM) did not help, and could
+# not: z-order is not what is being violated. Two frames proved it - an OPAQUE
+# cmd.exe window covered the panel completely, while the Welcome screen, opened
+# before the panel's next repaint, was bled through the moment it repainted.
 #
-# CALLED FROM FOUR PLACES - the Welcome screen, the wizard, step 10b and the tail
-# - because those are the four ways this payload stops being the only thing on
-# screen. Whichever gets there first wins; the rest do nothing.
+# WHAT DID NOT WORK, IN ORDER, EACH FIX BUYING THE NEXT DEFECT:
+#
+#   close it before each window     the only thing reporting anything was gone,
+#                                   so pressing Next gave five share connection
+#                                   attempts on a blank wallpaper
+#   hide it instead                 the window was modal, and hiding a
+#                                   ShowDialog window MAKES ShowDialog RETURN -
+#                                   the panel was destroyed and never came back
+#   push it to the bottom           z-order was never the problem
+#
+# SO THE PANEL EXISTS ONLY WHILE NOTHING ELSE DOES. It is closed before a window
+# opens and OPENED AGAIN once that window has gone, which is what a technician
+# who presses Next needs: the five connection attempts are the whole reason they
+# are standing there.
+#
+# THE HISTORY IS REPLAYED, so reopening is not starting again. $transcript is
+# every line this payload has said; the new window is seeded with the last of
+# them and a technician reads one continuous account rather than a panel that
+# forgets whenever a screen was shown.
 $closeStatus = {
     if ($null -eq $status) { return }
 
     $status.StatusHost.Close()
     $script:status = $null
+}
+
+# HOW MANY LINES OF HISTORY A REOPENED PANEL IS GIVEN. The window keeps twelve;
+# handing it more would just be lines it drops on the way in.
+$statusReplay = 12
+
+$openStatus = {
+
+    # ALREADY OPEN IS NOT AN ERROR. Two windows in a row - the Welcome screen and
+    # then the wizard - would otherwise open a second runspace and orphan the
+    # first.
+    if ($null -ne $status) { return }
+
+    $script:status = Start-HDTBootStatus -XamlPath $BootStatusXamlPath -FileSystem $fileSystem
+
+    $history = @($transcript)
+    if ($history.Count -gt $statusReplay) {
+        $history = @($history[($history.Count - $statusReplay)..($history.Count - 1)])
+    }
+
+    foreach ($line in $history) { $script:status.StatusHost.Write([string] $line) }
 }
 
 $say = {
@@ -454,8 +492,8 @@ try {
         $answer = $null
 
         try {
-            # THE OVERLAY FIRST: this screen is what replaces it, and on a real
-            # machine it does not cover it by itself.
+            # THE PANEL GOES FIRST. A transparent window and this screen cannot
+            # share a display in WinPE - see the header above $closeStatus.
             & $closeStatus
 
             # ONLY IF STEP 4a DID NOT ALREADY. Hiding twice is harmless; the
@@ -467,6 +505,13 @@ try {
                 -Field $field -Pane $skip.Pane -Collect (Get-HDTWizardHarvest)
         } finally {
             if ($hidden) { [void] (Hide-HDTShellWindow -Restore) }
+
+            # AND BACK, BECAUSE Next IS NOT THE END OF THE STORY. What follows
+            # this screen is a poll for an address and up to five attempts at the
+            # share, and those attempts are what the technician came to watch. In
+            # the finally, so a screen that threw still leaves the machine with
+            # something that reports.
+            & $openStatus
         }
 
         if ($null -eq $answer) { return [pscustomobject] @{ Retry = $false } }
@@ -932,8 +977,7 @@ try {
             $consoleHidden = $false
 
             try {
-                # Same reason as the Welcome screen: it does not cover this
-                # window, it draws over it.
+                # Same rule as the Welcome screen, same reason.
                 & $closeStatus
 
                 if (-not $shellHidden) { $consoleHidden = [bool] (Hide-HDTShellWindow) }
@@ -1039,6 +1083,11 @@ try {
                 $wizardVariable = $deploy.Variable
             } finally {
                 if ($consoleHidden) { [void] (Hide-HDTShellWindow -Restore) }
+
+                # Between the wizard closing and the progress board opening there
+                # is a second resolution, the engine defaults and the run state -
+                # seconds of work with nothing else on screen to report it.
+                & $openStatus
             }
         }
     }

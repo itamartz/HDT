@@ -282,43 +282,85 @@ Describe 'Start-HDTDeployment.ps1' {
             $overlay.Extent.StartOffset | Should -BeLessThan $firstHide.Extent.StartOffset
         }
 
-        It 'closes the overlay before every window it opens, and again in the tail' {
-            # FOUND ON A BOOTED VM, NOT IN A TEST. The overlay is not Topmost and
-            # the Welcome screen is full-screen, so the reasoning was that it
-            # would simply be covered. It was not: its lines drew OVER the
-            # Welcome screen, across the share box and the credential fields.
-            #
-            # FOUR CALL SITES, and each is a way this payload stops being the
-            # only thing on screen: the Welcome screen, the wizard, the progress
-            # board at step 10b, and the tail for a run that opened none of them.
-            $close = @($script:ast.FindAll({
-                        param($node)
-                        $node -is [System.Management.Automation.Language.CommandAst] -and
-                        $node.Extent.Text -match '^&\s*\$closeStatus'
-                    }, $true))
+        BeforeAll {
+            # THE THREE VERBS, FOUND BY NAME. Each is a scriptblock invoked with
+            # &, so a CommandAst whose text starts with the sigil is the call.
+            $script:statusCall = {
+                param([string] $Name)
 
-            @($close).Count | Should -BeGreaterOrEqual 4 -Because (
-                'the Welcome screen, the wizard, step 10b and the tail all take it down')
+                $wanted = ('^&\s*\${0}' -f $Name)
+
+                return @($script:ast.FindAll({
+                            param($node)
+                            $node -is [System.Management.Automation.Language.CommandAst] -and
+                            $node.Extent.Text -match $wanted
+                        }, $true) | Sort-Object { $_.Extent.StartOffset })
+            }
+        }
+
+        It 'never hides or shows the overlay, because that is the window s own job' {
+            # THREE DEFECTS ON A BOOTED VM, ALL OF THEM THIS FILE COMPENSATING
+            # FOR A Z-ORDER BUG SOMEWHERE ELSE.
+            #
+            # The overlay is not Topmost and the Welcome screen is full-screen,
+            # so it should have been covered. It was not - its lines drew across
+            # the share box and the credential fields. This payload was then made
+            # to CLOSE it before every window, which destroyed the only thing
+            # that reports anything: press Next and five share connection
+            # attempts ran on a blank wallpaper. Then HIDE, which was worse - the
+            # window was modal, hiding a ShowDialog window makes ShowDialog
+            # return, and the panel never came back at all.
+            #
+            # New-HDTBootStatusHost pins the window to the bottom of the z-order
+            # at Open. There is nothing for this file to do, and this assertion
+            # is what stops the next author reaching for the same workaround.
+            @(& $script:statusCall 'hideStatus').Count | Should -Be 0
+            @(& $script:statusCall 'showStatus').Count | Should -Be 0
+        }
+
+        It 'closes the overlay when the engine takes over, and again in the tail' {
+            # Closing is the END of it: step 10b, where the progress board takes
+            # the screen, and the tail for a run that never reached step 10b.
+            $close = @(& $script:statusCall 'closeStatus')
+
+            @($close).Count | Should -BeGreaterOrEqual 2
 
             @($close | Where-Object { $_.Extent.StartOffset -gt $script:largestTry.Extent.EndOffset }).Count |
                 Should -BeGreaterOrEqual 1 -Because (
                 'the run that opened no window at all still must not leave a panel over the failure screen')
         }
 
-        It 'takes the overlay down before it draws the Welcome screen' {
-            # The ORDER is the fix, not the call: a close that happened after
-            # Show-HDTWizard would be a panel drawn over it and then removed.
-            $close = @($script:ast.FindAll({
-                        param($node)
-                        $node -is [System.Management.Automation.Language.CommandAst] -and
-                        $node.Extent.Text -match '^&\s*\$closeStatus'
-                    }, $true) | Sort-Object { $_.Extent.StartOffset })
-
+        It 'closes the overlay before the Welcome screen and opens it again after' {
+            # ONE WINDOW AT A TIME. WinPE runs no compositor, so a transparent
+            # window's repaint is not clipped by whatever is above it and the
+            # panel drew across this screen's credential fields on a booted VM.
+            #
+            # AND OPENED AGAIN, because Next is not the end of the story: what
+            # follows is a poll for an address and up to five attempts at the
+            # share, and those attempts are what the technician is standing there
+            # to watch. A close with no matching open is the blank wallpaper
+            # defect this pairing exists to prevent.
             $welcome = @(& $script:commandNamed 'Show-HDTWizard' |
                     Sort-Object { $_.Extent.StartOffset })[0]
 
-            @($close | Where-Object { $_.Extent.StartOffset -lt $welcome.Extent.StartOffset }).Count |
+            @(& $script:statusCall 'closeStatus' |
+                    Where-Object { $_.Extent.StartOffset -lt $welcome.Extent.StartOffset }).Count |
                 Should -BeGreaterOrEqual 1
+
+            @(& $script:statusCall 'openStatus' |
+                    Where-Object { $_.Extent.StartOffset -gt $welcome.Extent.StartOffset }).Count |
+                Should -BeGreaterOrEqual 1
+        }
+
+        It 'opens the overlay again after every window it closes it for' {
+            # The Welcome screen and the wizard both take it down; both must put
+            # it back. Step 10b and the tail close it for good and are the two
+            # closes with no open after them.
+            $close = @(& $script:statusCall 'closeStatus')
+            $open = @(& $script:statusCall 'openStatus')
+
+            @($open).Count | Should -Be (@($close).Count - 2) -Because (
+                'every close but step 10b and the tail is a window this run will come back from')
         }
 
         It 'restores the console in the tail, outside the main try' {

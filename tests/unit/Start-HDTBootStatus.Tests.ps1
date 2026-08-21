@@ -1,4 +1,4 @@
-# THE BOOT STATUS OVERLAY: WHAT A TECHNICIAN LOOKS AT BETWEEN startnet.cmd AND
+﻿# THE BOOT STATUS OVERLAY: WHAT A TECHNICIAN LOOKS AT BETWEEN startnet.cmd AND
 # THE FIRST REAL WINDOW.
 #
 # THE PROBLEM IT SOLVES. WinPE boots into cmd.exe running startnet.cmd, and that
@@ -259,11 +259,44 @@ Describe 'New-HDTConsoleBootStatusHost' {
         }
     }
 
+    It 'offers no Hide or Show, because the window owns its own z-order' {
+        # THE VERBS THAT COST THREE ROUNDS ON A BOOTED VM. The payload used them
+        # to keep the panel off the Welcome screen; SetWindowPos(HWND_BOTTOM) in
+        # New-HDTBootStatusHost is what actually does that, once, at Open.
+        foreach ($name in @('Hide', 'Show')) {
+            (New-HDTConsoleBootStatusHost).PSObject.Methods.Name | Should -Not -Contain $name
+            (New-HDTBootStatusHost).PSObject.Methods.Name | Should -Not -Contain $name
+        }
+    }
+
     It 'never throws from any of them' {
         $console = New-HDTConsoleBootStatusHost
 
         { $console.Open('<Window />', 'X:\Windows\System32\cmd.exe') } | Should -Not -Throw
         { $console.Write('a line') } | Should -Not -Throw
         { $console.Close() } | Should -Not -Throw
+    }
+
+    It 'attempts no z-order trick, because z-order was never the problem' {
+        # MEASURED ON A BOOTED VM. WinPE runs no compositor, so a transparent
+        # window's repaint is not clipped by whatever is above it - an opaque
+        # cmd.exe window covered this panel completely while the Welcome screen
+        # was bled through the instant the panel repainted. SetWindowPos
+        # (HWND_BOTTOM) was tried and changed nothing, and dead Win32 that
+        # encodes a wrong theory is worse than none.
+        #
+        # ShowDialog IS ALSO GONE: Close() here is a flag the UI thread's timer
+        # reads, which a modal dialog makes awkward for no gain.
+        $source = Get-Content -LiteralPath (Join-Path -Path $script:repoRoot `
+                -ChildPath 'src/Hephaestus/Public/New-HDTBootStatusHost.ps1') -Raw
+
+        # THE CALL, NOT THE WORD. The header above explains the trap by naming
+        # it, and a raw scan for the name convicts the one file that had to say
+        # it - the same lesson tests/contract/WinPeUiStack.Contract.Tests.ps1
+        # already wrote down twice.
+        $source | Should -Not -Match '::SetWindowPos'
+        $source | Should -Not -Match 'HDTBootStatusNative'
+        $source | Should -Not -Match '\$window\.ShowDialog'
+        $source | Should -Match 'Dispatcher\]::Run'
     }
 }

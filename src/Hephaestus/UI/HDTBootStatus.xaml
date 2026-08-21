@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hephaestus Deployment Toolkit"
@@ -114,6 +114,19 @@
                 THE TAIL. Monospace, because these lines are a log and their
                 timestamps should line up; dimmer than the line above, because
                 they have already happened.
+
+                NoWrap PLUS TextTrimming, AND BOTH HALVES MATTER. A deployment
+                line names a UNC path, a rule and a marker file, so it is longer
+                than any panel: wrapping would let one sentence eat three rows of
+                a twelve-row window and push the rest off the bottom, which is
+                the opposite of a tail. Trimming keeps one line to one row.
+
+                AND IT WAS CUT MID-CHARACTER BEFORE. Without TextTrimming a long
+                line simply ended at the edge - "the boot image was built with
+                '\19" - which reads as a truncated VALUE rather than a truncated
+                LINE, and somebody would have gone looking for a share called 19.
+                The ellipsis is the difference between "there is more of this"
+                and "this is what it says".
             -->
             <TextBlock
                 x:Name="HDTBootStatusLines"
@@ -121,7 +134,8 @@
                 FontSize="13"
                 LineHeight="18"
                 Foreground="#FFD4D4D4"
-                TextWrapping="NoWrap" />
+                TextWrapping="NoWrap"
+                TextTrimming="CharacterEllipsis" />
         </StackPanel>
     </Grid>
 </Window>
