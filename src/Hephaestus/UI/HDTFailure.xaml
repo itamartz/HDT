@@ -3,8 +3,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hephaestus Deployment Toolkit"
     WindowStyle="None"
-    WindowState="Maximized"
     ResizeMode="NoResize"
+    SizeToContent="WidthAndHeight"
+    WindowStartupLocation="CenterScreen"
     Background="#FF1E1E1E">
 
     <!--
