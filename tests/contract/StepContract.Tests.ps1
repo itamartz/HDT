@@ -1,4 +1,4 @@
-# The step contract (DESIGN 4.2, DESIGN 12.2.1, PROJECT constraint 4).
+﻿# The step contract (DESIGN 4.2, DESIGN 12.2.1, PROJECT constraint 4).
 #
 # Every step type ever added - by this repository or by a third party dropping a
 # module into a workspace's Modules\ - is held to the same bar, and the bar is
@@ -208,7 +208,7 @@ Describe 'the step contract' {
         It 'discovered <_>' -ForEach @(
             'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
             'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ConfigureBoot',
-            'InstallApplications', 'InstallRoles', 'EnableBitLocker') {
+            'InstallApplications', 'InstallRoles', 'EnableBitLocker', 'Tattoo') {
 
             @(Get-HDTStepType -Name $_).Count | Should -Be 1
         }

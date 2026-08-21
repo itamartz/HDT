@@ -1,4 +1,4 @@
-function Get-HDTConsoleStepCatalog {
+﻿function Get-HDTConsoleStepCatalog {
     <#
         .SYNOPSIS
             Builds the Add button's drop-down: every step type this engine can
@@ -94,6 +94,10 @@ function Get-HDTConsoleStepCatalog {
         'Restart'       = @{ Text = 'Restart Computer'; Category = 'General'; Order = 5 }
         'NoOp'          = @{ Text = 'Do Nothing'; Category = 'General'; Order = 6 }
         'InstallApplications' = @{ Text = 'Install Applications'; Category = 'General'; Order = 7 }
+
+        # MDT PUTS Tattoo IN State Restore AND CALLS IT Tattoo, so this does
+        # too: an MDT administrator looking for it will look for that word.
+        'Tattoo'        = @{ Text = 'Tattoo'; Category = 'General'; Order = 8 }
         # TWO ENTRIES FOR ONE TYPE, AS MDT'S OWN SEQUENCE HAS. Its Standard
         # Client task sequence carries "Format and Partition Disk (BIOS)" and
         # "(UEFI)", each conditioned on the firmware, because the two disks are
