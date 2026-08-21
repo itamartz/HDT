@@ -223,6 +223,27 @@ $status = $null
 # context - to the engine's own stream as well. Step 5's failure is logged
 # rather than printed and lost precisely because step 4 built that context
 # first.
+# THE OVERLAY COMES DOWN BEFORE ANY OTHER WINDOW GOES UP, AND A REAL BOOT IS
+# WHY. It is not Topmost, and the Welcome screen and the wizard are both
+# full-screen, so the reasoning was that they would simply cover it. They do not:
+# a VM booted this image and the overlay's lines were drawn OVER the Welcome
+# screen, across the share box and the credential fields a technician was meant
+# to type into. A transparent window in another runspace keeps its z-order
+# against a window this thread opens afterwards.
+#
+# SO IT IS CLOSED, NOT HIDDEN, and $status is nulled: $say reads it, and a closed
+# runspace must not be written to for the rest of the deployment.
+#
+# CALLED FROM FOUR PLACES - the Welcome screen, the wizard, step 10b and the tail
+# - because those are the four ways this payload stops being the only thing on
+# screen. Whichever gets there first wins; the rest do nothing.
+$closeStatus = {
+    if ($null -eq $status) { return }
+
+    $status.StatusHost.Close()
+    $script:status = $null
+}
+
 $say = {
     param([string] $Message, [string] $Severity = 'Info')
 
@@ -433,6 +454,10 @@ try {
         $answer = $null
 
         try {
+            # THE OVERLAY FIRST: this screen is what replaces it, and on a real
+            # machine it does not cover it by itself.
+            & $closeStatus
+
             # ONLY IF STEP 4a DID NOT ALREADY. Hiding twice is harmless; the
             # RESTORE below is not, because it would put the console back over
             # the wallpaper in the middle of a run that meant to keep it away.
@@ -907,6 +932,10 @@ try {
             $consoleHidden = $false
 
             try {
+                # Same reason as the Welcome screen: it does not cover this
+                # window, it draws over it.
+                & $closeStatus
+
                 if (-not $shellHidden) { $consoleHidden = [bool] (Hide-HDTShellWindow) }
 
                 # WHAT GOES IN THE BOXES, worked out by the command that owns
@@ -1118,13 +1147,10 @@ try {
     & $say ("progress display: {0} {1}" -f $display.Mode, $display.Reason)
 
     # AND THE OVERLAY COMES DOWN, because the deployment's own screen has taken
-    # over and nothing below this line is a boot step. Nulled as well as closed:
-    # $say reads it, and a closed runspace must not be written to for the next
-    # hour of a deployment.
-    if ($null -ne $status) {
-        $status.StatusHost.Close()
-        $status = $null
-    }
+    # over and nothing below this line is a boot step. A run that showed a
+    # Welcome screen or a wizard closed it there; this is the unattended run
+    # that showed neither.
+    & $closeStatus
 
     if ($display.Mode -ne 'Suppressed') {
         # NOT IN THE EVENT STREAM. Every other value on that screen is derived
@@ -1219,14 +1245,11 @@ if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
 # the failure screen below sits over it exactly as it did before the hide moved,
 # and a technician left at a command prompt gets a prompt they can see.
 #
-# THE OVERLAY GOES DOWN FIRST. Step 10b already closed it on a run that reached
-# the engine; this is the run that did not - a share it could not reach, a
-# wizard somebody cancelled - and leaving a transparent panel over the failure
-# screen would be leaving one screen to explain another.
-if ($null -ne $status) {
-    $status.StatusHost.Close()
-    $status = $null
-}
+# THE OVERLAY GOES DOWN FIRST. Every window this payload opens closes it before
+# it draws; this is the run that opened none of them - an unattended machine that
+# threw before step 10b - and leaving a transparent panel over the failure screen
+# would be leaving one screen to explain another.
+& $closeStatus
 
 if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
 

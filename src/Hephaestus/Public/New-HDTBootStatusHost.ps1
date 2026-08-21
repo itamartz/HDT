@@ -27,9 +27,19 @@ function New-HDTBootStatusHost {
             it through Dispatcher.Invoke would block the deployment on rendering.
 
             THE TAIL IS BOUNDED. The overlay shows the last few lines and no
-            more: it is a corner of the screen, not a scrollback, and a panel
-            that grew until it covered the wallpaper would undo the only reason
-            this window exists. The whole account is in the log either way.
+            more: it is a panel in the middle of a wallpaper, not a scrollback,
+            and one that grew until it covered the screen would undo the only
+            reason this window exists. The whole account is in the log either
+            way.
+
+            IT IS NARROWED TO FIT, which is the one piece of arithmetic in this
+            file and is here on purpose. The window used to be WindowState=
+            "Maximized" so that nothing had to compute anything - and on a booted
+            VM its lines drew across the Welcome screen's credential fields. The
+            markup asks for 940 wide; a screen narrower than that gets a window
+            that fits it rather than one that runs off both edges.
+            CenterScreen does the placing, so there is no Left or Top to get
+            wrong.
 
             F8 IS WIRED HERE, AND ON THIS WINDOW IT MATTERS MOST. The payload
             hides the WinPE console once this is up, so for the twenty seconds
@@ -130,6 +140,13 @@ function New-HDTBootStatusHost {
 
                 $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $HDTXaml)
                 $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+                # NARROWED TO WHATEVER SCREEN THIS MACHINE HAS. A WinPE VM comes
+                # up 1024x768 and a bench machine 1920x1080; CenterScreen places
+                # it either way, but a 940-wide window on an 800-wide screen
+                # would hang off both sides of the middle.
+                $limit = [double] [System.Windows.SystemParameters]::PrimaryScreenWidth - 64
+                if ($window.Width -gt $limit) { $window.Width = $limit }
 
                 # THE STRING TABLE, APPLIED BY NAME. Set-HDTWindowText's walk,
                 # inlined because this runspace has no module to call it from.

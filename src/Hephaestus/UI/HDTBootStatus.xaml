@@ -3,11 +3,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hephaestus Deployment Toolkit"
     WindowStyle="None"
-    WindowState="Maximized"
     ResizeMode="NoResize"
     ShowInTaskbar="False"
     AllowsTransparency="True"
-    Background="Transparent">
+    Background="Transparent"
+    SizeToContent="Manual"
+    WindowStartupLocation="CenterScreen"
+    Width="940"
+    Height="300">
 
     <!--
         THE BOOT STATUS OVERLAY: what is on screen between startnet.cmd and the
@@ -32,23 +35,24 @@
         only combination WPF accepts for a window with no ground of its own, and
         both are required together - one without the other throws at load.
 
-        MAXIMIZED, WITH THE TEXT PINNED TO A CORNER, RATHER THAN A SMALL WINDOW
-        SOMEBODY POSITIONS. A window sized and placed in code needs the screen's
-        dimensions, and this window's host is a thin adapter that must have
-        nothing in it worth testing (CLAUDE.md rule 1). A maximized transparent
-        window needs no arithmetic anywhere: the panel below lands bottom-left on
-        a 1024x768 WinPE screen and a 1920x1080 one alike, and everything it does
-        not cover is wallpaper.
+        IT HAS A SIZE, AND THE FIRST VERSION DID NOT. It was WindowState=
+        "Maximized" - transparent, so covering the screen was supposed not to
+        count - because a maximized window needs no arithmetic and this window's
+        host is a thin adapter that should have nothing in it worth testing
+        (CLAUDE.md rule 1). A VM booted that image and the answer was plain: the
+        panel's lines were drawn ACROSS THE WELCOME SCREEN, over the share box
+        and the credential fields somebody was meant to type into. Convenience in
+        the adapter bought a window that covered the product.
 
-        BOTTOM-LEFT, BECAUSE THAT IS WHERE BGInfo IS NOT. BGInfo's default block
-        sits top-right, and the two reading each other's space would make both
-        unreadable. This is also where a log tail belongs.
+        So it is 940x300, CenterScreen, which is where MDT's own progress dialog
+        sits and where the Welcome screen and the wizard put their card. A
+        technician's eye is already there.
 
-        NOT Topmost. The Welcome screen, the wizard and the progress board are
-        all full-screen and open over this one, which is exactly right: the
-        moment there is something better to look at, this is behind it. A
-        Topmost overlay would sit on top of the wizard a technician is typing
-        into.
+        NOT Topmost, AND THE PAYLOAD CLOSES IT BEFORE ANYTHING ELSE OPENS. Both,
+        because the first alone was not enough: a transparent window in another
+        runspace kept its z-order against a full-screen window opened afterwards
+        on the payload's thread. Start-HDTDeployment now takes this down before
+        the Welcome screen, the wizard and the progress board alike.
 
         NO BUTTONS, NO TITLE BAR, NO X. It is an account of what is happening,
         not a dialog - the same thing HDTProgress.xaml is, and the WinPE UI
@@ -65,10 +69,8 @@
     <Grid>
 
         <StackPanel
-            HorizontalAlignment="Left"
-            VerticalAlignment="Bottom"
-            Margin="48,0,0,48"
-            MaxWidth="1100">
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
 
             <!--
                 THE DROP SHADOW IS NOT DECORATION. This text has no ground behind

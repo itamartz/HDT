@@ -185,6 +185,52 @@ Describe 'Start-HDTBootStatus' {
     }
 }
 
+Describe 'the overlay window itself' {
+
+    # FOUND ON A BOOTED VM, WHICH IS THE ONLY PLACE IT WAS VISIBLE. The first
+    # version was WindowState="Maximized" and transparent, on the reasoning that
+    # a window with no ground of its own does not cover anything. It does: its
+    # lines were drawn ACROSS THE WELCOME SCREEN, over the share box and the
+    # credential fields a technician was meant to type into.
+    #
+    # A PANEL, NOT A SCREEN. These assertions are cheap and they are the only
+    # thing standing between that defect and the next person who reaches for
+    # Maximized because it saves computing a size.
+
+    BeforeAll {
+        $script:markup = [xml] $script:realXaml
+    }
+
+    It 'is not maximized' {
+        $script:markup.DocumentElement.GetAttribute('WindowState') | Should -Not -Be 'Maximized'
+    }
+
+    It 'declares a width and a height of its own' {
+        [double] $script:markup.DocumentElement.GetAttribute('Width') | Should -BeGreaterThan 0
+        [double] $script:markup.DocumentElement.GetAttribute('Height') | Should -BeGreaterThan 0
+    }
+
+    It 'is smaller than the smallest screen WinPE comes up on' {
+        # 1024x768. A panel that filled it would be the maximized window again
+        # by another route.
+        [double] $script:markup.DocumentElement.GetAttribute('Width') | Should -BeLessThan 1024
+        [double] $script:markup.DocumentElement.GetAttribute('Height') | Should -BeLessThan 768
+    }
+
+    It 'sits in the middle of the screen' {
+        $script:markup.DocumentElement.GetAttribute('WindowStartupLocation') | Should -Be 'CenterScreen'
+    }
+
+    It 'is transparent, so the wallpaper behind it is the point' {
+        $script:markup.DocumentElement.GetAttribute('AllowsTransparency') | Should -Be 'True'
+        $script:markup.DocumentElement.GetAttribute('Background') | Should -Be 'Transparent'
+    }
+
+    It 'is not Topmost, so nothing it cannot close can end up under it' {
+        $script:markup.DocumentElement.GetAttribute('Topmost') | Should -Not -Be 'True'
+    }
+}
+
 Describe 'New-HDTConsoleBootStatusHost' {
 
     # THE FALLBACK IS A HOST, NOT A BRANCH AT THE CALL SITE - the same rule

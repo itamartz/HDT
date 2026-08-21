@@ -282,19 +282,42 @@ Describe 'Start-HDTDeployment.ps1' {
             $overlay.Extent.StartOffset | Should -BeLessThan $firstHide.Extent.StartOffset
         }
 
-        It 'closes the overlay in the tail as well as when the engine takes over' {
-            # Step 10b closes it on a run that reached the engine. The tail is
-            # for the run that did not - a share it could not reach, a wizard
-            # somebody cancelled - where a transparent panel left over the
-            # failure screen would be one screen explaining another.
+        It 'closes the overlay before every window it opens, and again in the tail' {
+            # FOUND ON A BOOTED VM, NOT IN A TEST. The overlay is not Topmost and
+            # the Welcome screen is full-screen, so the reasoning was that it
+            # would simply be covered. It was not: its lines drew OVER the
+            # Welcome screen, across the share box and the credential fields.
+            #
+            # FOUR CALL SITES, and each is a way this payload stops being the
+            # only thing on screen: the Welcome screen, the wizard, the progress
+            # board at step 10b, and the tail for a run that opened none of them.
             $close = @($script:ast.FindAll({
                         param($node)
-                        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
-                        [string] $node.Member.Value -eq 'Close'
-                    }, $true) | Where-Object { $_.Extent.Text -match 'StatusHost' })
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.Extent.Text -match '^&\s*\$closeStatus'
+                    }, $true))
 
-            @($close).Count | Should -BeGreaterOrEqual 2
+            @($close).Count | Should -BeGreaterOrEqual 4 -Because (
+                'the Welcome screen, the wizard, step 10b and the tail all take it down')
+
             @($close | Where-Object { $_.Extent.StartOffset -gt $script:largestTry.Extent.EndOffset }).Count |
+                Should -BeGreaterOrEqual 1 -Because (
+                'the run that opened no window at all still must not leave a panel over the failure screen')
+        }
+
+        It 'takes the overlay down before it draws the Welcome screen' {
+            # The ORDER is the fix, not the call: a close that happened after
+            # Show-HDTWizard would be a panel drawn over it and then removed.
+            $close = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.Extent.Text -match '^&\s*\$closeStatus'
+                    }, $true) | Sort-Object { $_.Extent.StartOffset })
+
+            $welcome = @(& $script:commandNamed 'Show-HDTWizard' |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+
+            @($close | Where-Object { $_.Extent.StartOffset -lt $welcome.Extent.StartOffset }).Count |
                 Should -BeGreaterOrEqual 1
         }
 
