@@ -1778,3 +1778,102 @@ pass in the repository itself. Gate in the repository, not in a copy of it.
 `HDT-Wizard-01` was started and left running with its prompt open. No VM was
 created or removed, and nothing outside `C:\HDTLab\Share\Boot` and
 `C:\HDTLab\scratch\bootimage` was written.
+## S18 — WinPE has no compositor, and a transparent window paints over everything ✅⚠
+
+Run on 2026-08-21 against `HDT-ZTI-02` (Generation 2, `HDT External`,
+`C:\HDTLab\vms`) booting `HDTPE_wiz_x64.iso`, rebuilt six times across the
+session. Everything here was observed on the VM, and four fixes were shipped and
+withdrawn before it was.
+
+### ⚠ A wallpaper set behind a covering window is never painted
+
+A boot image carrying a BGInfo start command showed the image's own `winpe.jpg`
+and no BGInfo for the whole of WinPE — and then BGInfo's version appeared the
+instant the Welcome screen opened.
+
+BGInfo does not paint pixels. It sets the DESKTOP WALLPAPER and returns, which
+marks the desktop as needing a repaint rather than performing one. In full
+Windows, Explorer does that repaint immediately. **WinPE has no Explorer** —
+`cmd.exe` is the shell — so nothing redraws the desktop and the last thing
+actually painted there stays on screen. The first thing that forces a real
+repaint is a window taking a chunk of the screen, which is why the Welcome
+screen revealed it.
+
+It was invisible until the console moved. `startnet.cmd`'s console covered the
+desktop from boot to wizard, so a desktop that never repainted looked exactly
+like one that did. Hiding the console for the whole run is what exposed it.
+
+Fixed in `Hide-HDTShellWindow`, which now asks for a repaint straight after
+`ShowWindow`:
+
+    InvalidateRect(NULL, NULL, TRUE)      // a NULL window means EVERY window
+    RedrawWindow(GetDesktopWindow(), ...) // RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN
+
+### ⚠ `SPI_SETDESKWALLPAPER` with a null path REMOVES the wallpaper
+
+The first attempt at that repaint called
+`SystemParametersInfo(SPI_SETDESKWALLPAPER, 0, NULL, SPIF_SENDCHANGE)`, on the
+belief that a null `pvParam` means "re-apply whatever is already set". **It does
+not.** `pvParam` is the bitmap's path and null or empty means remove it. The boot
+image built with that call came up on a **black screen**, having deleted the
+BGInfo wallpaper it was written to reveal.
+
+A repaint must never be spelled as a set. `InvalidateRect` reads and writes
+nothing.
+
+### ⚠ A transparent window's repaint is not clipped by what is above it
+
+The boot status overlay is a WPF window with `AllowsTransparency="True"`. Its
+lines were drawn ACROSS the Welcome screen — over the share box and the
+credential fields a technician types into.
+
+Two frames settled the mechanism. An **opaque** `cmd.exe` window covered the
+overlay completely. The Welcome screen — also opaque, also full-screen, opened
+BEFORE the overlay's next repaint — was bled through the moment the overlay
+repainted. So the overlay was below in z-order and painting through anyway:
+WinPE runs **no desktop compositor**, and a layered window's repaint goes to the
+screen without being clipped by the windows above it.
+
+`SetWindowPos(hwnd, HWND_BOTTOM, ..., SWP_NOACTIVATE)` was tried and changed
+nothing, because z-order was never what was being violated. The code was
+removed rather than left in: dead Win32 that encodes a wrong theory is worse
+than none.
+
+**So a transparent window and any other window cannot share a WinPE display.**
+`Start-HDTDeployment` closes the overlay before every window it opens and opens
+it again afterwards, replaying the last twelve lines of its transcript into the
+new one.
+
+### ⚠ Hiding a `ShowDialog` window destroys it
+
+Between those two, the overlay was given `Hide()`/`Show()` so it could step
+aside without losing its history. It never came back. `Visibility = Hidden` on a
+modal window is `Hide()`, and hiding a modal window **makes `ShowDialog`
+return** — the script block finished, the runspace pipeline completed, and the
+window was gone. `Handle.IsCompleted` flipping to `$true` is the signal; a
+desktop probe measures it in four seconds without a boot.
+
+The window now uses `Show()` plus `[Dispatcher]::Run()`.
+
+### ⚠ Two maximized windows were covering the wallpaper they were meant to reveal
+
+`HDTProgress.xaml` and `HDTFailure.xaml` were `WindowState="Maximized"` with an
+opaque backdrop, because the console used to be hidden only for the wizard and a
+small dialog would have shown the black edges of a half-drawn prompt around it.
+That stopped being true at step 4a. Both are now `SizeToContent="WidthAndHeight"`
+and `CenterScreen` — the progress card measures 720x313 — and a contract
+iterates every boot-image window rather than naming these two.
+
+### `tasklist` is not in WinPE
+
+Diagnosing the above from an F8 prompt: `'tasklist' is not recognized`. Use
+`powershell -nop -c "Get-Process ..."`; `WinPE-PowerShell` is one of the six
+components always injected.
+
+### Lab safety
+
+`HDT-ZTI-02` was started and stopped repeatedly and `C:\HDTLab\Share\Boot` was
+rebuilt six times. No VM was created or removed. One dismount of
+`C:\HDTLab\scratch\bootimage\mount` was needed after a build was killed
+mid-flight and left the image `NeedsRemount`.
+

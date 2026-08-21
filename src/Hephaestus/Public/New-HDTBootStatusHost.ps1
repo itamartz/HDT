@@ -1,4 +1,4 @@
-function New-HDTBootStatusHost {
+﻿function New-HDTBootStatusHost {
     <#
         .SYNOPSIS
             The real IBootStatusHost: runs the boot status overlay in its own
@@ -16,9 +16,9 @@ function New-HDTBootStatusHost {
 
             THE WINDOW RUNS IN ITS OWN RUNSPACE, for the reason
             New-HDTProgressHost's does: a WPF window owns the thread it was
-            created on for as long as it is open - ShowDialog does not return -
-            so a window on the payload's thread would be a deployment that
-            stopped at step 4a and drew a status board about it forever.
+            created on for as long as it is open - a message loop does not
+            return - so a window on the payload's thread would be a deployment
+            that stopped at step 4a and drew a status board about it forever.
 
             SO Write DOES NOT TOUCH THE WINDOW. It appends to a synchronised
             hashtable the two runspaces share, and the UI thread's own
@@ -63,6 +63,29 @@ function New-HDTBootStatusHost {
 
         .PARAMETER LineCount
             How many lines of history the panel keeps.
+
+            IT MUST BE THE ONLY WINDOW ON SCREEN, AND THAT IS A PROPERTY OF
+            WinPE RATHER THAN A CHOICE. WinPE runs no desktop compositor, so a
+            TRANSPARENT window's repaint goes to the screen without being clipped
+            by whatever is above it: on a booted VM this panel's lines were drawn
+            across the Welcome screen's share box and credential fields. Two
+            frames measured it - an OPAQUE cmd.exe window covered the panel
+            completely, while the Welcome screen, opened before the panel's next
+            repaint, was bled through the instant it repainted.
+
+            THREE FIXES WERE TRIED IN THE PAYLOAD BEFORE THAT WAS UNDERSTOOD, and
+            each bought a worse defect: closing it before each window destroyed
+            the only thing that reports anything, so pressing Next gave five share
+            connection attempts on a blank wallpaper; hiding it instead was worse,
+            because the window was modal and hiding a ShowDialog window MAKES
+            ShowDialog RETURN, so the panel was destroyed and never came back;
+            and SetWindowPos(HWND_BOTTOM) did nothing, because z-order was never
+            what was being violated.
+
+            SO THE PAYLOAD CLOSES THIS AND OPENS IT AGAIN around every window it
+            shows, replaying the history into the new one. There is no Hide, no
+            Show and no z-order call here, because none of them is a thing this
+            window can do about it.
 
         .OUTPUTS
             A PSCustomObject with Open(xaml, commandPromptPath, text),
@@ -138,6 +161,7 @@ function New-HDTBootStatusHost {
                 Add-Type -AssemblyName PresentationCore
                 Add-Type -AssemblyName WindowsBase
 
+
                 $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $HDTXaml)
                 $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
@@ -155,10 +179,15 @@ function New-HDTBootStatusHost {
                     $split = $target.LastIndexOf('.')
                     if ($split -lt 1) { continue }
 
+                    # THE NAME GOES IN A VARIABLE, which is Set-HDTWindowText's
+                    # shape and not a preference: $element.($expression) is what
+                    # PSScriptAnalyzer reads as an empty member invocation.
+                    $property = $target.Substring($split + 1)
+
                     $element = $window.FindName($target.Substring(0, $split))
                     if ($null -eq $element) { continue }
 
-                    $element.($target.Substring($split + 1)) = [string] $HDTText[$key]
+                    $element.$property = [string] $HDTText[$key]
                 }
 
                 $current = $window.FindName('HDTBootStatusCurrent')
@@ -173,6 +202,13 @@ function New-HDTBootStatusHost {
                         if ($HDTShared['Closing']) {
                             $timer.Stop()
                             $window.Close()
+
+                            # AND THE LOOP BELOW ENDS WITH IT. Close() on a
+                            # non-modal window tears down the window and leaves
+                            # Dispatcher::Run spinning on a thread with nothing
+                            # to draw, which is a runspace the payload waits five
+                            # seconds for and then abandons.
+                            [System.Windows.Threading.Dispatcher]::CurrentDispatcher.InvokeShutdown()
                             return
                         }
 
@@ -203,7 +239,14 @@ function New-HDTBootStatusHost {
                         }
                     })
 
-                [void] $window.ShowDialog()
+                # Show() AND A DISPATCHER LOOP, NOT ShowDialog(). ShowDialog
+                # owns the thread until the window goes away, and Close() here is
+                # a flag the timer reads rather than a call from outside - which
+                # a modal dialog makes awkward for no gain. Show() puts it up
+                # without blocking; Dispatcher::Run keeps a message loop on this
+                # thread so the timer ticks.
+                $window.Show()
+                [System.Windows.Threading.Dispatcher]::Run()
             })
 
         $this.Runspace = $runspace

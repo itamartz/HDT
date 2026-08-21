@@ -227,6 +227,54 @@ Describe 'the WinPE UI stack' {
             @($offender).Count | Should -Be 0 -Because ('external resources in: {0}' -f ($offender -join ', '))
         }
 
+        It 'is a window with a size of its own, not a sheet over the screen' {
+            # THE WALLPAPER IS THE PRODUCT'S, AND EVERY WINDOW HAS TO LEAVE IT
+            # VISIBLE. A boot image carries BGInfo precisely so the machine's
+            # serial, model and address are on the desktop, and
+            # Start-HDTDeployment hides the WinPE console from step 4a so they
+            # can be seen. A maximized window paints over all of it.
+            #
+            # IT USED TO BE THE OPPOSITE. HDTProgress.xaml and HDTFailure.xaml
+            # were WindowState="Maximized" because the console was hidden only
+            # for the wizard, so around a small dialog a technician would have
+            # seen the black edges of a half-drawn prompt. That stopped being
+            # true, and a backdrop invented to hide a console became a sheet
+            # covering the wallpaper instead.
+            #
+            # THE BOOT IMAGE'S WINDOWS ONLY. The console is a desktop app whose
+            # main window is entitled to fill a screen.
+            $sheet = @($script:window |
+                    Where-Object { $_.Relative -notmatch $script:desktopMarkup } |
+                    Where-Object { ([xml] $_.Text).DocumentElement.GetAttribute('WindowState') -eq 'Maximized' } |
+                    ForEach-Object { $_.Relative })
+
+            @($sheet).Count | Should -Be 0 -Because (
+                'these cover the wallpaper BGInfo paints: {0}' -f ($sheet -join ', '))
+        }
+
+        It 'says how big it is, one way or the other' {
+            # The other half: dropping Maximized without giving the window a size
+            # is a window that sizes itself to nothing. Width and Height, or
+            # SizeToContent - either is an answer; neither is not.
+            $unsized = @()
+            foreach ($row in @($script:window | Where-Object { $_.Relative -notmatch $script:desktopMarkup })) {
+
+                $root = ([xml] $row.Text).DocumentElement
+                $sized = (-not [string]::IsNullOrEmpty($root.GetAttribute('SizeToContent')) -and
+                    $root.GetAttribute('SizeToContent') -ne 'Manual')
+
+                if (-not $sized) {
+                    $sized = (-not [string]::IsNullOrEmpty($root.GetAttribute('Width')) -and
+                        -not [string]::IsNullOrEmpty($root.GetAttribute('Height')))
+                }
+
+                if (-not $sized) { $unsized += $row.Relative }
+            }
+
+            @($unsized).Count | Should -Be 0 -Because (
+                'these declare neither a size nor SizeToContent: {0}' -f ($unsized -join ', '))
+        }
+
         It 'parses as XML' {
             foreach ($row in $script:markup) {
                 { [xml] $row.Text } | Should -Not -Throw -Because $row.Relative

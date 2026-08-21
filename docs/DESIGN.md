@@ -782,6 +782,31 @@ The credential is the cheaper problem to solve.
    leg, pointing at `C:\HDT\Start-HDTResume.ps1`, which loads `state.json` and
    continues at the next step.
 
+   **`RunOnce`, and not MDT's Startup shortcut, on purpose.** MDT — and PSD
+   after it, in `PSDStart.ps1` — puts a `PSDStartup.lnk` in the all-users
+   Startup folder and uses `RunOnce` only as a fallback, when `HideShell` is set
+   or the OS is Server Core and there is no shell to run a Startup item. HDT
+   takes the fallback as its only path — a deliberate divergence, recorded in
+   §14 with the rest of them, and these are the reasons:
+
+   - **A shortcut persists; a `RunOnce` entry is consumed before it runs.** A
+     machine that crashes mid-leg with a shortcut in Startup boots, logs on and
+     runs the deployment AGAIN — the "loop nobody is watching" that §4.5 already
+     refuses when it shuts a failed run down rather than restarting it. With
+     `RunOnce` the crashed leg simply stops, and the next boot's reconcile
+     (§4.5.2) disarms the machine as abandoned. The two mechanisms disagree
+     about what a crash means, and HDT has already chosen.
+   - **It needs no shell.** Server Core and a hidden shell resume on the same
+     path as everything else, rather than on a second one that only those
+     machines ever take — and a path only some machines take is a path nobody
+     tests.
+   - **It is verified.** `.planning/SPIKES.md` records three real autologons
+     driven leg by leg, with the `RunOnce` entry consumed and re-registered each
+     time and the registry `DefaultPassword` absent throughout.
+
+   The cost is the one thing the shortcut buys: no automatic retry after a crash
+   inside a leg. That is not a loss here, because HDT does not want one.
+
 #### 4.5.2 Four differences from MDT
 
 These are the reasons to reimplement rather than copy:
@@ -1816,20 +1841,31 @@ working or hung.
 
 ### 11.1 The progress window
 
-**MDT's shape on a full-screen backdrop**, shown from the moment the engine
-starts until it hands over to the full OS. It displays: computer name, task
-sequence name, the current step and its group, **step N of M**, a progress bar,
-elapsed time, and the current phase (WinPE or Full OS).
+**MDT's shape, on the wallpaper**, shown from the moment the engine starts
+until it hands over to the full OS. It displays: computer name, task sequence
+name, the current step and its group, **step N of M**, a progress bar, elapsed
+time, and the current phase (WinPE or Full OS).
 
-Both halves are load-bearing, and they come from different places. **The card is
-MDT's** — LiteTouch shows a modest centred "Installation Progress" dialog and an
-admin has watched it a thousand times; a full-screen takeover of numbers reads as
-a kiosk rather than as a deployment. **The backdrop is WinPE's**, and it is why
-an earlier draft of this section said "full-screen" outright: behind the window
-is the console the payload hid, and around a bare dialog a technician sees the
-black edges of a half-drawn `X:\Windows\system32>` prompt — the exact thing this
-section exists to stop them seeing. MDT solves that with a deployment wallpaper;
-HDT solves it with the window's own ground.
+**The card is MDT's** — LiteTouch shows a modest centred "Installation Progress"
+dialog and an admin has watched it a thousand times; a full-screen takeover of
+numbers reads as a kiosk rather than as a deployment.
+
+**The backdrop it used to stand on is gone, and the reason it existed expired.**
+Two earlier drafts of this section said "full-screen" outright, because behind
+the window was a console the payload hid only for the wizard, and around a bare
+dialog a technician would have seen the black edges of a half-drawn
+`X:\Windows\system32>` prompt. `Start-HDTDeployment` now hides that console at
+step 4a for the whole run, and a boot image carrying BGInfo paints the machine's
+serial, model and address onto the wallpaper — so a full-screen ground had
+become a sheet covering the very thing it was invented to protect anybody from
+seeing. MDT solves this with a deployment wallpaper, and so, now, does HDT: the
+card, centred on the wallpaper, and nothing else.
+
+This is a property of **every** window the boot image ships, not of this one.
+`HDTFailure.xaml` was full-screen for the same reason and is a card for the same
+reason; the wizard, the Welcome screen and the boot status panel were already
+sized. A contract iterates the boot image's markup and refuses `Maximized`
+anywhere in it, rather than naming the two files that used to be.
 
 **It is driven by the JSONL event stream, not by a parallel progress API.**
 The engine already emits `step.start`, `step.complete`, `step.fail`, `step.skip`
@@ -2084,6 +2120,8 @@ cause of confusing failures.
 | `BDD.log` in CMTrace | Structured JSONL + HTML report + provenance | Answers "why did it choose that?" |
 | Separate offline media build | Media is a projection of the share | One engine, one code path |
 | Opaque boot image contents | Recorded build manifest | Eliminates boot image drift |
+| Resume via a `PSDStartup.lnk` in the all-users Startup folder, `RunOnce` only for Server Core / `HideShell` | `RunOnce` re-registered each leg, always | A shortcut persists, so a crash mid-leg re-runs the deployment on the next logon — the loop §4.5 already refuses. `RunOnce` is consumed before it runs, so a crashed leg stops and the boot-time reconcile disarms it as abandoned. It also needs no shell, so Core and hidden-shell machines resume on the same path as everything else. See §4.5.1 |
+| Full-screen progress and failure screens | Cards sized to their content, on the wallpaper | The full-screen ground existed to hide a WinPE console that is now hidden for the whole run; it had become a sheet over the BGInfo the boot image paints. See §11.1 |
 
 ---
 

@@ -3,8 +3,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Hephaestus Deployment Toolkit"
     WindowStyle="None"
-    WindowState="Maximized"
     ResizeMode="NoResize"
+    SizeToContent="WidthAndHeight"
+    WindowStartupLocation="CenterScreen"
     Background="#FF1E1E1E">
 
     <!--
@@ -18,12 +19,22 @@
         thousand times. A full-screen takeover of numbers reads as a kiosk
         rather than as a deployment, and the first draft of this file was one.
 
-        THE BACKDROP IS WinPE'S. It is why DESIGN 11.1 asked for full-screen at
-        all: behind this window is a console the payload hid, and around a small
-        dialog a technician would see the black edges of a half-drawn
-        X:\Windows\system32> prompt - which is the exact thing this section
-        exists to stop them seeing. MDT solves it with a deployment wallpaper;
-        this solves it with the window's own ground.
+        THE BACKDROP IS GONE, AND THE REASON IT EXISTED EXPIRED. DESIGN 11.1
+        asked for full-screen because behind this window was a console the
+        payload hid only for the wizard, and around a small dialog a technician
+        would have seen the black edges of a half-drawn X:\Windows\system32>
+        prompt. Start-HDTDeployment now hides that console at step 4a, for the
+        whole run, and a boot image's BGInfo paints the machine's serial, model
+        and address onto the wallpaper - so a full-screen ground had become a
+        sheet covering the very thing it was invented to protect anybody from
+        seeing. MDT solves this with a deployment wallpaper, and now so does
+        this: the card, on the wallpaper, and nothing else.
+
+        SizeToContent, NOT A HEIGHT SOMEBODY MAINTAINS. Every part of this card
+        that can grow is already bounded - the step name wraps to MaxHeight 56,
+        the step bar collapses when nothing is reporting - so the window is
+        exactly as tall as what is in it, on a 1024x768 WinPE screen and a
+        1920x1080 bench machine alike.
 
         NO X, NO TITLE BAR, NO BUTTONS. There is nothing here to answer - it is
         a status board, not a dialog - and a deployment screen with a corner
