@@ -76,6 +76,72 @@ Describe 'Show-HDTDeploymentFailure' {
         }
     }
 
+    Context 'the same window when the deployment SUCCEEDED' {
+
+        # MDT'S DEPLOYMENT SUMMARY HAS ONE BUTTON, AND IT IS Finish. FinishAction
+        # from CustomSettings.ini decides what the machine does afterwards; the
+        # technician's job is to read the screen and dismiss it.
+        #
+        # HDT PUT THE FAILURE SCREEN'S THREE BUTTONS ON IT AND WIRED NONE OF
+        # THEM. Start-HDTResume.ps1 discarded the answer with [void] and let
+        # HDTFinishAction decide regardless - so a technician could press
+        # Restart on a finished machine and watch it shut down, because a rule
+        # said so. Buttons that lie are worse than buttons that are missing.
+
+        BeforeAll {
+            $script:succeeded = [pscustomobject] @{
+                IsFailure  = $false
+                RunId      = 'run-20260821-220000'
+                SequenceId = 'DEMO-05'
+                StepNumber = 10
+                StepCount  = 10
+                StepName   = ''
+                StepType   = ''
+                Message    = ''
+                Status     = 'Succeeded'
+                LogPath    = '\\HDT01\HDTShare\Logs'
+                Pane       = @()
+                Field      = @()
+            }
+        }
+
+        It 'reads Finish as Finish' {
+            $answer = Show-HDTDeploymentFailure -Failure $script:succeeded -XamlPath $script:xamlPath `
+                -WizardHost (New-HDTFakeWizardHost -Action 'Finish')
+
+            [string] $answer.Action | Should -BeExactly 'Finish'
+        }
+
+        It 'reads a window that answered nothing as Finish, not Shutdown' {
+            # THE OPPOSITE RULE TO A FAILURE, and deliberately so. A failed
+            # machine left running in a room nobody visits is not a kindness; a
+            # machine that deployed correctly is FINISHED, and what happens to it
+            # next is HDTFinishAction's answer, not this screen's.
+            $answer = Show-HDTDeploymentFailure -Failure $script:succeeded -XamlPath $script:xamlPath `
+                -WizardHost (New-HDTFakeWizardHost -Action '')
+
+            [string] $answer.Action | Should -BeExactly 'Finish'
+        }
+
+        It 'still reads Open CMD as CommandPrompt' {
+            $answer = Show-HDTDeploymentFailure -Failure $script:succeeded -XamlPath $script:xamlPath `
+                -WizardHost (New-HDTFakeWizardHost -Action 'CommandPrompt')
+
+            [string] $answer.Action | Should -BeExactly 'CommandPrompt'
+        }
+
+        It 'reads Finish as Finish on a FAILED run too, if somebody presses it' {
+            # The button is hidden on a failure rather than absent, and a hidden
+            # control cannot be pressed - but the mapping must not depend on
+            # that, or the one machine whose Pane did not apply gets a silent
+            # shutdown instead of what it was told.
+            $answer = Show-HDTDeploymentFailure -Failure $script:failure -XamlPath $script:xamlPath `
+                -WizardHost (New-HDTFakeWizardHost -Action 'Finish')
+
+            [string] $answer.Action | Should -BeExactly 'Finish'
+        }
+    }
+
     Context 'what it puts on the screen' {
 
         It 'hands the failure fields to the host' {

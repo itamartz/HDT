@@ -356,3 +356,60 @@ Describe 'the summary for a leg that never reached a step' {
         (Get-HDTDeploymentFailure -Record @() -Reason '   ').IsFailure | Should -BeFalse
     }
 }
+
+Describe 'Get-HDTDeploymentFailure and which buttons the summary offers' {
+
+    # ONE WINDOW, TWO SETS OF BUTTONS, AND THE Pane MECHANISM ALREADY DECIDES
+    # WHICH. A failed machine is offered Restart and Shut down because those are
+    # the two things a technician does with it. A finished machine is offered
+    # Finish, because MDT's Deployment Summary has exactly that and because
+    # HDTFinishAction - not this screen - owns what happens to it next.
+
+    BeforeAll {
+        $script:visibilityOf = {
+            param([object] $Result, [string] $Name)
+
+            $row = @($Result.Pane | Where-Object { [string] $_.Name -eq $Name })
+            if (@($row).Count -eq 0) { return $null }
+
+            return [bool] $row[0].Visible
+        }
+    }
+
+    It 'offers Finish and hides Restart and Shut down when the run succeeded' {
+        $result = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+            [pscustomobject] @{ event = 'run.end'; data = @{ status = 'Succeeded' } }
+        )
+
+        $result.IsFailure | Should -BeFalse
+        & $script:visibilityOf $result 'HDTFinishButton' | Should -BeTrue
+        & $script:visibilityOf $result 'HDTNextButton' | Should -BeFalse
+        & $script:visibilityOf $result 'HDTCancelButton' | Should -BeFalse
+    }
+
+    It 'offers Restart and Shut down and hides Finish when the run failed' {
+        $result = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+            [pscustomobject] @{ event = 'step.fail'; data = @{ stepName = 'Validate' }; message = 'disk 0 carries existing data' }
+            [pscustomobject] @{ event = 'run.end'; data = @{ status = 'Failed' } }
+        )
+
+        $result.IsFailure | Should -BeTrue
+        & $script:visibilityOf $result 'HDTFinishButton' | Should -BeFalse
+        & $script:visibilityOf $result 'HDTNextButton' | Should -BeTrue
+        & $script:visibilityOf $result 'HDTCancelButton' | Should -BeTrue
+    }
+
+    It 'leaves Open CMD alone either way, because it is useful on both' {
+        foreach ($status in @('Succeeded', 'Failed')) {
+            $result = Get-HDTDeploymentFailure -Record @(
+                [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+                [pscustomobject] @{ event = 'run.end'; data = @{ status = $status } }
+            )
+
+            & $script:visibilityOf $result 'HDTOpenCmdButton' | Should -BeNullOrEmpty -Because (
+                'a pane entry for it would be a decision nobody asked for ({0})' -f $status)
+        }
+    }
+}

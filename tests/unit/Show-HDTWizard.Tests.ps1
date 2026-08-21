@@ -50,6 +50,41 @@ BeforeAll {
     }
 }
 
+Describe 'Show-HDTWizard and the answer it will admit' {
+
+    # THE ALLOW-LIST IS THE SAFETY PROPERTY, and it gained a fourth entry when
+    # the Deployment Summary got MDT's Finish button. The property it protects is
+    # unchanged and these assertions are what say so: Next is still the only
+    # answer that deploys, and anything unrecognised is still a Cancel.
+
+    It 'admits Finish, so a dismissed summary is not read as a shutdown' {
+        $answer = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+            -FileSystem (New-HDTWizardTestFileSystem) `
+            -WizardHost (New-HDTFakeWizardHost -Action 'Finish')
+
+        [string] $answer.Action | Should -BeExactly 'Finish'
+    }
+
+    It 'still turns anything it does not know into a Cancel' -ForEach @(
+        'finish', 'FINISH', 'Done', 'Ok', 'Yes', '') {
+
+        $answer = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+            -FileSystem (New-HDTWizardTestFileSystem) `
+            -WizardHost (New-HDTFakeWizardHost -Action $PSItem)
+
+        [string] $answer.Action | Should -BeExactly 'Cancel' -Because (
+            "'{0}' is not one of the four" -f $PSItem)
+    }
+
+    It 'still deploys on Next and nothing else' -ForEach @('Cancel', 'CommandPrompt', 'Finish') {
+        $answer = Show-HDTWizard -XamlPath $script:xamlPath -Title 'HDT' `
+            -FileSystem (New-HDTWizardTestFileSystem) `
+            -WizardHost (New-HDTFakeWizardHost -Action $PSItem)
+
+        [string] $answer.Action | Should -Not -BeExactly 'Next'
+    }
+}
+
 Describe 'Show-HDTWizard' {
 
     Context 'the command exists and is shaped like the rest of the engine' {

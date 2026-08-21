@@ -31,6 +31,10 @@
               Next           the technician approved. The only one that deploys.
               Cancel         everything else, including silence.
               CommandPrompt  MDT's "Exit to Command Prompt" - the escape hatch
+              Finish         MDT's Deployment Summary button, and ONLY that
+                             window declares it. It approves nothing and starts
+                             nothing: it says a technician has read a screen
+                             about a machine that is already deployed.
                              for a wrong network, a missing driver, or diskpart.
 
             OPENING THE PROMPT IS THE CALLER'S JOB, NOT THIS COMMAND'S. This
@@ -81,7 +85,7 @@
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Action ('Next',
-            'Cancel' or 'CommandPrompt'), Title and XamlPath.
+            'Cancel', 'CommandPrompt' or 'Finish'), Title and XamlPath.
 
         .EXAMPLE
             Show-HDTWizard -XamlPath 'X:\HDT\UI\HDTWizard.xaml'
@@ -200,15 +204,23 @@
         $string)
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
-    # anything that is not one of these three exactly is a Cancel.
+    # anything that is not one of these exactly is a Cancel.
     #
     # MATCHED CASE-SENSITIVELY, and the ALLOW-LIST's spelling is what is
     # returned - never the host's string. Both halves matter. A host answering
     # 'next' is not the host this command was written against, and a widened
     # list that also normalises case is one step from "recognise anything that
     # looks close enough" - which, on the other side of Next, partitions a disk.
+    #
+    # Finish WIDENS IT BY ONE, AND THE PROPERTY THIS PROTECTS IS UNTOUCHED. The
+    # dangerous answer is Next, because Next is the only one that deploys, and
+    # every caller reads it as `-ne 'Next'`. Finish is the opposite end of a
+    # deployment: HDTFailure.xaml is the only window that declares the button,
+    # it is collapsed unless the run SUCCEEDED, and what it produces is a screen
+    # being dismissed. Recognising it explicitly is what stops it arriving as a
+    # Cancel and being read as "shut this machine down".
     $action = 'Cancel'
-    foreach ($allowed in @('Next', 'Cancel', 'CommandPrompt')) {
+    foreach ($allowed in @('Next', 'Cancel', 'CommandPrompt', 'Finish')) {
         if ($answer -ceq $allowed) {
             $action = $allowed
             break

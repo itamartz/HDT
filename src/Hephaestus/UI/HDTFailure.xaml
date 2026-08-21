@@ -141,6 +141,31 @@
                             MinWidth="130" Height="36"
                             Background="#FF0E639C" Foreground="White"
                             BorderBrush="#FF0E639C" FontSize="14" />
+
+                    <!--
+                        MDT'S DEPLOYMENT SUMMARY HAS ONE BUTTON AND IT IS
+                        Finish. This window reports both outcomes, so it carries
+                        both sets and Get-HDTDeploymentFailure collapses the pair
+                        that does not apply: Restart and Shut down on a failure,
+                        this on a finished machine.
+
+                        IT SHARES A COLUMN WITH Restart, which is why only one
+                        of them is ever visible. Two primary buttons in one
+                        corner is a screen asking a technician which of two
+                        identical-looking things they meant.
+
+                        WHAT HAPPENS AFTERWARDS IS NOT THIS BUTTON'S ANSWER.
+                        HDTFinishAction owns that - MDT's property, MDT's
+                        meaning - and this only says the technician has read the
+                        screen. Restart and Shut down override it, because a
+                        button naming a power state and not producing it is
+                        worse than no button.
+                    -->
+                    <Button Grid.Column="3" x:Name="HDTFinishButton"
+                            MinWidth="130" Height="36"
+                            Background="#FF0E639C" Foreground="White"
+                            BorderBrush="#FF0E639C" FontSize="14"
+                            Visibility="Collapsed" />
                 </Grid>
             </StackPanel>
         </Border>

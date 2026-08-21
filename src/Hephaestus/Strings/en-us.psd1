@@ -400,6 +400,7 @@
         'HDTFailureLogLabel.Text' = 'Log'
         'HDTCancelButton.Content' = 'Shut down'
         'HDTNextButton.Content' = 'Restart'
+        'HDTFinishButton.Content' = 'Finish'
     }
 
     # MDT's Import Operating System wizard, as one dialog:

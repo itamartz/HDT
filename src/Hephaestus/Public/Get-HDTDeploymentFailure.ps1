@@ -229,11 +229,28 @@
 
     # AND THE REASON GOES WITH THE FAILURE. An empty 'Why' box under a green
     # headline is a question the window is asking itself.
+    # THE BUTTONS ARE PART OF THE HEADLINE, and until now they were not.
+    # A finished machine was offered Restart and Shut down - the failure
+    # screen's pair - and Start-HDTResume.ps1 discarded the answer anyway, so a
+    # technician could press Restart and watch the machine shut down because
+    # HDTFinishAction said so.
+    #
+    # MDT'S DEPLOYMENT SUMMARY HAS ONE BUTTON: Finish. FinishAction decides what
+    # the machine does next; the button says the person has read the screen. A
+    # FAILED machine is a different question - Restart to try again, Shut down
+    # to walk away - and keeps the pair it had.
+    #
+    # Open CMD IS ON BOTH AND IS NOT NAMED HERE. A pane entry for a control that
+    # is always visible is a decision nobody asked for, and one more thing to
+    # keep in step.
     $result['Pane'] = @(
         [pscustomobject] @{ Name = 'HDTFailureTitleText'; Visible = (-not $succeeded) }
         [pscustomobject] @{ Name = 'HDTFailureSuccessText'; Visible = $succeeded }
         [pscustomobject] @{ Name = 'HDTFailureReasonLabel'; Visible = (-not $succeeded) }
         [pscustomobject] @{ Name = 'HDTFailureReasonBox'; Visible = (-not $succeeded) }
+        [pscustomobject] @{ Name = 'HDTFinishButton'; Visible = $succeeded }
+        [pscustomobject] @{ Name = 'HDTNextButton'; Visible = (-not $succeeded) }
+        [pscustomobject] @{ Name = 'HDTCancelButton'; Visible = (-not $succeeded) }
     )
 
     $result['Field'] = @(

@@ -284,7 +284,12 @@
         foreach ($pair in @(
                 @{ Name = 'HDTNextButton'; Answer = 'Next' },
                 @{ Name = 'HDTCancelButton'; Answer = 'Cancel' },
-                @{ Name = 'HDTOpenCmdButton'; Answer = 'CommandPrompt' })) {
+                @{ Name = 'HDTOpenCmdButton'; Answer = 'CommandPrompt' },
+
+                # THE DEPLOYMENT SUMMARY'S ONE BUTTON. Only HDTFailure.xaml
+                # declares it, and a page without it is skipped by the guard
+                # below - so this costs every other window nothing.
+                @{ Name = 'HDTFinishButton'; Answer = 'Finish' })) {
 
             $button = $window.FindName([string] $pair.Name)
             if ($null -eq $button) { continue }

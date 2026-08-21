@@ -19,6 +19,9 @@
 
               Restart      the technician will try again from the top
               Shut down    they are finished with this machine
+              Finish       the deployment WORKED and they have read the screen;
+                           what the machine does next is HDTFinishAction's
+                           answer, not this one's
               Open CMD     they are going to go and look, and the machine must
                            stay on while they do
 
@@ -53,7 +56,7 @@
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Action ('Restart',
-            'Shutdown' or 'CommandPrompt') and Shown.
+            'Shutdown', 'Finish' or 'CommandPrompt') and Shown.
 
         .EXAMPLE
             $failure = Get-HDTDeploymentFailure -Record $record -LogPath $log.LogPath
@@ -115,9 +118,36 @@
         Write-Verbose ("the failure window could not be shown: {0}" -f [string] $_.Exception.Message)
     }
 
+    # THE DEFAULT DEPENDS ON WHAT HAPPENED, and it is the one place in this
+    # command where the two outcomes part company.
+    #
+    # A FAILED machine that answered nothing shuts down: left running in a room
+    # nobody visits it is not a kindness, and the technician's PRESS is what
+    # keeps it on.
+    #
+    # A FINISHED machine that answered nothing is FINISHED. It has just been
+    # deployed correctly; powering it off because a window timed out would undo
+    # the deployment's own HDTFinishAction, which is MDT's property and the
+    # thing that actually owns this decision.
+    $succeeded = $false
+    if ($null -ne $Failure.PSObject.Properties['IsFailure']) { $succeeded = (-not $Failure.IsFailure) }
+
+    # AND Cancel IS NOT LISTED BELOW, WHICH IS THE POINT OF THE DEFAULT. On a
+    # failure it already means Shutdown. On a SUCCESS the Shut down button is
+    # collapsed, so a Cancel cannot have come from a button at all - it is
+    # Show-HDTWizard reporting silence, and silence on a finished machine means
+    # finished.
     $action = 'Shutdown'
+    if ($succeeded) { $action = 'Finish' }
+
     if ($answer -eq 'Next') { $action = 'Restart' }
     if ($answer -eq 'CommandPrompt') { $action = 'CommandPrompt' }
+
+    # NOT GATED ON $succeeded. The button is COLLAPSED on a failure rather than
+    # absent, and a collapsed control cannot be pressed - but a machine whose
+    # Pane did not apply must still do what it was told, rather than silently
+    # shutting down.
+    if ($answer -eq 'Finish') { $action = 'Finish' }
 
     return [pscustomobject] @{
         Action = $action
