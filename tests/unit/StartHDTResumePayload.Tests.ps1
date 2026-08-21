@@ -449,3 +449,30 @@ Describe 'Start-HDTResume.ps1 and the finish action' {
         $script:text | Should -Match '(?s)Get-HDTFinishAction.*?catch'
     }
 }
+
+# WHERE THE SUMMARY SCREEN IS READ FROM, WHICH IS NOT WHERE IT FIRST LOOKED.
+#
+# Update-HDTBootImage keeps UI\ OUT of the module tree on purpose - the wizard
+# runs in WinPE from X:\HDT\UI\ - so the module Copy-HDTResumeAgent stages has
+# no UI folder at all. Defaulting into $ModulePath\UI\ pointed at a file that
+# never exists on a deployed machine: Show-HDTDeploymentFailure threw, the catch
+# swallowed it, and a deployment that SUCCEEDED end to end finished in silence.
+# Watched on 2026-08-21 - Acrobat installed, autologon torn down, run Succeeded,
+# nothing on screen.
+Describe 'Start-HDTResume.ps1 and where the summary comes from' {
+
+    It 'does not look for it inside the staged module' {
+        $script:text | Should -Not -Match [regex]::Escape("Combine($ModulePath, 'UI'")
+    }
+
+    It 'looks beside the agent, where Copy-HDTResumeAgent puts it' {
+        $script:text | Should -Match ([regex]::Escape('GetDirectoryName($StatePath)'))
+        $script:text | Should -Match "'HDTFailure.xaml'"
+    }
+
+    # A SCREEN THAT COULD NOT BE DRAWN IS A FACT ABOUT THE RUN. It went to
+    # Write-Information, on a host this payload has already hidden.
+    It 'writes the reason into the run log, not only to a hidden host' {
+        $script:text | Should -Match '(?s)the deployment summary could not be shown.*?Write-HDTLog'
+    }
+}

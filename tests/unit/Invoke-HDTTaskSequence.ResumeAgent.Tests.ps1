@@ -228,3 +228,51 @@ Describe 'Invoke-HDTTaskSequence and the console that is watching' {
         $active.status | Should -Not -BeExactly 'Running'
     }
 }
+
+# THE CORRECTED SHARE HAS TO SURVIVE THE REBOOT.
+#
+# bootstrap.json is baked into the boot image and names the deploy root that was
+# true when the image was built. A technician who corrects the share at the
+# Welcome screen fixed the WinPE leg only - the full-OS leg asked for the dead
+# address again, mapped no drive letter, and Install Applications never ran.
+# Watched end to end on 2026-08-21, with the machine sitting on a desktop while
+# the log said "the deployment share could not be reached".
+Describe 'Invoke-HDTTaskSequence and the share the resume leg is given' {
+
+    It 'writes the share this run reached into the staged bootstrap' {
+        $fileSystem = & $script:newFileSystem
+        $fileSystem.SeedFile('X:\HDT\bootstrap.json', '{ "deployRoot": "\\\\old\\HDTShare", "provider": "Smb" }')
+
+        $harness = New-HDTSequenceTestHarness -Yaml $script:yaml -Phase 'WinPE' `
+            -FileSystem $fileSystem -Variable @{ HDTOSVolume = 'W:' }
+
+        $harness.Context.Variable['_HDTDeployRoot'] = '\\192.168.2.40\HDTShare'
+
+        [void] (Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State)
+
+        $staged = $fileSystem.ReadAllText('W:\HDT\bootstrap.json') | ConvertFrom-Json
+
+        $staged.deployRoot | Should -BeExactly '\\192.168.2.40\HDTShare'
+        $staged.provider | Should -BeExactly 'Smb'
+    }
+
+    # MEDIA KEEPS THE IMAGE'S OWN VALUE. A local root is D: in WinPE and
+    # commonly another letter once Windows has assigned its own, so the resolved
+    # path would hand the resume a letter that has moved. Resolve-HDTDeployRoot
+    # works it out again from the marker instead.
+    It 'leaves a local root alone, because a drive letter moves' {
+        $fileSystem = & $script:newFileSystem
+        $fileSystem.SeedFile('X:\HDT\bootstrap.json', '{ "deployRoot": "D:\\HDTShare", "provider": "Local" }')
+
+        $harness = New-HDTSequenceTestHarness -Yaml $script:yaml -Phase 'WinPE' `
+            -FileSystem $fileSystem -Variable @{ HDTOSVolume = 'W:' }
+
+        $harness.Context.Variable['_HDTDeployRoot'] = 'E:\HDTShare'
+
+        [void] (Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context -State $harness.State)
+
+        $staged = $fileSystem.ReadAllText('W:\HDT\bootstrap.json') | ConvertFrom-Json
+
+        $staged.deployRoot | Should -BeExactly 'D:\HDTShare'
+    }
+}

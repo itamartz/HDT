@@ -39,8 +39,11 @@
                                       and a copy on the deployed machine would be
                                       a second answer to "what starts a
                                       deployment", and the one nothing launches
-              UI\                     NOT staged - the wizard runs in WinPE,
-                                      before this disk had a partition table
+              UI\HDTFailure.xaml    the Deployment Summary, and ONLY that.
+                                      The wizard, the progress window and the theme
+                                      belong to WinPE, before this disk had a
+                                      partition table; the summary is drawn AFTER
+                                      the reboot, so it has to be here
 
             AN EMPTY STAGE IS REFUSED, LOUDLY, and that is the whole point of the
             check: failing here means failing in WinPE, where the log is still
@@ -95,6 +98,19 @@
         [Parameter(Position = 1)]
         [ValidateNotNullOrEmpty()]
         [string] $Source = 'X:\HDT',
+
+        # THE SHARE THE MACHINE ACTUALLY REACHED. bootstrap.json is baked into
+        # the boot image, so it carries whatever deploy root was true when the
+        # image was made - and a technician who corrects the share at the
+        # Welcome screen fixes the WinPE leg only. The full-OS leg then asked
+        # for the dead address again, could not map MDT's drive letter, and
+        # every step needing content failed.
+        #
+        # EMPTY MEANS COPY IT AS IT IS, which is what a deployment that never
+        # corrected anything wants.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $DeployRoot = '',
 
         [Parameter()]
         [AllowNull()]
@@ -181,12 +197,72 @@
 
         if (-not $FileSystem.TestPath($from)) { continue }
 
-        $FileSystem.CopyItem($from, [System.IO.Path]::Combine($destination, $leaf))
+        $target = [System.IO.Path]::Combine($destination, $leaf)
+
+        # ONE VALUE REPLACED, THE REST OF THE DOCUMENT AS IT WAS. The account,
+        # the provider and the content marker are the image's; only the address
+        # is something this run learned.
+        #
+        # SPLICED ON THE KEY, NOT RE-SERIALISED. Rewriting the JSON would drop
+        # any key this engine does not know about - an image built by a newer
+        # HDT and staged by an older one - and would reformat a file somebody
+        # may have to read at a WinPE prompt.
+        if ($leaf -eq 'bootstrap.json' -and -not [string]::IsNullOrWhiteSpace($DeployRoot)) {
+            $text = [string] $FileSystem.ReadAllText($from)
+
+            $escaped = $DeployRoot.Replace('\', '\\')
+            $rewritten = [regex]::Replace($text,
+                '("deployRoot"\s*:\s*)"(?:[^"\\]|\\.)*"',
+                ('$1"' + $escaped.Replace('$', '$$') + '"'), 1)
+
+            $FileSystem.WriteAllText($target, $rewritten)
+            $count++
+
+            [void] $item.Add([pscustomobject] @{
+                    Name      = [string] $leaf
+                    Source    = [string] $from
+                    FileCount = 1
+                })
+
+            continue
+        }
+
+        $FileSystem.CopyItem($from, $target)
         $count++
 
         [void] $item.Add([pscustomobject] @{
                 Name      = [string] $leaf
                 Source    = [string] $from
+                FileCount = 1
+            })
+    }
+
+    # -- the screen the full-OS leg ends on --------------------------------
+    #
+    # ONE FILE OUT OF UI\, AND ONLY BECAUSE IT IS SHOWN AFTER THE REBOOT.
+    # Update-HDTBootImage keeps UI\ out of the module tree deliberately and
+    # stages it to X:\HDT\UI\ for the wizard, which runs in WinPE. The
+    # Deployment Summary is the one piece of markup drawn once Windows is up,
+    # so it has to travel with the engine.
+    #
+    # IT WAS NOT STAGED AT ALL, and the default path pointed into the module's
+    # own UI\ folder - which is not in the staged module. A deployment that
+    # SUCCEEDED end to end finished in silence, because the throw was caught and
+    # written to a stream nobody reads.
+    #
+    # OPTIONAL, LIKE bootstrap.json. An older boot image has no such file, and a
+    # machine that cannot show a summary must still finish its sequence.
+    $summarySource = [System.IO.Path]::Combine($Source, 'UI', 'HDTFailure.xaml')
+
+    if ($FileSystem.TestPath($summarySource)) {
+        $summaryFolder = [System.IO.Path]::Combine($destination, 'UI')
+        $FileSystem.CreateDirectory($summaryFolder)
+        $FileSystem.CopyItem($summarySource, [System.IO.Path]::Combine($summaryFolder, 'HDTFailure.xaml'))
+        $count++
+
+        [void] $item.Add([pscustomobject] @{
+                Name      = 'UI\HDTFailure.xaml'
+                Source    = [string] $summarySource
                 FileCount = 1
             })
     }

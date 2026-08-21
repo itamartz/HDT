@@ -243,6 +243,74 @@ Describe 'Start-HDTDeployment.ps1' {
                 Should -BeGreaterOrEqual 2
         }
 
+        It 'hides the console before it reads the bootstrap' {
+            # WHY THE HIDE IS NOT AT THE WIZARD ANY MORE. WinPE boots into
+            # cmd.exe running startnet.cmd, and that full-screen black window
+            # covers the desktop - so a BGInfo start command paints the
+            # wallpaper BEHIND it and the technician sees nothing until this
+            # payload hid the console for the wizard. MDT has no console to hide
+            # (winpeshl.ini runs LiteTouch.wsf as the shell), which is why the
+            # same BGInfo is on screen there from the first second.
+            #
+            # AFTER THE LOG CONTEXT, NOT BEFORE IT. The two failures that cannot
+            # be logged - powershell-yaml or Hephaestus not importing, and the
+            # log directory not being creatable - must still leave their message
+            # on a console somebody can read.
+            $firstHide = @(& $script:commandNamed 'Hide-HDTShellWindow' |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+            $bootstrap = @(& $script:commandNamed 'Get-HDTBootstrapConfiguration' |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+
+            $firstHide | Should -Not -BeNullOrEmpty
+            $bootstrap | Should -Not -BeNullOrEmpty
+            $firstHide.Extent.StartOffset | Should -BeLessThan $bootstrap.Extent.StartOffset
+        }
+
+        It 'opens the boot status overlay before it hides the console' {
+            # THE ORDER IS THE SAFETY. Hiding the console leaves a technician
+            # with whatever is on screen instead, and on a boot image built
+            # without WinPE-NetFx that is an empty wallpaper - no overlay, and
+            # no Welcome screen either. Start-HDTBootStatus reports Console for
+            # that machine and the payload leaves the console where it was, so
+            # the hide can only ever be a swap of one screen for a better one.
+            $overlay = @(& $script:commandNamed 'Start-HDTBootStatus' |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+            $firstHide = @(& $script:commandNamed 'Hide-HDTShellWindow' |
+                    Sort-Object { $_.Extent.StartOffset })[0]
+
+            $overlay | Should -Not -BeNullOrEmpty
+            $overlay.Extent.StartOffset | Should -BeLessThan $firstHide.Extent.StartOffset
+        }
+
+        It 'closes the overlay in the tail as well as when the engine takes over' {
+            # Step 10b closes it on a run that reached the engine. The tail is
+            # for the run that did not - a share it could not reach, a wizard
+            # somebody cancelled - where a transparent panel left over the
+            # failure screen would be one screen explaining another.
+            $close = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                        [string] $node.Member.Value -eq 'Close'
+                    }, $true) | Where-Object { $_.Extent.Text -match 'StatusHost' })
+
+            @($close).Count | Should -BeGreaterOrEqual 2
+            @($close | Where-Object { $_.Extent.StartOffset -gt $script:largestTry.Extent.EndOffset }).Count |
+                Should -BeGreaterOrEqual 1
+        }
+
+        It 'restores the console in the tail, outside the main try' {
+            # THE MACHINE MUST NOT END ON A SCREEN NOBODY CAN READ. The early
+            # hide lasts the whole run, so the restore belongs after the catch
+            # with the rest of the tail - a FATAL line, the failure screen and a
+            # technician left at a command prompt all need the console back.
+            $restore = @(& $script:commandNamed 'Hide-HDTShellWindow' | Where-Object {
+                    @(& $script:elementOf $_) -contains '-Restore' -and
+                    $_.Extent.StartOffset -gt $script:largestTry.Extent.EndOffset
+                })
+
+            @($restore).Count | Should -BeGreaterOrEqual 1
+        }
+
         It 'writes nothing with Write-Host' {
             @($script:everyCommandName | Where-Object { $_ -eq 'Write-Host' }) | Should -BeNullOrEmpty
         }

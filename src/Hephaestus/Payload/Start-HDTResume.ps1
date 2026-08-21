@@ -359,7 +359,13 @@ if (-not $skipSummary) {
         $summaryXaml = $SummaryXamlPath
 
         if ([string]::IsNullOrWhiteSpace($summaryXaml)) {
-            $summaryXaml = [System.IO.Path]::Combine($ModulePath, 'UI', 'HDTFailure.xaml')
+            # BESIDE THE AGENT, NOT INSIDE THE MODULE. Update-HDTBootImage keeps
+            # UI\ OUT of the module tree - the wizard runs in WinPE from
+            # X:\HDT\UI\ - so the staged module has no UI folder at all. This
+            # defaulted into it, the file was never there, and a deployment that
+            # succeeded end to end ended in silence.
+            $summaryXaml = [System.IO.Path]::Combine(
+                [System.IO.Path]::GetDirectoryName($StatePath), 'UI', 'HDTFailure.xaml')
         }
 
         $summary = Get-HDTDeploymentFailure -Record (Get-HDTRunLogRecord -Context $log) `
@@ -367,7 +373,21 @@ if (-not $skipSummary) {
 
         [void] (Show-HDTDeploymentFailure -Failure $summary -XamlPath $summaryXaml)
     } catch {
-        Write-Information ("the deployment summary could not be shown: {0}" -f $_.Exception.Message)
+        # INTO THE RUN LOG, NOT A STREAM NOBODY READS. This was
+        # Write-Information, so when the screen could not be drawn the reason
+        # went to a host that had already been hidden - which is how a missing
+        # HDTFailure.xaml looked exactly like a deployment with nothing to say.
+        $said = "the deployment summary could not be shown: {0}" -f $_.Exception.Message
+
+        Write-Information $said
+
+        if ($null -ne $log) {
+            try {
+                Write-HDTLog -Context $log -Severity Warning -Component 'Summary' -Message $said
+            } catch {
+                Write-Information 'and it could not be logged either.'
+            }
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-# WHAT THE DEPLOYED MACHINE NEEDS IN ORDER TO CARRY ON.
+﻿# WHAT THE DEPLOYED MACHINE NEEDS IN ORDER TO CARRY ON.
 #
 # DESIGN 4.5.1 launches the engine at logon from C:\HDT\Start-HDTResume.ps1, and
 # DESIGN 4.3 mirrors state.json to the target disk's \HDT\ "as soon as a
@@ -186,5 +186,117 @@ Describe 'Copy-HDTResumeAgent' {
 
             $fileSystem.TestPath('W:\HDT\Start-HDTResume.ps1') | Should -BeFalse
         }
+    }
+}
+
+# THE SHARE THE MACHINE ACTUALLY REACHED, NOT THE ONE THE IMAGE WAS BUILT WITH.
+#
+# bootstrap.json is baked into the boot image, so it carries whatever deploy
+# root was true when the image was made. A technician who corrects the share at
+# the Welcome screen - because the address moved, which in this lab it does -
+# fixes the WinPE leg only: the resume agent staged the boot image's own copy,
+# so the full-OS leg asked for the dead address again.
+#
+# Watched happen on 2026-08-21: the WinPE leg ran all nine steps against
+# \192.168.2.40\HDTShare after the screen was corrected, then the machine
+# rebooted, resumed, and stopped on 'the deployment share could not be reached'
+# for \192.168.2.39\HDTShare. Install Applications never ran, and no drive was
+# mapped - MDT's Z: - because the connect that maps it had already failed.
+Describe 'Copy-HDTResumeAgent and the share that was actually reached' {
+
+    BeforeEach {
+        $script:fs = & $script:newSource
+    }
+
+    It 'writes the resolved deploy root into the staged document' {
+        [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $script:fs `
+                -DeployRoot '\192.168.2.40\HDTShare' -Confirm:$false)
+
+        $staged = $script:fs.ReadAllText('W:\HDT\bootstrap.json') | ConvertFrom-Json
+
+        $staged.deployRoot | Should -BeExactly '\192.168.2.40\HDTShare'
+    }
+
+    # EVERY OTHER KEY IS THE IMAGE'S. The account, the provider, the content
+    # marker - one value is corrected and the document is otherwise the one the
+    # boot image was built with.
+    It 'leaves the rest of the document alone' {
+        $script:fs.SeedFile('X:\HDT\bootstrap.json',
+            '{ "deployRoot": "\\old\HDTShare", "provider": "Smb", "userId": "svc-hdt-deploy" }')
+
+        [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $script:fs `
+                -DeployRoot '\new\HDTShare' -Confirm:$false)
+
+        $staged = $script:fs.ReadAllText('W:\HDT\bootstrap.json') | ConvertFrom-Json
+
+        $staged.provider | Should -BeExactly 'Smb'
+        $staged.userId | Should -BeExactly 'svc-hdt-deploy'
+    }
+
+    # NOT GIVEN ONE, NOT TOUCHED. A caller with nothing to correct copies the
+    # document byte for byte, which is what every deployment did before this.
+    It 'copies it unchanged when no deploy root is given' {
+        [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $script:fs -Confirm:$false)
+
+        $staged = $script:fs.ReadAllText('W:\HDT\bootstrap.json') | ConvertFrom-Json
+
+        $staged.deployRoot | Should -BeExactly '\\server\HDTShare'
+    }
+
+    It 'still stages nothing when the image carries no bootstrap document' {
+        $bare = New-HDTFakeFileSystem -File @{
+            'X:\HDT\Start-HDTResume.ps1' = '# resume'
+        }
+
+        [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $bare `
+                -DeployRoot '\new\HDTShare' -Confirm:$false)
+
+        $bare.TestPath('W:\HDT\bootstrap.json') | Should -BeFalse
+    }
+}
+
+# THE SCREEN THE FULL-OS LEG ENDS ON HAS TO BE ON THE MACHINE THAT SHOWS IT.
+#
+# UI\ used to be staged NOWHERE, and correctly so: the wizard runs in WinPE,
+# before this disk has a partition table. Then the full-OS leg gained MDT's
+# Deployment Summary, and that screen is drawn AFTER the reboot - from a module
+# whose UI\ folder Update-HDTBootImage deliberately keeps out of the module tree.
+#
+# So the default path pointed at a file that never exists on a deployed machine,
+# Show-HDTDeploymentFailure threw, a try/catch swallowed it into
+# Write-Information, and a deployment that SUCCEEDED end to end ended in silence.
+# Watched on 2026-08-21: Acrobat installed, autologon torn down, run Succeeded,
+# and nothing on screen.
+#
+# ONE FILE, NOT THE FOLDER. The wizard, the progress window and the theme all
+# belong to WinPE; only the summary is shown after the reboot.
+Describe 'Copy-HDTResumeAgent and the screen the deployment ends on' {
+
+    It 'stages the summary screen beside the engine' {
+        $fs = & $script:newSource
+        $fs.SeedFile('X:\HDT\UI\HDTFailure.xaml', '<Window />')
+
+        [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false)
+
+        $fs.TestPath('W:\HDT\UI\HDTFailure.xaml') | Should -BeTrue
+    }
+
+    It 'counts it, so the log says what was staged' {
+        $fs = & $script:newSource
+        $fs.SeedFile('X:\HDT\UI\HDTFailure.xaml', '<Window />')
+
+        $answer = Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false
+
+        @($answer.Item | Where-Object { $_.Name -like '*HDTFailure.xaml' }) | Should -Not -BeNullOrEmpty
+    }
+
+    # AN IMAGE WITHOUT IT STILL DEPLOYS. An older boot image has no such file,
+    # and a machine that cannot show a summary must still finish its sequence.
+    It 'stages nothing when the image has no summary screen' {
+        $fs = & $script:newSource
+
+        { [void] (Copy-HDTResumeAgent -TargetVolume 'W:' -FileSystem $fs -Confirm:$false) } | Should -Not -Throw
+
+        $fs.TestPath('W:\HDT\UI\HDTFailure.xaml') | Should -BeFalse
     }
 }

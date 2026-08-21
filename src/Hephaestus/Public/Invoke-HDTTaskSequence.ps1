@@ -791,7 +791,32 @@
                     -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTOSVolume'])) {
 
                     try {
+                        # THE SHARE THIS RUN ACTUALLY REACHED, CARRIED ACROSS THE
+                        # REBOOT. bootstrap.json is baked into the boot image, so
+                        # it names whatever deploy root was true when the image
+                        # was built. A technician who corrects the share at the
+                        # Welcome screen - because the address moved - fixed the
+                        # WinPE leg and nothing else: the full-OS leg asked for
+                        # the dead address again, mapped no drive, and every step
+                        # needing content failed. Watched end to end on
+                        # 2026-08-21.
+                        #
+                        # A UNC ONLY, AND THAT IS THE WHOLE CARE HERE. A share is
+                        # the same string from both legs. A local root is not -
+                        # media that is D: in WinPE is commonly another letter
+                        # once Windows has assigned its own, so writing the
+                        # resolved path would hand the resume a letter that has
+                        # moved. Those keep the image's own value and resolve it
+                        # again, which is what Resolve-HDTDeployRoot is for.
+                        $carried = ''
+                        if ($Context.Variable.Contains('_HDTDeployRoot')) {
+                            $resolvedRoot = [string] $Context.Variable['_HDTDeployRoot']
+
+                            if ($resolvedRoot.StartsWith('\\')) { $carried = $resolvedRoot }
+                        }
+
                         $agent = Copy-HDTResumeAgent -TargetVolume ([string] $Context.Variable['HDTOSVolume']) `
+                            -DeployRoot $carried `
                             -FileSystem ($Context.Service.GetRequired('FileSystem', 'Restart')) -Confirm:$false
 
                         Write-HDTLog -Context $log -Component 'Restart' `

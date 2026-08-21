@@ -173,7 +173,14 @@ param(
     # on the share with the others (DESIGN 11.2's correction).
     [Parameter()]
     [ValidateNotNullOrEmpty()]
-    [string] $WelcomeXamlPath = 'X:\HDT\UI\HDTWelcome.xaml'
+    [string] $WelcomeXamlPath = 'X:\HDT\UI\HDTWelcome.xaml',
+
+    # AND THE ONE THAT RUNS BEFORE ANY OF THEM. The transparent panel that
+    # replaces the WinPE console between startnet.cmd and the first real window
+    # - see step 4a for why there has to be one.
+    [Parameter()]
+    [ValidateNotNullOrEmpty()]
+    [string] $BootStatusXamlPath = 'X:\HDT\UI\HDTBootStatus.xaml'
 )
 
 # -- 1. the preferences ------------------------------------------------------
@@ -203,6 +210,15 @@ $content = $null
 # that lost it.
 $display = $null
 
+# WHETHER THIS PAYLOAD HID THE WinPE CONSOLE, declared out here for the same
+# reason $display is: the tail restores it, and the tail runs after a failure.
+$shellHidden = $false
+
+# THE BOOT STATUS OVERLAY, AND $say WRITES TO IT. Declared before $say for that
+# reason, and read by the tail, which runs after a failure. Null until step 4a
+# opens one, and null again once the progress window has taken the screen over.
+$status = $null
+
 # One sentence, to the console and to LAUNCHER.log, and - once there is a log
 # context - to the engine's own stream as well. Step 5's failure is logged
 # rather than printed and lost precisely because step 4 built that context
@@ -213,6 +229,11 @@ $say = {
     $line = '{0:HH:mm:ss}  {1}' -f (Get-Date), $Message
     [void] $transcript.Add($line)
     Write-Information $line
+
+    # THE OVERLAY GETS THE SAME SENTENCE, and there is no branch on its Mode:
+    # Start-HDTBootStatus hands back a host either way and the console one
+    # writes nothing, because Write-Information above already did.
+    if ($null -ne $status) { $status.StatusHost.Write($line) }
 
     if ($null -ne $log) {
         Write-HDTLog -Context $log -Severity $Severity -Component 'Bootstrap' -Message $Message
@@ -327,6 +348,42 @@ try {
     & $say ("Hephaestus {0} loaded from {1}" -f $engine.Version, $engine.ModuleBase)
     & $say ("PowerShell {0}; launched by '{1}'" -f $PSVersionTable.PSVersion, $result['launchedBy'])
 
+    # -- 4a. the overlay goes up and the console goes away -------------------
+    #
+    # BECAUSE THE CONSOLE IS WHAT THE TECHNICIAN IS LOOKING AT INSTEAD OF THE
+    # SCREEN THIS TOOLKIT BUILT. WinPE boots into cmd.exe running startnet.cmd
+    # and that black full-screen window covers the desktop for as long as it is
+    # up. A BGInfo start command - the machine's serial, model and address on
+    # the wallpaper, which is why an administrator puts one in the image at all
+    # - paints BEHIND it, so nothing was visible until this payload hid the
+    # console for the wizard, minutes later. MDT has no console to hide:
+    # winpeshl.ini makes LiteTouch.wsf the shell, so its BGInfo is on screen
+    # from the first second. This is that, without replacing the shell.
+    #
+    # THE OVERLAY OPENS FIRST AND THE CONSOLE GOES ONLY IF IT DREW, and that
+    # order is the whole safety of this. Hiding the console leaves a technician
+    # with whatever is on screen instead - and on a boot image built without
+    # WinPE-NetFx there is no WPF, so 'instead' would be an empty wallpaper for
+    # the twenty seconds before a Welcome screen that also cannot be drawn.
+    # Start-HDTBootStatus reports Console for exactly that machine, this leaves
+    # the console alone, and $say keeps writing to it.
+    #
+    # AFTER THE LOG CONTEXT, NOT AT THE TOP OF THE FILE. The two failures that
+    # cannot be logged - powershell-yaml or Hephaestus refusing to import, and
+    # a log directory that cannot be created - happen above this line and must
+    # still leave their message on a console somebody can read. Everything
+    # below here is logged, the overlay repeats it on the wallpaper, and step 13
+    # puts the console back before the machine ends.
+    $status = Start-HDTBootStatus -XamlPath $BootStatusXamlPath -FileSystem $fileSystem
+
+    if ($status.Mode -eq 'Window') {
+        $shellHidden = [bool] (Hide-HDTShellWindow)
+    }
+
+    $result['bootStatusMode'] = [string] $status.Mode
+    & $say ("boot status: {0} {1}; the WinPE console was hidden: {2}" -f
+        $status.Mode, $status.Reason, $shellHidden)
+
     # -- 5. the bootstrap document -------------------------------------------
 
     $bootstrap = Get-HDTBootstrapConfiguration -Path $BootstrapPath -FileSystem $fileSystem
@@ -376,7 +433,11 @@ try {
         $answer = $null
 
         try {
-            $hidden = [bool] (Hide-HDTShellWindow)
+            # ONLY IF STEP 4a DID NOT ALREADY. Hiding twice is harmless; the
+            # RESTORE below is not, because it would put the console back over
+            # the wallpaper in the middle of a run that meant to keep it away.
+            if (-not $shellHidden) { $hidden = [bool] (Hide-HDTShellWindow) }
+
             $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -Title 'Hephaestus Deployment Toolkit' `
                 -Field $field -Pane $skip.Pane -Collect (Get-HDTWizardHarvest)
         } finally {
@@ -838,15 +899,15 @@ try {
 
         if ($ask.IsWizardNeeded) {
 
-            # THE CONSOLE GOES AWAY AND COMES BACK IN A finally. WinPE boots
-            # into cmd.exe running startnet.cmd, and that black window sits
-            # behind everything. Hidden is a presentation choice, never a place
-            # to get stuck: a hidden console plus a wizard that then throws
-            # leaves a technician staring at nothing.
+            # THE CONSOLE GOES AWAY AND COMES BACK IN A finally - UNLESS STEP
+            # 4a ALREADY HID IT, in which case this leaves both alone and the
+            # tail owns the restore. Hidden is a presentation choice, never a
+            # place to get stuck: a hidden console plus a wizard that then
+            # throws leaves a technician staring at nothing.
             $consoleHidden = $false
 
             try {
-                $consoleHidden = [bool] (Hide-HDTShellWindow)
+                if (-not $shellHidden) { $consoleHidden = [bool] (Hide-HDTShellWindow) }
 
                 # WHAT GOES IN THE BOXES, worked out by the command that owns
                 # that question. A network read that fails leaves the boxes
@@ -1056,6 +1117,15 @@ try {
     $result['progressMode'] = [string] $display.Mode
     & $say ("progress display: {0} {1}" -f $display.Mode, $display.Reason)
 
+    # AND THE OVERLAY COMES DOWN, because the deployment's own screen has taken
+    # over and nothing below this line is a boot step. Nulled as well as closed:
+    # $say reads it, and a closed runspace must not be written to for the next
+    # hour of a deployment.
+    if ($null -ne $status) {
+        $status.StatusHost.Close()
+        $status = $null
+    }
+
     if ($display.Mode -ne 'Suppressed') {
         # NOT IN THE EVENT STREAM. Every other value on that screen is derived
         # from the log; the machine's own name is a variable, and this is the
@@ -1142,6 +1212,23 @@ try {
 if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
     $display.DisplayHost.Close()
 }
+
+# AND THE CONSOLE COMES BACK, FIRST THING IN THE TAIL. Step 4a hid it for the
+# whole run so a BGInfo wallpaper would be visible; from here on the console is
+# what is wanted again. The FATAL line the catch just wrote is in that window,
+# the failure screen below sits over it exactly as it did before the hide moved,
+# and a technician left at a command prompt gets a prompt they can see.
+#
+# THE OVERLAY GOES DOWN FIRST. Step 10b already closed it on a run that reached
+# the engine; this is the run that did not - a share it could not reach, a
+# wizard somebody cancelled - and leaving a transparent panel over the failure
+# screen would be leaving one screen to explain another.
+if ($null -ne $status) {
+    $status.StatusHost.Close()
+    $status = $null
+}
+
+if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
 
 $result['elapsedSecond'] = [int] $started.Elapsed.TotalSeconds
 
