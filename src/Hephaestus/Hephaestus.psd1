@@ -202,10 +202,13 @@
         'Show-HDTWizard',
         'Start-HDTConsole',
         'Show-HDTWizardShell',
+        'New-HDTBootStatusHost',
+        'New-HDTConsoleBootStatusHost',
         'New-HDTConsoleProgressHost',
         'New-HDTProgressHost',
         'Split-HDTAccountName',
         'Start-HDTCommandPrompt',
+        'Start-HDTBootStatus',
         'Start-HDTProgressDisplay',
         'Start-HDTWizardDeployment',
         'Step-HDTWizardPage',
@@ -253,6 +256,7 @@
         # one Import-Module puts the console and the commands it invokes in the
         # same session.
         'Get-HDTConsoleBootImageSetting',
+        'Get-HDTConsoleRuleHelp',
         'Get-HDTConsoleRuleSetting',
         'Get-HDTConsoleConditionOption',
         'Show-HDTBootImageWindow',

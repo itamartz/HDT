@@ -422,8 +422,9 @@ Describe 'the WinPE UI stack' {
         # when each window happened to be built.
 
         It 'wires F8 in <_>' -ForEach @(
-            'New-HDTWizardHost.ps1',      # the Welcome screen AND the shell
-            'New-HDTProgressHost.ps1') {  # the status board, where it matters most
+            'New-HDTWizardHost.ps1',        # the Welcome screen AND the shell
+            'New-HDTProgressHost.ps1',      # the status board, during the deployment
+            'New-HDTBootStatusHost.ps1') {  # the overlay, where there IS nothing else
 
             $path = Join-Path -Path $script:sourceRoot -ChildPath ('Public/{0}' -f $PSItem)
 

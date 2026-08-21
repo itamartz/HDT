@@ -12,6 +12,7 @@
 
     FunctionsToExport    = @(
         'New-HDTFakeBootImageService',
+        'New-HDTFakeBootStatusHost',
         'New-HDTFakeBitLockerService',
         'New-HDTFakeCimProvider',
         'New-HDTFakeClock',

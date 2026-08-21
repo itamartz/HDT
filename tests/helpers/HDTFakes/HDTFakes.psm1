@@ -5486,7 +5486,108 @@ function New-HDTFakeProgressHost {
     return $service
 }
 
+function New-HDTFakeBootStatusHost {
+    <#
+        .SYNOPSIS
+            Creates an IBootStatusHost that draws nothing and records what it was
+            asked to draw.
+
+        .DESCRIPTION
+            The hand-written double behind the boot status overlay (DESIGN
+            12.2.3: fake, don't mock). New-HDTBootStatusHost is the real one and
+            is a branch-free WPF adapter, so it is not unit tested; this is what
+            lets Start-HDTBootStatus's DECISION - draw, or leave the WinPE
+            console where it is - be asserted with no display attached.
+
+            -FailOpen IS THE ONE THAT MATTERS, and it decides more here than it
+            does for the progress window. Start-HDTDeployment hides the WinPE
+            console ONLY when the overlay opened; a boot image built without
+            WinPE-NetFx has no PresentationFramework, Add-Type throws where a
+            window should have been, and the console must be left exactly where
+            it was. This is that machine, on a developer's desktop.
+
+        .PARAMETER FailOpen
+            Throw from Open, the way a machine with no WPF does.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal.
+
+        .OUTPUTS
+            A PSCustomObject with Open, Write and Close methods, an Operations
+            list, a Line list, LastXaml, LastCommandPromptPath and LastText.
+
+        .EXAMPLE
+            Start-HDTBootStatus -XamlPath $p -StatusHost (New-HDTFakeBootStatusHost -FailOpen)
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter()]
+        [switch] $FailOpen,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Journal
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $service = [pscustomobject] @{
+        FailOpen              = [bool] $FailOpen
+        Operations            = (New-Object -TypeName System.Collections.ArrayList)
+        Line                  = (New-Object -TypeName System.Collections.ArrayList)
+        Journal               = $Journal
+        LastXaml              = ''
+        LastCommandPromptPath = ''
+        LastText              = $null
+        IsOpen                = $false
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
+        param([string] $Operation)
+
+        [void] $this.Operations.Add($Operation)
+        if ($null -ne $this.Journal) { [void] $this.Journal.Add($Operation) }
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Open -Value {
+        param([string] $Xaml, [string] $CommandPromptPath, [hashtable] $Text)
+
+        $this.LastCommandPromptPath = $CommandPromptPath
+        $this.LastText = $Text
+
+        if ($this.FailOpen) {
+            # WHAT A MACHINE WITH NO WPF ACTUALLY DOES. Add-Type throws this
+            # shape when PresentationFramework is not there to load.
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not load file or assembly 'PresentationFramework'.")
+        }
+
+        $this.LastXaml = $Xaml
+        $this.IsOpen = $true
+        $this.Record('Open')
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Write -Value {
+        param([string] $Line)
+
+        [void] $this.Line.Add($Line)
+        $this.Record('Write')
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name Close -Value {
+        $this.IsOpen = $false
+        $this.Record('Close')
+    }
+
+    return $service
+}
+
 Export-ModuleMember -Function @(
+    'New-HDTFakeBootStatusHost',
     'New-HDTFakeProgressHost',
     'New-HDTFakeBootImageService',
     'New-HDTFakeWizardHost',

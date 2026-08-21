@@ -1,0 +1,125 @@
+<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Hephaestus Deployment Toolkit"
+    WindowStyle="None"
+    WindowState="Maximized"
+    ResizeMode="NoResize"
+    ShowInTaskbar="False"
+    AllowsTransparency="True"
+    Background="Transparent">
+
+    <!--
+        THE BOOT STATUS OVERLAY: what is on screen between startnet.cmd and the
+        first real window.
+
+        THE WINDOW IT REPLACES IS cmd.exe's. WinPE boots into cmd.exe running
+        startnet.cmd, and that black full-screen console covers the desktop for
+        the whole run. A BGInfo start command - the machine's serial, model and
+        address painted onto the wallpaper, which is the only reason an
+        administrator puts BGInfo in a boot image - draws BEHIND it, so a
+        technician never sees any of it. MDT has no console to hide: winpeshl.ini
+        makes LiteTouch.wsf the shell, which is why the same BGInfo is on screen
+        there from the first second.
+
+        Start-HDTDeployment hides the console for that reason - and the moment it
+        does, the twenty seconds before the Welcome screen have nothing on them
+        at all. This is what goes there.
+
+        SO IT IS TRANSPARENT, AND THAT IS THE WHOLE POINT. A second black
+        rectangle over the wallpaper would have solved nothing: the wallpaper is
+        what the hide was for. AllowsTransparency plus WindowStyle="None" is the
+        only combination WPF accepts for a window with no ground of its own, and
+        both are required together - one without the other throws at load.
+
+        MAXIMIZED, WITH THE TEXT PINNED TO A CORNER, RATHER THAN A SMALL WINDOW
+        SOMEBODY POSITIONS. A window sized and placed in code needs the screen's
+        dimensions, and this window's host is a thin adapter that must have
+        nothing in it worth testing (CLAUDE.md rule 1). A maximized transparent
+        window needs no arithmetic anywhere: the panel below lands bottom-left on
+        a 1024x768 WinPE screen and a 1920x1080 one alike, and everything it does
+        not cover is wallpaper.
+
+        BOTTOM-LEFT, BECAUSE THAT IS WHERE BGInfo IS NOT. BGInfo's default block
+        sits top-right, and the two reading each other's space would make both
+        unreadable. This is also where a log tail belongs.
+
+        NOT Topmost. The Welcome screen, the wizard and the progress board are
+        all full-screen and open over this one, which is exactly right: the
+        moment there is something better to look at, this is behind it. A
+        Topmost overlay would sit on top of the wizard a technician is typing
+        into.
+
+        NO BUTTONS, NO TITLE BAR, NO X. It is an account of what is happening,
+        not a dialog - the same thing HDTProgress.xaml is, and the WinPE UI
+        contract knows the difference. F8 opens a command prompt, wired by
+        New-HDTBootStatusHost, and with the console hidden this is the only
+        window a technician can reach one from.
+
+        NO x:Class AND NO MERGED DICTIONARY, for the reason every window in this
+        image carries: there is no compiler in WinPE, and a second file that must
+        reach the RAM disk intact is a XamlParseException waiting for the one
+        machine nobody can debug.
+    -->
+
+    <Grid>
+
+        <StackPanel
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            Margin="48,0,0,48"
+            MaxWidth="1100">
+
+            <!--
+                THE DROP SHADOW IS NOT DECORATION. This text has no ground behind
+                it - it is over whatever the wallpaper happens to be - and light
+                text on a light wallpaper is text nobody can read. A hard black
+                shadow at zero blur behind every glyph is what makes it legible
+                on any background, and it is what BGInfo itself does.
+            -->
+            <StackPanel.Effect>
+                <DropShadowEffect Color="#FF000000" BlurRadius="6" ShadowDepth="1" Opacity="0.95" />
+            </StackPanel.Effect>
+
+            <!--
+                THE TWO STRINGS ON THIS WINDOW COME FROM Strings\en-us.psd1's
+                BootStatus block, applied by name when the markup loads. Every
+                line below them is the payload's own sentence, written at
+                runtime - which is why this window carries almost no text at all.
+            -->
+            <TextBlock
+                x:Name="HDTBootStatusHeading"
+                FontFamily="Segoe UI"
+                FontSize="20"
+                FontWeight="SemiBold"
+                Foreground="#FFFFFFFF"
+                Margin="0,0,0,2" />
+
+            <!--
+                ONE LINE, AND IT IS THE ONE A TECHNICIAN READS FIRST. Everything
+                below is history; this is what the machine is doing now, so it is
+                the only thing on this window worth making bigger than the rest.
+            -->
+            <TextBlock
+                x:Name="HDTBootStatusCurrent"
+                FontFamily="Segoe UI"
+                FontSize="15"
+                Foreground="#FF4EC9B0"
+                TextTrimming="CharacterEllipsis"
+                Margin="0,0,0,10" />
+
+            <!--
+                THE TAIL. Monospace, because these lines are a log and their
+                timestamps should line up; dimmer than the line above, because
+                they have already happened.
+            -->
+            <TextBlock
+                x:Name="HDTBootStatusLines"
+                FontFamily="Consolas"
+                FontSize="13"
+                LineHeight="18"
+                Foreground="#FFD4D4D4"
+                TextWrapping="NoWrap" />
+        </StackPanel>
+    </Grid>
+</Window>
