@@ -122,7 +122,7 @@ Describe 'Get-HDTConsoleWorkspace and the monitor' {
             # SuppressMessageAttribute inside a SCRIPT BLOCK param block is
             # ignored outright, so an unused parameter cannot be waved away and
             # has to be used.
-            param($Xaml, $Title, $Node, $Theme, $Size, $ThemeName, $RefreshSecond, $NewSequenceXaml,
+            param($Xaml, $Title, $Node, $Theme, $Size, $RefreshSecond, $NewSequenceXaml,
                 $ImportOperatingSystemXaml, $ImportApplicationXaml, $ApplicationDependencyXaml,
                 $ApplicationDetectionXaml, $Fill, $NewWorkspaceXaml)
 
@@ -132,7 +132,6 @@ Describe 'Get-HDTConsoleWorkspace and the monitor' {
                 Node                      = $Node
                 Theme                     = $Theme
                 Size                      = $Size
-                ThemeName                 = $ThemeName
                 RefreshSecond             = $RefreshSecond
                 NewSequenceXaml           = $NewSequenceXaml
                 ImportOperatingSystemXaml = $ImportOperatingSystemXaml
