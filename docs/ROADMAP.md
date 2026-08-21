@@ -478,6 +478,37 @@ produces the same operation list under `Local` as under `Smb`.
 
 **Exit:** a USB stick built from the share deploys a machine with no network.
 
+**Carried over from v1, and it must be decided before `New-HDTMedia` is
+written** — three behaviours built for SMB that a disc has no answer for:
+
+1. **Five attempts, then the Welcome screen.** `Start-HDTDeployment` retries the
+   deploy root five times (2/4/6/8s) and, when it still cannot be reached, opens
+   the Welcome screen with the share box prefilled so a technician can correct
+   it. That is right for SMB, where the usual cause is an address that moved. On
+   media there is nothing to correct: the content is on the disc the machine
+   booted from, and a share box offered for a disc is a question with no answer.
+   The Local provider should fail with what is actually wrong - the marker was
+   not found on any ready volume - rather than asking for a UNC path.
+
+2. **The corrected share is carried into the full-OS leg, for UNC only.**
+   `Invoke-HDTTaskSequence` writes the resolved deploy root into the staged
+   `bootstrap.json` so the resume leg uses the share that actually answered.
+   It is guarded to `\\` deliberately: media that is `D:` in WinPE is commonly
+   another letter once Windows has assigned its own, so carrying a resolved
+   local path would hand the resume a drive letter that has moved. Media must
+   keep the image's own value and resolve it again through
+   `Resolve-HDTDeployRoot` from the content marker. There is a test for this -
+   "leaves a local root alone, because a drive letter moves" - and it should
+   stay green when media arrives.
+
+3. **The log copy-back has two destinations, and a disc is not one.** The WinPE
+   leg now copies its log to `<osvolume>\HDT\Logs` before restarting, and the
+   run is copied to `<deployRoot>\Logs` at the end. The first is right for
+   media; the second writes to read-only content. `Get-HDTLogDestination`
+   already answers `HDTSLShare` first, which is the escape hatch - but a media
+   deployment with no `HDTSLShare` set should not be trying to write to the
+   disc, and today nothing stops it.
+
 ---
 
 ## M8 — Console (WPF)
