@@ -1,4 +1,4 @@
-BeforeAll {
+﻿BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $script:helperManifest = Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1'
     Import-Module -Name Pester -MinimumVersion 5.0.0 -MaximumVersion 5.99.99 -ErrorAction Stop
@@ -97,5 +97,41 @@ Describe 'New-HDTPesterConfiguration' {
 
     It 'throws when Path is empty' {
         { New-HDTPesterConfiguration -Path @() } | Should -Throw
+    }
+}
+
+# PESTER MAKES A TestRegistry PER CONTAINER WHETHER OR NOT ANYTHING USES ONE.
+#
+# It creates and deletes a GUID key under HKCU:\Software\Pester for every test
+# FILE. Two files in this repository use TestRegistry:; the other 307 pay for it
+# anyway - and eight workers creating and deleting keys under one parent race,
+# so the enumeration fails with "Test-Path : No more data is available" and a
+# whole file dies with "Framework failed". Seven different files were the victim
+# across one afternoon; none of them touched the registry.
+#
+# OFF UNLESS ASKED FOR. The two files that need it get a configuration that
+# turns it back on, and Split-HDTTestBucket keeps them in one bucket, so exactly
+# one process ever touches that key.
+Describe 'New-HDTPesterConfiguration and the registry nobody asked for' {
+
+    It 'leaves TestRegistry off' {
+        $configuration = New-HDTPesterConfiguration -Path 'tests/unit'
+
+        $configuration.TestRegistry.Enabled.Value | Should -BeFalse
+    }
+
+    It 'turns it on when a caller says its files need one' {
+        $configuration = New-HDTPesterConfiguration -Path 'tests/unit' -TestRegistry
+
+        $configuration.TestRegistry.Enabled.Value | Should -BeTrue
+    }
+
+    # TestDrive IS A DIFFERENT THING AND STAYS ON. Eighteen files use it, it is
+    # a directory per container rather than one shared parent, and nothing has
+    # ever raced on it.
+    It 'leaves TestDrive alone' {
+        $configuration = New-HDTPesterConfiguration -Path 'tests/unit'
+
+        $configuration.TestDrive.Enabled.Value | Should -BeTrue
     }
 }

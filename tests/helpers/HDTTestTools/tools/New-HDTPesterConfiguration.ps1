@@ -68,7 +68,20 @@ function New-HDTPesterConfiguration {
 
         [Parameter()]
         [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
-        [string] $Verbosity = 'Detailed'
+        [string] $Verbosity = 'Detailed',
+
+        # PESTER MAKES A TestRegistry PER CONTAINER WHETHER OR NOT ANYTHING USES
+        # ONE - a GUID key created and deleted under HKCU:\Software\Pester for
+        # every test FILE. Two files in this repository use TestRegistry:; the
+        # other 307 paid for it anyway, and eight workers creating and deleting
+        # keys under one parent race: the enumeration fails with "Test-Path : No
+        # more data is available" and a whole file dies with "Framework failed".
+        # Seven different files were the victim in one afternoon and none of
+        # them touched the registry.
+        #
+        # OFF UNLESS A CALLER SAYS ITS FILES NEED ONE.
+        [Parameter()]
+        [switch] $TestRegistry
     )
 
     if (-not (Get-Command -Name 'New-PesterConfiguration' -ErrorAction SilentlyContinue)) {
@@ -82,6 +95,10 @@ function New-HDTPesterConfiguration {
     $configuration.Run.Exit = $false
     $configuration.Output.Verbosity = $Verbosity
     $configuration.Should.ErrorAction = 'Stop'
+
+    # TestDrive IS A DIFFERENT THING AND STAYS ON: a directory per container
+    # rather than one shared parent, and nothing has ever raced on it.
+    $configuration.TestRegistry.Enabled = [bool] $TestRegistry
 
     if ($ExcludeTag) {
         $configuration.Filter.ExcludeTag = $ExcludeTag

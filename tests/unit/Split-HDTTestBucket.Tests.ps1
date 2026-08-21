@@ -1,4 +1,4 @@
-# Splitting the suite across worker processes, so ./build.ps1 -Task test can run
+﻿# Splitting the suite across worker processes, so ./build.ps1 -Task test can run
 # more than one at a time.
 #
 # WHY BUCKETS AND NOT JUST "EVERY Nth FILE". Round-robin over an alphabetical
@@ -140,5 +140,43 @@ Describe 'Split-HDTTestBucket' {
 
             $total[0] | Should -BeGreaterOrEqual $total[-1]
         }
+    }
+}
+
+# THE TWO FILES THAT USE TestRegistry SHARE A BUCKET.
+#
+# Pester creates its GUID keys under one HKCU:\Software\Pester parent, so two
+# workers doing it at once race and a third worker's file dies enumerating it.
+# Keeping them together means exactly one process ever touches that key.
+Describe 'Split-HDTTestBucket and the registry files' {
+
+    It 'never splits the files that need a TestRegistry' {
+        $path = @(
+            'tests/unit/Get-HDTAdkComponent.Tests.ps1'
+            'tests/unit/Get-HDTAdkPath.Tests.ps1'
+            'tests/unit/A.Tests.ps1'
+            'tests/unit/B.Tests.ps1'
+            'tests/unit/C.Tests.ps1'
+            'tests/unit/D.Tests.ps1'
+        )
+
+        $bucket = @(Split-HDTTestBucket -Path $path -Worker 4 -RegistryPath @(
+                'tests/unit/Get-HDTAdkComponent.Tests.ps1'
+                'tests/unit/Get-HDTAdkPath.Tests.ps1'))
+
+        $holding = @($bucket | Where-Object {
+                @($_) -match 'Get-HDTAdk' })
+
+        @($holding).Count | Should -Be 1 -Because 'one process, one registry parent'
+    }
+
+    It 'still places every file exactly once' {
+        $path = @('a.Tests.ps1', 'b.Tests.ps1', 'c.Tests.ps1', 'd.Tests.ps1', 'e.Tests.ps1')
+
+        $bucket = @(Split-HDTTestBucket -Path $path -Worker 3 -RegistryPath @('b.Tests.ps1', 'd.Tests.ps1'))
+
+        $assigned = @($bucket | ForEach-Object { $_ })
+
+        @($assigned | Sort-Object -Unique).Count | Should -Be 5
     }
 }

@@ -90,7 +90,24 @@ for ($attempt = 1; $attempt -le 10; $attempt++) {
 
 $path = @(Get-Content -LiteralPath $ListPath | Where-Object { $_ })
 
-$configuration = New-HDTPesterConfiguration -Path $path -ResultPath $ResultPath -Verbosity $Verbosity
+# A TestRegistry ONLY IF THIS WORKER'S OWN FILES USE ONE. Pester creates a GUID
+# key under a single HKCU:\Software\Pester for every container, so eight workers
+# doing that at once race and some third worker's file dies enumerating it -
+# "Test-Path : No more data is available", reported as "Framework failed" against
+# a file that never touched the registry.
+#
+# READ FROM THE FILES THEMSELVES, not from a list kept somewhere else: a list is
+# a thing to forget to update the day a test starts using TestRegistry:.
+$needsRegistry = $false
+foreach ($candidate in $path) {
+    if ((Get-Content -LiteralPath $candidate -Raw -ErrorAction SilentlyContinue) -match 'TestRegistry') {
+        $needsRegistry = $true
+        break
+    }
+}
+
+$configuration = New-HDTPesterConfiguration -Path $path -ResultPath $ResultPath `
+    -Verbosity $Verbosity -TestRegistry:$needsRegistry
 
 # THE FAILURE STAYS THE FAILURE. If Invoke-Pester throws - a malformed list file
 # gives "Illegal characters in path" out of its own Find-File - then $result is

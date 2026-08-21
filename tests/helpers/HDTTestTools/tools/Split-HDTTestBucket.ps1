@@ -56,7 +56,16 @@ function Split-HDTTestBucket {
         [int] $Worker,
 
         [Parameter()]
-        [hashtable] $Duration = @{}
+        [hashtable] $Duration = @{},
+
+        # THE FILES THAT NEED A TestRegistry, WHICH MUST SHARE A BUCKET. Pester
+        # creates its keys under one HKCU:\Software\Pester parent, so two
+        # workers doing it at once race and some third worker's file dies
+        # enumerating it. Together in one bucket means one process ever touches
+        # that key.
+        [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]] $RegistryPath = @()
     )
 
     $file = @($Path | Where-Object { $_ })
@@ -96,7 +105,19 @@ function Split-HDTTestBucket {
         $bucket[$i] = New-Object System.Collections.ArrayList
     }
 
+    # THE REGISTRY FILES FIRST AND TOGETHER. They go to bucket 0 before
+    # anything else is placed, so the balancer fills around them rather than
+    # having to be asked to keep them together afterwards.
+    $registry = @($RegistryPath | Where-Object { $ordered -contains $_ })
+
+    foreach ($item in $registry) {
+        $null = $bucket[0].Add($item)
+        $load[0] += $cost[$item]
+    }
+
     foreach ($item in $ordered) {
+        if ($registry -contains $item) { continue }
+
         $lightest = 0
         for ($i = 1; $i -lt $count; $i++) {
             if ($load[$i] -lt $load[$lightest]) {

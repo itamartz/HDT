@@ -693,7 +693,15 @@ function Invoke-HDTShardedTest {
         }
     }
 
-    $bucket = @(Split-HDTTestBucket -Path $file -Worker $Worker -Duration $duration)
+    # THE FILES THAT USE A TestRegistry GO IN ONE BUCKET, so exactly one worker
+    # ever creates a key under HKCU:\Software\Pester. Found by reading the files
+    # rather than by keeping a list: a list is a thing to forget.
+    $registryFile = @($file | Where-Object {
+            (Get-Content -LiteralPath $_ -Raw -ErrorAction SilentlyContinue) -match 'TestRegistry'
+        })
+
+    $bucket = @(Split-HDTTestBucket -Path $file -Worker $Worker -Duration $duration `
+            -RegistryPath $registryFile)
 
     Get-ChildItem -Path $shardDirectory -File -ErrorAction SilentlyContinue |
         Remove-Item -Force -ErrorAction SilentlyContinue
