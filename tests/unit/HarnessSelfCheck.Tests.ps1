@@ -154,18 +154,23 @@ Describe 'Harness self-proof (ROADMAP M0)' {
             $sourceFile | Should -Contain $script:passFixture
         }
 
-        It 'produces no analyzer diagnostics for the repository sources' -Skip:$script:HDTAnalyzerMissing {
-            $sourceFile = @(Get-HDTSourceFile -RepositoryRoot $script:repoRoot)
-            $sourceFile.Count | Should -BeGreaterThan 0
-
-            $diagnostic = @()
-            foreach ($path in $sourceFile) {
-                $diagnostic += @(Invoke-ScriptAnalyzer -Path $path -Settings $script:analyzerSettings)
-            }
-
-            ($diagnostic | ForEach-Object { '{0}:{1} {2}' -f $_.ScriptName, $_.Line, $_.RuleName }) -join '; ' | Should -BeExactly ''
-        }
-
+        # THE CLEAN-SOURCES SWEEP IS NOT HERE. It used to be: an It that looped
+        # Invoke-ScriptAnalyzer over all 730 files of Get-HDTSourceFile and
+        # asserted no diagnostics. That is ./build.ps1 -Task lint, character for
+        # character - same source set, same settings file, same failure - and
+        # 'ci' runs lint anyway, before this suite, so the sweep only ever ran
+        # second on an already-proven tree.
+        #
+        # IT COST 78 SECONDS AND IT SET THE FLOOR ON THE WHOLE SUITE. That one
+        # It made this the slowest file in tests/ at 121s, which is a quarter of
+        # a 500s run, and it capped test sharding: no number of parallel workers
+        # can finish sooner than the longest single file.
+        #
+        # WHAT M0 ACTUALLY ASKS FOR IS STILL PROVEN, by the two bait-fixture Its
+        # above - a deliberately dirty file produces diagnostics, including
+        # PSUseCompatibleSyntax. That is the claim "analyzer violations are
+        # detected". Whether the repository happens to be clean today is lint's
+        # question, and lint fails the build on it.
         It 'excludes the analyzer bait from the source set, so it never turns the suite red' {
             # The bait contains ?? and cannot be parsed by 5.1 at all.
             @(Get-HDTSourceFile -RepositoryRoot $script:repoRoot) | Should -Not -Contain $script:analyzerBait

@@ -29,7 +29,7 @@
         Pester output verbosity for the test task.
 
     .PARAMETER Coverage
-        Measure code coverage over src/Hephaestus during the test task and write
+        Measure code coverage over the module bundle during the test task and write
         out/coverage/coverage.xml, plus the two shields.io badge documents in
         out/badges/ that the README renders from.
 
@@ -37,8 +37,26 @@
         the suite executes; a developer running one file should not pay for a
         number nobody is going to read. CI asks for it once per push.
 
+    .PARAMETER Worker
+        How many child processes the test task spreads the suite across.
+
+        0, the default, picks one per core less two, capped at eight - measured
+        on this repository as the point where more workers stop buying anything,
+        because by then the run is bounded by its single longest test file rather
+        than by how many are in flight. 1 runs everything in this process, which
+        is what to use when a failure needs reading in order.
+
+        NOT COMPATIBLE WITH -Coverage, which measures one process and so runs
+        unsharded whatever this says.
+
     .EXAMPLE
         ./build.ps1 -Task test
+
+    .EXAMPLE
+        ./build.ps1 -Task test -Worker 1
+
+        One process, output in order. What to run when something failed and the
+        interleaved output of eight workers is not what you want to read.
 
     .EXAMPLE
         ./build.ps1 -Task ci
@@ -61,7 +79,10 @@ param(
     [ValidateSet('None', 'Normal', 'Detailed', 'Diagnostic')]
     [string] $Verbosity = 'Detailed',
 
-    [switch] $Coverage
+    [switch] $Coverage,
+
+    [ValidateRange(0, 128)]
+    [int] $Worker = 0
 )
 
 Set-StrictMode -Version Latest
@@ -165,9 +186,12 @@ function Invoke-HDTBundle {
             in a fresh 5.1 process - and that second is what somebody watches
             nothing happen for after Start-HDTConsole -Detach.
 
-            THE ARTEFACT IS NEVER COMMITTED and never has to exist:
-            Hephaestus.psm1 falls back to the individual files whenever it is
-            missing OR older than any source, so a stale one cannot run.
+            THE ARTEFACT IS NEVER COMMITTED, and it is the only thing
+            Hephaestus.psm1 loads. This task does not have to be run: the loader
+            calls Write-HDTModuleBundle itself whenever the bundle is missing or
+            older than a source, so a stale one cannot run. It is here so that a
+            build produces one deliberately, before build stages it and drops the
+            sources it replaces.
     #>
     [CmdletBinding()]
     [OutputType([void])]
@@ -249,10 +273,18 @@ function Invoke-HDTLint {
     <#
         .SYNOPSIS
             Runs PSScriptAnalyzer over every HDT source file and the engine manifest.
+
+        .PARAMETER Worker
+            How many child processes to spread the files across. 1 analyses them
+            in this process.
     #>
     [CmdletBinding()]
     [OutputType([void])]
-    param()
+    param(
+        [Parameter()]
+        [ValidateRange(1, 128)]
+        [int] $Worker = 1
+    )
 
     # Being listed by Get-Module -ListAvailable is not enough: on Windows
     # PowerShell 5.1 the analyzer can show up inside another module's
@@ -266,10 +298,19 @@ function Invoke-HDTLint {
     $file = @(Get-HDTSourceFile -RepositoryRoot $script:HDTRepositoryRoot)
     $file += $script:HDTModuleManifest
 
-    $diagnostic = @()
-    foreach ($path in $file) {
-        $diagnostic += @(Invoke-ScriptAnalyzer -Path $path -Settings $script:HDTAnalyzerSettings)
-    }
+    # ONE PROCESS PER SHARD, BECAUSE THE ANALYZER ITSELF CANNOT BE MADE CHEAPER.
+    # PSScriptAnalyzer costs a flat ~110ms per file here and almost none of that
+    # is any one rule: measured over the 115 files under Private, the full rule
+    # set takes 13.0s and the same run with PSUseCompatibleSyntax excluded takes
+    # 12.7s. Batching the calls does not help either - it analyses the same files
+    # and saves only the per-invocation setup, about 7 seconds of 78. What is
+    # left is to do it on more than one core.
+    #
+    # THE BUNDLE IS ALREADY OUT, because Get-HDTSourceFile excludes it: the
+    # suppression attributes that were valid in their own files match nothing
+    # once they sit beside 364 others, and the analyzer raises a terminating
+    # error rather than a diagnostic on it.
+    $diagnostic = @(Invoke-HDTShardedLint -Path $file -Worker $Worker -Settings $script:HDTAnalyzerSettings)
 
     foreach ($item in $diagnostic) {
         Write-Information ("{0} {1} {2}:{3} {4}" -f $item.Severity, $item.RuleName, $item.ScriptPath, $item.Line, $item.Message)
@@ -282,13 +323,152 @@ function Invoke-HDTLint {
     Write-Information ("lint: 0 diagnostics across {0} file(s)" -f $file.Count)
 }
 
+function Invoke-HDTShardedLint {
+    <#
+        .SYNOPSIS
+            Analyses a file list across child processes and returns every
+            diagnostic they found.
+
+        .DESCRIPTION
+            One worker is the ordinary in-process loop, so nothing about a
+            single-core machine, or -Worker 1, goes through the process
+            machinery.
+
+            EVERY WORKER MUST REPORT. A shard whose file is missing died before
+            writing it, and its files therefore went unanalysed - reporting the
+            surviving shards' diagnostics would be a lint that passed by not
+            looking, which is worse than a lint that failed.
+
+            THE BUCKETS ARE EVEN BY COUNT, not by cost: analyzer time per file
+            varies far less than test time per file does, and there is no
+            previous run to take timings from.
+
+        .PARAMETER Path
+            The files to analyse.
+
+        .PARAMETER Worker
+            How many child processes to use.
+
+        .PARAMETER Settings
+            The PSScriptAnalyzer settings file every worker uses.
+
+        .OUTPUTS
+            The diagnostics, flattened to Severity, RuleName, ScriptPath, Line
+            and Message.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Starts child processes and writes into the build output directory, which is the task it was asked to run.')]
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Path,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, 128)]
+        [int] $Worker,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Settings
+    )
+
+    if ($Worker -le 1) {
+        return @($Path | ForEach-Object { Invoke-ScriptAnalyzer -Path $_ -Settings $Settings })
+    }
+
+    # PER PROCESS, for the reason Invoke-HDTShardedTest spells out: a second
+    # build running at the same time must not share these files.
+    $shardDirectory = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'lintShards') -ChildPath $PID
+    if (Test-Path -LiteralPath $shardDirectory -PathType Container) {
+        Get-ChildItem -Path $shardDirectory -File -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    } else {
+        $null = New-Item -Path $shardDirectory -ItemType Directory -Force
+    }
+
+    $bucket = @(Split-HDTTestBucket -Path $Path -Worker $Worker)
+    $shardScript = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/helpers/HDTLintShard.ps1'
+    $hostPath = (Get-Process -Id $PID).Path
+
+    Write-Information ("lint: {0} file(s) across {1} worker(s)" -f @($Path).Count, $bucket.Count)
+
+    $shard = @()
+    for ($i = 0; $i -lt $bucket.Count; $i++) {
+        $listPath = Join-Path -Path $shardDirectory -ChildPath ('list-{0}.txt' -f $i)
+        Set-Content -LiteralPath $listPath -Value $bucket[$i] -Encoding UTF8
+
+        $diagnosticPath = Join-Path -Path $shardDirectory -ChildPath ('diagnostic-{0}.clixml' -f $i)
+
+        $argument = @(
+            '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+            '-File', $shardScript,
+            '-ListPath', $listPath,
+            '-DiagnosticPath', $diagnosticPath,
+            '-SettingsPath', $Settings
+        )
+
+        $errorPath = Join-Path -Path $shardDirectory -ChildPath ('err-{0}.log' -f $i)
+
+        $process = Start-Process -FilePath $hostPath -ArgumentList $argument -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path -Path $shardDirectory -ChildPath ('out-{0}.log' -f $i)) `
+            -RedirectStandardError $errorPath
+
+        if ($null -eq $process) {
+            throw ("Lint worker {0} of {1} could not be started ({2}), so its {3} file(s) would not have been analysed." -f
+                ($i + 1), $bucket.Count, $hostPath, @($bucket[$i]).Count)
+        }
+
+        $shard += [pscustomobject] @{
+            Process        = $process
+            DiagnosticPath = $diagnosticPath
+            ErrorPath      = $errorPath
+            FileCount      = @($bucket[$i]).Count
+        }
+    }
+
+    try {
+        $null = $shard | ForEach-Object { $_.Process } | Wait-Process
+    } finally {
+        foreach ($item in $shard) {
+            if (-not $item.Process.HasExited) {
+                Stop-Process -Id $item.Process.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    $diagnostic = @()
+    for ($i = 0; $i -lt $shard.Count; $i++) {
+        if (-not (Test-Path -LiteralPath $shard[$i].DiagnosticPath -PathType Leaf)) {
+            # THE EXIT CODE BELONGS NEXT TO THE LOG. This read its err-N.log from
+            # the start, which is more than the test half did, but an analyzer
+            # worker killed for memory writes nothing at all - and an empty
+            # reason here reads as no reason.
+            $exitCode = $null
+            try {
+                $exitCode = $shard[$i].Process.ExitCode
+            } catch {
+                $exitCode = $null
+            }
+
+            throw ("lint worker {0} of {1} died without reporting, so its {2} file(s) were not analysed. {3}" -f
+                ($i + 1), $shard.Count, $shard[$i].FileCount,
+                (Get-HDTShardFailureReason -ErrorPath $shard[$i].ErrorPath -ExitCode $exitCode))
+        }
+
+        $diagnostic += @((Import-Clixml -LiteralPath $shard[$i].DiagnosticPath).Diagnostic)
+    }
+
+    return @($diagnostic)
+}
+
 function Invoke-HDTTest {
     <#
         .SYNOPSIS
             Runs the unit and contract suites and fails the build on any failure.
 
         .DESCRIPTION
-            With -Coverage it also profiles src/Hephaestus, writes JaCoCo to
+            With -Coverage it also profiles the module bundle - the one file
+            Hephaestus.psm1 loads - writes JaCoCo to
             out/coverage/coverage.xml and emits the two badge documents the
             README renders. See the -Coverage help on build.ps1 itself.
 
@@ -297,6 +477,10 @@ function Invoke-HDTTest {
 
         .PARAMETER Coverage
             Measure coverage and write the badges.
+
+        .PARAMETER Worker
+            How many child processes to spread the suite across. 1 runs it in
+            this process, exactly as it always did.
     #>
     [CmdletBinding()]
     [OutputType([void])]
@@ -306,7 +490,11 @@ function Invoke-HDTTest {
         [string] $OutputVerbosity = 'Detailed',
 
         [Parameter()]
-        [switch] $Coverage
+        [switch] $Coverage,
+
+        [Parameter()]
+        [ValidateRange(1, 128)]
+        [int] $Worker = 1
     )
 
     # tests/fixtures and tests/selfcheck are never in Run.Path.
@@ -328,17 +516,63 @@ function Invoke-HDTTest {
 
     $coverageArgument = @{}
     if ($Coverage) {
-        # THE ENGINE, NOT THE TESTS AND NOT THE HELPERS. Coverage of a test file
+        # THE BUNDLE, BECAUSE THE BUNDLE IS WHAT RUNS.
+        #
+        # Hephaestus.psm1 loads Hephaestus.bundle.ps1 and nothing else, so the
+        # scriptblocks Pester traces belong to that file. Profiling the folder
+        # instead would measure the bundle correctly AND score all 377 sources
+        # at nought for never having executed - halving the number on the front
+        # page while nothing about the tests changed.
+        #
+        # WHICH SOURCE A COVERED LINE CAME FROM IS STILL RECOVERABLE, from the
+        # '# ---- source: ... ----' markers in the bundle: Resolve-HDTBundleLine
+        # maps a line in out/coverage/coverage.xml back to Public\Foo.ps1 and a
+        # line in it. The JaCoCo document is a nightly artefact somebody opens
+        # by hand, not an input to anything, so it is left as Pester wrote it.
+        #
+        # NOT THE TESTS AND NOT THE HELPERS, either way. Coverage of a test file
         # is a tautology - it ran, or it did not - and coverage of the fakes
         # measures the harness rather than the product.
-        $coverageArgument['CoveragePath'] = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'src/Hephaestus'
+        Import-Module -Name $script:HDTModuleManifest -Force -ErrorAction Stop
+
+        $bundlePath = Join-Path -Path (Split-Path -Parent $script:HDTModuleManifest) -ChildPath 'Hephaestus.bundle.ps1'
+
+        # IMPORTING IT IS WHAT BUILDS IT - the loader writes the bundle whenever
+        # a source is newer - so by here it exists. Saying so out loud rather
+        # than measuring an empty path and reporting 0%.
+        if (-not (Test-Path -LiteralPath $bundlePath -PathType Leaf)) {
+            throw ("there is no bundle at '{0}' to measure coverage over. ./build.ps1 -Task bundle is what writes it." -f $bundlePath)
+        }
+
+        $coverageArgument['CoveragePath'] = $bundlePath
         $coverageArgument['CoverageResultPath'] = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'coverage') -ChildPath 'coverage.xml'
     }
 
-    $configuration = New-HDTPesterConfiguration -Path $path -ResultPath $resultPath -Verbosity $OutputVerbosity @coverageArgument
-    $result = Invoke-Pester -Configuration $configuration
+    # MORE THAN ONE WORKER MEANS CHILD PROCESSES, and coverage cannot come with
+    # them: Pester's profiler is per-process and JaCoCo documents do not merge by
+    # concatenation, so -Coverage stays on the single-process path. Saying so
+    # rather than silently producing a coverage badge measured over one eighth of
+    # the suite.
+    if ($Worker -gt 1 -and $Coverage) {
+        Write-Warning 'test: -Coverage measures one process, so this run is not sharded. Drop -Coverage to use -Worker.'
+    }
 
-    Write-Information ("test: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $resultPath)
+    if ($Worker -gt 1 -and -not $Coverage) {
+        $result = Invoke-HDTShardedTest -Path $path -Worker $Worker -ResultPath $resultPath -OutputVerbosity $OutputVerbosity
+    } else {
+        $configuration = New-HDTPesterConfiguration -Path $path -ResultPath $resultPath -Verbosity $OutputVerbosity @coverageArgument
+        $result = Invoke-Pester -Configuration $configuration
+    }
+
+    # THE PATH IT NAMES HAS TO BE ONE THAT EXISTS. A sharded run never writes
+    # $resultPath - each worker writes a sibling of it - so printing it would
+    # send whoever reads the log to a file that is not there.
+    $written = $resultPath
+    if ($Worker -gt 1 -and -not $Coverage) {
+        $written = '{0}-shard*of*.xml' -f (Join-Path -Path (Split-Path -Parent $resultPath) -ChildPath ([IO.Path]::GetFileNameWithoutExtension($resultPath)))
+    }
+
+    Write-Information ("test: {0} passed, {1} failed, {2} skipped -> {3}" -f $result.PassedCount, $result.FailedCount, $result.SkippedCount, $written)
 
     # BEFORE THE JUDGEMENT, DELIBERATELY. A red run still writes its badges, and
     # they say so - a badge that only exists when the build is green is a badge
@@ -351,6 +585,259 @@ function Invoke-HDTTest {
     Write-HDTBuildBadge -Result $result
 
     Assert-HDTPesterResult -Result $result -Suite 'test'
+}
+
+function Invoke-HDTShardedTest {
+    <#
+        .SYNOPSIS
+            Runs the suite across several child processes and returns one result.
+
+        .DESCRIPTION
+            WHY PROCESSES AND NOT RUNSPACES. The engine targets Windows
+            PowerShell 5.1, which has no ForEach-Object -Parallel, and Pester 5
+            keeps enough module-scoped state that sharing a session between
+            concurrent runs is not something it promises. Processes also give
+            the isolation the suite already assumes - two test files that both
+            reach for the same scratch directory cannot see each other's
+            $env: or current location.
+
+            THE CHILD IS THE SAME EDITION THIS BUILD IS RUNNING UNDER, resolved
+            off $PID rather than by hunting for powershell.exe: a 5.1 leg that
+            silently shells out to pwsh proves nothing about 5.1, which is the
+            whole point of running both legs.
+
+            BALANCE IS THE LEVER, NOT THE WORKER COUNT. A sharded run cannot
+            finish before its longest bucket, so the previous run's per-file
+            seconds are fed to Split-HDTTestBucket to pack longest-first. The
+            durations live in out/testResults, which -Task clean deletes; the
+            first run after a clean is merely unbalanced, never wrong.
+
+            EVERY WORKER WRITES ITS OWN NUnit XML. Nothing merges them because
+            nothing needs to: both CI workflows collect out/testResults/*.xml as
+            a glob, and the verdict comes from the summaries, not the documents.
+
+        .PARAMETER Path
+            The suite directories to run.
+
+        .PARAMETER Worker
+            How many child processes to start.
+
+        .PARAMETER ResultPath
+            The NUnit path the single-process run would have used. Each worker
+            writes a sibling of it, suffixed with its shard number.
+
+        .PARAMETER OutputVerbosity
+            Pester output verbosity, passed to every worker.
+
+        .OUTPUTS
+            The merged result, shaped as Write-HDTBuildBadge and
+            Assert-HDTPesterResult expect.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Starts child processes and writes into the build output directory, which is the task it was asked to run.')]
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Path,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(2, 128)]
+        [int] $Worker,
+
+        [Parameter(Mandatory = $true)]
+        [string] $ResultPath,
+
+        [Parameter(Mandatory = $true)]
+        [string] $OutputVerbosity
+    )
+
+    $file = @(Get-ChildItem -Path $Path -Filter '*.Tests.ps1' -File -Recurse | ForEach-Object { $_.FullName })
+
+    if ($file.Count -eq 0) {
+        throw ("No test file was found under {0}. A build that ran nothing is not a build that succeeded." -f ($Path -join ', '))
+    }
+
+    $resultDirectory = Split-Path -Parent $ResultPath
+
+    # PER PROCESS, NOT ONE SHARED FOLDER. Two builds running at once - a second
+    # shell, another agent, a watch task - would otherwise overwrite each other's
+    # list-N.txt between the write and the worker reading it, and each would run
+    # the other's files while deleting the logs the other was still writing.
+    # Observed as "the process cannot access the file 'err-2.log'" from clean.
+    $shardDirectory = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'testShards') -ChildPath $PID
+
+    # AND THE TIMINGS OUTSIDE IT, BECAUSE THE NEXT BUILD HAS A DIFFERENT PID.
+    # The per-process isolation above is right for the volatile files - the
+    # lists, the logs, the summaries - and was silently fatal for the durations,
+    # which are the one thing here that is meant to outlive the run. Read from
+    # the per-PID directory they were always read from a folder created seconds
+    # earlier, so $duration was always empty, so Split-HDTTestBucket priced every
+    # file at its 1.0 default and the longest-first pack degraded to plain
+    # round-robin. Measured across the eight buckets that produced: 50.8s to
+    # 91.8s, which is the whole imbalance the packer exists to remove.
+    $timingDirectory = Join-Path -Path (Join-Path -Path $script:HDTOutputPath -ChildPath 'testShards') -ChildPath 'timing'
+
+    foreach ($directory in @($resultDirectory, $shardDirectory, $timingDirectory)) {
+        if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+            $null = New-Item -Path $directory -ItemType Directory -Force
+        }
+    }
+
+    # THE PREVIOUS RUN'S TIMINGS, IF THERE ARE ANY. A hint and nothing more: a
+    # file with no entry is priced at the mean, and -Task clean deletes the lot.
+    $duration = @{}
+    foreach ($csv in @(Get-ChildItem -Path $timingDirectory -Filter 'duration-*.csv' -File -ErrorAction SilentlyContinue)) {
+        foreach ($row in @(Import-Csv -LiteralPath $csv.FullName)) {
+            $duration[[string] $row.Path] = [double] $row.Seconds
+        }
+    }
+
+    $bucket = @(Split-HDTTestBucket -Path $file -Worker $Worker -Duration $duration)
+
+    Get-ChildItem -Path $shardDirectory -File -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
+    # BUILD THE BUNDLE HERE, IN ONE PROCESS, BEFORE ANY WORKER STARTS.
+    # Hephaestus.psm1 rebuilds Hephaestus.bundle.ps1 whenever a source is newer
+    # than it, and every worker imports the engine. Left to themselves, eight
+    # processes that all find a stale bundle all try to write the same file and
+    # seven of them die on "because it is being used by another process" -
+    # observed, not theorised, the first time a source file was saved while the
+    # suite was running.
+    #
+    # IMPORTING IS WHAT BUILDS IT, so this line is the rebuild. It costs the
+    # 1.37s the bundle exists to save and it happens once.
+    #
+    # A SOURCE SAVED AFTER THIS POINT can still race. Closing that properly means
+    # an atomic write inside Write-HDTModuleBundle - temp file plus move - rather
+    # than a wider window here.
+    Import-Module -Name $script:HDTModuleManifest -Force -ErrorAction Stop
+
+    $shardScript = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'tests/helpers/HDTTestShard.ps1'
+    $hostPath = (Get-Process -Id $PID).Path
+
+    Write-Information ("test: {0} file(s) across {1} worker(s) of {2}" -f $file.Count, $bucket.Count, $hostPath)
+
+    $shard = @()
+    for ($i = 0; $i -lt $bucket.Count; $i++) {
+        $listPath = Join-Path -Path $shardDirectory -ChildPath ('list-{0}.txt' -f $i)
+        Set-Content -LiteralPath $listPath -Value $bucket[$i] -Encoding UTF8
+
+        $summaryPath = Join-Path -Path $shardDirectory -ChildPath ('summary-{0}.clixml' -f $i)
+        $shardResult = Join-Path -Path $resultDirectory -ChildPath (
+            '{0}-shard{1}of{2}.xml' -f [IO.Path]::GetFileNameWithoutExtension($ResultPath), ($i + 1), $bucket.Count)
+
+        $argument = @(
+            '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+            '-File', $shardScript,
+            '-ListPath', $listPath,
+            '-SummaryPath', $summaryPath,
+            '-DurationPath', (Join-Path -Path $shardDirectory -ChildPath ('duration-{0}.csv' -f $i)),
+            '-ResultPath', $shardResult,
+            '-Verbosity', $OutputVerbosity
+        )
+
+        $errorPath = Join-Path -Path $shardDirectory -ChildPath ('err-{0}.log' -f $i)
+
+        $process = Start-Process -FilePath $hostPath -ArgumentList $argument -PassThru -WindowStyle Hidden `
+            -RedirectStandardOutput (Join-Path -Path $shardDirectory -ChildPath ('out-{0}.log' -f $i)) `
+            -RedirectStandardError $errorPath
+
+        # -PassThru RETURNING NOTHING IS ITS OWN DEFECT. Stored unchecked it
+        # reaches Wait-Process as a null InputObject, which is terminating under
+        # $ErrorActionPreference = 'Stop' and names neither the shard nor the
+        # cause - and leaves the workers that DID start running detached.
+        if ($null -eq $process) {
+            throw ("Worker {0} of {1} could not be started ({2}), so its {3} file(s) would not have run." -f
+                ($i + 1), $bucket.Count, $hostPath, @($bucket[$i]).Count)
+        }
+
+        $shard += [pscustomobject] @{
+            Process     = $process
+            SummaryPath = $summaryPath
+            ErrorPath   = $errorPath
+            ListPath    = $listPath
+            FileCount   = @($bucket[$i]).Count
+        }
+    }
+
+    # NO WORKER OUTLIVES THE BUILD THAT STARTED IT. Start-Process children are
+    # in no job object, so a throw between here and the end of the wait would
+    # leave up to eight suites running detached - writing into out/ and into the
+    # scratch paths the NEXT build is about to clear, which is a machine for
+    # manufacturing exactly the "died mid-write" symptom being diagnosed.
+    try {
+        $null = $shard | ForEach-Object { $_.Process } | Wait-Process
+    } finally {
+        foreach ($item in $shard) {
+            if (-not $item.Process.HasExited) {
+                Stop-Process -Id $item.Process.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # A MISSING SUMMARY IS PASSED THROUGH AS $null ON PURPOSE.
+    # Merge-HDTPesterSummary is what turns that into a failure, so that the
+    # decision lives next to the counts it would otherwise have been folded into.
+    #
+    # AND THE REASON TRAVELS WITH IT. The stderr of a dead worker was captured
+    # and never read: eight workers died on one Import-Module, every err-N.log
+    # said so in plain English, and the build printed "worker 1 of 8 did not
+    # report a result". Invoke-HDTShardedLint has read its logs from the start;
+    # this is the half that was missing.
+    $summary = @()
+    $reason = @()
+
+    foreach ($item in $shard) {
+        # .ExitCode THROWS on a process that has not exited, and a worker this
+        # function had to stop in the finally above may not have done so yet.
+        # An unknown code is a fact the reason can state; an exception here
+        # would replace the diagnosis with itself.
+        $exitCode = $null
+        try {
+            $exitCode = $item.Process.ExitCode
+        } catch {
+            $exitCode = $null
+        }
+
+        $result = $null
+        $failure = ''
+
+        if (Test-Path -LiteralPath $item.SummaryPath -PathType Leaf) {
+            # TEST-PATH IS NOT READABILITY. A worker killed part way through
+            # Export-Clixml leaves a truncated document, and an unguarded import
+            # throws raw XML out of build.ps1 instead of the sentence the merge
+            # exists to produce. Both cases funnel into the same named path.
+            try {
+                $result = Import-Clixml -LiteralPath $item.SummaryPath
+            } catch {
+                $result = $null
+                $failure = "its summary '{0}' could not be read ({1}), so it was killed part way through writing it. {2}" -f
+                $item.SummaryPath, $_.Exception.Message, (Get-HDTShardFailureReason -ErrorPath $item.ErrorPath -ExitCode $exitCode)
+            }
+        } else {
+            # WHAT IT WAS GIVEN FIRST, WHAT IT SAID LAST. The stderr quote is
+            # several lines and ends the sentence; anything appended after it
+            # runs into the last line of a stack trace.
+            $failure = 'it was given {0} file(s), listed in ''{1}''. {2}' -f
+            $item.FileCount, $item.ListPath, (Get-HDTShardFailureReason -ErrorPath $item.ErrorPath -ExitCode $exitCode)
+        }
+
+        $summary += , $result
+        $reason += $failure
+    }
+
+    # THE TIMINGS SURVIVE THE RUN. Copied rather than written here directly, so
+    # a second build racing this one can only ever replace a whole file with
+    # another whole file - and the worst a mixed pair costs is a slightly worse
+    # pack next time.
+    foreach ($csv in @(Get-ChildItem -Path $shardDirectory -Filter 'duration-*.csv' -File -ErrorAction SilentlyContinue)) {
+        Copy-Item -LiteralPath $csv.FullName -Destination (Join-Path -Path $timingDirectory -ChildPath $csv.Name) `
+            -Force -ErrorAction SilentlyContinue
+    }
+
+    return Merge-HDTPesterSummary -Summary $summary -Reason $reason
 }
 
 function Write-HDTBuildBadge {
@@ -808,8 +1295,8 @@ try {
             'version' { Invoke-HDTVersion }
             'bundle' { Invoke-HDTBundle }
             'build' { Invoke-HDTBuild }
-            'lint' { Invoke-HDTLint }
-            'test' { Invoke-HDTTest -OutputVerbosity $Verbosity -Coverage:$Coverage }
+            'lint' { Invoke-HDTLint -Worker (Get-HDTWorkerCount -Requested $Worker) }
+            'test' { Invoke-HDTTest -OutputVerbosity $Verbosity -Coverage:$Coverage -Worker (Get-HDTWorkerCount -Requested $Worker) }
             'selfcheck' { Invoke-HDTSelfCheck }
             'integration' { Invoke-HDTIntegrationTest -OutputVerbosity $Verbosity }
             'e2e' { Invoke-HDTEndToEndTest -OutputVerbosity $Verbosity }

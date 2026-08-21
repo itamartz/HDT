@@ -212,8 +212,20 @@ Describe 'build.ps1' {
         It 'measures the engine, not the tests that exercise it' {
             $body = & $script:functionBody 'Invoke-HDTTest'
 
-            $body | Should -BeLike '*src/Hephaestus*'
+            $body | Should -BeLike '*HDTModuleManifest*'
             $body | Should -Not -BeLike '*CoveragePath*tests/unit*'
+        }
+
+        It 'measures the bundle, because the bundle is the only thing that runs' {
+            # Hephaestus.psm1 loads Hephaestus.bundle.ps1 and nothing else.
+            # Pointing this at the src/Hephaestus FOLDER would measure the bundle
+            # correctly and score all 377 sources at nought for never having
+            # executed - halving the number on the front page while nothing
+            # about the tests changed.
+            $body = & $script:functionBody 'Invoke-HDTTest'
+
+            $body | Should -Match '(?s)\$Coverage[^}]*Hephaestus\.bundle\.ps1'
+            $body | Should -Not -Match "CoveragePath'\]\s*=\s*Join-Path[^\r\n]*'src/Hephaestus'"
         }
 
         It 'writes the badges in one place' {
@@ -433,6 +445,96 @@ Describe 'build.ps1' {
 
             $body | Should -Match 'Hephaestus\.bundle\.ps1'
             $body | Should -Match '(?s)bundle[^}]*throw'
+        }
+    }
+
+    Context 'the sharded test runner' {
+
+        # WHAT WENT WRONG. Every worker of a sharded run died on the same
+        # Import-Module, each wrote the reason to out/testShards/<pid>/err-N.log,
+        # and the build printed "worker 1 of 8 did not report a result" and not
+        # one word of the eight logs it had just captured. The sibling function
+        # Invoke-HDTShardedLint reads its err-N.log and appends it to the throw;
+        # the test half was written without that. These assertions pin the half
+        # that was missing.
+
+        It 'reads the standard error of a worker that did not report' {
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match 'err-\{0\}\.log'
+            $body | Should -Match 'Get-HDTShardFailureReason'
+        }
+
+        It 'keeps each worker error log on the record it later judges' {
+            # The failure path cannot name a file the record does not carry.
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match 'ErrorPath'
+        }
+
+        It 'reads the exit code the worker process left behind' {
+            # A worker that threw exits 1, one that was killed exits with an
+            # NTSTATUS, and one that never started has no code at all. All three
+            # currently produce the same sentence.
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match 'ExitCode'
+        }
+
+        It 'passes what it found to the merge that judges it' {
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match '(?s)Merge-HDTPesterSummary.*-Reason'
+        }
+
+        It 'refuses a worker process that never started' {
+            # Start-Process -PassThru returns nothing when the host cannot be
+            # launched. Storing $null there makes Wait-Process throw "Cannot
+            # bind argument to parameter 'InputObject'", which names neither the
+            # shard nor the cause.
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match '(?s)Start-Process.*\$null -eq'
+        }
+
+        It 'survives a summary that was half written' {
+            # A worker killed mid-Export-Clixml leaves a truncated file.
+            # Test-Path passing is not the same as Import-Clixml succeeding, and
+            # an unguarded import throws raw XML at the operator instead of the
+            # sentence Merge-HDTPesterSummary exists to produce.
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            $body | Should -Match '(?s)try[^\r\n]*\r?\n[^\r\n]*Import-Clixml'
+        }
+
+        It 'reads the previous run''s timings from somewhere the next run will look' {
+            # THE BALANCING WAS SILENTLY OFF. The shard directory is keyed by
+            # $PID, and the durations were read from that same directory - so a
+            # new build, with a new PID, always found it empty, priced every file
+            # at the 1.0 default and degraded Split-HDTTestBucket to plain
+            # round-robin. Measured spread across the eight buckets it produced:
+            # 50.8s to 91.8s, which is the whole imbalance the packer exists to
+            # remove.
+            $body = & $script:functionBody 'Invoke-HDTShardedTest'
+
+            # The statement that FILLS $duration, not every mention of a
+            # duration file: the run also copies the workers' timings out of the
+            # per-PID directory afterwards, which is the one place that name
+            # still belongs.
+            $line = @($body -split "`r?`n")
+            $start = -1
+            for ($i = 0; $i -lt $line.Count; $i++) {
+                if ($line[$i] -match '^\s*\$duration = @\{\}\s*$') {
+                    $start = $i
+                }
+            }
+
+            $start | Should -BeGreaterThan -1
+            $window = @($line[$start..([Math]::Min($start + 5, $line.Count - 1))]) -join ' '
+
+            $window | Should -Match 'duration-\*\.csv'
+            $window | Should -Match '\$timingDirectory'
+            $window | Should -Not -Match '\$shardDirectory'
         }
     }
 
