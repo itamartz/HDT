@@ -1,4 +1,4 @@
-# build.ps1 - the task runner, asserted BY PARSING IT rather than by running it.
+﻿# build.ps1 - the task runner, asserted BY PARSING IT rather than by running it.
 #
 # Running it here would be running a build inside a build. What matters is the
 # shape of the dispatcher, and there is a real trap in it that a ValidateSet
@@ -404,6 +404,35 @@ Describe 'build.ps1' {
 
             $body | Should -BeLike '*ADK*'
             $body | Should -Match '(?s)ADK[^}]*Write-Warning'
+        }
+    }
+
+    Context 'what gets staged' {
+
+        # THE PACKAGE SHIPS THE BUNDLE AND NOT THE SOURCES IT REPLACES. Both is
+        # the same code twice - 2.6 MB of it - and leaves the loader deciding
+        # between two copies on a timestamp comparison, on a machine where
+        # neither copy will ever be edited.
+        #
+        # Update-HDTBootImage already staged it this way into WinPE. This is the
+        # same decision for the Gallery.
+        It 'drops the sources the bundle replaces' {
+            $body = & $script:functionBody 'Invoke-HDTBuild'
+
+            $body | Should -Match "'Private'"
+            $body | Should -Match "'Public'"
+            $body | Should -Match 'Remove-Item'
+        }
+
+        # AND IT REFUSES RATHER THAN SHIPPING A MODULE THAT CANNOT LOAD. Removing
+        # the sources is only safe because the bundle is there; a stage with
+        # neither is a package that imports nothing, and the Gallery keeps it for
+        # ever.
+        It 'refuses to trim a stage that has no bundle in it' {
+            $body = & $script:functionBody 'Invoke-HDTBuild'
+
+            $body | Should -Match 'Hephaestus\.bundle\.ps1'
+            $body | Should -Match '(?s)bundle[^}]*throw'
         }
     }
 

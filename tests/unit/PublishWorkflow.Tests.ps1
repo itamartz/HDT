@@ -81,7 +81,29 @@ Describe 'the publish workflow' {
 
     It 'gates on the suite before it ships anything' {
         # An unpublishable build is a bad day; a published broken one is worse.
-        $script:publishText | Should -Match '\./build\.ps1\s+-Task\s+ci'
+        #
+        # ON A run: LINE, NOT ANYWHERE IN THE FILE. This asserted that the text
+        # held './build.ps1 -Task ci' and passed on a COMMENT saying so, which
+        # is how it stayed green through the change that stopped the workflow
+        # running ci at all.
+        $ran = @($script:publishText -split "`r?`n" |
+                Where-Object { $_ -match '^\s*run:\s*\./build\.ps1\s+-Task\s+\S' })
+
+        @($ran).Count | Should -BeGreaterThan 0
+        ($ran -join ' ') | Should -Match 'build,lint,test,selfcheck'
+    }
+
+    # AND IT MUST NOT BUMP THE VERSION IT HAS JUST CHECKED. The version task
+    # rewrites ModuleVersion in the manifest; running it here published 0.5.0
+    # under a tag reading 0.4.0, because the step below re-reads the manifest.
+    It 'runs no task that can move ModuleVersion' {
+        $ran = @($script:publishText -split "`r?`n" |
+                Where-Object { $_ -match '^\s*run:\s*\./build\.ps1\s+-Task\s+\S' })
+
+        foreach ($line in $ran) {
+            $line | Should -Not -Match '-Task\s+(\S*,)?version(,|\s|$)'
+            $line | Should -Not -Match '-Task\s+(\S*,)?ci(,|\s|$)'
+        }
     }
 
     It 'publishes what the build staged, not the working tree' {

@@ -212,7 +212,37 @@ function Invoke-HDTBuild {
     $sourcePath = Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'src/Hephaestus/*'
     Copy-Item -Path $sourcePath -Destination $stagePath -Recurse -Force
 
-    Write-Information ("build: {0} {1} staged to {2}" -f $manifest.Name, $manifest.Version, $stagePath)
+    # THE PACKAGE SHIPS THE BUNDLE AND NOT THE 375 FILES IT REPLACES. Both is
+    # the same 2.6 MB of code twice, and it leaves Hephaestus.psm1 choosing
+    # between two copies on a timestamp comparison - on a machine where neither
+    # copy will ever be edited, and where the copy that loses is the fast one.
+    #
+    # Update-HDTBootImage already stages WinPE this way, for the same reason.
+    # This is that decision for the Gallery.
+    #
+    # THE BUNDLE HAS TO BE THERE FIRST. Dropping the sources is only safe
+    # because it is: a package with neither imports nothing, and the Gallery
+    # keeps a published version for ever. ./build.ps1 -Task bundle is what puts
+    # it there, and it runs before build in the canonical order.
+    $stagedBundle = Join-Path -Path $stagePath -ChildPath 'Hephaestus.bundle.ps1'
+
+    if (-not (Test-Path -LiteralPath $stagedBundle -PathType Leaf)) {
+        throw ("the stage has no Hephaestus.bundle.ps1, so the sources cannot be dropped from it. " +
+            "Run the bundle task first: ./build.ps1 -Task bundle,build.")
+    }
+
+    # BY NAME, INSIDE THE FOLDER THIS FUNCTION JUST CREATED, and nowhere near
+    # the source tree - see the delete rules in CLAUDE.md.
+    foreach ($replaced in @('Private', 'Public')) {
+        $trim = Join-Path -Path $stagePath -ChildPath $replaced
+
+        if (Test-Path -LiteralPath $trim) {
+            Remove-Item -LiteralPath $trim -Recurse -Force
+        }
+    }
+
+    Write-Information ("build: {0} {1} staged to {2} (bundled; Private\ and Public\ dropped)" -f
+        $manifest.Name, $manifest.Version, $stagePath)
 }
 
 function Invoke-HDTLint {

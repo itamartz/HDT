@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:HDTModuleRoot = $PSScriptRoot
@@ -64,8 +64,20 @@ if ($null -ne $bundle) {
     try {
         . $bundle.FullName
     } catch {
-        throw ("Failed to dot-source '{0}': {1}. Delete it and import again - it is a generated file, and the module loads from its sources without it." -f
-            $bundle.FullName, $_.Exception.Message)
+        # WHAT TO DO NEXT DEPENDS ON WHETHER THE SOURCES ARE THERE. In a
+        # working tree they are, and deleting the bundle falls back to them.
+        # A PACKAGE OFF THE GALLERY HAS ONLY THE BUNDLE - ./build.ps1 -Task
+        # build drops Private\ and Public\ once it has bundled them - so
+        # telling somebody to delete it there is telling them to delete the
+        # module. Reinstalling is the answer that works.
+        $remedy = 'Reinstall the module - this package ships the bundle only, so there are no sources to fall back to.'
+
+        if (@($privateFile + $publicFile).Count -gt 0) {
+            $remedy = 'Delete it and import again - it is a generated file, and the module loads from its sources without it.'
+        }
+
+        throw ("Failed to dot-source '{0}': {1}. {2}" -f
+            $bundle.FullName, $_.Exception.Message, $remedy)
     }
 } else {
     foreach ($file in @($privateFile + $publicFile)) {

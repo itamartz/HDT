@@ -145,7 +145,7 @@ jobs:
           $staged = "out/Hephaestus/$($manifest.ModuleVersion)"
 
           if (-not (Test-Path -LiteralPath $staged)) {
-              throw "the build staged nothing at '$staged'. ./build.ps1 -Task build is what puts it there."
+              throw "the build staged nothing at '$staged'. ./build.ps1 -Task bundle,build is what puts it there."
           }
 
           # WHAT IS ABOUT TO BE PUBLISHED IS THE STAGED MANIFEST, not the one
