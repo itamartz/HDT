@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!--
   THE ANSWER FILE A NEW TASK SEQUENCE GETS, and MDT's Unattend_x64.xml in the
   same role: its New Task Sequence wizard copies a template answer file into the
@@ -41,6 +41,20 @@
       <ComputerName>%HDTComputerName%</ComputerName>
       <RegisteredOwner>%HDTFullName%</RegisteredOwner>
       <RegisteredOrganization>%HDTOrgName%</RegisteredOrganization>
+
+      <!--
+        AND THE ELEMENT THAT DISAPPEARS WHEN NOBODY SETS IT. MDT's ProductKey.
+        Windows reads this in the specialize pass, and an EMPTY element fails
+        the pass - so a token nobody supplied cannot simply be left here.
+        ApplyUnattend removes the whole element when HDTProductKey resolves to
+        nothing, which is exactly how this template behaved before the line
+        existed and how a KMS or LTSC build has to keep behaving.
+
+        A TEMPLATE MAY ALSO HARD-CODE A KEY HERE and never mention the
+        variable. That is left alone: only the element still holding the
+        unresolved token is removed.
+      -->
+      <ProductKey>%HDTProductKey%</ProductKey>
 
       <!--
         WITHOUT THIS, THE LOCALE DECIDES, AND en-US MEANS PACIFIC. Microsoft's

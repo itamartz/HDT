@@ -1,4 +1,4 @@
-# The unattend, staged where SPIKES S7 proved Setup consumes it.
+﻿# The unattend, staged where SPIKES S7 proved Setup consumes it.
 #
 #   <target>:\Windows\Panther\unattend.xml
 #
@@ -317,6 +317,121 @@ Describe 'Invoke-HDTApplyUnattendStep' {
             Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
 
             { [xml] $script:fileSystem.ReadAllText($script:pantherPath) } | Should -Not -Throw
+        }
+    }
+
+    Context 'the product key' {
+
+        # THE ELEMENT CANNOT BE LEFT EMPTY AND CANNOT BE LEFT LITERAL. Windows
+        # reads ProductKey in the specialize pass; an empty one fails the pass
+        # and the literal '%HDTProductKey%' fails it too, so the only safe shape
+        # for a machine nobody supplied a key for is NO ELEMENT AT ALL - which
+        # is how every deployment behaved before the token existed, and how a
+        # KMS or LTSC build has to keep behaving.
+
+        BeforeEach {
+            $script:keyedTemplate = @'
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup">
+      <ComputerName>%HDTComputerName%</ComputerName>
+      <ProductKey>%HDTProductKey%</ProductKey>
+    </component>
+  </settings>
+</unattend>
+'@
+        }
+
+        It 'substitutes a key that was supplied' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor ([ordered] @{ HDTProductKey = 'VK7JG-NPHTM-C97JM-9MPGT-3V66T' }) $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            [string] $fs.File[$script:pantherPath] | Should -BeLike '*<ProductKey>VK7JG-NPHTM-C97JM-9MPGT-3V66T</ProductKey>*'
+        }
+
+        It 'trims a key pasted with surrounding space' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor ([ordered] @{ HDTProductKey = '  VK7JG-NPHTM-C97JM-9MPGT-3V66T  ' }) $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            [string] $fs.File[$script:pantherPath] | Should -BeLike '*<ProductKey>VK7JG-NPHTM-C97JM-9MPGT-3V66T</ProductKey>*'
+        }
+
+        It 'removes the element entirely when nothing supplied a key' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor $null $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            [string] $fs.File[$script:pantherPath] | Should -Not -BeLike '*ProductKey*'
+        }
+
+        It 'removes the element when the key resolved to whitespace' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor ([ordered] @{ HDTProductKey = '   ' }) $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            [string] $fs.File[$script:pantherPath] | Should -Not -BeLike '*ProductKey*'
+        }
+
+        It 'leaves the rest of the document alone when it removes the element' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor $null $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            [string] $fs.File[$script:pantherPath] | Should -BeLike '*<ComputerName>HDT-M3-01</ComputerName>*'
+        }
+
+        It 'never removes a key an author hard-coded into the template' {
+            # THE TRAP THIS AVOIDS. Stripping every ProductKey element would
+            # delete the literal key of a template that carries one and never
+            # mentions the variable - a sequence that worked, silently
+            # deactivated. Only the element holding the UNRESOLVED TOKEN goes.
+            $literal = $script:keyedTemplate -replace '%HDTProductKey%', 'W269N-WFGWX-YVC9B-4J6C9-T83GX'
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $literal }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor $null $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            [string] $fs.File[$script:pantherPath] | Should -BeLike '*<ProductKey>W269N-WFGWX-YVC9B-4J6C9-T83GX</ProductKey>*'
+        }
+
+        It 'does not report the token as unresolved when it removed the element' {
+            # The warning counts tokens nothing supplied. An element that was
+            # deliberately removed is not an unsupplied token, and reporting it
+            # would train a technician to ignore the line that matters.
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor $null $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $record = @(Get-HDTLogRecord -FileSystem $fs -Path 'X:\HDT\Logs\HDT.jsonl')
+            @($record | Where-Object { [string] $_.message -like '*HDTProductKey*' }).Count | Should -Be 0
+        }
+
+        It 'never writes the key to the log' {
+            $fs = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:keyedTemplate }
+            $script:fileSystem = $fs
+            $context = & $script:newContextFor ([ordered] @{ HDTProductKey = 'VK7JG-NPHTM-C97JM-9MPGT-3V66T' }) $script:state
+
+            $null = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            [string] $fs.File['X:\HDT\Logs\HDT.jsonl'] | Should -Not -BeLike '*VK7JG*'
         }
     }
 

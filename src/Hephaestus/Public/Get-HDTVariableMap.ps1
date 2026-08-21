@@ -228,6 +228,15 @@
         @{ HDTName = 'HDTOrgName'; MdtName = 'OrgName'; Origin = 'authored'
             Description = 'Registered organisation written into the answer file.'
         }
+        # MDT HAS TWO NAMES FOR THIS AND HDT HAS ONE. ProductKey and
+        # OverrideProductKey exist in MDT because a task sequence could carry
+        # its own key and a rule needed a way to beat it. HDT's precedence
+        # already answers that - a rule outranks a sequence default (DESIGN
+        # 3.1) - so a second name would be a second way to say the same thing,
+        # and the pair is exactly where an MDT admin loses an afternoon.
+        @{ HDTName = 'HDTProductKey'; MdtName = 'ProductKey'; Origin = 'authored'
+            Description = "Windows product key written into the answer file's specialize pass. Unset removes the element rather than writing an empty one, which is what a KMS or LTSC build needs and what an empty element would fail the pass over."
+        }
         @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword'; Origin = 'authored'
             Description = 'Local administrator password for the deployed machine; never written to a log.'
         }

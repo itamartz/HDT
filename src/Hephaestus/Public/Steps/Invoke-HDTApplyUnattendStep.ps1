@@ -214,6 +214,44 @@
         $scope = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($key in @($Context.Variable.Keys)) { $scope[[string] $key] = $Context.Variable[$key] }
 
+        # -- the one element that must not be left empty ----------------------
+        #
+        # MDT's ProductKey. Windows reads it in the specialize pass, and the
+        # three things that can be in the element are not equally survivable:
+        # a key works, NO ELEMENT works - it is how every KMS, MAK-by-script and
+        # LTSC deployment has always run - and an EMPTY element fails the pass.
+        # So does the literal '%HDTProductKey%', which is what leaving the token
+        # unresolved would deploy.
+        #
+        # A machine nobody supplied a key for therefore gets no element, not an
+        # empty one. That is the same outcome the template had before it carried
+        # the token at all, which is the behaviour every existing share needs.
+        #
+        # ONLY THE ELEMENT HOLDING THE UNRESOLVED TOKEN IS REMOVED. A template
+        # that hard-codes a real key and never mentions the variable is an
+        # author's deliberate choice; stripping every ProductKey element would
+        # silently deactivate a sequence that worked, and the machine would not
+        # say so until somebody looked at its activation status weeks later.
+        if ($text -match '%HDTProductKey%') {
+            $productKey = ''
+            if ($scope.Contains('HDTProductKey')) {
+                $productKey = ([string] $scope['HDTProductKey']).Trim()
+            }
+
+            if ([string]::IsNullOrWhiteSpace($productKey)) {
+                # The whole line first, so removing the element does not leave a
+                # blank line where it was; then the bare element, for a template
+                # that puts it inline with something else.
+                $text = $text -replace '(?m)^[ 	]*<ProductKey>%HDTProductKey%</ProductKey>[ 	]*?
+?', ''
+                $text = $text -replace '<ProductKey>%HDTProductKey%</ProductKey>', ''
+            } else {
+                # Trimmed, because a key arrives pasted out of a licensing
+                # portal and the surrounding space goes into the XML otherwise.
+                $scope['HDTProductKey'] = $productKey
+            }
+        }
+
         # ONE SOURCE, AND IT IS THE ADMINISTRATOR'S.
         if ($text -match '%HDTAdminPassword%') {
             $secret = [string] $scope['HDTAdminPassword']
