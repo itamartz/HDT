@@ -1,4 +1,4 @@
-function Write-HDTStatus {
+﻿function Write-HDTStatus {
     <#
         .SYNOPSIS
             Writes the status.json heartbeat.
@@ -52,7 +52,15 @@ function Write-HDTStatus {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string] $Status = 'Running'
+        [string] $Status = 'Running',
+
+        # WHERE THE CONSOLE LOOKS. <share>\Logs\_active\<RunId>.json, which
+        # Get-HDTConsoleMonitor tails. Empty means write locally and nothing
+        # else - a full-OS leg with no share, or a caller that has no console
+        # to feed.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $ActivePath = ''
     )
 
     Set-StrictMode -Version Latest
@@ -76,7 +84,41 @@ function Write-HDTStatus {
         updated       = $updated
     }
 
+    $json = ConvertTo-Json -InputObject $document -Depth 4
+
     if ($PSCmdlet.ShouldProcess($Path, 'Write run status')) {
-        $Context.FileSystem.WriteAllText($Path, (ConvertTo-Json -InputObject $document -Depth 4))
+        $Context.FileSystem.WriteAllText($Path, $json)
+    }
+
+    # -- and a copy where somebody watching can see it ------------------------
+    #
+    # MDT'S SLShareDynamicLogging, WHICH IS THE HALF HDT WAS MISSING. HDTSLShare
+    # says where the logs go when a run ENDS; this is what puts something on the
+    # share while the machine is still working, so an administrator can watch
+    # rather than wait.
+    #
+    # THE CONSOLE WAS ALREADY BUILT FOR IT. Get-HDTConsoleMonitor tails
+    # <share>\Logs\_active\ and rebuilds that branch every fifteen seconds, and
+    # the help above this function has always said the status was mirrored
+    # there. Nothing wrote it: the Monitoring branch could not show a live
+    # deployment, and on the first one anybody watched it stayed empty from
+    # start to finish.
+    #
+    # ONE DOCUMENT, TWO PATHS. Not a second shape for a second reader - the
+    # console parses exactly what the machine wrote locally.
+    #
+    # AND THE SHARE IS NEVER ALLOWED TO END A DEPLOYMENT. The local write is the
+    # one that matters; this is a courtesy to somebody watching, and a machine
+    # that stopped deploying because nobody was would be absurd. A share that
+    # has gone is also the case this is most useful in.
+    if (-not [string]::IsNullOrWhiteSpace($ActivePath)) {
+        try {
+            if ($PSCmdlet.ShouldProcess($ActivePath, 'Mirror run status for the console')) {
+                $Context.FileSystem.WriteAllText($ActivePath, $json)
+            }
+        } catch {
+            Write-Verbose ("the run status could not be mirrored to '{0}': {1}" -f
+                $ActivePath, $_.Exception.Message)
+        }
     }
 }

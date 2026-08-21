@@ -1,4 +1,4 @@
-# DESIGN 4.4.6: a small status.json heartbeat written each step, which the console
+﻿# DESIGN 4.4.6: a small status.json heartbeat written each step, which the console
 # tails. No web service, no SQL, no MDT Monitoring dependency.
 #
 # It OVERWRITES rather than appends - a heartbeat is the current state, not a
@@ -21,6 +21,58 @@ Describe 'Write-HDTStatus' {
         $script:context = New-HDTLogContext -RunId '8f3c1a90' -Phase WinPE -LogPath 'X:\HDT\Logs' `
             -FileSystem $script:fs -Clock $script:clock
         $script:context.SetStep(3, 'Apply OS', 'ApplyImage', $null)
+    }
+
+    # MDT'S SLShareDynamicLogging, WHICH IS THE PART HDT DID NOT HAVE.
+    #
+    # HDTSLShare says WHERE logs go when a run ends. MDT also has
+    # SLShareDynamicLogging, which puts something on the share WHILE the machine
+    # is still working, so an administrator can watch instead of waiting.
+    #
+    # THE CONSOLE WAS ALREADY BUILT FOR IT AND HAD NOTHING TO READ.
+    # Get-HDTConsoleMonitor tails <share>\Logs\_active\ and a DispatcherTimer
+    # rebuilds that branch every 15 seconds; this function's own help said the
+    # status was "mirrored to <share>\Logs\_active\<RunId>.json for the console".
+    # Nothing wrote it. The Monitoring branch could never show a live deployment,
+    # and on the one that was watched it stayed empty from start to finish.
+    #
+    # THE MIRROR IS A SECOND PATH, NOT A SECOND DOCUMENT. One heartbeat, written
+    # twice - locally, where it always works, and to the share, where a console
+    # can see it.
+    It 'mirrors the heartbeat to the share when it is given somewhere to put it' {
+        Write-HDTStatus -Context $script:context -Path $script:statusPath `
+            -ActivePath '\host\HDTShare\Logs\_active\8f3c1a90.json'
+
+        $script:fs.GetOperationName() | Should -Be @('WriteAllText', 'WriteAllText')
+        $script:fs.Operations[1].Arguments[0] |
+            Should -BeExactly '\host\HDTShare\Logs\_active\8f3c1a90.json'
+    }
+
+    It 'mirrors the same document, so the console reads what the machine wrote' {
+        Write-HDTStatus -Context $script:context -Path $script:statusPath `
+            -ActivePath '\host\HDTShare\Logs\_active\8f3c1a90.json'
+
+        $script:fs.Operations[1].Arguments[1] |
+            Should -BeExactly $script:fs.Operations[0].Arguments[1]
+    }
+
+    # A SHARE THAT HAS GONE MUST NOT END THE DEPLOYMENT. The local write is the
+    # one that matters; the mirror is a courtesy to somebody watching, and a
+    # deployment that died because nobody was watching would be absurd.
+    It 'still writes locally when the share cannot be reached' {
+        $script:fs.SeedWriteFailure('\gone\HDTShare\Logs\_active\8f3c1a90.json',
+            'The network path was not found.')
+
+        { Write-HDTStatus -Context $script:context -Path $script:statusPath `
+                -ActivePath '\gone\HDTShare\Logs\_active\8f3c1a90.json' } | Should -Not -Throw
+
+        $script:fs.TestPath($script:statusPath) | Should -BeTrue
+    }
+
+    It 'writes only once when there is nowhere to mirror to' {
+        Write-HDTStatus -Context $script:context -Path $script:statusPath
+
+        $script:fs.GetOperationName() | Should -Be @('WriteAllText')
     }
 
     It 'writes status.json through the injected filesystem' {
