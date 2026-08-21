@@ -17,10 +17,10 @@ function Write-HDTModuleBundle {
             happen.
 
             THE BUNDLE IS A BUILD ARTEFACT, NOT A SOURCE FILE. It is generated,
-            never edited, and never committed - Hephaestus.psm1 falls back to
-            the individual files whenever it is missing or older than any of
-            them, so a developer who never runs the build is exactly as correct
-            as one who does, only slower.
+            never edited, and never committed - and it is the only thing
+            Hephaestus.psm1 loads, so a developer who never runs the build is
+            exactly as correct as one who does: the loader calls this itself
+            whenever the bundle is missing or older than a source.
 
             PRIVATE BEFORE PUBLIC, which is the order the loader uses: a public
             function's parameter default can call a private one at load time
@@ -29,7 +29,9 @@ function Write-HDTModuleBundle {
 
             NOTHING IS REWRITTEN ON THE WAY IN. The text of each file is copied
             verbatim, so a stack trace from the bundle names the same function
-            and the same line contents as the file it came from.
+            and the same line contents as the file it came from. Which file, and
+            which line of it, is recovered with Resolve-HDTBundleLine from the
+            '# ---- source: ... ----' marker written above each one.
 
         .PARAMETER ModuleRoot
             The module folder - the one holding Private\ and Public\.
@@ -84,37 +86,63 @@ function Write-HDTModuleBundle {
     [void] $text.AppendLine('#')
     [void] $text.AppendLine('# Every Private and Public script of this module, concatenated, so that')
     [void] $text.AppendLine('# importing it parses one file instead of several hundred. Written by')
-    [void] $text.AppendLine('# Write-HDTModuleBundle; Hephaestus.psm1 ignores this file whenever any')
-    [void] $text.AppendLine('# source is newer than it, so editing a source is always what runs.')
+    [void] $text.AppendLine('# Write-HDTModuleBundle; this is the only thing Hephaestus.psm1 loads,')
+    [void] $text.AppendLine('# and it is rebuilt on import whenever a source is newer than it.')
+    [void] $text.AppendLine('#')
+    [void] $text.AppendLine('# A line number in here maps back to a source with Resolve-HDTBundleLine.')
     [void] $text.AppendLine('')
 
-    foreach ($current in @($file)) {
-        # THE FILE IT CAME FROM, ON THE LINE ABOVE IT. A bundle is what a stack
-        # trace names, and 'line 41,207 of Hephaestus.bundle.ps1' is an answer
-        # nobody can act on without this.
-        [void] $text.AppendLine(('# ---- {0} ----' -f $current.FullName))
-        [void] $text.AppendLine([System.IO.File]::ReadAllText($current.FullName))
-    }
-
-    # AND WHAT TO EXPORT, BECAUSE THE FOLDER MAY NOT TRAVEL WITH IT.
+    # WHAT TO EXPORT, BECAUSE THE FOLDER MAY NOT TRAVEL WITH IT.
     #
-    # Hephaestus.psm1 ends with Export-ModuleMember over the Public\ FILE NAMES,
-    # which is exact and needs nothing extra - until the module ships as a bundle
-    # and NOTHING ELSE, which is what goes into a boot image and onto a deployed
-    # machine. Then Public\ is not there to enumerate, and the module loads every
-    # function and exports none of them: an import with no error and
-    # CommandNotFound for everything, on a machine mid-deployment.
+    # A module that ships as a bundle and NOTHING ELSE is what goes into a boot
+    # image and onto a deployed machine. Public\ is not there to enumerate, so
+    # without this list Hephaestus.psm1 would load every function and export
+    # none of them: an import with no error and CommandNotFound for everything,
+    # on a machine mid-deployment.
     #
     # THE LIST IS WRITTEN HERE BECAUSE IT IS KNOWN HERE - these are the files
     # just read. The alternative was Import-PowerShellDataFile against the
     # manifest at load time, which is one more thing that has to exist inside
     # WinPE for the engine to export a command.
+    #
+    # ABOVE THE SOURCES, NOT BELOW THEM. Anything written after the last file
+    # is a run of lines belonging to no source, sitting where Resolve-HDTBundleLine
+    # can only read them as the last file overrunning its own end. Up here it is
+    # preamble, and preamble is already unmapped.
     $exportName = @(@($publicFile) | ForEach-Object { $_.BaseName } | Sort-Object)
 
-    [void] $text.AppendLine('')
-    [void] $text.AppendLine('# ---- the export list, for a module that ships without its Public folder ----')
     [void] $text.AppendLine(('$script:HDTBundleExport = @({0})' -f
             ((@($exportName) | ForEach-Object { "'{0}'" -f $_ }) -join ', ')))
+    [void] $text.AppendLine('')
+
+    # THE ROOT, WITH ITS TRAILING SEPARATOR, so each marker below can be cut down
+    # to 'Public\Foo.ps1'. GetFullPath normalises 'src/Hephaestus' and a relative
+    # -ModuleRoot alike, which is what makes the comparison with FullName sound.
+    $rootPrefix = [System.IO.Path]::GetFullPath($ModuleRoot).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) +
+    [System.IO.Path]::DirectorySeparatorChar
+
+    foreach ($current in @($file)) {
+        # THE FILE IT CAME FROM, ON THE LINE ABOVE IT. A bundle is what a stack
+        # trace, a breakpoint and a coverage report all name, and 'line 214,207
+        # of Hephaestus.bundle.ps1' is an answer nobody can act on without this.
+        # Resolve-HDTBundleLine reads these back; PowerShell itself ignores them,
+        # because it has no #line directive - a comment is just a comment.
+        #
+        # RELATIVE TO THE MODULE ROOT, NEVER THE BUILD MACHINE'S ABSOLUTE PATH.
+        # The bundle runs somewhere else - a boot image, a deployed disk, a
+        # Gallery install - where C:\Users\...\GithubRepos\HDT does not exist,
+        # and an artefact that names the machine that built it also differs
+        # between two machines building identical code.
+        $relative = $current.FullName
+
+        if ($relative.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $relative = $relative.Substring($rootPrefix.Length)
+        }
+
+        [void] $text.AppendLine(('# ---- source: {0} ----' -f $relative))
+        [void] $text.AppendLine([System.IO.File]::ReadAllText($current.FullName))
+    }
 
     # NO BOM, AND THE LINE ENDINGS THE SOURCES HAD. Windows PowerShell 5.1 reads
     # a BOM-less UTF-8 file as ASCII unless it has one - and every source here is

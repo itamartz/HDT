@@ -924,7 +924,13 @@ Describe 'Update-HDTBootImage' {
             $script:artifactResult = Invoke-HDTBootImageTestBuild -Context $script:artifactContext
         }
 
-        It 'exports the WIM beside Boot\<name>.wim and publishes it there' {
+        # NO ANGLE BRACKETS IN THE TITLE. Pester expands <...> in an It name as a
+        # -ForEach placeholder, so 'Boot\<name>.wim' made this test read $name at
+        # run time. There is no -ForEach here, so under the StrictMode the build
+        # sets that is an error - and it only ever passed because some other file
+        # earlier in the same process had left a $name behind. Sharding the suite
+        # across processes put this file in a session that had not, and it went red.
+        It 'exports the WIM beside the named Boot wim and publishes it there' {
             # EXPORTED TO A STAGING NAME, renamed into place only once the ISO
             # exists too. The returned path is the final one, because that is the
             # file the caller will find.
