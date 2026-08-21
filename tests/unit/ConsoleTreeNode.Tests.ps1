@@ -815,4 +815,20 @@ Describe 'the category a window can act on' {
 
         $row.HeaderRoot | Should -Not -BeNullOrEmpty
     }
+
+    # AND Boot Image IS ONE OF THOSE ROWS. Right-clicking it is where somebody
+    # looks for the thing that BUILDS the WinPE: the Windows PE window was
+    # reachable only by double-clicking the image row underneath, which is a
+    # route nobody finds - and the row underneath is the one that says 'not
+    # built', so the first build was the hardest thing in the console to reach.
+    #
+    # IT CARRIES THE DOCUMENT ITSELF, not the share root, because that window
+    # takes workspace.yaml - the same thing the image row hands it.
+    It 'gives the boot image category a name and the document the Windows PE window edits' {
+        $row = @($script:categoryNode | Where-Object { $_.Name -eq 'BootImage' })
+
+        @($row).Count | Should -Be 1
+        $row[0].Text | Should -BeExactly 'Boot Image'
+        $row[0].Subject | Should -BeExactly 'C:\ws\workspace.yaml'
+    }
 }

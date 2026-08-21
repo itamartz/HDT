@@ -43,6 +43,7 @@
         'HDTNewWorkspaceMenuItem.Header' = 'New Deployment Share'
         'HDTOpenWorkspaceMenuItem.Header' = 'Open Deployment Share'
         'HDTCloseWorkspaceMenuItem.Header' = 'Close Deployment Share'
+        'HDTBootImageMenuItem.Header' = 'Windows PE'
         'HDTNewSequenceMenuItem.Header' = 'New Task Sequence'
         'HDTRemoveSequenceMenuItem.Header' = 'Remove Task Sequence'
         'HDTImportOperatingSystemMenuItem.Header' = 'Import Operating System'

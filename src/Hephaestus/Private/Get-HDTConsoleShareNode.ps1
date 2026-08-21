@@ -140,13 +140,18 @@
 
     $bootFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind Boot
 
-    $bootCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' -Text 'Boot Image' `
+    # NAMED, LIKE THE OTHER THREE CATEGORIES, because a window matches on Name
+    # and reads Text. And it carries workspace.yaml: the Windows PE window hangs
+    # off this row as well as off the image under it, and that window edits the
+    # document rather than the share root.
+    $bootCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Name 'BootImage' -Text 'Boot Image' `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $bootFolder
         New-HDTConsoleField -Label 'Image name' -Value $Workspace.BootImage.Name
     ) `
         -Command ("Get-HDTWorkspacePath -Root '{0}' -Kind Boot" -f $Workspace.Root) `
-        -Header $header
+        -Header $header -Subject $Workspace.WorkspacePath
 
     [void] $node.Add($bootCategory)
     [void] $shareNode.Children.Add($bootCategory)

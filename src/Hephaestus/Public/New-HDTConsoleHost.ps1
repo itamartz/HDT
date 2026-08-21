@@ -208,6 +208,24 @@
                 if ($null -ne $applyState) { & $applyState }
             }.GetNewClosure())
 
+        # OPENING THE WINDOWS PE WINDOW, IN ONE PLACE. Two rows reach it - the
+        # boot image row on a double-click, and the Boot Image category and that
+        # same row from the right-click menu - and a second copy of this call is
+        # a second place for the owner or the theme to be forgotten.
+        #
+        # -ConsoleHost IS WHAT CARRIES THE OWNER, as it is for the editor below:
+        # without it the window is owned by nothing and drops behind whatever is
+        # clicked next.
+        $openBootImage = {
+            param([string] $DocumentPath)
+
+            if ([string]::IsNullOrWhiteSpace($DocumentPath)) { return }
+
+            [void] (Show-HDTBootImageWindow -Path $DocumentPath -Theme $ThemeName `
+                    -ConsoleHost $consoleHost `
+                    -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
+        }.GetNewClosure()
+
         # DOUBLE-CLICKING A TASK SEQUENCE OPENS THE EDITOR ON IT, which is what
         # Deployment Workbench does and the first thing an administrator will
         # try. Which rows those are is not worked out here: the row says whether
@@ -230,9 +248,7 @@
                 # it does not work out for itself which rows are which, because
                 # that is the decision Get-HDTConsoleTreeNode already made.
                 if ([string] $selected.Kind -eq 'BootImage') {
-                    [void] (Show-HDTBootImageWindow -Path ([string] $selected.Subject) -Theme $ThemeName `
-                            -ConsoleHost $consoleHost `
-                            -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
+                    & $openBootImage ([string] $selected.Subject)
                     return
                 }
 
@@ -728,6 +744,7 @@
         $newWorkspace = $window.FindName('HDTNewWorkspaceMenuItem')
         $openWorkspace = $window.FindName('HDTOpenWorkspaceMenuItem')
         $closeWorkspace = $window.FindName('HDTCloseWorkspaceMenuItem')
+        $bootImageItem = $window.FindName('HDTBootImageMenuItem')
         $newSequence = $window.FindName('HDTNewSequenceMenuItem')
         $removeSequence = $window.FindName('HDTRemoveSequenceMenuItem')
         $importOperatingSystem = $window.FindName('HDTImportOperatingSystemMenuItem')
@@ -787,6 +804,16 @@
                             [string] $chosen.Kind -eq 'Category' -and
                             [string] $chosen.Name -eq 'TaskSequences')
 
+                        # BOTH BOOT IMAGE ROWS OFFER IT - the category and the
+                        # image under it. They are the same action on the same
+                        # document, and which of the two somebody right-clicks
+                        # when there is no image yet is not worth being wrong
+                        # about.
+                        $isBootImage = ($null -ne $chosen -and (
+                                [string] $chosen.Kind -eq 'BootImage' -or
+                                ([string] $chosen.Kind -eq 'Category' -and
+                                    [string] $chosen.Name -eq 'BootImage')))
+
                         $isSequence = ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence')
 
                         $isOsCategory = ($null -ne $chosen -and
@@ -817,6 +844,10 @@
                         }
 
                         if ($isShare) { $closeWorkspace.Visibility = [System.Windows.Visibility]::Visible }
+
+                        $bootImageItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        if ($isBootImage) { $bootImageItem.Visibility = [System.Windows.Visibility]::Visible }
 
                         # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
                         # with none opens no menu.
@@ -896,13 +927,40 @@
                         # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
                         # SIDES OF IT. A line at the top of a menu is a line
                         # nobody drew on purpose.
-                        if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication)) {
+                        if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage)) {
                             $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
                         }
 
-                        if (-not ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $onFolderRow)) {
+                        if (-not ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $onFolderRow)) {
                             $opening.Handled = $true
                         }
+                    }.GetNewClosure())
+
+                # AND IT OPENS THE SAME WINDOW THE DOUBLE-CLICK OPENS. Both
+                # rows carry workspace.yaml, so this reads the subject rather
+                # than building a path from the share root: two shares in this
+                # lab hold an image of the same name, and a window opened by
+                # name could save one share's settings into the other's.
+                $bootImageItem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $document = [string] $chosen.Subject
+
+                        # AND IT SAYS SO RATHER THAN DOING NOTHING, as the
+                        # remove items do: a menu item that returns quietly is
+                        # one somebody presses twice and then reports as broken.
+                        if ([string]::IsNullOrWhiteSpace($document)) {
+                            $command.Text = 'that row does not name a workspace document, so there is no boot image to open.'
+                            return
+                        }
+
+                        & $openBootImage $document
+
+                        # THE IMAGE MAY HAVE BEEN BUILT WHILE IT WAS OPEN, and
+                        # the row under Boot Image reads the manifest - so it is
+                        # stale until the tree is read again.
+                        & $rebuildTree
                     }.GetNewClosure())
 
                 # REMOVE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED.

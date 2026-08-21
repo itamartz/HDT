@@ -325,6 +325,16 @@
                         <MenuItem x:Name="HDTNewWorkspaceMenuItem" />
                         <MenuItem x:Name="HDTOpenWorkspaceMenuItem" />
                         <MenuItem x:Name="HDTCloseWorkspaceMenuItem" />
+
+                        <!-- THE ONE ACTION THAT BUILDS A WinPE, AND IT WAS
+                             BEHIND A DOUBLE-CLICK. The Windows PE window opened
+                             only from the image row under Boot Image - the row
+                             that reads 'not built' before there is an image at
+                             all - so the first thing an administrator has to do
+                             with a new share was the hardest thing in this
+                             console to find. It hangs off both rows now, which
+                             is where MDT puts a share's Properties. -->
+                        <MenuItem x:Name="HDTBootImageMenuItem" />
                         <MenuItem x:Name="HDTNewSequenceMenuItem" />
                         <MenuItem x:Name="HDTRemoveSequenceMenuItem" />
                         <MenuItem x:Name="HDTImportOperatingSystemMenuItem" />
