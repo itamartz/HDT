@@ -110,11 +110,30 @@
 
     $property = $Step.Property
 
+    # %VARIABLE% IS EXPANDED, and this step used to be the one that did not.
+    # Its OWN template writes drive: '%HDTOSVolume%' - so the commonest possible
+    # BitLocker step read the token literally, found it was not whitespace,
+    # skipped the HDTOSVolume fallback below it, and took Substring(0, 1) of a
+    # percent sign. The result was a step that tried to encrypt the drive '%:'
+    # and failed at the machine saying so.
+    #
+    # NOTHING PRE-EXPANDS Property. Invoke-HDTStepAttempt does not touch it, so
+    # every step that wants a token resolved asks for it - which is what
+    # Get-HDTStepProperty -Expand does and what Invoke-HDTInstallCertificateStep
+    # already did with the identical '%HDTOSVolume%' default.
+    #
+    # EVERY KEY, NOT JUST drive. A scope or an escrow target chosen per machine
+    # by a rule is the same request, and a closed-set check against an
+    # unexpanded token would refuse it with a message about a spelling.
     $read = {
         param([string] $Name, [string] $Default)
 
         if ($null -eq $property -or -not $property.Contains($Name)) { return $Default }
-        return ([string] $property[$Name]).Trim()
+
+        $written = ([string] $property[$Name]).Trim()
+        if ($written.Length -eq 0) { return $Default }
+
+        return ([string] (Expand-HDTVariableToken -Value $written -Scope $Context.Variable)).Trim()
     }
 
     $readSwitch = {
@@ -172,10 +191,35 @@
 
     # -- the volume -----------------------------------------------------------
 
+    # AS WRITTEN, so a refusal can quote it. '%HDTOSVolume%' resolving to
+    # nothing and the step naming no drive at all are different mistakes, and
+    # "names no drive" said about a step that plainly names one reads as a bug
+    # in the console rather than as a variable nobody set.
+    $driveWritten = ''
+    if ($null -ne $property -and $property.Contains('drive')) {
+        $driveWritten = ([string] $property['drive']).Trim()
+    }
+
     $drive = & $read 'drive' ''
 
     if ([string]::IsNullOrWhiteSpace($drive)) {
         $drive = [string] $Context.Variable['HDTOSVolume']
+    }
+
+    # A TOKEN NOBODY SET IS LEFT STANDING, not blanked - Expand-HDTVariableToken
+    # returns '%HDTOSVolume%' unchanged so a caller can say which name failed.
+    # Refusing here is the whole point: without it the next line takes
+    # Substring(0, 1) of a percent sign and the step goes to the machine asking
+    # to encrypt the volume '%:'.
+    if ($driveWritten.Length -gt 0) {
+        $unresolved = New-Object -TypeName System.Collections.ArrayList
+        [void] (Expand-HDTVariableToken -Value $driveWritten -Scope $Context.Variable -Unresolved $unresolved)
+
+        if (@($unresolved).Count -gt 0) {
+            return (& $fail ("step '{0}' names the drive '{1}' and {2} is not set. The partition step publishes HDTOSVolume; HDT will not guess which volume to encrypt." -f
+                    $Step.Name, $driveWritten, ((@($unresolved) | ForEach-Object { [string] $_ }) -join ', ')) `
+                ([ordered] @{ errorId = 'HDTConfigurationError' }))
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($drive)) {

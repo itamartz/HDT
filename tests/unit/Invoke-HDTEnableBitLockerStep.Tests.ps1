@@ -1,4 +1,4 @@
-# The EnableBitLocker step (DESIGN 10.3).
+﻿# The EnableBitLocker step (DESIGN 10.3).
 #
 # THE RULE THAT MATTERS MOST IS AN ORDERING ONE: key escrow is verified BEFORE
 # encryption begins. A machine that encrypts with no recoverable key is worse
@@ -290,6 +290,57 @@ Describe 'Invoke-HDTEnableBitLockerStep' {
 
             @($script:bitlocker.Operations | Where-Object { $_.Operation -eq 'Enable' })[0].Arguments[0] |
                 Should -BeExactly 'C:'
+        }
+
+        It 'expands a variable in drive, which is what its own template writes' {
+            # Get-HDTEnableBitLockerStepTemplate ships drive: '%HDTOSVolume%'.
+            # Read unexpanded, that is not whitespace, so the HDTOSVolume
+            # fallback below never fires and the Substring(0, 1) on the next line
+            # yields the drive '%:' - a step that encrypts nothing and reports
+            # success at doing it. Every other test here passes a literal 'C:',
+            # which is exactly why nobody met this.
+            $bitlocker = New-HDTFakeBitLockerService -Volume @{
+                'D:' = @{ VolumeStatus = 'FullyDecrypted'; ProtectionStatus = 'Off' }
+            }
+
+            $context = & $script:newContext $bitlocker @{ HDTOSVolume = 'D' }
+            $step = & $script:newStep 'Enable BitLocker' ([ordered] @{
+                    drive = '%HDTOSVolume%'; escrow = 'none'
+                })
+
+            $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+            @($bitlocker.Operations | Where-Object { $_.Operation -eq 'Enable' })[0].Arguments[0] |
+                Should -BeExactly 'D:'
+        }
+
+        It 'still takes a literal drive as written' {
+            # HDTOSVolume says D and the step says C. The step wins - the
+            # fallback is for a step that names nothing.
+            $context = & $script:newContext $script:bitlocker @{ HDTOSVolume = 'D' }
+            $step = & $script:newStep 'Enable BitLocker' ([ordered] @{
+                    drive = 'C:'; escrow = 'none'
+                })
+
+            $null = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+            @($script:bitlocker.Operations | Where-Object { $_.Operation -eq 'Enable' })[0].Arguments[0] |
+                Should -BeExactly 'C:'
+        }
+
+        It 'refuses when the variable the drive names resolves to nothing' {
+            # Better than encrypting '%:'. The message has to name the variable,
+            # because "no drive" on a step that plainly names one reads as a bug
+            # in the console rather than an unset variable.
+            $context = & $script:newContext $script:bitlocker
+            $step = & $script:newStep 'Enable BitLocker' ([ordered] @{
+                    drive = '%HDTOSVolume%'; escrow = 'none'
+                })
+
+            $result = Invoke-HDTEnableBitLockerStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+            $result.Message | Should -BeLike '*HDTOSVolume*'
         }
 
         It 'refuses to guess when neither the step nor HDTOSVolume names one' {
