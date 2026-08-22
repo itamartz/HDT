@@ -86,8 +86,12 @@ try {
 } catch {
     Add-Type -AssemblyName PresentationFramework
 
+    # THE SENTENCE, NOT THE PLUMBING. .Exception.Message on a failure that came
+    # up through the console host is four nested "Exception calling ..." layers
+    # quoting each other, with the real message at the bottom behind a wall of
+    # quotes. A technician read one of those and could not find the sentence.
     [void] [System.Windows.MessageBox]::Show(
-        [string] $_.Exception.Message,
+        (Resolve-HDTErrorMessage -ErrorRecord $_),
         'Hephaestus Deployment Toolkit',
         [System.Windows.MessageBoxButton]::OK,
         [System.Windows.MessageBoxImage]::Error)
