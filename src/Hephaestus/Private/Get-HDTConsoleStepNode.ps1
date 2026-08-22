@@ -309,8 +309,50 @@
         # The per-type properties, each writing the key it is named after - the
         # difference between "Apply OS" and "apply THAT image", and the reason
         # the tab exists.
-        foreach ($name in @($current.Property.Keys)) {
-            $value = $current.Property[$name]
+        # WHAT THIS TYPE CAN BE ASKED, WHETHER OR NOT THE FILE ASKS IT. A
+        # template writes only the keys a step cannot start without, and this
+        # sheet used to build a row per key ALREADY IN THE DOCUMENT - so every
+        # other setting the engine reads had no row and could not be typed into
+        # at all. A NoOp step showed nothing; ConfigureBoot could not have
+        # setBootOrder turned off; BitLocker offered the tpmPin protector and
+        # then no box for the pin it requires.
+        #
+        # Get-HDTStepPropertyDefinition is the table, and Validate is where the
+        # idea comes from - Get-HDTValidateCheckDefinition has always offered
+        # every check whether the document declared it or not.
+        #
+        # THE FILE STILL WINS. The table gives the row and the DEFAULT; the
+        # document gives the value wherever it has one. A row nobody touches
+        # equals what it was filled with, so nothing is spliced - which is what
+        # stops a sheet of defaults from adding a dozen keys to a step the first
+        # time somebody edits one of them (DESIGN 12).
+        $definition = @(Get-HDTStepPropertyDefinition -Type ([string] $current.Type))
+
+        $offered = New-Object -TypeName System.Collections.Specialized.OrderedDictionary
+        foreach ($one in $definition) { $offered[[string] $one.Key] = $one }
+
+        # THE DOCUMENT'S ORDER FIRST, THEN THE TABLE'S. A key the file already
+        # names keeps the place the file gave it: the sheet and the YAML beside
+        # it should be read in the same order, and re-sorting them makes
+        # somebody translate between the two every time they look.
+        $ordered = @()
+        foreach ($written in @($current.Property.Keys)) { $ordered = $ordered + @([string] $written) }
+        foreach ($one in $definition) {
+            if ($ordered -notcontains [string] $one.Key) { $ordered = $ordered + @([string] $one.Key) }
+        }
+
+        foreach ($name in $ordered) {
+            # ABSENT MEANS THE ENGINE'S DEFAULT, shown rather than left blank: an
+            # empty Encrypt box would say "no scope", and the step plainly has
+            # one. What the box shows is what the step will do.
+            $declared = ($null -ne $current.Property -and $current.Property.Contains($name))
+
+            $value = ''
+            if ($declared) {
+                $value = $current.Property[$name]
+            } elseif ($offered.Contains($name)) {
+                $value = [string] $offered[$name].Default
+            }
 
             # A KEY A DEDICATED PAGE OWNS IS STILL REPORTED, just not offered as
             # a box here. Dropping it outright took it out of the tree row's
@@ -339,6 +381,31 @@
             if ($value -is [System.Collections.IDictionary]) { $isTable = $true }
             elseif ($value -isnot [string] -and $value -is [System.Collections.IEnumerable]) { $isTable = $true }
 
+            # A FLAT LIST IS A LINE, NOT A DEAD ROW. Install Roles ships
+            # 'features: []' and this drew '0 entries - a table, not a value',
+            # read-only - so the one key the step refuses to run without was the
+            # one key the console could not set, and the step could not be made
+            # runnable from the UI at all.
+            #
+            # Get-HDTConsoleValidateCheck already renders requireVariable as a
+            # comma line and the Command page renders its exit codes the same
+            # way. The splice puts the brackets back
+            # (Get-HDTConsoleStepChange -> Set-HDTStepPropertyList).
+            #
+            # A MAPPING IS STILL A DEAD ROW: Tattoo's 'values' is name to value,
+            # and a comma line loses which half was which.
+            if ($offered.Contains($name) -and [string] $offered[$name].Kind -eq 'List') {
+                $isTable = $false
+
+                $entry = @()
+                if ($declared) {
+                    $entry = @(@($value) | ForEach-Object { [string] $_ } |
+                            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+                }
+
+                $value = ($entry -join ', ')
+            }
+
             if (-not $isTable) {
                 # WHAT CONTROL THE ROW ASKS FOR, decided from the document and
                 # from the step type, so the window holds no list of its own.
@@ -356,13 +423,48 @@
                 # this window draws yes-or-no as a box; a step's own settings
                 # were the exception.
                 $choice = @(Get-HDTStepPropertyChoice -Type ([string] $current.Type) -Key ([string] $name))
+
+                # THE TABLE SAYS WHAT KIND IT IS; the document can only say what
+                # the value happens to be. A key the file omits arrives here as
+                # the DEFAULT STRING 'true', which is not a [bool] - so inferring
+                # from the value drew a text box reading "true" for exactly the
+                # switches this table was added to make tickable.
+                #
+                # A key the table has never heard of - a third-party type's -
+                # still falls back to the value's own type, which is all there
+                # was to go on before.
                 $isBoolean = ($value -is [bool])
+                $isList = $false
+                $label = Get-HDTConsolePropertyLabel -Key $name
+                $hint = ''
+
+                if ($offered.Contains($name)) {
+                    $definitionRow = $offered[$name]
+
+                    $isBoolean = ([string] $definitionRow.Kind -eq 'Check')
+                    $isList = ([string] $definitionRow.Kind -eq 'List')
+                    $label = [string] $definitionRow.Label
+                    $hint = [string] $definitionRow.Hint
+                }
 
                 # AS THE FILE SPELLS IT, not as .NET prints it. 'True' would be
                 # a reformat of a key nobody edited the moment anything else on
                 # the sheet was banked (DESIGN 12).
                 $text = [string] $value
                 if ($isBoolean) { $text = ([string] $value).ToLowerInvariant() }
+
+                # A Table ROW IS REPORTED, NOT OFFERED, whether the file names it
+                # or not: 'values' on a Tattoo step is a mapping, and a text box
+                # over one would write the words
+                # System.Collections.Specialized.OrderedDictionary into the
+                # document. The key still appears, saying what it holds.
+                if ($offered.Contains($name) -and [string] $offered[$name].Kind -eq 'Table' -and -not $declared) {
+                    $field = $field + @(
+                        New-HDTConsoleField -Label $label -Value '0 entries - a table, not a value' -Hint $hint
+                    )
+
+                    continue
+                }
 
                 # A LIST THAT DOES NOT OFFER WHAT THE FILE SAYS SHOWS NOTHING.
                 # A step resolving its scope from '%HDTBitLockerScope%' drew an
@@ -382,8 +484,8 @@
                 }
 
                 $field = $field + @(
-                    New-HDTConsoleField -Label (Get-HDTConsolePropertyLabel -Key $name) `
-                        -Value $text -Property $name -Choice $choice -Check:$isBoolean
+                    New-HDTConsoleField -Label $label -Value $text -Property $name `
+                        -Choice $choice -Check:$isBoolean -List:$isList -Hint $hint
                 )
 
                 continue

@@ -1,0 +1,188 @@
+﻿function Get-HDTStepPropertyDefinition {
+    <#
+        .SYNOPSIS
+            What a step type can be asked, as a table - so the Properties sheet
+            offers every setting the engine reads rather than only the ones the
+            document happens to mention.
+
+        .DESCRIPTION
+            THE SHEET USED TO BUILD ONE ROW PER KEY ALREADY IN THE FILE, and a
+            step's template writes only the keys it cannot start without. So
+            every other setting the engine reads had no row, could not be typed
+            into, and could be reached only by opening the YAML somewhere else.
+            The same defect sixteen times over:
+
+              ConfigureBoot    recovery and setBootOrder - both switches its own
+                               header calls load-bearing, both defaulting to
+                               true, neither turn-off-able from the console
+              EnableBitLocker  pin and startupKey - while the protector list
+                               OFFERED tpmPin and tpmStartupKey, which require
+                               them. The console offered a choice it then made
+                               impossible to satisfy
+              NoOp             all five of its keys. The sheet was empty
+              Tattoo           both of its keys. The sheet was empty
+              Restart          message, the sentence a technician reads while
+                               the machine goes down
+              InstallRoles     source, the payload path for a removed feature
+              ApplyUnattend    target, named in the engine's own refusal
+              InstallCertificate  bootstrap
+
+            VALIDATE NEVER HAD THE PROBLEM, and that is where this idea comes
+            from: Get-HDTValidateCheckDefinition already offers every check
+            whether or not the document declares one. This is that, for the rest.
+
+            THE DOCUMENT STILL WINS. This supplies the ROW and the DEFAULT; the
+            file supplies the VALUE wherever it has one. A row nobody touches is
+            identical to what it was filled with, so Get-HDTConsoleStepChange
+            writes nothing - which is what stops a sheet full of defaults from
+            adding twelve keys to a step the first time anybody edits one of
+            them (DESIGN 12).
+
+            THE DEFAULTS HERE ARE THE ENGINE'S, quoted from the step that reads
+            them. A default this table got wrong would be worse than an empty
+            box: it would say, in a box that looks authoritative, that the step
+            will do something it will not.
+
+            CLOSED SETS COME FROM Get-HDTStepPropertyChoice, which is the table
+            Invoke-HDTEnableBitLockerStep refuses by. Spelling them again here
+            would be two lists to drift apart, and the way that goes wrong is a
+            drop-down offering a value the step rejects at the machine.
+
+            List AND Table ARE BOTH SEQUENCES AND ONLY ONE IS EDITABLE. A flat
+            list of strings - features - becomes a comma line, which is what
+            Get-HDTConsoleValidateCheck already does for requireVariable and the
+            Command page does for its exit codes. A MAPPING - Tattoo's values,
+            name to value - stays read-only, because flattening it to a line
+            loses which half was which.
+
+            A TYPE WITH A DEDICATED PAGE IS NOT HERE. ApplyImage, DiskPartition,
+            Validate, InstallApplications and CommandLine own their settings on
+            a page of their own and the generic sheet is collapsed for them
+            entirely - a key listed in both places is a key that can disagree
+            with itself while both boxes look right.
+
+            NEITHER ARE THE COMMON KEYS. name, type, condition, continueOnError,
+            disabled, runIn, timeoutMinutes, retry, resumable and log never
+            reach Property at all (Import-HDTSequenceDocument), and the ones that
+            are editable are edited above the tabs or on Options.
+
+        .PARAMETER Type
+            The step's type, as the document spells it.
+
+        .INPUTS
+            None. This command does not accept pipeline input.
+
+        .OUTPUTS
+            System.Management.Automation.PSCustomObject[] in the order they
+            should be shown, each with:
+
+              Key      the YAML key
+              Label    the caption
+              Kind     Text, Check, Choice, List or Table
+              Choice   the closed set, for a Choice
+              Default  what the engine does when the key is absent
+              Hint     one sentence behind the ?, or empty
+
+            An empty array for a type this table says nothing about - which is
+            every third-party type out of Modules\ (CLAUDE.md rule 3), and they
+            go on getting their rows from the document.
+
+        .EXAMPLE
+            Get-HDTStepPropertyDefinition -Type 'ConfigureBoot'
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject[]])]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [AllowEmptyString()]
+        [string] $Type
+    )
+
+    Set-StrictMode -Version Latest
+    $ErrorActionPreference = 'Stop'
+
+    $new = {
+        param([string] $Key, [string] $Label, [string] $Kind, [string] $Default, [string] $Hint)
+
+        return [pscustomobject] @{
+            Key     = $Key
+            Label   = $Label
+            Kind    = $Kind
+            Choice  = [string[]] @(Get-HDTStepPropertyChoice -Type $Type -Key $Key)
+            Default = $Default
+            Hint    = $Hint
+        }
+    }
+
+    # THE ORDER IS THE ORDER TO SHOW THEM IN: what the step does first, how it
+    # reports second. MDT's dialogs read that way and so does the file, because
+    # every Get-HDT*StepTemplate writes its keys in this order.
+    $row = switch ($Type) {
+
+        'ApplyUnattend' {
+            & $new 'template' 'Answer file' 'Text' '' 'The unattend.xml this step stages, relative to the sequence folder or rooted. It is copied into the image, not applied to the running machine.'
+            & $new 'expand' 'Expand variables' 'Check' 'true' 'Replace %HDTComputerName% and the rest inside the answer file as it is copied. Off writes the file through untouched.'
+            & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the answer file is written to. Empty uses the volume the partition step published, which is what nearly every sequence wants.'
+        }
+
+        'ConfigureBoot' {
+            & $new 'firmware' 'Firmware' 'Choice' 'auto' 'auto reads the machine rather than trusting what the sequence assumed, and is right unless a lab is deliberately testing the other path.'
+            & $new 'recovery' 'Register recovery' 'Check' 'true' 'Points the recovery environment at the WinRE image on the recovery partition. Off leaves a machine with no recovery entry.'
+            & $new 'setBootOrder' 'Set firmware boot order' 'Check' 'true' 'Moves this installation to the front of the firmware boot order. Off leaves a machine that boots the network or the old installation first.'
+        }
+
+        'EnableBitLocker' {
+            & $new 'drive' 'Drive' 'Text' '%HDTOSVolume%' 'The volume to encrypt. Empty uses the volume the partition step published; HDT will not guess.'
+            & $new 'scope' 'Encrypt' 'Choice' 'usedSpaceOnly' 'usedSpaceOnly encrypts the blocks in use, which is right for a volume HDT has just created. full encrypts the free space too and takes far longer.'
+            & $new 'method' 'Method' 'Choice' 'XtsAes256' 'The cipher. XTS is for fixed drives; use an AES-CBC method only for a volume that has to be read by an older Windows.'
+            & $new 'protector' 'Protector' 'Choice' 'tpm' 'What unlocks the drive at boot. tpmPin and tpmStartupKey need the box below filled in as well.'
+            & $new 'pin' 'PIN' 'Text' '' 'Required by the tpmPin protector and ignored by the others. A step that picks tpmPin without one fails at the machine.'
+            & $new 'startupKey' 'Startup key path' 'Text' '' 'Required by the tpmStartupKey protector and ignored by the others.'
+            & $new 'recoveryPassword' 'Recovery password' 'Check' 'true' 'Create a numerical recovery password. Off leaves a drive nobody can rescue.'
+            & $new 'escrow' 'Back the key up to' 'Choice' 'ad' 'Where the recovery password is stored before encryption starts. none is for a lab; a machine whose key is nowhere is a machine that can be lost.'
+            & $new 'wait' 'Wait for encryption' 'Check' 'false' 'Hold the sequence until the volume finishes encrypting. Off lets the deployment carry on while it runs in the background.'
+        }
+
+        'InstallCertificate' {
+            & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume whose certificate store is written to. Empty uses the volume the partition step published.'
+            & $new 'bootstrap' 'Bootstrap document' 'Text' 'X:\HDT\bootstrap.json' 'Where the certificates are read from. A missing file is not an error - the step completes having staged nothing - so a wrong path here is silent.'
+        }
+
+        'InstallRoles' {
+            & $new 'features' 'Features' 'List' '' 'The Windows features to install, by name, separated by commas. The step refuses a name the target image does not have before it installs anything.'
+            & $new 'includeManagementTools' 'Include management tools' 'Check' 'false' 'Install each feature''s management console and cmdlets alongside it.'
+            & $new 'source' 'Payload source' 'Text' '' 'A side-by-side store for a feature whose payload was removed from the image - .NET 3.5 is the usual case. Empty lets Windows look where it normally would.'
+        }
+
+        'NoOp' {
+            & $new 'message' 'Message' 'Text' '' 'What the step logs. Empty logs the step''s own name.'
+            & $new 'exitCode' 'Exit code' 'Text' '0' 'The code the step reports. Anything but 0 with Fail off is still a pass; this is for rehearsing what a real step''s code would do.'
+            & $new 'fail' 'Fail' 'Check' 'false' 'Make the step fail. This is how a sequence''s error handling is rehearsed without breaking a real step.'
+            & $new 'failAttempt' 'Fail until attempt' 'Text' '0' 'Fail while the attempt number is at or below this, then pass - which is how a retry is rehearsed.'
+            & $new 'requestReboot' 'Request a reboot' 'Check' 'false' 'Report that a restart is wanted, so the sequence''s reboot and resume can be rehearsed.'
+        }
+
+        'PowerShell' {
+            & $new 'script' 'Script' 'Text' '' 'The .ps1 to run, relative to the workspace or rooted. It runs in the engine''s own session, so it can see the task sequence variables.'
+        }
+
+        'Restart' {
+            & $new 'delaySeconds' 'Delay' 'Text' '0' 'Seconds between the step finishing and the machine going down, so somebody standing at it can read the message.'
+            & $new 'message' 'Message' 'Text' 'a restart was requested' 'What is shown while the machine restarts.'
+        }
+
+        'SetVariable' {
+            & $new 'variable' 'Variable name' 'Text' '' 'The name to set. It has to begin with HDT - the engine reserves everything else, and refuses a name starting with an underscore outright.'
+            & $new 'value' 'Value' 'Text' '' 'What to set it to. %Other% tokens in here are expanded when the step runs, not when it is saved.'
+        }
+
+        'Tattoo' {
+            & $new 'path' 'Registry key' 'Text' 'HKLM:\SOFTWARE\Hephaestus\Deployment' 'Where the deployment record is stamped. This is what an audit reads months later to find out what built the machine.'
+            & $new 'values' 'Extra values' 'Table' '' 'Values of your own, stamped beside the standard ones. A name that collides with a standard stamp replaces it.'
+        }
+
+        default { }
+    }
+
+    return [pscustomobject[]] @($row)
+}

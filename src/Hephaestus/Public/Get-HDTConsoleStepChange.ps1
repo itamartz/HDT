@@ -103,13 +103,39 @@
         $after = $Name
         if ($renames) { $after = $value }
 
+        # A LIST ROW IS SPLICED BY A DIFFERENT CMDLET. Set-HDTStepProperty writes
+        # a SCALAR through Get-HDTConsoleScalarText, so 'Web-Server, DNS' would
+        # arrive as features: 'Web-Server, DNS' - one feature whose name has a
+        # comma in it, and Install Roles refuses it at the machine.
+        #
+        # THE ROW SAYS SO, not the caller. The window holds no list of which
+        # keys are sequences, the same way it holds no list of which are
+        # typeable: Get-HDTStepPropertyDefinition decided it and the row carries
+        # it here.
+        $isList = ($kind -eq 'List')
+
+        $item = [string[]] @()
+        if ($isList) {
+            $item = [string[]] @(@($value -split ',') |
+                    ForEach-Object { ([string] $_).Trim() } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+
+        $echo = "Set-HDTStepProperty -Line `$line -Name '{0}' -Property {1} -Value '{2}'" -f $Name, $row.Property, $value
+        if ($isList) {
+            $echo = "Set-HDTStepPropertyList -Line `$line -Name '{0}' -Property {1} -Item @({2})" -f
+                $Name, $row.Property, ((@($item) | ForEach-Object { "'{0}'" -f $_ }) -join ', ')
+        }
+
         $entry = [pscustomobject] @{
             Property  = [string] $row.Property
             Value     = $value
             Original  = [string] $row.Original
             Renames   = $renames
             NameAfter = $after
-            Command   = ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property {1} -Value '{2}'" -f $Name, $row.Property, $value)
+            IsList    = $isList
+            Item      = $item
+            Command   = $echo
         }
 
         if ($renames) {

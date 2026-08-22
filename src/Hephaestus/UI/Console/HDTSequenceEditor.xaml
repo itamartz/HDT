@@ -569,6 +569,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="150" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Grid.Column="0" Text="{Binding Label}"
@@ -631,6 +632,33 @@
                                                       VerticalAlignment="Center"
                                                       HorizontalAlignment="Left"
                                                       Margin="2,4,0,4" />
+
+                                            <!-- THE SENTENCE BEHIND THE DOT, on
+                                                 the rows that have one. Every
+                                                 row on this sheet now comes
+                                                 with a default the file does
+                                                 not state - "Encrypt:
+                                                 usedSpaceOnly" on a step that
+                                                 never mentioned a scope - and
+                                                 what that MEANS is the question
+                                                 the box raises and cannot
+                                                 answer.
+
+                                                 NOT A PARAGRAPH UNDER EACH BOX:
+                                                 nine of those turns a
+                                                 properties sheet into a manual,
+                                                 and MDT admins are not reading
+                                                 the manual on the deployment
+                                                 screen. -->
+                                            <Border Grid.Column="2" x:Name="HDTFieldHelpDot"
+                                                    Style="{StaticResource HDTHelpDot}">
+                                                <Border.ToolTip>
+                                                    <ToolTip MaxWidth="380">
+                                                        <TextBlock TextWrapping="Wrap" Text="{Binding Hint}" />
+                                                    </ToolTip>
+                                                </Border.ToolTip>
+                                                <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                                            </Border>
                                         </Grid>
 
                                         <DataTemplate.Triggers>
@@ -650,6 +678,15 @@
                                                         Value="Collapsed" />
                                                 <Setter TargetName="HDTFieldChoice" Property="Visibility"
                                                         Value="Visible" />
+                                            </DataTrigger>
+
+                                            <!-- COLLAPSED, NOT HIDDEN: a row with
+                                                 no hint gives the width back to
+                                                 the box rather than leaving a
+                                                 hole where the dot would be. -->
+                                            <DataTrigger Binding="{Binding HasHint}" Value="False">
+                                                <Setter TargetName="HDTFieldHelpDot" Property="Visibility"
+                                                        Value="Collapsed" />
                                             </DataTrigger>
 
                                             <DataTrigger Binding="{Binding Kind}" Value="Check">
@@ -1084,7 +1121,8 @@
                     </Grid>
                 </TabItem>
 
-                <!--
+
+                                <!--
                     THE APPLICATIONS. MDT's Install Application dialog, which
                     asks ONE question first: does this step install what the
                     technician chose, or a list the sequence names?

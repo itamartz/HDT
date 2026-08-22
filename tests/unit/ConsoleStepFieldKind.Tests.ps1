@@ -1,4 +1,4 @@
-# WHAT CONTROL A PROPERTIES ROW GETS, AND WHY IT IS DECIDED HERE.
+﻿# WHAT CONTROL A PROPERTIES ROW GETS, AND WHY IT IS DECIDED HERE.
 #
 # The generic Properties sheet drew every row as a text box, so a step whose
 # settings are a closed set - EnableBitLocker's four - asked an administrator to
@@ -136,7 +136,7 @@ Describe 'the control a step property gets on the Properties sheet' {
     Context 'a setting the step will only accept from a closed set' {
 
         It 'offers BitLocker its four scopes rather than asking for the spelling' {
-            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Scope'
+            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Encrypt'
 
             $row.Kind | Should -BeExactly 'Choice'
             $row.Choice | Should -Be @('usedSpaceOnly', 'full')
@@ -155,7 +155,7 @@ Describe 'the control a step property gets on the Properties sheet' {
         }
 
         It 'offers the escrow targets the step implements' {
-            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Escrow'
+            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Back the key up to'
 
             $row.Choice | Should -Be @('ad', 'entra', 'none')
         }
@@ -185,13 +185,13 @@ Describe 'the control a step property gets on the Properties sheet' {
         }
 
         It 'still carries the value as the file spells it, because the splice writes that' {
-            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Wait'
+            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Wait for encryption'
 
             $row.Value | Should -BeExactly 'false'
         }
 
         It 'is still editable - a tick box writes the same key a box would' {
-            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Wait'
+            $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Wait for encryption'
 
             $row.Property | Should -BeExactly 'wait'
             $row.Editable | Should -BeTrue
@@ -225,20 +225,20 @@ steps:
     }
 
     It 'shows what the file says, by offering it' {
-        $row = Get-HDTFieldKindRow $script:variableYaml 'Scope'
+        $row = Get-HDTFieldKindRow $script:variableYaml 'Encrypt'
 
         $row.Choice | Should -Contain '%HDTBitLockerScope%'
         $row.Value | Should -BeExactly '%HDTBitLockerScope%'
     }
 
     It 'puts it first, because it is the one in force' {
-        $row = Get-HDTFieldKindRow $script:variableYaml 'Scope'
+        $row = Get-HDTFieldKindRow $script:variableYaml 'Encrypt'
 
         @($row.Choice)[0] | Should -BeExactly '%HDTBitLockerScope%'
     }
 
     It 'still offers the ones the step accepts, so it can be corrected' {
-        $row = Get-HDTFieldKindRow $script:variableYaml 'Scope'
+        $row = Get-HDTFieldKindRow $script:variableYaml 'Encrypt'
 
         $row.Choice | Should -Contain 'usedSpaceOnly'
         $row.Choice | Should -Contain 'full'
@@ -253,7 +253,7 @@ steps:
     }
 
     It 'leaves a list alone when the document is already on it' {
-        $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Scope'
+        $row = Get-HDTFieldKindRow $script:bitLockerYaml 'Encrypt'
 
         $row.Choice | Should -Be @('usedSpaceOnly', 'full')
     }

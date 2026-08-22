@@ -105,7 +105,16 @@
         # string for a key that is not a boolean at all, and a row that guessed
         # would turn one into a tick box the document never asked for.
         [Parameter()]
-        [switch] $Check
+        [switch] $Check,
+
+        # THE VALUE IS A FLAT LIST SHOWN AS A COMMA LINE. It draws as an ordinary
+        # text box - there is nothing for a control to do differently - but the
+        # SPLICE is not ordinary: Set-HDTStepProperty would quote it, and
+        # 'features: ''Web-Server, DNS''' is one feature with a comma in its
+        # name. Get-HDTConsoleStepChange reads this and routes to
+        # Set-HDTStepPropertyList instead.
+        [Parameter()]
+        [switch] $List
     )
 
     Set-StrictMode -Version Latest
@@ -142,6 +151,7 @@
         Kind     = $(
             if ($Choice.Count -gt 0) { 'Choice' }
             elseif ($Check) { 'Check' }
+            elseif ($List) { 'List' }
             else { 'Text' }
         )
 

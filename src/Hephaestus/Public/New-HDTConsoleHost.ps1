@@ -3526,8 +3526,18 @@
                 if ([string]::IsNullOrWhiteSpace($subject)) { return }
 
                 foreach ($one in @(Get-HDTConsoleStepChange -Field $detail.ItemsSource -Name $subject)) {
-                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
-                            -Property $one.Property -Value $one.Value)
+                    # A LIST ROW TAKES THE OTHER CMDLET. Set-HDTStepProperty
+                    # quotes what it is given, so Install Roles would get
+                    # features: 'Web-Server, DNS' - one feature with a comma in
+                    # its name - and refuse it at the machine. The ROW said
+                    # which it is; this only obeys.
+                    if ($one.IsList) {
+                        $book.Line = @(Set-HDTStepPropertyList -Line $book.Line -Name $subject `
+                                -Property $one.Property -Item ([string[]] @($one.Item)) -Confirm:$false)
+                    } else {
+                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
+                                -Property $one.Property -Value $one.Value)
+                    }
 
                     $command.Text = [string] $one.Command
                     $book.Dirty = $true
