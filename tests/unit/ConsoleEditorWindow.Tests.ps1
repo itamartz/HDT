@@ -186,7 +186,6 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTDisableCheck' }
         @{ Name = 'HDTContinueCheck' }
         @{ Name = 'HDTConditionText' }
-        @{ Name = 'HDTConditionApplyButton' }
         @{ Name = 'HDTConditionClearButton' }
         @{ Name = 'HDTRunInText' }
 
@@ -218,8 +217,22 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTImageIndexBox' }
         @{ Name = 'HDTImageTargetBox' }
         @{ Name = 'HDTImageTimeoutBox' }
-        @{ Name = 'HDTImageApplyButton' }
-        @{ Name = 'HDTImageRevertButton' }
+
+        # The Run Command Line page - MDT's dialog for that step, minus the
+        # run-as account HDT has no equivalent for. Start in is why it exists:
+        # the engine has always read workingDirectory and nothing in the console
+        # could write one.
+        @{ Name = 'HDTCommandTab' }
+        @{ Name = 'HDTCommandLineBox' }
+        @{ Name = 'HDTCommandLineLabel' }
+        @{ Name = 'HDTCommandFileBox' }
+        @{ Name = 'HDTCommandFileLabel' }
+        @{ Name = 'HDTCommandArgumentsBox' }
+        @{ Name = 'HDTCommandArgumentsLabel' }
+        @{ Name = 'HDTCommandStartInBox' }
+        @{ Name = 'HDTCommandSuccessBox' }
+        @{ Name = 'HDTCommandRebootBox' }
+        @{ Name = 'HDTCommandNoteText' }
 
         # The Applications page - MDT's Install Application dialog, which asks
         # which of its two answers the step is before it asks anything else.
@@ -230,8 +243,6 @@ Describe 'HDTSequenceEditor.xaml' {
         @{ Name = 'HDTApplicationList' }
         @{ Name = 'HDTApplicationEmptyText' }
         @{ Name = 'HDTApplicationNoteText' }
-        @{ Name = 'HDTApplicationApplyButton' }
-        @{ Name = 'HDTApplicationRevertButton' }
     ) {
         $script:markup | Should -Match ('x:Name="{0}"' -f $Name)
     }

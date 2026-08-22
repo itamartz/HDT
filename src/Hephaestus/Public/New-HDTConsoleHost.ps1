@@ -2728,7 +2728,6 @@
         $conditionOperator = $window.FindName('HDTConditionOperatorBox')
         $conditionValue = $window.FindName('HDTConditionValueBox')
         $conditionBuild = $window.FindName('HDTConditionBuildButton')
-        $conditionApply = $window.FindName('HDTConditionApplyButton')
         $conditionClear = $window.FindName('HDTConditionClearButton')
 
         $variableButton = $window.FindName('HDTVariableButton')
@@ -2749,12 +2748,8 @@
         $imageIndexBox = $window.FindName('HDTImageIndexBox')
         $imageTargetBox = $window.FindName('HDTImageTargetBox')
         $imageTimeoutBox = $window.FindName('HDTImageTimeoutBox')
-        $imageApply = $window.FindName('HDTImageApplyButton')
-        $imageRevert = $window.FindName('HDTImageRevertButton')
         $validateTab = $window.FindName('HDTValidateTab')
         $validateList = $window.FindName('HDTValidateList')
-        $validateApply = $window.FindName('HDTValidateApplyButton')
-        $validateRevert = $window.FindName('HDTValidateRevertButton')
         $applicationTab = $window.FindName('HDTApplicationTab')
         $applicationList = $window.FindName('HDTApplicationList')
         $applicationVariableRadio = $window.FindName('HDTApplicationVariableRadio')
@@ -2762,8 +2757,6 @@
         $applicationFixedRadio = $window.FindName('HDTApplicationFixedRadio')
         $applicationEmptyText = $window.FindName('HDTApplicationEmptyText')
         $applicationNoteText = $window.FindName('HDTApplicationNoteText')
-        $applicationApply = $window.FindName('HDTApplicationApplyButton')
-        $applicationRevert = $window.FindName('HDTApplicationRevertButton')
         $commandTab = $window.FindName('HDTCommandTab')
         $commandLineLabel = $window.FindName('HDTCommandLineLabel')
         $commandLineBox = $window.FindName('HDTCommandLineBox')
@@ -2775,8 +2768,6 @@
         $commandSuccessBox = $window.FindName('HDTCommandSuccessBox')
         $commandRebootBox = $window.FindName('HDTCommandRebootBox')
         $commandNoteText = $window.FindName('HDTCommandNoteText')
-        $commandApply = $window.FindName('HDTCommandApplyButton')
-        $commandRevert = $window.FindName('HDTCommandRevertButton')
         $stepNameBox = $window.FindName('HDTStepNameBox')
         $diskNumberBox = $window.FindName('HDTDiskNumberBox')
         $diskStyleBox = $window.FindName('HDTDiskStyleBox')
@@ -2977,7 +2968,6 @@
             $paste.IsEnabled = $state.CanPaste
             $save.IsEnabled = $state.CanSave
 
-            $conditionApply.IsEnabled = $state.CanRemove
             $conditionClear.IsEnabled = $state.CanRemove
             $disableCheck.IsEnabled = $state.CanRemove
             $continueCheck.IsEnabled = $state.CanRemove
@@ -3069,8 +3059,6 @@
                 $book.IndexShown = [string] $imageChoice.Index
             }
 
-            $imageApply.IsEnabled = $imageChoice.IsImageStep
-            $imageRevert.IsEnabled = $imageChoice.IsImageStep
 
             # THE VALIDATION PAGE, on the same rule as the disk one. MDT's
             # Validate dialog IS that step's properties page, so the generic tab
@@ -3083,8 +3071,6 @@
                 $validateList.ItemsSource = $validate.Check
             }
 
-            $validateApply.IsEnabled = $validate.IsValidateStep
-            $validateRevert.IsEnabled = $validate.IsValidateStep
 
             # THE APPLICATIONS PAGE, on the same rule as the other two: MDT's
             # Install Application dialog IS that step's properties page.
@@ -3115,8 +3101,6 @@
                 }
             }
 
-            $applicationApply.IsEnabled = $application.IsApplicationStep
-            $applicationRevert.IsEnabled = $application.IsApplicationStep
 
             # RUN COMMAND LINE, on the same rule as the four above: MDT's dialog
             # for this step IS its properties page. What it replaces was two rows
@@ -3169,8 +3153,6 @@
                 }
             }
 
-            $commandApply.IsEnabled = $commandPage.IsCommandLineStep
-            $commandRevert.IsEnabled = $commandPage.IsCommandLineStep
 
             # AND THE GENERIC TAB GOES WHEN A DEDICATED PAGE ARRIVES. With the
             # disk keys on their own page and the name above the tabs, what was
@@ -3559,15 +3541,6 @@
                 $book.Selected = $subject
             }.GetNewClosure()
 
-        $book.Bank = $bankProperties
-
-        $conditionApply.Add_Click({
-                $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected `
-                        -Condition ([string] $conditionText.Text))
-                $book.Dirty = $true
-                & $rebuild
-            }.GetNewClosure())
-
         $conditionClear.Add_Click({
                 $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected -Condition '')
                 $book.Dirty = $true
@@ -3604,13 +3577,39 @@
         # partition - and a button that did nothing without saying why would
         # leave the person pressing it to guess which refusal they hit.
         $partitionAttempt = {
-            param([scriptblock] $Attempt, [string] $Echo)
+            param([scriptblock] $Attempt, [string] $Echo, [bool] $Rebuild = $true)
+
+            # WHAT THE DOCUMENT SAID BEFORE. Every page on this window now
+            # commits by itself - there is no Apply button anywhere - so these
+            # writes run on leaving a box and on leaving a step, not only when
+            # somebody asked for one. Marking the window dirty unconditionally
+            # would light Save up for walking through a sequence and reading it,
+            # and then write a file with no edit in it.
+            $before = [string[]] @($book.Line)
 
             try {
                 & $Attempt
+
+                $changed = (@($book.Line).Count -ne @($before).Count)
+
+                if (-not $changed) {
+                    for ($i = 0; $i -lt @($before).Count; $i++) {
+                        if ([string] $book.Line[$i] -ne [string] $before[$i]) {
+                            $changed = $true
+                            break
+                        }
+                    }
+                }
+
+                if (-not $changed) { return }
+
                 $book.Dirty = $true
                 $command.Text = $Echo
-                & $rebuild
+
+                # NOT WHILE THE PANE IS BEING REFILLED. Banking runs from inside
+                # the selection change, and rebuilding the tree there would
+                # replace the rows under the handler that is walking them.
+                if ($Rebuild) { & $rebuild }
             } catch {
                 $command.Text = [string] $_.Exception.Message
             }
@@ -3737,7 +3736,39 @@
         # THE OPERATING SYSTEM PAGE WRITES ON ONE PRESS, for the reason the
         # validation page does: four boxes written on every keystroke would
         # splice the document four times while somebody types a number.
-        $imageApply.Add_Click({
+        # THE OPERATING SYSTEM PAGE COMMITS ITSELF TOO - see $commandWrite for
+        # why there is no button.
+        # THE CONDITION COMMITS ON LEAVING THE BOX, not on a button. Build
+        # writes an expression INTO the box and always did; Apply was a second
+        # name for finishing with it, and this window now has exactly one way to
+        # finish with a box everywhere else.
+        #
+        # NOT ON EVERY KEYSTROKE: an expression is typed a character at a time
+        # and half of one is not a condition, so splicing per key would rebuild
+        # the tree under the cursor and write nonsense in between.
+        $conditionWrite = {
+                param([bool] $Rebuild = $true)
+
+                if ([string]::IsNullOrWhiteSpace([string] $book.Selected)) { return }
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepCondition -Line $book.Line -Name $book.Selected `
+                            -Condition ([string] $conditionText.Text) -Confirm:$false)
+                } ("Set-HDTStepCondition -Line `$line -Name '{0}' -Condition '{1}'" -f
+                    $book.Selected, [string] $conditionText.Text) $Rebuild
+            }.GetNewClosure()
+
+        $conditionText.Add_LostFocus({
+                if ($book.Quiet) { return }
+                & $conditionWrite $true
+            }.GetNewClosure())
+
+        $imageWrite = {
+                param([bool] $Rebuild = $true)
+
+                if ($imageTab.Visibility -ne [System.Windows.Visibility]::Visible) { return }
+                if ([string]::IsNullOrWhiteSpace([string] $book.Selected)) { return }
+
                 # UNCHANGED MEANS UNCHANGED. The box shows the image a variable
                 # resolves to, so writing what the box holds would replace
                 # '%HDTOSImage%' with today's answer - silently, on a press
@@ -3794,16 +3825,39 @@
                     } else {
                         "Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'os' -Value '{1}'" -f
                         $book.Selected, [string] $imageBox.SelectedValue
-                    })
-            }.GetNewClosure())
+                    }) $Rebuild
+            }.GetNewClosure()
 
-        $imageRevert.Add_Click({ & $reflect }.GetNewClosure())
+        # PICKING FROM A LIST IS THE EDIT - there is nothing more to confirm.
+        # Guarded on Quiet because filling the box raises SelectionChanged too,
+        # and that would splice the document on every refresh.
+        foreach ($picker in @($imageBox, $imageIndexBox)) {
+            $picker.Add_SelectionChanged({
+                    if ($book.Quiet) { return }
+                    & $imageWrite $true
+                }.GetNewClosure())
+        }
+
+        foreach ($box in @($imageTargetBox, $imageTimeoutBox)) {
+            $box.Add_LostFocus({
+                    if ($book.Quiet) { return }
+                    & $imageWrite $true
+                }.GetNewClosure())
+        }
 
         # RUN COMMAND LINE, WRITTEN IN ONE PRESS. Same shape as the image page:
         # Apply splices, Revert is the refresh that throws the boxes away.
-        $commandApply.Add_Click({
+        # THE COMMAND PAGE WRITES WHEN A BOX IS LEFT, and once more when the
+        # step changes or the window is saved. There is no Apply button here or
+        # anywhere else on this window: the toolbar Save is what commits it, and
+        # a second commit button on one tab of six taught that the others did
+        # not need one.
+        $commandWrite = {
+                param([bool] $Rebuild = $true)
+
                 $subject = [string] $book.Selected
                 if ([string]::IsNullOrWhiteSpace($subject)) { return }
+                if ($commandTab.Visibility -ne [System.Windows.Visibility]::Visible) { return }
 
                 & $partitionAttempt {
                     # THE FORM THE DOCUMENT IS IN, NOT THE ONE THE PAGE PREFERS.
@@ -3847,10 +3901,21 @@
                     }
                 } (
                     "Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'workingDirectory' -Value '{1}'" -f
-                    $subject, [string] $commandStartInBox.Text)
-            }.GetNewClosure())
+                    $subject, [string] $commandStartInBox.Text) $Rebuild
+            }.GetNewClosure()
 
-        $commandRevert.Add_Click({ & $reflect }.GetNewClosure())
+        # ONE HANDLER PER BOX, ON LEAVING IT. Writing on every keystroke would
+        # splice the document once per character and rebuild the tree under
+        # somebody's hands, which is the rule the Validation page's number boxes
+        # already follow.
+        foreach ($box in @($commandLineBox, $commandFileBox, $commandArgumentsBox,
+                $commandStartInBox, $commandSuccessBox, $commandRebootBox)) {
+
+            $box.Add_LostFocus({
+                    if ($book.Quiet) { return }
+                    & $commandWrite $true
+                }.GetNewClosure())
+        }
 
         # THE WHOLE PAGE, WRITTEN IN ONE SPLICE. Every check is written, ticked
         # or not, because unticking one is as much an edit as ticking it.
@@ -3858,6 +3923,25 @@
         # UNTICKED REMOVES THE KEY rather than writing a zero: 'minRamMB: 0' is a
         # bound of nothing that still reads as a declared bound, and there would
         # then be no way to say "I do not care about memory".
+        # EVERY PAGE THAT HOLDS TYPING, BANKED AT THE TWO MOMENTS IT MATTERS:
+        # before Save writes, and before the pane is refilled for another step.
+        # The Properties rows were the only ones banked while the other pages
+        # had Apply buttons to make the point; with the buttons gone, anything
+        # still sitting in a box has to be committed here or it is lost the
+        # moment somebody clicks the next step - silently, which is worse than
+        # the button was.
+        #
+        # NO REBUILD FROM HERE. This runs from inside the selection change, and
+        # rebuilding the tree would replace the rows under the handler walking
+        # them. $partitionAttempt writes nothing when nothing changed, so
+        # banking a page nobody touched costs a comparison.
+        $book.Bank = {
+                & $bankProperties
+                & $imageWrite $false
+                & $commandWrite $false
+                & $conditionWrite $false
+            }.GetNewClosure()
+
         $validateWrite = {
             $written = New-Object -TypeName System.Collections.ArrayList
 
@@ -3914,16 +3998,10 @@
                 & $validateWrite
             }.GetNewClosure())
 
-        # APPLY CHECKS STAYS, and now it is the same write said out loud: it is
-        # what somebody reaches for when they are not sure the page took.
-        $validateApply.Add_Click({ & $validateWrite }.GetNewClosure())
-
-        $validateRevert.Add_Click({
-                # THE DOCUMENT IS THE TRUTH, so reverting is re-reading it. The
-                # rows are rebuilt from the file rather than remembered, which
-                # is the same reason the tree is.
-                & $reflect
-            }.GetNewClosure())
+        # NO Apply checks AND NO Revert. This page already wrote on every tick
+        # and on leaving every number box - the button was the same splice said
+        # a second time, and a window with six tabs and two commit buttons on
+        # two of them teaches that the other four do not save.
 
         # -- the Applications tab ------------------------------------------
         #
@@ -3990,9 +4068,8 @@
                 & $applicationWrite
             }.GetNewClosure())
 
-        $applicationApply.Add_Click({ & $applicationWrite }.GetNewClosure())
-
-        $applicationRevert.Add_Click({ & $reflect }.GetNewClosure())
+        # NO Apply AND NO Revert, for the reason on the Validation page: a tick
+        # here is already the edit.
 
         # RENAMING IS A SPLICE LIKE ANY OTHER, and it has to update what the
         # window then refers to the step by - otherwise the next press acts on a

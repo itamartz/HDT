@@ -60,7 +60,7 @@
         HDTEditorCommandText, HDTAddButton, HDTAddMenu, HDTRemoveButton,
         HDTUpButton, HDTDownButton, HDTCopyButton, HDTPasteButton,
         HDTSaveButton, HDTOptionTab, HDTDisableCheck, HDTContinueCheck,
-        HDTConditionText, HDTConditionApplyButton, HDTConditionClearButton,
+        HDTConditionText, HDTConditionClearButton,
         HDTConditionVariableBox, HDTConditionOperatorBox, HDTConditionValueBox,
         HDTConditionBuildButton,
         HDTRunInText and HDTEditorCloseButton. A test asserts every one of these
@@ -174,7 +174,7 @@
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Cursor" Value="Help" />
-            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="Margin" Value="8,0,0,8" />
             <Setter Property="ToolTipService.ShowDuration" Value="60000" />
             <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
         </Style>
@@ -798,15 +798,6 @@
                             <TextBlock Style="{StaticResource HDTHelpGlyph}" />
                         </Border>
 
-                        <Border Grid.Row="5" Grid.ColumnSpan="3" Padding="0,10,0,0"
-                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="HDTImageApplyButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                                <Button x:Name="HDTImageRevertButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                            </StackPanel>
-                        </Border>
                     </Grid>
                 </TabItem>
 
@@ -964,15 +955,6 @@
                                    FontSize="12" TextWrapping="Wrap"
                                    Visibility="Collapsed" Margin="0,4,0,0" />
 
-                        <Border Grid.Row="6" Grid.ColumnSpan="3" Padding="0,10,0,0"
-                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="HDTCommandApplyButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                                <Button x:Name="HDTCommandRevertButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                            </StackPanel>
-                        </Border>
                     </Grid>
                 </TabItem>
                 <!--
@@ -1099,19 +1081,6 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Border Grid.Row="1" Padding="14,10,14,12"
-                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <!-- ONE PRESS WRITES THE WHOLE PAGE, which is
-                                     MDT's OK. Writing on every keystroke would
-                                     splice the document six times while
-                                     somebody types a number. -->
-                                <Button x:Name="HDTValidateApplyButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                                <Button x:Name="HDTValidateRevertButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                            </StackPanel>
-                        </Border>
                     </Grid>
                 </TabItem>
 
@@ -1272,10 +1241,14 @@
                         <Border Grid.Row="4" Padding="0,10,0,0" Margin="0,10,0,0"
                                 BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
                             <StackPanel Orientation="Horizontal">
-                                <Button x:Name="HDTApplicationApplyButton"
-                                        Style="{StaticResource HDTToolButton}" />
-                                <Button x:Name="HDTApplicationRevertButton"
-                                        Style="{StaticResource HDTToolButton}" />
+                                <!-- NO Apply AND NO Revert. Every page on this window
+                                 commits by itself - a list writes when it is
+                                 picked from, a tick when it is ticked, a box
+                                 when it is left - and the toolbar Save is what
+                                 writes the file. Two commit buttons on two tabs
+                                 of six taught that the other four did not save,
+                                 which is the lesson the Properties tab had
+                                 already learnt when its pair came off. -->
 
                                 <!-- WHAT THE DOCUMENT SAYS, IN A SENTENCE,
                                      written at run time: which variable the
@@ -1654,9 +1627,13 @@
                                      FontFamily="Consolas, Courier New" FontSize="12"
                                      Padding="7,5,7,5" />
 
+                            <!-- CLEAR STAYS, Apply DOES NOT. Clear is a distinct
+                                 edit - "this step runs everywhere" - and there
+                                 is no other way to say it once an expression is
+                                 in the box. Apply was only a second name for
+                                 leaving the box, which is what commits it now,
+                                 the way every other box on this window does. -->
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                <Button x:Name="HDTConditionApplyButton"
-                                        Style="{StaticResource HDTToolButton}" IsEnabled="False" />
                                 <Button x:Name="HDTConditionClearButton"
                                         Style="{StaticResource HDTToolButton}" IsEnabled="False" />
                             </StackPanel>

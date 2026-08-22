@@ -158,8 +158,6 @@
         'HDTImageTimeoutLabel.Text' = 'Time limit'
         'HDTImageTimeoutUnitText.Text' = 'minutes'
         'HDTImageTimeoutHint.Text' = 'Minutes before the step is treated as hung and the attempt fails. 0 means no limit.'
-        'HDTImageApplyButton.Content' = 'Apply'
-        'HDTImageRevertButton.Content' = 'Revert'
 
         # Run Command Line - MDT's dialog for this step, minus the run-as
         # account HDT does not have. Start in is the reason the page exists:
@@ -175,12 +173,8 @@
         'HDTCommandCodesLabel.Text' = 'Exit codes'
         'HDTCommandRebootLabel.Text' = 'reboot on'
         'HDTCommandCodesHint.Text' = 'Codes that mean the step worked, and codes that mean it wants a restart. Separate them with commas. A reboot code wins over a success code listing the same number. Left alone, success is 0 and reboot is 3010.'
-        'HDTCommandApplyButton.Content' = 'Apply'
-        'HDTCommandRevertButton.Content' = 'Revert'
 
         'HDTValidateTab.Header' = 'Validation'
-        'HDTValidateApplyButton.Content' = 'Apply checks'
-        'HDTValidateRevertButton.Content' = 'Revert'
 
         # The Applications page - MDT's Install Application dialog, which asks
         # which of the two answers this step is before it asks anything else.
@@ -191,8 +185,6 @@
         'HDTApplicationFixedRadio.Content' = 'Install these applications'
         'HDTApplicationFixedHint.Text' = 'A list this sequence names, the same for every machine that runs it. Ticking one also installs what it depends on - the engine works that out and orders them.'
         'HDTApplicationEmptyText.Text' = 'This share holds no applications. Import one and it appears here.'
-        'HDTApplicationApplyButton.Content' = 'Apply'
-        'HDTApplicationRevertButton.Content' = 'Revert'
 
         'HDTDiskTab.Header' = 'Disk'
         'HDTDiskNumberLabel.Text' = 'Disk number'
@@ -239,7 +231,6 @@
         'HDTConditionVariableBox.ToolTip' = 'The variable to test'
         'HDTConditionBuildButton.Content' = 'Build'
         'HDTConditionBuildButton.ToolTip' = 'Write this into the box below'
-        'HDTConditionApplyButton.Content' = 'Apply condition'
         'HDTConditionClearButton.Content' = 'Clear'
         'HDTRunInLabel.Text' = 'Runs in'
         'HDTRunInText.Text' = 'any phase'
