@@ -79,6 +79,12 @@
               StepCount                    how many steps the document holds
               Dirty                        echoed back, so the window has one source
               CanRemove, CanCopy, CanMoveUp, CanMoveDown, CanPaste, CanSave
+              MoveUpTarget, MoveDownTarget
+                                           where Up and Down would put the
+                                           selected row - Target,
+                                           TargetOccurrence and Position - or
+                                           nothing, which is what a dark button
+                                           means
 
         .EXAMPLE
             $state = Get-HDTConsoleEditorState -Line $line -Path $path -SelectedName 'Apply OS'
@@ -241,48 +247,89 @@
     $canMoveUp = $false
     $canMoveDown = $false
 
+    # WHERE UP AND DOWN WOULD PUT IT, worked out by the command that owns that
+    # question. They used to mean "swap with a sibling", so a step at the edge of
+    # a group had a dark button and nowhere to go; they now walk the list a
+    # technician can SEE, crossing group boundaries wherever it does.
+    #
+    # A DARK BUTTON NOW MEANS THE END OF THE DOCUMENT and nothing else. It used
+    # to mean the edge of a group, which is why a step could be stuck in one.
+    $moveUpTarget = $null
+    $moveDownTarget = $null
+
+    if (-not [string]::IsNullOrEmpty($SelectedName)) {
+
+        # A DOCUMENT THAT WILL NOT PARSE MUST NOT THROW OUT OF AN EDITOR. The
+        # status line already says the text is broken; a second failure here
+        # would replace that sentence with a stack.
+        try {
+            $moveUpTarget = Get-HDTStepNeighbourTarget -Line $Line -Name $SelectedName `
+                -Occurrence $SelectedOccurrence -Direction Up
+        } catch {
+            $moveUpTarget = $null
+        }
+
+        try {
+            $moveDownTarget = Get-HDTStepNeighbourTarget -Line $Line -Name $SelectedName `
+                -Occurrence $SelectedOccurrence -Direction Down
+        } catch {
+            $moveDownTarget = $null
+        }
+    }
+
     if (-not [string]::IsNullOrEmpty($SelectedName)) {
         $step = @($sequence.Step | Where-Object { $_.Name -eq $SelectedName })
         $group = @($sequence.Group | Where-Object { @($_.Path).Count -gt 0 -and $_.Path[-1] -eq $SelectedName })
 
         $subject = $null
-        $sibling = @()
 
-        if (@($step).Count -gt 0) {
-            $subject = $step[0]
+        # THE SIBLING ARITHMETIC IS GONE. It existed to answer CanMoveUp and
+        # CanMoveDown from the row's index among its own siblings, which is what
+        # made a step at the edge of a group unmovable - the toolbar was
+        # describing a group's contents rather than the list on screen.
+        # Get-HDTStepNeighbourTarget answers that now, above.
 
-            # A step's neighbours are the steps sharing its GroupPath - the last
-            # step of one group is not the neighbour of the first step of the
-            # next, however adjacent they look on screen.
-            $key = @($subject.GroupPath) -join "`u{001F}"
-            $sibling = @($sequence.Step | Where-Object { (@($_.GroupPath) -join "`u{001F}") -eq $key })
-        } elseif (@($group).Count -gt 0) {
-            $subject = $group[0]
+        # AND THE SUBJECT FOLLOWS THE SELECTED ROW, NOT THE FIRST OF ITS NAME.
+        # $step[0] meant that on a sequence with two steps called 'Tattoo' the
+        # Options tab, the condition box, the Runs-in text and the two
+        # checkboxes all described the FIRST one however carefully the second
+        # was clicked - quietly, and only on duplicates.
+        #
+        # THE ORDINAL IS CLAMPED RATHER THAN TRUSTED. It is counted across
+        # groups AND steps, the way Resolve-HDTStepBlock counts, so a document
+        # holding a group and a step of the same name can hand this a number
+        # past the end of the step list. Landing on the last of them is wrong
+        # in a way somebody can see; an index error is a window that will not
+        # open.
+        $pick = {
+            param([object[]] $Candidate)
 
-            # A group's are the groups at its own level under the same parent.
-            #
-            # NOT $path: PowerShell variable names are case-insensitive, so that
-            # would assign to this function's own [string] $Path parameter,
-            # which coerces the array to a single string and takes .Count with
-            # it. The failure surfaces two lines later as "the property 'Count'
-            # cannot be found", naming neither the parameter nor the assignment.
-            $groupPath = @($subject.Path)
-            $depth = $groupPath.Count
-            $parent = Get-HDTGroupParent -Path $groupPath
+            if (@($Candidate).Count -eq 0) { return $null }
 
-            $sibling = @($sequence.Group | Where-Object {
-                    $other = @($_.Path)
+            $index = 0
+            if ($SelectedOccurrence -gt 0) { $index = $SelectedOccurrence - 1 }
+            if ($index -gt (@($Candidate).Count - 1)) { $index = @($Candidate).Count - 1 }
 
-                    $other.Count -eq $depth -and (Get-HDTGroupParent -Path $other) -eq $parent
-                })
+            return $Candidate[$index]
         }
 
+        if (@($step).Count -gt 0) {
+            $subject = & $pick $step
+        } elseif (@($group).Count -gt 0) {
+            $subject = & $pick $group
+        }
+
+        $canMoveUp = ($null -ne $moveUpTarget)
+        $canMoveDown = ($null -ne $moveDownTarget)
+
         if ($null -ne $subject) {
-            $at = [array]::IndexOf($sibling, $subject)
 
-            $canMoveUp = ($at -gt 0)
-            $canMoveDown = ($at -ge 0 -and $at -lt (@($sibling).Count - 1))
-
+            # THE SIBLING ARITHMETIC THAT USED TO LIVE HERE IS GONE. It set
+            # CanMoveUp from the row's index among its own siblings, which is
+            # what made a step at the edge of a group unmovable: the buttons
+            # were describing a group's contents rather than the list on screen.
+            # Get-HDTStepNeighbourTarget answers that now, above, and a dark
+            # button means the end of the DOCUMENT.
             $option = Get-HDTConsoleStepOption -Step $subject
 
             # The row on screen, so the window can put the selection back where
@@ -330,6 +377,8 @@
         Option      = $option
         StepCount   = $count
         Dirty       = [bool] $Dirty
+        MoveUpTarget   = $moveUpTarget
+        MoveDownTarget = $moveDownTarget
         CanRemove   = $found
         CanCopy     = $found
         CanMoveUp   = $canMoveUp

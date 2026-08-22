@@ -1,4 +1,4 @@
-# Everything the editor window shows about a document it is part-way through
+﻿# Everything the editor window shows about a document it is part-way through
 # editing.
 #
 # THIS EXISTS SO THE WINDOW CAN STAY BRANCH-FREE. Wiring the toolbar means
@@ -172,35 +172,63 @@ steps:
             $result.CanCopy | Should -BeTrue
         }
 
-        It 'refuses Up on the first step in a group, because Move refuses it too' {
+        # THESE THREE USED TO ASSERT THE OPPOSITE, AND THE CHANGE IS
+        # DELIBERATE. Up and Down meant "swap with a sibling", so a step at the
+        # edge of a group had a dark button and was stuck there - the toolbar was
+        # describing a group's contents rather than the list on screen. A
+        # technician reported it as a bug and they were right: MDT lets a step go
+        # anywhere, and the old refusal made the toolkit's addressing the
+        # administrator's problem.
+        #
+        # A DARK BUTTON NOW MEANS THE END OF THE DOCUMENT, and nothing else.
+
+        It 'offers Up on the first step in a group, which now leaves the group' {
             $result = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Validate'
 
-            $result.CanMoveUp | Should -BeFalse
+            $result.CanMoveUp | Should -BeTrue
             $result.CanMoveDown | Should -BeTrue
+
+            # And it says where: above the group it is currently the first of.
+            $result.MoveUpTarget.Target | Should -BeExactly 'Preinstall'
+            $result.MoveUpTarget.Position | Should -BeExactly 'Before'
         }
 
-        It 'refuses Down on the last step in a group' {
+        It 'offers Down on the last step in a group, which now enters the next one' {
             $result = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Format and Partition'
 
             $result.CanMoveUp | Should -BeTrue
-            $result.CanMoveDown | Should -BeFalse
+            $result.CanMoveDown | Should -BeTrue
         }
 
-        It 'counts a group against its fellow groups, not against the steps inside it' {
+        It 'is dark only at the two ends of the document' {
+            # The first block in the document has nothing above it, and the last
+            # has nothing below. That is the whole of the remaining refusal.
             $first = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Preinstall'
-            $last = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Install'
 
-            $first.CanMoveUp | Should -BeFalse
+            $first.CanMoveUp | Should -BeFalse -Because 'it is the first block in the document'
             $first.CanMoveDown | Should -BeTrue
-            $last.CanMoveUp | Should -BeTrue
-            $last.CanMoveDown | Should -BeFalse
         }
 
-        It 'refuses Down on the only step in a group' {
+        It 'offers Up on the only step in a group, because a group is not a cage' {
+            # Apply OS is alone in Install, and Up used to be dark for that
+            # reason alone. It now leaves the group.
+            #
+            # DOWN IS STILL DARK, and correctly: Apply OS is also the LAST block
+            # in this document, so there is nowhere below it. That is the only
+            # refusal left.
             $result = Get-HDTConsoleEditorState -Line $script:line -Path $script:path -SelectedName 'Apply OS'
 
-            $result.CanMoveUp | Should -BeFalse
-            $result.CanMoveDown | Should -BeFalse
+            $result.CanMoveUp | Should -BeTrue
+            $result.MoveUpTarget.Target | Should -BeExactly 'Install'
+            $result.MoveUpTarget.Position | Should -BeExactly 'Before'
+
+            # DOWN IS LIVE TOO, and this expectation was written before the
+            # rule was finished. Apply OS is the last block in the text, but it
+            # is INSIDE Install - so there is still somewhere below it: out of
+            # the group, at the top level, after Install itself.
+            $result.CanMoveDown | Should -BeTrue
+            $result.MoveDownTarget.Target | Should -BeExactly 'Install'
+            $result.MoveDownTarget.Position | Should -BeExactly 'After'
         }
     }
 

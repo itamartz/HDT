@@ -2838,6 +2838,7 @@
             # sequence held two steps called 'Tattoo'.
             SelectedOccurrence = 0
 
+
             Partition = ''
             Image     = ''
             ImageShown = ''
@@ -2921,8 +2922,13 @@
                 $parsed = $null
             }
 
+            # THE OCCURRENCE TRAVELS HERE TOO, AND THIS IS THE PATH THAT
+            # MATTERS. $reflect runs on every selection change; $rebuild only
+            # after a splice. A version that passed it in one and not the other
+            # would answer correctly right up until somebody clicked a row.
             $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path `
-                -SelectedName $book.Selected -Document $parsed `
+                -SelectedName $book.Selected -SelectedOccurrence $book.SelectedOccurrence `
+                -Document $parsed `
                 -HasClipboard:($null -ne $book.Clipboard) -Dirty:$book.Dirty
 
             $book.State = $state
@@ -3168,6 +3174,12 @@
             $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path `
                 -SelectedName $book.Selected -SelectedOccurrence $book.SelectedOccurrence
 
+            # PUBLISHED, BECAUSE THE TOOLBAR ACTS ON IT. Up and Down no longer
+            # swap siblings - they move the row to where MoveUpTarget and
+            # MoveDownTarget say, and those are computed here rather than in a
+            # click handler.
+            $book.State = $state
+
             $book.Quiet = $true
             $tree.ItemsSource = $state.Root
             $book.Quiet = $false
@@ -3347,9 +3359,17 @@
                 & $rebuild
             }.GetNewClosure())
 
+        # UP AND DOWN WALK THE LIST ON SCREEN, NOT A GROUP'S SIBLINGS.
+        # Get-HDTStepNeighbourTarget says which row to land beside and which
+        # side of it; this decides nothing, which is the point - a WPF handler
+        # is the one place in this repository nothing can test.
         $up.Add_Click({
+                $to = $book.State.MoveUpTarget
+                if ($null -eq $to) { return }
+
                 $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected `
-                        -Occurrence $book.SelectedOccurrence -Direction Up)
+                        -Occurrence $book.SelectedOccurrence `
+                        -Target $to.Target -TargetOccurrence $to.TargetOccurrence -Position $to.Position)
                 $book.Dirty = $true
 
                 # THE ORDINAL IS NOT ADJUSTED HERE, AND GUESSING IT WOULD BE A
@@ -3365,8 +3385,12 @@
             }.GetNewClosure())
 
         $down.Add_Click({
+                $to = $book.State.MoveDownTarget
+                if ($null -eq $to) { return }
+
                 $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected `
-                        -Occurrence $book.SelectedOccurrence -Direction Down)
+                        -Occurrence $book.SelectedOccurrence `
+                        -Target $to.Target -TargetOccurrence $to.TargetOccurrence -Position $to.Position)
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())

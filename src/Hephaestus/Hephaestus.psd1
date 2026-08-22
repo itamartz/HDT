@@ -102,6 +102,7 @@
         'Get-HDTInstallCertificateStepDescription',
         'Get-HDTInstallCertificateStepTemplate',
         'Invoke-HDTInstallCertificateStep',
+        'Get-HDTStepNeighbourTarget',
         'Get-HDTStepType',
         'Get-HDTGroupTemplate',
         'Get-HDTUsableAddress',
