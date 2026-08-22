@@ -340,9 +340,50 @@
             elseif ($value -isnot [string] -and $value -is [System.Collections.IEnumerable]) { $isTable = $true }
 
             if (-not $isTable) {
+                # WHAT CONTROL THE ROW ASKS FOR, decided from the document and
+                # from the step type, so the window holds no list of its own.
+                #
+                # A CLOSED SET IS A LIST. EnableBitLocker refuses a scope it does
+                # not know, and a text box asked an administrator to spell
+                # 'usedSpaceOnly' from memory and find out at the machine.
+                # Get-HDTStepPropertyChoice is the same table the step refuses
+                # from, so the list cannot offer something that will be rejected.
+                #
+                # A YAML BOOLEAN IS A TICK BOX. The parser hands back a real
+                # [bool] here - the [string] below is what turned it into the
+                # word 'True' on screen - so the type in the file decides this
+                # and nothing has to guess from the text. Everything else in
+                # this window draws yes-or-no as a box; a step's own settings
+                # were the exception.
+                $choice = @(Get-HDTStepPropertyChoice -Type ([string] $current.Type) -Key ([string] $name))
+                $isBoolean = ($value -is [bool])
+
+                # AS THE FILE SPELLS IT, not as .NET prints it. 'True' would be
+                # a reformat of a key nobody edited the moment anything else on
+                # the sheet was banked (DESIGN 12).
+                $text = [string] $value
+                if ($isBoolean) { $text = ([string] $value).ToLowerInvariant() }
+
+                # A LIST THAT DOES NOT OFFER WHAT THE FILE SAYS SHOWS NOTHING.
+                # A step resolving its scope from '%HDTBitLockerScope%' drew an
+                # EMPTY drop-down: the setting looked unset when the document
+                # plainly sets it, and opening the list to find out would have
+                # replaced the variable with a literal leaving no sign it had
+                # ever been one.
+                #
+                # SO THE DOCUMENT'S OWN VALUE GOES ON THE LIST, FIRST, which is
+                # the bargain the Image tab already makes - an image the share no
+                # longer holds still appears rather than being silently swapped
+                # for whatever sorts first. A value the step will refuse is shown
+                # for the same reason: a sequence that cannot run should not look
+                # fine.
+                if ($choice.Count -gt 0 -and -not ($choice -contains $text)) {
+                    $choice = @($text) + $choice
+                }
+
                 $field = $field + @(
                     New-HDTConsoleField -Label (Get-HDTConsolePropertyLabel -Key $name) `
-                        -Value ([string] $value) -Property $name
+                        -Value $text -Property $name -Choice $choice -Check:$isBoolean
                 )
 
                 continue

@@ -1,4 +1,4 @@
-function Get-HDTConsoleStepChange {
+﻿function Get-HDTConsoleStepChange {
     <#
         .SYNOPSIS
             Which rows of the Properties tab were typed into, and the cmdlet
@@ -77,6 +77,21 @@ function Get-HDTConsoleStepChange {
         if (-not $row.Editable) { continue }
 
         $value = [string] $row.Value
+
+        # A TICK BOX WRITES 'true', NOT 'True'. WPF converts the box's bool back
+        # through the default string converter, which capitalises - and the
+        # document, every Get-HDT*StepTemplate and DEMO-M4 all spell it lower.
+        # A commit that turned 'wipe: true' into 'wipe: True' would be a diff
+        # with a reformat in it and no edit (DESIGN 12), and the reviewer would
+        # have to work out which it was.
+        #
+        # HERE RATHER THAN IN THE ROW, because the row is the edit buffer: it
+        # holds whatever the control last wrote into it, and this is the moment
+        # that becomes a line in a file.
+        $kind = ''
+        if ($null -ne $row.PSObject.Properties['Kind']) { $kind = [string] $row.Kind }
+        if ($kind -eq 'Check') { $value = $value.ToLowerInvariant() }
+
         if ($value -eq [string] $row.Original) { continue }
 
         $renames = ($naming -contains [string] $row.Property)

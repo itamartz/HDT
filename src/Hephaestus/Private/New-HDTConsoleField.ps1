@@ -34,13 +34,18 @@
             a row the document constrains to a closed set - a log level, not a
             path.
 
+        .PARAMETER Check
+            The value is yes-or-no, so the row is a tick box. For a key the
+            document writes as a YAML boolean - wipe, expand, recoveryPassword -
+            where a text box asks an administrator to type the word True.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Label, Value,
-            Property, Editable, ReadOnly, Original, Hint, HasHint, Choice and
-            HasChoice.
+            Property, Editable, ReadOnly, Original, Hint, HasHint, Choice,
+            HasChoice and Kind.
 
         .EXAMPLE
             New-HDTConsoleField -Label 'Steps' -Value $sequence.StepCount
@@ -88,7 +93,19 @@
         # that produces the string is different.
         [Parameter()]
         [AllowEmptyCollection()]
-        [string[]] $Choice = @()
+        [string[]] $Choice = @(),
+
+        # YES-OR-NO, WHICH IS A TICK BOX EVERYWHERE ELSE IN THIS WINDOW. The
+        # Options tab draws Disabled and Continue on error as boxes; a step's
+        # own booleans - wipe, expand, recoveryPassword, wait - were drawn as
+        # text and asked for the word True, which is both more typing and one
+        # more thing to spell wrong.
+        #
+        # IT IS A SWITCH RATHER THAN INFERENCE FROM Value. 'true' is a legal
+        # string for a key that is not a boolean at all, and a row that guessed
+        # would turn one into a tick box the document never asked for.
+        [Parameter()]
+        [switch] $Check
     )
 
     Set-StrictMode -Version Latest
@@ -114,6 +131,19 @@
         # converter this markup has nowhere to load from.
         Choice   = [string[]] $Choice
         HasChoice = ($Choice.Count -gt 0)
+
+        # WHICH CONTROL DRAWS THIS ROW, AS ONE STRING. A DataTrigger compares a
+        # value, so three booleans would need three triggers that can all fire
+        # at once and leave two controls stacked in the same column. One string
+        # cannot contradict itself.
+        #
+        # A LIST WINS OVER A TICK BOX if a row somehow asked for both: a closed
+        # set of two is still a set, and showing it loses nothing.
+        Kind     = $(
+            if ($Choice.Count -gt 0) { 'Choice' }
+            elseif ($Check) { 'Check' }
+            else { 'Text' }
+        )
 
         # THE SAME FACT THE OTHER WAY UP, because the control that needs it is
         # a TextBox and the property it exposes is IsReadOnly. XamlReader parses

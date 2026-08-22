@@ -551,12 +551,76 @@
                                                      BorderThickness="1"
                                                      FontFamily="Consolas, Courier New" FontSize="12"
                                                      Padding="6,4,6,4" />
+
+                                            <!-- THE SETTINGS A STEP WILL ONLY ACCEPT A FEW
+                                                 ANSWERS FOR. Get-HDTStepPropertyChoice is the
+                                                 same table Invoke-HDTEnableBitLockerStep refuses
+                                                 from, so this list cannot offer a value that
+                                                 fails at the machine.
+
+                                                 NOT IsEditable: the set IS closed, and a box
+                                                 that also takes typing invites the one spelling
+                                                 the step rejects.
+
+                                                 COLLAPSED BY DEFAULT, as on the browser pane -
+                                                 an ordinary row pays nothing for this. -->
+                                            <ComboBox x:Name="HDTFieldChoice" Grid.Column="1"
+                                                      Visibility="Collapsed"
+                                                      ItemsSource="{Binding Choice}"
+                                                      SelectedItem="{Binding Value, Mode=TwoWay}"
+                                                      Background="{DynamicResource HDTPanelBrush}"
+                                                      Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                      BorderBrush="{DynamicResource HDTBorderBrush}"
+                                                      BorderThickness="1"
+                                                      FontFamily="Segoe UI" FontSize="12"
+                                                      Padding="6,4,6,4"
+                                                      HorizontalAlignment="Left" MinWidth="200" />
+
+                                            <!-- YES-OR-NO, DRAWN THE WAY THIS WINDOW ALREADY
+                                                 DRAWS YES-OR-NO. Disabled and Continue on error
+                                                 are tick boxes one tab across; a step's own
+                                                 booleans asked for the word True to be typed.
+
+                                                 IsChecked TAKES THE STRING DIRECTLY. The default
+                                                 WPF converter parses 'true' into the box and
+                                                 writes 'True' back out, so Value stays the only
+                                                 copy of what this row holds and the splice has
+                                                 no second property to disagree with.
+                                                 Get-HDTConsoleStepChange puts the capital back
+                                                 down before it reaches the file. -->
+                                            <CheckBox x:Name="HDTFieldCheck" Grid.Column="1"
+                                                      Visibility="Collapsed"
+                                                      IsChecked="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Foreground="{DynamicResource HDTPanelTextBrush}"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"
+                                                      Margin="2,4,0,4" />
                                         </Grid>
 
                                         <DataTemplate.Triggers>
                                             <DataTrigger Binding="{Binding ReadOnly}" Value="True">
                                                 <Setter TargetName="HDTFieldBox" Property="Background"
                                                         Value="{DynamicResource HDTFieldBrush}" />
+                                            </DataTrigger>
+
+                                            <!-- ONE CONTROL OR THE OTHER, NEVER BOTH. All three
+                                                 share the same column, so leaving the box visible
+                                                 under a list would paint the value twice and let
+                                                 the dead one take the click. Kind is one string
+                                                 for exactly this reason: two booleans could both
+                                                 be true at once. -->
+                                            <DataTrigger Binding="{Binding Kind}" Value="Choice">
+                                                <Setter TargetName="HDTFieldBox" Property="Visibility"
+                                                        Value="Collapsed" />
+                                                <Setter TargetName="HDTFieldChoice" Property="Visibility"
+                                                        Value="Visible" />
+                                            </DataTrigger>
+
+                                            <DataTrigger Binding="{Binding Kind}" Value="Check">
+                                                <Setter TargetName="HDTFieldBox" Property="Visibility"
+                                                        Value="Collapsed" />
+                                                <Setter TargetName="HDTFieldCheck" Property="Visibility"
+                                                        Value="Visible" />
                                             </DataTrigger>
                                         </DataTemplate.Triggers>
                                     </DataTemplate>

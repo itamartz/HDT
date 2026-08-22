@@ -1,4 +1,4 @@
-function Invoke-HDTEnableBitLockerStep {
+﻿function Invoke-HDTEnableBitLockerStep {
     <#
         .SYNOPSIS
             Turns BitLocker on, having first made sure the key can be recovered.
@@ -86,10 +86,15 @@ function Invoke-HDTEnableBitLockerStep {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $allowedScope = @('usedSpaceOnly', 'full')
-    $allowedMethod = @('Aes128', 'Aes256', 'XtsAes128', 'XtsAes256')
-    $allowedProtector = @('tpm', 'tpmPin', 'tpmStartupKey')
-    $allowedEscrow = @('ad', 'entra', 'none')
+    # THE SAME FOUR LISTS THE CONSOLE OFFERS, read from the one place that
+    # holds them. Written out here as well, they were four literals in a file
+    # changed for engine reasons and four more in a file changed for window
+    # reasons - and the way that goes wrong is a drop-down offering a value this
+    # step refuses, four hours into a deployment.
+    $allowedScope = @(Get-HDTStepPropertyChoice -Type 'EnableBitLocker' -Key 'scope')
+    $allowedMethod = @(Get-HDTStepPropertyChoice -Type 'EnableBitLocker' -Key 'method')
+    $allowedProtector = @(Get-HDTStepPropertyChoice -Type 'EnableBitLocker' -Key 'protector')
+    $allowedEscrow = @(Get-HDTStepPropertyChoice -Type 'EnableBitLocker' -Key 'escrow')
 
     $fail = {
         param([string] $Message, [System.Collections.IDictionary] $Data)
