@@ -245,6 +245,7 @@
         'Set-HDTStepCondition',
         'Set-HDTStepFlag',
         'Set-HDTStepProperty',
+        'Set-HDTStepPropertyList',
 
         # AUTHORING RULES.YAML, the same way and for the same reasons. Position
         # is semantics in a rules document - first match wins per variable - so
@@ -289,6 +290,7 @@
         'Get-HDTConsoleStepOption',
         'Get-HDTConsoleSetting',
         'Get-HDTConsoleTheme',
+        'Get-HDTConsoleCommandLine',
         'Get-HDTConsoleValidateCheck',
         'Get-HDTConsoleApplicationChoice',
         'Get-HDTConsoleTreeNode',

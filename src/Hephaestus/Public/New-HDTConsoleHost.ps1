@@ -2764,6 +2764,19 @@
         $applicationNoteText = $window.FindName('HDTApplicationNoteText')
         $applicationApply = $window.FindName('HDTApplicationApplyButton')
         $applicationRevert = $window.FindName('HDTApplicationRevertButton')
+        $commandTab = $window.FindName('HDTCommandTab')
+        $commandLineLabel = $window.FindName('HDTCommandLineLabel')
+        $commandLineBox = $window.FindName('HDTCommandLineBox')
+        $commandFileLabel = $window.FindName('HDTCommandFileLabel')
+        $commandFileBox = $window.FindName('HDTCommandFileBox')
+        $commandArgumentsLabel = $window.FindName('HDTCommandArgumentsLabel')
+        $commandArgumentsBox = $window.FindName('HDTCommandArgumentsBox')
+        $commandStartInBox = $window.FindName('HDTCommandStartInBox')
+        $commandSuccessBox = $window.FindName('HDTCommandSuccessBox')
+        $commandRebootBox = $window.FindName('HDTCommandRebootBox')
+        $commandNoteText = $window.FindName('HDTCommandNoteText')
+        $commandApply = $window.FindName('HDTCommandApplyButton')
+        $commandRevert = $window.FindName('HDTCommandRevertButton')
         $stepNameBox = $window.FindName('HDTStepNameBox')
         $diskNumberBox = $window.FindName('HDTDiskNumberBox')
         $diskStyleBox = $window.FindName('HDTDiskStyleBox')
@@ -2840,6 +2853,15 @@
 
 
             Partition = ''
+
+            # WHAT THE EXIT CODE BOXES WERE FILLED WITH, so Apply can tell an
+            # untouched box from a deliberate retype. The engine defaults
+            # successCodes to 0 and rebootCodes to 3010, and the page SHOWS
+            # those - writing them back on every press would add two keys the
+            # author never wrote to a diff with no edit in it (DESIGN 12).
+            CommandSuccessShown = ''
+            CommandRebootShown = ''
+
             Image     = ''
             ImageShown = ''
             ImageVariable = ''
@@ -3096,6 +3118,60 @@
             $applicationApply.IsEnabled = $application.IsApplicationStep
             $applicationRevert.IsEnabled = $application.IsApplicationStep
 
+            # RUN COMMAND LINE, on the same rule as the four above: MDT's dialog
+            # for this step IS its properties page. What it replaces was two rows
+            # on the generic sheet, one of which - the exit codes - could be read
+            # and not changed, while Start in could not be reached at all.
+            $commandPage = Get-HDTConsoleCommandLine -Line $book.Line -Path $Path `
+                -Name $book.Selected -Document $parsed
+
+            $commandTab.Visibility = [System.Windows.Visibility]::Collapsed
+
+            if ($commandPage.IsCommandLineStep) {
+                $commandTab.Visibility = [System.Windows.Visibility]::Visible
+
+                # WHICH FORM THIS STEP IS. Collapsed rather than disabled, and
+                # in both directions: an empty File box on a step that runs a
+                # shell line is a setting that looks unset, and so is an empty
+                # Command line box on a step that names a file.
+                $shell = [System.Windows.Visibility]::Visible
+                $direct = [System.Windows.Visibility]::Collapsed
+
+                if ($commandPage.UsesFile) {
+                    $shell = [System.Windows.Visibility]::Collapsed
+                    $direct = [System.Windows.Visibility]::Visible
+                }
+
+                $commandLineLabel.Visibility = $shell
+                $commandLineBox.Visibility = $shell
+                $commandFileLabel.Visibility = $direct
+                $commandFileBox.Visibility = $direct
+                $commandArgumentsLabel.Visibility = $direct
+                $commandArgumentsBox.Visibility = $direct
+
+                $commandLineBox.Text = [string] $commandPage.CommandLine
+                $commandFileBox.Text = [string] $commandPage.File
+                $commandArgumentsBox.Text = [string] $commandPage.Arguments
+                $commandStartInBox.Text = [string] $commandPage.WorkingDirectory
+                $commandSuccessBox.Text = [string] $commandPage.SuccessCode
+                $commandRebootBox.Text = [string] $commandPage.RebootCode
+
+                # See $book.CommandSuccessShown: what the boxes were SET to, so
+                # a press that touched neither leaves the document alone.
+                $book.CommandSuccessShown = [string] $commandPage.SuccessCode
+                $book.CommandRebootShown = [string] $commandPage.RebootCode
+
+                $commandNoteText.Text = [string] $commandPage.Note
+                $commandNoteText.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($commandPage.HasNote) {
+                    $commandNoteText.Visibility = [System.Windows.Visibility]::Visible
+                }
+            }
+
+            $commandApply.IsEnabled = $commandPage.IsCommandLineStep
+            $commandRevert.IsEnabled = $commandPage.IsCommandLineStep
+
             # AND THE GENERIC TAB GOES WHEN A DEDICATED PAGE ARRIVES. With the
             # disk keys on their own page and the name above the tabs, what was
             # left on Properties for this step was eight rows of facts and
@@ -3105,7 +3181,7 @@
             # their own, and it is the only editor they get.
             $propertyTab.Visibility = [System.Windows.Visibility]::Visible
             if ($view.IsDiskStep -or $validate.IsValidateStep -or $imageChoice.IsImageStep -or
-                $application.IsApplicationStep) {
+                $application.IsApplicationStep -or $commandPage.IsCommandLineStep) {
                 $propertyTab.Visibility = [System.Windows.Visibility]::Collapsed
             }
 
@@ -3722,6 +3798,59 @@
             }.GetNewClosure())
 
         $imageRevert.Add_Click({ & $reflect }.GetNewClosure())
+
+        # RUN COMMAND LINE, WRITTEN IN ONE PRESS. Same shape as the image page:
+        # Apply splices, Revert is the refresh that throws the boxes away.
+        $commandApply.Add_Click({
+                $subject = [string] $book.Selected
+                if ([string]::IsNullOrWhiteSpace($subject)) { return }
+
+                & $partitionAttempt {
+                    # THE FORM THE DOCUMENT IS IN, NOT THE ONE THE PAGE PREFERS.
+                    # The direct-exec boxes are on screen only when the step
+                    # already names a file, so writing 'command' from a hidden
+                    # box would replace a step somebody wrote deliberately with
+                    # an empty one.
+                    if ($commandFileBox.Visibility -eq [System.Windows.Visibility]::Visible) {
+                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
+                                -Property 'file' -Value ([string] $commandFileBox.Text) -Confirm:$false)
+
+                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
+                                -Property 'arguments' -Value ([string] $commandArgumentsBox.Text) -Confirm:$false)
+                    } else {
+                        $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
+                                -Property 'command' -Value ([string] $commandLineBox.Text) -Confirm:$false)
+                    }
+
+                    # START IN, AND AN EMPTY BOX REMOVES IT. Set-HDTStepProperty
+                    # treats blank as a removal, which is right here: there is no
+                    # default working directory to fall back to, so an empty key
+                    # and no key mean the same thing to the engine.
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $subject `
+                            -Property 'workingDirectory' -Value ([string] $commandStartInBox.Text) -Confirm:$false)
+
+                    # THE CODES, ONLY IF SOMEBODY TOUCHED THEM. The boxes show
+                    # the engine's defaults for a step that names none, so
+                    # writing them unconditionally would add two keys to a
+                    # document whose author deliberately left them out.
+                    $codes = @(
+                        @{ Key = 'successCodes'; Text = [string] $commandSuccessBox.Text; Shown = [string] $book.CommandSuccessShown }
+                        @{ Key = 'rebootCodes'; Text = [string] $commandRebootBox.Text; Shown = [string] $book.CommandRebootShown }
+                    )
+
+                    foreach ($one in $codes) {
+                        if ([string] $one.Text -eq [string] $one.Shown) { continue }
+
+                        $book.Line = @(Set-HDTStepPropertyList -Line $book.Line -Name $subject `
+                                -Property ([string] $one.Key) `
+                                -Item ([string[]] @([string] $one.Text -split ',')) -Confirm:$false)
+                    }
+                } (
+                    "Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'workingDirectory' -Value '{1}'" -f
+                    $subject, [string] $commandStartInBox.Text)
+            }.GetNewClosure())
+
+        $commandRevert.Add_Click({ & $reflect }.GetNewClosure())
 
         # THE WHOLE PAGE, WRITTEN IN ONE SPLICE. Every check is written, ticked
         # or not, because unticking one is as much an edit as ticking it.

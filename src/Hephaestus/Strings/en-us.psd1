@@ -161,6 +161,23 @@
         'HDTImageApplyButton.Content' = 'Apply'
         'HDTImageRevertButton.Content' = 'Revert'
 
+        # Run Command Line - MDT's dialog for this step, minus the run-as
+        # account HDT does not have. Start in is the reason the page exists:
+        # the engine has always read workingDirectory and nothing in the
+        # console could write one.
+        'HDTCommandTab.Header' = 'Command'
+        'HDTCommandLineLabel.Text' = 'Command line'
+        'HDTCommandLineHint.Text' = 'Run through cmd.exe /c, so redirection, chaining and built-ins work as they do at a prompt. Anything typed here is logged only at Debug, because arguments routinely carry credentials.'
+        'HDTCommandFileLabel.Text' = 'File'
+        'HDTCommandArgumentsLabel.Text' = 'Arguments'
+        'HDTCommandStartInLabel.Text' = 'Start in'
+        'HDTCommandStartInHint.Text' = 'The working directory the command runs in, which is what a relative path in it resolves against. Empty means the process is given none - set one for any installer that reads a file beside itself.'
+        'HDTCommandCodesLabel.Text' = 'Exit codes'
+        'HDTCommandRebootLabel.Text' = 'reboot on'
+        'HDTCommandCodesHint.Text' = 'Codes that mean the step worked, and codes that mean it wants a restart. Separate them with commas. A reboot code wins over a success code listing the same number. Left alone, success is 0 and reboot is 3010.'
+        'HDTCommandApplyButton.Content' = 'Apply'
+        'HDTCommandRevertButton.Content' = 'Revert'
+
         'HDTValidateTab.Header' = 'Validation'
         'HDTValidateApplyButton.Content' = 'Apply checks'
         'HDTValidateRevertButton.Content' = 'Revert'

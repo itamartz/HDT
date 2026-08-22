@@ -1,4 +1,4 @@
-<Window
+﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Task Sequence Editor"
@@ -153,6 +153,42 @@
             row of eight actions read as a toolbar rather than as eight
             decisions of equal weight.
         -->
+        <!-- THE ? EVERY PAGE ON THIS WINDOW USES. It lived in the
+             Operating System tab's own resources, which scoped it to
+             that one tab - so the Run Command Line page referencing it
+             would not LOAD: a StaticResource resolves in the scope it
+             is written in, and there was none. Window level, the way
+             HDTConsole.xaml declares the same pair.
+
+             A BORDER RATHER THAN A BARE GLYPH: WPF raises a tooltip
+             only over what is painted, so a question mark with no
+             surface has to be hit within a pixel or two - which reads
+             as a tooltip that does not work. -->
+        <Style TargetType="Border" x:Key="HDTHelpDot">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+            <Setter Property="Text" Value="?" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTLabelBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
         <Style x:Key="HDTToolButton" TargetType="Button">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
@@ -673,37 +709,6 @@
                         </Grid.ColumnDefinitions>
 
                         <Grid.Resources>
-                            <!-- THE ? THE VALIDATION PAGE USES, and for the same
-                                 reason it is a Border rather than a bare glyph:
-                                 WPF raises a tooltip only over what is painted,
-                                 so a question mark with no surface has to be hit
-                                 within a pixel or two - which reads as a tooltip
-                                 that does not work. -->
-                            <Style TargetType="Border" x:Key="HDTHelpDot">
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="Width" Value="22" />
-                                <Setter Property="Height" Value="22" />
-                                <Setter Property="CornerRadius" Value="11" />
-                                <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
-                                <Setter Property="BorderThickness" Value="1" />
-                                <Setter Property="HorizontalAlignment" Value="Right" />
-                                <Setter Property="VerticalAlignment" Value="Center" />
-                                <Setter Property="Cursor" Value="Help" />
-                                <Setter Property="Margin" Value="0,0,0,8" />
-                                <Setter Property="ToolTipService.ShowDuration" Value="60000" />
-                                <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
-                            </Style>
-
-                            <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
-                                <Setter Property="Text" Value="?" />
-                                <Setter Property="Foreground" Value="{DynamicResource HDTLabelBrush}" />
-                                <Setter Property="FontFamily" Value="Segoe UI" />
-                                <Setter Property="FontSize" Value="12" />
-                                <Setter Property="FontWeight" Value="Bold" />
-                                <Setter Property="HorizontalAlignment" Value="Center" />
-                                <Setter Property="VerticalAlignment" Value="Center" />
-                            </Style>
-
                             <Style TargetType="TextBlock" x:Key="HDTFieldLabel">
                                 <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
                                 <Setter Property="FontSize" Value="12" />
@@ -805,6 +810,171 @@
                     </Grid>
                 </TabItem>
 
+
+                <!--
+                    RUN COMMAND LINE. MDT's dialog for this step is Command
+                    line, Start in, and an account to run as; this is the first
+                    two, and the exit codes that decide whether the step passed.
+
+                    WHAT IT REPLACES was two rows on the generic sheet -
+                    'Command', and 'successCodes: 2 entries - a table, not a
+                    value'. Start in could not be reached from the console at
+                    all, and the codes could be read and not changed.
+
+                    THE CODES ARE ONE BOX EACH, COMMA SEPARATED, because that is
+                    how an installer's documentation writes them and how a
+                    person retypes them. The brackets are punctuation the page
+                    owns: Set-HDTStepPropertyList puts them back.
+
+                    TWO FORMS, ONE PAGE. 'command' is a shell line through
+                    %ComSpec% /c and is what a new step gets; 'file' plus
+                    'arguments' is a direct exec somebody chose on purpose. The
+                    boxes swap, decided by Get-HDTConsoleCommandLine, because a
+                    page that rewrote one form into the other would be editing a
+                    step nobody asked it to edit.
+                -->
+                <TabItem x:Name="HDTCommandTab">
+                    <Grid Margin="14,12,14,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Grid.Resources>
+                            <Style TargetType="TextBlock" x:Key="HDTCommandLabel">
+                                <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+                                <Setter Property="FontSize" Value="12" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="0,6,10,8" />
+                            </Style>
+
+                            <Style TargetType="TextBox" x:Key="HDTCommandBox">
+                                <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+                                <Setter Property="BorderThickness" Value="1" />
+                                <Setter Property="FontFamily" Value="Consolas, Courier New" />
+                                <Setter Property="FontSize" Value="12" />
+                                <Setter Property="Padding" Value="6,5,6,5" />
+                                <Setter Property="Margin" Value="0,0,0,8" />
+                            </Style>
+                        </Grid.Resources>
+
+                        <!-- THE SHELL FORM. AcceptsReturn is deliberate: a long
+                             chained command line is easier to check over two
+                             lines than scrolled sideways through one. -->
+                        <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTCommandLineLabel"
+                                   Style="{StaticResource HDTCommandLabel}" />
+
+                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTCommandLineBox"
+                                 Style="{StaticResource HDTCommandBox}"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="52" VerticalScrollBarVisibility="Auto" />
+
+                        <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTCommandLineHint" />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <!-- THE DIRECT-EXEC FORM, in the same two rows, hidden
+                             unless the document uses it. Collapsed rather than
+                             disabled: an empty box for a key this step does not
+                             have is a setting that looks unset. -->
+                        <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTCommandFileLabel"
+                                   Style="{StaticResource HDTCommandLabel}" Visibility="Collapsed" />
+
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="HDTCommandFileBox"
+                                 Style="{StaticResource HDTCommandBox}" Visibility="Collapsed" />
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTCommandArgumentsLabel"
+                                   Style="{StaticResource HDTCommandLabel}" Visibility="Collapsed" />
+
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="HDTCommandArgumentsBox"
+                                 Style="{StaticResource HDTCommandBox}" Visibility="Collapsed" />
+
+                        <!-- START IN. The setting this whole page exists for:
+                             the engine reads workingDirectory, and until now
+                             nothing in the console could write one. -->
+                        <TextBlock Grid.Row="3" Grid.Column="0" x:Name="HDTCommandStartInLabel"
+                                   Style="{StaticResource HDTCommandLabel}" />
+
+                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="HDTCommandStartInBox"
+                                 Style="{StaticResource HDTCommandBox}" />
+
+                        <Border Grid.Row="3" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTCommandStartInHint" />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" x:Name="HDTCommandCodesLabel"
+                                   Style="{StaticResource HDTCommandLabel}" />
+
+                        <Grid Grid.Row="4" Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0" x:Name="HDTCommandSuccessBox"
+                                     Style="{StaticResource HDTCommandBox}" />
+
+                            <TextBlock Grid.Column="1" x:Name="HDTCommandRebootLabel"
+                                       Foreground="{DynamicResource HDTPanelTextBrush}"
+                                       FontSize="12" VerticalAlignment="Center" Margin="10,0,10,8" />
+
+                            <TextBox Grid.Column="2" x:Name="HDTCommandRebootBox"
+                                     Style="{StaticResource HDTCommandBox}" />
+                        </Grid>
+
+                        <Border Grid.Row="4" Grid.Column="2" Style="{StaticResource HDTHelpDot}">
+                            <Border.ToolTip>
+                                <ToolTip MaxWidth="380">
+                                    <TextBlock TextWrapping="Wrap" x:Name="HDTCommandCodesHint" />
+                                </ToolTip>
+                            </Border.ToolTip>
+                            <TextBlock Style="{StaticResource HDTHelpGlyph}" />
+                        </Border>
+
+                        <!-- WHAT IS WRONG WITH THE STEP, in the words the engine
+                             will use when it refuses - said now, rather than
+                             four hours into a deployment. Invisible on a step
+                             that is finished, which is nearly all of them. -->
+                        <TextBlock Grid.Row="5" Grid.ColumnSpan="3" x:Name="HDTCommandNoteText"
+                                   Foreground="{DynamicResource HDTErrorBrush}"
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Visibility="Collapsed" Margin="0,4,0,0" />
+
+                        <Border Grid.Row="6" Grid.ColumnSpan="3" Padding="0,10,0,0"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="0,1,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="HDTCommandApplyButton"
+                                        Style="{StaticResource HDTToolButton}" />
+                                <Button x:Name="HDTCommandRevertButton"
+                                        Style="{StaticResource HDTToolButton}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </TabItem>
                 <!--
                     THE VALIDATION. MDT's Validate dialog is a column of
                     checkboxes, each with the value it checks against, and this
