@@ -145,12 +145,35 @@
         $line = [string[]] @([string] $FileSystem.ReadAllText($editor.DocumentPath) -split "`r?`n")
     }
 
+    # THE TREE COMES FROM THE SAME TEXT THE EDITOR EDITS, and until now it did
+    # not. This window read the document TWICE, FROM TWO PLACES: the LINES above,
+    # freshly off disk, and the ROWS - which came from $Sequence, the projection
+    # Get-HDTConsoleWorkspace built when the CONSOLE opened and which knows
+    # nothing about anything saved since.
+    #
+    # WATCHED IN THE CONSOLE, AND IT MADE THE WHOLE WINDOW UNTRUSTWORTHY. A
+    # technician removed a step, saved, closed the editor and opened it again -
+    # and the step was back. The file was right the whole time; the picture of it
+    # was a session old. Worse than a wrong row: every edit spliced the correct
+    # file while showing the wrong document, so the two drifted further apart
+    # with each one.
+    #
+    # ONE READ, ONE SOURCE. Get-HDTConsoleEditorState is what the editor's own
+    # rebuild uses after every splice, so opening now produces exactly the tree
+    # the first edit would have produced anyway.
+    #
+    # A DOCUMENT THAT WILL NOT PARSE STILL OPENS, which is the reason $line is
+    # read whatever happens: the state comes back with no rows and a message,
+    # and the file's text is the one thing that might let somebody fix it.
+    $opening = Get-HDTConsoleEditorState -Line $line -Path $editor.DocumentPath
+    $root = [object[]] @($opening.Root)
+
     # THE SIZE OF THE WINDOW THIS WAS OPENED FROM, FITTED TO THE DESKTOP. The
     # host assigns the two numbers and works out neither of them.
     $size = Resolve-HDTConsoleEditorSize -OwnerWidth $OwnerWidth -OwnerHeight $OwnerHeight -Screen $Screen
 
     $answer = [string] $ConsoleHost.ShowEditor($xaml, $editor.Title, $editor.DocumentPath,
-        [object[]] @($editor.Root), $line,
+        $root, $line,
         [object[]] @(Get-HDTConsoleStepCatalog), (Get-HDTConsoleTheme), $size,
         $partitionXaml, $editor)
 

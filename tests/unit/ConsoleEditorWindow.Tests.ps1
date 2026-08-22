@@ -383,8 +383,14 @@ Describe 'Show-HDTSequenceEditor' {
     It 'hands the host the editor rows, not the whole document' {
         $editorHost = New-HDTFakeEditorHost
 
+        # THE FILE SYSTEM IS NOT OPTIONAL ANY MORE, and that is the fix rather
+        # than an inconvenience. The editor's tree is built from the DOCUMENT it
+        # is about to edit; a test that withheld the document was asserting
+        # against the console's cached projection, which is exactly the stale
+        # picture a technician was shown after saving.
         [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
-                -XamlPath $script:xamlPath -ConsoleHost $editorHost)
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -FileSystem (New-HDTEditorTestFileSystem))
 
         $editorHost.ShowCount | Should -Be 1
         @($editorHost.Node | ForEach-Object { $_.Text }) | Should -Be @('Preinstall', 'Install')
@@ -393,8 +399,14 @@ Describe 'Show-HDTSequenceEditor' {
     It 'names the task sequence in the title' {
         $editorHost = New-HDTFakeEditorHost
 
+        # THE FILE SYSTEM IS NOT OPTIONAL ANY MORE, and that is the fix rather
+        # than an inconvenience. The editor's tree is built from the DOCUMENT it
+        # is about to edit; a test that withheld the document was asserting
+        # against the console's cached projection, which is exactly the stale
+        # picture a technician was shown after saving.
         [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
-                -XamlPath $script:xamlPath -ConsoleHost $editorHost)
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -FileSystem (New-HDTEditorTestFileSystem))
 
         $editorHost.Title | Should -Match 'DEMO-M4'
     }
@@ -404,8 +416,14 @@ Describe 'Show-HDTSequenceEditor' {
         # would otherwise be identical windows over different files.
         $editorHost = New-HDTFakeEditorHost
 
+        # THE FILE SYSTEM IS NOT OPTIONAL ANY MORE, and that is the fix rather
+        # than an inconvenience. The editor's tree is built from the DOCUMENT it
+        # is about to edit; a test that withheld the document was asserting
+        # against the console's cached projection, which is exactly the stale
+        # picture a technician was shown after saving.
         [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
-                -XamlPath $script:xamlPath -ConsoleHost $editorHost)
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -FileSystem (New-HDTEditorTestFileSystem))
 
         $editorHost.Path | Should -BeExactly 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
     }
@@ -423,6 +441,41 @@ Describe 'Show-HDTSequenceEditor' {
         $editorHost.Line | Should -Contain '      - name: Apply OS'
     }
 
+    It 'builds the tree from the FILE, not from the row the console cached' {
+        # WATCHED IN THE CONSOLE, AND IT MADE THE WHOLE WINDOW UNTRUSTWORTHY. A
+        # technician removed a step, saved, closed the editor and opened it
+        # again - and the step was back. The file was right the whole time; the
+        # window was not.
+        #
+        # THE EDITOR READ THE DOCUMENT TWICE, FROM TWO PLACES. The LINES it
+        # edits came from the file, freshly. The TREE it drew came from
+        # $Sequence - the row Get-HDTConsoleWorkspace built when the console
+        # first opened, which knows nothing about anything saved since.
+        #
+        # So the rows on screen and the text under them were two different
+        # documents, and every edit spliced the right file while showing the
+        # wrong picture of it.
+        $editorHost = New-HDTFakeEditorHost
+
+        # The file has moved on: a share whose sequence lost a step, exactly as
+        # a Save leaves it.
+        $shorter = @($script:sequenceYaml -split "`r?`n" |
+                Where-Object { $_ -notmatch 'Apply OS' -and $_ -notmatch 'ApplyImage' -and $_ -notmatch 'index:' }) -join "`r`n"
+
+        $moved = New-HDTFakeFileSystem -File @{
+            'C:\ws\workspace.yaml'                      = $script:workspaceYaml
+            'C:\ws\TaskSequences\DEMO-M4\sequence.yaml' = $shorter
+        }
+
+        [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost -FileSystem $moved)
+
+        $shown = @($editorHost.Node | ForEach-Object { @($_.Children) } | ForEach-Object { [string] $_.Name })
+
+        $shown | Should -Not -Contain 'Apply OS' -Because (
+            'the file no longer holds it, and the file is what the editor edits')
+    }
+
     It 'hands the window the step catalog, so Add can offer what this engine can run' {
         $editorHost = New-HDTFakeEditorHost
 
@@ -437,8 +490,14 @@ Describe 'Show-HDTSequenceEditor' {
     It 'passes the palette, so the editor matches the console it was opened from' {
         $editorHost = New-HDTFakeEditorHost
 
+        # THE FILE SYSTEM IS NOT OPTIONAL ANY MORE, and that is the fix rather
+        # than an inconvenience. The editor's tree is built from the DOCUMENT it
+        # is about to edit; a test that withheld the document was asserting
+        # against the console's cached projection, which is exactly the stale
+        # picture a technician was shown after saving.
         [void] (Show-HDTSequenceEditor -Sequence (New-HDTEditorTestSequence) `
-                -XamlPath $script:xamlPath -ConsoleHost $editorHost)
+                -XamlPath $script:xamlPath -ConsoleHost $editorHost `
+                -FileSystem (New-HDTEditorTestFileSystem))
 
         $editorHost.Theme | Should -Not -BeNullOrEmpty
         $editorHost.Theme.Keys | Should -Contain 'HDTWindowBrush'
