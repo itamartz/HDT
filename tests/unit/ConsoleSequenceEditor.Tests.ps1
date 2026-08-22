@@ -294,6 +294,76 @@ steps:
 # DISABLED WINS WHEN BOTH ARE SET. A step that never runs cannot fail, so
 # tolerating its failure is not a fact about this deployment.
 
+# EVERY ROW ON A PROPERTIES SHEET IS LABELLED THE SAME WAY.
+#
+# Get-HDTConsolePropertyLabel turns a YAML key into a caption - 'includeManagementTools'
+# into 'Include management tools' - and two branches of Get-HDTConsoleStepNode
+# were passing the raw key straight through instead. The result was a sheet
+# where most rows read like English and 'successCodes' and 'features' read like
+# the file, side by side, which makes the odd ones look like a different KIND of
+# row rather than the same row spelt carelessly.
+Describe 'the caption on every properties row' {
+
+    Context 'a key whose value is a table' {
+
+        BeforeAll {
+            # A step type carrying a list the console has no dedicated page for,
+            # which is what a third-party type out of Modules\ looks like
+            # (CLAUDE.md rule 3). It gets the generic sheet and nothing else.
+            $script:tableYaml = @'
+schemaVersion: 1
+id: DEMO-M4
+name: Deploy Windows 11 LTSC
+steps:
+  - name: Say nothing
+    type: NoOp
+    retryCodes: [1, 2, 3]
+'@
+
+            $script:editor = Get-HDTConsoleSequenceEditor -Sequence (New-HDTConsoleEditorTestSequence -Yaml $script:tableYaml)
+            $script:row = @($script:editor.Node | Where-Object { $_.Kind -eq 'Step' })[0]
+        }
+
+        It 'reads it as English, not as the key it is spelt with in the file' {
+            $labelled = @($script:row.Field | Where-Object { $_.Label -eq 'Retry codes' })
+
+            $labelled | Should -Not -BeNullOrEmpty
+        }
+
+        It 'still says how many entries, because the sheet cannot edit them here' {
+            $labelled = @($script:row.Field | Where-Object { $_.Label -eq 'Retry codes' })[0]
+
+            $labelled.Value | Should -Match '3 entries'
+        }
+
+        It 'leaves it read-only, because a box would write those words into the file' {
+            $labelled = @($script:row.Field | Where-Object { $_.Label -eq 'Retry codes' })[0]
+
+            $labelled.Editable | Should -BeFalse
+        }
+    }
+
+    Context 'a key a dedicated page owns' {
+
+        BeforeAll {
+            # DiskPartition's keys are reported rather than offered, because the
+            # Disk page is that step's properties sheet. Reported is not an
+            # excuse to stop labelling them: they are read in the tree summary.
+            $script:editor = Get-HDTConsoleSequenceEditor -Sequence (New-HDTConsoleEditorTestSequence)
+            $script:disk = @($script:editor.Node |
+                    Where-Object { $_.Kind -eq 'Step' -and $_.Text -match 'Format and Partition' })[0]
+        }
+
+        It 'labels it the same way the sheet labels everything else' {
+            # CASE-SENSITIVE ON PURPOSE. -Match is not, so 'Wipe' and the raw
+            # 'wipe' the file spells it with both satisfy it - which is exactly
+            # the difference this test exists to catch.
+            ($script:disk.Detail -join "`n") | Should -CMatch '(?m)^Wipe\s'
+            ($script:disk.Detail -join "`n") | Should -Not -CMatch '(?m)^wipe\s'
+        }
+    }
+}
+
 Describe 'a step that carries continueOnError' {
 
     BeforeAll {

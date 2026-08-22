@@ -317,7 +317,10 @@
             # summary as well - so a Validate step stopped saying what it
             # checks, which is the one thing that row is read for.
             if ($owned -contains [string] $name) {
-                $report = $report + @(New-HDTConsoleField -Label $name -Value ([string] $value))
+                $report = $report + @(
+                    New-HDTConsoleField -Label (Get-HDTConsolePropertyLabel -Key $name) `
+                        -Value ([string] $value)
+                )
                 continue
             }
 
@@ -349,7 +352,8 @@
             if ($value -is [System.Collections.IDictionary]) { $entry = @($value.Keys).Count }
 
             $field = $field + @(
-                New-HDTConsoleField -Label $name -Value ('{0} entries - a table, not a value' -f $entry)
+                New-HDTConsoleField -Label (Get-HDTConsolePropertyLabel -Key $name) `
+                    -Value ('{0} entries - a table, not a value' -f $entry)
             )
         }
 
