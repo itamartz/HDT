@@ -73,7 +73,8 @@
 
               Status, Message, StatusText  whether the text still reads, and what to say
               Node, Root                   the tree, flat and as roots
-              Selected                     the row SelectedName names, or nothing
+              Selected                     the row SelectedName and
+                                           SelectedOccurrence name, or nothing
               Option                       Get-HDTConsoleStepOption for it, or nothing
               StepCount                    how many steps the document holds
               Dirty                        echoed back, so the window has one source
@@ -105,6 +106,14 @@
         [AllowEmptyString()]
         [AllowNull()]
         [string] $SelectedName,
+
+        # WHICH OF THE SAME-NAMED ROWS WAS SELECTED, 1-BASED. The tree is rebuilt
+        # from scratch after every splice, so the object that was selected no
+        # longer exists and the selection has to be described rather than held -
+        # and a name alone cannot describe it when two steps share one.
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $SelectedOccurrence = 0,
 
         [Parameter()]
         [switch] $HasClipboard,
@@ -280,7 +289,20 @@
             # it was after a splice rebuilt the tree. Matched on Name rather
             # than Text: a step legitimately called '2. Reboot' would otherwise
             # be found by the wrong row, or by none.
-            $selected = @($built.Node | Where-Object { $_.Name -eq $SelectedName })[0]
+            # THE OCCURRENCE PICKS THE ROW WHEN THE NAME CANNOT. Without it the
+            # first row of that name is highlighted after every splice, so a
+            # technician editing the second Tattoo watched the selection jump to
+            # the first one each time they touched it.
+            $candidate = @($built.Node | Where-Object { $_.Name -eq $SelectedName })
+
+            $selected = $null
+            if (@($candidate).Count -gt 0) {
+                $selected = $candidate[0]
+
+                if ($SelectedOccurrence -gt 0 -and $SelectedOccurrence -le @($candidate).Count) {
+                    $selected = $candidate[$SelectedOccurrence - 1]
+                }
+            }
 
             # AND IT IS MARKED, so the tree comes back with it highlighted. The
             # window binds TreeViewItem.IsSelected to this and does nothing

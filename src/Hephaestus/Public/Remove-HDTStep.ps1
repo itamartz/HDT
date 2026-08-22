@@ -61,14 +61,22 @@ function Remove-HDTStep {
 
         [Parameter(Mandatory = $true, Position = 1)]
         [ValidateNotNullOrEmpty()]
-        [string] $Name
+        [string] $Name,
+
+        # WHICH OF THE SAME-NAMED STEPS, 1-BASED, IN DOCUMENT ORDER. Omitted, an
+        # ambiguous name is refused rather than guessed at. The console passes
+        # it because it has a selected row; a person typing a name has not said
+        # which one they mean, and is told so.
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $Occurrence = 0
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     $all = @(Get-HDTStepBlock -Line $Line)
-    $found = Resolve-HDTStepBlock -Line $Line -Name $Name
+    $found = Resolve-HDTStepBlock -Line $Line -Name $Name -Occurrence $Occurrence
     $block = @($all | Where-Object { $_.Entry -eq $found.Entry })[0]
 
     # THE LAST STEP IN A GROUP MAY GO, AND THE GROUP STAYS. This used to be

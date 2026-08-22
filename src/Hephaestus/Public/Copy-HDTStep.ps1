@@ -49,13 +49,21 @@ function Copy-HDTStep {
 
         [Parameter(Mandatory = $true, Position = 1)]
         [ValidateNotNullOrEmpty()]
-        [string] $Name
+        [string] $Name,
+
+        # WHICH OF THE SAME-NAMED STEPS, 1-BASED, IN DOCUMENT ORDER. Omitted, an
+        # ambiguous name is refused rather than guessed at. The console passes
+        # it because it has a selected row; a person typing a name has not said
+        # which one they mean, and is told so.
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $Occurrence = 0
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $block = Resolve-HDTStepBlock -Line $Line -Name $Name
+    $block = Resolve-HDTStepBlock -Line $Line -Name $Name -Occurrence $Occurrence
 
     return [string[]] @($Line[$block.Start..$block.End])
 }

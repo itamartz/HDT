@@ -60,6 +60,14 @@ function Move-HDTStep {
         [ValidateNotNullOrEmpty()]
         [string] $Name,
 
+        # WHICH OF THE SAME-NAMED STEPS, 1-BASED, IN DOCUMENT ORDER. Omitted, an
+        # ambiguous name is refused rather than guessed at. The console passes
+        # it because it has a selected row; a person typing a name has not said
+        # which one they mean, and is told so.
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $Occurrence = 0,
+
         [Parameter(Mandatory = $true, Position = 2)]
         [ValidateSet('Up', 'Down')]
         [string] $Direction
@@ -74,7 +82,7 @@ function Move-HDTStep {
     # reads as "this step is already first" for every step in the document.
     $block = @(Get-HDTStepBlock -Line $Line)
 
-    $found = Resolve-HDTStepBlock -Line $Line -Name $Name
+    $found = Resolve-HDTStepBlock -Line $Line -Name $Name -Occurrence $Occurrence
     $current = @($block | Where-Object { $_.Entry -eq $found.Entry })[0]
 
     # A SIBLING SHARES A PARENT, NOT MERELY AN INDENTATION. Every step in the

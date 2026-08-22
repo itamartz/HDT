@@ -188,6 +188,7 @@
         'New-HDTWorkspaceShare',
         'Get-HDTWorkspaceShareName',
         'Resolve-HDTApplicationOrder',
+        'Resolve-HDTErrorMessage',
         'Resolve-HDTDeployRoot',
         'Resolve-HDTBootstrapRule',
         'Resolve-HDTImageIndex',

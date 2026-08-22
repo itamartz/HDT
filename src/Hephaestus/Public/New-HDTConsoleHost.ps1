@@ -2831,6 +2831,13 @@
             Clipboard = $null
             Dirty     = $false
             Selected  = ''
+
+            # WHICH OF THE SAME-NAMED ROWS IS SELECTED, 1-BASED. The tree is
+            # rebuilt after every splice, so the selection is described rather
+            # than held - and a name alone stopped describing it the moment a
+            # sequence held two steps called 'Tattoo'.
+            SelectedOccurrence = 0
+
             Partition = ''
             Image     = ''
             ImageShown = ''
@@ -3158,7 +3165,8 @@
         # reads back - and the selection is restored by name, because the row
         # object that was selected no longer exists.
         $rebuild = {
-            $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path -SelectedName $book.Selected
+            $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path `
+                -SelectedName $book.Selected -SelectedOccurrence $book.SelectedOccurrence
 
             $book.Quiet = $true
             $tree.ItemsSource = $state.Root
@@ -3325,27 +3333,47 @@
                 $menu.IsOpen = $true
             }.GetNewClosure())
 
+        # -Occurrence ON EVERY ONE OF THESE, and it is the whole fix. The
+        # selection is a ROW; the name alone stopped describing it the moment a
+        # sequence held two steps called the same thing, and Up and Down were
+        # moving whichever the resolver found first rather than the one somebody
+        # had clicked.
         $remove.Add_Click({
-                $book.Line = @(Remove-HDTStep -Line $book.Line -Name $book.Selected -Confirm:$false)
+                $book.Line = @(Remove-HDTStep -Line $book.Line -Name $book.Selected `
+                        -Occurrence $book.SelectedOccurrence -Confirm:$false)
                 $book.Dirty = $true
                 $book.Selected = ''
+                $book.SelectedOccurrence = 0
                 & $rebuild
             }.GetNewClosure())
 
         $up.Add_Click({
-                $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected -Direction Up)
+                $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected `
+                        -Occurrence $book.SelectedOccurrence -Direction Up)
                 $book.Dirty = $true
+
+                # THE ORDINAL IS NOT ADJUSTED HERE, AND GUESSING IT WOULD BE A
+                # WORSE BUG THAN THE ONE THIS FIXES. A move swaps the row with a
+                # sibling; the ordinal changes only if that sibling SHARES the
+                # name, and this handler cannot see which sibling it was without
+                # a second copy of Move-HDTStep's own logic. So the move is
+                # correct - it acted on the selected row - and the selection
+                # afterwards follows the name, which on duplicates may land on
+                # the first of them. Stable row identity is what fixes that
+                # properly, and drag and drop needs it anyway.
                 & $rebuild
             }.GetNewClosure())
 
         $down.Add_Click({
-                $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected -Direction Down)
+                $book.Line = @(Move-HDTStep -Line $book.Line -Name $book.Selected `
+                        -Occurrence $book.SelectedOccurrence -Direction Down)
                 $book.Dirty = $true
                 & $rebuild
             }.GetNewClosure())
 
         $copy.Add_Click({
-                $book.Clipboard = @(Copy-HDTStep -Line $book.Line -Name $book.Selected)
+                $book.Clipboard = @(Copy-HDTStep -Line $book.Line -Name $book.Selected `
+                        -Occurrence $book.SelectedOccurrence)
                 & $rebuild
             }.GetNewClosure())
 
@@ -3890,6 +3918,15 @@
                 $detail.ItemsSource = $selected.Field
                 $command.Text = [string] $selected.Command
                 $book.Selected = [string] $selected.Name
+
+                # WHICH ROW, NOT JUST WHICH NAME. A sequence with two steps
+                # called 'Tattoo' - which MDT allows - used to answer Remove with
+                # "the one to act on is ambiguous", because everything the tree
+                # knew about the selection was thrown away here except a string.
+                $book.SelectedOccurrence = 1
+                if ($null -ne $selected.PSObject.Properties['Occurrence']) {
+                    $book.SelectedOccurrence = [int] $selected.Occurrence
+                }
 
                 # Reflect, NEVER rebuild: rebuilding assigns ItemsSource, which
                 # raises this event again.

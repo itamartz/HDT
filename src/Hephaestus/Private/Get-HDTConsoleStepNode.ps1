@@ -66,7 +66,9 @@
         .OUTPUTS
             System.Management.Automation.PSCustomObject with two properties:
 
-              Node      every group and step row, in display order
+              Node      every group and step row, in display order, each
+                        carrying an Occurrence - which of the same-named rows it
+                        is, 1-based, so a console can say WHICH row it means
               TopLevel  only the rows hanging off the sequence itself, which is
                         what the caller adds to its Children
 
@@ -102,6 +104,26 @@
     }
 
     $document = "(Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem))" -f $Sequence.Path
+
+    # WHICH OF THE SAME-NAMED ROWS THIS ONE IS, 1-BASED, IN DOCUMENT ORDER.
+    #
+    # A CONSOLE HAS A ROW AND A COMMAND LINE HAS A NAME, and until this existed
+    # the console threw its row away and passed the name. A sequence with two
+    # steps called 'Tattoo' - which MDT allows, and which a sequence that tattoos
+    # twice legitimately is - then answered Remove with "the one to act on is
+    # ambiguous. Rename one of them first", because by the time the request
+    # reached Resolve-HDTStepBlock the only thing left of the selection was a
+    # string.
+    #
+    # COUNTED THE SAME WAY THE RESOLVER COUNTS. Resolve-HDTStepBlock matches on
+    # Name across BOTH groups and steps in document order, so this counts across
+    # both too: two tables that disagreed about what "the second one" means would
+    # be worse than the ambiguity it replaces.
+    $occurrenceOf = {
+        param([string] $RowName)
+
+        return (@($node | Where-Object { [string] $_.Name -eq $RowName }).Count + 1)
+    }
 
     # Joined GroupPath -> the group's row, so the second step in a group finds
     # the row the first one created.
@@ -171,6 +193,9 @@
                 -Text $name -Name $name -Field $field `
                 -Command ('{0}.Group[{1}]' -f $document, $groupIndex) `
                 -Header $Header
+
+            $row | Add-Member -NotePropertyName 'Occurrence' `
+                -NotePropertyValue (& $occurrenceOf ([string] $row.Name)) -Force
 
             $groupNode[$key] = $row
             [void] $node.Add($row)
@@ -374,6 +399,9 @@
             -Text $text -Name $current.Name -Field $field -Report $report `
             -Command ('{0}.Step[{1}]' -f $document, $index) `
             -Header $Header -Icon $icon -IconColor $iconColor
+
+        $row | Add-Member -NotePropertyName 'Occurrence' `
+            -NotePropertyValue (& $occurrenceOf ([string] $row.Name)) -Force
 
         [void] $node.Add($row)
 
