@@ -1,4 +1,4 @@
-function Get-HDTRestartStepDescription {
+﻿function Get-HDTRestartStepDescription {
     <#
         .SYNOPSIS
             Describes a Restart step by the delay it will ask for.
@@ -16,7 +16,19 @@ function Get-HDTRestartStepDescription {
             System.String
 
         .EXAMPLE
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'Restart' })[0]
+
             Get-HDTRestartStepDescription -Step $step
+
+            The one line the log and the progress display carry for this step.
+
+        .EXAMPLE
+            Get-HDTStepDescription -Step $step
+
+            The same line through the dispatcher, which is how the engine asks.
+            It finds this function by name; a step type that declares none gets
+            '<Type>: <name>' instead, which is what MDT's progress line shows.
     #>
     [CmdletBinding()]
     [OutputType([string])]

@@ -36,12 +36,13 @@ function Import-HDTRunState {
         .PARAMETER FileSystem
             An IFileSystem - New-HDTFileSystem in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject
 
         .EXAMPLE
-            $state = Import-HDTRunState -Path 'C:\HDT\state.json' -FileSystem (New-HDTFileSystem)
+            $state = Import-HDTRunState -Path 'C:\HDT\state.json'
             $state.stepIndex
     #>
     [CmdletBinding()]
@@ -51,13 +52,15 @@ function Import-HDTRunState {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $text = $null
     try {

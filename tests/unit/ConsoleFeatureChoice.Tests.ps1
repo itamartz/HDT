@@ -1,4 +1,4 @@
-# MDT's Install Roles and Features dialog, which is a TICK LIST.
+﻿# MDT's Install Roles and Features dialog, which is a TICK LIST.
 #
 # WHAT IT REPLACES. The generic sheet drew 'features' as
 # '0 entries - a table, not a value', read-only - so the one key the step
@@ -17,9 +17,19 @@
 # bargain as the Operating System page makes with an image the share no longer
 # holds: dropping it would lose it the first time anybody ticked a box.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:path = 'C:\ws\TaskSequences\DEMO\sequence.yaml'
 
@@ -252,4 +262,7 @@ steps:
             $page.Note | Should -BeExactly ''
         }
     }
+}
+
+
 }

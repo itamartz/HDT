@@ -55,7 +55,7 @@
         [void] $node.Add((New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Error' `
                     -Text ('{0} - (could not be opened)' -f $Workspace.Root) `
                     -Field $field `
-                    -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
+                    -Command ("Import-HDTWorkspaceDocument -Path '{0}\workspace.yaml'" -f $Workspace.Root) `
                     -Header $header))
 
         return [pscustomobject[]] @($node)
@@ -118,7 +118,7 @@
     $shareNode = New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Ok' `
         -Text ('{0} ({1})' -f $Workspace.Name, $Workspace.Id) `
         -Field $shareField `
-        -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f $Workspace.Root) `
+        -Command ("Import-HDTWorkspaceDocument -Path '{0}\workspace.yaml'" -f $Workspace.Root) `
         -Header $header -Subject $Workspace
 
     [void] $node.Add($shareNode)
@@ -171,7 +171,7 @@
     # that could only be reached from a prompt.
 
     $appFolder = Get-HDTWorkspacePath -Root $Workspace.Root -Kind Applications
-    $appCommand = "Get-HDTApplication -WorkspaceRoot '{0}' -FileSystem (New-HDTFileSystem)" -f $Workspace.Root
+    $appCommand = "Get-HDTApplication -WorkspaceRoot '{0}'" -f $Workspace.Root
 
     # NAMED, as the other two are: the window hangs New Application off this row
     # and must tell it from the rest without parsing a label somebody may
@@ -280,7 +280,7 @@
         $row = New-HDTConsoleNode -Depth 3 -Kind 'Application' -Status $application.Status `
             -Text $text -Field $field `
             -Name $application.Id `
-            -Command ("Get-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
+            -Command ("Get-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f
                 $Workspace.Root, $application.Id) `
             -Header $header -Subject $application
 
@@ -366,7 +366,7 @@
 
         $row = New-HDTConsoleNode -Depth 3 -Kind 'OperatingSystem' -Status $operatingSystem.Status `
             -Text $text -Field $field `
-            -Command ("Get-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -FileSystem (New-HDTFileSystem)" -f
+            -Command ("Get-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}'" -f
                 $Workspace.Root, $operatingSystem.Id) `
             -Header $header -Subject $operatingSystem
 
@@ -515,7 +515,7 @@
         $row = New-HDTConsoleNode -Depth 3 -Kind 'TaskSequence' -Status $sequenceStatus `
             -Name ([string] $sequence.Id) `
             -Text $text -Field $field `
-            -Command ("Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $sequence.Path) `
+            -Command ("Import-HDTSequenceDocument -Path '{0}'" -f $sequence.Path) `
             -Header $header -Subject $sequence
 
         # THE BROWSER STOPS HERE, and the steps are Get-HDTConsoleSequenceEditor's.

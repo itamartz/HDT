@@ -1,4 +1,4 @@
-# DELETING AN APPLICATION, which Deployment Workbench does from the right-click
+﻿# DELETING AN APPLICATION, which Deployment Workbench does from the right-click
 # menu and HDT could not do at all - an application imported by mistake had to
 # be removed with Explorer, which is how somebody deletes the wrong folder.
 #
@@ -83,7 +83,7 @@ Describe 'Remove-HDTApplication' {
         It 'removes the folder the id names, and its payload with it' {
             $fileSystem = & $script:newFileSystem
 
-            $result = Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
+            $result = Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
 
             [string] $result.Id | Should -BeExactly '7Zip-24.09'
             $fileSystem.TestPath('C:\ws\Applications\7Zip-24.09\app.yaml') | Should -BeFalse
@@ -93,7 +93,7 @@ Describe 'Remove-HDTApplication' {
         It 'leaves everything else on the share alone' {
             $fileSystem = & $script:newFileSystem
 
-            [void] (Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false)
+            [void] (Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false)
 
             $fileSystem.TestPath('C:\ws\workspace.yaml') | Should -BeTrue
             $fileSystem.TestPath('C:\ws\Applications\Contoso-Suite\app.yaml') | Should -BeTrue
@@ -103,7 +103,7 @@ Describe 'Remove-HDTApplication' {
         It 'removes nothing under -WhatIf' {
             $fileSystem = & $script:newFileSystem
 
-            [void] (Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -WhatIf)
+            [void] (Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -WhatIf)
 
             $fileSystem.TestPath('C:\ws\Applications\7Zip-24.09\app.yaml') | Should -BeTrue
         }
@@ -116,7 +116,7 @@ Describe 'Remove-HDTApplication' {
 
             $fileSystem = & $script:newFileSystem
 
-            { Remove-HDTApplication -Workspace 'C:\ws' -Id $_ -FileSystem $fileSystem -Confirm:$false } |
+            { Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id $_ -FileSystem $fileSystem -Confirm:$false } |
                 Should -Throw
 
             $fileSystem.TestPath('C:\ws\Applications\7Zip-24.09\app.yaml') | Should -BeTrue
@@ -126,7 +126,7 @@ Describe 'Remove-HDTApplication' {
             $fileSystem = & $script:newFileSystem
             $message = ''
 
-            try { Remove-HDTApplication -Workspace 'C:\ws' -Id 'Notepad-Plus' -FileSystem $fileSystem -Confirm:$false }
+            try { Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id 'Notepad-Plus' -FileSystem $fileSystem -Confirm:$false }
             catch { $message = [string] $_.Exception.Message }
 
             $message | Should -BeLike '*Notepad-Plus*'
@@ -141,7 +141,7 @@ Describe 'Remove-HDTApplication' {
                 'C:\ws\Applications\Staging\notes.txt' = 'mine'
             }
 
-            { Remove-HDTApplication -Workspace 'C:\ws' -Id 'Staging' -FileSystem $fileSystem -Confirm:$false } |
+            { Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id 'Staging' -FileSystem $fileSystem -Confirm:$false } |
                 Should -Throw
 
             $fileSystem.TestPath('C:\ws\Applications\Staging\notes.txt') | Should -BeTrue
@@ -153,7 +153,7 @@ Describe 'Remove-HDTApplication' {
         It 'reports which task sequences name it in a selection' {
             $fileSystem = & $script:newFileSystem
 
-            $result = Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
+            $result = Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
 
             @($result.UsedBy) | Should -Be @('DEMO-M4')
         }
@@ -163,7 +163,7 @@ Describe 'Remove-HDTApplication' {
             # so removing this application would stop Contoso Suite installing.
             $fileSystem = & $script:newFileSystem
 
-            $result = Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
+            $result = Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
 
             @($result.RequiredBy) | Should -Be @('Contoso-Suite')
         }
@@ -174,7 +174,7 @@ Describe 'Remove-HDTApplication' {
                 'C:\ws\Applications\7Zip-24.09\app.yaml' = $script:appYaml
             }
 
-            $result = Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
+            $result = Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -Confirm:$false
 
             @($result.UsedBy) | Should -BeNullOrEmpty
             @($result.RequiredBy) | Should -BeNullOrEmpty
@@ -185,10 +185,52 @@ Describe 'Remove-HDTApplication' {
             # what is using it BEFORE anybody agrees to anything.
             $fileSystem = & $script:newFileSystem
 
-            $result = Remove-HDTApplication -Workspace 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -WhatIf
+            $result = Remove-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem -WhatIf
 
             @($result.UsedBy) | Should -Be @('DEMO-M4')
             $fileSystem.TestPath('C:\ws\Applications\7Zip-24.09\app.yaml') | Should -BeTrue
+        }
+    }
+
+    Context 'the shape of the command' {
+
+        # ONE CONCEPT, ONE NAME. Import, Get and Set all call the share
+        # -WorkspaceRoot; this command called the same string -Workspace, which
+        # is the kind of difference somebody discovers with a red line after
+        # typing the name that worked on the previous command.
+        It 'names the share -WorkspaceRoot, as its siblings do' {
+            (Get-Command -Name 'Remove-HDTApplication').Parameters.ContainsKey('WorkspaceRoot') |
+                Should -BeTrue
+        }
+
+        It 'no longer answers to -Workspace' {
+            (Get-Command -Name 'Remove-HDTApplication').Parameters.ContainsKey('Workspace') |
+                Should -BeFalse
+        }
+
+        It 'takes <Name> from the pipeline by property name' -ForEach @(
+            @{ Name = 'WorkspaceRoot' }
+            @{ Name = 'Id' }
+        ) {
+            $parameter = (Get-Command -Name 'Remove-HDTApplication').Parameters[$Name]
+            @($parameter.Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                    ForEach-Object { $_.ValueFromPipelineByPropertyName }) | Should -Contain $true
+        }
+    }
+
+    Context 'reached from Get-HDTApplication' {
+
+        # THE FIRST THING ANYBODY TRIES. Get the entry, pipe it at Remove. It
+        # only works if Get emits the root it was read from, which is why the
+        # catalog object carries WorkspaceRoot.
+        It 'removes what Get-HDTApplication hands it' {
+            $fileSystem = & $script:newFileSystem
+
+            $null = Get-HDTApplication -WorkspaceRoot 'C:\ws' -Id '7Zip-24.09' -FileSystem $fileSystem |
+                Remove-HDTApplication -FileSystem $fileSystem -Confirm:$false
+
+            $fileSystem.TestPath('C:\ws\Applications\7Zip-24.09\app.yaml') | Should -BeFalse
         }
     }
 }

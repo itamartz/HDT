@@ -1,4 +1,4 @@
-# The name on the banner (DESIGN 3.2, MDT's _SMSTSOrgName).
+﻿# The name on the banner (DESIGN 3.2, MDT's _SMSTSOrgName).
 #
 # MDT PUTS THE ORGANISATION'S NAME ON THE DEPLOYMENT WINDOW, and the reason is
 # not vanity: a technician at a bench is often looking at two toolkits, and the
@@ -9,9 +9,19 @@
 # can open, so what the value MEANS - trimmed, and what an unset one falls back
 # to - is settled here where it can be asserted.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 }
 
 Describe 'Get-HDTBrandingName' {
@@ -47,4 +57,7 @@ Describe 'Get-HDTBrandingName' {
     It 'keeps the inner space of a real organisation name' {
         Get-HDTBrandingName -Value 'Contoso Field Services' | Should -BeExactly 'Contoso Field Services'
     }
+}
+
+
 }

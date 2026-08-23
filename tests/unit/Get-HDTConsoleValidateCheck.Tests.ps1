@@ -1,4 +1,4 @@
-# THE VALIDATE PAGE'S VIEW MODEL - MDT's Validate dialog, answered without a
+﻿# THE VALIDATE PAGE'S VIEW MODEL - MDT's Validate dialog, answered without a
 # window.
 #
 # THE CHECKS ARE DATA, NOT MARKUP. MDT compiles its list of checkboxes into
@@ -6,9 +6,19 @@
 # and adding a check is an entry plus the step reading its key. Nothing in the
 # XAML names a check.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:path = 'X:\Share\TaskSequences\DEMO\sequence.yaml'
 
@@ -118,4 +128,7 @@ Describe 'Get-HDTConsoleValidateCheck' {
             }
         }
     }
+}
+
+
 }

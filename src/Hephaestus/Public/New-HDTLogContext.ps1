@@ -46,6 +46,7 @@ function New-HDTLogContext {
 
         .PARAMETER FileSystem
             An IFileSystem - New-HDTFileSystem in production, the fake in a test.
+            Defaults to the real one.
 
         .PARAMETER Clock
             An IClock - New-HDTClock in production, the fake in a test.
@@ -72,7 +73,7 @@ function New-HDTLogContext {
         .EXAMPLE
             $context = New-HDTLogContext -RunId $runId -Phase WinPE `
                 -LogPath (Get-HDTLogPath -Phase WinPE) `
-                -FileSystem (New-HDTFileSystem) -Clock (New-HDTClock)
+                -Clock (New-HDTClock)
             Write-HDTLog -Context $context -Message 'Starting' -Event run.start
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -92,8 +93,8 @@ function New-HDTLogContext {
         [ValidateNotNullOrEmpty()]
         [string] $LogPath,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter(Mandatory = $true)]
@@ -117,6 +118,8 @@ function New-HDTLogContext {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $trimmed = $LogPath.TrimEnd('\', '/')
 

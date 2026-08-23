@@ -19,9 +19,19 @@
 # authored, engine - which is the right grain for a document and the wrong one
 # for a panel with a scrollbar.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent $PSScriptRoot
-    Import-Module -Name (Join-Path -Path (Split-Path -Parent $script:repoRoot) -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:help = Get-HDTConsoleRuleHelp
 }
@@ -180,4 +190,7 @@ Describe 'Get-HDTConsoleRuleHelp' {
             @($again.Section).Count | Should -Be @($script:help.Section).Count
         }
     }
+}
+
+
 }

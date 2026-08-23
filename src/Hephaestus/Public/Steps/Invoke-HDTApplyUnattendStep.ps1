@@ -54,7 +54,25 @@
             document.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'ApplyUnattend' })[0]
+
             Invoke-HDTApplyUnattendStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTApplyUnattendStep -Step $step -Context $context
+            $result.Data.Path
+
+            Where the answer file was staged, which is the path Windows Setup reads.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

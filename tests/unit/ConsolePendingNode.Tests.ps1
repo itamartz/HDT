@@ -1,4 +1,4 @@
-# THE ROW THE CONSOLE SHOWS WHILE IT IS STILL READING.
+﻿# THE ROW THE CONSOLE SHOWS WHILE IT IS STILL READING.
 #
 # Opening the console costs about a second on the lab share before anything is
 # on screen, and 820ms of it is Get-HDTConsoleWorkspace: every sequence in the
@@ -70,6 +70,19 @@ Describe 'New-HDTConsolePendingNode' {
     It 'names the command that is running, like every other row' {
         $node = @(Get-HDTTestPendingNode -Path @('C:\HDTLab\Share'))
 
-        [string] $node[0].Command | Should -BeLike '*Get-HDTConsoleWorkspace*'
+        [string] $node[0].Command | Should -BeLike '*Show-HDTConsole*'
+    }
+
+    # THE PREVIEW IS THERE TO BE TYPED. A row that names a command the module
+    # does not export teaches an administrator something that answers with a red
+    # line, which is worse than naming nothing - and the reader behind this row
+    # is internal to the window now.
+    It 'names a command the module actually exports' {
+        $node = @(Get-HDTTestPendingNode -Path @('C:\HDTLab\Share'))
+
+        $named = ([string] $node[0].Command -split '\s+')[0]
+
+        Get-Command -Name $named -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+            Should -Not -BeNullOrEmpty -Because "the row offers '$named' to be typed"
     }
 }

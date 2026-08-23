@@ -1,4 +1,4 @@
-# WHETHER THE NEW APPLICATION DIALOG'S ANSWERS CAN BE USED, decided without a
+﻿# WHETHER THE NEW APPLICATION DIALOG'S ANSWERS CAN BE USED, decided without a
 # window - the same arrangement Import Operating System has, for the same
 # reason: Import-HDTApplication refuses a bad id, a source that is not there and
 # an id the share already has, but it refuses them at the END, after four boxes
@@ -14,9 +14,19 @@
 # holding its installer, because what gets copied to the share is everything the
 # install command line needs beside it.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:newFileSystem = {
@@ -115,4 +125,7 @@ Describe 'Test-HDTConsoleImportApplication' {
             [string] $answer.Path | Should -BeExactly 'C:\ws\Applications\Notepad-Plus'
         }
     }
+}
+
+
 }

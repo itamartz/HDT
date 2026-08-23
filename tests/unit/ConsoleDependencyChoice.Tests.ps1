@@ -1,4 +1,4 @@
-# WHAT "DEPENDS ON" CAN BE SET TO, worked out without a window.
+﻿# WHAT "DEPENDS ON" CAN BE SET TO, worked out without a window.
 #
 # A dependency is an application id typed into a document, and every way of
 # getting it wrong fails late and badly. A misspelled id is not caught until a
@@ -16,9 +16,19 @@
 # ticked and what cannot be is settled here and asserted against no window at
 # all; the dialog binds it and calls Set-HDTApplication with what came back.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     # The console's application rows, cut down to what the choice reads.
     function New-HDTTestApplicationRow {
@@ -166,4 +176,7 @@ Describe 'Get-HDTConsoleDependencyChoice' {
                 Should -Be @()
         }
     }
+}
+
+
 }

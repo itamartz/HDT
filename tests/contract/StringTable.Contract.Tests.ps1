@@ -27,6 +27,21 @@
 # extension. HDTBootImage.xaml is filled by BootImage, HDTWelcome.xaml by
 # Welcome. Show-HDTWizard and Show-HDTWizardShell derive it the same way, so a
 # window converted tomorrow needs no entry anywhere - which is the point.
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# The wrapper opens at the very top, above the tables below, because -ForEach
+# is read while Pester is DISCOVERING and $script: inside InModuleScope means
+# the module's scope: a table built outside the wrapper and read inside it
+# discovers as empty, and the file reports no tests at all rather than failing.
+#
+# InModuleScope also has to resolve the module while discovery is running, so
+# the import is at file scope. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0.
+$script:hdtRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:hdtRepoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 $script:blockOf = {
     param([string] $File)
 
@@ -72,7 +87,6 @@ $script:ledger = @{
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:tablePath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Strings/en-us.psd1'
 
@@ -234,4 +248,7 @@ Describe 'the shipped string table' -ForEach $script:ledger {
 
         $orphan | Should -BeNullOrEmpty -Because ('these blocks fill no window: {0}' -f ($orphan -join ', '))
     }
+}
+
+
 }

@@ -1,4 +1,4 @@
-# THE NAVIGATOR, AND IT IS WHERE EVERY BRANCH IN THE SHELL LIVES.
+﻿# THE NAVIGATOR, AND IT IS WHERE EVERY BRANCH IN THE SHELL LIVES.
 #
 # HDTWizardShell.xaml opens ONCE and the page inside it is swapped in place, so
 # something has to decide - on every click - which page is now current, what the
@@ -16,9 +16,19 @@
 # start. Every other answer must leave it false: an off-by-one at the end of the
 # list is a wizard that partitions a disk one page early.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     function New-HDTTestPage {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -259,4 +269,7 @@ Describe 'Step-HDTWizardPage' {
             { Step-HDTWizardPage -Page (New-HDTTestPage) -Index 0 -Action 'Deploy' } | Should -Throw
         }
     }
+}
+
+
 }

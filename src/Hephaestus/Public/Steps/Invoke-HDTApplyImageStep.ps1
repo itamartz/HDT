@@ -1,4 +1,4 @@
-function Invoke-HDTApplyImageStep {
+﻿function Invoke-HDTApplyImageStep {
     <#
         .SYNOPSIS
             Applies Windows to the volume the partition step created.
@@ -61,7 +61,28 @@ function Invoke-HDTApplyImageStep {
             durationMs, or errorId on a refusal.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'ApplyImage' })[0]
+
             Invoke-HDTApplyImageStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTApplyImageStep -Step $step -Context $context
+            $result.Status
+            $result.Message
+
+            Status is Completed, Failed or Skipped, and Message is what the log line
+            will say. Nothing is thrown for a failed apply - the loop decides what a
+            failed step means.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

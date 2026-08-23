@@ -1,4 +1,4 @@
-# ONE PARSE PER REFRESH, NOT FOUR.
+﻿# ONE PARSE PER REFRESH, NOT FOUR.
 #
 # The editor rebuilds its whole right pane after every edit, and four separate
 # view models each turned the same lines back into a document to do it - about
@@ -17,9 +17,19 @@
 # second, which is why this parameter is documented as the host's and not
 # offered as a way to ask about something else.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:path = 'C:\ws\TaskSequences\DEMO\sequence.yaml'
@@ -132,4 +142,7 @@ Describe 'what the handed document decides' {
         (Get-HDTConsolePartitionRow -Line $script:line -Path $script:path `
                 -Name 'Format and Partition Disk (UEFI)').Layout | Should -BeExactly 'UEFI'
     }
+}
+
+
 }

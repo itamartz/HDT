@@ -358,10 +358,16 @@
     # and it has to be right at the moment it is shown rather than at the moment
     # the wizard opened. A technician who presses Back, changes the name and
     # comes forward again must see the new one.
+    # THE DOOR THE CLOSURE REACHES THE NAVIGATOR THROUGH - see
+    # Get-HDTHandlerCall. GetNewClosure rebinds the block below to the session
+    # state of whoever calls it, which is the host, where nothing private
+    # exists; this is declared out here so the block captures it.
+    $call = Get-HDTHandlerCall
+
     $navigator = {
         param([int] $Index, [string] $Action, [hashtable] $Value)
 
-        $next = Step-HDTWizardPage -Page $loaded -Index $Index -Action $Action
+        $next = & $call 'Step-HDTWizardPage' -Page $loaded -Index $Index -Action $Action
 
         if ($null -ne $next.Page -and $null -ne $next.Page.Summary) {
             $built = Get-HDTWizardSummary -Page $loaded -Value $Value

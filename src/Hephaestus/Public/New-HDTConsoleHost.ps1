@@ -84,6 +84,10 @@
         Add-Type -AssemblyName PresentationCore
         Add-Type -AssemblyName WindowsBase
 
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
 
@@ -172,7 +176,7 @@
             $ready = $false
 
             if ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence') {
-                $pending = @(Get-HDTConsoleStepChange -Field ([object[]] @($detail.ItemsSource)) `
+                $pending = @(& $call 'Get-HDTConsoleStepChange' -Field ([object[]] @($detail.ItemsSource)) `
                         -Name ([string] $chosen.Name))
 
                 $ready = (@($pending).Count -gt 0)
@@ -310,7 +314,7 @@
 
                         if ($at -lt 0) { continue }
 
-                        $share.Children[$at] = Get-HDTConsoleMonitorNode `
+                        $share.Children[$at] = & $call 'Get-HDTConsoleMonitorNode' `
                             -Path $share.Children[$at].HeaderRoot `
                             -Header ([pscustomobject] @{
                                 Title      = $share.Children[$at].HeaderTitle
@@ -409,9 +413,9 @@
 
             foreach ($one in @($Root)) {
                 try {
-                    [void] $rebuiltShare.Add((Get-HDTConsoleWorkspace -Path $one))
+                    [void] $rebuiltShare.Add((& $call 'Get-HDTConsoleWorkspace' -Path $one))
                 } catch {
-                    [void] $rebuiltShare.Add((New-HDTConsoleShareFailure -Path $one `
+                    [void] $rebuiltShare.Add((& $call 'New-HDTConsoleShareFailure' -Path $one `
                                 -Message ([string] $_.Exception.Message)))
                 }
             }
@@ -419,7 +423,7 @@
             # THE DEPTH-0 ROWS, NOT EVERY ROW. Get-HDTConsoleTreeNode returns the
             # tree flat and WPF builds the branches from each row's Children, so
             # handing it everything draws every node twice.
-            $rebuiltNode = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($rebuiltShare)))
+            $rebuiltNode = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($rebuiltShare)))
 
             $tree.ItemsSource = @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
 
@@ -677,7 +681,7 @@
 
                     $documentPath = [string] $chosen.Subject.Path
 
-                    $pending = @(Get-HDTConsoleStepChange -Field ([object[]] @($detail.ItemsSource)) `
+                    $pending = @(& $call 'Get-HDTConsoleStepChange' -Field ([object[]] @($detail.ItemsSource)) `
                             -Name ([string] $chosen.Name))
 
                     if (@($pending).Count -eq 0) { return }
@@ -893,7 +897,7 @@
                         # from the row alone - re-reading the share here costs
                         # 400ms in front of a menu that is supposed to appear
                         # under the pointer.
-                        $folderAction = Get-HDTConsoleFolderAction -Row $chosen
+                        $folderAction = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
 
                         $newFolder.Visibility = [System.Windows.Visibility]::Collapsed
                         $moveToFolder.Visibility = [System.Windows.Visibility]::Collapsed
@@ -1137,7 +1141,7 @@
                         $chosenPath = [string] [System.IO.Path]::GetDirectoryName($picker.FileName)
                         $already = [string[]] @(& $openShare)
 
-                        $answer = Test-HDTConsoleOpenWorkspace -Path $chosenPath -Open $already
+                        $answer = & $call 'Test-HDTConsoleOpenWorkspace' -Path $chosenPath -Open $already
 
                         # THE REFUSAL GOES IN THE COMMAND BOX, which is where
                         # this window says everything else that went wrong.
@@ -1154,7 +1158,9 @@
                             $window.Cursor = $null
                         }
 
-                        $command.Text = "Get-HDTConsoleWorkspace -Path '{0}'" -f $chosenPath
+                        # A command an administrator can actually run: the
+                        # reader behind this row is internal to the window.
+                        $command.Text = "Show-HDTConsole -Path '{0}'" -f $chosenPath
                     }.GetNewClosure())
 
                 # CLOSING TAKES IT OUT OF THE WINDOW AND DELETES NOTHING, and
@@ -1234,7 +1240,7 @@
                         & $rebuildTree
 
                         $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Detect {2}" -f
-                        $where, $which, (Get-HDTConsoleDetectionForm -Detect $answer).CommandText
+                        $where, $which, (& $call 'Get-HDTConsoleDetectionForm' -Detect $answer).CommandText
                     }.GetNewClosure())
 
                 # DEPENDS ON IS PICKED FROM THE SHARE, and that is the whole
@@ -1260,8 +1266,8 @@
                         }
 
                         try {
-                            $share = Get-HDTConsoleWorkspace -Path $where
-                            $offer = @(Get-HDTConsoleDependencyChoice -Application ([object[]] @($share.Application)) -Id $which)
+                            $share = & $call 'Get-HDTConsoleWorkspace' -Path $where
+                            $offer = @(& $call 'Get-HDTConsoleDependencyChoice' -Application ([object[]] @($share.Application)) -Id $which)
                         } catch {
                             $command.Text = [string] $_.Exception.Message
                             return
@@ -1298,7 +1304,7 @@
                         $answer = $null
 
                         try {
-                            $answer = Remove-HDTApplication -Workspace $where -Id $which -WhatIf
+                            $answer = Remove-HDTApplication -WorkspaceRoot $where -Id $which -WhatIf
                         } catch {
                             $command.Text = [string] $_.Exception.Message
                             return
@@ -1325,8 +1331,8 @@
                         if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
 
                         try {
-                            [void] (Remove-HDTApplication -Workspace $where -Id $which -Confirm:$false)
-                            $command.Text = "Remove-HDTApplication -Workspace '{0}' -Id '{1}'" -f $where, $which
+                            [void] (Remove-HDTApplication -WorkspaceRoot $where -Id $which -Confirm:$false)
+                            $command.Text = "Remove-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $which
                         } catch {
                             $command.Text = [string] $_.Exception.Message
                         }
@@ -1409,7 +1415,7 @@
                         $where = [string] $chosen.HeaderRoot
                         if ([string]::IsNullOrWhiteSpace($where)) { return }
 
-                        $action = Get-HDTConsoleFolderAction -Row $chosen
+                        $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
                         if (-not $action.CanCreate) { return }
 
                         $inside = ''
@@ -1459,7 +1465,7 @@
                         $chosen = $tree.SelectedItem
                         if ($null -eq $chosen) { return }
 
-                        $action = Get-HDTConsoleFolderAction -Row $chosen
+                        $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
                         if (-not $action.CanMove) { return }
 
                         $now = ''
@@ -1522,7 +1528,7 @@
                         if ($null -eq $chosen) { return }
 
                         $where = [string] $chosen.HeaderRoot
-                        $action = Get-HDTConsoleFolderAction -Row $chosen
+                        $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
 
                         # THE REFUSAL IS SAID, NOT SWALLOWED. The item is
                         # disabled, so this only runs if something else opened
@@ -1634,6 +1640,10 @@
 
         Add-Type -AssemblyName PresentationFramework
 
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
         $dialog.Icon = Get-HDTConsoleWindowIcon
@@ -1667,7 +1677,7 @@
         $filled = @{ Id = $false }
 
         $check = {
-            $answer = Test-HDTConsoleImportOperatingSystem -Workspace $Workspace `
+            $answer = & $call 'Test-HDTConsoleImportOperatingSystem' -Workspace $Workspace `
                 -Id ([string] $idBox.Text) -SourcePath ([string] $sourceBox.Text)
 
             if (-not $filled.Id -and [string]::IsNullOrWhiteSpace([string] $idBox.Text) -and
@@ -1764,6 +1774,10 @@
 
         Add-Type -AssemblyName PresentationFramework
 
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
         $dialog.Icon = Get-HDTConsoleWindowIcon
@@ -1793,7 +1807,7 @@
 
         # THE ID IS COMPOSED UNTIL SOMEBODY TYPES ONE, and from then on it is
         # theirs. Workbench composes both names from publisher, name and version
-        # (Get-HDTApplicationName); an id is the folder name and what every task
+        # (New-HDTApplicationName); an id is the folder name and what every task
         # sequence names, so a box that rewrote itself after a decision would
         # rename the entry behind somebody's back.
         #
@@ -1807,7 +1821,7 @@
             }.GetNewClosure())
 
         $check = {
-            $composed = Get-HDTApplicationName -Publisher ([string] $publisherBox.Text) `
+            $composed = & $call 'New-HDTApplicationName' -Publisher ([string] $publisherBox.Text) `
                 -Name ([string] $nameBox.Text) -Version ([string] $versionBox.Text)
 
             if (-not $mine.Id) {
@@ -1817,7 +1831,7 @@
                 # three boxes to compose from: a package dropped in with nothing
                 # typed still gets an id offered.
                 if ([string]::IsNullOrWhiteSpace($wanted)) {
-                    $fromSource = Test-HDTConsoleImportApplication -Workspace $Workspace `
+                    $fromSource = & $call 'Test-HDTConsoleImportApplication' -Workspace $Workspace `
                         -SourcePath ([string] $sourceBox.Text)
 
                     $wanted = [string] $fromSource.SuggestedId
@@ -1830,7 +1844,7 @@
                 }
             }
 
-            $answer = Test-HDTConsoleImportApplication -Workspace $Workspace `
+            $answer = & $call 'Test-HDTConsoleImportApplication' -Workspace $Workspace `
                 -Id ([string] $idBox.Text) -SourcePath ([string] $sourceBox.Text) `
                 -Install ([string] $installBox.Text)
 
@@ -1882,7 +1896,7 @@
                     # THE DISPLAY NAME IS COMPOSED THE WAY WORKBENCH COMPOSES
                     # IT - publisher, name, version - so the row reads '7-Zip
                     # 24.09' rather than '7-Zip' three times over.
-                    $composed = Get-HDTApplicationName -Publisher ([string] $publisherBox.Text) `
+                    $composed = & $call 'New-HDTApplicationName' -Publisher ([string] $publisherBox.Text) `
                         -Name ([string] $nameBox.Text) -Version ([string] $versionBox.Text)
 
                     if (-not [string]::IsNullOrWhiteSpace([string] $composed.Display)) {
@@ -2009,6 +2023,10 @@
 
         Add-Type -AssemblyName PresentationFramework
 
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
         $dialog.Icon = Get-HDTConsoleWindowIcon
@@ -2111,7 +2129,7 @@
 
             foreach ($key in @($typed.Keys)) { $rule[[string] $key] = [string] $typed[$key].Text }
 
-            return Get-HDTConsoleDetectionForm -Type ([string] $state.Type) -Detect $rule
+            return & $call 'Get-HDTConsoleDetectionForm' -Type ([string] $state.Type) -Detect $rule
         }.GetNewClosure()
 
         $judge = {
@@ -2132,7 +2150,7 @@
 
                 # THE TYPE CHANGED, SO THE BOXES DO. Values do not survive it: a
                 # product code is not a registry key.
-                & $draw (Get-HDTConsoleDetectionForm -Type $chosen -Detect $Detect)
+                & $draw (& $call 'Get-HDTConsoleDetectionForm' -Type $chosen -Detect $Detect)
                 & $judge
             }.GetNewClosure())
 
@@ -2192,6 +2210,10 @@
 
         Add-Type -AssemblyName PresentationFramework
 
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
         $dialog.Icon = Get-HDTConsoleWindowIcon
@@ -2250,7 +2272,7 @@
             }.GetNewClosure())
 
         $check = {
-            $answer = Test-HDTConsoleNewWorkspace -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
+            $answer = & $call 'Test-HDTConsoleNewWorkspace' -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
 
             if (-not $mine.Id -and -not [string]::IsNullOrWhiteSpace([string] $answer.SuggestedId) -and
                 [string] $idBox.Text -ne [string] $answer.SuggestedId) {
@@ -2259,7 +2281,7 @@
                 $idBox.Text = [string] $answer.SuggestedId
                 $mine.Writing = $false
 
-                $answer = Test-HDTConsoleNewWorkspace -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
+                $answer = & $call 'Test-HDTConsoleNewWorkspace' -Path ([string] $pathBox.Text) -Id ([string] $idBox.Text)
             }
 
             # THE SHARE NAME AND THE DEPLOY ROOT IT PRODUCES. Empty share name
@@ -2386,6 +2408,10 @@
 
         Add-Type -AssemblyName PresentationFramework
 
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
         $dialog.Icon = Get-HDTConsoleWindowIcon
@@ -2445,7 +2471,7 @@
         # WHETHER THE ANSWERS CAN BE USED, ON EVERY KEYSTROKE. The alternative
         # is a wizard that takes seven answers and refuses on the last press.
         $check = {
-            $answer = Test-HDTConsoleNewSequence -Workspace $Workspace `
+            $answer = & $call 'Test-HDTConsoleNewSequence' -Workspace $Workspace `
                 -Id ([string] $idBox.Text) -Name ([string] $nameBox.Text)
 
             $create.IsEnabled = [bool] $answer.CanCreate
@@ -2654,6 +2680,10 @@
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
         Add-Type -AssemblyName WindowsBase
+
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
@@ -2939,10 +2969,21 @@
             # MATTERS. $reflect runs on every selection change; $rebuild only
             # after a splice. A version that passed it in one and not the other
             # would answer correctly right up until somebody clicked a row.
-            $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path `
-                -SelectedName $book.Selected -SelectedOccurrence $book.SelectedOccurrence `
-                -Document $parsed `
-                -HasClipboard:($null -ne $book.Clipboard) -Dirty:$book.Dirty
+            # A HASHTABLE, BECAUSE TWO OF THESE ARE SWITCHES. -HasClipboard:$x
+            # binds against Get-HDTHandlerCall's own block rather than the
+            # command, and the value lands positionally - which is the editor
+            # refusing to open on "a positional parameter cannot be found that
+            # accepts argument 'False'", from a handler, with nothing on screen
+            # naming the switch.
+            $state = & $call 'Get-HDTConsoleEditorState' @{
+                Line               = $book.Line
+                Path               = $Path
+                SelectedName       = $book.Selected
+                SelectedOccurrence = $book.SelectedOccurrence
+                Document           = $parsed
+                HasClipboard       = ($null -ne $book.Clipboard)
+                Dirty              = [bool] $book.Dirty
+            }
 
             $book.State = $state
 
@@ -2985,7 +3026,7 @@
             # decides both whether it belongs on screen and everything on it; this
             # assigns. The selection is put back by name because the row objects
             # are rebuilt every time.
-            $view = Get-HDTConsolePartitionRow -Line $book.Line -Path $Path -Name $book.Selected -Document $parsed
+            $view = & $call 'Get-HDTConsolePartitionRow' -Line $book.Line -Path $Path -Name $book.Selected -Document $parsed
 
             $diskTab.Visibility = [System.Windows.Visibility]::Collapsed
             if ($view.IsDiskStep) { $diskTab.Visibility = [System.Windows.Visibility]::Visible }
@@ -3000,7 +3041,7 @@
             # It belongs to the share, not to a keystroke: closing and reopening
             # the editor picks up an image imported meanwhile, which is the same
             # bargain the Windows PE window makes with the ADK component list.
-            $imageChoice = Get-HDTConsoleImageChoice -Line $book.Line -Path $Path `
+            $imageChoice = & $call 'Get-HDTConsoleImageChoice' -Line $book.Line -Path $Path `
                 -Name $book.Selected -Workspace $workspaceRoot -Catalog $book.Catalog -Document $parsed
 
             $imageTab.Visibility = [System.Windows.Visibility]::Collapsed
@@ -3063,7 +3104,7 @@
             # THE VALIDATION PAGE, on the same rule as the disk one. MDT's
             # Validate dialog IS that step's properties page, so the generic tab
             # goes with it.
-            $validate = Get-HDTConsoleValidateCheck -Line $book.Line -Path $Path -Name $book.Selected -Document $parsed
+            $validate = & $call 'Get-HDTConsoleValidateCheck' -Line $book.Line -Path $Path -Name $book.Selected -Document $parsed
 
             $validateTab.Visibility = [System.Windows.Visibility]::Collapsed
             if ($validate.IsValidateStep) {
@@ -3076,7 +3117,7 @@
             # Install Application dialog IS that step's properties page.
             #
             # THE CATALOGUE IS HANDED IN, READ ONCE - see $book.AppCatalog above.
-            $application = Get-HDTConsoleApplicationChoice -Line $book.Line -Path $Path `
+            $application = & $call 'Get-HDTConsoleApplicationChoice' -Line $book.Line -Path $Path `
                 -Name $book.Selected -Workspace $workspaceRoot -Catalog $book.AppCatalog -Document $parsed
 
             $applicationTab.Visibility = [System.Windows.Visibility]::Collapsed
@@ -3106,7 +3147,7 @@
             # for this step IS its properties page. What it replaces was two rows
             # on the generic sheet, one of which - the exit codes - could be read
             # and not changed, while Start in could not be reached at all.
-            $commandPage = Get-HDTConsoleCommandLine -Line $book.Line -Path $Path `
+            $commandPage = & $call 'Get-HDTConsoleCommandLine' -Line $book.Line -Path $Path `
                 -Name $book.Selected -Document $parsed
 
             $commandTab.Visibility = [System.Windows.Visibility]::Collapsed
@@ -3229,7 +3270,7 @@
         # reads back - and the selection is restored by name, because the row
         # object that was selected no longer exists.
         $rebuild = {
-            $state = Get-HDTConsoleEditorState -Line $book.Line -Path $Path `
+            $state = & $call 'Get-HDTConsoleEditorState' -Line $book.Line -Path $Path `
                 -SelectedName $book.Selected -SelectedOccurrence $book.SelectedOccurrence
 
             # PUBLISHED, BECAUSE THE TOOLBAR ACTS ON IT. Up and Down no longer
@@ -3525,7 +3566,7 @@
                 $subject = $book.Selected
                 if ([string]::IsNullOrWhiteSpace($subject)) { return }
 
-                foreach ($one in @(Get-HDTConsoleStepChange -Field $detail.ItemsSource -Name $subject)) {
+                foreach ($one in @(& $call 'Get-HDTConsoleStepChange' -Field $detail.ItemsSource -Name $subject)) {
                     # A LIST ROW TAKES THE OTHER CMDLET. Set-HDTStepProperty
                     # quotes what it is given, so Install Roles would get
                     # features: 'Web-Server, DNS' - one feature with a comma in
@@ -3632,7 +3673,7 @@
         $partitionDialog = {
             param([object] $Row)
 
-            $view = Get-HDTConsolePartitionRow -Line $book.Line -Path $Path -Name $book.Selected
+            $view = & $call 'Get-HDTConsolePartitionRow' -Line $book.Line -Path $Path -Name $book.Selected
 
             $dialog = $editorHost.ShowPartitionProperties($PartitionXaml, $Row, $view.Unit, $Theme, $window)
             if ($null -eq $dialog) { return $null }
@@ -4200,7 +4241,7 @@
         $window.Add_Closing({
                 param($closingWindow, $closing)
 
-                $prompt = Get-HDTConsoleClosePrompt -DocumentPath $Path -Dirty:$book.Dirty
+                $prompt = & $call 'Get-HDTConsoleClosePrompt' @{ DocumentPath = $Path; Dirty = [bool] $book.Dirty }
 
                 if (-not $prompt.Ask) { return }
 
@@ -4211,7 +4252,7 @@
                     ([System.Windows.MessageBoxButton] $prompt.Button),
                     ([System.Windows.MessageBoxImage] $prompt.Icon))
 
-                $decision = Resolve-HDTConsoleCloseAnswer -Answer ([string] $answer)
+                $decision = & $call 'Resolve-HDTConsoleCloseAnswer' -Answer ([string] $answer)
 
                 if ($decision.Cancel) {
                     $closing.Cancel = $true
@@ -4266,6 +4307,10 @@
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
         Add-Type -AssemblyName WindowsBase
+
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
@@ -4768,7 +4813,7 @@
                 # a PasswordBox on a small dialog because that is the only
                 # control in WPF that does not put it on screen.
                 $prompt = New-Object -TypeName System.Windows.Window
-                $prompt.Icon = Get-HDTConsoleWindowIcon
+                $prompt.Icon = & $call 'Get-HDTConsoleWindowIcon'
                 $prompt.Title = 'Certificate password'
                 $prompt.Width = 420
                 $prompt.SizeToContent = [System.Windows.SizeToContent]::Height
@@ -4997,13 +5042,20 @@
         $wireRuleTab = {
             param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap)
 
+            # ITS OWN DOOR, BECAUSE GetNewClosure CAPTURES THE LOCAL SCOPE ONLY.
+            # The $call declared in ShowBootImage is a parent scope from in here:
+            # this block can read it, but the handlers made below cannot capture
+            # it, and a keystroke in the rules box would find nothing behind the
+            # & - which is the boot image window refusing to open at all.
+            $call = Get-HDTHandlerCall
+
             # WHAT THE ENGINE WOULD SAY, SAID NOW. Assert-HDTRuleLine is the gate
             # Add-HDTRule passes through and, for the bootstrap file, the one
             # Update-HDTBootImage will apply when it injects it - so a document
             # that would fail at three in the morning fails here, at the desk.
             $judge = {
                 $typed = @([string] $Box.Text -split "`r?`n")
-                $judged = Get-HDTConsoleRuleSetting -Line $typed -Path $RulePath -Bootstrap:$IsBootstrap
+                $judged = & $call 'Get-HDTConsoleRuleSetting' @{ Line = $typed; Path = $RulePath; Bootstrap = [bool] $IsBootstrap }
 
                 $Summary.Text = [string] $judged.SummaryText
                 $Problem.Text = [string] $judged.Problem
@@ -5025,7 +5077,7 @@
                     $ruleLine = @([string] $fileSystem.ReadAllText($RulePath) -split "`r?`n")
                 }
 
-                $Box.Text = [string] (Get-HDTConsoleRuleSetting -Line $ruleLine -Path $RulePath -Bootstrap:$IsBootstrap).Text
+                $Box.Text = [string] (& $call 'Get-HDTConsoleRuleSetting' @{ Line = $ruleLine; Path = $RulePath; Bootstrap = [bool] $IsBootstrap }).Text
             }.GetNewClosure()
 
             $Box.Add_TextChanged({ & $judge }.GetNewClosure())
@@ -5037,7 +5089,7 @@
 
             $Save.Add_Click({
                     $typed = @([string] $Box.Text -split "`r?`n")
-                    $judged = Get-HDTConsoleRuleSetting -Line $typed -Path $RulePath -Bootstrap:$IsBootstrap
+                    $judged = & $call 'Get-HDTConsoleRuleSetting' @{ Line = $typed; Path = $RulePath; Bootstrap = [bool] $IsBootstrap }
 
                     # BELT AND BRACES. The button is dark while the document will
                     # not do, but a keyboard default or an automation could still
@@ -5242,7 +5294,7 @@
         $window.Add_Closing({
                 param($closingWindow, $closing)
 
-                $prompt = Get-HDTConsoleClosePrompt -DocumentPath $Path -Dirty:$book.Dirty
+                $prompt = & $call 'Get-HDTConsoleClosePrompt' @{ DocumentPath = $Path; Dirty = [bool] $book.Dirty }
 
                 if (-not $prompt.Ask) { return }
 
@@ -5250,7 +5302,7 @@
                     ([System.Windows.MessageBoxButton] $prompt.Button),
                     ([System.Windows.MessageBoxImage] $prompt.Icon))
 
-                $decision = Resolve-HDTConsoleCloseAnswer -Answer ([string] $answer)
+                $decision = & $call 'Resolve-HDTConsoleCloseAnswer' -Answer ([string] $answer)
 
                 if ($decision.Cancel) {
                     $closing.Cancel = $true

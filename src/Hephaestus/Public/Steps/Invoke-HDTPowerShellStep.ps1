@@ -1,4 +1,4 @@
-function Invoke-HDTPowerShellStep {
+﻿function Invoke-HDTPowerShellStep {
     <#
         .SYNOPSIS
             Runs a user PowerShell script from the workspace.
@@ -49,7 +49,26 @@ function Invoke-HDTPowerShellStep {
             A New-HDTStepResult. Data carries whatever object the script emitted.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'PowerShell' })[0]
+
             Invoke-HDTPowerShellStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTPowerShellStep -Step $step -Context $context
+            $result.Data.ExitCode
+
+            The script's exit code. The script runs from the workspace's Scripts\
+            folder, which is why the engine's own commands are in scope for it.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

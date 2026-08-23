@@ -1,4 +1,4 @@
-# WHAT THE PROGRESS WINDOW SHOWS, WORKED OUT FROM THE LOG.
+﻿# WHAT THE PROGRESS WINDOW SHOWS, WORKED OUT FROM THE LOG.
 #
 # DESIGN 11.1: the progress window is driven by the JSONL event stream and NOT
 # by a parallel progress API. The engine already emits run.start, step.start,
@@ -19,9 +19,19 @@
 # stepName, stepType, component, event, message, durationMs, data - as
 # ConvertTo-HDTLogRecord writes them.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     function New-HDTProgressRecord {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -319,4 +329,7 @@ Describe 'how far through the step itself' {
         { Get-HDTDeploymentProgress -Record $record } | Should -Not -Throw
         [int] (Get-HDTDeploymentProgress -Record $record).StepPercent | Should -Be 0
     }
+}
+
+
 }

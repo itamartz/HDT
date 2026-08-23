@@ -1,4 +1,4 @@
-function Get-HDTApplicationName {
+﻿function New-HDTApplicationName {
     <#
         .SYNOPSIS
             Composes an application's display name and its id from the publisher,
@@ -29,6 +29,14 @@ function Get-HDTApplicationName {
             deployment names, so it is decided once, when the application is
             added. Set-HDTApplication has no -Id for the same reason.
 
+            PRIVATE, AND NAMED FOR WHAT IT DOES. It reads nothing and fetches
+            nothing, so Get- was the wrong verb, and a public
+            Get-HDTApplicationName standing beside Get-HDTApplication read as a
+            second way to fetch an application. Its two callers are
+            Import-HDTApplication, which applies the rule when -Id was not
+            given, and the console's Import Application dialog, which previews
+            both names as the three boxes are typed into.
+
         .PARAMETER Publisher
             Who makes it. Workbench's first question, and the reason two entries
             called Reader are tellable apart.
@@ -48,13 +56,15 @@ function Get-HDTApplicationName {
             dialog's cue to leave the boxes alone.
 
         .EXAMPLE
-            Get-HDTApplicationName -Publisher 'Igor Pavlov' -Name '7-Zip' -Version '24.09'
+            New-HDTApplicationName -Publisher 'Igor Pavlov' -Name '7-Zip' -Version '24.09'
 
             Display 'Igor Pavlov 7-Zip 24.09', Id 'Igor-Pavlov-7-Zip-24.09'.
 
         .LINK
             Import-HDTApplication
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Composes two strings from three; it reads nothing and writes nothing.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(

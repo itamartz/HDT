@@ -1,4 +1,4 @@
-# The icon on the console's windows, and in the taskbar button.
+﻿# The icon on the console's windows, and in the taskbar button.
 #
 # WPF FALLS BACK TO THE PROCESS ICON WHEN A WINDOW DECLARES NONE, and the
 # process here is powershell.exe - so every window the console opened wore the
@@ -58,7 +58,11 @@ Describe 'The console host' {
         $built = ([regex]::Matches($script:hostSource, '\[System\.Windows\.Markup\.XamlReader\]::Load\(')).Count +
                  ([regex]::Matches($script:hostSource, 'New-Object -TypeName System\.Windows\.Window\b')).Count
 
-        $iconed = ([regex]::Matches($script:hostSource, '\.Icon = Get-HDTConsoleWindowIcon')).Count
+        # Two spellings, one meaning. A window built inside a handler has to
+        # reach the icon through Get-HDTHandlerCall, because a closure resolves
+        # commands in the caller's scope and the icon is private.
+        $iconed = ([regex]::Matches($script:hostSource,
+                "\.Icon = (Get-HDTConsoleWindowIcon|& \`$call 'Get-HDTConsoleWindowIcon')")).Count
 
         $built | Should -BeGreaterThan 10
         $iconed | Should -Be $built

@@ -1,4 +1,4 @@
-# Editing a task sequence document without reformatting it.
+﻿# Editing a task sequence document without reformatting it.
 #
 # EVERY BUTTON IN THE EDITOR IS ONE OF THESE CMDLETS. DESIGN 12: "the console
 # may not do anything the cmdlets can't. Every action it performs maps to a
@@ -18,9 +18,19 @@
 # enough that the result parses; the lines nobody touched must come back
 # identical, including their blank lines and their indentation.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     # ONE IMPORT, AND IT IS THE ENGINE'S. The console commands and the engine
@@ -306,4 +316,7 @@ Describe 'an edited document is still a task sequence' {
         @($document.Step).Count | Should -Be 2
         @($document.Group).Count | Should -Be 1
     }
+}
+
+
 }

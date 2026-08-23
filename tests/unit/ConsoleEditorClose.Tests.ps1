@@ -1,4 +1,4 @@
-# Closing the editor with work in it.
+﻿# Closing the editor with work in it.
 #
 # THE X IS A WAY OUT AND MUST STAY ONE. Until now Close and the title-bar X both
 # shut the window on the spot and threw every splice away without a word - the
@@ -21,9 +21,19 @@
 # MessageBox with what these commands hand it, so what an administrator is asked
 # can be read in a test rather than by provoking a dialog on a screen.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:path = 'C:\ws\TaskSequences\DEMO-M4\sequence.yaml'
 }
@@ -111,4 +121,7 @@ Describe 'Resolve-HDTConsoleCloseAnswer' {
         (Resolve-HDTConsoleCloseAnswer -Answer 'No').Action | Should -BeExactly 'Discard'
         (Resolve-HDTConsoleCloseAnswer -Answer 'Cancel').Action | Should -BeExactly 'Stay'
     }
+}
+
+
 }

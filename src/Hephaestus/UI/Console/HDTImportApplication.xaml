@@ -8,7 +8,7 @@
     page would be a page with one answer on it.
 
     WORKBENCH'S THREE QUESTIONS ARE HERE - Publisher, Name, Version - and the id
-    is composed from them by Get-HDTApplicationName, which is Workbench's own
+    is composed from them by New-HDTApplicationName, which is Workbench's own
     rule: '7-Zip' alone is not an application, it is three of them a year apart.
     The id stays typeable, because it is the folder name and what every task
     sequence names, so it is decided once and never rewritten afterwards.

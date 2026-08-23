@@ -49,6 +49,7 @@ function Get-HDTWizardSequence {
         .PARAMETER FileSystem
             An IFileSystem. The share is already connected by the time the
             wizard runs, so this reads it as ordinary paths.
+            Defaults to the real one.
 
         .PARAMETER Variable
             The resolved variables, read for HDTTaskSequenceID and nothing else.
@@ -66,7 +67,7 @@ function Get-HDTWizardSequence {
             Description, Text), Selected, Problem and Field.
 
         .EXAMPLE
-            Get-HDTWizardSequence -WorkspaceRoot 'Z:\Deploy' -FileSystem (New-HDTFileSystem)
+            Get-HDTWizardSequence -WorkspaceRoot 'Z:\Deploy'
 
         .EXAMPLE
             $sequence = Get-HDTWizardSequence -WorkspaceRoot $root -FileSystem $fs -Variable $resolved.Variable
@@ -82,8 +83,8 @@ function Get-HDTWizardSequence {
         [ValidateNotNullOrEmpty()]
         [string] $WorkspaceRoot,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter()]
@@ -97,6 +98,8 @@ function Get-HDTWizardSequence {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $choice = New-Object -TypeName System.Collections.ArrayList
     $problem = New-Object -TypeName System.Collections.ArrayList

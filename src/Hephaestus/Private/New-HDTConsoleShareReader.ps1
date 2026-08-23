@@ -90,22 +90,28 @@
         $failureRow = Get-Command -Name 'New-HDTConsoleShareFailure' -CommandType Function
     }
 
+    # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+    # Get-HDTHandlerCall. It has to be declared out here, not inside the block
+    # below: that block is the closure, and a line inside it runs in whatever
+    # scope invoked it - which is the console, where nothing private exists.
+    $call = Get-HDTHandlerCall
+
     return {
         foreach ($current in @($Path)) {
             try {
                 # A SHARE THAT WILL NOT OPEN BECOMES A ROW, not an exception:
                 # three good shares must not disappear because of a fourth.
                 if ($null -eq $FileSystem) {
-                    [void] $Share.Add((Get-HDTConsoleWorkspace -Path $current))
+                    [void] $Share.Add((& $call 'Get-HDTConsoleWorkspace' -Path $current))
                 } else {
-                    [void] $Share.Add((Get-HDTConsoleWorkspace -Path $current -FileSystem $FileSystem))
+                    [void] $Share.Add((& $call 'Get-HDTConsoleWorkspace' -Path $current -FileSystem $FileSystem))
                 }
             } catch {
                 [void] $Share.Add((& $failureRow -Path $current -Message ([string] $_.Exception.Message)))
             }
         }
 
-        $Carried['Node'] = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($Share)))
+        $Carried['Node'] = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($Share)))
 
         return [object[]] @($Carried['Node'] | Where-Object { $_.Depth -eq 0 })
     }.GetNewClosure()

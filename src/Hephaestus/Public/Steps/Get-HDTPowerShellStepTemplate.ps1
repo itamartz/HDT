@@ -1,4 +1,4 @@
-function Get-HDTPowerShellStepTemplate {
+﻿function Get-HDTPowerShellStepTemplate {
     <#
         .SYNOPSIS
             The YAML for a new PowerShell step.
@@ -23,6 +23,16 @@ function Get-HDTPowerShellStepTemplate {
 
         .EXAMPLE
             Get-HDTPowerShellStepTemplate
+
+            The YAML lines for a new PowerShell step, named after its type.
+
+        .EXAMPLE
+            $line = Get-HDTPowerShellStepTemplate -Name 'Prepare the disk'
+            $line -join [System.Environment]::NewLine
+
+            The same lines under a name of your own. They are lines, not a
+            document: Add-HDTStep splices them into a sequence.yaml so the
+            comments and the order of everything already in it survive.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]

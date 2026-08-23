@@ -38,6 +38,7 @@ function Export-HDTVariableProvenance {
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production, New-HDTFakeFileSystem
             in a test.
+            Defaults to the real one.
 
         .PARAMETER Timestamp
             The instant recorded as "generated". Defaults to now, in UTC; a test
@@ -48,8 +49,7 @@ function Export-HDTVariableProvenance {
 
         .EXAMPLE
             Export-HDTVariableProvenance -Resolution $result `
-                -Path (Join-Path $logPath 'Gather\provenance.json') `
-                -FileSystem (New-HDTFileSystem)
+                -Path (Join-Path $logPath 'Gather\provenance.json')
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]
@@ -62,8 +62,8 @@ function Export-HDTVariableProvenance {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter()]
@@ -72,6 +72,8 @@ function Export-HDTVariableProvenance {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $entry = New-Object -TypeName System.Collections.ArrayList
 

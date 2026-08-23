@@ -1,4 +1,4 @@
-function Invoke-HDTRestartStep {
+﻿function Invoke-HDTRestartStep {
     <#
         .SYNOPSIS
             Asks the engine to restart the machine before the next step.
@@ -35,7 +35,26 @@ function Invoke-HDTRestartStep {
             DelaySecond.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'Restart' })[0]
+
             Invoke-HDTRestartStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTRestartStep -Step $step -Context $context
+            $result.Restart
+
+            True - the step does not restart anything itself. It tells the engine to,
+            which is what makes the sequence resumable across the reboot.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

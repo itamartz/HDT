@@ -59,6 +59,11 @@
             a sequence selects and a dependency names, so it must match
             ^[A-Za-z0-9][A-Za-z0-9_.-]*$.
 
+            Omit it and it is composed from -Publisher, -Name and -Version, which
+            is what the console's Import Application dialog does: 'Igor Pavlov',
+            '7-Zip' and '24.09' become 'Igor-Pavlov-7-Zip-24.09'. The display
+            name is composed from the same three. Supply it and both are yours.
+
         .PARAMETER Install
             The command line the InstallApplications step runs, resolved against
             the application's source folder. There is no default: an application
@@ -142,7 +147,14 @@
         [ValidateNotNullOrEmpty()]
         [string] $WorkspaceRoot,
 
-        [Parameter(Mandatory = $true)]
+        # NOT MANDATORY: WORKBENCH NEVER ASKED FOR ONE EITHER. It asks for
+        # publisher, name and version and composes both names from them, and
+        # until now that rule ran only in the console's Import Application
+        # dialog - so the same application imported by script landed in whatever
+        # folder the caller spelled by hand, and twice in two different ones.
+        # Pass -Id to overrule the composed one; it is still what every sequence
+        # and rule will name, so it is decided once, here.
+        [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string] $Id,
 
@@ -164,10 +176,10 @@
         [Parameter()]
         [string] $Description,
 
-        # WORKBENCH'S OTHER TWO QUESTIONS. Neither is required - a package with
-        # no version stated is still a package - and both are what
-        # Get-HDTApplicationName composes the display name and the id from, so
-        # the caller that asked for them has usually passed the result as -Id.
+        # WORKBENCH'S OTHER TWO QUESTIONS. Neither is required on its own - a
+        # package with no version stated is still a package - but these two and
+        # -Name are what the id and the display name are composed from when -Id
+        # was not given, so between the three of them there has to be something.
         [Parameter()]
         [string] $Publisher,
 
@@ -200,6 +212,27 @@
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    # COMPOSE BEFORE VALIDATING, so a composed id meets the same rule a typed one
+    # does and there is one gate rather than two.
+    # Cast at the call: an unbound [string] parameter is $null, and $null does not
+    # bind to a [string] parameter even one that allows an empty string.
+    $composed = New-HDTApplicationName -Publisher ([string] $Publisher) `
+        -Name ([string] $Name) -Version ([string] $Version)
+
+    if ([string]::IsNullOrWhiteSpace($Id)) {
+        if ([string]::IsNullOrWhiteSpace($composed.Id)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id `
+                        -Message 'there is nothing to name this application. An id is the folder it lands in under the workspace, so supply -Id, or supply -Publisher, -Name and -Version and one is composed from them the way the console composes it.'))
+        }
+
+        $Id = [string] $composed.Id
+
+        # AND THE DISPLAY NAME COMES FROM THE SAME THREE, so a scripted import and
+        # the dialog produce the same row: 'Igor Pavlov 7-Zip 24.09', not '7-Zip'
+        # three versions over. A caller who typed -Id decided both names already.
+        $Name = [string] $composed.Display
+    }
 
     if ($Id -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id `

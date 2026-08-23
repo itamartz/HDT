@@ -59,8 +59,9 @@
             order they should appear.
 
         .PARAMETER Workspace
-            Already-read shares from Get-HDTConsoleWorkspace, when the caller has
-            them and does not want the shares read again.
+            Already-read shares, when the caller has them and does not want the
+            shares read again. The window builds these itself from -Path; this is
+            the seam a test injects through, not a second way to open a share.
 
         .PARAMETER XamlPath
             The window to show. Defaults to the HDTConsole.xaml that ships beside

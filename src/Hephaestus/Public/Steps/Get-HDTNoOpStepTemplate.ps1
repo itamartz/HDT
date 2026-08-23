@@ -1,4 +1,4 @@
-function Get-HDTNoOpStepTemplate {
+﻿function Get-HDTNoOpStepTemplate {
     <#
         .SYNOPSIS
             The YAML for a new NoOp step.
@@ -32,8 +32,15 @@ function Get-HDTNoOpStepTemplate {
         .EXAMPLE
             Get-HDTNoOpStepTemplate
 
+            The YAML lines for a new NoOp step, named after its type.
+
         .EXAMPLE
-            Get-HDTNoOpStepTemplate -Name 'Placeholder'
+            $line = Get-HDTNoOpStepTemplate -Name 'Prepare the disk'
+            $line -join [System.Environment]::NewLine
+
+            The same lines under a name of your own. They are lines, not a
+            document: Add-HDTStep splices them into a sequence.yaml so the
+            comments and the order of everything already in it survive.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]

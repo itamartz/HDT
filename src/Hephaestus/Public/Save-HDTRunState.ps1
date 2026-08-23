@@ -33,6 +33,7 @@ function Save-HDTRunState {
         .PARAMETER FileSystem
             An IFileSystem - New-HDTFileSystem in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .PARAMETER Clock
             An IClock, used to stamp updatedUtc. Mandatory: PROJECT constraint 4
@@ -60,8 +61,8 @@ function Save-HDTRunState {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter(Mandatory = $true)]
@@ -75,6 +76,8 @@ function Save-HDTRunState {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $State.updatedUtc = $Clock.GetUtcNow().ToUniversalTime().ToString('o', [System.Globalization.CultureInfo]::InvariantCulture)
 

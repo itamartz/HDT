@@ -163,7 +163,7 @@
         Description   = [string] (& $read 'description')
 
         # WHO MAKES IT AND WHICH VERSION, which Workbench asks for and composes
-        # both names from - see Get-HDTApplicationName. Kept on the document so
+        # both names from - see New-HDTApplicationName. Kept on the document so
         # a catalog somebody has been running for a year can still say what a
         # given entry actually is.
         Publisher     = [string] (& $read 'publisher')

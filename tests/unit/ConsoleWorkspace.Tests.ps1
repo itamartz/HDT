@@ -1,4 +1,4 @@
-# C1 of the WPF-first direction, backend half: what the admin console SHOWS,
+﻿# C1 of the WPF-first direction, backend half: what the admin console SHOWS,
 # asserted with no window and no share.
 #
 # THE CONSOLE IS A THIN CLIENT OVER THE MODULE (DESIGN 12). Get-HDTConsoleWorkspace
@@ -23,9 +23,19 @@
 #   * DESIGN 6.1.1's claim - the WIM inside the ISO hashes equal to the
 #     standalone WIM - is surfaced rather than assumed
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:root = 'C:\ws'
@@ -388,4 +398,7 @@ Describe 'Get-HDTConsoleWorkspace' {
             $model.BootImage.Status | Should -BeExactly 'Missing'
         }
     }
+}
+
+
 }

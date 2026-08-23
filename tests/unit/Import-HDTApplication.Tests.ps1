@@ -460,4 +460,67 @@ Describe 'Import-HDTApplication' {
             $script:fileSystem.GetOperationName() | Should -Not -Contain 'CopyItem'
         }
     }
+
+    Context 'the id nobody typed' {
+
+        # WORKBENCH ASKS THREE QUESTIONS AND MAKES BOTH NAMES OUT OF THEM. The
+        # rule used to live only in the console's Import Application dialog, so a
+        # scripted import landed in whatever folder the caller spelled by hand and
+        # the same application imported twice got two different folders. -Id is
+        # now what you pass when you want to override that, not what you must
+        # invent before the command will run.
+        It 'composes the id from publisher, name and version' {
+            $null = Import-HDTApplication -WorkspaceRoot $script:workspaceRoot `
+                -Publisher 'Igor Pavlov' -Name '7-Zip' -Version '24.09' `
+                -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem
+
+            $expected = Get-HDTWorkspacePath -Root $script:workspaceRoot -Kind Applications `
+                -ChildPath 'Igor-Pavlov-7-Zip-24.09', 'app.yaml'
+
+            $script:fileSystem.TestPath($expected) | Should -BeTrue
+        }
+
+        It 'writes the composed display name beside it' {
+            $written = Import-HDTApplication -WorkspaceRoot $script:workspaceRoot `
+                -Publisher 'Igor Pavlov' -Name '7-Zip' -Version '24.09' `
+                -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem
+
+            [string] $written.Id | Should -BeExactly 'Igor-Pavlov-7-Zip-24.09'
+            [string] $written.Name | Should -BeExactly 'Igor Pavlov 7-Zip 24.09'
+        }
+
+        It 'composes from whichever of the three were answered' {
+            $null = Import-HDTApplication -WorkspaceRoot $script:workspaceRoot -Name 'Contoso Suite' `
+                -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem
+
+            $expected = Get-HDTWorkspacePath -Root $script:workspaceRoot -Kind Applications `
+                -ChildPath 'Contoso-Suite', 'app.yaml'
+
+            $script:fileSystem.TestPath($expected) | Should -BeTrue
+        }
+
+        It 'leaves an id the caller typed alone' {
+            $written = Import-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -Publisher 'Igor Pavlov' -Name '7-Zip' -Version '24.09' `
+                -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem
+
+            [string] $written.Id | Should -BeExactly '7Zip-24.09'
+            [string] $written.Name | Should -BeExactly '7-Zip'
+        }
+
+        # An id is a folder name, so there has to be something to make one from.
+        # The message names the three parameters rather than the composed empty
+        # string, because that is what the caller can act on.
+        It 'refuses when there is nothing to compose from' {
+            { Import-HDTApplication -WorkspaceRoot $script:workspaceRoot `
+                    -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem } |
+                Should -Throw '*-Publisher*-Name*-Version*'
+        }
+
+        It 'refuses when the three hold nothing a folder name can keep' {
+            { Import-HDTApplication -WorkspaceRoot $script:workspaceRoot -Name '+++' `
+                    -Install $script:install -SourcePath $script:payload -FileSystem $script:fileSystem } |
+                Should -Throw '*-Publisher*-Name*-Version*'
+        }
+    }
 }

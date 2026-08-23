@@ -1,4 +1,4 @@
-# THE TEXT ON SCREEN, IN A FILE RATHER THAN IN THE MARKUP.
+﻿# THE TEXT ON SCREEN, IN A FILE RATHER THAN IN THE MARKUP.
 #
 # Every label, hint, button and tab header was a literal in XAML, so changing a
 # sentence meant editing a window and translating one meant forking it. This is
@@ -9,9 +9,19 @@
 # en-us, and a key nobody has translated yet gets the en-us string - because a
 # half-translated console is still a usable console, and a blank label is not.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:stringRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Strings'
 }
@@ -181,4 +191,7 @@ Describe 'Get-HDTStringTable' {
             { Get-HDTStringTable -Path $empty } | Should -Throw
         }
     }
+}
+
+
 }

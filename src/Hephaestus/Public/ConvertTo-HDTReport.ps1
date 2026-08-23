@@ -49,6 +49,7 @@ function ConvertTo-HDTReport {
             An IFileSystem. A fake in a unit test, New-HDTFileSystem against a
             machine - which is what makes rendering a report provable without
             writing one.
+            Defaults to the real one.
 
         .PARAMETER State
             The run state document, when one is available. Only its status, its
@@ -77,7 +78,7 @@ function ConvertTo-HDTReport {
 
         .EXAMPLE
             ConvertTo-HDTReport -JsonlPath C:\HDT\Logs\HDT.jsonl `
-                -Path C:\HDT\Logs\report.html -FileSystem (New-HDTFileSystem)
+                -Path C:\HDT\Logs\report.html
 
         .EXAMPLE
             Start-Process (ConvertTo-HDTReport -JsonlPath $log.JsonlPath -Path $out `
@@ -96,8 +97,8 @@ function ConvertTo-HDTReport {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter()]
@@ -119,6 +120,8 @@ function ConvertTo-HDTReport {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     if (-not $FileSystem.TestPath($JsonlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $JsonlPath `

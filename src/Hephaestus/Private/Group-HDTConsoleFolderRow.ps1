@@ -139,7 +139,7 @@
         $node = New-HDTConsoleNode -Depth ($Depth + $level) -Kind 'Folder' -Status 'Ok' `
             -Text $leaf `
             -Field @(New-HDTConsoleField -Label 'Folder' -Value $Path) `
-            -Command ('Get-HDTConsoleWorkspace -Path ''{0}''' -f [string] $Header.Root) `
+            -Command ('Import-HDTWorkspaceDocument -Path ''{0}\workspace.yaml''' -f [string] $Header.Root) `
             -Header $Header -Icon (Get-HDTConsoleIcon -Kind 'Folder' -Status 'Ok')
 
         # THE FULL PATH, CARRIED. A window offering "move into this folder" has

@@ -45,6 +45,7 @@ function Import-HDTOperatingSystem {
 
         .PARAMETER FileSystem
             An IFileSystem.
+            Defaults to the real one.
 
         .PARAMETER ImageService
             An IImageService. Only GetImageInfo is called.
@@ -74,7 +75,7 @@ function Import-HDTOperatingSystem {
         .EXAMPLE
             Import-HDTOperatingSystem -WorkspaceRoot 'X:\Deploy' -Id 'Win11-LTSC-2024' `
                 -SourcePath 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim' `
-                -FileSystem (New-HDTFileSystem) -ImageService (New-HDTImageService) -Clock (New-HDTClock)
+                -ImageService (New-HDTImageService) -Clock (New-HDTClock)
 
             Registers the staged media in place - seconds, not gigabytes.
 
@@ -99,8 +100,8 @@ function Import-HDTOperatingSystem {
         [ValidateNotNullOrEmpty()]
         [string] $SourcePath,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter(Mandatory = $true)]
@@ -126,6 +127,8 @@ function Import-HDTOperatingSystem {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     if ($Id -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]*$') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id `

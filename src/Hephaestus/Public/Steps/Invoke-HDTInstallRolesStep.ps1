@@ -1,4 +1,4 @@
-function Invoke-HDTInstallRolesStep {
+﻿function Invoke-HDTInstallRolesStep {
     <#
         .SYNOPSIS
             Installs Windows Server roles and features.
@@ -58,7 +58,26 @@ function Invoke-HDTInstallRolesStep {
             A New-HDTStepResult. Data carries requested, installed and skipped.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'InstallRoles' })[0]
+
             Invoke-HDTInstallRolesStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTInstallRolesStep -Step $step -Context $context
+            $result.Data.Feature
+
+            The features it installed. On a client OS this is a Failed step, not a
+            crash: ServerManager is not there to ask.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

@@ -1,4 +1,4 @@
-# The lint, on the row, before anybody boots anything.
+﻿# The lint, on the row, before anybody boots anything.
 #
 # DESIGN 12: "Validation: the same JSON Schemas the cmdlets use, surfaced
 # inline." Test-HDTTaskSequence is the other half and says so in its own header -
@@ -21,9 +21,19 @@
 # opened, and the detail pane is where somebody who has decided to look finds
 # out what and where.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:now = [datetime]::new(2026, 8, 15, 22, 0, 0, [System.DateTimeKind]::Utc)
@@ -190,4 +200,7 @@ steps:
         $row.Status | Should -BeExactly 'Error'
         $row.IconColor | Should -BeExactly '#FFC42B1C'
     }
+}
+
+
 }

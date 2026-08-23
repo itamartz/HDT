@@ -38,6 +38,7 @@ function Export-HDTMachineFact {
         .PARAMETER FileSystem
             An IFileSystem - New-HDTFileSystem in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .PARAMETER Timestamp
             The instant recorded as "generated". Mandatory, and deliberately so:
@@ -52,7 +53,7 @@ function Export-HDTMachineFact {
         .EXAMPLE
             Export-HDTMachineFact -Fact $fact `
                 -Path (Join-Path $logPath 'Gather\facts.json') `
-                -FileSystem (New-HDTFileSystem) -Timestamp $clock.GetUtcNow()
+                -Timestamp $clock.GetUtcNow()
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]
@@ -65,8 +66,8 @@ function Export-HDTMachineFact {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter(Mandatory = $true)]
@@ -75,6 +76,8 @@ function Export-HDTMachineFact {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $entry = [ordered] @{}
     foreach ($key in @($Fact.Keys)) {

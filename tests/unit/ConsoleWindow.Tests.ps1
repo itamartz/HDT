@@ -19,9 +19,19 @@
 # and it carries no x:Class - a code-behind attribute would bind the file to a
 # compiler, and XamlReader::Load is a markup parser with no compiler behind it.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:root = 'C:\ws'
@@ -341,7 +351,7 @@ Describe 'Show-HDTConsole' {
 
             $ratio = Get-HDTContrastRatio $palette['HDTButtonHoverBrush'] $palette['HDTButtonHoverTextBrush']
 
-            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem hover text on hover background"
+            $ratio | Should -BeGreaterThan 4.5 -Because "hover text on hover background"
         }
 
         It 'keeps the button readable at rest too' {
@@ -349,7 +359,7 @@ Describe 'Show-HDTConsole' {
 
             $ratio = Get-HDTContrastRatio $palette['HDTButtonBrush'] $palette['HDTButtonTextBrush']
 
-            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem button text on button background"
+            $ratio | Should -BeGreaterThan 4.5 -Because "button text on button background"
         }
 
         It 'keeps the detail pane readable' {
@@ -357,7 +367,7 @@ Describe 'Show-HDTConsole' {
 
             $ratio = Get-HDTContrastRatio $palette['HDTFieldBrush'] $palette['HDTPanelTextBrush']
 
-            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem field text on field background"
+            $ratio | Should -BeGreaterThan 4.5 -Because "field text on field background"
         }
 
         It 'does not say "this went wrong" and "this is what ran" in the same colour' {
@@ -372,7 +382,7 @@ Describe 'Show-HDTConsole' {
             $palette = Get-HDTConsoleTheme
 
             $palette['HDTCommandTextBrush'] | Should -Not -BeExactly $palette['HDTErrorBrush'] `
-                -Because "$PSItem must not paint a refusal and a command preview alike"
+                -Because "the window must not paint a refusal and a command preview alike"
         }
 
         It 'keeps the command preview readable where it is shown' {
@@ -380,7 +390,7 @@ Describe 'Show-HDTConsole' {
 
             $ratio = Get-HDTContrastRatio $palette['HDTWindowBrush'] $palette['HDTCommandTextBrush']
 
-            $ratio | Should -BeGreaterThan 4.5 -Because "$PSItem command text on the window"
+            $ratio | Should -BeGreaterThan 4.5 -Because "command text on the window"
         }
 
 
@@ -789,4 +799,7 @@ Describe 'the shipped console window' {
         # format operator would try to read it as a placeholder.
         $script:shippedXaml | Should -Match ('\{Binding ' + $PSItem)
     }
+}
+
+
 }

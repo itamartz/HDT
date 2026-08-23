@@ -48,6 +48,7 @@ function Invoke-HDTBootReconciliation {
 
         .PARAMETER FileSystem
             An IFileSystem.
+            Defaults to the real one.
 
         .PARAMETER Registry
             An IRegistryService.
@@ -87,8 +88,8 @@ function Invoke-HDTBootReconciliation {
         [ValidateNotNullOrEmpty()]
         [string] $StatePath,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter(Mandatory = $true)]
@@ -118,6 +119,8 @@ function Invoke-HDTBootReconciliation {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $teardownArgument = @{
         Registry   = $Registry

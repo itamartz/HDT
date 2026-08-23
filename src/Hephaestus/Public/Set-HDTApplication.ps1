@@ -124,11 +124,14 @@
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory = $true)]
+        # FROM THE PIPELINE BY PROPERTY NAME, so Get-HDTApplication can feed it.
+        # The catalog entry Get- emits carries both, which is what makes
+        # 'Get-HDTApplication ... | Set-HDTApplication -Version 24.09' work.
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNullOrEmpty()]
         [string] $WorkspaceRoot,
 
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, Position = 1, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNullOrEmpty()]
         [string] $Id,
 
@@ -196,108 +199,112 @@
         [System.Collections.IDictionary] $Detect
     )
 
-    Set-StrictMode -Version Latest
-    $ErrorActionPreference = 'Stop'
+    # ONE OBJECT AT A TIME. -WorkspaceRoot and -Id bind from the pipeline, and a
+    # flat body would run once, for the last entry handed over.
+    process {
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
 
-    $settable = @('Name', 'Description', 'Publisher', 'Version', 'Folder', 'Install', 'Uninstall', 'SuccessCode',
-        'RebootCode', 'RunIn', 'Dependency', 'Detect')
+        $settable = @('Name', 'Description', 'Publisher', 'Version', 'Folder', 'Install', 'Uninstall', 'SuccessCode',
+            'RebootCode', 'RunIn', 'Dependency', 'Detect')
 
-    $asked = @($settable | Where-Object { $PSBoundParameters.ContainsKey($_) })
+        $asked = @($settable | Where-Object { $PSBoundParameters.ContainsKey($_) })
 
-    if ($asked.Count -eq 0) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id -Category InvalidArgument `
-                    -Message ("nothing was asked of application '{0}'. Name at least one of {1}." -f $Id, ($settable -join ', '))))
-    }
-
-    foreach ($required in @('Name', 'Install')) {
-        if ($PSBoundParameters.ContainsKey($required) -and [string]::IsNullOrWhiteSpace($PSBoundParameters[$required])) {
+        if ($asked.Count -eq 0) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id -Category InvalidArgument `
-                        -Message ("an application's {0} cannot be cleared - app.yaml requires it, and an entry without one is a catalog entry with no purpose." -f $required.ToLowerInvariant())))
+                        -Message ("nothing was asked of application '{0}'. Name at least one of {1}." -f $Id, ($settable -join ', '))))
         }
-    }
 
-    $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $Id, 'app.yaml'
-    $appFolder = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $Id
-
-    if (-not $FileSystem.TestPath($catalogPath)) {
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath -Category ObjectNotFound `
-                    -Message ("no application with the id '{0}' is in this workspace. Import-HDTApplication registers a new one." -f $Id)))
-    }
-
-    # A FOLDER IS DRAWN FROM ITS OWN TEXT, so a leading or trailing separator
-    # produces a nameless level in the tree and a doubled one produces two.
-    if ($PSBoundParameters.ContainsKey('Folder') -and -not [string]::IsNullOrWhiteSpace($Folder) -and
-        ($Folder -match '^\\|\\$|\\\\' -or $Folder -match '/')) {
-
-        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Folder -Category InvalidArgument `
-                    -Message ("'{0}' is not a folder path this window can draw. Separate levels with a single backslash - 'Line of business\Finance' - with nothing before the first or after the last." -f $Folder)))
-    }
-
-    $line = [string[]] @($FileSystem.ReadAllText($catalogPath) -split "`r?`n")
-
-    # The keys in document order, so a file that gains one gains it in the place
-    # app.yaml is written in everywhere else.
-    $keyForParameter = [ordered] @{
-        Name        = 'name'
-        Description = 'description'
-        Publisher   = 'publisher'
-        Version     = 'version'
-        Folder      = 'folder'
-        Install     = 'install'
-        Uninstall   = 'uninstall'
-        SuccessCode = 'successCodes'
-        RebootCode  = 'rebootCodes'
-        RunIn       = 'runIn'
-        Dependency  = 'dependencies'
-        Detect      = 'detect'
-    }
-
-    foreach ($parameter in @($keyForParameter.Keys)) {
-        if (-not $PSBoundParameters.ContainsKey($parameter)) { continue }
-
-        $key = [string] $keyForParameter[$parameter]
-        $text = @()
-
-        switch ($parameter) {
-            'Detect' {
-                if ($Detect.Count -gt 0) { $text = @(Get-HDTApplicationDetectText -Detect $Detect -Key $key) }
-            }
-
-            { $_ -in @('SuccessCode', 'RebootCode', 'Dependency') } {
-                $value = @($PSBoundParameters[$parameter])
-
-                # A FLOW LIST, because that is how app.yaml writes these
-                # everywhere else and a one-line list is one line of diff.
-                if ($value.Count -gt 0) {
-                    $text = @('{0}: [{1}]' -f $key, (($value | ForEach-Object { [string] $_ }) -join ', '))
-                }
-            }
-
-            default {
-                $value = [string] $PSBoundParameters[$parameter]
-
-                if (-not [string]::IsNullOrWhiteSpace($value)) {
-                    $text = @('{0}: {1}' -f $key, (Get-HDTConsoleScalarText -Value $value))
-                }
+        foreach ($required in @('Name', 'Install')) {
+            if ($PSBoundParameters.ContainsKey($required) -and [string]::IsNullOrWhiteSpace($PSBoundParameters[$required])) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id -Category InvalidArgument `
+                            -Message ("an application's {0} cannot be cleared - app.yaml requires it, and an entry without one is a catalog entry with no purpose." -f $required.ToLowerInvariant())))
             }
         }
 
-        $line = Set-HDTApplicationLine -Line $line -Key $key -Text $text
+        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $Id, 'app.yaml'
+        $appFolder = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $Id
+
+        if (-not $FileSystem.TestPath($catalogPath)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath -Category ObjectNotFound `
+                        -Message ("no application with the id '{0}' is in this workspace. Import-HDTApplication registers a new one." -f $Id)))
+        }
+
+        # A FOLDER IS DRAWN FROM ITS OWN TEXT, so a leading or trailing separator
+        # produces a nameless level in the tree and a doubled one produces two.
+        if ($PSBoundParameters.ContainsKey('Folder') -and -not [string]::IsNullOrWhiteSpace($Folder) -and
+            ($Folder -match '^\\|\\$|\\\\' -or $Folder -match '/')) {
+
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Folder -Category InvalidArgument `
+                        -Message ("'{0}' is not a folder path this window can draw. Separate levels with a single backslash - 'Line of business\Finance' - with nothing before the first or after the last." -f $Folder)))
+        }
+
+        $line = [string[]] @($FileSystem.ReadAllText($catalogPath) -split "`r?`n")
+
+        # The keys in document order, so a file that gains one gains it in the place
+        # app.yaml is written in everywhere else.
+        $keyForParameter = [ordered] @{
+            Name        = 'name'
+            Description = 'description'
+            Publisher   = 'publisher'
+            Version     = 'version'
+            Folder      = 'folder'
+            Install     = 'install'
+            Uninstall   = 'uninstall'
+            SuccessCode = 'successCodes'
+            RebootCode  = 'rebootCodes'
+            RunIn       = 'runIn'
+            Dependency  = 'dependencies'
+            Detect      = 'detect'
+        }
+
+        foreach ($parameter in @($keyForParameter.Keys)) {
+            if (-not $PSBoundParameters.ContainsKey($parameter)) { continue }
+
+            $key = [string] $keyForParameter[$parameter]
+            $text = @()
+
+            switch ($parameter) {
+                'Detect' {
+                    if ($Detect.Count -gt 0) { $text = @(Get-HDTApplicationDetectText -Detect $Detect -Key $key) }
+                }
+
+                { $_ -in @('SuccessCode', 'RebootCode', 'Dependency') } {
+                    $value = @($PSBoundParameters[$parameter])
+
+                    # A FLOW LIST, because that is how app.yaml writes these
+                    # everywhere else and a one-line list is one line of diff.
+                    if ($value.Count -gt 0) {
+                        $text = @('{0}: [{1}]' -f $key, (($value | ForEach-Object { [string] $_ }) -join ', '))
+                    }
+                }
+
+                default {
+                    $value = [string] $PSBoundParameters[$parameter]
+
+                    if (-not [string]::IsNullOrWhiteSpace($value)) {
+                        $text = @('{0}: {1}' -f $key, (Get-HDTConsoleScalarText -Value $value))
+                    }
+                }
+            }
+
+            $line = Set-HDTApplicationLine -Line $line -Key $key -Text $text
+        }
+
+        $newLine = [System.Environment]::NewLine
+        $written = ($line -join $newLine)
+
+        # HELD TO THE VALIDATOR BEFORE ANYTHING IS WRITTEN, so a refused change
+        # leaves the file as it was rather than half-edited.
+        $document = ConvertFrom-HDTYaml -Yaml $written -Path $catalogPath
+        Assert-HDTApplicationDocument -Document $document -Path $catalogPath
+
+        if (-not $PSCmdlet.ShouldProcess($catalogPath, ("Set {0} on application '{1}'" -f ($asked -join ', '), $Id))) {
+            return $null
+        }
+
+        $FileSystem.WriteAllText($catalogPath, $written)
+
+        return (ConvertTo-HDTApplicationCatalog -Document $document -AppFolder $appFolder -CatalogPath $catalogPath)
     }
-
-    $newLine = [System.Environment]::NewLine
-    $written = ($line -join $newLine)
-
-    # HELD TO THE VALIDATOR BEFORE ANYTHING IS WRITTEN, so a refused change
-    # leaves the file as it was rather than half-edited.
-    $document = ConvertFrom-HDTYaml -Yaml $written -Path $catalogPath
-    Assert-HDTApplicationDocument -Document $document -Path $catalogPath
-
-    if (-not $PSCmdlet.ShouldProcess($catalogPath, ("Set {0} on application '{1}'" -f ($asked -join ', '), $Id))) {
-        return $null
-    }
-
-    $FileSystem.WriteAllText($catalogPath, $written)
-
-    return (ConvertTo-HDTApplicationCatalog -Document $document -AppFolder $appFolder -CatalogPath $catalogPath)
 }

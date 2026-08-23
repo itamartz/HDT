@@ -6,7 +6,7 @@ function Get-HDTConsoleApplicationLabel {
 
         .DESCRIPTION
             NOT THE ID, WHICH THE OTHER TWO CATEGORIES SHOW. An application's id
-            is composed FROM its name and version (Get-HDTApplicationName), so a
+            is composed FROM its name and version (New-HDTApplicationName), so a
             row showing both reads 'Igor-Pavlov-7-Zip-24.09 - Igor Pavlov 7-Zip
             24.09': the same sentence twice, once with the spaces hyphenated.
 

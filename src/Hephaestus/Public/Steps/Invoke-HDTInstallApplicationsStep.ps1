@@ -88,7 +88,27 @@
             a failure, the application and its exit code.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'InstallApplications' })[0]
+
             Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+            $result.Data.Installed
+
+            The applications it installed, in the dependency order it worked out. A
+            step that asked for a reboot comes back Completed with the engine told
+            to restart.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

@@ -33,6 +33,7 @@
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject:
@@ -46,7 +47,7 @@
             Set is $null for a setFrom rule and SetFrom is $null for a set rule.
 
         .EXAMPLE
-            $document = Import-HDTRuleDocument -Path 'X:\Deploy\rules.yaml' -FileSystem (New-HDTFileSystem)
+            $document = Import-HDTRuleDocument -Path 'X:\Deploy\rules.yaml'
             $document.Rule | Format-Table Index, Name, SetFrom
 
         .EXAMPLE
@@ -62,13 +63,15 @@
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `

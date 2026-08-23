@@ -1,4 +1,4 @@
-function Invoke-HDTNoOpStep {
+﻿function Invoke-HDTNoOpStep {
     <#
         .SYNOPSIS
             The step type that does nothing, on purpose.
@@ -26,6 +26,16 @@ function Invoke-HDTNoOpStep {
             a catalog carrying only IFileSystem and IClock, which is what makes
             it usable as the engine's own scaffolding.
 
+            A step that fails on demand is what a retry policy is tested with:
+
+              - name: Flaky thing
+                type: NoOp
+                failAttempt: 2
+                retry:
+                  count: 3
+
+            fails its first two attempts and succeeds on the third.
+
         .PARAMETER Step
             A flattened step from Import-HDTSequenceDocument.
 
@@ -36,13 +46,28 @@ function Invoke-HDTNoOpStep {
             A New-HDTStepResult.
 
         .EXAMPLE
-            - name: Flaky thing
-              type: NoOp
-              failAttempt: 2
-              retry:
-                count: 3
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
 
-            The sequence.yaml that proves a retry policy.
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'NoOp' })[0]
+
+            Invoke-HDTNoOpStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTNoOpStep -Step $step -Context $context
+            $result.Status
+
+            Always Completed, unless the step's own failAttempt asked it to fail.
+            It exists so a sequence can be written and run before the step that
+            will replace it exists, and so the retry policy has something
+            harmless to fail against.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

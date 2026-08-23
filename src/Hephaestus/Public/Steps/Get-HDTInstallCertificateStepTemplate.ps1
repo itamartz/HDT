@@ -1,4 +1,4 @@
-function Get-HDTInstallCertificateStepTemplate {
+﻿function Get-HDTInstallCertificateStepTemplate {
     <#
         .SYNOPSIS
             The YAML for a new InstallCertificate step.
@@ -29,6 +29,16 @@ function Get-HDTInstallCertificateStepTemplate {
 
         .EXAMPLE
             Get-HDTInstallCertificateStepTemplate
+
+            The YAML lines for a new InstallCertificate step, named after its type.
+
+        .EXAMPLE
+            $line = Get-HDTInstallCertificateStepTemplate -Name 'Prepare the disk'
+            $line -join [System.Environment]::NewLine
+
+            The same lines under a name of your own. They are lines, not a
+            document: Add-HDTStep splices them into a sequence.yaml so the
+            comments and the order of everything already in it survive.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]

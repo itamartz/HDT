@@ -53,12 +53,13 @@ function Import-HDTBootstrapRuleDocument {
 
         .PARAMETER FileSystem
             An IFileSystem. Injected, because this runs in WinPE.
+            Defaults to the real one.
 
         .OUTPUTS
             The same object Import-HDTRuleDocument returns: SchemaVersion, Rule.
 
         .EXAMPLE
-            Import-HDTBootstrapRuleDocument -Path 'X:\HDT\bootstrap-rules.yaml' -FileSystem (New-HDTFileSystem)
+            Import-HDTBootstrapRuleDocument -Path 'X:\HDT\bootstrap-rules.yaml'
 
         .LINK
             Resolve-HDTBootstrapRule
@@ -73,13 +74,15 @@ function Import-HDTBootstrapRuleDocument {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     # THE RULES READER, NOT A SECOND ONE. Everything about the grammar - the
     # schema version, the rule list, when:, %Var% - is already decided and

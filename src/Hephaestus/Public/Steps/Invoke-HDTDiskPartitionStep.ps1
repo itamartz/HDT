@@ -1,4 +1,4 @@
-function Invoke-HDTDiskPartitionStep {
+﻿function Invoke-HDTDiskPartitionStep {
     <#
         .SYNOPSIS
             Clears, initialises and partitions the one disk this deployment may
@@ -86,7 +86,26 @@ function Invoke-HDTDiskPartitionStep {
             a refusal.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'DiskPartition' })[0]
+
             Invoke-HDTDiskPartitionStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            Invoke-HDTDiskPartitionStep -Step $step -Context $context -WhatIf
+
+            Describes the disk it would clear and the partitions it would create, and
+            touches nothing. This is the one step that wipes a disk; -WhatIf is how
+            you find out which one it picked before it picks it.
 
         .EXAMPLE
             Invoke-HDTDiskPartitionStep -Step $step -Context $context -WhatIf

@@ -1,4 +1,4 @@
-function Get-HDTInstallRolesStepTemplate {
+﻿function Get-HDTInstallRolesStepTemplate {
     <#
         .SYNOPSIS
             The YAML for a new InstallRoles step.
@@ -31,6 +31,16 @@ function Get-HDTInstallRolesStepTemplate {
 
         .EXAMPLE
             Get-HDTInstallRolesStepTemplate
+
+            The YAML lines for a new InstallRoles step, named after its type.
+
+        .EXAMPLE
+            $line = Get-HDTInstallRolesStepTemplate -Name 'Prepare the disk'
+            $line -join [System.Environment]::NewLine
+
+            The same lines under a name of your own. They are lines, not a
+            document: Add-HDTStep splices them into a sequence.yaml so the
+            comments and the order of everything already in it survive.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]

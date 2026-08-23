@@ -1,4 +1,4 @@
-function Get-HDTConsoleTreeNode {
+﻿function Get-HDTConsoleTreeNode {
     <#
         .SYNOPSIS
             Turns one or more console workspaces into the ordered rows the
@@ -101,7 +101,9 @@ function Get-HDTConsoleTreeNode {
     $share = @($Workspace)
     $node = New-Object -TypeName System.Collections.ArrayList
 
-    $rootCommand = "Get-HDTConsoleWorkspace -Path '{0}'" -f (@($share | ForEach-Object { $_.Root }) -join "', '")
+    # The root row is the window, not one share, so it names the command that
+    # opened it - and, unlike what stood here, one an administrator can run.
+    $rootCommand = "Show-HDTConsole -Path '{0}'" -f (@($share | ForEach-Object { $_.Root }) -join "', '")
 
     $listed = foreach ($current in $share) {
         '{0,-8} {1}' -f $current.Status, $current.Root

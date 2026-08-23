@@ -1,4 +1,4 @@
-function Invoke-HDTConfigureBootStep {
+﻿function Invoke-HDTConfigureBootStep {
     <#
         .SYNOPSIS
             Makes the machine boot the Windows it was just given.
@@ -57,7 +57,25 @@ function Invoke-HDTConfigureBootStep {
             recoveryVolume and bootOrder.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'ConfigureBoot' })[0]
+
             Invoke-HDTConfigureBootStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $result = Invoke-HDTConfigureBootStep -Step $step -Context $context
+            $result.Status
+
+            Completed once the machine will boot the Windows just applied.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

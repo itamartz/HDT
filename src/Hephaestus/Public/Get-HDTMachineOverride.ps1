@@ -41,6 +41,7 @@ function Get-HDTMachineOverride {
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production, New-HDTFakeFileSystem
             in a test.
+            Defaults to the real one.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Path and Variable, or
@@ -49,7 +50,7 @@ function Get-HDTMachineOverride {
 
         .EXAMPLE
             $override = Get-HDTMachineOverride -WorkspaceRoot 'X:\Deploy' `
-                -Uuid $fact['HDTUUID'] -FileSystem (New-HDTFileSystem)
+                -Uuid $fact['HDTUUID']
 
         .EXAMPLE
             Resolve-HDTVariable -MachineOverride $override.Variable `
@@ -69,13 +70,15 @@ function Get-HDTMachineOverride {
         [AllowEmptyString()]
         [string] $Uuid,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $supportedSchemaVersion = 1
 

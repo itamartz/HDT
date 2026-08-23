@@ -1,4 +1,4 @@
-function Invoke-HDTSetVariableStep {
+﻿function Invoke-HDTSetVariableStep {
     <#
         .SYNOPSIS
             Assigns deployment variables from inside a sequence.
@@ -51,7 +51,26 @@ and a name outside ^HDT[A-Za-z0-9_]*$ - both as
             A New-HDTStepResult.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'SetVariable' })[0]
+
             Invoke-HDTSetVariableStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $null = Invoke-HDTSetVariableStep -Step $step -Context $context
+            $context.Variable['HDTStage']
+
+            The value the step assigned. It overwrites, unlike a rule: a SetVariable
+            step says "this is true from here on".
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

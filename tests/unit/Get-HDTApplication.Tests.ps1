@@ -256,4 +256,53 @@ Describe 'Get-HDTApplication' {
                 Should -Throw -ExpectedMessage '*wmi*'
         }
     }
+
+    Context 'the shape of the command' {
+
+        # THE ONLY ONE OF THE FIVE THAT REFUSED A PLAIN CALL. Import, Set and
+        # Remove all default the adapter; this one demanded it, so
+        # 'Get-HDTApplication -WorkspaceRoot C:\HDTLab\Share' - the first thing
+        # anybody types - was an error about a parameter no administrator has.
+        It 'does not make -FileSystem mandatory' {
+            $parameter = (Get-Command -Name 'Get-HDTApplication').Parameters['FileSystem']
+            @($parameter.Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                    ForEach-Object { $_.Mandatory }) | Should -Not -Contain $true
+        }
+
+        It 'defaults -FileSystem to the real adapter' {
+            $default = (Get-Command -Name 'Get-HDTApplication').ScriptBlock.Ast.Body.ParamBlock.Parameters |
+                Where-Object { $_.Name.VariablePath.UserPath -eq 'FileSystem' }
+
+            [string] $default.DefaultValue.Extent.Text | Should -BeExactly '(New-HDTFileSystem)'
+        }
+
+        It 'takes <Name> from the pipeline by property name' -ForEach @(
+            @{ Name = 'WorkspaceRoot' }
+            @{ Name = 'Id' }
+        ) {
+            $parameter = (Get-Command -Name 'Get-HDTApplication').Parameters[$Name]
+            @($parameter.Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                    ForEach-Object { $_.ValueFromPipelineByPropertyName }) | Should -Contain $true
+        }
+    }
+
+    Context 'what it hands the next command' {
+
+        It 'carries the workspace it was read from' {
+            $read = Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -Id '7Zip-24.09' `
+                -FileSystem $script:fileSystem
+
+            [string] $read.WorkspaceRoot | Should -BeExactly $script:workspaceRoot
+        }
+
+        It 'carries it on every entry of the whole catalog too' {
+            $all = @(Get-HDTApplication -WorkspaceRoot $script:workspaceRoot -FileSystem $script:fileSystem)
+
+            $all.Count | Should -BeGreaterThan 1
+            @($all | ForEach-Object { [string] $_.WorkspaceRoot }) |
+                Should -Not -Contain ''
+        }
+    }
 }

@@ -14,9 +14,19 @@
 # the only thing that could check the editor's output would be a person looking
 # at a screen.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:workspaceYaml = @'
@@ -237,6 +247,14 @@ steps:
             # DESIGN 12: an admin can learn the automation surface by clicking
             # around, and the editor is not exempt from that.
             @($script:editor.Node | Where-Object { [string]::IsNullOrWhiteSpace($_.Command) }) |
+                Should -BeNullOrEmpty
+        }
+
+        It 'offers no injected service in a line meant to be typed' {
+            # The same rule the share tree carries: what the strip shows has to
+            # be a line an administrator can paste, and -FileSystem is a seam
+            # for the fakes, not a parameter anybody has.
+            @($script:editor.Node | Where-Object { $_.Command -match 'New-HDTFileSystem' }) |
                 Should -BeNullOrEmpty
         }
     }
@@ -563,4 +581,7 @@ Describe 'the editor s Variables tab' {
 
         @((Get-HDTConsoleSequenceEditor -Sequence $bare).Variable).Count | Should -Be 0
     }
+}
+
+
 }

@@ -74,7 +74,7 @@
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $command = "Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem)" -f $Sequence.Path
+    $command = "Import-HDTSequenceDocument -Path '{0}'" -f $Sequence.Path
 
     # The banner the editor's own rows carry. It names the document rather than
     # the share, because the document is what this window edits and what two

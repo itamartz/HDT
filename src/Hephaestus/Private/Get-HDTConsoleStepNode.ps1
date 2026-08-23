@@ -103,7 +103,7 @@
         }
     }
 
-    $document = "(Import-HDTSequenceDocument -Path '{0}' -FileSystem (New-HDTFileSystem))" -f $Sequence.Path
+    $document = "(Import-HDTSequenceDocument -Path '{0}')" -f $Sequence.Path
 
     # WHICH OF THE SAME-NAMED ROWS THIS ONE IS, 1-BASED, IN DOCUMENT ORDER.
     #

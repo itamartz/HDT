@@ -1,4 +1,4 @@
-function Get-HDTCommandLineStepTemplate {
+﻿function Get-HDTCommandLineStepTemplate {
     <#
         .SYNOPSIS
             The YAML for a new CommandLine step.
@@ -26,6 +26,16 @@ function Get-HDTCommandLineStepTemplate {
 
         .EXAMPLE
             Get-HDTCommandLineStepTemplate
+
+            The YAML lines for a new CommandLine step, named after its type.
+
+        .EXAMPLE
+            $line = Get-HDTCommandLineStepTemplate -Name 'Prepare the disk'
+            $line -join [System.Environment]::NewLine
+
+            The same lines under a name of your own. They are lines, not a
+            document: Add-HDTStep splices them into a sequence.yaml so the
+            comments and the order of everything already in it survive.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]

@@ -33,9 +33,16 @@
             when there is no owner at all, because the host that assigns it is
             not unit tested and must decide nothing.
 
+        .PARAMETER WorkspaceRoot
+            The deployment share holding the sequence.
+
+        .PARAMETER Id
+            Which sequence on it to open. An id the share does not hold is
+            refused by name, with the ones it does hold listed.
+
         .PARAMETER Sequence
-            One task sequence row from Get-HDTConsoleWorkspace's TaskSequence
-            collection.
+            One task sequence row as the console already holds it. This is the
+            console's way in; -WorkspaceRoot and -Id is everybody else's.
 
         .PARAMETER XamlPath
             The window markup. Defaults to the module's own.
@@ -64,15 +71,39 @@
             DocumentPath and NodeCount.
 
         .EXAMPLE
-            $share = Get-HDTConsoleWorkspace -Path 'C:\HDTLab\Share'
-            Show-HDTSequenceEditor -Sequence @($share.TaskSequence)[0]
+            Show-HDTSequenceEditor -WorkspaceRoot 'C:\HDTLab\Share' -Id 'DEMO-05'
+
+            Opens the editor on one sequence. The share is read here, so nothing
+            has to be built first.
+
+        .EXAMPLE
+            Show-HDTSequenceEditor -WorkspaceRoot 'C:\HDTLab\Share' -Id 'NO-SUCH-ID'
+
+            Throws, naming the id and listing the ones the share does hold.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Opens a window. The editing cmdlets it offers carry their own ShouldProcess, and this writes nothing itself.')]
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Workspace')]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory = $true, Position = 0)]
+        # THE SHARE AND THE SEQUENCE ON IT, which is what an administrator has.
+        # The editor's tree is built from a console workspace row - Status,
+        # Finding and the counts alongside the steps - and the only command that
+        # builds one is internal to the window. Taking the root and the id means
+        # this command reads the share itself rather than asking for an object
+        # nobody outside the module can make.
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Workspace')]
+        [ValidateNotNullOrEmpty()]
+        [string] $WorkspaceRoot,
+
+        [Parameter(Mandatory = $true, Position = 1, ParameterSetName = 'Workspace')]
+        [ValidateNotNullOrEmpty()]
+        [string] $Id,
+
+        # THE ROW THE CONSOLE ALREADY HOLDS. It drew the tree from it a moment
+        # ago; reading the share again to open a window on it would be a second
+        # scan of every sequence for no new information.
+        [Parameter(Mandatory = $true, Position = 0, ParameterSetName = 'Sequence')]
         [ValidateNotNull()]
         [object] $Sequence,
 
@@ -113,13 +144,36 @@
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
     if ($null -eq $Screen) { $Screen = New-HDTConsoleScreen }
 
+    # READ THE SHARE WHEN THE CALLER NAMED ONE. Get-HDTConsoleWorkspace is what
+    # produces the row the editor's tree is built from, and it is internal to the
+    # window - so this is the one place that turns a root and an id into one.
+    # A LOCAL, NOT THE PARAMETER. Assigning to $Sequence re-runs its
+    # ValidateNotNull, so a miss would be reported as "the value is not valid for
+    # the Sequence variable" rather than as the id that is not on the share.
+    $row = $Sequence
+
+    if ($PSCmdlet.ParameterSetName -eq 'Workspace') {
+        $workspace = Get-HDTConsoleWorkspace -Path $WorkspaceRoot -FileSystem $FileSystem
+
+        $row = @($workspace.TaskSequence) | Where-Object { [string] $_.Id -eq $Id } | Select-Object -First 1
+
+        if ($null -eq $row) {
+            $offered = @($workspace.TaskSequence | ForEach-Object { [string] $_.Id }) -join ', '
+            if ([string]::IsNullOrWhiteSpace($offered)) { $offered = '(none)' }
+
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id `
+                        -Category ObjectNotFound `
+                        -Message ("no task sequence with the id '{0}' is on this share. It holds: {1}." -f $Id, $offered)))
+        }
+    }
+
     if (-not (Test-Path -LiteralPath $XamlPath)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $XamlPath `
                     -Category ObjectNotFound `
                     -Message 'the task sequence editor markup is missing, so the editor cannot be shown.'))
     }
 
-    $editor = Get-HDTConsoleSequenceEditor -Sequence $Sequence
+    $editor = Get-HDTConsoleSequenceEditor -Sequence $row
 
     $xaml = [System.IO.File]::ReadAllText($XamlPath)
 

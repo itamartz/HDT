@@ -81,6 +81,7 @@
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject:
@@ -92,7 +93,7 @@
                         Disabled, AfterStep
 
         .EXAMPLE
-            $sequence = Import-HDTSequenceDocument -Path 'X:\Deploy\Sequences\STD-CLIENT\sequence.yaml' -FileSystem (New-HDTFileSystem)
+            $sequence = Import-HDTSequenceDocument -Path 'X:\Deploy\Sequences\STD-CLIENT\sequence.yaml'
             $sequence.Step | Format-Table Index, Name, Type, RunIn
 
         .EXAMPLE
@@ -108,13 +109,15 @@
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     if (-not $FileSystem.TestPath($Path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `

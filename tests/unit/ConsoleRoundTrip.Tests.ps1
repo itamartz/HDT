@@ -1,4 +1,4 @@
-# A load and a save must give the file back unchanged, on every sample we ship.
+﻿# A load and a save must give the file back unchanged, on every sample we ship.
 #
 # THIS IS ROADMAP M8'S NAMED "TESTS FIRST" ITEM, and DESIGN 11's constraint
 # behind it: "a UI that reformats the file breaks git review". Every other test
@@ -27,6 +27,21 @@
 # has run, so a list built in BeforeAll is empty when the cases are expanded -
 # the file then reports one passing test and covers nothing. It looked green the
 # first time it was run for exactly that reason.
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# The wrapper opens at the very top, above the tables below, because -ForEach
+# is read while Pester is DISCOVERING and $script: inside InModuleScope means
+# the module's scope: a table built outside the wrapper and read inside it
+# discovers as empty, and the file reports no tests at all rather than failing.
+#
+# InModuleScope also has to resolve the module while discovery is running, so
+# the import is at file scope. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0.
+$script:hdtRepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:hdtRepoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 $script:root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
 $script:sample = @(
@@ -37,7 +52,6 @@ $script:sample = @(
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 }
 
@@ -171,4 +185,7 @@ Describe 'a new group added to a real sample' {
         @($row).Count | Should -Be 1
         @($row)[0].Children.Count | Should -Be 0
     }
+}
+
+
 }

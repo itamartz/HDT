@@ -15,9 +15,19 @@
 # broken item and complains about it; a console that throws on the first bad
 # file shows nothing at all, on exactly the day something is broken.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:workspaceYaml = "schemaVersion: 1`nid: HDT`nname: HDT share`n"
@@ -160,7 +170,7 @@ Describe 'the Applications category in the tree' {
 
     It 'draws one row per application, by the name a technician reads' {
         # NOT 'id - name', which the other two categories use. An application's
-        # id is composed FROM its name and version (Get-HDTApplicationName), so
+        # id is composed FROM its name and version (New-HDTApplicationName), so
         # a row showing both reads 'Igor-Pavlov-7-Zip-24.09 - Igor Pavlov 7-Zip
         # 24.09' - the same sentence twice, once with hyphens.
         $row = @($script:node | Where-Object { [string] $_.Kind -eq 'Application' })
@@ -385,4 +395,7 @@ Describe 'the Applications category in the tree' {
         [string] $row.Status | Should -BeExactly 'Error'
         [string] $row.Command | Should -BeLike '*Get-HDTApplication*'
     }
+}
+
+
 }

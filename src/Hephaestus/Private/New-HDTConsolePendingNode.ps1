@@ -1,4 +1,4 @@
-function New-HDTConsolePendingNode {
+﻿function New-HDTConsolePendingNode {
     <#
         .SYNOPSIS
             The row the console shows while it is still reading the share.
@@ -63,6 +63,6 @@ function New-HDTConsolePendingNode {
     return New-HDTConsoleNode -Depth 0 -Kind 'Root' -Status 'Ok' `
         -Text 'Deployment Shares - reading...' `
         -Field ([object[]] @($field)) `
-        -Command ("Get-HDTConsoleWorkspace -Path '{0}'" -f (@($Path) -join "', '")) `
+        -Command ("Show-HDTConsole -Path '{0}'" -f (@($Path) -join "', '")) `
         -Header $header
 }

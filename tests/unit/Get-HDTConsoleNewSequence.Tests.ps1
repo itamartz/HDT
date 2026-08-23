@@ -1,13 +1,23 @@
-# THE NEW TASK SEQUENCE WIZARD - MDT's, answered without a window.
+﻿# THE NEW TASK SEQUENCE WIZARD - MDT's, answered without a window.
 #
 # MDT ASKS SEVEN PAGES OF QUESTIONS and then writes one file. What it asks is the
 # interesting part, and it is decided here: which templates, which images, what
 # each field writes, and what makes an answer refusable. The window shows the
 # rows and runs the command; it decides none of it.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:fileSystem = New-HDTFakeFileSystem -File @{
@@ -138,4 +148,7 @@ Describe 'Get-HDTConsoleNewSequence' {
             @($view.Image).Count | Should -Be 0
         }
     }
+}
+
+
 }

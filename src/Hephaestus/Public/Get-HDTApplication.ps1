@@ -1,4 +1,4 @@
-function Get-HDTApplication {
+﻿function Get-HDTApplication {
     <#
         .SYNOPSIS
             Reads an application, or the whole application catalog, out of the
@@ -67,10 +67,10 @@ function Get-HDTApplication {
             which is DESIGN 8's "install every time".
 
         .EXAMPLE
-            Get-HDTApplication -WorkspaceRoot 'X:\Deploy' -Id '7Zip-24.09' -FileSystem (New-HDTFileSystem)
+            Get-HDTApplication -WorkspaceRoot 'X:\Deploy' -Id '7Zip-24.09'
 
         .EXAMPLE
-            Get-HDTApplication -WorkspaceRoot 'X:\Deploy' -FileSystem (New-HDTFileSystem) |
+            Get-HDTApplication -WorkspaceRoot 'X:\Deploy' |
                 Where-Object { $_.Dependencies.Count -gt 0 }
 
             The whole catalog, which is what Resolve-HDTApplicationOrder is handed.
@@ -78,71 +78,88 @@ function Get-HDTApplication {
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNullOrEmpty()]
         [string] $WorkspaceRoot,
 
-        [Parameter()]
+        [Parameter(Position = 1, ValueFromPipelineByPropertyName = $true)]
         [ValidateNotNullOrEmpty()]
         [string] $Id,
 
-        [Parameter(Mandatory = $true)]
+        # DEFAULTED, NOT MANDATORY, as it is on Import, Set and Remove. This was
+        # the one command of the five that refused a plain call: reading the
+        # catalog is the first thing anybody types, and it answered with an
+        # error about a parameter no administrator has.
+        [Parameter()]
         [ValidateNotNull()]
-        [object] $FileSystem,
+        [object] $FileSystem = (New-HDTFileSystem),
 
         [Parameter()]
         [AllowNull()]
         [object] $Content = $null
     )
 
-    Set-StrictMode -Version Latest
-    $ErrorActionPreference = 'Stop'
+    # ONE OBJECT AT A TIME. -WorkspaceRoot and -Id bind from the pipeline, and a
+    # flat body would run once, for the last entry handed over.
+    process {
+        Set-StrictMode -Version Latest
+        $ErrorActionPreference = 'Stop'
 
-    $readOne = {
-        param([string] $ApplicationId)
+        $readOne = {
+            param([string] $ApplicationId)
 
-        $appFolder = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $ApplicationId
-        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $ApplicationId, 'app.yaml'
+            $appFolder = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $ApplicationId
+            $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $ApplicationId, 'app.yaml'
 
-        $text = $FileSystem.ReadAllText($catalogPath)
+            $text = $FileSystem.ReadAllText($catalogPath)
 
-        $document = ConvertFrom-HDTYaml -Yaml $text -Path $catalogPath
-        Assert-HDTApplicationDocument -Document $document -Path $catalogPath
+            $document = ConvertFrom-HDTYaml -Yaml $text -Path $catalogPath
+            Assert-HDTApplicationDocument -Document $document -Path $catalogPath
 
-        try {
-            return (ConvertTo-HDTApplicationCatalog -Document $document -AppFolder $appFolder `
-                    -CatalogPath $catalogPath -Content $Content)
-        } catch {
-            # A provider refusal - a path that escapes the content root - is
-            # reported naming app.yaml rather than surfacing as a
-            # MethodInvocationException from a ScriptMethod three frames down.
-            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
-                        -Message ("the application source path could not be resolved: {0}" -f [string] $_.Exception.Message)))
+            try {
+                $entry = ConvertTo-HDTApplicationCatalog -Document $document -AppFolder $appFolder `
+                    -CatalogPath $catalogPath -Content $Content
+
+                # WHERE IT CAME FROM TRAVELS WITH IT. Without this, piping an entry
+                # at Set- or Remove- binds the id and then asks for the share the
+                # caller has just named, which is the point at which somebody stops
+                # using the pipeline.
+                $entry | Add-Member -NotePropertyName 'WorkspaceRoot' `
+                    -NotePropertyValue $WorkspaceRoot -Force
+
+                return $entry
+            } catch {
+                # A provider refusal - a path that escapes the content root - is
+                # reported naming app.yaml rather than surfacing as a
+                # MethodInvocationException from a ScriptMethod three frames down.
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
+                            -Message ("the application source path could not be resolved: {0}" -f [string] $_.Exception.Message)))
+            }
         }
-    }
 
-    if ($PSBoundParameters.ContainsKey('Id')) {
-        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $Id, 'app.yaml'
+        if ($PSBoundParameters.ContainsKey('Id')) {
+            $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $Id, 'app.yaml'
 
-        if (-not $FileSystem.TestPath($catalogPath)) {
-            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
-                        -Message ("no application with the id '{0}' is in this workspace. An application is a folder under Applications\ holding an app.yaml." -f $Id) `
-                        -Category ObjectNotFound))
+            if (-not $FileSystem.TestPath($catalogPath)) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $catalogPath `
+                            -Message ("no application with the id '{0}' is in this workspace. An application is a folder under Applications\ holding an app.yaml." -f $Id) `
+                            -Category ObjectNotFound))
+            }
+
+            return (& $readOne $Id)
         }
 
-        return (& $readOne $Id)
-    }
+        $applicationRoot = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications
 
-    $applicationRoot = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications
+        if (-not $FileSystem.TestPath($applicationRoot)) { return }
 
-    if (-not $FileSystem.TestPath($applicationRoot)) { return }
+        foreach ($child in @($FileSystem.GetChildItem($applicationRoot))) {
+            $childId = [System.IO.Path]::GetFileName([string] $child)
+            $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $childId, 'app.yaml'
 
-    foreach ($child in @($FileSystem.GetChildItem($applicationRoot))) {
-        $childId = [System.IO.Path]::GetFileName([string] $child)
-        $catalogPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Applications -ChildPath $childId, 'app.yaml'
+            if (-not $FileSystem.TestPath($catalogPath)) { continue }
 
-        if (-not $FileSystem.TestPath($catalogPath)) { continue }
-
-        & $readOne $childId
+            & $readOne $childId
+        }
     }
 }

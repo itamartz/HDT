@@ -1,4 +1,4 @@
-function Invoke-HDTGatherStep {
+﻿function Invoke-HDTGatherStep {
     <#
         .SYNOPSIS
             Re-reads the machine's facts into the sequence's variables.
@@ -45,7 +45,26 @@ function Invoke-HDTGatherStep {
             System.Management.Automation.PSCustomObject - a step result.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) -Service $service -Log $log
+
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'Gather' })[0]
+
             Invoke-HDTGatherStep -Step $step -Context $context
+
+            Runs one step out of a real sequence. Building the context is what the
+            engine does before the first step; a step cannot be run without one.
+
+        .EXAMPLE
+            $before = @($context.Variable.Keys).Count
+            $null = Invoke-HDTGatherStep -Step $step -Context $context
+            @($context.Variable.Keys).Count - $before
+
+            How many facts the gather added to the sequence's variables.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Step',
         Justification = 'The step contract requires -Step on every step command. A Gather step declares no properties - what to gather is not a choice - so the parameter is bound and unread, which is the contract being honoured rather than an oversight.')]

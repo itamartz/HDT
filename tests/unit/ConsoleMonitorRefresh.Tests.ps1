@@ -1,4 +1,4 @@
-# Tailing: the monitoring rows change while the window is open.
+﻿# Tailing: the monitoring rows change while the window is open.
 #
 # ROADMAP M8 says "Monitoring view TAILING Logs\_active\". A view that reads the
 # directory once and then shows an hour-old answer is a report, not a monitor -
@@ -18,9 +18,19 @@
 # makes the row redraw - which is why Children is an ObservableCollection and
 # why this returns a whole category rather than a list of runs.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:now = [datetime]::new(2026, 8, 15, 22, 0, 0, [System.DateTimeKind]::Utc)
@@ -172,4 +182,7 @@ Describe 'Get-HDTConsoleMonitorNode' {
         $category.Text | Should -BeExactly 'Monitoring'
         @($category.Children)[0].Kind | Should -BeExactly 'Empty'
     }
+}
+
+
 }

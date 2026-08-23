@@ -66,6 +66,7 @@ function Import-HDTWorkspaceDocument {
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -84,7 +85,7 @@ function Import-HDTWorkspaceDocument {
                                EntryCommand, StartCommand [string[]] }
 
         .EXAMPLE
-            Import-HDTWorkspaceDocument -Path 'X:\Deploy\workspace.yaml' -FileSystem (New-HDTFileSystem)
+            Import-HDTWorkspaceDocument -Path 'X:\Deploy\workspace.yaml'
 
         .EXAMPLE
             $workspace = Import-HDTWorkspaceDocument -Path $path -FileSystem $fs
@@ -101,13 +102,15 @@ function Import-HDTWorkspaceDocument {
         [ValidateNotNullOrEmpty()]
         [string] $Path,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     # DESIGN 5.1's default optional components, applied only when the key is
     # absent. The required six are not here: they are Get-HDTBootImageComponent's

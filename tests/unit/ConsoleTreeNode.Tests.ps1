@@ -16,9 +16,19 @@
 # the module call that produced it, and these tests assert the call is the real
 # one rather than a plausible-looking string.
 
+# THE COMMANDS UNDER TEST ARE PRIVATE, so this file runs in module scope.
+#
+# InModuleScope has to resolve the module while Pester is still discovering,
+# before any BeforeAll has run, which is why the import sits at file scope here
+# rather than only inside one. The body keeps its own indentation: a here-string
+# terminator has to stay at column 0, so the wrapper cannot indent what it wraps.
+$script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+InModuleScope -ModuleName Hephaestus {
+
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     $script:root = 'C:\ws'
@@ -571,6 +581,16 @@ Describe 'Get-HDTConsoleTreeNode' {
                     Should -Not -BeNullOrEmpty -Because "$name is offered to an administrator as something to type"
             }
         }
+
+        It 'offers no injected service in a line meant to be typed' {
+            # -FileSystem is a test seam (DESIGN 13.2.1), and the strip used to
+            # spell it out because sixteen commands declared it Mandatory: drop
+            # it from the line and the paste stopped on a parameter prompt.
+            # They default now, so printing it teaches an administrator a
+            # parameter they do not have and cannot usefully answer.
+            @($script:node | Where-Object { $_.Command -match 'New-HDTFileSystem' }) |
+                Should -BeNullOrEmpty
+        }
     }
 
     Context 'an empty share' {
@@ -831,4 +851,7 @@ Describe 'the category a window can act on' {
         $row[0].Text | Should -BeExactly 'Boot Image'
         $row[0].Subject | Should -BeExactly 'C:\ws\workspace.yaml'
     }
+}
+
+
 }

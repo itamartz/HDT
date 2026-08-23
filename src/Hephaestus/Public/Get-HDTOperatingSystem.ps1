@@ -47,6 +47,7 @@
         .PARAMETER FileSystem
             An IFileSystem - the real adapter in production,
             New-HDTFakeFileSystem in a test.
+            Defaults to the real one.
 
         .PARAMETER Content
             An IContentProvider, or nothing. When supplied, ImagePath is what it
@@ -66,7 +67,7 @@
               Edition, SizeBytes and Version.
 
         .EXAMPLE
-            Get-HDTOperatingSystem -WorkspaceRoot 'X:\Deploy' -Id 'Win11-LTSC-2024' -FileSystem (New-HDTFileSystem)
+            Get-HDTOperatingSystem -WorkspaceRoot 'X:\Deploy' -Id 'Win11-LTSC-2024'
 
         .EXAMPLE
             $os = Get-HDTOperatingSystem -WorkspaceRoot $root -Id $id -FileSystem $fs
@@ -90,8 +91,8 @@
         [ValidateNotNullOrEmpty()]
         [string] $Id,
 
-        [Parameter(Mandatory = $true)]
-        [ValidateNotNull()]
+        [Parameter()]
+        [AllowNull()]
         [object] $FileSystem,
 
         [Parameter()]
@@ -101,6 +102,8 @@
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $readOne = {
         param([string] $OperatingSystemId)
