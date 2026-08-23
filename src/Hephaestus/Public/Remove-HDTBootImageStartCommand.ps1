@@ -1,4 +1,4 @@
-function Remove-HDTBootImageStartCommand {
+﻿function Remove-HDTBootImageStartCommand {
     <#
         .SYNOPSIS
             Stops the booted image running a command, leaving every other line of
@@ -39,7 +39,17 @@ function Remove-HDTBootImageStartCommand {
             System.String[] - the document with the command removed.
 
         .EXAMPLE
-            Remove-HDTBootImageStartCommand -Line $line -Command 'X:\HDT\Tools\VNC\winvnc.exe -service'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
+            $line = Remove-HDTBootImageStartCommand -Line $line -Command 'X:\HDT\Tools\VNC\winvnc.exe -service'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Stops the boot image running something at start.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'winvnc' }).Count
+
+            Zero. The order of whatever else startnet runs is unchanged, which is the
+            point of splicing rather than rewriting.
 
         .LINK
             Add-HDTBootImageStartCommand

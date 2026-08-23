@@ -1,4 +1,4 @@
-function Update-HDTRunStateStep {
+﻿function Update-HDTRunStateStep {
     <#
         .SYNOPSIS
             Records the outcome of one step in the run state document.
@@ -62,8 +62,22 @@ function Update-HDTRunStateStep {
             so a caller can pipe straight into Save-HDTRunState.
 
         .EXAMPLE
-            Update-HDTRunStateStep -State $state -Index 3 -Status Failed `
-                -ExitCode 2 -Message 'DISM returned 0x80070002' | Out-Null
+            $clock = New-HDTClock
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $state = New-HDTRunState -SequenceId 'DEMO-05' -RunId 'run-0001' -Phase WinPE `
+                -Clock $clock -Variable ([ordered] @{}) -Step @($sequence.Step)
+            $null = Update-HDTRunStateStep -State $state -Index 3 -Status Failed `
+                -ExitCode 2 -Message 'DISM returned 0x80070002'
+
+            Records what one step did. The message is kept because the exit code alone
+            is what a technician cannot act on.
+
+        .EXAMPLE
+            @($state.step)[3].status
+
+            Failed. The engine writes this before deciding what to do about it, so the
+            checkpoint is true even if the next thing it does is die.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Mutates an in-memory document; Save-HDTRunState is what writes and it declares ShouldProcess.')]

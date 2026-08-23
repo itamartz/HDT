@@ -1,4 +1,4 @@
-function Remove-HDTStepPartition {
+﻿function Remove-HDTStepPartition {
     <#
         .SYNOPSIS
             Removes a partition from a DiskPartition step's table.
@@ -31,7 +31,18 @@ function Remove-HDTStepPartition {
             System.String[] - the document's lines, spliced.
 
         .EXAMPLE
-            Remove-HDTStepPartition -Line $line -Name 'Format and Partition' -Partition 'Data'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
+            $line = Remove-HDTStepPartition -Line $line -Name 'Format and Partition Disk (UEFI)' -Partition 'Data'
+            Save-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml' -Line $line
+
+            Drops one volume from a partition step's layout.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match '^\s*- name:' })
+
+            What the disk will be laid out as now. The step keeps its own name, its
+            condition and everything else it declared.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([string[]])]

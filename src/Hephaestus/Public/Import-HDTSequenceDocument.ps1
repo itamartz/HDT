@@ -97,10 +97,12 @@
             $sequence.Step | Format-Table Index, Name, Type, RunIn
 
         .EXAMPLE
-            $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\sequence.yaml' = $text }
-            Import-HDTSequenceDocument -Path 'C:\ws\sequence.yaml' -FileSystem $fs
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            @($sequence.Step | Where-Object { $_.RunIn -eq 'WinPE' }).Count
 
-            The same call in a test, with no file on disk anywhere.
+            How many of its steps run before the machine reboots into Windows.
+            -FileSystem defaults to the real one; a test passes a fake so the
+            document can be read with no file on disk anywhere.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

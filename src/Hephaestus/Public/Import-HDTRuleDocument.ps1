@@ -51,10 +51,12 @@
             $document.Rule | Format-Table Index, Name, SetFrom
 
         .EXAMPLE
-            $fs = New-HDTFakeFileSystem -File @{ 'C:\ws\rules.yaml' = $text }
-            Import-HDTRuleDocument -Path 'C:\ws\rules.yaml' -FileSystem $fs
+            $document = Import-HDTRuleDocument -Path 'C:\HDTLab\Share\Control\rules.yaml'
+            @($document.Rule | Where-Object { $_.SetFrom -contains 'HDTComputerName' })
 
-            The same call in a test, with no file on disk anywhere.
+            Which rules decide the machine name, in the order the engine will
+            consider them. -FileSystem defaults to the real one; a test passes a
+            fake so the document can be read with no file on disk anywhere.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

@@ -1,4 +1,4 @@
-function Test-HDTShareAcl {
+﻿function Test-HDTShareAcl {
     <#
         .SYNOPSIS
             Judges whether the deployment account is least-privileged on the
@@ -68,6 +68,10 @@ function Test-HDTShareAcl {
             Finding - rows of Path, Severity and Message, Critical first.
 
         .EXAMPLE
+            $root = 'C:\HDTLab\Share'
+            $account = 'LAP-AMMSO01\svc-hdt-deploy'
+            $rootRule = @(Get-HDTShareAccessRule -Path $root)
+            $logRule = @(Get-HDTShareAccessRule -Path (Join-Path $root 'Logs'))
             $accessRule = @{ '.' = $rootRule; 'Logs' = $logRule }
             Test-HDTShareAcl -WorkspaceRoot '\\server\HdtShare' -Identity 'CONTOSO\svc-hdt-deploy' -AccessRule $accessRule
 

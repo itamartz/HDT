@@ -87,6 +87,9 @@
             'Cancel' or 'CommandPrompt'), Title, ShellXamlPath and PageCount.
 
         .EXAMPLE
+            $p = 'X:\HDT\UI\HDTWizardShell.xaml'
+            $provider = New-HDTLocalContentProvider -Root 'C:\HDTLab\Share'
+            $page = @((Get-HDTWizardPage -Page (Import-HDTWizardDocument -Provider $provider).Page -Variable @{}).Page)
             Show-HDTWizardShell -ShellXamlPath 'X:\HDT\UI\HDTWizardShell.xaml' -Page $page
 
             What the payload calls in WinPE.

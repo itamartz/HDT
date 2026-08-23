@@ -1,4 +1,4 @@
-function Select-HDTTargetDisk {
+﻿function Select-HDTTargetDisk {
     <#
         .SYNOPSIS
             Chooses the one disk a deployment may wipe, or refuses to choose.
@@ -89,6 +89,9 @@ function Select-HDTTargetDisk {
             System.Management.Automation.PSCustomObject - the single disk row.
 
         .EXAMPLE
+            $disk = @(Get-HDTDiskLayout)
+            $partition = @()
+            $volume = @()
             Select-HDTTargetDisk -Disk $disk -Partition $partition -Volume $volume
 
             The unattended case: exactly one disk qualifies, or the run stops.

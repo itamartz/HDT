@@ -32,7 +32,7 @@
             media. An operating system comes from one .wim; an application comes
             from the folder holding its installer, because what is copied to the
             share is everything the install command line needs beside it - the
-            .msi and its .mst, the setup.exe and its payload directory.
+            an .msi and its .mst, the setup.exe and its payload directory.
 
             THE ID IS SUGGESTED FROM THAT FOLDER, as MDT's wizard fills in a
             destination from a source: an id is a folder name and the payload is

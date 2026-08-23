@@ -1,4 +1,4 @@
-function Set-HDTRule {
+﻿function Set-HDTRule {
     <#
         .SYNOPSIS
             Changes what one rule matches on and what it assigns, leaving every
@@ -67,6 +67,7 @@ function Set-HDTRule {
             System.String[] - the document, with one rule changed.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\rules.yaml'))
             Set-HDTRule -Line $line -Name 'Fallback' -Set ([ordered] @{ HDTComputerName = 'PC-%HDTAssetTag%' })
 
         .EXAMPLE

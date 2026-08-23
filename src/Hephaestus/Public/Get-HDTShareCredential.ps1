@@ -1,4 +1,4 @@
-function Get-HDTShareCredential {
+﻿function Get-HDTShareCredential {
     <#
         .SYNOPSIS
             Reads the deployment account credential back out of the workspace.
@@ -36,6 +36,8 @@ function Get-HDTShareCredential {
             Password.
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $root = 'C:\HDTLab\Share'
             $secret = Get-HDTShareCredential -WorkspaceRoot 'X:\Deploy'
             $secret.UserName
 

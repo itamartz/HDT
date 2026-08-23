@@ -40,6 +40,17 @@
 
         .EXAMPLE
             Show-HDTConsole -Path 'C:\HDTLab\Share' -ConsoleHost (New-HDTConsoleHost)
+
+            The real WPF host. Show-HDTConsole builds one itself when none is given,
+            so this is the long way round to the same window.
+
+        .EXAMPLE
+            $consoleHost = New-HDTConsoleHost
+            @($consoleHost | Get-Member -MemberType ScriptMethod | ForEach-Object { $_.Name })
+
+            Every window the console can open. The adapter decides nothing: each of
+            these loads markup, sets text by name and shows it, and the decisions
+            are in the helpers it calls.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state. Show is where a window appears, and it is a method.')]

@@ -68,14 +68,14 @@
             Gathers from the live machine through the real adapters.
 
         .EXAMPLE
-            $cim = New-HDTFakeCimProvider -FixturePath ./tests/fixtures/cim `
-                -NamespaceFixturePath @{ 'root/cimv2/security/microsofttpm' = './tests/fixtures/cim-microsofttpm' }
-            Get-HDTMachineFact -CimProvider $cim `
-                -RegistryService (New-HDTFakeRegistryService) `
-                -EnvironmentProvider (New-HDTFakeEnvironmentProvider -Variable @{ firmware_type = 'BIOS' })
+            $fact = Get-HDTMachineFact
+            @($fact.Keys | Where-Object { $_ -like 'HDTIs*' }) |
+                ForEach-Object { '{0} = {1}' -f $_, $fact[$_] }
 
-            The same gatherer against captured fixtures, standing in for a BIOS
-            machine with no Secure Boot key.
+            The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual,
+            HDTIsUefi - read off this machine. Every adapter defaults to the real
+            one, so the bare call is the one to type; a test passes fakes for all
+            three instead.
 
         .NOTES
             The chassis type tables (laptop 8, 9, 10, 11, 12, 14, 18, 21;

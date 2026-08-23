@@ -83,10 +83,25 @@
             None.
 
         .EXAMPLE
+            $registry = New-HDTRegistryService
+            $lsa = New-HDTLsaService
+            $password = 'a per-deployment throwaway'
+            $state = Get-HDTAutoLogonState -Registry $registry -Lsa $lsa
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
             Set-HDTAutoLogon -Registry $registry -Lsa $lsa -UserName 'Administrator' `
                 -Password $password -RemainingLeg 3 -State $state -LogContext $log
 
-            Three more legs, the password only in LSA.
+            Arms three more automatic logons. The password goes into the LSA secret
+            Winlogon reads; the registry gets the user name and the count.
+
+        .EXAMPLE
+            (Get-HDTAutoLogonState -Registry $registry -Lsa $lsa).RemainingLeg
+
+            Three. The count is what bounds it: every leg spends one, and at zero the
+            machine stops logging itself in whether or not anything cleaned up.
+
     #>
     # SecureString and PSCredential are declined here on purpose, and it is worth
     # writing down why rather than letting a future reader "fix" it.

@@ -1,4 +1,4 @@
-function Write-HDTVariableLog {
+﻿function Write-HDTVariableLog {
     <#
         .SYNOPSIS
             Writes a resolution's provenance into the log stream as var.resolve
@@ -40,7 +40,24 @@ function Write-HDTVariableLog {
             None.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
+                -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
+            $resolution = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
             Write-HDTVariableLog -Context $context -Resolution $resolution
+
+            Writes one record per resolved variable, each carrying which source set it.
+            At Info, not Debug: how a machine got its name is not a detail.
+
+        .EXAMPLE
+            @(Get-HDTRunLogRecord -Context $log | Where-Object { $_.Event -eq 'var.resolve' }).Count
+
+            How many it wrote. The same stream the provenance export is built from, so
+            the log and the file cannot disagree.
+
     #>
     [CmdletBinding()]
     [OutputType([void])]

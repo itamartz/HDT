@@ -50,6 +50,7 @@
             System.Boolean - whether the build succeeded.
 
         .EXAMPLE
+            $root = 'C:\HDTLab\Share'
             Show-HDTBuildProgressWindow -WorkspaceRoot 'C:\HDTLab\Share'
 
         .EXAMPLE

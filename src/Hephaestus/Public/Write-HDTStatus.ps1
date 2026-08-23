@@ -37,7 +37,22 @@
             None.
 
         .EXAMPLE
-            Write-HDTStatus -Context $context -Path (Join-Path $context.LogPath 'status.json')
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
+                -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
+            Write-HDTStatus -Context $context -Path 'X:\HDT\Logs\status.json'
+
+            One small file saying where the run has got to, rewritten as it moves. The
+            console's monitor reads it rather than parsing the whole JSONL.
+
+        .EXAMPLE
+            Write-HDTStatus -Context $context -Path 'X:\HDT\Logs\status.json' -WhatIf
+
+            Names the file and writes nothing.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]

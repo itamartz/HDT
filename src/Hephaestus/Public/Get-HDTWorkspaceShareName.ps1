@@ -53,7 +53,16 @@
         .EXAMPLE
             Get-HDTWorkspaceShareName -Path 'C:\HDTLab\Share'
 
-            Share$ on this machine, and \\<thismachine>\Share$.
+            Share$ on this machine, and the UNC path a booted machine would use to
+            reach it.
+
+        .EXAMPLE
+            $name = Get-HDTWorkspaceShareName -Path 'C:\HDTLab\Share'
+            $name.UncPath
+
+            The address that gets baked into a boot image. It is a name, not a lease -
+            the host's own IP moves, and a boot image built around one stops
+            working when it does.
 
         .LINK
             New-HDTWorkspaceShare

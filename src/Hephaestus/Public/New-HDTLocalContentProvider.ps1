@@ -1,4 +1,4 @@
-function New-HDTLocalContentProvider {
+﻿function New-HDTLocalContentProvider {
     <#
         .SYNOPSIS
             Creates the Local IContentProvider - content on the media the machine
@@ -74,6 +74,9 @@ which is what makes this whole file provable
             NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $fs = New-HDTFileSystem
+            $mediaRoot = 'D:\'
             $content = New-HDTLocalContentProvider -Root 'E:\HDTMedia'
             $content.Connect()
             $content.ResolveContent('OperatingSystems\Win11-LTSC-2024\sources\install.wim')

@@ -1,4 +1,4 @@
-function New-HDTBitLockerService {
+﻿function New-HDTBitLockerService {
     <#
         .SYNOPSIS
             The real IBitLockerService: a thin adapter over the BitLocker module.
@@ -38,8 +38,17 @@ function New-HDTBitLockerService {
             GetOperationName and ServiceName.
 
         .EXAMPLE
-            $bitlocker = New-HDTBitLockerService
-            $bitlocker.GetVolume('C:')
+            $bitLocker = New-HDTBitLockerService
+            $bitLocker.GetVolume('C:')
+
+            The volume's protection state, read before anything is turned on.
+
+        .EXAMPLE
+            @($bitLocker.GetOperationName())
+
+            The order it was asked to work in, which is the thing worth asserting:
+            Enable must never come before the protector is backed up. A volume
+            encrypted with a key nobody can recover is the outcome that matters.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds the service object; encrypting is done by the caller through it, and the step that calls it refuses an ambiguous target.')]

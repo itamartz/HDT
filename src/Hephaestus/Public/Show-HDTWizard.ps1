@@ -93,10 +93,12 @@
             What the payload calls in WinPE.
 
         .EXAMPLE
-            $answer = Show-HDTWizard -XamlPath $p -WizardHost (New-HDTFakeWizardHost -Action 'Next')
+            $answer = Show-HDTWizard -XamlPath 'X:\HDT\UI\HDTWizard.xaml'
             if ($answer.Action -ne 'Next') { return }
 
-            How every caller must read it: proceed only on an explicit Next.
+            How every caller must read it: proceed only on an explicit Next. A
+            closed window is not consent, and -WizardHost is the seam a test
+            drives this through without one.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

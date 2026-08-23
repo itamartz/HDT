@@ -1,4 +1,4 @@
-function New-HDTLogContext {
+﻿function New-HDTLogContext {
     <#
         .SYNOPSIS
             Builds the log context every Write-HDTLog call is written through.
@@ -71,10 +71,21 @@ function New-HDTLogContext {
             System.Management.Automation.PSCustomObject
 
         .EXAMPLE
-            $context = New-HDTLogContext -RunId $runId -Phase WinPE `
-                -LogPath (Get-HDTLogPath -Phase WinPE) `
-                -Clock (New-HDTClock)
-            Write-HDTLog -Context $context -Message 'Starting' -Event run.start
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            Write-HDTLog -Context $log -Message 'Starting' -Event run.start
+
+            Everything the engine writes goes through one of these: a JSONL stream and
+            a human-readable log beside it, from the same call.
+
+        .EXAMPLE
+            $log.JsonlPath
+
+            The file Get-HDTRunLogRecord reads back, and the one both the progress window
+            and the failure window are derived from. One source of truth, so the
+            screen and the log cannot disagree.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory context object; it changes no state and performs no I/O.')]

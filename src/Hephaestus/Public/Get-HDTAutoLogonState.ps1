@@ -1,4 +1,4 @@
-function Get-HDTAutoLogonState {
+﻿function Get-HDTAutoLogonState {
     <#
         .SYNOPSIS
             Reports the machine's current autologon state.
@@ -38,7 +38,21 @@ function Get-HDTAutoLogonState {
             System.Management.Automation.PSCustomObject
 
         .EXAMPLE
+            $registry = New-HDTRegistryService
+            $lsa = New-HDTLsaService
             (Get-HDTAutoLogonState -Registry $registry -Lsa $lsa).Armed
+
+            Whether this machine is set to log itself in. True on a machine mid-
+            deployment, and it should be false on every other one.
+
+        .EXAMPLE
+            $state = Get-HDTAutoLogonState -Registry $registry -Lsa $lsa
+            $state.RemainingLeg
+
+            How many more automatic logons are left. MDT's AutoLogonCount, and the
+            reason a deployment that dies does not leave a machine logging itself
+            in as Administrator for ever.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

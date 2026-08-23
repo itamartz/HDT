@@ -52,7 +52,19 @@
               Provenance        where each of those came from
 
         .EXAMPLE
-            Resolve-HDTBootstrapRule -RuleDocument $document -Fact $fact -DeployRoot '\\SERVER\HdtShare'
+            $document = Import-HDTBootstrapRuleDocument -Path 'X:\HDT\bootstrap-rules.yaml'
+            $fact = Get-HDTMachineFact
+            $answer = Resolve-HDTBootstrapRule -RuleDocument $document -Fact $fact -DeployRoot '\\LAP-AMMSO01\HDTShare$'
+
+            Works out which share this machine connects to before it can read any
+            share. Everything else in HDT resolves against rules.yaml on the
+            share; this one cannot.
+
+        .EXAMPLE
+            $answer.DeployRoot
+
+            Where it will connect. -DeployRoot is the fallback the boot image was built
+            with, and a rule that matches overrides it.
 
         .LINK
             Import-HDTBootstrapRuleDocument

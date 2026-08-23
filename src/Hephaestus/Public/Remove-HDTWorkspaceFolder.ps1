@@ -1,4 +1,4 @@
-function Remove-HDTWorkspaceFolder {
+﻿function Remove-HDTWorkspaceFolder {
     <#
         .SYNOPSIS
             Takes a console folder off the share, leaving every other line of
@@ -37,7 +37,18 @@ function Remove-HDTWorkspaceFolder {
             System.String[] - the document with the folder removed.
 
         .EXAMPLE
-            Remove-HDTWorkspaceFolder -Line $line -Category TaskSequence -Folder 'Clients'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
+            $line = Remove-HDTWorkspaceFolder -Line $line -Category TaskSequence -Folder 'Clients'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Removes a folder from the console's tree. It edits the layout, not the
+            disk: nothing under TaskSequences\ is deleted.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'Clients' }).Count
+
+            Zero in the folder list. A sequence that was filed there shows at the top
+            level rather than disappearing.
 
         .LINK
             Add-HDTWorkspaceFolder

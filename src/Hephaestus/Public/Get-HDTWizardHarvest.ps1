@@ -1,4 +1,4 @@
-function Get-HDTWizardHarvest {
+﻿function Get-HDTWizardHarvest {
     <#
         .SYNOPSIS
             Which boxes on the Welcome screen are read back when it closes.
@@ -37,12 +37,19 @@ function Get-HDTWizardHarvest {
             and Property.
 
         .EXAMPLE
-            Show-HDTWizard -XamlPath $path -Collect (Get-HDTWizardHarvest)
+            $harvest = Get-HDTWizardHarvest
+            @($harvest.Name)
+
+            The controls the Welcome screen answers with, by name. The window is
+            markup; this is the list of things worth reading back off it.
 
         .EXAMPLE
-            (Get-HDTWizardHarvest).Name
+            Show-HDTWizard -XamlPath 'X:\HDT\UI\HDTWizard.xaml' -Collect $harvest
 
-            The controls the Welcome screen answers with.
+            Handed to the window so the host reads exactly these and nothing else. A
+            control renamed in the markup without its name changed here comes back
+            empty rather than wrong.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

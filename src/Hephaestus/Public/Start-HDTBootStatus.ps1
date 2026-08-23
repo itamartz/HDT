@@ -1,4 +1,4 @@
-function Start-HDTBootStatus {
+﻿function Start-HDTBootStatus {
     <#
         .SYNOPSIS
             Puts the boot status overlay on screen - or reports why it could
@@ -74,16 +74,18 @@ function Start-HDTBootStatus {
 
         .EXAMPLE
             $status = Start-HDTBootStatus -XamlPath 'X:\HDT\UI\HDTBootStatus.xaml'
-            if ($status.Mode -eq 'Window') { $shellHidden = [bool] (Hide-HDTShellWindow) }
+            $status.Mode
 
-            The whole contract in two lines: the console goes away only if there
-            is something to look at instead.
+            Window when there is a display to draw on, and something else when there is
+            not. WinPE on a headless machine still has to say what it is doing.
 
         .EXAMPLE
-            $status.StatusHost.Write('12:00:01  bootstrap: provider Smb')
+            if ($status.Mode -eq 'Window') { $shellHidden = [bool] (Hide-HDTShellWindow) }
 
-            What the payload does with every line it says - with no branch on
-            Mode, because the fallback host has the same method.
+            The whole contract in one line: the console goes away only if there is
+            something to look at instead. Hiding it with nothing behind it is a
+            black screen and a technician with nothing to report.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Opens a status window the deployment asked for; it changes no system state and there is no operator to confirm to.')]

@@ -71,8 +71,22 @@ This builds it, in memory. It has NO -FileSystem
             System.Management.Automation.PSCustomObject
 
         .EXAMPLE
-            $state = New-HDTRunState -SequenceId 'STD-CLIENT' -RunId $runId -Phase WinPE `
-                -Clock (New-HDTClock) -Variable $resolution.Variable -Step $flattened
+            $clock = New-HDTClock
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $state = New-HDTRunState -SequenceId 'DEMO-05' -RunId 'run-0001' -Phase WinPE `
+                -Clock $clock -Variable ([ordered] @{}) -Step @($sequence.Step)
+
+            The checkpoint a deployment survives its reboots on. It carries every step
+            with a status, so a resumed run knows what already happened rather
+            than starting again.
+
+        .EXAMPLE
+            $state.stepIndex
+
+            Zero - nothing has run yet. This is the number that makes the reboot
+            survivable: the OS changes underneath the engine, and this says where
+            it had got to.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory document object; it changes no state and writes no file.')]

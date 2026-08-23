@@ -1,4 +1,4 @@
-function Set-HDTStepProperty {
+﻿function Set-HDTStepProperty {
     <#
         .SYNOPSIS
             Changes one property of a step or group - what it does, rather than
@@ -55,6 +55,7 @@ function Set-HDTStepProperty {
             System.String[] - the document, with one line changed.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
             Set-HDTStepProperty -Line $line -Name 'Apply OS' -Property 'index' -Value '2'
 
         .EXAMPLE

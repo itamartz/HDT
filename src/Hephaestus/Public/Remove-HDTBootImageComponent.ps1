@@ -1,4 +1,4 @@
-function Remove-HDTBootImageComponent {
+﻿function Remove-HDTBootImageComponent {
     <#
         .SYNOPSIS
             Stops a WinPE optional component being applied to the boot image,
@@ -43,7 +43,17 @@ function Remove-HDTBootImageComponent {
             System.String[] - the document with the components removed.
 
         .EXAMPLE
-            Remove-HDTBootImageComponent -Line $line -Name 'WinPE-WDS-Tools'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
+            $line = Remove-HDTBootImageComponent -Line $line -Name 'WinPE-WDS-Tools'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Takes an optional component out of the boot image.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'WinPE-' })
+
+            What is left. A component another one depends on is refused rather than
+            removed - Get-HDTAdkComponent knows which those are.
 
         .LINK
             Add-HDTBootImageComponent

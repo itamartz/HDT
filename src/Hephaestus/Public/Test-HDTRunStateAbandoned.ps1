@@ -1,4 +1,4 @@
-function Test-HDTRunStateAbandoned {
+﻿function Test-HDTRunStateAbandoned {
     <#
         .SYNOPSIS
             Reports whether a state document describes a run that is over or dead.
@@ -42,9 +42,19 @@ function Test-HDTRunStateAbandoned {
             System.Boolean
 
         .EXAMPLE
-            if (Test-HDTRunStateAbandoned -State $state -Clock $clock) {
-                # tear autologon down before doing anything else
-            }
+            $clock = New-HDTClock
+            $state = Import-HDTRunState -Path 'C:\HDT\state.json'
+            Test-HDTRunStateAbandoned -State $state -Clock $clock
+
+            Whether a checkpoint belongs to a run nobody is coming back for. A machine
+            left logging itself in as Administrator is what this exists to catch.
+
+        .EXAMPLE
+            if (Test-HDTRunStateAbandoned -State $state -Clock $clock) { 'tear the autologon down' }
+
+            What the boot-time reconcile does with the answer. It runs before anything
+            else, because the alternative is a machine that stays armed.
+
     #>
     [CmdletBinding()]
     [OutputType([bool])]

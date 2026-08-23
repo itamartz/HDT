@@ -1,4 +1,4 @@
-function New-HDTWdsService {
+﻿function New-HDTWdsService {
     <#
         .SYNOPSIS
             Creates the real IWdsService adapter over the WDS module.
@@ -65,8 +65,16 @@ function New-HDTWdsService {
             $wds = New-HDTWdsService
             Import-HDTBootImageToWds -Path 'C:\HDTLab\Share\Boot\HDTPE_x64.wim' -WdsService $wds
 
-            On a Windows Server with the WDS role. On a client OS the first line
-            throws HDTDependencyError naming the module and the role.
+            Publishes the boot image for PXE. On a Windows Server with the WDS role;
+            on a client OS the first line throws HDTDependencyError naming both
+            the module and the role rather than failing somewhere further in.
+
+        .EXAMPLE
+            @($wds.GetOperationName())
+
+            What was asked of it. WDS is a Microsoft product HDT uses, not part of MDT -
+            nothing here depends on a deprecated toolkit being installed.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

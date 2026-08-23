@@ -1,4 +1,4 @@
-function ConvertTo-HDTDiskLayout {
+﻿function ConvertTo-HDTDiskLayout {
     <#
         .SYNOPSIS
             Turns an authored partition table into the layout the planner reads.
@@ -52,6 +52,9 @@ function ConvertTo-HDTDiskLayout {
             Get-HDTDiskLayout returns.
 
         .EXAMPLE
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step | Where-Object { $_.Type -eq 'DiskPartition' })[0]
+            $disk = @(Get-HDTDiskLayout)[0]
             ConvertTo-HDTDiskLayout -Style GPT -Partition @(
                 @{ name = 'System';  type = 'EFI';      size = '260MB' }
                 @{ name = 'Windows'; type = 'Primary';  size = '60%' }

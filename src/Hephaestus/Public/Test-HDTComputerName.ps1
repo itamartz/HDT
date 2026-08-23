@@ -1,4 +1,4 @@
-function Test-HDTComputerName {
+﻿function Test-HDTComputerName {
     <#
         .SYNOPSIS
             Judges a computer name against the limit Windows enforces silently.
@@ -69,6 +69,7 @@ function Test-HDTComputerName {
               Name        exactly what was handed in. Never repaired.
 
         .EXAMPLE
+            $typed = 'HDT-01'
             Test-HDTComputerName -Name 'HDT-01'
 
             IsValid true, IsDnsSafe true, Severity None.

@@ -1,4 +1,4 @@
-function Start-HDTProgressDisplay {
+﻿function Start-HDTProgressDisplay {
     <#
         .SYNOPSIS
             Puts DESIGN 11.1's progress window on screen - or reports why it
@@ -60,6 +60,8 @@ function Start-HDTProgressDisplay {
             'Console' or 'Suppressed'), Reason, XamlPath and DisplayHost.
 
         .EXAMPLE
+            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $progress = New-HDTProgressHost
             $display = Start-HDTProgressDisplay -XamlPath 'X:\HDT\UI\HDTProgress.xaml' -Variable $resolved
 
         .EXAMPLE

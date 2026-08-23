@@ -1,4 +1,4 @@
-function Copy-HDTStep {
+﻿function Copy-HDTStep {
     <#
         .SYNOPSIS
             Returns the lines one step or group occupies, ready to be pasted
@@ -34,8 +34,20 @@ function Copy-HDTStep {
             System.String[] - the block's lines, comment first.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
             $block = Copy-HDTStep -Line $line -Name 'Apply OS'
-            Add-HDTStep -Line $line -Block $block -After 'Prepare Boot'
+            $line = Add-HDTStep -Line $line -Block $block -After 'Prepare Boot'
+            Save-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml' -Line $line
+
+            Duplicates a step and splices the copy in after another. The copy carries
+            everything the original declared, comments included.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'Apply OS' }).Count
+
+            Two. Nothing renames the copy for you: two steps with one name is legal
+            and the editor shows both, so give it a name that says why it exists.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Reads lines out of an in-memory document; it changes nothing.')]

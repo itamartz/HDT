@@ -1,4 +1,4 @@
-function Add-HDTWorkspaceFolder {
+﻿function Add-HDTWorkspaceFolder {
     <#
         .SYNOPSIS
             Declares a console folder on the share, leaving every other line of
@@ -48,7 +48,17 @@ function Add-HDTWorkspaceFolder {
             System.String[] - the document with the folder declared.
 
         .EXAMPLE
-            Add-HDTWorkspaceFolder -Line $line -Category TaskSequence -Folder 'Clients\Laptops'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
+            $line = Add-HDTWorkspaceFolder -Line $line -Category TaskSequence -Folder 'Clients\Laptops'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Adds a folder to the console's tree, parents included.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'Laptops' })
+
+            The line it added. Folders are a console convenience: the engine never
+            reads them, so one that is wrong breaks nothing that deploys.
 
         .LINK
             Remove-HDTWorkspaceFolder

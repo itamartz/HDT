@@ -1,4 +1,4 @@
-function Start-HDTWizardDeployment {
+﻿function Start-HDTWizardDeployment {
     <#
         .SYNOPSIS
             Turns what the technician answered into the variable set the engine
@@ -58,10 +58,18 @@ function Start-HDTWizardDeployment {
             'Cancel' or 'CommandPrompt'), Variable, Applied and Resolved.
 
         .EXAMPLE
-            $deploy = Start-HDTWizardDeployment -Answer $answer -ResolveArgument $resolveArgument
-            if ($deploy.Action -ne 'Deploy') { throw 'HDTDeploymentCancelled: ...' }
+            $answer = [pscustomobject] @{ Action = 'Next'; Value = @{ HDTComputerName = 'HDT-01' } }
+            $deploy = Start-HDTWizardDeployment -Answer $answer
 
-            What the payload does with it.
+            Turns what the technician chose into variables the engine will run with,
+            through an allow-list: a wizard cannot set anything it likes.
+
+        .EXAMPLE
+            if ($deploy.Action -ne 'Deploy') { 'cancelled' } else { $deploy.Variable['HDTComputerName'] }
+
+            What the payload does with it. Anything but Deploy stops the run - a closed
+            window is not consent to wipe a disk.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Resolves variables and reports what was asked for; it changes no state and starts nothing. A confirmation prompt in WinPE, behind a window that has just closed, would hang a deployment.')]

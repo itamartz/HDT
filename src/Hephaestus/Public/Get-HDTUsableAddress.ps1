@@ -1,4 +1,4 @@
-function Get-HDTUsableAddress {
+﻿function Get-HDTUsableAddress {
     <#
         .SYNOPSIS
             The first IPv4 address on this machine that a share could be reached
@@ -40,7 +40,21 @@ function Get-HDTUsableAddress {
             System.String - the address, or empty.
 
         .EXAMPLE
+            $fact = Get-HDTMachineFact
             Get-HDTUsableAddress -Fact $fact
+
+            The first IPv4 address a share could be reached from - '192.168.2.39' -
+            or an empty string when there is none yet.
+
+        .EXAMPLE
+            $fact['HDTIPAddress'] = '192.168.2.39 fe80::7796:1'
+            Get-HDTUsableAddress -Fact $fact
+
+            Still the IPv4 address. HDTIPAddress is a string array, and casting one to
+            a string space-joins it; a VM in WinPE printed 'waiting for an
+            address' seven times while holding one, because an inline reader split
+            that on commas and got a single element matching no IPv4 pattern.
+
     #>
     [CmdletBinding()]
     [OutputType([string])]

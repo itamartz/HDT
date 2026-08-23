@@ -1,4 +1,4 @@
-function Import-HDTStepModule {
+﻿function Import-HDTStepModule {
     <#
         .SYNOPSIS
             Imports the step-type modules a workspace ships in its Modules
@@ -24,8 +24,18 @@ function Import-HDTStepModule {
             System.Management.Automation.PSModuleInfo, one per module imported.
 
         .EXAMPLE
-            Import-HDTStepModule -Path 'X:\Deploy\Modules'
-            Get-HDTStepType | Format-Table Type, Source
+            Import-HDTStepModule -Path 'C:\HDTLab\Share\Modules'
+            @(Get-HDTStepType | Where-Object { $_.Source -ne 'Hephaestus' })
+
+            Loads third-party step types off the share. This is the extension point:
+            a module there declaring Invoke-HDTContosoStep gets run by the engine
+            without anything in this module listing it.
+
+        .EXAMPLE
+            @(Get-HDTStepType).Count
+
+            Every type the engine can now dispatch, the built-in ones included.
+
     #>
     [CmdletBinding()]
     [OutputType([System.Management.Automation.PSModuleInfo])]

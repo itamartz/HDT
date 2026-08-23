@@ -1,4 +1,4 @@
-function Get-HDTMachineOverride {
+﻿function Get-HDTMachineOverride {
     <#
         .SYNOPSIS
             Reads the per-machine variable override for a UUID, if one exists.
@@ -49,6 +49,7 @@ function Get-HDTMachineOverride {
             because provenance names the file that supplied each value.
 
         .EXAMPLE
+            $fact = Get-HDTMachineFact
             $override = Get-HDTMachineOverride -WorkspaceRoot 'X:\Deploy' `
                 -Uuid $fact['HDTUUID']
 

@@ -1,4 +1,4 @@
-function Import-HDTRunState {
+﻿function Import-HDTRunState {
     <#
         .SYNOPSIS
             Reads and validates the state document, for a resume.
@@ -44,6 +44,17 @@ function Import-HDTRunState {
         .EXAMPLE
             $state = Import-HDTRunState -Path 'C:\HDT\state.json'
             $state.stepIndex
+
+            Reads the checkpoint back after a restart. C:\HDT\ is where W:\HDT\ ends up
+            once the machine boots what was applied to it.
+
+        .EXAMPLE
+            @($state.step | Where-Object { $_.status -eq 'Failed' }) | ForEach-Object { $_.name }
+
+            Which steps failed on the run being resumed. A half-written state.json is
+            refused by name rather than resumed from - a checkpoint that cannot be
+            trusted is worse than none.
+
     #>
     [CmdletBinding()]
     [OutputType([object])]

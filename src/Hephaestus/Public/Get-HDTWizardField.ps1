@@ -1,4 +1,4 @@
-function Get-HDTWizardField {
+﻿function Get-HDTWizardField {
     <#
         .SYNOPSIS
             Works out what every box on the Welcome screen should say, without a
@@ -64,6 +64,8 @@ function Get-HDTWizardField {
             System.Management.Automation.PSCustomObject[] with Name and Text.
 
         .EXAMPLE
+            $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
+            $network = Get-HDTNetworkConfiguration
             Get-HDTWizardField -NetworkConfiguration (Get-HDTNetworkConfiguration)
 
             The address boxes, filled from the lease the machine actually got.

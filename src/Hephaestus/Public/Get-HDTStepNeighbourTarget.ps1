@@ -57,6 +57,7 @@
             means.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
             $to = Get-HDTStepNeighbourTarget -Line $line -Name 'Prepare Boot' -Direction Down
             Move-HDTStep -Line $line -Name 'Prepare Boot' -Target $to.Target -Position $to.Position
 

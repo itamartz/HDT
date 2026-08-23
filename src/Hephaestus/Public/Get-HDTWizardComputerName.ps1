@@ -72,6 +72,10 @@
             Field.
 
         .EXAMPLE
+            $title = 'Computer Details'
+            $field = @()
+            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $ask = Get-HDTWizardPage -Page @() -Variable $resolved.Variable
             Get-HDTWizardComputerName -Variable $resolved.Variable
 
         .EXAMPLE

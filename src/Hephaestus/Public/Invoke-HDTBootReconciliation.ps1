@@ -1,4 +1,4 @@
-function Invoke-HDTBootReconciliation {
+﻿function Invoke-HDTBootReconciliation {
     <#
         .SYNOPSIS
             Decides on every boot whether to resume the run or disarm the machine.
@@ -76,10 +76,22 @@ function Invoke-HDTBootReconciliation {
             ('Resume' or 'Teardown'), Reason and State.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
             $decision = Invoke-HDTBootReconciliation -StatePath 'C:\HDT\state.json' `
-                -FileSystem $fs -Registry $registry -Lsa $lsa -Clock $clock -LogContext $log
+                -FileSystem (New-HDTFileSystem) -Registry (New-HDTRegistryService) `
+                -Lsa (New-HDTLsaService) -Clock $clock -LogContext $log
 
-            if ($decision.Action -eq 'Resume') { ... }
+            What runs at every boot of a machine that has ever been deployed to. It
+            decides between resuming, cleaning up, and doing nothing.
+
+        .EXAMPLE
+            $decision.Action
+
+            Resume, Clear or None. None is the common answer and the important one: a
+            machine that finished its deployment must boot like any other.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

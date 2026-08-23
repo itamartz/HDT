@@ -53,10 +53,19 @@
             a ScriptMethod - use -MemberType Method, ScriptMethod.
 
         .EXAMPLE
-            $fs = New-HDTFileSystem
-            $fs.AppendAllText('C:\HDT\Logs\HDT.jsonl', $record + "`n")
+            $fileSystem = New-HDTFileSystem
+            $fileSystem.TestPath('C:\HDTLab\Share\workspace.yaml')
 
-            One JSONL record appended, UTF-8, no BOM, directory created if absent.
+            The real filesystem, which is what every command defaults to. It is a
+            parameter at all so the engine can run under Pester against a
+            hand-written fake instead of a disk.
+
+        .EXAMPLE
+            @($fileSystem.GetChildItem('C:\HDTLab\Share\Applications'))
+
+            Reading through the adapter rather than through Get-ChildItem is what
+            lets the same code run against a share, a fake, and the content
+            projection standalone media uses.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

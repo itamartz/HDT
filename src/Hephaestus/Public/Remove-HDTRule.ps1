@@ -1,4 +1,4 @@
-function Remove-HDTRule {
+﻿function Remove-HDTRule {
     <#
         .SYNOPSIS
             Removes one rule from a rules document, leaving every other line
@@ -48,7 +48,19 @@ function Remove-HDTRule {
             System.String[] - the document with the rule removed.
 
         .EXAMPLE
-            Remove-HDTRule -Line $line -Name 'Lab subnet'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\rules.yaml'))
+            $line = Remove-HDTRule -Line $line -Name 'Lab subnet'
+            Save-HDTRuleDocument -Path 'C:\HDTLab\Share\rules.yaml' -Line $line
+
+            Takes one rule out of rules.yaml by name.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match '^\s*- name:' })
+
+            The rules that remain, in the order they will be evaluated. rules.yaml is
+            half commentary and the comments are the only documentation of the
+            rule language an administrator has at the point of editing it.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([string[]])]

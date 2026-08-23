@@ -1,4 +1,4 @@
-function Resolve-HDTErrorMessage {
+﻿function Resolve-HDTErrorMessage {
     <#
         .SYNOPSIS
             The sentence somebody wrote, out of the layers of plumbing wrapped
@@ -55,6 +55,7 @@ function Resolve-HDTErrorMessage {
             System.String - the innermost message, never empty.
 
         .EXAMPLE
+            $exception = [System.IO.FileNotFoundException]::new('rules.yaml is not there')
             try { ... } catch { [System.Windows.MessageBox]::Show((Resolve-HDTErrorMessage -ErrorRecord $_)) }
 
             What the console launcher does, and why its dialogs are readable.

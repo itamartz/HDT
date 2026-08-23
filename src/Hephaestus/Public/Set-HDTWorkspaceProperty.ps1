@@ -1,4 +1,4 @@
-function Set-HDTWorkspaceProperty {
+﻿function Set-HDTWorkspaceProperty {
     <#
         .SYNOPSIS
             Changes the single-value settings of a workspace document, leaving
@@ -92,6 +92,7 @@ function Set-HDTWorkspaceProperty {
             System.String[] - the document with those settings changed.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             Set-HDTWorkspaceProperty -Line $line -DeployRoot '\\HDT-HOST\HdtShare'
 
         .EXAMPLE

@@ -1,4 +1,4 @@
-function Get-HDTBootImageComponent {
+﻿function Get-HDTBootImageComponent {
     <#
         .SYNOPSIS
             The ordered, dependency-validated, existence-checked list of WinPE
@@ -98,6 +98,8 @@ function Get-HDTBootImageComponent {
               LanguageCabPath  [string] <root>\en-us\WinPE-WMI_en-us.cab, or ''
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $path = Get-HDTAdkPath -Asset WinPeOptionalComponent
             Get-HDTBootImageComponent -ComponentRoot (Get-HDTAdkPath -Asset WinPeOptionalComponent)
 
             The nine components a default HDT boot image carries.

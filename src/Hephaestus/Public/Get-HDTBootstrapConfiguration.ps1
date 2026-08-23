@@ -1,4 +1,4 @@
-function Get-HDTBootstrapConfiguration {
+﻿function Get-HDTBootstrapConfiguration {
     <#
         .SYNOPSIS
             Reads bootstrap.json - the file in the boot image that says where the
@@ -89,6 +89,9 @@ function Get-HDTBootstrapConfiguration {
             Get-HDTWizardSkip is what turns those into a decision.
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $path = 'X:\HDT\bootstrap.json'
+            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
             $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
             $bootstrap.DeployRoot
 

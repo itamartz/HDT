@@ -1,4 +1,4 @@
-function Get-HDTWizardPage {
+﻿function Get-HDTWizardPage {
     <#
         .SYNOPSIS
             Works out which wizard pages this deployment still has to ask.
@@ -55,11 +55,20 @@ function Get-HDTWizardPage {
             IsWizardNeeded.
 
         .EXAMPLE
-            $ask = Get-HDTWizardPage -Page $catalogue -Variable $resolved
-            if ($ask.IsWizardNeeded) { Show-HDTWizardShell -Page $ask.Page ... }
+            $provider = New-HDTLocalContentProvider -Root 'C:\HDTLab\Share'
+            $wizard = Import-HDTWizardDocument -Provider $provider
+            $ask = Get-HDTWizardPage -Page $wizard.Page -Variable ([ordered] @{})
 
-            The whole contract: decide first, and open nothing if there is
-            nothing left to ask.
+            Which pages a technician still has to be asked, given what the rules
+            already resolved. A page whose every field is answered is not a page.
+
+        .EXAMPLE
+            if (@($ask.Page).Count -gt 0) { @($ask.Page | ForEach-Object { $_.Title }) } else { 'nothing to ask' }
+
+            The whole contract: decide first, and open nothing if there is nothing left
+            to ask. A wizard that appears to confirm what a rule already decided is
+            a wizard somebody clicks through without reading.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

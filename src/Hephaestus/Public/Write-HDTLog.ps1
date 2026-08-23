@@ -1,4 +1,4 @@
-function Write-HDTLog {
+﻿function Write-HDTLog {
     <#
         .SYNOPSIS
             Writes one log entry in both formats, from one call.
@@ -74,6 +74,7 @@ function Write-HDTLog {
             None.
 
         .EXAMPLE
+            $context = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock (New-HDTClock)
             Write-HDTLog -Context $context -Message 'Checking vendor BIOS level'
 
             The extensibility point: a custom step logs into the same

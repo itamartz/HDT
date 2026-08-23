@@ -1,4 +1,4 @@
-function Add-HDTBootImageComponent {
+﻿function Add-HDTBootImageComponent {
     <#
         .SYNOPSIS
             Declares a WinPE optional component for the boot image, leaving every
@@ -51,6 +51,7 @@ function Add-HDTBootImageComponent {
             System.String[] - the document with the components added.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             Add-HDTBootImageComponent -Line $line -Name 'WinPE-HTA'
 
         .EXAMPLE

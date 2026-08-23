@@ -1,4 +1,4 @@
-function Test-HDTElevation {
+﻿function Test-HDTElevation {
     <#
         .SYNOPSIS
             Whether this process is running as an administrator.
@@ -26,7 +26,17 @@ function Test-HDTElevation {
             System.Boolean
 
         .EXAMPLE
+            Test-HDTElevation
+
+            Whether this session can do the things a deployment needs - mount an
+            image, write an LSA secret, partition a disk.
+
+        .EXAMPLE
             if (-not (Test-HDTElevation)) { 'Reopen this console as an administrator.' }
+
+            Asked before the work rather than during it. A DISM call that fails halfway
+            through leaves a mounted image behind.
+
     #>
     [CmdletBinding()]
     [OutputType([bool])]

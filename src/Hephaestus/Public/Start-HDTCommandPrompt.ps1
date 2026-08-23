@@ -1,4 +1,4 @@
-function Start-HDTCommandPrompt {
+﻿function Start-HDTCommandPrompt {
     <#
         .SYNOPSIS
             Opens a command prompt for the technician - MDT's "Exit to Command
@@ -53,6 +53,7 @@ function Start-HDTCommandPrompt {
             ProcessId and Message.
 
         .EXAMPLE
+            $answer = [pscustomobject] @{ Action = 'CommandPrompt' }
             Start-HDTCommandPrompt
 
             Opens a prompt in a window of its own.

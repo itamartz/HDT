@@ -1,4 +1,4 @@
-function Export-HDTMachineFact {
+﻿function Export-HDTMachineFact {
     <#
         .SYNOPSIS
             Writes gathered facts to Gather\facts.json.
@@ -51,9 +51,19 @@ function Export-HDTMachineFact {
             None.
 
         .EXAMPLE
-            Export-HDTMachineFact -Fact $fact `
-                -Path (Join-Path $logPath 'Gather\facts.json') `
-                -Timestamp $clock.GetUtcNow()
+            $fact = Get-HDTMachineFact
+            $clock = New-HDTClock
+            Export-HDTMachineFact -Fact $fact -Path 'X:\HDT\Logs\Gather\facts.json' -Timestamp $clock.GetUtcNow()
+
+            Writes what the machine said about itself where a technician can read it
+            afterwards. MDT put this in the log; a file means it can be diffed
+            against the next run.
+
+        .EXAMPLE
+            Export-HDTMachineFact -Fact $fact -Path 'X:\HDT\Logs\Gather\facts.json' -Timestamp $clock.GetUtcNow() -WhatIf
+
+            Names the file and writes nothing.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]

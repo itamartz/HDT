@@ -1,4 +1,4 @@
-function Set-HDTStepPropertyList {
+﻿function Set-HDTStepPropertyList {
     <#
         .SYNOPSIS
             Writes a step property whose value is a list, in place, keeping the
@@ -68,6 +68,7 @@ function Set-HDTStepPropertyList {
             System.String[] - the document, with that one line rewritten.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
             Set-HDTStepPropertyList -Line $line -Name 'Install the agent' -Property 'successCodes' -Item @('0', '1641')
 
         .EXAMPLE

@@ -1,4 +1,4 @@
-function Save-HDTRuleDocument {
+﻿function Save-HDTRuleDocument {
     <#
         .SYNOPSIS
             Writes an edited rules document back to the share, after checking the
@@ -46,6 +46,8 @@ function Save-HDTRuleDocument {
             RuleCount.
 
         .EXAMPLE
+            $path = 'C:\HDTLab\Share\rules.yaml'
+            $line = [string[]] @([System.IO.File]::ReadAllLines($path))
             Save-HDTRuleDocument -Path 'X:\Deploy\rules.yaml' -Line $line
 
         .EXAMPLE

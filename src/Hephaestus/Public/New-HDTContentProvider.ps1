@@ -1,4 +1,4 @@
-function New-HDTContentProvider {
+﻿function New-HDTContentProvider {
     <#
         .SYNOPSIS
             Builds the IContentProvider a provider name asks for.
@@ -56,6 +56,7 @@ function New-HDTContentProvider {
             System.Management.Automation.PSCustomObject - an IContentProvider.
 
         .EXAMPLE
+            $credential = Get-Credential -UserName 'svc-hdt-deploy' -Message 'The deployment account'
             New-HDTContentProvider -Provider Local -Root 'D:\Share'
 
         .EXAMPLE

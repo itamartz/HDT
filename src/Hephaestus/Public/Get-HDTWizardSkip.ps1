@@ -1,4 +1,4 @@
-function Get-HDTWizardSkip {
+﻿function Get-HDTWizardSkip {
     <#
         .SYNOPSIS
             Resolves MDT's Skip* properties for the Welcome screen, from the
@@ -64,10 +64,18 @@ function Get-HDTWizardSkip {
             provenance for each rule).
 
         .EXAMPLE
-            $skip = Get-HDTWizardSkip -Bootstrap (Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json')
-            if (-not $skip.Welcome) { Show-HDTWizard -XamlPath $p -Pane $skip.Pane }
+            $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
+            $skip = Get-HDTWizardSkip -Bootstrap $bootstrap
 
-            The whole contract: ask first, and show only what is left to ask.
+            What the boot image was built to skip - MDT's SkipWizard family, decided
+            before the share is even reachable.
+
+        .EXAMPLE
+            if (-not $skip.Welcome) { @($skip.Pane) }
+
+            Ask first, show only what is left. A share that answers everything means no
+            screen at all, which is what an unattended deployment is.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

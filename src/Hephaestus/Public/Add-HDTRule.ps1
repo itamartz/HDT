@@ -1,4 +1,4 @@
-function Add-HDTRule {
+﻿function Add-HDTRule {
     <#
         .SYNOPSIS
             Adds a rule to a rules document, at a position the caller chooses,
@@ -73,6 +73,7 @@ function Add-HDTRule {
             System.String[] - the document with the rule added.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\rules.yaml'))
             Add-HDTRule -Line $line -Name 'Fallback naming' -Set @{ HDTComputerName = 'PC-%HDTSerialNumber%' }
 
             Appended at the end, where it can only act as a fallback.

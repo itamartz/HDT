@@ -80,8 +80,16 @@
         .EXAMPLE
             Copy-HDTResumeAgent -TargetVolume 'W:'
 
-            Stages W:\HDT\ from X:\HDT\, which becomes C:\HDT\ when the machine
-            boots.
+            Stages W:\HDT\ from X:\HDT\, which becomes C:\HDT\ when the machine boots.
+            X:\ is WinPE's RAM disk; nothing on it survives the restart, engine
+            included.
+
+        .EXAMPLE
+            $answer = Copy-HDTResumeAgent -TargetVolume 'W:'
+            @($answer.Copied).Count
+
+            How many files went across. The sequence resumes by running what this put
+            there, so a short copy is a deployment that stops at the reboot.
 
         .LINK
             Set-HDTAutoLogon

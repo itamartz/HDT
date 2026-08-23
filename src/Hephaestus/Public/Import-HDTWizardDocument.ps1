@@ -46,6 +46,8 @@
             Path - or nothing at all when the share declares no wizard.
 
         .EXAMPLE
+            $provider = New-HDTLocalContentProvider -Root 'C:\HDTLab\Share'
+            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
             $wizard = Import-HDTWizardDocument -Provider $provider
             if ($null -eq $wizard) { }   # no wizard on this share
 

@@ -1,4 +1,4 @@
-function New-HDTDiskLayoutPlan {
+﻿function New-HDTDiskLayoutPlan {
     <#
         .SYNOPSIS
             Turns a named disk layout and a disk size into the exact partitions
@@ -52,6 +52,8 @@ function New-HDTDiskLayoutPlan {
             DriveLetter, GptType, CreateGptType and IsActive.
 
         .EXAMPLE
+            $layout = Get-HDTDiskLayout -Name 'Standard UEFI'
+            $disk = @(Get-HDTDiskLayout)[0]
             New-HDTDiskLayoutPlan -Layout (Get-HDTDiskLayout -Name uefi-standard) -DiskSizeByte 68719476736
 
             The plan a 64 GiB lab VM gets: ESP 260 MB, Windows, recovery last.

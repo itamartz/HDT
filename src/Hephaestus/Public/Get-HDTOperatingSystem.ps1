@@ -67,6 +67,9 @@
               Edition, SizeBytes and Version.
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $root = 'C:\HDTLab\Share'
+            $id = 'Win11-LTSC-2024'
             Get-HDTOperatingSystem -WorkspaceRoot 'X:\Deploy' -Id 'Win11-LTSC-2024'
 
         .EXAMPLE

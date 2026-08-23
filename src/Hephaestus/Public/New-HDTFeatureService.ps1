@@ -1,4 +1,4 @@
-function New-HDTFeatureService {
+﻿function New-HDTFeatureService {
     <#
         .SYNOPSIS
             The real IFeatureService: a thin adapter over Get-WindowsFeature and
@@ -42,10 +42,17 @@ function New-HDTFeatureService {
 
         .EXAMPLE
             $feature = New-HDTFeatureService
-            $feature.GetFeature() | Where-Object { $_.InstallState -eq 'Available' }
+            $feature.GetFeature('Web-Server')
+
+            Whether a Windows Server role is installed. On a client SKU this reports
+            nothing rather than throwing - ServerManager is not there to ask, and
+            an InstallRoles step on a client is a failed step, not a crash.
 
         .EXAMPLE
-            $feature.InstallFeature([string[]] @('Web-Server'), $true, 'X:\Sources\SxS')
+            @($feature.GetOperationName())
+
+            What was asked of it, which is what Invoke-HDTInstallRolesStep's tests
+            assert on rather than installing a role.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds the service object; installing is done by the caller through it, and the step that calls it declares SupportsShouldProcess.')]

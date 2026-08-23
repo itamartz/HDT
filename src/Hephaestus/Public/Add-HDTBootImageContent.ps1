@@ -1,4 +1,4 @@
-function Add-HDTBootImageContent {
+﻿function Add-HDTBootImageContent {
     <#
         .SYNOPSIS
             Declares a folder or file to be copied into the boot image, leaving
@@ -61,6 +61,8 @@ function Add-HDTBootImageContent {
             System.String[] - the document with the entry added.
 
         .EXAMPLE
+            $path = 'Tools\VNC'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             Add-HDTBootImageContent -Line $line -Source 'Tools\BGInfo' -Destination '\HDT\Tools\BGInfo'
 
         .EXAMPLE

@@ -1,4 +1,4 @@
-function Get-HDTWizardSummary {
+﻿function Get-HDTWizardSummary {
     <#
         .SYNOPSIS
             Builds the summary page: what was chosen, which variable holds it,
@@ -57,12 +57,20 @@ function Get-HDTWizardSummary {
             Value, Variable, Skip, IsSet) and Snippet.
 
         .EXAMPLE
-            Get-HDTWizardSummary -Page $page -Value @{ HDTComputerName = 'HDT-01' }
+            $provider = New-HDTLocalContentProvider -Root 'C:\HDTLab\Share'
+            $wizard = Import-HDTWizardDocument -Provider $provider
+            $page = @($wizard.Page)[0]
+            $summary = Get-HDTWizardSummary -Page $page -Value @{ HDTComputerName = 'HDT-01' }
+
+            The last screen: what was chosen, and which variable each answer lands in.
 
         .EXAMPLE
-            (Get-HDTWizardSummary -Page $page -Value $chosen).Snippet
+            $summary.Snippet
 
-            The rules.yaml that makes this deployment unattended.
+            The rules.yaml that would make this same deployment unattended next time.
+            A technician who typed the same three answers on twenty machines is a
+            technician nobody gave that snippet to.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

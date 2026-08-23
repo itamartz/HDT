@@ -1,4 +1,4 @@
-function Install-HDTAdk {
+﻿function Install-HDTAdk {
     <#
         .SYNOPSIS
             Installs the Windows ADK and the Windows PE add-on - from Microsoft
@@ -69,15 +69,20 @@ function Install-HDTAdk {
             Action is Blocked, Instruction.
 
         .EXAMPLE
-            Install-HDTAdk
+            Install-HDTAdk -WhatIf
 
-            Installs from Microsoft if this machine can reach it.
+            Says what it would install and installs nothing. Worth asking first: this
+            is a multi-gigabyte download and two separate Microsoft installers.
 
         .EXAMPLE
-            (Install-HDTAdk -PayloadPath 'D:\ADKoffline').Instruction
+            $plan = Install-HDTAdk -PayloadPath 'D:\ADKoffline'
+            $plan.Instruction
 
-            On an airgapped machine with nothing staged, prints what IT has to
-            fetch and where to put it.
+            From a staged payload instead of from Microsoft, which is what a build host
+            with no route out needs. Instruction says what to do when it cannot
+            proceed - a machine that can reach neither is told so, not left
+            waiting.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     [OutputType([pscustomobject])]

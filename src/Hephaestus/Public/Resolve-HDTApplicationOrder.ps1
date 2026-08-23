@@ -1,4 +1,4 @@
-function Resolve-HDTApplicationOrder {
+﻿function Resolve-HDTApplicationOrder {
     <#
         .SYNOPSIS
             Turns an application catalog and a selection into the ordered install
@@ -60,6 +60,10 @@ function Resolve-HDTApplicationOrder {
             applications and their transitive dependencies, dependencies first.
 
         .EXAMPLE
+            $root = 'C:\HDTLab\Share'
+            $fs = New-HDTFileSystem
+            $catalog = @(Get-HDTApplication -WorkspaceRoot $root -FileSystem $fs)
+            $context = @('Igor-Pavlov-7-Zip-24.09')
             Resolve-HDTApplicationOrder -Application $catalog -Id 'Contoso-Suite'
 
         .EXAMPLE

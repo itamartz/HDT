@@ -1,4 +1,4 @@
-function Get-HDTWizardSequence {
+﻿function Get-HDTWizardSequence {
     <#
         .SYNOPSIS
             The task sequences this share actually carries, as rows the wizard's
@@ -67,6 +67,12 @@ function Get-HDTWizardSequence {
             Description, Text), Selected, Problem and Field.
 
         .EXAMPLE
+            $root = 'C:\HDTLab\Share'
+            $fs = New-HDTFileSystem
+            $title = 'Task Sequence'
+            $field = @()
+            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $ask = Get-HDTWizardPage -Page @() -Variable $resolved.Variable
             Get-HDTWizardSequence -WorkspaceRoot 'Z:\Deploy'
 
         .EXAMPLE

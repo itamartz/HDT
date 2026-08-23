@@ -1,4 +1,4 @@
-function Set-HDTBootImageBackground {
+﻿function Set-HDTBootImageBackground {
     <#
         .SYNOPSIS
             Names the image WinPE shows behind everything.
@@ -14,7 +14,7 @@ function Set-HDTBootImageBackground {
             WinPE READS ONE FILE AND IT IS A JPEG. The background is
             \Windows\System32\winpe.jpg inside the image; the build copies
             whatever is named here over that path, under that name. A .png or a
-            .bmp would be carried into the image and never shown - a build that
+            a .bmp would be carried into the image and never shown - a build
             succeeds and a background that does not appear, which is the worst
             way to learn the rule - so the extension is refused here, at the
             moment somebody types it.
@@ -34,7 +34,7 @@ function Set-HDTBootImageBackground {
         .PARAMETER Path
             The image. Branding\winpe.jpg is read relative to the share;
             C:\Branding\winpe.jpg is read from there. It must be a .jpg or a
-            .jpeg.
+            or .jpeg.
 
         .PARAMETER Clear
             Build the image with the WinPE background Microsoft ships. The key
@@ -47,12 +47,19 @@ function Set-HDTBootImageBackground {
             System.String[] - the workspace.yaml lines, spliced.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             $line = Set-HDTBootImageBackground -Line $line -Path 'C:\HDTLab\Branding\winpe.jpg'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            The picture WinPE shows behind everything. The next Update-HDTBootImage is
+            what puts it in the image.
 
         .EXAMPLE
-            Set-HDTBootImageBackground -Line $line -Clear
+            $line = Set-HDTBootImageBackground -Line $line -Clear
 
-            Back to the WinPE default.
+            Back to the WinPE default. -Clear and -Path are the same decision written
+            two ways, so one of them has to be given.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, DefaultParameterSetName = 'File')]
     [OutputType([string[]])]

@@ -1,4 +1,4 @@
-function New-HDTScriptInvoker {
+﻿function New-HDTScriptInvoker {
     <#
         .SYNOPSIS
             Creates the real IScriptInvoker adapter, which runs a setFrom: script
@@ -60,8 +60,16 @@ function New-HDTScriptInvoker {
             $invoker = New-HDTScriptInvoker -Root 'C:\HDTLab\Share'
             $invoker.Invoke('Scripts\Get-ComputerName.ps1', @{ HDTSerialNumber = 'FIXTURE-SERIAL-0001' })
 
-            Runs a setFrom: script against the variables resolved so far and
-            returns the object it emitted.
+            Runs a setFrom: script against the variables resolved so far and returns
+            what it emitted. This is how a rule computes a value the engine has no
+            way to know.
+
+        .EXAMPLE
+            @($invoker.GetOperationName())
+
+            Which scripts ran. A script is user code on the share, so what it was asked
+            to run is recorded whether or not it worked.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

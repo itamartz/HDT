@@ -1,4 +1,4 @@
-function Invoke-HDTStep {
+﻿function Invoke-HDTStep {
     <#
         .SYNOPSIS
             Dispatches one step to the Invoke-HDT<Type>Step function that
@@ -41,8 +41,28 @@ function Invoke-HDTStep {
             The step's New-HDTStepResult, unchanged.
 
         .EXAMPLE
-            $registry = Get-HDTStepType
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
+                -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step)[0]
+            Invoke-HDTStep -Step $step -Context $context
+
+            Dispatches one step to the Invoke-HDT<Type>Step function that implements
+            it, found by name. A type nothing implements is a failed step, not a
+            crash - the loop decides what a failed step means.
+
+        .EXAMPLE
+            $registry = @(Get-HDTStepType)
             Invoke-HDTStep -Step $step -Context $context -StepType $registry
+
+            The same call with the registry passed in. That is how a step type shipped
+            in its own module under Modules\ gets run: it is discovered by name,
+            not listed anywhere in this one.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

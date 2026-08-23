@@ -58,9 +58,26 @@
             System.Management.Automation.PSCustomObject.
 
         .EXAMPLE
-            $context = New-HDTExecutionContext -RunId $runId -Phase WinPE `
-                -WorkspaceRoot 'X:\Deploy' -Variable $variable -Service $catalog -Log $log
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
+                -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
+
+            What every step is handed: the variables resolved so far, the services it
+            may touch the machine through, and somewhere to write. A step reaches
+            hardware only through the catalogue, which is what lets the whole
+            engine run under Pester against fakes.
+
+        .EXAMPLE
             $context.SetStep(3, 'Apply OS', 'ApplyImage')
+            $context.Variable['HDTStage'] = 'install'
+
+            Which step is running, for every record written from here on, and the
+            variable bag a SetVariable step writes into. The same dictionary the
+            rules resolved into - a step sees what the rules decided.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory context object; it performs no I/O.')]

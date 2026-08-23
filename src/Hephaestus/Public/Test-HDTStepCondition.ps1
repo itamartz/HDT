@@ -1,4 +1,4 @@
-function Test-HDTStepCondition {
+﻿function Test-HDTStepCondition {
     <#
         .SYNOPSIS
             Evaluates a step or group condition against the resolved variables.
@@ -50,6 +50,8 @@ function Test-HDTStepCondition {
             System.Boolean
 
         .EXAMPLE
+            $context = [pscustomobject] @{ Variable = [ordered] @{ HDTIsUefi = $true } }
+            $v = $context.Variable
             Test-HDTStepCondition -Condition '"%_HDTPhase%" == "FullOS"' -Variable $context.Variable
 
             The phase condition. _HDTPhase is WinPE or FullOS, never "OS".

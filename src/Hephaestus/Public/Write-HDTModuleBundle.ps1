@@ -1,4 +1,4 @@
-function Write-HDTModuleBundle {
+﻿function Write-HDTModuleBundle {
     <#
         .SYNOPSIS
             Concatenates the module's sources into one file, so importing it
@@ -44,12 +44,21 @@ function Write-HDTModuleBundle {
             Length.
 
         .EXAMPLE
-            Write-HDTModuleBundle -ModuleRoot 'src/Hephaestus'
+            Write-HDTModuleBundle -ModuleRoot 'C:\Users\Itamartz\Documents\GithubRepos\HDT\src\Hephaestus'
+
+            Concatenates every source file into Hephaestus.bundle.ps1, which is the one
+            file the module loads. Dot-sourcing the sources costs a second longer,
+            and that second is what somebody watches nothing happen for after
+            Start-HDTConsole -Detach.
 
         .EXAMPLE
-            ./build.ps1 -Task bundle
+            $bundle = Write-HDTModuleBundle -ModuleRoot 'C:\Users\Itamartz\Documents\GithubRepos\HDT\src\Hephaestus'
+            $bundle.SourceCount
 
-            What CI and the package task run.
+            How many files went into it. The bundle is generated and never
+            committed; ./build.ps1 -Task bundle is what runs this deliberately,
+            and the module rebuilds it itself when a source is newer.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Writes one generated build artefact into the module folder it was handed; it is not a state change an administrator needs protecting from, and the build calls it unattended.')]

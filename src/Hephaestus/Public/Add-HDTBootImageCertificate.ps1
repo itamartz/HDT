@@ -1,4 +1,4 @@
-function Add-HDTBootImageCertificate {
+﻿function Add-HDTBootImageCertificate {
     <#
         .SYNOPSIS
             Declares a certificate authority the boot image is to trust.
@@ -40,7 +40,18 @@ function Add-HDTBootImageCertificate {
             System.String[] - the workspace.yaml lines, spliced.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             $line = Add-HDTBootImageCertificate -Line $line -Path 'Certs\contoso-root.cer'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Trusts a certificate authority in the boot image. The next
+            Update-HDTBootImage is what puts it there.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'contoso-root' })
+
+            The one line the edit added. Everything else in workspace.yaml - the
+            comments included - is byte for byte what it was.
 
         .LINK
             Set-HDTBootImageClientCertificate

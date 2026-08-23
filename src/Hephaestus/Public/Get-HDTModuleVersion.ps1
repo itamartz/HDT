@@ -1,4 +1,4 @@
-function Get-HDTModuleVersion {
+﻿function Get-HDTModuleVersion {
     <#
         .SYNOPSIS
             Returns the version of the loaded Hephaestus module.
@@ -21,12 +21,16 @@ function Get-HDTModuleVersion {
         .EXAMPLE
             Get-HDTModuleVersion
 
-            Returns the module version, for example 0.1.0.
+            The version in the manifest, which is the one number every artefact this
+            build produces is stamped with.
 
         .EXAMPLE
-            "Engine {0}" -f (Get-HDTModuleVersion)
+            $version = Get-HDTModuleVersion
+            'HDT {0}' -f $version
 
-            Formats the engine version for a log line.
+            What the console's title bar and every log header carry, so a support
+            question comes with the build that produced it.
+
     #>
     [CmdletBinding()]
     [OutputType([version])]

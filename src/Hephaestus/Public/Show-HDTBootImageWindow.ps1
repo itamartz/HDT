@@ -56,7 +56,16 @@
         .EXAMPLE
             Show-HDTBootImageWindow -Path 'C:\HDTLab\Share\workspace.yaml'
 
+            The boot image settings, as a window rather than seventeen Set- commands.
+            It edits workspace.yaml in lines, so the comments survive.
+
         .EXAMPLE
+            $answer = Show-HDTBootImageWindow -Path 'C:\HDTLab\Share\workspace.yaml'
+            if ($answer.Action -eq 'Build') { Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' }
+
+            Saving the settings and building the image are two decisions. The window
+            reports which one was made and builds nothing itself.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

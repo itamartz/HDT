@@ -1,4 +1,4 @@
-function Get-HDTStringTable {
+﻿function Get-HDTStringTable {
     <#
         .SYNOPSIS
             The text a window shows, read from a file rather than from its
@@ -9,7 +9,7 @@ function Get-HDTStringTable {
             XAML. Changing a sentence meant editing a window; translating one
             meant forking it; and a string that appeared in two windows was two
             strings that drifted apart. This is the table they move into: one
-            .psd1 per culture in the module's Strings folder, keyed by the
+            one .psd1 per culture in the module's Strings folder, keyed by the
             control it belongs to.
 
             ONE BLOCK PER WINDOW, AND THE KEY INSIDE IT IS Control.Property.

@@ -1,4 +1,4 @@
-function Remove-HDTBootImageCertificate {
+﻿function Remove-HDTBootImageCertificate {
     <#
         .SYNOPSIS
             Stops the boot image trusting a certificate authority.
@@ -29,7 +29,18 @@ function Remove-HDTBootImageCertificate {
             System.String[] - the workspace.yaml lines, spliced.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             $line = Remove-HDTBootImageCertificate -Line $line -Path 'Certs\contoso-root.cer'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Stops trusting it. A path the document does not list is not an error:
+            the document already says what this was asked to make it say.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match 'contoso-root' }).Count
+
+            Zero. The certificate file itself is untouched - this edits the list,
+            not the store.
 
         .LINK
             Add-HDTBootImageCertificate

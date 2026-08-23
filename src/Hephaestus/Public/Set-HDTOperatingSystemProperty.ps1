@@ -45,9 +45,18 @@
             System.String[] - the document, spliced.
 
         .EXAMPLE
-            $line = [string[]] @((Get-Content -Raw $path) -split "`r?`n")
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\OperatingSystems\Win11-LTSC-2024\os.yaml'))
             $line = Set-HDTOperatingSystemProperty -Line $line -Name 'Windows 11 LTSC 2024'
-            Save-HDTOperatingSystemDocument -Path $path -Line $line
+            Save-HDTOperatingSystemDocument -Path 'C:\HDTLab\Share\OperatingSystems\Win11-LTSC-2024\os.yaml' -Line $line
+
+            Renames what an administrator reads in the console. The id is untouched -
+            that is the folder name and what every task sequence names.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match '^name:' })
+
+            The one line that changed. Everything else in os.yaml, comments included, is
+            byte for byte what it was.
 
         .LINK
             Save-HDTOperatingSystemDocument

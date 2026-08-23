@@ -1,4 +1,4 @@
-function Save-HDTSequenceDocument {
+﻿function Save-HDTSequenceDocument {
     <#
         .SYNOPSIS
             Writes an edited task sequence document back to the share, after
@@ -44,7 +44,19 @@ function Save-HDTSequenceDocument {
             StepCount and GroupCount.
 
         .EXAMPLE
-            Save-HDTSequenceDocument -Path $path -Line $line
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
+            $line = Move-HDTStep -Line $line -Name 'Apply OS' -Direction Down
+            Save-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml' -Line $line
+
+            The read, the edit and the write. The comments and the order of everything
+            the edit did not touch survive, which is the whole reason these
+            commands work in lines.
+
+        .EXAMPLE
+            Save-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml' -Line $line -WhatIf
+
+            Describes the write and touches nothing.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([pscustomobject])]

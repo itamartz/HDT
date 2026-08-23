@@ -1,4 +1,4 @@
-function Get-HDTLogDestination {
+﻿function Get-HDTLogDestination {
     <#
         .SYNOPSIS
             Where this run's logs are copied to - MDT's SLShare, or the deploy
@@ -53,6 +53,9 @@ function Get-HDTLogDestination {
             ('HDTSLShare', 'DeployRoot' or 'None').
 
         .EXAMPLE
+            $workspaceRoot = 'C:\HDTLab\Share'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
+            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
             Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable
 
         .EXAMPLE

@@ -1,4 +1,4 @@
-function Update-HDTModuleVersion {
+﻿function Update-HDTModuleVersion {
     <#
         .SYNOPSIS
             Bumps ModuleVersion in Hephaestus.psd1 when the module's sources have
@@ -56,13 +56,18 @@ function Update-HDTModuleVersion {
             PreviousVersion, Reason and FileCount.
 
         .EXAMPLE
-            Update-HDTModuleVersion -ModuleRoot 'src/Hephaestus'
+            Update-HDTModuleVersion -ModuleRoot 'C:\Users\Itamartz\Documents\GithubRepos\HDT\src\Hephaestus'
+
+            Counts the source files and writes the version the manifest declares. It is
+            derived, not typed: a hand-edited version is one that disagrees with
+            what shipped.
 
         .EXAMPLE
-            ./build.ps1 -Task version
+            Update-HDTModuleVersion -ModuleRoot 'C:\Users\Itamartz\Documents\GithubRepos\HDT\src\Hephaestus' -WhatIf
 
-            What the build and CI run, before the bundle is written and before
-            the module is staged into out/<version>.
+            Says what it would write. ./build.ps1 -Task version is what runs this
+            deliberately.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]

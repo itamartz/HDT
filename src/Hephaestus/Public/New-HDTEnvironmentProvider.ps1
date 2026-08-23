@@ -1,4 +1,4 @@
-function New-HDTEnvironmentProvider {
+﻿function New-HDTEnvironmentProvider {
     <#
         .SYNOPSIS
             Creates the real IEnvironmentProvider adapter over the process
@@ -36,8 +36,15 @@ function New-HDTEnvironmentProvider {
             $environment = New-HDTEnvironmentProvider
             $environment.GetVariable('firmware_type')
 
-            Returns 'UEFI' on a UEFI machine, which is what HDTIsUEFI is derived
-            from.
+            How the engine learns whether it booted UEFI or BIOS. It reads the
+            environment through an adapter so a fixture can say 'BIOS' on a
+            machine that is not one.
+
+        .EXAMPLE
+            @($environment.GetOperationName())
+
+            Which variables were read. A fact nobody asked for is a fact the gather
+            should not be reporting.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

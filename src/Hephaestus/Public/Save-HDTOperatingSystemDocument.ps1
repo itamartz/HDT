@@ -1,4 +1,4 @@
-function Save-HDTOperatingSystemDocument {
+﻿function Save-HDTOperatingSystemDocument {
     <#
         .SYNOPSIS
             Writes an os.yaml back to the share, after checking it.
@@ -36,7 +36,19 @@ function Save-HDTOperatingSystemDocument {
             System.String - the path written.
 
         .EXAMPLE
-            Save-HDTOperatingSystemDocument -Path $path -Line $line
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\OperatingSystems\Win11-LTSC-2024\os.yaml'))
+            $line = Set-HDTOperatingSystemProperty -Line $line -Name 'Windows 11 LTSC 2024'
+            Save-HDTOperatingSystemDocument -Path 'C:\HDTLab\Share\OperatingSystems\Win11-LTSC-2024\os.yaml' -Line $line
+
+            Writes the lines back. Every editor in this module hands back lines rather
+            than a document, and this is what puts them on disk.
+
+        .EXAMPLE
+            Save-HDTOperatingSystemDocument -Path 'C:\HDTLab\Share\OperatingSystems\Win11-LTSC-2024\os.yaml' -Line $line -WhatIf
+
+            Says what it would write and writes nothing. The write is atomic - a
+            temporary file, then a move - so an interrupted save cannot leave a
+            half-written os.yaml behind.
 
         .LINK
             Set-HDTOperatingSystemProperty

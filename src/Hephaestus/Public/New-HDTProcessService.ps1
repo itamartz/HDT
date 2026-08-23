@@ -1,4 +1,4 @@
-function New-HDTProcessService {
+﻿function New-HDTProcessService {
     <#
         .SYNOPSIS
             Creates the real IProcessService adapter, which starts a native
@@ -40,7 +40,17 @@ function New-HDTProcessService {
 
         .EXAMPLE
             $process = New-HDTProcessService
-            $process.Start('cmd.exe', '/c echo hello', '', 30000)
+            $process.Start('cmd.exe', '/c ver', $null, 0)
+
+            Runs something and hands back its exit code. The engine never calls
+            Start-Process itself: a step that shelled out directly could not be
+            tested without running the thing it shells out to.
+
+        .EXAMPLE
+            @($process.GetOperationName())
+
+            The commands this service was asked to run, in order. A test asserts on
+            that list instead of on what happened to the machine.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

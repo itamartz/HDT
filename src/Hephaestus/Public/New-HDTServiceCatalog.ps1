@@ -1,4 +1,4 @@
-function New-HDTServiceCatalog {
+﻿function New-HDTServiceCatalog {
     <#
         .SYNOPSIS
             Builds the injected service catalog a step reaches the outside world
@@ -100,6 +100,8 @@ function New-HDTServiceCatalog {
             properties and a GetRequired ScriptMethod.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $fs = New-HDTFileSystem
             $catalog = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock (New-HDTClock)
 
             The smallest catalog that runs a NoOp sequence.

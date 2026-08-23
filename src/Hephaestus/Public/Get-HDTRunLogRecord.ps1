@@ -1,4 +1,4 @@
-function Get-HDTRunLogRecord {
+﻿function Get-HDTRunLogRecord {
     <#
         .SYNOPSIS
             Reads a run's JSONL back into records.
@@ -32,8 +32,22 @@ function Get-HDTRunLogRecord {
             first. An empty array when there is nothing to read.
 
         .EXAMPLE
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock (New-HDTClock)
             $record = Get-HDTRunLogRecord -Context $log
-            Get-HDTDeploymentProgress -Record $record
+            @($record).Count
+
+            Every record this run wrote, oldest first. An empty array when there
+            is nothing to read - a run that died before the log context existed
+            has nothing, and throwing there would replace the real failure with
+            this command's own.
+
+        .EXAMPLE
+            @($record | Where-Object { $_.Event -like 'step.*' }) |
+                ForEach-Object { '{0} {1}' -f $_.Event, $_.Message }
+
+            Just the step events, which is the same stream the progress window
+            and the failure window are both derived from.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject[]])]

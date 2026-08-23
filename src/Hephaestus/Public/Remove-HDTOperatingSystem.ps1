@@ -1,4 +1,4 @@
-function Remove-HDTOperatingSystem {
+﻿function Remove-HDTOperatingSystem {
     <#
         .SYNOPSIS
             Removes an imported operating system from a deployment share.
@@ -50,7 +50,18 @@ function Remove-HDTOperatingSystem {
             UsedBy - the ids of the task sequences that named it.
 
         .EXAMPLE
-            Remove-HDTOperatingSystem -Workspace 'C:\HDTLab\Share' -Id 'WS2025-Std'
+            Remove-HDTOperatingSystem -Workspace 'C:\HDTLab\Share' -Id 'WS2025-Std' -WhatIf
+
+            Describes what it would remove, including which task sequences name it, and
+            deletes nothing. Worth running first: this takes the source tree with
+            it, and that is gigabytes somebody staged.
+
+        .EXAMPLE
+            $answer = Remove-HDTOperatingSystem -Workspace 'C:\HDTLab\Share' -Id 'WS2025-Std' -WhatIf
+            @($answer.UsedBy)
+
+            The task sequences that would break. The removal is refused while anything
+            still names it, rather than leaving a sequence pointing at nothing.
 
         .LINK
             Import-HDTOperatingSystem

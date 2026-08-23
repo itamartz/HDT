@@ -1,4 +1,4 @@
-function Test-HDTApplicationDetection {
+﻿function Test-HDTApplicationDetection {
     <#
         .SYNOPSIS
             Answers whether an application's detection rule says it is already
@@ -81,6 +81,10 @@ function Test-HDTApplicationDetection {
             System.Boolean. $true when the application is already installed.
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $registry = New-HDTRegistryService
+            $app = @(Get-HDTApplication -WorkspaceRoot 'C:\HDTLab\Share')[0]
+            $context = [pscustomobject] @{ Variable = [ordered] @{} }
             Test-HDTApplicationDetection -Detect $app.Detect -Registry $registry
 
         .EXAMPLE

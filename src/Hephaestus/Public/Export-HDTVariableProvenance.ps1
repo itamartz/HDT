@@ -1,4 +1,4 @@
-function Export-HDTVariableProvenance {
+﻿function Export-HDTVariableProvenance {
     <#
         .SYNOPSIS
             Writes a resolution's provenance to Gather\provenance.json.
@@ -48,8 +48,18 @@ function Export-HDTVariableProvenance {
             None.
 
         .EXAMPLE
-            Export-HDTVariableProvenance -Resolution $result `
-                -Path (Join-Path $logPath 'Gather\provenance.json')
+            $resolution = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            Export-HDTVariableProvenance -Resolution $resolution -Path 'X:\HDT\Logs\Gather\provenance.json'
+
+            Not just what each variable ended up as, but which of the five sources set
+            it and which rule won. That is the question somebody actually has
+            when a machine comes out named wrong.
+
+        .EXAMPLE
+            Export-HDTVariableProvenance -Resolution $resolution -Path 'X:\HDT\Logs\Gather\provenance.json' -WhatIf
+
+            Names the file and writes nothing.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]

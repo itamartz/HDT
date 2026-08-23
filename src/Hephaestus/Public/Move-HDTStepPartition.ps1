@@ -1,4 +1,4 @@
-function Move-HDTStepPartition {
+﻿function Move-HDTStepPartition {
     <#
         .SYNOPSIS
             Moves a partition one place up or down a step's table.
@@ -40,7 +40,18 @@ function Move-HDTStepPartition {
             System.String[] - the document's lines, spliced.
 
         .EXAMPLE
-            Move-HDTStepPartition -Line $line -Name 'Format and Partition' -Partition 'System' -Direction Up
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
+            $line = Move-HDTStepPartition -Line $line -Name 'Format and Partition Disk (UEFI)' -Partition 'System' -Direction Up
+            Save-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml' -Line $line
+
+            Moves one volume earlier in a partition step's layout.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match '^\s*name:' })
+
+            The order the volumes will be created in, which is the order they get
+            their drive letters.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     [OutputType([string[]])]

@@ -64,8 +64,19 @@
 
         .EXAMPLE
             $smb = New-HDTSmbService
-            $content = New-HDTSmbContentProvider -Root '\\server\HdtShare' -Credential $credential -SmbService $smb
+            $content = New-HDTSmbContentProvider -Root '\\LAP-AMMSO01\HDTShare$' `
+                -Credential (Get-Credential) -SmbService $smb
             $content.Connect()
+
+            How WinPE reaches the deployment share: an authenticated SMB connection,
+            made once, that every read afterwards goes through.
+
+        .EXAMPLE
+            @($smb.GetOperationName())
+
+            What it was asked to do. The engine never calls net use itself - a step that
+            did could not be tested without a share to connect to.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

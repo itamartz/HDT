@@ -1,4 +1,4 @@
-function Get-HDTVariableProvenance {
+﻿function Get-HDTVariableProvenance {
     <#
         .SYNOPSIS
             Returns the provenance records of a resolution, optionally filtered by
@@ -33,6 +33,7 @@ function Get-HDTVariableProvenance {
             Name, Value, Source, Rule, RuleIndex, File, RawValue, Expanded, Order.
 
         .EXAMPLE
+            $result = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
             Get-HDTVariableProvenance -Resolution $result |
                 Format-Table Order, Name, Value, Source, Rule -AutoSize
 

@@ -1,4 +1,4 @@
-function Resolve-HDTImageIndex {
+﻿function Resolve-HDTImageIndex {
     <#
         .SYNOPSIS
             Chooses the one image to apply, or refuses to choose.
@@ -61,6 +61,7 @@ function Resolve-HDTImageIndex {
             System.Management.Automation.PSCustomObject - the single image row.
 
         .EXAMPLE
+            $catalog = Get-HDTOperatingSystem -WorkspaceRoot 'C:\HDTLab\Share' -Id 'Win11-LTSC-2024'
             Resolve-HDTImageIndex -Image $catalog.Images -Edition EnterpriseS
 
             The Windows 11 Enterprise LTSC index, without depending on the

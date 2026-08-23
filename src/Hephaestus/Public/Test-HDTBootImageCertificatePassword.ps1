@@ -1,4 +1,4 @@
-function Test-HDTBootImageCertificatePassword {
+﻿function Test-HDTBootImageCertificatePassword {
     <#
         .SYNOPSIS
             Whether a password has been stored for the machine certificate.
@@ -27,6 +27,17 @@ function Test-HDTBootImageCertificatePassword {
 
         .EXAMPLE
             Test-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share'
+
+            True when the stored password opens the .pfx the document names. It opens
+            the file to find out - a password that is merely present proves
+            nothing.
+
+        .EXAMPLE
+            $answer = Test-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share'
+            if (-not $answer) { 'set it again before building' }
+
+            False covers three cases and does not distinguish them: no password stored,
+            the wrong one, or no .pfx named in the first place.
 
         .LINK
             Set-HDTBootImageCertificatePassword

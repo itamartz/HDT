@@ -1,4 +1,4 @@
-function New-HDTConsoleBootStatusHost {
+﻿function New-HDTConsoleBootStatusHost {
     <#
         .SYNOPSIS
             The IBootStatusHost for a machine that cannot draw the overlay: it
@@ -32,11 +32,18 @@ function New-HDTConsoleBootStatusHost {
             so callers cannot tell them apart.
 
         .EXAMPLE
-            $status = Start-HDTBootStatus -XamlPath $p
-            $status.StatusHost.Write($line)
+            $statusHost = New-HDTConsoleBootStatusHost
+            $statusHost.Open('Starting the deployment')
 
-            Draws a line in the overlay on a machine that has one, and does
-            nothing on a machine whose console is still showing it.
+            The full-screen panel WinPE shows before the wizard, so a machine that
+            looks like it is doing nothing can say what it is waiting for.
+
+        .EXAMPLE
+            $statusHost.Write('Reading the deployment share')
+            $statusHost.Close()
+
+            A line at a time, then gone. Start-HDTBootStatus builds this host itself;
+            an administrator never types it.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

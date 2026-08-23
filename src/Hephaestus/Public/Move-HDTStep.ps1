@@ -46,7 +46,18 @@
             System.String[] - the document with the block moved.
 
         .EXAMPLE
-            Move-HDTStep -Line $line -Name 'Apply OS' -Direction Down
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
+            $line = Move-HDTStep -Line $line -Name 'Apply OS' -Direction Down
+            Save-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml' -Line $line
+
+            Moves a step one place later in the sequence.
+
+        .EXAMPLE
+            @($line | Where-Object { $_ -match '^\s*- name:' })
+
+            The order the engine will run them in. A step at the end of its group
+            does not move out of it - a group is a boundary, not a suggestion.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Low')]
     [OutputType([string[]])]

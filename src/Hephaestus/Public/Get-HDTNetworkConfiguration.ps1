@@ -1,4 +1,4 @@
-function Get-HDTNetworkConfiguration {
+﻿function Get-HDTNetworkConfiguration {
     <#
         .SYNOPSIS
             Reads the machine's current IPv4 configuration - the DHCP lease, or
@@ -42,6 +42,17 @@ function Get-HDTNetworkConfiguration {
         .EXAMPLE
             $network = Get-HDTNetworkConfiguration
             if ($network.HasLease) { $network.IPAddress }
+
+            The address this machine can be reached on, or nothing when there is no
+            lease yet.
+
+        .EXAMPLE
+            $network.Adapter | ForEach-Object { '{0} {1}' -f $_.Name, $_.Status }
+
+            Every adapter and what it is doing. A machine that looks connected and can
+            reach nothing is the case worth catching here - an APIPA address is
+            not an address.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

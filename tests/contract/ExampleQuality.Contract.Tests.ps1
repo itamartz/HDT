@@ -76,37 +76,43 @@ BeforeAll {
         }
     }
 
-    # AN EXAMPLE IS CODE, THEN A REMARK. The remark is the last blank-line block
-    # and it is prose; everything before it is what somebody would paste. Only
-    # the trailing block is dropped, and only when it names no command and
-    # assigns nothing - so a two-part snippet keeps both parts.
+    # AN EXAMPLE IS CODE FIRST, THEN COMMENTARY.
     $script:codeIn = {
         param([string] $Example)
 
-        $block = @(($Example -replace "`r`n", "`n") -split "`n`n" |
-                Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
-        if (@($block).Count -eq 0) { return '' }
+        # AN EXAMPLE IS CODE FIRST, THEN COMMENTARY. Take the leading run of blocks
+        # that both parse as PowerShell and look like code - a call, an assignment,
+        # a pipeline. Stop at the first that does not: that is the remark, or the
+        # output the author pasted underneath, and neither is something to run.
+        $block = @((($Example -replace "`r`n", "`n") -split "`n`n") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 
-        $last = @($block)[-1]
-        $isCode = $false
-
-        foreach ($line in ($last -split "`n")) {
-            if ($line -match '[A-Za-z]+-HDT[A-Za-z0-9]*' -or
-                $line -match '\$[A-Za-z_][A-Za-z0-9_]*' -or
-                $line -match '^\s*(&|if|foreach|while|switch|try|\[|@\()') {
-                $isCode = $true
-                break
+        $code = @()
+        foreach ($piece in $block) {
+            $isCode = $false
+            foreach ($line in ($piece -split "`n")) {
+                # ANCHORED AT THE START OF THE LINE. A remark that mentions a command
+                # by name - "a test passes New-HDTFakeFileSystem instead" - is prose,
+                # and reading it as code makes the sentence a finding.
+                if ($line -match '^\s*[A-Za-z]+-[A-Za-z][A-Za-z0-9]*(\s|$)' -or
+                    $line -match '^\s*\$[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*\s*=' -or
+                    $line -match '^\s*\$[A-Za-z_][A-Za-z0-9_]*' -or
+                    $line -match '^\s*(&|if|foreach|while|switch|try|\[void\]|@?\()') {
+                    $isCode = $true
+                    break
+                }
             }
+            if (-not $isCode) { break }
+
+            $t = $null
+            $e = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseInput($piece, [ref] $t, [ref] $e)
+            if (@($e).Count -gt 0) { break }
+
+            $code += $piece
         }
 
-        if (-not $isCode -and @($block).Count -gt 1) {
-            $block = @($block)[0..(@($block).Count - 2)]
-        } elseif (-not $isCode) {
-            return ''
-        }
-
-        return ((@($block) -join "`n").Trim())
+        return ((@($code) -join "`n").Trim())
     }
 
     $script:exampleOf = {
@@ -162,14 +168,7 @@ BeforeAll {
     }
 }
 
-# SKIPPED WHILE THE EXAMPLES ARE BEING WRITTEN, and not a moment longer. The
-# rules below are settled and the counts are real: 74 commands still carry fewer
-# than two examples, 199 examples still name a variable that arrives from
-# nowhere, 8 name a parameter or a command nobody can call. Committing it red
-# would put a red gate in front of every other change in the repository;
-# committing it green would mean weakening it until it said nothing. Remove
-# -Skip when the count reaches zero - that is the whole point of it existing.
-Describe 'Example quality contract' -Skip {
+Describe 'Example quality contract' {
 
     It 'has commands to check in the first place' {
         # Anti-vacuity guard, the same one the naming contract carries.

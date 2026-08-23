@@ -1,4 +1,4 @@
-function Set-HDTBootImageCertificatePassword {
+﻿function Set-HDTBootImageCertificatePassword {
     <#
         .SYNOPSIS
             Writes the password of the boot image's machine certificate.
@@ -47,8 +47,17 @@ function Set-HDTBootImageCertificatePassword {
             None. A cmdlet that echoed the password would put it in a transcript.
 
         .EXAMPLE
-            Set-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share' `
-                -Password (Get-Credential -UserName certificate -Message 'The .pfx password').Password
+            $secure = (Get-Credential -UserName certificate -Message 'The .pfx password').Password
+            Set-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share' -Password $secure
+
+            Stores the .pfx password beside the share rather than in workspace.yaml,
+            which is a file that gets copied, diffed and mailed about.
+
+        .EXAMPLE
+            Test-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share'
+
+            Whether what is stored actually opens the .pfx the document names. Worth
+            asking before a build rather than after a boot.
 
         .LINK
             Set-HDTBootImageClientCertificate

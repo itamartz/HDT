@@ -1,4 +1,4 @@
-function New-HDTBootIso {
+﻿function New-HDTBootIso {
     <#
         .SYNOPSIS
             Builds a bootable ISO from a WinPE media tree with oscdimg, staging
@@ -107,6 +107,8 @@ function New-HDTBootIso {
             Sha256, Firmware, NoPromptForKey, Label and MediaRoot.
 
         .EXAMPLE
+            $media = 'C:\HDTLab\Share\Boot\media'
+            $iso = 'C:\HDTLab\Share\Boot\HDTPE_x64.iso'
             New-HDTBootIso -MediaRoot 'C:\HDTLab\scratch\bootimage\work\media' `
                 -Path 'C:\HDTLab\Share\Boot\HDTPE_x64.iso' -NoPromptForKey
 

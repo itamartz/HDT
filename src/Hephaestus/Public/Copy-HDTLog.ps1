@@ -1,4 +1,4 @@
-function Copy-HDTLog {
+﻿function Copy-HDTLog {
     <#
         .SYNOPSIS
             Copies the log directory back to the share, on phase end and on
@@ -44,9 +44,22 @@ function Copy-HDTLog {
             when the copy failed.
 
         .EXAMPLE
-            Copy-HDTLog -Context $context -Destination '\\share\Logs' -ComputerName $computerName
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            Copy-HDTLog -Context $log -Destination '\\LAP-AMMSO01\HDTShare$\Logs' -ComputerName 'PC-0001'
 
-            \\share\Logs\PC-0001-8f3c1a90, with the whole log tree inside it.
+            Copies the whole log tree to the share under a folder named for the
+            machine and the run, so two deployments of the same machine do not
+            overwrite each other.
+
+        .EXAMPLE
+            $answer = Copy-HDTLog -Context $log -Destination '\\LAP-AMMSO01\HDTShare$\Logs' -ComputerName 'PC-0001'
+            $answer.Path
+
+            Where they landed. A share that cannot be reached is reported rather than
+            thrown: losing the logs must not fail a deployment that worked.
+
     #>
     [CmdletBinding()]
     [OutputType([string])]

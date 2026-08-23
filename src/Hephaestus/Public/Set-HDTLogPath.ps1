@@ -1,4 +1,4 @@
-function Set-HDTLogPath {
+﻿function Set-HDTLogPath {
     <#
         .SYNOPSIS
             Moves the live log to the target volume, mirroring everything already
@@ -70,10 +70,22 @@ function Set-HDTLogPath {
             success, the old one when the relocation could not be made.
 
         .EXAMPLE
-            Set-HDTLogPath -Context $log -TargetVolume 'W:' -Variable $Context.Variable
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock (New-HDTClock)
+            $variable = [ordered] @{ HDTOSVolume = 'W:' }
+            $log = Set-HDTLogPath -Context $log -TargetVolume 'W:' -Variable $variable
 
-            What Invoke-HDTTaskSequence does once, after the step that formats
-            the volume publishes HDTOSVolume.
+            Moves the log off the RAM disk and onto the volume that will survive the
+            reboot. What Invoke-HDTTaskSequence does once, after the step that
+            formats the volume publishes HDTOSVolume.
+
+        .EXAMPLE
+            $log.LogPath
+
+            Where records go from here. X:\ is WinPE's RAM disk and everything on it is
+            gone at the restart - a log that stayed there would be missing for
+            exactly the deployment somebody needs to read about.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Mirrors a log directory and repoints an in-memory context. It deletes nothing, and it is called from a finally-safe path that must never prompt or fail.')]

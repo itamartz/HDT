@@ -1,4 +1,4 @@
-function Resolve-HDTVariable {
+﻿function Resolve-HDTVariable {
     <#
         .SYNOPSIS
             Resolves the deployment variables from all five sources and records
@@ -91,6 +91,9 @@ function Resolve-HDTVariable {
             necessarily knows which sources exist.
 
         .EXAMPLE
+            $fact = Get-HDTMachineFact
+            $rules = (Import-HDTRuleDocument -Path 'C:\HDTLab\Share\rules.yaml').Rule
+            $override = Get-HDTMachineOverride -WorkspaceRoot 'C:\HDTLab\Share' -Uuid $fact['HDTUuid']
             $result = Resolve-HDTVariable -RuleDocument $rules -Fact $fact
             $result.Variable['HDTComputerName']
 

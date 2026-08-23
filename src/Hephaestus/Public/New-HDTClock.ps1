@@ -1,4 +1,4 @@
-function New-HDTClock {
+﻿function New-HDTClock {
     <#
         .SYNOPSIS
             Creates the real IClock adapter over the system clock.
@@ -42,7 +42,17 @@ function New-HDTClock {
             $clock = New-HDTClock
             $clock.GetUtcNow()
 
-            The current instant, in UTC, through the interface the engine uses.
+            The time the engine stamps a log record with. Every command that records
+            one takes a clock rather than calling [datetime] itself, so a test can
+            hand over a fixed one and assert on the stamp.
+
+        .EXAMPLE
+            $clock.Sleep(2)
+            @($clock.GetOperationName())
+
+            A real wait, and the operation list that proves it happened. The fake
+            clock records the same call and returns instantly, which is how a
+            retry policy is tested without waiting for it.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

@@ -1,4 +1,4 @@
-function New-HDTLsaService {
+﻿function New-HDTLsaService {
     <#
         .SYNOPSIS
             Creates the real ILsaService adapter over LSA private data.
@@ -55,8 +55,16 @@ function New-HDTLsaService {
             $lsa = New-HDTLsaService
             $lsa.GetSecret('DefaultPassword')
 
-            Reads the autologon password Windows itself stores there. Returns
-            $null when there is none.
+            Reads the autologon password Windows itself stores there. $null when
+            there is none, which is the normal state of a machine nobody has
+            deployed to.
+
+        .EXAMPLE
+            @($lsa.GetOperationName())
+
+            What has been asked of it this run. The engine never writes an LSA secret
+            without recording that it did - a password that exists and cannot be
+            accounted for is the thing DESIGN 4.5.2 is careful about.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

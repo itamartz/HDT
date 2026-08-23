@@ -92,8 +92,17 @@
             Write(line) and Close().
 
         .EXAMPLE
-            $status = Start-HDTBootStatus -XamlPath 'X:\HDT\UI\HDTBootStatus.xaml'
-            $status.StatusHost.Write('12:00:01  bootstrap: provider Smb')
+            $statusHost = New-HDTBootStatusHost
+            $statusHost.Open('Starting the deployment')
+
+            The boot status panel WinPE shows before anything else is on screen.
+
+        .EXAMPLE
+            $statusHost.Write('Waiting for an address')
+            $statusHost.Close()
+
+            One line at a time. This is the adapter; Start-HDTBootStatus is the
+            command, and it decides whether there should be a panel at all.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state. Open is where a window appears, and it is a method.')]

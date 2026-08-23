@@ -1,4 +1,4 @@
-function Import-HDTBootImageToWds {
+﻿function Import-HDTBootImageToWds {
     <#
         .SYNOPSIS
             Imports the HDT boot image into Windows Deployment Services,
@@ -73,6 +73,7 @@ function Import-HDTBootImageToWds {
             Architecture, Path, Replaced and PreviousVersion.
 
         .EXAMPLE
+            $build = Update-HDTBootImage -WorkspaceRoot 'C:\HDTLab\Share' -WhatIf
             Import-HDTBootImageToWds -Path 'C:\HDTLab\Share\Boot\HDTPE_x64.wim'
 
             Imports as HDTPE_x64, replacing an existing HDTPE_x64 if the server

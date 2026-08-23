@@ -1,4 +1,4 @@
-function Save-HDTRunState {
+﻿function Save-HDTRunState {
     <#
         .SYNOPSIS
             Checkpoints the run state document through the injected IFileSystem.
@@ -47,8 +47,25 @@ function Save-HDTRunState {
             None.
 
         .EXAMPLE
-            Save-HDTRunState -State $state -Path 'X:\HDT\state.json' `
-                -FileSystem $fileSystem -Clock $clock -MirrorPath 'W:\HDT\state.json'
+            $clock = New-HDTClock
+            $fileSystem = New-HDTFileSystem
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $state = New-HDTRunState -SequenceId 'DEMO-05' -RunId 'run-0001' -Phase WinPE `
+                -Clock $clock -Variable ([ordered] @{}) -Step @($sequence.Step)
+            Save-HDTRunState -State $state -Path 'X:\HDT\state.json' -FileSystem $fileSystem -Clock $clock
+
+            Writes the checkpoint. Atomically - a temporary file and then a move - so a
+            machine that loses power mid-write has either the old state or the
+            new one, never half of either.
+
+        .EXAMPLE
+            Save-HDTRunState -State $state -Path 'X:\HDT\state.json' -FileSystem $fileSystem -Clock $clock `
+                -MirrorPath 'W:\HDT\state.json'
+
+            The same write, mirrored onto the volume that survives the restart. X:\ is
+            WinPE's RAM disk and is gone at the reboot, which is exactly when the
+            checkpoint is needed.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([void])]

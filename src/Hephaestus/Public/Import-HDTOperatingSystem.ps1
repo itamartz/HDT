@@ -1,4 +1,4 @@
-function Import-HDTOperatingSystem {
+﻿function Import-HDTOperatingSystem {
     <#
         .SYNOPSIS
             Promotes an operating system source into the workspace catalog.
@@ -73,6 +73,10 @@ function Import-HDTOperatingSystem {
             in the shape Get-HDTOperatingSystem returns.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $fs = New-HDTFileSystem
+            $wim = 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim'
+            $image = @((New-HDTImageService).GetImage($wim))[0]
             Import-HDTOperatingSystem -WorkspaceRoot 'X:\Deploy' -Id 'Win11-LTSC-2024' `
                 -SourcePath 'C:\HDTLab\media\Win11-LTSC-2024\sources\install.wim' `
                 -ImageService (New-HDTImageService) -Clock (New-HDTClock)

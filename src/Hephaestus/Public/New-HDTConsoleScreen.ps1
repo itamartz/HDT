@@ -1,4 +1,4 @@
-function New-HDTConsoleScreen {
+﻿function New-HDTConsoleScreen {
     <#
         .SYNOPSIS
             Creates the IScreen the console measures its window against.
@@ -41,9 +41,19 @@ function New-HDTConsoleScreen {
             Height in device-independent units.
 
         .EXAMPLE
-            (New-HDTConsoleScreen).GetWorkArea()
+            $screen = New-HDTConsoleScreen
+            $screen.GetWorkArea()
 
-            The desktop the console has to fit inside.
+            The usable desktop - what is left after the taskbar. The console opens
+            inside it, so a remembered size from a bigger monitor cannot put the
+            window somewhere nobody can reach.
+
+        .EXAMPLE
+            $area = $screen.GetWorkArea()
+            '{0}x{1} at {2},{3}' -f $area.Width, $area.Height, $area.Left, $area.Top
+
+            The four numbers a window position is decided from. It is a parameter so
+            a test can describe a monitor this machine does not have.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an adapter object; it changes no state.')]

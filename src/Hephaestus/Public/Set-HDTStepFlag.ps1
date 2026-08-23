@@ -1,4 +1,4 @@
-function Set-HDTStepFlag {
+﻿function Set-HDTStepFlag {
     <#
         .SYNOPSIS
             Switches a step off, or lets it fail without stopping the
@@ -56,6 +56,8 @@ function Set-HDTStepFlag {
             System.String[] - the document, with one line changed.
 
         .EXAMPLE
+            $path = 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $line = [string[]] @([System.IO.File]::ReadAllLines($path))
             Set-HDTStepFlag -Line $line -Name 'Apply OS' -Flag Disabled -Value $true
 
             Switches a step off, keeping it and its comment in the file.

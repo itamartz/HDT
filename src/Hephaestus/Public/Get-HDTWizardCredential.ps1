@@ -1,4 +1,4 @@
-function Get-HDTWizardCredential {
+﻿function Get-HDTWizardCredential {
     <#
         .SYNOPSIS
             Composes MDT's Bootstrap.ini credential quartet and proves it by
@@ -71,10 +71,21 @@ function Get-HDTWizardCredential {
             Credential and Message.
 
         .EXAMPLE
-            Get-HDTWizardCredential -DeployRoot '\\HDT01\HDTShare' -UserId 'svc' -UserDomain '' -Password $secure
+            $secure = (Get-Credential -UserName svc -Message 'The deployment account').Password
+            $answer = Get-HDTWizardCredential -DeployRoot '\\LAP-AMMSO01\HDTShare$' `
+                -UserId 'svc' -UserDomain '' -Password $secure
 
-            A local account on HDT01, composed as HDT01\svc and proven by
-            connecting.
+            Composes MDT's Bootstrap.ini credential quartet and proves it by
+            connecting. An empty domain means a local account on the server, so
+            this composes LAP-AMMSO01\svc.
+
+        .EXAMPLE
+            if (-not $answer.Connected) { $answer.Message }
+
+            Why it would not connect, in words a technician can act on. Finding that out
+            at the Welcome screen is the point; finding it out three steps into a
+            deployment is not.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

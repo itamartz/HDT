@@ -1,4 +1,4 @@
-function New-HDTProgressHost {
+﻿function New-HDTProgressHost {
     <#
         .SYNOPSIS
             The real IProgressHost: runs DESIGN 11.1's progress window in its
@@ -43,7 +43,19 @@ function New-HDTProgressHost {
 
         .EXAMPLE
             $display = Start-HDTProgressDisplay -XamlPath 'X:\HDT\UI\HDTProgress.xaml'
-            $display.DisplayHost.Update((Get-HDTDeploymentProgress -Record $record))
+            $display.Shown
+
+            Start-HDTProgressDisplay builds this host itself and decides whether
+            there should be a window at all, which is why an administrator never
+            types this command.
+
+        .EXAMPLE
+            $progressHost = New-HDTProgressHost
+            $progressHost.Stop()
+
+            The adapter on its own, started and torn down. Update writes into a
+            synchronised hashtable the two runspaces share - it never touches the
+            window, because reaching across a thread to a WPF object throws.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state. Open is where a window appears, and it is a method.')]

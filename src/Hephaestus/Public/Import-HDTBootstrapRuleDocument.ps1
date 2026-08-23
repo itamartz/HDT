@@ -1,4 +1,4 @@
-function Import-HDTBootstrapRuleDocument {
+﻿function Import-HDTBootstrapRuleDocument {
     <#
         .SYNOPSIS
             Reads bootstrap-rules.yaml - the rules that choose a share before
@@ -59,7 +59,17 @@ function Import-HDTBootstrapRuleDocument {
             The same object Import-HDTRuleDocument returns: SchemaVersion, Rule.
 
         .EXAMPLE
-            Import-HDTBootstrapRuleDocument -Path 'X:\HDT\bootstrap-rules.yaml'
+            $document = Import-HDTBootstrapRuleDocument -Path 'X:\HDT\bootstrap-rules.yaml'
+            @($document.Rule).Count
+
+            The rules that run before the share is reachable - which share to connect
+            to, and as whom. MDT's Bootstrap.ini, in the boot image itself.
+
+        .EXAMPLE
+            @($document.Rule | ForEach-Object { $_.Name })
+
+            Their names, in the order they will be considered. This file is inside the
+            boot image: changing it means building the image again.
 
         .LINK
             Resolve-HDTBootstrapRule

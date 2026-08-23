@@ -1,4 +1,4 @@
-function Add-HDTStep {
+﻿function Add-HDTStep {
     <#
         .SYNOPSIS
             Adds a new step to a task sequence document, or pastes a copied one,
@@ -53,6 +53,7 @@ function Add-HDTStep {
             System.String[] - the document with the step added.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
             Add-HDTStep -Line $line -After 'Validate' -Name 'Check TPM' -Type Validate
 
         .EXAMPLE

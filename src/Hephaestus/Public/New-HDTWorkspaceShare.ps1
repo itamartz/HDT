@@ -71,6 +71,15 @@
         .EXAMPLE
             New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -Account 'LAP-AMMSO01\svc-hdt-deploy'
 
+            Publishes the folder over SMB and gives the deployment account read access.
+            A share a booted machine cannot read is a deployment that stops at the
+            first file.
+
+        .EXAMPLE
+            New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -Account 'LAP-AMMSO01\svc-hdt-deploy' -WhatIf
+
+            Describes the share and the rule it would add, and publishes nothing.
+
         .LINK
             New-HDTWorkspace
 

@@ -1,4 +1,4 @@
-function Get-HDTBootImageCertificatePassword {
+﻿function Get-HDTBootImageCertificatePassword {
     <#
         .SYNOPSIS
             Reads back the machine certificate's password.
@@ -36,7 +36,17 @@ function Get-HDTBootImageCertificatePassword {
             written.
 
         .EXAMPLE
-            Get-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share'
+            $secure = Get-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share'
+            $null -ne $secure
+
+            Whether a password is stored at all. It comes back as a SecureString, so
+            this says yes or no without putting it on screen.
+
+        .EXAMPLE
+            Test-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share'
+
+            The question actually worth asking: not whether something is stored, but
+            whether it opens the .pfx.
 
         .LINK
             Set-HDTBootImageCertificatePassword

@@ -53,8 +53,22 @@
             Status, LogPath and Field.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $record = Get-HDTRunLogRecord -Context $log
             $failure = Get-HDTDeploymentFailure -Record $record -LogPath $log.LogPath
-            if ($failure.IsFailure) { Show-HDTDeploymentFailure -Failure $failure }
+
+            Reads the failure out of the log the engine wrote anyway, so the screen and
+            the log cannot disagree about what went wrong.
+
+        .EXAMPLE
+            if ($failure.IsFailure) { $failure.Message }
+
+            What a technician is shown. IsFailure is false for a run that finished, and
+            for one that has not finished yet - neither is something to put a red
+            screen in front of somebody about.
+
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

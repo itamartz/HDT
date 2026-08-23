@@ -1,4 +1,4 @@
-function Import-HDTWorkspaceDocument {
+﻿function Import-HDTWorkspaceDocument {
     <#
         .SYNOPSIS
             Reads workspace.yaml and projects it with every default already
@@ -85,6 +85,8 @@ function Import-HDTWorkspaceDocument {
                                EntryCommand, StartCommand [string[]] }
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $path = 'C:\HDTLab\Share\workspace.yaml'
             Import-HDTWorkspaceDocument -Path 'X:\Deploy\workspace.yaml'
 
         .EXAMPLE

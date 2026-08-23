@@ -1,4 +1,4 @@
-function Get-HDTStepDescription {
+﻿function Get-HDTStepDescription {
     <#
         .SYNOPSIS
             Renders the one-line description of a step for the log and the
@@ -28,7 +28,21 @@ function Get-HDTStepDescription {
             System.String, never empty.
 
         .EXAMPLE
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step)[0]
+            Get-HDTStepDescription -Step $step
+
+            The one line the log and the progress display carry for this step. Never
+            empty: a step type that declares no description gets '<Type>: <name>',
+            which is what MDT's progress line shows.
+
+        .EXAMPLE
+            $registry = @(Get-HDTStepType)
             Get-HDTStepDescription -Step $step -StepType $registry
+
+            The same answer with the registry built once and handed in, which is what
+            the engine does rather than rebuilding it for every step.
+
     #>
     [CmdletBinding()]
     [OutputType([string])]

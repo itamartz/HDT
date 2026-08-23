@@ -1,4 +1,4 @@
-function Resolve-HDTBundleLine {
+﻿function Resolve-HDTBundleLine {
     <#
         .SYNOPSIS
             Maps a line number in Hephaestus.bundle.ps1 back to the source file
@@ -47,6 +47,7 @@ function Resolve-HDTBundleLine {
             it - the machine that built the bundle is not the one running it.
 
         .EXAMPLE
+            $trace = try { throw 'x' } catch { $_ }
             Resolve-HDTBundleLine -Line 214207
 
             BundleLine Path                            Line

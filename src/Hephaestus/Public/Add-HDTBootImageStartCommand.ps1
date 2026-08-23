@@ -1,4 +1,4 @@
-function Add-HDTBootImageStartCommand {
+﻿function Add-HDTBootImageStartCommand {
     <#
         .SYNOPSIS
             Declares a command the booted image runs before the deployment,
@@ -54,6 +54,7 @@ function Add-HDTBootImageStartCommand {
             System.String[] - the document with the command added.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             Add-HDTBootImageStartCommand -Line $line -Command 'X:\HDT\Tools\BGInfo\bginfo.exe X:\HDT\Tools\BGInfo\hdt.bgi /timer:0 /nolicprompt'
 
             The machine's own details on the WinPE desktop, before the

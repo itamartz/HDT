@@ -1,4 +1,4 @@
-function Set-HDTShareCredential {
+﻿function Set-HDTShareCredential {
     <#
         .SYNOPSIS
             Writes the deployment account credential a boot image will carry.
@@ -50,6 +50,7 @@ function Set-HDTShareCredential {
             transcript.
 
         .EXAMPLE
+            $credential = Get-Credential -UserName 'svc-hdt-deploy' -Message 'The deployment account'
             Set-HDTShareCredential -WorkspaceRoot '\\server\HdtShare' -Credential (Get-Credential)
 
         .EXAMPLE

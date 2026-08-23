@@ -1,4 +1,4 @@
-function Set-HDTBootImageDriver {
+﻿function Set-HDTBootImageDriver {
     <#
         .SYNOPSIS
             Names the driver group injected into the boot image, leaving every
@@ -11,7 +11,7 @@ function Set-HDTBootImageDriver {
 
             THE VALUE IS A GROUP UNDER Drivers\, NOT A PATH AND NOT A FILE. The
             build injects that folder recursively, so a group is how a set of
-            .inf files is named once and kept together.
+            of .inf files is named once and kept together.
 
             A BOOT IMAGE GETS NETWORK AND STORAGE DRIVERS ONLY, never the whole
             driver store. WinPE has to reach the share and see the disk; every
@@ -47,10 +47,19 @@ function Set-HDTBootImageDriver {
             System.String[] - the document with the driver group set.
 
         .EXAMPLE
-            Set-HDTBootImageDriver -Line $line -Name 'boot-critical'
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
+            $line = Set-HDTBootImageDriver -Line $line -Name 'boot-critical'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            Which driver group goes into the boot image. A machine whose storage or
+            network driver is missing from WinPE is a machine that boots to a
+            screen and stops.
 
         .EXAMPLE
-            Set-HDTBootImageDriver -Line $line -Clear
+            $line = Set-HDTBootImageDriver -Line $line -Clear
+
+            No group at all, which is what a virtual machine wants: WinPE already has
+            the drivers a VM presents.
 
         .LINK
             Save-HDTWorkspaceDocument

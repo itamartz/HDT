@@ -1,4 +1,4 @@
-function Set-HDTBootImageClientCertificate {
+﻿function Set-HDTBootImageClientCertificate {
     <#
         .SYNOPSIS
             Names the machine certificate the boot image authenticates with.
@@ -50,10 +50,18 @@ function Set-HDTBootImageClientCertificate {
             System.String[] - the workspace.yaml lines, spliced.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             $line = Set-HDTBootImageClientCertificate -Line $line -Path 'Certs\winpe.pfx'
+            Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
+
+            The document half: the boot image is told which .pfx it presents.
+
+        .EXAMPLE
+            $secure = (Get-Credential -UserName certificate -Message 'The .pfx password').Password
             Set-HDTBootImageCertificatePassword -WorkspaceRoot 'C:\HDTLab\Share' -Password $secure
 
-            Both halves: the document names the file, and the password is stored.
+            The other half. The password is not in the document and never is - it goes
+            beside the share, obfuscated, where the build reads it.
 
         .LINK
             Set-HDTBootImageCertificatePassword

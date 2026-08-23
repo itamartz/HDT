@@ -1,4 +1,4 @@
-function Remove-HDTBootImageContent {
+﻿function Remove-HDTBootImageContent {
     <#
         .SYNOPSIS
             Stops a folder or file being copied into the boot image, leaving
@@ -49,6 +49,7 @@ function Remove-HDTBootImageContent {
             System.String[] - the document with the entry removed.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             Remove-HDTBootImageContent -Line $line -Destination '\HDT\Tools\BGInfo'
 
         .EXAMPLE

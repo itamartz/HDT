@@ -1,4 +1,4 @@
-function New-HDTConsoleProgressHost {
+﻿function New-HDTConsoleProgressHost {
     <#
         .SYNOPSIS
             The IProgressHost for a machine that cannot draw a window: it writes
@@ -36,11 +36,20 @@ function New-HDTConsoleProgressHost {
             cannot tell them apart.
 
         .EXAMPLE
-            $display = Start-HDTProgressDisplay -XamlPath $p
-            $display.DisplayHost.Update($progress)
+            $displayHost = New-HDTConsoleProgressHost
+            $displayHost.Open('X:\HDT\UI\HDTProgress.xaml')
 
-            Writes a window on a machine that has one and a line on a machine
-            that does not.
+            DESIGN 11.1's progress window, in its own runspace. A WPF window owns the
+            thread it was made on, so one on the engine's thread would be a
+            deployment that stopped at the first step to draw a bar about it.
+
+        .EXAMPLE
+            $displayHost.SetComputerName('PC-0001')
+            $displayHost.Close()
+
+            Update and SetComputerName write into a synchronised hashtable the two
+            runspaces share; the UI thread's own timer reads it. Neither touches
+            the window, because reaching across a thread to a WPF object throws.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]

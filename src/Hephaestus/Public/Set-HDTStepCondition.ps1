@@ -1,4 +1,4 @@
-function Set-HDTStepCondition {
+﻿function Set-HDTStepCondition {
     <#
         .SYNOPSIS
             Gives a step the expression that decides whether it runs, or takes
@@ -46,6 +46,7 @@ function Set-HDTStepCondition {
             System.String[] - the document, with one line changed.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'))
             Set-HDTStepCondition -Line $line -Name 'Apply Drivers' -Condition '$Make -eq "Dell Inc."'
 
         .EXAMPLE

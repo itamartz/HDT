@@ -1,4 +1,4 @@
-function Get-HDTWorkspacePath {
+﻿function Get-HDTWorkspacePath {
     <#
         .SYNOPSIS
             Builds a path to a folder inside an HDT workspace.
@@ -35,6 +35,7 @@ function Get-HDTWorkspacePath {
             System.String
 
         .EXAMPLE
+            $deployRoot = '\\LAP-AMMSO01\HDTShare$'
             Get-HDTWorkspacePath -Root '\\server\HdtShare' -Kind TaskSequences
 
             Returns \\server\HdtShare\TaskSequences.

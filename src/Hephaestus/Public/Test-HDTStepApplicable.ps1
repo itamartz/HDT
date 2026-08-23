@@ -1,4 +1,4 @@
-function Test-HDTStepApplicable {
+﻿function Test-HDTStepApplicable {
     <#
         .SYNOPSIS
             Asks a step type whether this step applies to this machine.
@@ -35,7 +35,27 @@ function Test-HDTStepApplicable {
             System.Boolean
 
         .EXAMPLE
-            if (-not (Test-HDTStepApplicable -Step $step -Context $context -StepType $registry)) { continue }
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
+                -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $step = @($sequence.Step)[0]
+            Test-HDTStepApplicable -Step $step -Context $context
+
+            Whether this step applies to this machine at all - its phase, its
+            condition, and whatever the step type itself declares.
+
+        .EXAMPLE
+            $registry = @(Get-HDTStepType)
+            if (-not (Test-HDTStepApplicable -Step $step -Context $context -StepType $registry)) { 'skipped' }
+
+            A step that does not apply is Skipped, and skipped is not failed. The
+            difference matters to a sequence that carries a BIOS branch and a
+            UEFI one.
+
     #>
     [CmdletBinding()]
     [OutputType([bool])]

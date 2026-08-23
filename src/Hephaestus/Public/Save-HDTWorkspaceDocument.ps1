@@ -1,4 +1,4 @@
-function Save-HDTWorkspaceDocument {
+﻿function Save-HDTWorkspaceDocument {
     <#
         .SYNOPSIS
             Writes an edited workspace document back to the share, after checking
@@ -44,6 +44,7 @@ function Save-HDTWorkspaceDocument {
             System.Management.Automation.PSCustomObject with Saved, Path and Id.
 
         .EXAMPLE
+            $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
             Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
 
         .EXAMPLE

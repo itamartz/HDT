@@ -1,4 +1,4 @@
-function Remove-HDTStep {
+﻿function Remove-HDTStep {
     <#
         .SYNOPSIS
             Removes one step or group from a task sequence document, leaving
@@ -43,6 +43,7 @@ function Remove-HDTStep {
             System.String[] - the document with the block removed.
 
         .EXAMPLE
+            $path = 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
             $line = [System.IO.File]::ReadAllText($path) -split "`r?`n"
             Remove-HDTStep -Line $line -Name 'Apply OS'
 

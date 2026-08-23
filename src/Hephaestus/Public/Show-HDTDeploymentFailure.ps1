@@ -59,8 +59,23 @@
             'Shutdown', 'Finish' or 'CommandPrompt') and Shown.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -Clock $clock
+            $record = Get-HDTRunLogRecord -Context $log
             $failure = Get-HDTDeploymentFailure -Record $record -LogPath $log.LogPath
             $answer = Show-HDTDeploymentFailure -Failure $failure -XamlPath 'X:\HDT\UI\HDTFailure.xaml'
+
+            The screen a technician actually meets when a deployment stops. It reports
+            what they chose and opens nothing itself.
+
+        .EXAMPLE
+            if ($answer.Action -eq 'CommandPrompt') { $null = Start-HDTCommandPrompt }
+
+            Acting on the answer is the caller's job. The window closing is not a
+            decision, which is why 'Close' and 'CommandPrompt' are different
+            answers.
+
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Shows a window and reports the button pressed; it changes no state. A confirmation prompt in front of a technician reading a failure would be a second thing to dismiss.')]

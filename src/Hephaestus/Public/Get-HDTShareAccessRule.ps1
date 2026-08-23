@@ -1,4 +1,4 @@
-function Get-HDTShareAccessRule {
+﻿function Get-HDTShareAccessRule {
     <#
         .SYNOPSIS
             Projects the access control entries on a folder into the rows
@@ -29,6 +29,8 @@ function Get-HDTShareAccessRule {
             IsInherited, or $null where the ACL could not be read.
 
         .EXAMPLE
+            $root = 'C:\HDTLab\Share'
+            $account = 'LAP-AMMSO01\svc-hdt-deploy'
             Get-HDTShareAccessRule -Path '\\server\HdtShare\Logs'
 
         .EXAMPLE

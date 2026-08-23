@@ -159,6 +159,14 @@
             Result and FailedStep.
 
         .EXAMPLE
+            $clock = New-HDTClock
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock $clock
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE ``
+                -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) ``
+                -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $state = New-HDTRunState -SequenceId 'DEMO-05' -RunId 'run-0001' -Phase WinPE ``
+                -Clock $clock -Variable ([ordered] @{}) -Step @($sequence.Step)
             $run = Invoke-HDTTaskSequence -Sequence $sequence -Context $context `
                 -StatePath 'X:\HDT\state.json' -MirrorStatePath 'W:\HDT\state.json'
 

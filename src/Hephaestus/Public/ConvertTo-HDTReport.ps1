@@ -1,4 +1,4 @@
-function ConvertTo-HDTReport {
+﻿function ConvertTo-HDTReport {
     <#
         .SYNOPSIS
             Renders a deployment run's HDT.jsonl into one self-contained HTML
@@ -77,6 +77,10 @@ function ConvertTo-HDTReport {
             System.String - the path it wrote.
 
         .EXAMPLE
+            $fs = New-HDTFileSystem
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' -Clock (New-HDTClock)
+            $run = @(Get-HDTRunLogRecord -Context $log)
+            $out = 'X:\HDT\Logs\report.html'
             ConvertTo-HDTReport -JsonlPath C:\HDT\Logs\HDT.jsonl `
                 -Path C:\HDT\Logs\report.html
 

@@ -1,4 +1,4 @@
-function Test-HDTTaskSequence {
+﻿function Test-HDTTaskSequence {
     <#
         .SYNOPSIS
             Lints an imported sequence for the problems a schema cannot see.
@@ -57,6 +57,8 @@ function Test-HDTTaskSequence {
             Severity (Error | Warning), Index, Step, Message.
 
         .EXAMPLE
+            $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml'
+            $rules = (Import-HDTRuleDocument -Path 'C:\HDTLab\Share\rules.yaml').Rule
             Test-HDTTaskSequence -Sequence $sequence | Format-Table Severity, Index, Step, Message
 
         .EXAMPLE

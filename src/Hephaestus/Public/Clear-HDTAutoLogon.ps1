@@ -71,8 +71,23 @@
             ([string[]]) and Failed ([object[]] of Item and Message).
 
         .EXAMPLE
-            $result = Clear-HDTAutoLogon -Registry $registry -Lsa $lsa -FileSystem $fs -State $state
-            $result.Failed | ForEach-Object { $_.Item }
+            $registry = New-HDTRegistryService
+            $lsa = New-HDTLsaService
+            $fileSystem = New-HDTFileSystem
+            $state = Get-HDTAutoLogonState -Registry $registry -Lsa $lsa
+            $result = Clear-HDTAutoLogon -Registry $registry -Lsa $lsa -FileSystem $fileSystem -State $state
+
+            Takes the autologon down: the registry values, the LSA secret and the
+            password in state.json. It runs in a finally, and again at boot, so a
+            deployment that died still gets cleaned up.
+
+        .EXAMPLE
+            @($result.Failed | ForEach-Object { $_.Item })
+
+            What it could not clear. It never throws - a failure to tidy up must not
+            replace whatever actually went wrong - so this list is how anyone
+            finds out that something is still armed.
+
     #>
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]
