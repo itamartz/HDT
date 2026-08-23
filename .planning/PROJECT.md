@@ -186,11 +186,19 @@ laptop cannot do — a clean CI environment, PXE/WDS work, or a server role.
 - Guests are reached by **nesting PowerShell Direct inside the host session**
   (VMBus, so no guest network is needed):
   `Invoke-Command -Session $sess { Invoke-Command -VMName <name> -Credential $using:g { ... } }`
-- **Credentials live outside this repo** — in the sibling project's `.secrets\`
-  folder, described in
+- **Host credentials live outside this repo** — MS-A2's and its guests' are in
+  the sibling project's `.secrets\` folder, described in
   `C:\Users\Itamartz\Dropbox\System\_FORWORK\SCCM\HydrationKitWS2025\CLAUDE.md`.
-  Read them from there at runtime. **Never copy a credential into this
-  repository**, not into a doc, a test, a fixture or a commit message.
+  Read them from there at runtime.
+- **Lab-VM credentials may live in this repo's own `.secrets\`**, which
+  `.gitignore` excludes — `.secrets\ms-a2-win11.txt` reaches the OSDTEST01 test
+  VM (CLAUDE.md, "Test VM"). A test runner nobody can connect to is not a test
+  runner, and sending the next person to another project's folder to find one
+  line was worse than keeping it beside the code that uses it.
+- **A credential's CONTENTS never go anywhere git tracks** — not into a doc, a
+  test, a fixture, a commit message or a plan. That rule is unchanged and is the
+  one that matters: `.secrets\` is excluded, everything else here is not. Read
+  the file, pass the object, print neither.
 - Its lab is `sadab.pri` on an internal `HydrationLab` switch, 192.168.25.0/24,
   with DC01 `.200` providing AD/DNS/DHCP and CM01 `.214` running ConfigMgr.
   **Those are the same protected names as this host's VMs — never touch them

@@ -204,6 +204,42 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
 Resolve ADK paths at runtime via `Get-HDTAdkPath`; the layout has moved between
 ADK releases.
 
+## Test VM — OSDTEST01
+
+**A machine to run the suite on that is not this laptop.** Windows 11 Enterprise
+LTSC, workgroup, 4 cores / 4 GB, ~84 GB free, and the session opens elevated.
+Reached over WinRM; this host's `TrustedHosts` is already `*`, so nothing needs
+configuring to connect.
+
+```powershell
+$l = Get-Content .secrets/ms-a2-win11.txt
+$cred = New-Object PSCredential($l[1].Trim(), (ConvertTo-SecureString $l[2].Trim() -AsPlainText -Force))
+$s = New-PSSession -ComputerName $l[0].Trim() -Credential $cred -Authentication Negotiate
+```
+
+**`.secrets\` is gitignored and stays that way.** Read the file, never repeat
+what is in it — not into a doc, a test, a fixture or a commit message. The
+address on its first line is a DHCP lease like every other address in this lab:
+read it, don't memorise it.
+
+Installed and verified: PowerShell **5.1 only** (no `pwsh` — which matches the
+gate), Pester **5.9.1**, PSScriptAnalyzer 1.25.0, git 2.55, and the ADK
+10.1.26100.2454 with Deployment Tools and the WinPE add-on. `ExecutionPolicy` is
+`RemoteSigned` at LocalMachine scope; every scope was `Undefined`, which stops
+an installed module loading at all.
+
+| Suite | There? | Why |
+|---|---|---|
+| `tests/unit`, `tests/contract` | yes | the gate, and it runs clear of a working tree another session is rewriting |
+| `tests/integration` | yes | real DISM and oscdimg, since the ADK went on |
+| `tests/e2e` | **no** | needs nested Hyper-V, which it does not have |
+
+Pester there is 5.9.1 and 5.7.1 here. Both satisfy `build.ps1`'s pin, so a
+result that differs between the two is the version's fault before the code's.
+
+It answers on WinRM only while it is powered on — a refused connection is a VM
+that is off, not a broken setup. Retry before diagnosing.
+
 ## Repo layout
 
 ```
