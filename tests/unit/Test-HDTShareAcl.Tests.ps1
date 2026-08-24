@@ -209,6 +209,58 @@ Describe 'Test-HDTShareAcl' {
         }
     }
 
+    # THE SHAPE A CALLER ACTUALLY HANDS IT. Get-HDTShareAccessRule returns
+    # `, ([psobject[]] ...)` - the unary comma that stops a one-row ACL
+    # unrolling to a scalar - so `@(Get-HDTShareAccessRule -Path $root)` collects
+    # ONE element that is itself the array of rows. Every hand-built fixture
+    # above is flat and never saw it.
+    #
+    # THE FAILURE IT CAUSED WAS A FALSE CRITICAL, which is the worst kind. On a
+    # share whose ACL was correct - svc-hdt-deploy:(OI)(CI)(RX) present and
+    # readable - the nested row's Identity stringified to 'System.Object[]',
+    # matched no account, and the checker reported "cannot read the workspace
+    # root". That sends somebody to fix an ACL that was never broken.
+    Context 'rows arriving nested, as @(Get-HDTShareAccessRule) hands them over' {
+
+        BeforeAll {
+            # A REAL ROOT ACL, CAPTURED FROM OSDTEST01 after New-HDTWorkspaceShare
+            # published the share: the account's own grant plus the four rows
+            # every folder under C:\ inherits. Several rows is what matters -
+            # nesting ONE row still stringifies correctly through member
+            # enumeration, which is why every fixture above missed this.
+            $script:realRootRow = {
+                return [psobject[]] @(
+                    & $script:rule $script:identity 'ReadAndExecute, Synchronize' 'Allow'
+                    & $script:rule 'BUILTIN\Administrators' 'FullControl' 'Allow'
+                    & $script:rule 'NT AUTHORITY\SYSTEM' 'FullControl' 'Allow'
+                    & $script:rule 'BUILTIN\Users' 'ReadAndExecute, Synchronize' 'Allow'
+                    & $script:rule 'NT AUTHORITY\Authenticated Users' 'Modify, Synchronize' 'Allow'
+                )
+            }
+        }
+
+        It 'judges a compliant share compliant' {
+            $accessRule = & $script:compliantAccessRule
+            $accessRule['.'] = @(, (& $script:realRootRow))
+
+            $result = Test-HDTShareAcl -WorkspaceRoot $script:workspaceRoot -Identity $script:identity -AccessRule $accessRule
+
+            $result.Compliant | Should -BeTrue -Because 'the account has ReadAndExecute at the root; only the shape of the rows changed'
+        }
+
+        It 'still finds FullControl through the nesting' {
+            $accessRule = & $script:compliantAccessRule
+            $accessRule['.'] = @(, ([psobject[]] @(
+                        & $script:rule $script:identity 'FullControl' 'Allow'
+                        & $script:rule 'NT AUTHORITY\SYSTEM' 'FullControl' 'Allow'
+                    )))
+
+            $result = Test-HDTShareAcl -WorkspaceRoot $script:workspaceRoot -Identity $script:identity -AccessRule $accessRule
+
+            @($result.Finding | Where-Object { $_.Severity -eq 'Critical' }).Count | Should -BeGreaterThan 0
+        }
+    }
+
     Context 'an ACL it could not read' {
 
         It 'never throws for an unreadable ACL' {
