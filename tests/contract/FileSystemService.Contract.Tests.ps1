@@ -148,28 +148,37 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
         # The fake carries no Windows security model, and building one to test
         # against would be testing the invention rather than the caller. What a
         # caller has to prove is that it ASKS, and with which right.
+        # THE ACCOUNT IS WHOEVER IS RUNNING, and that is not laziness. The real
+        # adapter shells to icacls, which resolves the name against THIS
+        # machine's accounts: a literal 'LAP-AMMSO01\svc-hdt-deploy' exists on
+        # the lab laptop and nowhere else, so it passed here and failed on a
+        # hosted runner with "No mapping between account names and security IDs
+        # was done" - exit 1332. The current identity exists wherever the suite
+        # runs, and granting it Read on a temp folder it already owns changes
+        # nothing.
         It 'records the grant it was asked for' {
             $folder = Join-Path -Path $script:root -ChildPath 'granted'
             $script:fs.CreateDirectory($folder)
 
-            $script:fs.GrantAccess($folder, 'LAP-AMMSO01\svc-hdt-deploy', 'Read')
+            $script:fs.GrantAccess($folder, ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name), 'Read')
 
             $script:fs.GetOperationName() | Should -Contain 'GrantAccess'
         }
 
         It 'throws for a path that is not there' {
             $record = $null
-            try { $script:fs.GrantAccess((Join-Path -Path $script:root -ChildPath 'no-such-folder'), 'LAP-AMMSO01\svc-hdt-deploy', 'Read') } catch { $record = $_ }
+            try { $script:fs.GrantAccess((Join-Path -Path $script:root -ChildPath 'no-such-folder'), ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name), 'Read') } catch { $record = $_ }
 
             $record | Should -Not -BeNullOrEmpty
         }
 
         # A right the toolkit does not grant is refused before the tool is
         # reached - FullControl on a deployment share is the Critical finding
-        # Test-HDTShareAcl exists to report.
+        # Test-HDTShareAcl exists to report. Refused BEFORE icacls means this one
+        # never resolves an account at all.
         It 'refuses a right it does not grant' {
             $record = $null
-            try { $script:fs.GrantAccess($script:root, 'LAP-AMMSO01\svc-hdt-deploy', 'FullControl') } catch { $record = $_ }
+            try { $script:fs.GrantAccess($script:root, ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name), 'FullControl') } catch { $record = $_ }
 
             $record | Should -Not -BeNullOrEmpty
         }

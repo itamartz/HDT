@@ -95,6 +95,13 @@ Describe 'New-HDTWorkspaceShare' {
         $script:newSmb = {
             New-HDTFakeSmbService
         }
+
+        # A PATH THAT IS ON NO MACHINE. C:\HDTLab\Share is a real folder on the
+        # lab laptop and CLAUDE.md protects it; a unit test that names it will
+        # eventually touch it, and one did. This names somewhere that cannot
+        # exist, so a missing fake fails loudly instead of writing to the lab.
+        $script:root = 'C:\HDTLab\NoSuchWorkspace-Unit'
+        $script:account = 'LAP-AMMSO01\svc-hdt-deploy'
     }
 
     It 'is exported by Hephaestus' {
@@ -105,7 +112,7 @@ Describe 'New-HDTWorkspaceShare' {
     It 'creates the share over the folder it was given' {
         $smb = & $script:newSmb
 
-        $made = New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+        $made = New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
             -ServerName 'LAP-AMMSO01' -SmbService $smb -Elevated $true -Confirm:$false
 
         $smb.GetOperationName() | Should -Contain 'NewShare'
@@ -116,11 +123,20 @@ Describe 'New-HDTWorkspaceShare' {
         # A DEPLOYMENT SHARE IS NOT A PUBLIC ONE. Control\share-credential.json
         # is obfuscated rather than encrypted, so read access is the whole of
         # the deployment account.
+        #
+        # -FileSystem IS NOT OPTIONAL IN A TEST, and this one learned it the
+        # expensive way. -Account now grants NTFS as well as the share
+        # permission, the parameter defaults to the REAL filesystem, and without
+        # a fake this line ran icacls against C:\HDTLab\Share on the machine
+        # running the suite - a path CLAUDE.md protects. It passed on a laptop
+        # where that folder exists and failed on a runner where it does not,
+        # which is the only reason anybody found out.
         $smb = & $script:newSmb
+        $fs = New-HDTFakeFileSystem -Directory @($script:root, "$script:root\Logs", "$script:root\Captures")
 
-        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
-                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
-                -SmbService $smb -Elevated $true -Confirm:$false)
+        [void] (New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account $script:account `
+                -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
 
         $smb.GetOperationName() | Should -Contain 'GrantShareAccess'
     }
@@ -133,16 +149,16 @@ Describe 'New-HDTWorkspaceShare' {
     # ran, and Test-HDTShareAcl then reported the result as Critical.
     It 'grants NTFS read at the workspace root, not only the share permission' {
         $smb = & $script:newSmb
-        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+        $fs = New-HDTFakeFileSystem -Directory @($script:root, "$script:root\Logs", "$script:root\Captures")
 
-        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
-                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
+        [void] (New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account $script:account `
                 -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
 
         $grant = @($fs.Operations | Where-Object { $_.Operation -eq 'GrantAccess' })
 
         @($grant).Count | Should -Be 3
-        [string] $grant[0].Arguments[0] | Should -BeExactly 'C:\HDTLab\Share'
+        [string] $grant[0].Arguments[0] | Should -BeExactly $script:root
         [string] $grant[0].Arguments[2] | Should -BeExactly 'Read'
     }
 
@@ -151,17 +167,17 @@ Describe 'New-HDTWorkspaceShare' {
     # still has to send its logs home and land a capture.
     It 'grants modify on Logs and Captures, and nowhere else' {
         $smb = & $script:newSmb
-        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+        $fs = New-HDTFakeFileSystem -Directory @($script:root, "$script:root\Logs", "$script:root\Captures")
 
-        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
-                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
+        [void] (New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account $script:account `
                 -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
 
         $modify = @($fs.Operations |
                 Where-Object { $_.Operation -eq 'GrantAccess' -and [string] $_.Arguments[2] -eq 'Modify' } |
                 ForEach-Object { [string] $_.Arguments[0] })
 
-        $modify | Should -Be @('C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+        $modify | Should -Be @("$script:root\Logs", "$script:root\Captures")
     }
 
     # NO ACCOUNT, NO GRANT - on either ACL. A share created with nobody named
@@ -169,9 +185,9 @@ Describe 'New-HDTWorkspaceShare' {
     # for an account nobody gave would be deciding that for them.
     It 'touches no ACL when it was given no account' {
         $smb = & $script:newSmb
-        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+        $fs = New-HDTFakeFileSystem -Directory @($script:root, "$script:root\Logs", "$script:root\Captures")
 
-        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+        [void] (New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
                 -ServerName 'LAP-AMMSO01' -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
 
         $fs.GetOperationName() | Should -Not -Contain 'GrantAccess'
@@ -179,10 +195,10 @@ Describe 'New-HDTWorkspaceShare' {
 
     It 'grants nothing under -WhatIf' {
         $smb = & $script:newSmb
-        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+        $fs = New-HDTFakeFileSystem -Directory @($script:root, "$script:root\Logs", "$script:root\Captures")
 
-        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
-                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
+        [void] (New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account $script:account `
                 -SmbService $smb -FileSystem $fs -Elevated $true -WhatIf)
 
         $fs.GetOperationName() | Should -Not -Contain 'GrantAccess'
@@ -191,7 +207,7 @@ Describe 'New-HDTWorkspaceShare' {
     It 'writes nothing under -WhatIf' {
         $smb = & $script:newSmb
 
-        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+        [void] (New-HDTWorkspaceShare -Path $script:root -ShareName 'HDTShare$' `
                 -ServerName 'LAP-AMMSO01' -SmbService $smb -Elevated $true -WhatIf)
 
         $smb.GetOperationName() | Should -Not -Contain 'NewShare'
