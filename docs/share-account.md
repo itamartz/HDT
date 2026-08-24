@@ -99,6 +99,17 @@ of them, so the document and the checker cannot drift apart.
 `TakeOwnership`, so an account holding it can rewrite the share's own security —
 `Test-HDTShareAcl` reports it as `Critical` even on `Logs\`.
 
+`New-HDTWorkspaceShare -Account` sets **both** of these — the share permission
+and the NTFS rows below — so on a share HDT published there is nothing to do
+here:
+
+```powershell
+New-HDTWorkspaceShare -Path 'D:\HdtShare' -Account 'CONTOSO\svc-hdt-deploy'
+```
+
+The rest of this section is what that command does, for a share published some
+other way.
+
 Share permission first — read-only at the share level, so the NTFS rights below
 are the only thing that can widen it:
 
@@ -108,13 +119,22 @@ New-SmbShare -Name 'HdtShare' -Path 'D:\HdtShare' `
     -FullAccess 'CONTOSO\Domain Admins'
 ```
 
-Then NTFS. `/T` applies to the tree, `/E` edits rather than replaces:
+Then NTFS. `/T` applies to the tree; `icacls /grant` adds a row rather than
+replacing the ACL, so nothing else is needed to leave the existing entries
+alone — `/grant:r` is the one that replaces.
+
+**Not `/E`.** That is a `cacls` switch, not an `icacls` one: `icacls` parses it
+as a file name and fails with *The system cannot find the file specified*.
 
 ```cmd
-icacls D:\HdtShare              /grant "CONTOSO\svc-hdt-deploy:(OI)(CI)(RX)" /T /E
-icacls D:\HdtShare\Logs         /grant "CONTOSO\svc-hdt-deploy:(OI)(CI)(M)"  /T /E
-icacls D:\HdtShare\Captures     /grant "CONTOSO\svc-hdt-deploy:(OI)(CI)(M)"  /T /E
+icacls D:\HdtShare              /grant "CONTOSO\svc-hdt-deploy:(OI)(CI)(RX)" /T
+icacls D:\HdtShare\Logs         /grant "CONTOSO\svc-hdt-deploy:(OI)(CI)(M)"  /T
+icacls D:\HdtShare\Captures     /grant "CONTOSO\svc-hdt-deploy:(OI)(CI)(M)"  /T
 ```
+
+Grant the root before the two writable folders. The root grant is inherited by
+the tree, so a `Modify` written first is flattened back to `Read` by the one that
+follows it.
 
 ## 4. Check it, rather than believing it
 

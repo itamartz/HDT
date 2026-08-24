@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 <#
@@ -341,6 +341,31 @@ class HDTFakeFileSystem {
 
         if (-not $this.File.ContainsKey($full)) {
             throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.")
+        }
+    }
+
+    # The NTFS half of a deployment share's ACL. It records who was granted what
+    # and where, and keeps no security model of its own - inventing one would be
+    # testing the invention. What a caller has to prove is that it ASKS, on which
+    # folders and with which right, and the recorded arguments are where that is
+    # proved.
+    #
+    # THE RIGHT IS CHECKED HERE TOO, against the same closed set the real adapter
+    # translates. A fake that accepted FullControl would let a caller grant on a
+    # fake what the adapter refuses on a machine, which is the one difference
+    # between the two that a contract test could not catch.
+    [void] GrantAccess([string] $Path, [string] $Account, [string] $Right) {
+        $this.Record('GrantAccess', @($Path, $Account, $Right))
+
+        if (@('Read', 'Modify') -notcontains $Right) {
+            throw [System.ArgumentException]::new(
+                "'$Right' is not a right this toolkit grants on a deployment share.", 'Right')
+        }
+
+        $full = $this.Normalize($Path)
+
+        if (-not ($this.Directory.ContainsKey($full) -or $this.File.ContainsKey($full))) {
+            throw [System.IO.DirectoryNotFoundException]::new("Could not find '$full'.")
         }
     }
 

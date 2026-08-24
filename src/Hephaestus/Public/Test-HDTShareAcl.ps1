@@ -1,4 +1,4 @@
-﻿function Test-HDTShareAcl {
+function Test-HDTShareAcl {
     <#
         .SYNOPSIS
             Judges whether the deployment account is least-privileged on the
@@ -60,6 +60,10 @@
             it. '.' or '' is the workspace root. A $null value means the ACL
             could not be read.
 
+            Rows nested one deep are accepted and flattened, because
+            @(Get-HDTShareAccessRule -Path $root) produces exactly that and is
+            what a careful caller writes.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -70,8 +74,8 @@
         .EXAMPLE
             $root = 'C:\HDTLab\Share'
             $account = 'LAP-AMMSO01\svc-hdt-deploy'
-            $rootRule = @(Get-HDTShareAccessRule -Path $root)
-            $logRule = @(Get-HDTShareAccessRule -Path (Join-Path $root 'Logs'))
+            $rootRule = Get-HDTShareAccessRule -Path $root
+            $logRule = Get-HDTShareAccessRule -Path (Join-Path $root 'Logs')
             $accessRule = @{ '.' = $rootRule; 'Logs' = $logRule }
             Test-HDTShareAcl -WorkspaceRoot '\\server\HdtShare' -Identity 'CONTOSO\svc-hdt-deploy' -AccessRule $accessRule
 
@@ -111,6 +115,61 @@
     $adminGroupPattern = 'Domain Admins|Enterprise Admins|Administrators'
 
     $finding = New-Object -TypeName System.Collections.ArrayList
+
+    # THE ROWS ARRIVE IN TWO SHAPES AND BOTH ARE LEGITIMATE.
+    # Get-HDTShareAccessRule returns `, ([psobject[]] ...)` - the unary comma
+    # that stops a one-row ACL unrolling to a scalar - so a caller writing
+    # `Get-HDTShareAccessRule -Path $root` gets the rows and a caller writing
+    # `@(Get-HDTShareAccessRule -Path $root)` gets ONE element that is the array
+    # of rows. The second is what any careful PowerShell author writes, and it is
+    # what this command's own example wrote.
+    #
+    # UNFLATTENED, IT PRODUCED A FALSE CRITICAL. Reading .Identity off the nested
+    # array member-enumerates it, the result stringifies to 'System.Object[]',
+    # that matches no account, and a share whose ACL was correct was reported as
+    # one the deployment account cannot read - which sends somebody to fix an ACL
+    # that was never broken. A checker that cries wolf is a checker that gets
+    # turned off, and then nobody is told about the real finding either.
+    #
+    # ONE ROW NESTED SURVIVED IT, which is why no fixture caught it: member
+    # enumeration over a single element still stringifies to the right thing. It
+    # took a real five-row ACL to show.
+    #
+    # $null IS NOT FLATTENED AWAY. It means "the ACL could not be read", which is
+    # an Information finding below, and a flatten that dropped it would turn an
+    # unreadable folder into an unjudged one.
+    $flatten = {
+        param([object] $Row)
+
+        if ($null -eq $Row) { return $null }
+
+        $flat = New-Object -TypeName System.Collections.ArrayList
+
+        foreach ($item in @($Row)) {
+            if ($null -eq $item) { continue }
+
+            if ($item -is [System.Collections.IEnumerable] -and -not ($item -is [string])) {
+                foreach ($inner in $item) {
+                    if ($null -ne $inner) { [void] $flat.Add($inner) }
+                }
+            } else {
+                [void] $flat.Add($item)
+            }
+        }
+
+        # THE UNARY COMMA IS THE WHOLE POINT AGAIN. An empty array returned from
+        # a scriptblock unrolls to nothing, the assignment below lands $null, and
+        # $null means "the ACL could not be read" - so a root the account has NO
+        # rows on would be reported as unjudgeable Information instead of the
+        # Critical it is. The comma keeps the array an array.
+        return , ([psobject[]] $flat.ToArray())
+    }
+
+    $rowByKey = [System.Collections.Specialized.OrderedDictionary]::new()
+
+    foreach ($key in @($AccessRule.Keys)) {
+        $rowByKey[$key] = & $flatten $AccessRule[$key]
+    }
 
     $add = {
         param([string] $Path, [string] $Severity, [string] $Message)
@@ -160,7 +219,7 @@
     $rootIsUnreadable = $false
 
     if ($rootKey -ne '') {
-        $rootRow = $AccessRule[$rootKey]
+        $rootRow = $rowByKey[$rootKey]
         if ($null -eq $rootRow) {
             $rootIsUnreadable = $true
         } else {
@@ -190,7 +249,7 @@
             $path = [System.IO.Path]::Combine($WorkspaceRoot, $normalized)
         }
 
-        $row = $AccessRule[$key]
+        $row = $rowByKey[$key]
 
         if ($null -eq $row) {
             & $add $path 'Information' (

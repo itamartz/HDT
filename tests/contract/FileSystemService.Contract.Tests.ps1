@@ -76,7 +76,7 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
                     'CreateDirectory', 'RemoveItem', 'CopyItem', 'MoveItem', 'GetChildItem', 'GetDirectory',
-                    'TakeOwnership', 'GetLength', 'GetHash', 'GetVersion')) {
+                    'TakeOwnership', 'GrantAccess', 'GetLength', 'GetHash', 'GetVersion')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -133,6 +133,43 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
         It 'throws for a file that is not there' {
             $record = $null
             try { $script:fs.TakeOwnership((Join-Path -Path $script:root -ChildPath 'absent.txt')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+        }
+
+        # GrantAccess EXISTS BECAUSE A SHARE PERMISSION IS HALF AN ACL. SMB gates
+        # the connection and NTFS gates the file, the effective right is the more
+        # restrictive of the two, and until this existed HDT granted the first and
+        # left the second to an icacls line in docs/share-account.md - which a
+        # share published by New-HDTWorkspaceShare never ran. The result was a
+        # share the deployment account could reach and not read.
+        #
+        # WHAT IT GRANTS IS ASSERTED IN THE JOURNAL, not read back off the disk.
+        # The fake carries no Windows security model, and building one to test
+        # against would be testing the invention rather than the caller. What a
+        # caller has to prove is that it ASKS, and with which right.
+        It 'records the grant it was asked for' {
+            $folder = Join-Path -Path $script:root -ChildPath 'granted'
+            $script:fs.CreateDirectory($folder)
+
+            $script:fs.GrantAccess($folder, 'LAP-AMMSO01\svc-hdt-deploy', 'Read')
+
+            $script:fs.GetOperationName() | Should -Contain 'GrantAccess'
+        }
+
+        It 'throws for a path that is not there' {
+            $record = $null
+            try { $script:fs.GrantAccess((Join-Path -Path $script:root -ChildPath 'no-such-folder'), 'LAP-AMMSO01\svc-hdt-deploy', 'Read') } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+        }
+
+        # A right the toolkit does not grant is refused before the tool is
+        # reached - FullControl on a deployment share is the Critical finding
+        # Test-HDTShareAcl exists to report.
+        It 'refuses a right it does not grant' {
+            $record = $null
+            try { $script:fs.GrantAccess($script:root, 'LAP-AMMSO01\svc-hdt-deploy', 'FullControl') } catch { $record = $_ }
 
             $record | Should -Not -BeNullOrEmpty
         }
