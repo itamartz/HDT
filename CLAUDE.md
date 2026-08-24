@@ -1,4 +1,4 @@
-# CLAUDE.md — Hephaestus Deployment Toolkit (HDT)
+﻿# CLAUDE.md — Hephaestus Deployment Toolkit (HDT)
 
 A replacement for the Microsoft Deployment Toolkit (MDT), which has been in
 maintenance mode since 2019. Same operational model — deployment share, task
@@ -223,10 +223,15 @@ address on its first line is a DHCP lease like every other address in this lab:
 read it, don't memorise it.
 
 Installed and verified: PowerShell **5.1 only** (no `pwsh` — which matches the
-gate), Pester **5.9.1**, PSScriptAnalyzer 1.25.0, git 2.55, and the ADK
-10.1.26100.2454 with Deployment Tools and the WinPE add-on. `ExecutionPolicy` is
-`RemoteSigned` at LocalMachine scope; every scope was `Undefined`, which stops
-an installed module loading at all.
+gate), Pester **5.9.1**, PSScriptAnalyzer 1.25.0, git 2.55, `powershell-yaml`
+**0.4.12**, and the ADK 10.1.26100.2454 with Deployment Tools and the WinPE
+add-on. `ExecutionPolicy` is `RemoteSigned` at LocalMachine scope; every scope
+was `Undefined`, which stops an installed module loading at all.
+
+`powershell-yaml` was the one that was missing, and it is not optional: without
+it `New-HDTWorkspace` cannot write a single document. It failed correctly —
+`HDTDependencyError`, naming the module and the `Install-Module` line — which is
+the dependency gate doing its job rather than a surprise to debug.
 
 | Suite | There? | Why |
 |---|---|---|
@@ -239,6 +244,46 @@ result that differs between the two is the version's fault before the code's.
 
 It answers on WinRM only while it is powered on — a refused connection is a VM
 that is off, not a broken setup. Retry before diagnosing.
+
+### Looking at a window on it
+
+**A WinRM session has no desktop** — `[Environment]::UserInteractive` is `$false`
+there — so `ShowDialog` has no window station to draw on and `PrintWindow`, the
+capture this repository uses on the laptop, returns nothing. That is not a
+reason to leave the console unchecked on the machine the suite actually runs on.
+
+**`RenderTargetBitmap` needs no desktop.** WPF keeps a retained-mode visual tree,
+and this walks that tree and rasterises it directly; the window never has to be
+shown, or to exist on screen at all:
+
+```powershell
+$window.Width = 1500; $window.Height = 1000
+$content = $window.Content
+$content.Measure([System.Windows.Size]::new(1500, 1000))
+$content.Arrange([System.Windows.Rect]::new(0, 0, 1500, 1000))
+$content.UpdateLayout()
+
+$bitmap = New-Object System.Windows.Media.Imaging.RenderTargetBitmap(1500, 1000, 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32)
+$bitmap.Render($content)
+```
+
+Three things it will not forgive:
+
+- **Lay it out first.** An element that was never shown has no size, and
+  `Render` on it gives a blank image. `Measure`, `Arrange`, `UpdateLayout`, then
+  render.
+- **Run it STA.** `Invoke-Command` gives you MTA, and WPF refuses. Start a
+  `powershell.exe -STA -File` on the far side rather than rendering inline.
+- **Hand the tree its ROOTS.** `Get-HDTConsoleTreeNode` returns a flat list with
+  a `Depth`; `Show-HDTConsole` passes only `Depth -eq 0` and WPF builds the
+  branches from each row's `Children`. Handing it the flat list draws every node
+  twice, which looks exactly like a duplication bug in the tree builder and is
+  not one.
+
+It renders the element's whole extent rather than the visible viewport, which is
+how a pane below the fold gets photographed at all. It captures no window chrome
+— no title bar, no border — because Windows draws those and they are not in
+WPF's visual tree.
 
 ## Repo layout
 
