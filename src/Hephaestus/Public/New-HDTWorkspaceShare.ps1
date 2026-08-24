@@ -1,4 +1,4 @@
-﻿function New-HDTWorkspaceShare {
+function New-HDTWorkspaceShare {
     <#
         .SYNOPSIS
             Publishes a deployment share's folder over SMB, and answers with the
@@ -55,6 +55,10 @@
 
         .PARAMETER SmbService
             An ISmbService. Defaults to the real adapter.
+
+        .PARAMETER FileSystem
+            An IFileSystem, which is what writes the NTFS half of the ACL.
+            Defaults to the real one.
 
         .PARAMETER Elevated
             Whether this process can publish a share. Defaults to what
@@ -113,6 +117,15 @@
         [AllowNull()]
         [object] $SmbService,
 
+        # DEFAULTED, NOT MANDATORY, on New-HDTWorkspace's reasoning: this is a
+        # command an administrator types, so a working call is a short one. It is
+        # here because the NTFS half of the ACL below is a filesystem act rather
+        # than an SMB one, and putting it on ISmbService would have made the
+        # service lie about what it is. A test passes the fake, and must.
+        [Parameter()]
+        [ValidateNotNull()]
+        [object] $FileSystem = (New-HDTFileSystem),
+
         # WHETHER THIS PROCESS CAN PUBLISH ONE AT ALL. Taken as a parameter
         # rather than asked here, so the refusal is provable without a second
         # process and a UAC prompt - Test-HDTElevation is the adapter that asks.
@@ -162,8 +175,35 @@
 
     $SmbService.NewShare($Path, [string] $decided.ShareName, $Description)
 
+    # BOTH ACLS, OR NEITHER. SMB gates the connection and NTFS gates the file,
+    # and the effective right is the more restrictive of the two - so granting
+    # the share half alone produces a share the deployment account can reach and
+    # cannot read, which is precisely what Test-HDTShareAcl then reports as
+    # Critical at the root. Until this existed the NTFS half lived in three
+    # icacls lines in docs/share-account.md that this command never ran, and an
+    # administrator who followed the command rather than the document got a boot
+    # image that failed at the Welcome screen.
+    #
+    # NO ACCOUNT, NO GRANT, on either. A share created with nobody named reaches
+    # nobody until an administrator decides who, and writing an NTFS row for an
+    # account nobody gave would be deciding that for them.
     if (-not [string]::IsNullOrWhiteSpace($Account)) {
         $SmbService.GrantShareAccess([string] $decided.ShareName, $Account, 'Read')
+
+        # READ ON THE TREE, MODIFY ON EXACTLY TWO FOLDERS. That is the posture
+        # docs/share-account.md sets out and Test-HDTShareAcl judges: the account
+        # reads everything it deploys, writes only where the deployment sends its
+        # logs home and lands a capture, and holds FullControl nowhere.
+        #
+        # Logs\ and Captures\ come after the root on purpose - the root grant is
+        # inherited by the tree, so a Modify written first would be flattened
+        # back to Read by the one that follows it.
+        $FileSystem.GrantAccess($Path, $Account, 'Read')
+
+        foreach ($writable in @('Logs', 'Captures')) {
+            $FileSystem.GrantAccess(
+                [System.IO.Path]::Combine($Path, $writable), $Account, 'Modify')
+        }
     }
 
     return [pscustomobject] @{

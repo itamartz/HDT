@@ -1,4 +1,4 @@
-﻿# A DEPLOYMENT SHARE IS A SHARE, which is what MDT's New Deployment Share
+# A DEPLOYMENT SHARE IS A SHARE, which is what MDT's New Deployment Share
 # wizard means by the name: it asks for a folder AND a share name, creates the
 # SMB share, and DeployRoot is \\<server>\<share> derived from the two. HDT
 # asked for the UNC instead - a box somebody had to fill in by hand with a path
@@ -123,6 +123,69 @@ Describe 'New-HDTWorkspaceShare' {
                 -SmbService $smb -Elevated $true -Confirm:$false)
 
         $smb.GetOperationName() | Should -Contain 'GrantShareAccess'
+    }
+
+    # THE OTHER HALF OF THE ACL. SMB gates the connection, NTFS gates the file,
+    # and the effective right is the more restrictive of the two - so a share
+    # permission on its own produces a share the deployment account can reach
+    # and cannot read. Until this existed, HDT granted the first half and left
+    # the second to three icacls lines in docs/share-account.md that nothing
+    # ran, and Test-HDTShareAcl then reported the result as Critical.
+    It 'grants NTFS read at the workspace root, not only the share permission' {
+        $smb = & $script:newSmb
+        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+
+        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
+                -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
+
+        $grant = @($fs.Operations | Where-Object { $_.Operation -eq 'GrantAccess' })
+
+        @($grant).Count | Should -Be 3
+        [string] $grant[0].Arguments[0] | Should -BeExactly 'C:\HDTLab\Share'
+        [string] $grant[0].Arguments[2] | Should -BeExactly 'Read'
+    }
+
+    # LOGS AND CAPTURES ARE THE ONLY TWO IT MAY WRITE TO, which is the posture
+    # Test-HDTShareAcl judges: write anywhere else is a Warning, and the account
+    # still has to send its logs home and land a capture.
+    It 'grants modify on Logs and Captures, and nowhere else' {
+        $smb = & $script:newSmb
+        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+
+        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
+                -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
+
+        $modify = @($fs.Operations |
+                Where-Object { $_.Operation -eq 'GrantAccess' -and [string] $_.Arguments[2] -eq 'Modify' } |
+                ForEach-Object { [string] $_.Arguments[0] })
+
+        $modify | Should -Be @('C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+    }
+
+    # NO ACCOUNT, NO GRANT - on either ACL. A share created with nobody named
+    # reaches nobody until an administrator decides who, and writing an NTFS row
+    # for an account nobody gave would be deciding that for them.
+    It 'touches no ACL when it was given no account' {
+        $smb = & $script:newSmb
+        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+
+        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -SmbService $smb -FileSystem $fs -Elevated $true -Confirm:$false)
+
+        $fs.GetOperationName() | Should -Not -Contain 'GrantAccess'
+    }
+
+    It 'grants nothing under -WhatIf' {
+        $smb = & $script:newSmb
+        $fs = New-HDTFakeFileSystem -Directory @('C:\HDTLab\Share', 'C:\HDTLab\Share\Logs', 'C:\HDTLab\Share\Captures')
+
+        [void] (New-HDTWorkspaceShare -Path 'C:\HDTLab\Share' -ShareName 'HDTShare$' `
+                -ServerName 'LAP-AMMSO01' -Account 'LAP-AMMSO01\svc-hdt-deploy' `
+                -SmbService $smb -FileSystem $fs -Elevated $true -WhatIf)
+
+        $fs.GetOperationName() | Should -Not -Contain 'GrantAccess'
     }
 
     It 'writes nothing under -WhatIf' {

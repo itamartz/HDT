@@ -1,4 +1,4 @@
-﻿function New-HDTFileSystem {
+function New-HDTFileSystem {
     <#
         .SYNOPSIS
             Creates the real IFileSystem adapter over System.IO.
@@ -306,6 +306,56 @@
             throw [System.InvalidOperationException]::new(
                 ("icacls.exe exited {0} for '{1}'{2}{3}" -f $LASTEXITCODE, $full,
                     [System.Environment]::NewLine, (@($grantOutput) -join [System.Environment]::NewLine)))
+        }
+    }
+
+    # NTFS, THE HALF A SHARE PERMISSION IS NOT. SMB gates the connection and
+    # NTFS gates the file; the effective right is the more restrictive of the
+    # two, so a share granted to the deployment account and an NTFS tree that
+    # never heard of it produces a share the machine can reach and cannot read.
+    # That was HDT's behaviour until this existed: New-HDTWorkspaceShare granted
+    # the share half and left the other to three icacls lines in
+    # docs/share-account.md that nothing ran.
+    #
+    # icacls.exe, NOT SetAccessControl, FOR TakeOwnership'S REASON ONE STEP ON:
+    # writing an ACL on a tree somebody else owns needs privileges that are
+    # present but disabled in an elevated token, and the tool enables them
+    # itself. It also applies to the whole tree in one call, which .NET does not.
+    #
+    # THE RIGHT IS TRANSLATED BY ConvertTo-HDTIcaclsRight, which is where the
+    # branch lives - hard rule 1 lets this method skip a unit test only while it
+    # has none of its own. What is left here is the existence guard and the
+    # exit-code check, exactly as TakeOwnership has.
+    $service | Add-Member -MemberType ScriptMethod -Name GrantAccess -Value {
+        param([string] $Path, [string] $Account, [string] $Right)
+
+        $this.Record('GrantAccess', @($Path, $Account, $Right))
+
+        $full = $this.NormalizePath($Path)
+
+        # Refused before the tool is reached, so the message names the right
+        # rather than icacls naming a parameter.
+        $permission = ConvertTo-HDTIcaclsRight -Right $Right
+
+        if (-not (Test-Path -LiteralPath $full)) {
+            throw [System.IO.DirectoryNotFoundException]::new(
+                "Could not find '$full' to grant access on.")
+        }
+
+        # SPIKES S13.5, as above: under 5.1 the 2>&1 wraps every stderr line in
+        # an ErrorRecord and an ErrorActionPreference of Stop makes the first one
+        # terminating - so a tool that merely printed a warning would kill the
+        # call before its exit code is read. Local to this method scope.
+        $ErrorActionPreference = 'Continue'
+
+        $output = @(& "$env:SystemRoot\System32\icacls.exe" $full `
+                '/grant' ('{0}:{1}' -f $Account, $permission) '/T' '/C' '/Q' 2>&1)
+
+        if ($LASTEXITCODE -ne 0) {
+            throw [System.InvalidOperationException]::new(
+                ("icacls.exe exited {0} granting {1} to '{2}' on '{3}'{4}{5}" -f $LASTEXITCODE,
+                    $Right, $Account, $full,
+                    [System.Environment]::NewLine, (@($output) -join [System.Environment]::NewLine)))
         }
     }
 
