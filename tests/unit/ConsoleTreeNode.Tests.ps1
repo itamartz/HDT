@@ -315,7 +315,11 @@ Describe 'Get-HDTConsoleTreeNode' {
             $driver | Should -Not -BeNullOrEmpty
             $driver.Detail | Should -Match 'Right-click Drivers'
             $driver.Detail | Should -Match ([regex]::Escape('C:\ws\Drivers'))
-            $driver.Command | Should -BeLike '*Import-HDTDriver*'
+            # THE COMMAND IS THE READ THAT PRODUCED THE ROW, which is DESIGN 12's
+            # rule. It used to echo an Import-HDTDriver line with
+            # '<the extracted pack>' in it - a placeholder, so not runnable, and
+            # not what produced the row either. What to DO is in the detail.
+            $driver.Command | Should -BeLike '*Get-HDTWorkspacePath*Drivers*'
         }
 
         It 'indents by depth, so a flat list reads as a tree' {

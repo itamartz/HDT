@@ -57,6 +57,7 @@
         'Expand-HDTSelectionProfile',
         'Get-HDTShareContentFolder',
         'New-HDTDriverFolder',
+        'Remove-HDTDriverFolder',
         'Import-HDTDriver',
         'Show-HDTSelectionProfileWindow',
         'New-HDTSelectionProfile',

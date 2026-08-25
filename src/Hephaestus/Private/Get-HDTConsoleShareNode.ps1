@@ -461,7 +461,7 @@
             New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)
             New-HDTConsoleField -Label '' -Value ('Right-click Drivers to make a folder and import a vendor pack into it. A selection profile then names that folder, and the boot image injects it.')
         ) `
-            -Command ("Import-HDTDriver -Root '{0}' -Path 'WinPE\<vendor>' -Source '<the extracted pack>'" -f $Workspace.Root) `
+            -Command $driverCommand `
             -Header $header -Subject $Workspace.Root
 
         [void] $node.Add($driverEmptyRow)
@@ -480,8 +480,13 @@
             New-HDTConsoleField -Label 'Drivers' -Value ([int] $folder.InfCount)
             New-HDTConsoleField -Label 'On disk' -Value ([System.IO.Path]::Combine($Workspace.Root, [string] $folder.Path))
         ) `
-            -Command ("Import-HDTDriver -Root '{0}' -Path '{1}' -Source '<the extracted pack>'" -f
-                $Workspace.Root, ([string] $folder.Path -replace '^Drivers\\', '')) `
+            # THE COMMAND THAT PRODUCED THE ROW, which is DESIGN 12's rule and
+            # which this row broke: it showed an Import-HDTDriver line with
+            # '<the extracted pack>' in it - a placeholder, so not runnable, and
+            # not what produced the row either. Every other row here echoes a
+            # real read.
+            -Command ("Get-HDTShareContentFolder -Root '{0}' | Where-Object {{ `$_.Path -eq '{1}' }}" -f
+                $Workspace.Root, [string] $folder.Path) `
             -Header $header -Subject $Workspace.Root
 
         [void] $node.Add($folderRow)

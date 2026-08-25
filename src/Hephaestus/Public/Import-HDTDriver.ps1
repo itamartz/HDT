@@ -83,16 +83,100 @@ function Import-HDTDriver {
 
         [Parameter()]
         [ValidateNotNull()]
-        [object] $FileSystem = (New-HDTFileSystem)
+        [object] $FileSystem = (New-HDTFileSystem),
+
+        # THE ONE EXTERNAL TOOL THIS COMMAND NEEDS, injected so a cab import is
+        # provable without expand.exe actually running.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Process = $null
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
+    if ($null -eq $Process) { $Process = New-HDTProcessService }
+
     if (-not $FileSystem.TestPath($Source)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Source `
                     -Category ObjectNotFound `
                     -Message 'there is nothing to import here. Point at the folder the vendor pack was extracted into.'))
+    }
+
+    # -- what did they actually point at? -------------------------------------
+    #
+    # A DELL WinPE PACK IS A .cab AND AN HP ONE IS A SELF-EXTRACTING .exe.
+    # Pointing at the download is the ordinary case, not a mistake, so an
+    # archive is expanded rather than refused.
+    # NOT '$source' - PowerShell is case-insensitive, so that assignment would
+    # overwrite the -Source parameter with this object and every later use of it
+    # would read a property off a string.
+    $sourceKind = Get-HDTDriverSourceKind -Path $Source -FileSystem $FileSystem
+
+    # NOTHING USABLE IS REFUSED HERE, not by the archive path - that one takes a
+    # mandatory -Archive, and an empty one fails on parameter validation with a
+    # message about a parameter instead of about the folder somebody picked.
+    if ([string] $sourceKind.Kind -eq 'Empty') {
+        $archive = @($FileSystem.GetChildItem($Source) | Where-Object {
+                @('.cab', '.exe', '.zip', '.msi') -contains
+                ([System.IO.Path]::GetExtension([string] $_)).ToLowerInvariant()
+            })
+
+        $detail = 'It holds no .inf files and nothing that can be expanded into any.'
+
+        if (@($archive).Count -gt 1) {
+            $detail = ('It holds {0} archives and no .inf files, so there is no way to tell which one is the driver pack. Point at one of them.' -f
+                @($archive).Count)
+        }
+
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Source `
+                    -Category InvalidData `
+                    -Message ("'{0}' is not a driver source. {1}" -f $Source, $detail)))
+    }
+
+    if ([string] $sourceKind.Kind -ne 'Folder') {
+        return Import-HDTDriverArchive -Root $Root -Path $Path -Source $Source `
+            -Kind ([string] $sourceKind.Kind) -Archive ([string] $sourceKind.Archive) `
+            -FileSystem $FileSystem -Process $Process -Cmdlet $PSCmdlet `
+            -WhatIf:$WhatIfPreference
+    }
+
+    # HOW MANY DRIVERS ARE ACTUALLY IN THERE, COUNTED BEFORE ANYTHING IS MADE.
+    # The folder used to be created first, so a refused import still left an
+    # empty driver folder on the share - which is worse than nothing: it appears
+    # in the profile editor's tree, invites a tick, and injects nothing.
+    #
+    # It RECURSES: a vendor pack is a folder per device class, and counting only
+    # the top level answers zero for every real pack there is.
+    $infCount = Measure-HDTDriverInf -Path $Source -FileSystem $FileSystem
+
+    # IT REFUSES, AND IT USED TO WARN. A warning is invisible in a WPF app: the
+    # console imported a folder holding nothing but a Dell .cab, said nothing an
+    # administrator saw, and left a driver folder that a profile would include
+    # and a build would inject nothing from - found on a bench, weeks later.
+    #
+    # AND IT NAMES THE ARCHIVE IT FOUND. Dell and HP ship WinPE packs as a .cab,
+    # and pointing at the download rather than the folder it was expanded into is
+    # the commonest way to get this wrong. A refusal that only says what it
+    # wanted leaves somebody re-picking the same folder.
+    if ($infCount -eq 0) {
+        $archive = @($FileSystem.GetChildItem($Source) | Where-Object {
+                @('.cab', '.zip', '.msi', '.exe') -contains
+                ([System.IO.Path]::GetExtension([string] $_)).ToLowerInvariant()
+            })
+
+        $found = 'nothing that looks like a driver'
+        $fix = 'Point at the folder the vendor pack was extracted into.'
+
+        if (@($archive).Count -gt 0) {
+            $found = ("'{0}'" -f [System.IO.Path]::GetFileName([string] @($archive)[0]))
+            $fix = 'Expand it first - a vendor pack is an archive, and the driver store holds the .inf tree inside it, not the download.'
+        }
+
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Source `
+                    -Category InvalidData `
+                    -Message ("'{0}' holds no .inf files, so this would import no drivers - it holds {1}. {2}" -f
+                        $Source, $found, $fix)))
     }
 
     # The destination's rules are the profile's rules; New-HDTDriverFolder owns
@@ -101,16 +185,6 @@ function Import-HDTDriver {
         -WhatIf:$WhatIfPreference
 
     $full = [string] $folder.FullPath
-
-    # HOW MANY DRIVERS ARE ACTUALLY IN THERE, counted at the SOURCE so the answer
-    # is known before anything is written and -WhatIf can report it too. It
-    # RECURSES: a vendor pack is a folder per device class, and counting only the
-    # top level answers zero for every real pack there is.
-    $infCount = Measure-HDTDriverInf -Path $Source -FileSystem $FileSystem
-
-    if ($infCount -eq 0) {
-        Write-Warning ("'{0}' holds no .inf files, so this import adds no drivers. That is usually the downloaded archive rather than the folder it was extracted into." -f $Source)
-    }
 
     if (-not $PSCmdlet.ShouldProcess($full, ("Copy {0} driver(s) from '{1}'" -f $infCount, $Source))) {
         return [pscustomobject] @{

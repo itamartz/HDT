@@ -114,6 +114,88 @@ Describe 'New-HDTDriverFolder' {
     }
 }
 
+Describe 'Remove-HDTDriverFolder' {
+
+    It 'is exported by Hephaestus' {
+        Get-Command -Name 'Remove-HDTDriverFolder' -Module 'Hephaestus' -ErrorAction SilentlyContinue |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'removes the folder it was given' {
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\HDTLab\Share\Drivers\WinPE\Dell\pack.cab' = 'binary'
+            'C:\HDTLab\Share\Drivers\WinPE\HP\e.inf'      = '[Version]'
+        }
+
+        $result = Remove-HDTDriverFolder -Root $script:root -Path 'WinPE\Dell' -FileSystem $fs -Confirm:$false
+
+        $result.Removed | Should -BeTrue
+        $fs.TestPath('C:\HDTLab\Share\Drivers\WinPE\Dell') | Should -BeFalse
+    }
+
+    It 'leaves the folders beside it alone' {
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\HDTLab\Share\Drivers\WinPE\Dell\pack.cab' = 'binary'
+            'C:\HDTLab\Share\Drivers\WinPE\HP\e.inf'      = '[Version]'
+        }
+
+        $null = Remove-HDTDriverFolder -Root $script:root -Path 'WinPE\Dell' -FileSystem $fs -Confirm:$false
+
+        $fs.TestPath('C:\HDTLab\Share\Drivers\WinPE\HP\e.inf') | Should -BeTrue
+    }
+
+    # THE ONE THAT MATTERS. 'Delete Drivers\' is a keystroke away from "delete
+    # this vendor folder" and would take every pack on the share with it.
+    It 'refuses the driver store itself' {
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\HDTLab\Share\Drivers\WinPE\e.inf' = '[Version]' }
+
+        { Remove-HDTDriverFolder -Root $script:root -Path '\' -FileSystem $fs -Confirm:$false } |
+            Should -Throw
+
+        $fs.TestPath('C:\HDTLab\Share\Drivers\WinPE\e.inf') | Should -BeTrue
+    }
+
+    It 'refuses a path that climbs out of the store' {
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\HDTLab\Share\Drivers\WinPE\e.inf' = '[Version]' }
+
+        { Remove-HDTDriverFolder -Root $script:root -Path '..\..\Windows' -FileSystem $fs -Confirm:$false } |
+            Should -Throw
+
+        $fs.GetOperationName() | Should -Not -Contain 'RemoveItem'
+    }
+
+    It 'refuses a rooted path' {
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\HDTLab\Share\Drivers\WinPE\e.inf' = '[Version]' }
+
+        { Remove-HDTDriverFolder -Root $script:root -Path 'C:\Windows\System32' -FileSystem $fs -Confirm:$false } |
+            Should -Throw
+
+        $fs.GetOperationName() | Should -Not -Contain 'RemoveItem'
+    }
+
+    It 'says so rather than failing when the folder is already gone' {
+        $fs = New-HDTFakeFileSystem
+
+        (Remove-HDTDriverFolder -Root $script:root -Path 'WinPE\Gone' -FileSystem $fs -Confirm:$false).Removed |
+            Should -BeFalse
+    }
+
+    It 'removes nothing under -WhatIf' {
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\HDTLab\Share\Drivers\WinPE\e.inf' = '[Version]' }
+
+        $null = Remove-HDTDriverFolder -Root $script:root -Path 'WinPE' -FileSystem $fs -WhatIf
+
+        $fs.TestPath('C:\HDTLab\Share\Drivers\WinPE\e.inf') | Should -BeTrue
+    }
+
+    It 'confirms by default, because there is no undo but the vendor download' {
+        $meta = (Get-Command -Name 'Remove-HDTDriverFolder').ScriptBlock.Attributes |
+            Where-Object { $_ -is [System.Management.Automation.CmdletBindingAttribute] }
+
+        [string] $meta.ConfirmImpact | Should -BeExactly 'High'
+    }
+}
+
 Describe 'Import-HDTDriver' {
 
     It 'is exported by Hephaestus' {
@@ -158,15 +240,54 @@ Describe 'Import-HDTDriver' {
     # A SOURCE WITH NO .inf IN IT IS ALMOST ALWAYS THE WRONG FOLDER - somebody
     # picked the download rather than the extracted pack - so it is said out
     # loud rather than left as a silently empty driver folder.
-    It 'warns when the source holds no drivers at all' {
+    # IT REFUSES RATHER THAN WARNS, and that is a deliberate change from the
+    # first version. A warning is invisible in a WPF app: the console imported a
+    # folder holding nothing but a Dell .cab, said nothing an administrator saw,
+    # and left a driver folder that a selection profile will happily include and
+    # a boot image build will happily inject nothing from - found on a bench.
+    It 'refuses a source that holds no drivers at all' {
         $fs = New-HDTFakeFileSystem -File @{ 'D:\packs\empty\readme.txt' = 'nothing here' }
 
-        $warning = @()
-        $result = Import-HDTDriver -Root $script:root -Path 'Empty' -Source 'D:\packs\empty' `
-            -FileSystem $fs -Confirm:$false -WarningVariable warning -WarningAction SilentlyContinue
+        $record = $null
+        try {
+            Import-HDTDriver -Root $script:root -Path 'Empty' -Source 'D:\packs\empty' `
+                -FileSystem $fs -Confirm:$false | Out-Null
+        } catch { $record = $_ }
 
-        $result.DriverCount | Should -Be 0
-        @($warning | Where-Object { [string] $_ -like '*no .inf*' }).Count | Should -BeGreaterThan 0
+        $record | Should -Not -BeNullOrEmpty
+        [string] $record.Exception.Message | Should -BeLike '*no .inf*'
+    }
+
+    It 'copies nothing when it refuses' {
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\packs\empty\readme.txt' = 'nothing here' }
+
+        $record = $null
+        try {
+            Import-HDTDriver -Root $script:root -Path 'Empty' -Source 'D:\packs\empty' `
+                -FileSystem $fs -Confirm:$false | Out-Null
+        } catch { $record = $_ }
+
+        $record | Should -Not -BeNullOrEmpty
+        $fs.TestPath('C:\HDTLab\Share\Drivers\Empty\readme.txt') | Should -BeFalse
+    }
+
+    # DELL AND HP SHIP WinPE PACKS AS A .cab, and pointing at the download rather
+    # than the extracted folder is the commonest way to get this wrong - so the
+    # refusal names what it DID find and says what to do about it, instead of
+    # only saying what it wanted.
+    It 'names the archive it found, because that is the actual mistake' {
+        $fs = New-HDTFakeFileSystem -File @{
+            'D:\packs\dell-winpe\WinPE11.0-Drivers-A10-XCXDW.cab' = 'binary'
+        }
+
+        $record = $null
+        try {
+            Import-HDTDriver -Root $script:root -Path 'WinPE\Dell' -Source 'D:\packs\dell-winpe' `
+                -FileSystem $fs -Confirm:$false | Out-Null
+        } catch { $record = $_ }
+
+        [string] $record.Exception.Message | Should -BeLike '*WinPE11.0-Drivers-A10-XCXDW.cab*'
+        [string] $record.Exception.Message | Should -BeLike '*expand*'
     }
 
     It 'refuses a source that is not there' {
@@ -190,6 +311,82 @@ Describe 'Import-HDTDriver' {
             -FileSystem $fs -WhatIf
 
         $fs.TestPath('C:\HDTLab\Share\Drivers\Dell\network\e1d68x64.inf') | Should -BeFalse
+    }
+
+    # WHAT DELL ACTUALLY SHIPS. The console imported one of these, copied the
+    # cab into the driver store, warned into a stream no window shows, and left
+    # a folder a profile would tick and a build would inject nothing from.
+    It 'expands a Dell cab instead of copying it' {
+        $fs = New-HDTFakeFileSystem -File @{
+            'D:\packs\WinPE11.0-Drivers-A10-XCXDW.cab' = 'binary'
+        }
+
+        # The expansion is what puts .inf files there, so the fake has to do the
+        # one thing expand.exe would: leave a tree behind.
+        $process = New-HDTFakeProcessService
+        $process | Add-Member -MemberType ScriptMethod -Name Start -Force -Value {
+            param([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond)
+
+            $this.Record('Start', @($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond))
+            $script:expandInto = $WorkingDirectory
+
+            return [pscustomobject] @{ ExitCode = 0 }
+        }
+
+        # Seed what the expansion would produce, at the destination.
+        $fs.WriteAllText('C:\HDTLab\Share\Drivers\WinPE\Dell\network\e1d68x64.inf', '[Version]')
+
+        $result = Import-HDTDriver -Root $script:root -Path 'WinPE\Dell' `
+            -Source 'D:\packs\WinPE11.0-Drivers-A10-XCXDW.cab' `
+            -FileSystem $fs -Process $process -Confirm:$false
+
+        $call = @($process.Operations | Where-Object { $_.Operation -eq 'Start' })[0]
+
+        [string] $call.Arguments[0] | Should -BeExactly 'expand.exe'
+        [string] $call.Arguments[1] | Should -BeLike '-F:*WinPE11.0-Drivers-A10-XCXDW.cab*'
+        $result.DriverCount | Should -Be 1
+    }
+
+    # THE .cab ITSELF IS NEVER LEFT IN THE STORE. Copying it in was the bug.
+    It 'leaves the archive out of the driver store' {
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\packs\dell.cab' = 'binary' }
+
+        $process = New-HDTFakeProcessService
+        $process | Add-Member -MemberType ScriptMethod -Name Start -Force -Value {
+            param([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond)
+            $this.Record('Start', @($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond))
+            return [pscustomobject] @{ ExitCode = 0 }
+        }
+
+        $fs.WriteAllText('C:\HDTLab\Share\Drivers\Dell\e.inf', '[Version]')
+
+        $null = Import-HDTDriver -Root $script:root -Path 'Dell' -Source 'D:\packs\dell.cab' `
+            -FileSystem $fs -Process $process -Confirm:$false
+
+        $fs.TestPath('C:\HDTLab\Share\Drivers\Dell\dell.cab') | Should -BeFalse
+    }
+
+    # AN ARCHIVE THAT IS NOT A DRIVER PACK LEAVES NOTHING BEHIND. A firmware
+    # bundle expands to no .inf, and a folder left there would be ticked.
+    It 'removes the folder when an archive expands to no drivers' {
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\packs\firmware.cab' = 'binary' }
+
+        $process = New-HDTFakeProcessService
+        $process | Add-Member -MemberType ScriptMethod -Name Start -Force -Value {
+            param([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond)
+            $this.Record('Start', @($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond))
+            return [pscustomobject] @{ ExitCode = 0 }
+        }
+
+        $record = $null
+        try {
+            Import-HDTDriver -Root $script:root -Path 'Firmware' -Source 'D:\packs\firmware.cab' `
+                -FileSystem $fs -Process $process -Confirm:$false | Out-Null
+        } catch { $record = $_ }
+
+        $record | Should -Not -BeNullOrEmpty
+        [string] $record.Exception.Message | Should -BeLike '*Nothing was left on the share*'
+        $fs.TestPath('C:\HDTLab\Share\Drivers\Firmware') | Should -BeFalse
     }
 
     # THE POINT OF ALL OF IT: after an import, the profile editor's tree has
