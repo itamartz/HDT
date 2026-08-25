@@ -12,8 +12,8 @@
             the second needs a desktop. This loads the markup, paints the
             palette and hangs every handler off the tree; the ScriptMethod that
             calls it then calls ShowDialog, which is the part that blocks. See
-            New-HDTConsoleView for the whole reasoning and for why the rule in
-            .planning/WPF-FIRST.md was narrowed to allow it.
+            New-HDTConsoleView for the whole reasoning and for why the rule
+            in .planning/WPF-FIRST.md was narrowed to allow it.
 
             THE HOST IS INJECTED RATHER THAN BEING $this. Inside a handler $this
             is the control that raised the event, and a ScriptMethod's enclosing

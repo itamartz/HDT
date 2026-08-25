@@ -22,8 +22,9 @@
         module path, so there is no command to call until something imports the
         manifest, and this is the file that does it.
 
-        IT IS NOT FOR DOUBLE-CLICKING, whatever its name suggests. Windows ships
-        .ps1 with no Open verb deliberately - Explorer hands it to an editor
+        IT IS NOT FOR DOUBLE-CLICKING, whatever its name suggests. Windows
+        ships .ps1 with no Open verb deliberately - Explorer hands it to an
+        editor
         rather than running it - so the double-click this file was first written
         for does not happen on a default install. Run it, or point a shortcut at
         powershell.exe -File; both work, and neither is a double-click.

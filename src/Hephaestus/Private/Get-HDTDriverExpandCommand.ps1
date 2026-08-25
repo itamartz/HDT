@@ -1,4 +1,4 @@
-function Get-HDTDriverExpandCommand {
+﻿function Get-HDTDriverExpandCommand {
     <#
         .SYNOPSIS
             The program and arguments that expand a vendor driver archive.
@@ -10,18 +10,19 @@ function Get-HDTDriverExpandCommand {
             means an archive that silently expands nowhere. So the knowledge
             lives here, in a command that returns strings.
 
-            .cab - expand.exe, WHICH IS IN EVERY WINDOWS AND EVERY WinPE.
+            A .cab - expand.exe, WHICH IS IN EVERY WINDOWS AND EVERY WinPE.
             '-F:*' is the part people miss: without it expand copies the cab's
             first file and stops. '-R' is not used - these are plain cabinets,
             not update packages.
 
-            .exe - THE SOFTPAQ EXPANDS ITSELF. HP's installers take
+            An .exe - THE SOFTPAQ EXPANDS ITSELF. HP's installers take
             '/s /e /f<path>': silent, extract-only, to a folder. The path is
             attached to /f with NO SPACE, which is HP's own convention and the
             reason a naive '/f <path>' extracts to the current directory
             instead. Dell's own .exe packs accept the same shape.
 
-            .zip - EXPANDED BY THE FILE SYSTEM, NOT A PROCESS. It is here so the
+            A .zip - EXPANDED BY THE FILE SYSTEM, NOT A PROCESS. It is here
+            so the
             caller gets one answer for every archive kind; the empty FilePath is
             how it says "no process for this one".
 

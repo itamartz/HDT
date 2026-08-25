@@ -1,8 +1,8 @@
-function Get-HDTBootImageDriverInjection {
+﻿function Get-HDTBootImageDriverInjection {
     <#
         .SYNOPSIS
-            What Update-HDTBootImage should hand DISM: whole folders, or the
-            .inf files inside them.
+            What Update-HDTBootImage should hand DISM: whole folders, or
+            the .inf files inside them.
 
         .DESCRIPTION
             THE TICK BOX HAS TO CHANGE WHAT DISM RECEIVES, or it is decoration.

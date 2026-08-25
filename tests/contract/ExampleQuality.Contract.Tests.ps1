@@ -190,6 +190,50 @@ Describe 'Example quality contract' {
         $short.Count | Should -Be 0 -Because $because
     }
 
+    # A LINE THAT STARTS WITH A DOT IS A HELP KEYWORD, whatever the author
+    # meant by it. ".inf files ship UTF-16LE as often as ANSI" opening a line
+    # inside .DESCRIPTION ends the description there and sends everything after
+    # it - every .PARAMETER, every .EXAMPLE - into a section PowerShell does not
+    # recognise and silently drops. Get-HDTDriver lost all three of its examples
+    # that way and read as though it had none.
+    #
+    # IT SWEEPS EVERY FUNCTION, NOT THE EXPORTED ONES. Seven of the eight files
+    # this found were private helpers, whose help nothing else here checks - and
+    # whose help is what the next person to change them reads.
+    It 'never opens a help line with a word that is not a help keyword' {
+        $keyword = @('SYNOPSIS', 'DESCRIPTION', 'PARAMETER', 'INPUTS', 'OUTPUTS', 'EXAMPLE',
+            'NOTES', 'LINK', 'COMPONENT', 'ROLE', 'FUNCTIONALITY', 'FORWARDHELPTARGETNAME',
+            'FORWARDHELPCATEGORY', 'REMOTEHELPRUNSPACE', 'EXTERNALHELP')
+
+        $swallowed = foreach ($file in @(Get-ChildItem -Path (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus') `
+                    -Filter '*.ps1' -Recurse | Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' })) {
+
+            $inHelp = $false
+
+            foreach ($line in @([System.IO.File]::ReadAllLines($file.FullName))) {
+                $trimmed = $line.Trim()
+
+                if ($trimmed.StartsWith('<#')) { $inHelp = $true; continue }
+                if ($trimmed.StartsWith('#>')) { $inHelp = $false; continue }
+                if (-not $inHelp) { continue }
+                if (-not ($trimmed -match '^\.[A-Za-z]')) { continue }
+
+                $word = ($trimmed.Substring(1) -split '[\s.,;:]')[0].ToUpperInvariant()
+                if ($keyword -contains $word) { continue }
+
+                '{0}: {1}' -f $file.Name, $trimmed
+            }
+        }
+
+        $swallowed = @($swallowed)
+        $because = 'a help line opening with a dot is read as a section keyword, and everything after it is dropped'
+        if ($swallowed.Count -gt 0) {
+            $because = "{0}. Found: {1}" -f $because, (@($swallowed) -join '; ')
+        }
+
+        $swallowed.Count | Should -Be 0 -Because $because
+    }
+
     It 'writes every example in PowerShell that parses' {
         $broken = foreach ($one in $script:command) {
             foreach ($code in @(& $script:exampleOf $one.Name)) {

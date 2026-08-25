@@ -1,4 +1,4 @@
-function Get-HDTDriver {
+﻿function Get-HDTDriver {
     <#
         .SYNOPSIS
             The drivers in a share's driver store, read out of the .inf files
@@ -24,13 +24,13 @@ function Get-HDTDriver {
             anybody writing anything.
 
             ENCODING IS HANDLED HERE, WHICH IS WHY THE PARSER TAKES A STRING.
-            .inf files ship UTF-16LE as often as ANSI; ReadAllText detects the
-            byte order mark, and a parser that took a path would have to know
-            that too.
+            Driver files ship UTF-16LE as often as ANSI; ReadAllText detects
+            the byte order mark, and a parser that took a path would have to
+            know that too.
 
             A FILE THAT WILL NOT PARSE IS STILL A ROW. It comes back with its
-            name and nothing else rather than throwing, because one malformed
-            .inf in a vendor pack must not empty the grid - the same rule
+            name and nothing else rather than throwing, because a single
+            malformed file in a vendor pack must not empty the grid - the rule
             Get-HDTConsoleWorkspace follows for a sequence that will not load.
 
         .PARAMETER Root

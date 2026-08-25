@@ -1,4 +1,4 @@
-function Get-HDTConsoleRowDocument {
+﻿function Get-HDTConsoleRowDocument {
     <#
         .SYNOPSIS
             Which document a details-pane edit writes, with which pair of
@@ -17,13 +17,13 @@ function Get-HDTConsoleRowDocument {
             A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, and this is
             the reason this command exists rather than a lookup table. A
             workspace projection carries the root it was opened from as well as
-            the document, so it has WorkspacePath and NO Path at all. Reading
-            .Path first and correcting it for a Share afterwards looks equivalent
-            and is not: under Set-StrictMode reading a property that is not there
-            is a terminating error, on the dispatcher, which takes the window
-            down. It survived in the handler only because a click arrives with no
-            strict mode on the stack, and surfaced when a probe that sets one
-            drove the same control.
+            the document, so it has WorkspacePath and NO Path at all. Reading a
+            row's .Path first and correcting it for a Share afterwards looks
+            equivalent and is not: under Set-StrictMode reading a property that
+            is not there is a terminating error, on the dispatcher, which takes
+            the window down. It survived in the handler only because a click
+            arrives with no strict mode on the stack, and surfaced when a probe
+            that sets one drove the same control.
 
             AN APPLICATION WRITES ITSELF. Set-HDTApplication takes a share and an
             id rather than lines, and saves - there is no

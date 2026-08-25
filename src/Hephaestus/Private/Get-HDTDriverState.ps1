@@ -1,11 +1,12 @@
-function Get-HDTDriverState {
+﻿function Get-HDTDriverState {
     <#
         .SYNOPSIS
             The drivers somebody has turned off on this share.
 
         .DESCRIPTION
-            THE ONE FACT THAT IS NOT IN THE .inf, because there is nowhere in an
-            .inf to put it. Everything else the console shows about a driver -
+            THE ONE FACT THAT IS NOT IN THE .inf, because there is nowhere
+            in an .inf to put it. Everything else the console shows about a
+            driver -
             class, provider, version, date, PnP ids - is read out of the file
             every time it is asked for. This is the exception.
 
