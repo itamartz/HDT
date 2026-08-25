@@ -664,19 +664,15 @@
                 if ($null -eq $box) { return }
 
                 $row = $box.DataContext
-                if ($null -eq $row) { return }
-
-                # ASKED FOR, NOT ASSUMED. Not every row in this pane comes from
-                # New-HDTConsoleField - a monitor row and a share that would not
-                # open build their own - and under Set-StrictMode reading a
-                # property that is not there is a terminating error on the
-                # dispatcher, which takes the window down for a click on a box
-                # that was never editable in the first place.
-                if (@($row.PSObject.Properties.Match('Editable')).Count -eq 0) { return }
-                if (-not [bool] $row.Editable) { return }
-
                 $typed = [string] $box.Text
-                if ($typed -eq [string] $row.Original) { return }
+
+                # WHETHER THIS IS AN EDIT AT ALL, asked in one place for both
+                # gestures. Not every row here comes from New-HDTConsoleField -
+                # a monitor row and a share that would not open build their own
+                # - so Editable may not be on the row, and reading a property
+                # that is not there is a terminating error on the dispatcher.
+                # tests/unit/ConsoleRowCommit.Tests.ps1.
+                if (-not (& $call 'Test-HDTConsoleRowCommit' -Row $row -Typed $typed)) { return }
 
                 & $writeRow $row $typed { param([string] $text) $box.Text = $text }.GetNewClosure()
             }.GetNewClosure())
@@ -693,18 +689,16 @@
                 if ($null -eq $combo) { return }
 
                 $row = $combo.DataContext
-                if ($null -eq $row) { return }
-
-                if (@($row.PSObject.Properties.Match('Editable')).Count -eq 0) { return }
-                if (-not [bool] $row.Editable) { return }
 
                 # NOTHING PICKED IS NOT A PICK. Rebuilding the pane raises this
                 # with SelectedItem null before the binding has settled, and
-                # writing that would clear the key on every click of the tree.
-                if ($null -eq $combo.SelectedItem) { return }
+                # writing that would clear the key on every click of the tree -
+                # which is the opposite of what an emptied TEXT box means, so
+                # -Picked is what tells the two apart.
+                $picked = ''
+                if ($null -ne $combo.SelectedItem) { $picked = [string] $combo.SelectedItem }
 
-                $picked = [string] $combo.SelectedItem
-                if ($picked -eq [string] $row.Original) { return }
+                if (-not (& $call 'Test-HDTConsoleRowCommit' -Row $row -Typed $picked -Picked)) { return }
 
                 & $writeRow $row $picked { param([string] $text) $combo.SelectedItem = $text }.GetNewClosure()
 
