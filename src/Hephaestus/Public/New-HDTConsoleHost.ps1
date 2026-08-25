@@ -3701,18 +3701,16 @@
             try {
                 & $Attempt
 
-                $changed = (@($book.Line).Count -ne @($before).Count)
-
-                if (-not $changed) {
-                    for ($i = 0; $i -lt @($before).Count; $i++) {
-                        if ([string] $book.Line[$i] -ne [string] $before[$i]) {
-                            $changed = $true
-                            break
-                        }
-                    }
+                # DID IT ACTUALLY CHANGE? Marking the window dirty
+                # unconditionally lights Save up for walking through a sequence
+                # and reading it, and then Save writes a file with no edit in
+                # it - re-serialising a document whose comments and ordering are
+                # the reason this editor splices lines at all.
+                # tests/unit/ConsoleLineChange.Tests.ps1.
+                if (-not (& $call 'Test-HDTConsoleLineChange' `
+                            -Before ([string[]] $before) -After ([string[]] @($book.Line)))) {
+                    return
                 }
-
-                if (-not $changed) { return }
 
                 $book.Dirty = $true
                 $command.Text = $Echo
@@ -5418,6 +5416,13 @@
         $timer.Interval = [TimeSpan]::FromMilliseconds(250)
 
         $drain = {
+                # ITS OWN DOOR, because this one is not a closure either - see
+                # $writeRow. A $call inherited by luck from whichever scope
+                # invoked it is a null reference waiting for the caller that is
+                # not a closure, and this one runs on a timer where a throw is
+                # silent.
+                $call = Get-HDTHandlerCall
+
                 $elapsed = [datetime]::UtcNow - $startedAt
 
                 if (-not $book.Finished) {
@@ -5435,73 +5440,42 @@
                 while ($queue.Count -gt 0) {
                     $report = $queue.Dequeue()
 
-                    if ($report.IsComplete) {
+                    # EVERY LINE THIS WINDOW SHOWS FOR ONE REPORT, composed away
+                    # from the timer. The detail belongs on the LOG LINE and not
+                    # only in the label - step 8 reports once per cab, and a
+                    # line carrying the title alone printed "Applying the
+                    # optional components" nineteen times - and the per-step
+                    # clock restarts on a new TITLE rather than on every report,
+                    # or it never shows that a step has been running for a
+                    # minute. tests/unit/ConsoleBuildProgress.Tests.ps1.
+                    $show = & $call 'Get-HDTConsoleBuildProgress' -Report $report `
+                        -Elapsed $elapsed -OnStep ([datetime]::UtcNow - $book.StepAt) `
+                        -StepText ([string] $book.StepText)
+
+                    $stepText.Text = [string] $show.StepText
+                    $detailText.Text = [string] $show.DetailText
+                    $bar.Maximum = [double] $show.BarMaximum
+                    $bar.Value = [double] $show.BarValue
+
+                    [void] $line.Add([string] $show.LogLine)
+
+                    if ($show.Finished) {
                         $book.Finished = $true
                         $book.Succeeded = [bool] $report.Succeeded
 
-                        $stepText.Text = 'Finished'
-                        $bar.Value = $bar.Maximum
+                        if ($show.IsFailure) { $stepText.Foreground = $window.Resources['HDTErrorBrush'] }
 
-                        if ($report.Succeeded) {
-                            $detailText.Text = [string] $report.Detail
-                            [void] $line.Add(('{0:mm\:ss}  done - {1}' -f $elapsed, $report.Detail))
-                        } else {
-                            $stepText.Text = 'Failed'
-                            $stepText.Foreground = $window.Resources['HDTErrorBrush']
-                            $detailText.Text = [string] $report.Detail
-                            [void] $line.Add(('{0:mm\:ss}  FAILED - {1}' -f $elapsed, $report.Detail))
-                        }
-
-                        $elapsedText.Text = 'took {0:mm\:ss}' -f $elapsed
-                        $close.IsEnabled = $true
+                        $elapsedText.Text = [string] $show.ElapsedText
+                        $close.IsEnabled = [bool] $show.CloseEnabled
                         continue
                     }
 
-                    $stepText.Text = [string] $report.Title
-                    $detailText.Text = [string] $report.Detail
-                    $countText.Text = 'step {0} of {1}' -f $report.Step, $report.Total
-                    $bar.Maximum = [double] $report.Total
-                    $bar.Value = [double] $report.Step
+                    $countText.Text = [string] $show.CountText
 
-                    # THE PER-STEP CLOCK RESTARTS ON A NEW STEP NUMBER, not on
-                    # every report: step 8 reports once per component, and a
-                    # clock reset by each of those would never show that the
-                    # step as a whole has been running for a minute.
-                    if ($book.StepText -ne [string] $report.Title) {
+                    if ($show.RestartStepClock) {
                         $book.StepAt = [datetime]::UtcNow
                         $book.StepText = [string] $report.Title
                     }
-
-                    # THE PARENTHESES AROUND EVERY -f IN THIS METHOD ARE
-                    # LOAD-BEARING, and the reason is the comma. Inside a .NET
-                    # method call, a comma separates ARGUMENTS - so
-                    #
-                    #     $line.Add('{0} {1}' -f $a, $b)
-                    #
-                    # parses as Add(('{0} {1}' -f $a), $b): the format string
-                    # gets one argument, {1} has nothing to fill it, and it
-                    # throws "Index (zero based) must be greater than or equal
-                    # to zero and less than the size of the argument list".
-                    #
-                    # It parses cleanly, it reads correctly, and it throws at
-                    # run time only - which killed this window at its first
-                    # report, and again at its last.
-                    # THE DETAIL IS ON THE LOG LINE, NOT ONLY IN THE LABEL.
-                    # Step 8 reports once per cab, and a line carrying the title
-                    # alone printed "Applying the optional components" nineteen
-                    # times - which says the build is moving and refuses to say
-                    # what it is moving through. The name of the cab is the
-                    # whole value of reporting per component, and it is also
-                    # what tells somebody WHICH one was being applied if the
-                    # build dies inside that step.
-                    $row = '{0:mm\:ss}  {1,2}/{2}  {3}' -f
-                        $elapsed, $report.Step, $report.Total, $report.Title
-
-                    if (-not [string]::IsNullOrWhiteSpace([string] $report.Detail)) {
-                        $row = '{0}  -  {1}' -f $row, [string] $report.Detail
-                    }
-
-                    [void] $line.Add($row)
 
                     # The newest line is the one being looked at.
                     $log.ScrollIntoView($line[$line.Count - 1])
