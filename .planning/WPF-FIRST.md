@@ -27,6 +27,29 @@ four are done:
    is callable without the window; the XAML holds no logic worth testing.
 2. **Unit tests** against the backend command, with fakes. XAML rendering is not
    unit tested - the separation is what makes that acceptable.
+
+   **NARROWED 2026-08-25, and only narrowed.** Rendering is still not unit
+   tested and still needs no test: nothing in the suite paints a pixel or
+   opens a window. What IS tested now is the **wiring** - that a control exists
+   under the name the host looks it up by, and that its handler reaches the
+   object it is supposed to write to.
+
+   That was never covered by "rendering", and the premise the exemption rested
+   on - that the adapter holds no logic worth testing - stopped being true
+   quietly: `New-HDTConsoleHost` reached 5,700 lines and 365 branch statements
+   while its own header still claimed to be branch-free.
+
+   It is possible because BUILDING a window and SHOWING one are different jobs
+   and only the second needs a desktop. Windows PowerShell's console host is
+   already STA, `XamlReader::Load` is a markup parser with no compiler behind
+   it, and a handler can be raised with `RaiseEvent` against no display at all.
+   `New-HDTConsoleView` builds and wires; `ShowDialog` stays in the method that
+   blocks, and stays untested.
+
+   The first such test earned its place immediately: it asserts the Close
+   handler writes to the injected host, which is a class of bug NO SCREENSHOT
+   CAN CATCH - a window dismissed with the title-bar X never runs that handler,
+   so it survived every screenshot that was ever taken of it.
 3. **On a VM**, in real WinPE, launched by `startnet.cmd` through the boot
    image's `entryCommand`. A screenshot is the evidence.
 4. **One commit**, and the increment is named in the commit subject.

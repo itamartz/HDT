@@ -1,10 +1,22 @@
 ﻿# C1's window, asserted on a machine with no display.
 #
-# THE WINDOW IS NOT UNIT TESTED AND MUST NOT BE. Show-HDTConsole holds the
-# decisions; an injected IConsoleHost holds the WPF. That is the same split
+# THE WINDOW IS NOT RENDERED BY A TEST, AND MUST NOT BE. Show-HDTConsole holds
+# the decisions; an injected IConsoleHost holds the WPF. That is the same split
 # Show-HDTWizard uses (.planning/WPF-FIRST.md, DESIGN 12.2.1), and it is why
-# New-HDTConsoleHost may be branch-free and untested while everything that
-# reaches the screen is asserted here.
+# everything that reaches the screen is asserted here rather than by opening a
+# window.
+#
+# THAT RULE WAS NARROWED ON 2026-08-25 AND ONLY NARROWED. It used to say the
+# window is not unit tested at all, on the premise that the adapter holds no
+# logic worth testing - and that premise had quietly stopped being true, with
+# New-HDTConsoleHost at 5,700 lines and 365 branch statements while its own
+# header still claimed to be branch-free.
+#
+# So the WIRING is tested now, in tests/unit/ConsoleView.Tests.ps1: that a
+# control exists under the name the host looks it up by, and that its handler
+# reaches the object it writes to. Nothing renders and no window is shown -
+# building a window and showing one are different jobs, and only the second
+# needs a desktop. What is asserted HERE is unchanged.
 #
 # WHY THE CONSOLE NORMALISES A DISMISSED WINDOW TO 'Close' AND THE WIZARD
 # NORMALISES IT TO 'Cancel'. The wizard's Next leads to a task sequence that
