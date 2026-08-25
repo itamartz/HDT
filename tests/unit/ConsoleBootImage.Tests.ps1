@@ -74,16 +74,23 @@ bootImage:
         }
     )
 
-    # What Get-HDTDriverGroup returns for the share, injected for the same
+    # What Get-HDTSelectionProfile returns for the share, injected for the same
     # reason the ADK list is: reading it needs folders on disk.
-    $script:driverGroup = @(
-        [pscustomobject] @{ Name = 'boot-critical'; Path = 'C:\HDTLab\Share\Drivers\boot-critical' }
-        [pscustomobject] @{ Name = 'winpe-nic'; Path = 'C:\HDTLab\Share\Drivers\winpe-nic' }
+    $script:selectionProfile = @(
+        [pscustomobject] @{
+            Id = 'boot-critical'; Name = 'Boot critical - Dell and HP'
+            Include = [string[]] @('Drivers\WinPE\Dell WinPE 11 x64', 'Drivers\WinPE\HP WinPE 11 x64')
+            IsBuiltIn = $false; Path = 'C:\HDTLab\Share\Control\selection-profiles.yaml'
+        }
+        [pscustomobject] @{
+            Id = 'nothing'; Name = 'Nothing'; Include = [string[]] @()
+            IsBuiltIn = $true; Path = ''
+        }
     )
 
     $script:view = Get-HDTConsoleBootImageSetting -Line $script:line `
         -Path 'C:\HDTLab\Share\workspace.yaml' -Component $script:component `
-        -DriverGroup $script:driverGroup
+        -SelectionProfile $script:selectionProfile
 }
 
 Describe 'Get-HDTConsoleBootImageSetting' {
@@ -295,24 +302,48 @@ Describe 'Get-HDTConsoleBootImageSetting' {
             @($script:view.Driver.Choice | ForEach-Object { $_.Name }) | Should -Contain 'boot-critical'
         }
 
-        It 'keeps a declared group the share no longer has, and says so' {
-            # A RENAMED FOLDER MUST NOT READ AS "no drivers". The document still
+        It 'keeps a declared profile the share no longer has, and says so' {
+            # A RENAMED PROFILE MUST NOT READ AS "no drivers". The document still
             # says winpe-nic; a list that quietly dropped it would show the
             # empty row selected, and the next Save would make that true.
+            #
+            # IT SAYS "not a selection profile", NOT "not on the share": this key
+            # used to name a folder under Drivers\ and an old share still does,
+            # which the build still honours. Calling that missing would be the
+            # window telling somebody their working share is broken.
             $view = Get-HDTConsoleBootImageSetting -Line $script:line `
                 -Path 'C:\HDTLab\Share\workspace.yaml' -Component $script:component `
-                -DriverGroup @([pscustomobject] @{ Name = 'boot-critical'; Path = 'C:\S\Drivers\boot-critical' })
+                -SelectionProfile @([pscustomobject] @{
+                        Id = 'boot-critical'; Name = 'Boot critical'; Include = [string[]] @('Drivers')
+                        IsBuiltIn = $false; Path = 'C:\S\Control\selection-profiles.yaml'
+                    })
 
             $row = @($view.Driver.Choice | Where-Object { $_.Name -eq 'winpe-nic' })
 
             @($row).Count | Should -Be 1
-            $row[0].Display | Should -BeLike '*not on the share*'
+            $row[0].Display | Should -BeLike '*not a selection profile*'
+        }
+
+        # THE VALUE IS THE ID AND THE LABEL IS THE NAME. A picker showing
+        # 'boot-critical' where 'Boot critical - Dell and HP' was available is a
+        # picker that made an administrator read a slug.
+        It 'offers the profile by name and answers with its id' {
+            $row = @($script:view.Driver.Choice | Where-Object { $_.Name -eq 'boot-critical' })
+
+            @($row).Count | Should -Be 1
+            $row[0].Display | Should -BeExactly 'Boot critical - Dell and HP'
+        }
+
+        It 'marks a built-in as one, because the editor cannot rename it' {
+            $row = @($script:view.Driver.Choice | Where-Object { $_.Name -eq 'nothing' })
+
+            $row[0].Display | Should -BeLike '*built in*'
         }
 
         It 'offers only "no drivers" on a share with none imported' {
             $view = Get-HDTConsoleBootImageSetting -Line ([string[]] @(
                     'schemaVersion: 1'; 'id: X'; 'name: Y'; 'deployRoot: \\a\b')) `
-                -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @()
+                -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -SelectionProfile @()
 
             @($view.Driver.Choice).Count | Should -Be 1
             @($view.Driver.Choice)[0].Name | Should -BeExactly ''
@@ -440,7 +471,7 @@ bootImage:
         $script:certLine = [string[]] @($script:certText -split "`r?`n")
 
         $script:certView = Get-HDTConsoleBootImageSetting -Line $script:certLine `
-            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @() `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -SelectionProfile @() `
             -HasCertificatePassword $true
     }
 
@@ -471,7 +502,7 @@ bootImage:
 
     It 'says so plainly when none is trusted' {
         $bare = Get-HDTConsoleBootImageSetting -Line $script:line `
-            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @()
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -SelectionProfile @()
 
         [string] $bare.CertificateSummaryText | Should -BeLike '*no certificate authorities*'
     }
@@ -494,7 +525,7 @@ bootImage:
         $script:certView.ClientCertificate.HasPassword | Should -BeTrue
 
         $without = Get-HDTConsoleBootImageSetting -Line $script:certLine `
-            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @() `
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -SelectionProfile @() `
             -HasCertificatePassword $false
 
         $without.ClientCertificate.HasPassword | Should -BeFalse
@@ -503,7 +534,7 @@ bootImage:
 
     It 'says nothing is wrong when no certificate is named at all' {
         $bare = Get-HDTConsoleBootImageSetting -Line $script:line `
-            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @()
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -SelectionProfile @()
 
         @($bare.Certificate).Count | Should -Be 0
         [string] $bare.ClientCertificate.Path | Should -BeExactly ''
@@ -536,7 +567,7 @@ Describe 'the time zone row' {
         $script:zoneLine = [string[]] @(($script:workspaceText + "`n  timeZone: Israel Standard Time") -split "`r?`n")
 
         $script:zoneView = Get-HDTConsoleBootImageSetting -Line $script:zoneLine `
-            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -DriverGroup @() -TimeZone $script:zone
+            -Path 'C:\HDTLab\Share\workspace.yaml' -Component @() -SelectionProfile @() -TimeZone $script:zone
     }
 
     It 'reads what the document names' {
@@ -556,7 +587,7 @@ Describe 'the time zone row' {
         $strange = [string[]] @(($script:workspaceText + "`n  timeZone: Mars Standard Time") -split "`r?`n")
 
         $view = Get-HDTConsoleBootImageSetting -Line $strange -Path 'C:\HDTLab\Share\workspace.yaml' `
-            -Component @() -DriverGroup @() -TimeZone $script:zone
+            -Component @() -SelectionProfile @() -TimeZone $script:zone
 
         [string] $view.TimeZone.Id | Should -BeExactly 'Mars Standard Time'
         @($view.TimeZone.Choice | Where-Object { $_.Id -eq 'Mars Standard Time' }).Count | Should -Be 1
@@ -588,7 +619,7 @@ Describe 'the Bootstrap tab' {
 
     BeforeAll {
         $script:bootstrapSetting = Get-HDTConsoleBootImageSetting -Line $script:line -Path 'C:\HDTLab\Share\workspace.yaml' `
-            -Component $script:component -DriverGroup $script:driverGroup
+            -Component $script:component -SelectionProfile $script:selectionProfile
     }
 
     It 'carries the share name and where clients reach it' {
@@ -664,7 +695,7 @@ Describe 'the Bootstrap tab' {
             )
 
             $script:stated = Get-HDTConsoleBootImageSetting -Line $script:statedLine -Path 'C:\HDTLab\Share\workspace.yaml' `
-                -Component $script:component -DriverGroup $script:driverGroup
+                -Component $script:component -SelectionProfile $script:selectionProfile
         }
 
         It 'shows the user it will sign in as' {

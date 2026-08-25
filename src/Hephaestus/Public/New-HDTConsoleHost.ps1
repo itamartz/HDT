@@ -1242,7 +1242,7 @@
     $service | Add-Member -MemberType ScriptMethod -Name ShowBootImage -Value {
         param(
             [string] $Xaml, [string] $Path, [string[]] $Line,
-            [object[]] $Component, [object[]] $DriverGroup, [object] $Theme, [object] $Size,
+            [object[]] $Component, [object[]] $SelectionProfile, [object] $Theme, [object] $Size,
             [object[]] $TimeZone = @()
         )
 
@@ -1250,7 +1250,7 @@
         # the second one needs a desktop. See New-HDTConsoleView.
         $window = New-HDTConsoleBootImageView -ConsoleHost $this `
             -Xaml $Xaml -Path $Path -Line $Line -Component $Component `
-            -DriverGroup $DriverGroup -Theme $Theme -Size $Size -TimeZone $TimeZone
+            -SelectionProfile $SelectionProfile -Theme $Theme -Size $Size -TimeZone $TimeZone
 
         [void] $window.ShowDialog()
 

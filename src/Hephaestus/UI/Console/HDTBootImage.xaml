@@ -20,7 +20,7 @@
                            Set-HDTBootImageClientCertificate,
                            Set-HDTBootImageCertificatePassword
           Features         Get-HDTAdkComponent, Add/Remove-HDTBootImageComponent
-          Drivers          Get-HDTDriverGroup, Set-HDTBootImageDriver
+          Drivers          Get-HDTSelectionProfile, Set-HDTBootImageDriver
           Customisations   Add/Remove-HDTBootImageContent,
                            Add/Remove/Move-HDTBootImageStartCommand
 
@@ -78,7 +78,7 @@
         HDTCertificateRemoveButton, HDTCertificateSummaryText,
         HDTClientCertificateBox, HDTClientCertificateBrowseButton,
         HDTClientCertificatePasswordButton, HDTClientCertificateWarningText,
-        HDTDriverGroupBox,
+        HDTSelectionProfileBox,
         HDTContentList, HDTContentSourceBox, HDTContentBrowseButton,
         HDTContentDestinationBox, HDTContentAddButton, HDTContentRemoveButton,
         HDTStartCommandList, HDTStartCommandBox, HDTStartCommandFirstCheck,
@@ -714,20 +714,28 @@
  />
 
                         <!--
-                            A LIST, NOT A BOX YOU TYPE INTO. A group is a folder
-                            under Drivers\ on the share, so the legal answers are
-                            knowable - Get-HDTDriverGroup reads them - and a
-                            typed one that is wrong builds an image with NO
-                            drivers in it, warned about at build time and
-                            discovered on a bench with a disk WinPE cannot see.
+                            A LIST, NOT A BOX YOU TYPE INTO. A selection profile
+                            is a named thing on the share, so the legal answers
+                            are knowable - Get-HDTSelectionProfile reads them,
+                            built-ins included - and a typed one that is wrong
+                            builds an image with NO drivers in it, warned about
+                            at build time and discovered on a bench with a disk
+                            WinPE cannot see.
+
+                            A PROFILE, NOT A FOLDER, BECAUSE ONE FOLDER CANNOT
+                            DESCRIBE A MIXED FLOOR. A share with a Dell WinPE
+                            pack and an HP WinPE pack needs ONE image that sees
+                            both. The value is the profile's ID and the label is
+                            its NAME: workspace.yaml references the first, an
+                            administrator recognises the second.
 
                             "No drivers" IS THE FIRST ROW rather than an empty
                             selection: it is a real choice, and a list you can
                             only say it in by clearing the box is a list you
                             cannot say it in.
                         -->
-                        <TextBlock x:Name="HDTBootImageDriverGroupLabel" Margin="0,0,0,6" />
-                        <ComboBox x:Name="HDTDriverGroupBox" Width="420" HorizontalAlignment="Left"
+                        <TextBlock x:Name="HDTBootImageSelectionProfileLabel" Margin="0,0,0,6" />
+                        <ComboBox x:Name="HDTSelectionProfileBox" Width="420" HorizontalAlignment="Left"
                                   DisplayMemberPath="Display" SelectedValuePath="Name" />
                         <!--
                             NO APPLY AND NO CLEAR HERE EITHER. Save writes what
@@ -738,7 +746,7 @@
                             Save expecting Clear's behaviour. Set-HDTBootImageDriver
                             still has -Clear; it is what Save runs on an empty box.
                         -->
-                        <TextBlock x:Name="HDTBootImageDriverGroupHint" Style="{StaticResource HDTHintText}" Margin="0,6,0,0" MaxWidth="620"
+                        <TextBlock x:Name="HDTBootImageSelectionProfileHint" Style="{StaticResource HDTHintText}" Margin="0,6,0,0" MaxWidth="620"
  HorizontalAlignment="Left"
  />
                     </StackPanel>

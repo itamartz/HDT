@@ -259,7 +259,7 @@ Describe 'every button on the Windows PE window, pressed with nothing selected' 
             -Path (Join-Path -Path $script:imagePath -ChildPath 'workspace.yaml') `
             -Line ([string[]] @('schemaVersion: 1', 'id: HDT-LAB', 'name: HDT deployment share',
                     'bootImage:', '  name: HDTPE_wiz_x64', '  architecture: amd64')) `
-            -Component ([object[]] @()) -DriverGroup ([object[]] @()) `
+            -Component ([object[]] @()) -SelectionProfile ([object[]] @()) `
             -Theme (Get-HDTConsoleTheme) `
             -Size ([pscustomobject] @{ Width = 1180; Height = 760; Left = 40; Top = 20 })
 

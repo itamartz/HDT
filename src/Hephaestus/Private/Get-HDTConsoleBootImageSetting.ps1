@@ -53,10 +53,11 @@ function Get-HDTConsoleBootImageSetting {
             that read the password would hold a private key's password in an
             object a window binds to.
 
-        .PARAMETER DriverGroup
-            What Get-HDTDriverGroup returned for this share. An empty list is
-            legal and means the only choice is "no drivers" - which is what a
-            share with nothing imported yet honestly offers.
+        .PARAMETER SelectionProfile
+            What Get-HDTSelectionProfile returned for this share. An empty list
+            is legal - it is what a share whose profile document could not be
+            read offers - and then the only choices are "no drivers" and
+            whatever workspace.yaml already declares.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -97,7 +98,7 @@ function Get-HDTConsoleBootImageSetting {
         [Parameter()]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [object[]] $DriverGroup = @(),
+        [object[]] $SelectionProfile = @(),
 
         [Parameter()]
         [bool] $HasCertificatePassword = $false,
@@ -449,10 +450,15 @@ function Get-HDTConsoleBootImageSetting {
 
     # -- the Drivers tab -----------------------------------------------------
     #
-    # A LIST, NOT A BOX YOU TYPE INTO. A group is a folder under Drivers\ on the
-    # share, so the set of legal answers is knowable - and a typed one that is
-    # wrong produces a boot image with no drivers in it, warned about at build
-    # time and discovered on a bench.
+    # A LIST, NOT A BOX YOU TYPE INTO. A selection profile is a named thing on
+    # the share, so the set of legal answers is knowable - and a typed one that
+    # is wrong produces a boot image with no drivers in it, warned about at
+    # build time and discovered on a bench.
+    #
+    # THE VALUE IS THE ID, THE LABEL IS THE NAME. workspace.yaml references a
+    # profile by id; an administrator recognises it by the sentence somebody
+    # wrote. A picker that showed ids would be a picker showing 'boot-critical'
+    # where 'Boot critical - Dell and HP' was available.
     #
     # THE EMPTY ANSWER IS AN ENTRY IN THE LIST. "No drivers" is a real choice,
     # not the absence of one, and a list whose only way to say it was to clear a
@@ -464,16 +470,31 @@ function Get-HDTConsoleBootImageSetting {
             Display = '(none - WinPE uses the drivers Microsoft ships)'
         })
 
-    foreach ($current in @($DriverGroup)) {
+    foreach ($current in @($SelectionProfile)) {
+        $label = [string] $current.Name
+
+        # A BUILT-IN IS MARKED AS ONE. Everything and Nothing read like an
+        # administrator's own words otherwise, and the editor cannot rename or
+        # delete them - saying so here is cheaper than a refusal later.
+        if ([bool] $current.IsBuiltIn) { $label = '{0}  (built in)' -f $label }
+
         [void] $driverChoice.Add([pscustomobject] @{
-                Name    = [string] $current.Name
-                Display = [string] $current.Name
+                Name    = [string] $current.Id
+                Display = $label
             })
     }
 
-    # THE DOCUMENT'S OWN ANSWER, EVEN WHEN THE FOLDER IS GONE. A share whose
-    # driver group was renamed still has to show what the document says, or the
+    # THE DOCUMENT'S OWN ANSWER, EVEN WHEN THE PROFILE IS GONE. A share whose
+    # profile was renamed still has to show what the document says, or the
     # window silently reads as "no drivers" and a Save makes that true.
+    #
+    # AND THE LABEL SAYS "NOT A PROFILE", NOT "NOT ON THE SHARE". This key used
+    # to name a folder under Drivers\ and a share written before profiles
+    # existed still does; Resolve-HDTBootImageDriverPath finds it and the build
+    # WILL inject it. Calling that missing would be the window telling an
+    # administrator their working share is broken - and this view model has no
+    # IFileSystem to check with, which is deliberate: it decides layout, not
+    # what is on a disk.
     $declaredGroup = [string] $bootImage.Drivers
 
     if (-not [string]::IsNullOrWhiteSpace($declaredGroup) -and
@@ -481,7 +502,7 @@ function Get-HDTConsoleBootImageSetting {
 
         [void] $driverChoice.Add([pscustomobject] @{
                 Name    = $declaredGroup
-                Display = '{0}  (not on the share)' -f $declaredGroup
+                Display = '{0}  (not a selection profile on this share)' -f $declaredGroup
             })
     }
 

@@ -142,11 +142,23 @@
             $_.Exception.Message)
     }
 
-    # THE GROUPS THIS SHARE HAS, so the Drivers tab is a list rather than a box
-    # to spell a folder name into. A share with none imported yet answers
-    # nothing, and the only choice on that tab is "no drivers" - which is the
-    # truth about that share.
-    $driverGroup = @(Get-HDTDriverGroup -Root (Split-Path -Parent $Path) -FileSystem $FileSystem)
+    # THE SELECTION PROFILES THIS SHARE HAS, so the Drivers tab is a list rather
+    # than a box to spell a name into. A share that has never had one authored
+    # still answers - the built-ins need no document - so that tab is never
+    # empty and never refuses to draw.
+    #
+    # A DOCUMENT THAT CANNOT BE READ MUST NOT STOP THE WINDOW OPENING. Every
+    # other tab on it is fine, and the one place an administrator can see WHY
+    # the document is broken is the console. This is the same warn-and-continue
+    # the ADK component list above takes.
+    $selectionProfile = @()
+
+    try {
+        $selectionProfile = @(Get-HDTSelectionProfile -Root (Split-Path -Parent $Path) -FileSystem $FileSystem)
+    } catch {
+        Write-Warning ("the selection profiles could not be read, so the Drivers tab offers only what workspace.yaml already declares: {0}" -f
+            $_.Exception.Message)
+    }
 
     $size = Resolve-HDTConsoleEditorSize -OwnerWidth $OwnerWidth -OwnerHeight $OwnerHeight -Screen $Screen
 
@@ -157,7 +169,7 @@
 
     $answer = [string] $ConsoleHost.ShowBootImage(
         [System.IO.File]::ReadAllText($XamlPath), $Path, $line,
-        [object[]] @($component), [object[]] @($driverGroup),
+        [object[]] @($component), [object[]] @($selectionProfile),
         (Get-HDTConsoleTheme), $size, [object[]] @($timeZone))
 
     $action = 'Close'

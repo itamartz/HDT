@@ -59,7 +59,7 @@ BeforeAll {
 
         return New-HDTConsoleBootImageView -ConsoleHost $ConsoleHost -Xaml $script:bootXaml `
             -Path 'C:\ws\workspace.yaml' -Line $script:workspaceYaml `
-            -Component ([object[]] @()) -DriverGroup ([object[]] @()) `
+            -Component ([object[]] @()) -SelectionProfile ([object[]] @()) `
             -Theme (Get-HDTConsoleTheme) `
             -Size ([pscustomobject] @{ Width = 1180; Height = 760; Left = 40; Top = 20 })
     }

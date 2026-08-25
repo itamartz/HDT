@@ -38,7 +38,7 @@
         .PARAMETER Component
             The optional components that can be ticked.
 
-        .PARAMETER DriverGroup
+        .PARAMETER SelectionProfile
             The driver profiles that can be chosen.
 
         .PARAMETER Theme
@@ -76,7 +76,7 @@
         [Parameter()] [AllowEmptyString()] [string] $Path = '',
         [Parameter()] [AllowNull()] [string[]] $Line = @(),
         [Parameter()] [AllowNull()] [object[]] $Component = @(),
-        [Parameter()] [AllowNull()] [object[]] $DriverGroup = @(),
+        [Parameter()] [AllowNull()] [object[]] $SelectionProfile = @(),
         [Parameter()] [AllowNull()] [object] $Theme = $null,
         [Parameter()] [AllowNull()] [object] $Size = $null,
         [Parameter()] [AllowNull()] [object[]] $TimeZone = @()
@@ -231,7 +231,7 @@
         $clientCertificatePassword = $window.FindName('HDTClientCertificatePasswordButton')
         $clientCertificateWarning = $window.FindName('HDTClientCertificateWarningText')
 
-        $driverBox = $window.FindName('HDTDriverGroupBox')
+        $driverBox = $window.FindName('HDTSelectionProfileBox')
 
         $contentList = $window.FindName('HDTContentList')
         $contentSource = $window.FindName('HDTContentSourceBox')
@@ -304,7 +304,7 @@
             # through $call. Test-HDTBootImageCertificatePassword above is
             # exported and needs no door.
             $book.View = & $call 'Get-HDTConsoleBootImageSetting' -Line $book.Line -Path $Path `
-                -Component $Component -DriverGroup $DriverGroup `
+                -Component $Component -SelectionProfile $SelectionProfile `
                 -HasCertificatePassword ([bool] $stored) -TimeZone $TimeZone
             return $book.View
         }.GetNewClosure()
