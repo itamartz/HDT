@@ -89,7 +89,13 @@ function New-HDTConsoleSelectionProfileView {
         [Parameter()] [AllowNull()] [object[]] $SelectionProfile = @(),
         [Parameter()] [AllowNull()] [object[]] $Folder = @(),
         [Parameter()] [AllowNull()] [object] $Theme = $null,
-        [Parameter()] [AllowNull()] [object] $Size = $null
+        [Parameter()] [AllowNull()] [object] $Size = $null,
+
+        # THE ONE HANDLER ON THIS WINDOW THAT WRITES, AND IT WRITES THROUGH
+        # THIS. Without it, pressing Save in a test would put a file on the
+        # tester's disk - so the Save handler is the one thing about this window
+        # nothing could assert.
+        [Parameter()] [AllowNull()] [object] $FileSystem = $null
     )
 
     Add-Type -AssemblyName PresentationFramework
@@ -97,6 +103,9 @@ function New-HDTConsoleSelectionProfileView {
     Add-Type -AssemblyName WindowsBase
 
     $call = Get-HDTHandlerCall
+
+    if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+    $writer = $FileSystem
 
     $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
     $window = [System.Windows.Markup.XamlReader]::Load($reader)
@@ -271,9 +280,16 @@ function New-HDTConsoleSelectionProfileView {
                 return
             }
 
+            # A HASHTABLE, NOT -Confirm:$false. The colon form is parsed against
+            # the DOOR scriptblock, which has no -Confirm, so the switch never
+            # reaches the command - and the command then calls ShouldProcess on
+            # a runtime that has not been told, which throws "Object reference
+            # not set" from inside a button handler. Get-HDTHandlerCall says so;
+            # this is the one form that carries a switch.
             try {
-                $book.Line = [string[]] @(& $call 'New-HDTSelectionProfile' -Line $book.Line `
-                        -Id $id -Name $name -Confirm:$false)
+                $book.Line = [string[]] @(& $call 'New-HDTSelectionProfile' @{
+                        Line = $book.Line; Id = $id; Name = $name; Confirm = $false
+                    })
             } catch {
                 $commandText.Text = '# {0}' -f [string] $_.Exception.Message
                 return
@@ -292,8 +308,9 @@ function New-HDTConsoleSelectionProfileView {
             if ([string]::IsNullOrWhiteSpace($name) -or [string]::IsNullOrEmpty($book.SelectedId)) { return }
 
             try {
-                $book.Line = [string[]] @(& $call 'Set-HDTSelectionProfile' -Line $book.Line `
-                        -Id $book.SelectedId -Name $name -Confirm:$false)
+                $book.Line = [string[]] @(& $call 'Set-HDTSelectionProfile' @{
+                        Line = $book.Line; Id = $book.SelectedId; Name = $name; Confirm = $false
+                    })
             } catch {
                 $commandText.Text = '# {0}' -f [string] $_.Exception.Message
                 return
@@ -311,8 +328,9 @@ function New-HDTConsoleSelectionProfileView {
             $gone = $book.SelectedId
 
             try {
-                $book.Line = [string[]] @(& $call 'Remove-HDTSelectionProfile' -Line $book.Line `
-                        -Id $gone -Confirm:$false)
+                $book.Line = [string[]] @(& $call 'Remove-HDTSelectionProfile' @{
+                        Line = $book.Line; Id = $gone; Confirm = $false
+                    })
             } catch {
                 $commandText.Text = '# {0}' -f [string] $_.Exception.Message
                 return
@@ -336,11 +354,15 @@ function New-HDTConsoleSelectionProfileView {
             $include = @(& $call 'Get-HDTConsoleSelectionProfileInclude' -Tree ([object[]] @($tree.ItemsSource)))
 
             try {
-                $book.Line = [string[]] @(& $call 'Set-HDTSelectionProfile' -Line $book.Line `
-                        -Id $book.SelectedId -Include ([string[]] $include) -Confirm:$false)
+                $book.Line = [string[]] @(& $call 'Set-HDTSelectionProfile' @{
+                        Line = $book.Line; Id = $book.SelectedId
+                        Include = [string[]] $include; Confirm = $false
+                    })
 
-                [void] (& $call 'Save-HDTSelectionProfileDocument' -Path $documentPath `
-                        -Line $book.Line -Confirm:$false)
+                [void] (& $call 'Save-HDTSelectionProfileDocument' @{
+                        Path = $documentPath; Line = $book.Line
+                        FileSystem = $writer; Confirm = $false
+                    })
             } catch {
                 $commandText.Text = '# {0}' -f [string] $_.Exception.Message
                 return
