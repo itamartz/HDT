@@ -2373,20 +2373,19 @@
 
             $publishing = (-not [string]::IsNullOrWhiteSpace([string] $shareNameBox.Text))
 
-            $create.IsEnabled = [bool] $answer.CanCreate
-            $messageText.Text = [string] $answer.Message
+            # WHICH OF THREE COMPLAINTS GETS THE ONE LINE, and whether Create
+            # survives it. THE ELEVATION SENTENCE OUTRANKS THE OTHERS because it
+            # is the one nothing on this page can fix - and it warns without
+            # blocking, since the folder is still worth writing and the share
+            # can be added later. That asymmetry is the kind that gets tidied
+            # up by somebody who did not know why, so it is asserted in
+            # tests/unit/ConsoleNewWorkspaceMessage.Tests.ps1 now.
+            $say = & $call 'Get-HDTConsoleNewWorkspaceMessage' `
+                -CanCreate ([bool] $answer.CanCreate) -Message ([string] $answer.Message) `
+                -ShareMessage ([string] $share.Message) -Publishing $publishing -Elevated ([bool] $elevated)
 
-            # THE ELEVATION SENTENCE OUTRANKS THE OTHERS, because it is the one
-            # nothing on this page can fix - and it does not disable Create: the
-            # folder is still worth writing, and the share can be added later.
-            if ($publishing -and -not $elevated) {
-                $messageText.Text = 'this console is not running as an administrator, so it cannot publish the share. Create the deployment share here and add the share yourself, or close this and reopen the console as an administrator - right-click, Run as administrator.'
-            } elseif ($publishing -and -not [string]::IsNullOrWhiteSpace([string] $share.Message) -and
-                [string]::IsNullOrWhiteSpace([string] $answer.Message)) {
-
-                $messageText.Text = [string] $share.Message
-                $create.IsEnabled = $false
-            }
+            $create.IsEnabled = [bool] $say.CanCreate
+            $messageText.Text = [string] $say.Message
 
             $commandText.Text = "New-HDTWorkspace -Path '{0}' -Id '{1}' -DeployRoot '{2}'" -f
             [string] $pathBox.Text, [string] $idBox.Text, [string] $deployRootBox.Text
