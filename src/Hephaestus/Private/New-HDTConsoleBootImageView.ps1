@@ -297,11 +297,17 @@
             $stored = Test-HDTBootImageCertificatePassword `
                 -WorkspaceRoot (Split-Path -Path $Path -Parent)
 
-            $book.View = Get-HDTConsoleBootImageSetting -Line $book.Line -Path $Path `
+            # THROUGH THE DOOR, because this block is a closure. A closure is
+            # bound to its own dynamic module and resolves commands THERE, so a
+            # private helper named directly is "not recognized" - which is the
+            # same reason every handler in this window reaches its helpers
+            # through $call. Test-HDTBootImageCertificatePassword above is
+            # exported and needs no door.
+            $book.View = & $call 'Get-HDTConsoleBootImageSetting' -Line $book.Line -Path $Path `
                 -Component $Component -DriverGroup $DriverGroup `
                 -HasCertificatePassword ([bool] $stored) -TimeZone $TimeZone
             return $book.View
-        }
+        }.GetNewClosure()
 
         $fillBoxes = {
             $view = & $ask
@@ -345,7 +351,7 @@
             # SelectedValue means nothing until an item carries that value. This
             # one's items are in the markup, so they always do.
 
-        }
+        }.GetNewClosure()
 
         # THE TWO LISTS THAT MAY BE REBUILT. Neither carries a control that
         # raises an event when it is created, so reassigning them is safe - it
@@ -362,7 +368,7 @@
             $certificateSummary.Text = [string] $view.CertificateSummaryText
             $clientCertificateWarning.Text = [string] $view.ClientCertificate.Warning
             $componentSize.Text = [string] $view.SelectedSizeText
-        }
+        }.GetNewClosure()
 
         & $fillBoxes
         & $fillLists

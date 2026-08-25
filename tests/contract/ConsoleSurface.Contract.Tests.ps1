@@ -236,4 +236,126 @@ Describe 'Console surface contract' {
 
         $offence.Count | Should -Be 0 -Because $because
     }
+
+    # ---------------------------------------------------------------------
+    # AND THE SAME RULE FOR EVERY OTHER LOCAL, NOT JUST $call.
+    #
+    # A NON-CLOSURE SCRIPTBLOCK CANNOT SEE ITS MAKER'S LOCALS. Proved rather
+    # than assumed: a $plain = { $borrowed } invoked after its function returned
+    # throws "the variable '$borrowed' cannot be retrieved", and it throws the
+    # same way whether it is invoked directly or through a closure that calls it.
+    #
+    # IT ONLY BITES WHEN THE MAKER HAS RETURNED, which is exactly what the view
+    # commands do. New-HDTConsole*View BUILD a window and hand it back; the
+    # ScriptMethod that called them then calls ShowDialog. So by the time a
+    # handler fires, the view function's scope is gone. A method that shows the
+    # window ITSELF - ShowBuildProgress does - is still on the stack while its
+    # timer ticks, and its locals are still there. That is why this contract is
+    # scoped to the view commands and not to the whole host.
+    #
+    # THIS WAS A REGRESSION, AND SPLITTING THE HOST CAUSED IT. $move in the
+    # Windows PE window borrowed $startList and worked for as long as
+    # ShowBootImage called ShowDialog itself. Moving the body into
+    # New-HDTConsoleBootImageView made the maker return, and pressing Up on the
+    # Start Command list started throwing on the dispatcher.
+    # tests/unit/ConsoleButtonPress.Tests.ps1 caught that one by pressing it;
+    # this catches the four it never pressed.
+    It 'gives every scriptblock a handler calls its maker''s locals' {
+        $auto = @('_', 'this', 'null', 'true', 'false', 'args', 'PSItem', 'error', 'PSCmdlet',
+            'PSBoundParameters', 'MyInvocation', 'PSScriptRoot', 'PSCommandPath',
+            'ErrorActionPreference', 'matches', 'LASTEXITCODE', 'input')
+
+        $view = @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src\Hephaestus\Private') `
+                -Filter 'New-HDTConsole*View.ps1')
+
+        $view.Count | Should -BeGreaterThan 0 -Because 'a scan of nothing must not read as success'
+
+        $offence = @()
+
+        foreach ($file in $view) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $null, [ref] $null)
+
+            foreach ($fn in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) {
+
+                $local = @{}
+                foreach ($a in $fn.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+                    $v = $a.Left -as [System.Management.Automation.Language.VariableExpressionAst]
+                    if ($v) { $local[$v.VariablePath.UserPath] = $true }
+                }
+
+                foreach ($sb in $fn.FindAll({ param($n) $n -is [System.Management.Automation.Language.ScriptBlockExpressionAst] }, $true)) {
+
+                    # $x = { ... } wraps the block in a pipeline and a command
+                    # expression, so the assignment is a grandparent.
+                    $up = $sb.Parent
+                    while ($null -ne $up -and
+                        $up -isnot [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $up -isnot [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                        $up -isnot [System.Management.Automation.Language.ScriptBlockExpressionAst]) {
+
+                        $up = $up.Parent
+                    }
+
+                    if ($up -isnot [System.Management.Automation.Language.AssignmentStatementAst]) { continue }
+                    $target = $up.Left -as [System.Management.Automation.Language.VariableExpressionAst]
+                    if (-not $target) { continue }
+                    if ($up.Right.Extent.Text -match '\.GetNewClosure\(\)\s*$') { continue }
+
+                    $own = @{}
+                    if ($sb.ScriptBlock.ParamBlock) {
+                        foreach ($one in $sb.ScriptBlock.ParamBlock.Parameters) { $own[$one.Name.VariablePath.UserPath] = $true }
+                    }
+                    foreach ($a in $sb.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+                        $v = $a.Left -as [System.Management.Automation.Language.VariableExpressionAst]
+                        if ($v) { $own[$v.VariablePath.UserPath] = $true }
+                    }
+
+                    $borrowed = @{}
+                    foreach ($v in $sb.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] }, $true)) {
+                        $name = $v.VariablePath.UserPath
+                        if ($auto -contains $name) { continue }
+                        if ($own.ContainsKey($name)) { continue }
+                        if ($name -eq $target.VariablePath.UserPath) { continue }
+                        if ($local.ContainsKey($name)) { $borrowed[$name] = $true }
+                    }
+
+                    if ($borrowed.Count -eq 0) { continue }
+
+                    # A block only the maker calls runs in the maker's scope and
+                    # is fine. The failure needs a HANDLER to call it, later.
+                    $called = $false
+                    foreach ($other in $fn.FindAll({ param($n) $n -is [System.Management.Automation.Language.ScriptBlockExpressionAst] }, $true)) {
+                        if ($other.Extent.StartOffset -eq $sb.Extent.StartOffset) { continue }
+
+                        $handler = $false
+                        $u = $other.Parent
+                        while ($null -ne $u -and $u -isnot [System.Management.Automation.Language.FunctionDefinitionAst]) {
+                            if ($u -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                                [string] $u.Member.Value -eq 'GetNewClosure') { $handler = $true; break }
+
+                            $u = $u.Parent
+                        }
+                        if (-not $handler) { continue }
+
+                        if ($other.Extent.Text -match ('&\s*\$' + [regex]::Escape($target.VariablePath.UserPath) + '\b')) {
+                            $called = $true
+                            break
+                        }
+                    }
+
+                    if ($called) {
+                        $offence += '{0}:{1} ${2} borrows {3}' -f $file.Name, $sb.Extent.StartLineNumber,
+                            $target.VariablePath.UserPath, ((@($borrowed.Keys) | Sort-Object) -join ', ')
+                    }
+                }
+            }
+        }
+
+        $because = 'add .GetNewClosure() to it - a block a handler calls cannot see its maker''s locals once the maker has returned, and these windows are BUILT and handed back'
+        if ($offence.Count -gt 0) {
+            $because = "{0}. Orphaned: {1}" -f $because, (@($offence) -join '; ')
+        }
+
+        $offence.Count | Should -Be 0 -Because $because
+    }
 }

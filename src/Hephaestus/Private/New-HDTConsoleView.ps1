@@ -669,7 +669,7 @@
                 & $revert ([string] $row.Original)
                 $command.Text = [string] $_.Exception.Message
             }
-        }
+        }.GetNewClosure()
 
         $detail.AddHandler([System.Windows.Controls.TextBox]::LostFocusEvent,
             [System.Windows.RoutedEventHandler] {
@@ -1500,7 +1500,7 @@
                     if ($ask.ShowDialog() -ne $true) { return $null }
 
                     return ([string] $entry.Text).Trim()
-                }
+                }.GetNewClosure()
 
                 $newFolder.Add_Click({
                         $chosen = $tree.SelectedItem
