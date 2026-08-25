@@ -290,7 +290,15 @@
 
             <TextBlock Grid.Column="0" Text="Workgroup" Foreground="#FF8A8A8A"
                        FontSize="13" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" x:Name="HDTJoinWorkgroupBox" Text="WORKGROUP" MaxLength="15"
+            <!--
+                NO Text="WORKGROUP" ANY MORE, AND THE BOX STILL SAYS IT.
+                rules.yaml's Fallback rule carries HDTJoinWorkgroup: WORKGROUP -
+                MDT's [Default] - and Get-HDTWizardSeed puts it here. A literal
+                in the markup was a second place for the same answer to live and
+                the one nobody would think to change; worse, it looked like a
+                rule and was not one, so the summary offered no line for it.
+            -->
+            <TextBox Grid.Column="1" x:Name="HDTJoinWorkgroupBox" MaxLength="15"
                      Width="380" HorizontalAlignment="Left">
                 <TextBox.Style>
                     <Style TargetType="TextBox">

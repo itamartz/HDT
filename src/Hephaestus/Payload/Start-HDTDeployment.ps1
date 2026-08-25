@@ -1060,7 +1060,28 @@ try {
                     @($applicationChoice.Choice).Count,
                     @($applicationChoice.Choice | Where-Object { $_.IsSelected }).Count)
 
-                $field = @($field) + @($sequenceChoice.Field) + @($computerName.Field) + @($applicationChoice.Field)
+                # EVERY OTHER BOX THE RULES CAN ALREADY FILL. MDT prefills its
+                # panes from CustomSettings.ini; every page here except the
+                # computer name came up holding whatever the markup said, so a
+                # share whose rules.yaml had answered a question still showed a
+                # blank box asking it again.
+                #
+                # SEEDED FIRST, SO THE COMMANDS ABOVE WIN. Fields are applied in
+                # order and the last write to a control is what stays, so the
+                # picker, the computer name and the application list overwrite
+                # anything the generic seed put in the same box - they know more
+                # about their own control than a variable lookup does.
+                #
+                # AND IT DOES NOT COST THE PROVENANCE. New-HDTWizardHost
+                # remembers what was seeded and Test-HDTWizardAnswerChanged
+                # drops a value that comes back untouched, so a rule shown to
+                # the technician stays a Rule in the report rather than becoming
+                # a Wizard answer nobody typed.
+                $seed = @(Get-HDTWizardSeed -Page $ask.Page -Variable $resolved.Variable)
+
+                & $say ("prefilled {0} box(es) from the resolved rules" -f @($seed).Count)
+
+                $field = @($seed) + @($field) + @($sequenceChoice.Field) + @($computerName.Field) + @($applicationChoice.Field)
 
                 # HDTBrandingName ON THE RAIL. A technician at a bench is often
                 # looking at two toolkits, and the banner is the fastest way to

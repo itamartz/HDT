@@ -102,6 +102,19 @@
         # Get-HDTWizardHarvest's list exactly as ShowShell fills it from each
         # page's collect declarations.
         Value  = @{}
+
+        # WHAT WAS PUT IN EACH BOX BEFORE THE TECHNICIAN SAW IT, keyed by
+        # control name. Get-HDTWizardSeed fills the boxes from the resolved
+        # rules - MDT's behaviour - and every value the wizard collects re-enters
+        # the engine as the WIZARD source, the highest precedence in DESIGN 3.1.
+        # Without this, a seeded box nobody touched would be collected as though
+        # somebody had typed it, and the report would say a name was typed at
+        # the bench when a rule on the share produced it.
+        #
+        # ORDINAL-INSENSITIVE ON THE KEY because a control name is a name; the
+        # VALUES are compared case-sensitively, by Test-HDTWizardAnswerChanged.
+        Seed   = (New-Object -TypeName 'System.Collections.Generic.Dictionary[string,string]' -ArgumentList (
+                [System.StringComparer]::OrdinalIgnoreCase))
     }
 
     # EVERYTHING DONE BY NAME, IN ONE PLACE. Both Show and ShowShell fill boxes,
@@ -167,6 +180,13 @@
             if ($null -eq $current.PSObject.Properties['Text']) { continue }
 
             $control.$property = [string] $current.Text
+
+            # REMEMBERED, NOT JUST WRITTEN. See $service.Seed above: the harvest
+            # compares against this so a rule shown back is not collected as a
+            # typed answer. Recorded for EVERY field, not only seeds - the task
+            # sequence picker and the computer name box prefill too, and a
+            # technician who accepts what a rule chose did not type it either.
+            $this.Seed[[string] $current.Name] = [string] $current.Text
         }
 
         # WHICH PANES EXIST WAS ALSO DECIDED SOMEWHERE ELSE. Get-HDTWizardSkip
@@ -660,6 +680,21 @@
                 if (-not [string]::IsNullOrWhiteSpace([string] $declaration.Property)) { $property = [string] $declaration.Property }
 
                 $raw = [string] $control.$property
+
+                # A RULE SHOWN BACK IS NOT AN ANSWER. The box may have been
+                # seeded from the resolved variables (Get-HDTWizardSeed); if it
+                # comes back exactly as it went in, the technician read it and
+                # moved on, and collecting it would re-enter the value as the
+                # WIZARD source and overwrite the rule's own provenance. The
+                # deployment would be identical and the report would say the
+                # value was typed at the bench. Edit the box - including
+                # clearing it - and it is an answer.
+                $seeded = $null
+                if ($wizardHost.Seed.ContainsKey([string] $declaration.Control)) {
+                    $seeded = [string] $wizardHost.Seed[[string] $declaration.Control]
+                }
+
+                if (-not (Test-HDTWizardAnswerChanged -Seeded $seeded -Answered $raw)) { continue }
 
                 # ONE BOX, TWO VARIABLES. The join account is typed as
                 # CORP\svc-hdt-join and DESIGN 4.5.3 wants HDTDomainAdmin and

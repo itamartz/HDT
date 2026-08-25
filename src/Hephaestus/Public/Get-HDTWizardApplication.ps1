@@ -83,7 +83,9 @@ function Get-HDTWizardApplication {
         .EXAMPLE
             $root = 'Z:\Deploy'
             $rule = Import-HDTRuleDocument -Path (Join-Path $root 'rules.yaml')
-            $resolved = Resolve-HDTVariable -Rule $rule.Rule -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolved = Resolve-HDTVariable -Fact $fact
             $application = Get-HDTWizardApplication -WorkspaceRoot $root -Variable $resolved.Variable
             @($application.Choice | Where-Object { $_.IsSelected } | ForEach-Object { $_.Id })
 
