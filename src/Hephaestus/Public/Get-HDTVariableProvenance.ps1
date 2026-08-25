@@ -33,7 +33,9 @@
             Name, Value, Source, Rule, RuleIndex, File, RawValue, Expanded, Order.
 
         .EXAMPLE
-            $result = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $result = Resolve-HDTVariable -Fact $fact
             Get-HDTVariableProvenance -Resolution $result |
                 Format-Table Order, Name, Value, Source, Rule -AutoSize
 

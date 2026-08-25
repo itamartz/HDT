@@ -55,7 +55,9 @@
         .EXAMPLE
             $workspaceRoot = 'C:\HDTLab\Share'
             $line = [string[]] @([System.IO.File]::ReadAllLines('C:\HDTLab\Share\workspace.yaml'))
-            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolved = Resolve-HDTVariable -Fact $fact
             Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable
 
         .EXAMPLE

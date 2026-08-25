@@ -71,7 +71,9 @@
             $fs = New-HDTFileSystem
             $title = 'Task Sequence'
             $field = @()
-            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolved = Resolve-HDTVariable -Fact $fact
             $ask = Get-HDTWizardPage -Page @() -Variable $resolved.Variable
             Get-HDTWizardSequence -WorkspaceRoot 'Z:\Deploy'
 

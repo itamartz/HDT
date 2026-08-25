@@ -48,7 +48,9 @@
             None.
 
         .EXAMPLE
-            $resolution = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolution = Resolve-HDTVariable -Fact $fact
             Export-HDTVariableProvenance -Resolution $resolution -Path 'X:\HDT\Logs\Gather\provenance.json'
 
             Not just what each variable ended up as, but which of the five sources set

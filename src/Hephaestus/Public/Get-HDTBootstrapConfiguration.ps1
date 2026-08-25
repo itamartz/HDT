@@ -91,7 +91,9 @@
         .EXAMPLE
             $fs = New-HDTFileSystem
             $path = 'X:\HDT\bootstrap.json'
-            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolved = Resolve-HDTVariable -Fact $fact
             $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
             $bootstrap.DeployRoot
 
