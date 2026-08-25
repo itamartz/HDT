@@ -1559,47 +1559,38 @@
                         $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
                         if (-not $action.CanMove) { return }
 
-                        $now = ''
-                        if ($null -ne $chosen.PSObject.Properties['Folder']) { $now = [string] $chosen.Folder }
+                        # WHICH COMMANDS THIS MOVE TAKES, decided away from the
+                        # window - and in particular WHICH SAVER GOES WITH WHICH
+                        # SETTER. Each saver validates the lines against its own
+                        # document's keys, so the wrong one refuses a document
+                        # the setter has already written correctly, and the
+                        # failure reads as a broken setter.
+                        # tests/unit/ConsoleFolderMove.Tests.ps1 holds that
+                        # pairing, and the application exception with it.
+                        $move = & $call 'Get-HDTConsoleFolderMove' -Row $chosen `
+                            -Category ([string] $action.Category)
 
                         $typed = & $askForFolder 'Move to Folder' `
                             'The folder this window draws it under. Type a name that is not in the list to make that folder; leave it empty to take it out of every folder. Nothing moves on disk.' `
-                        ([string[]] @($action.Choice)) $now
+                        ([string[]] @($action.Choice)) $move.Current
 
                         if ($null -eq $typed) { return }
-                        if ($typed -eq $now) { return }
-
-                        $documentPath = [string] $chosen.Subject.Path
+                        if ($typed -eq $move.Current) { return }
 
                         try {
-                            # AN APPLICATION WRITES ITSELF. Set-HDTApplication
+                            # AN APPLICATION WRITES ITSELF: Set-HDTApplication
                             # takes a share and an id rather than lines, and
                             # saves - so there is nothing here to read first.
-                            if ([string] $action.Category -eq 'Application') {
-                                [void] (Set-HDTApplication -WorkspaceRoot ([string] $chosen.HeaderRoot) `
-                                        -Id ([string] $chosen.Name) -Folder $typed -Confirm:$false)
-
-                                & $rebuildTree
-
-                                $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Folder '{2}'" -f
-                                [string] $chosen.HeaderRoot, [string] $chosen.Name, $typed
-
-                                return
-                            }
-
-                            $fileSystem = New-HDTFileSystem
-                            $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
-
-                            # THE SETTER AND THE SAVER HAVE TO BE A PAIR. Each
-                            # checks the lines against its own document's keys,
-                            # so the wrong saver refuses a document the setter
-                            # just wrote correctly.
-                            if ([string] $action.Category -eq 'OperatingSystem') {
-                                [void] (Save-HDTOperatingSystemDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
-                                        -Line @(Set-HDTOperatingSystemProperty -Line $line -Folder $typed -Confirm:$false))
+                            if ($move.Kind -eq 'Application') {
+                                [void] (Set-HDTApplication -WorkspaceRoot ([string] $move.WorkspaceRoot) `
+                                        -Id ([string] $move.Id) -Folder $typed -Confirm:$false)
                             } else {
-                                [void] (Save-HDTSequenceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
-                                        -Line @(Set-HDTTaskSequenceProperty -Line $line -Folder $typed -Confirm:$false))
+                                $fileSystem = New-HDTFileSystem
+                                $line = [string[]] @([string] $fileSystem.ReadAllText($move.DocumentPath) -split "`r?`n")
+
+                                [void] (& $move.Saver -Path ([string] $move.DocumentPath) `
+                                        -FileSystem $fileSystem -Confirm:$false `
+                                        -Line @(& $move.Setter -Line $line -Folder $typed -Confirm:$false))
                             }
                         } catch {
                             $command.Text = [string] $_.Exception.Message
@@ -1608,10 +1599,7 @@
 
                         & $rebuildTree
 
-                        $setter = 'Set-HDTTaskSequenceProperty'
-                        if ([string] $action.Category -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
-
-                        $command.Text = "{0} -Line `$line -Folder '{1}'" -f $setter, $typed
+                        $command.Text = $move.CommandFormat -f $typed
                     }.GetNewClosure())
 
                 $deleteFolder.Add_Click({
@@ -5272,50 +5260,18 @@
                 & $fillLists
 
                 # EVERY COMMAND SAVE RAN, NOT JUST THE LAST ONE. One press is
-                # four invocations, and echoing only the write hid the three
-                # that decided what was written - which is exactly the surface
+                # seven invocations, and echoing only the write hid the six that
+                # decided what was written - which is exactly the surface
                 # DESIGN 12 says this box exists to teach. Composed from the
-                # refreshed view, so what it shows is what the file now says.
-                $ran = New-Object -TypeName System.Collections.ArrayList
+                # REFRESHED view, so what it shows is what the file now says
+                # rather than what was typed at it; saving normalises, and the
+                # two can legitimately disagree.
+                #
+                # tests/unit/ConsoleBootImageSaveCommand.Tests.ps1 holds the
+                # fourteen branches this used to make here.
+                $ran = @(& $call 'Get-HDTConsoleBootImageSaveCommand' -View $book.View -Path $Path)
 
-                [void] $ran.Add([string] $book.View.General.Command)
-
-                if ([string]::IsNullOrWhiteSpace($book.View.General.Unattend)) {
-                    [void] $ran.Add([string] $book.View.General.UnattendClearCommand)
-                } else {
-                    [void] $ran.Add($book.View.General.UnattendCommandFormat -f
-                        [string] $book.View.General.Unattend)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($book.View.General.Background)) {
-                    [void] $ran.Add([string] $book.View.General.BackgroundClearCommand)
-                } else {
-                    [void] $ran.Add($book.View.General.BackgroundCommandFormat -f
-                        [string] $book.View.General.Background)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($book.View.TimeZone.Id)) {
-                    [void] $ran.Add([string] $book.View.TimeZone.ClearCommand)
-                } else {
-                    [void] $ran.Add($book.View.TimeZone.ApplyCommandFormat -f [string] $book.View.TimeZone.Id)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($book.View.ClientCertificate.Path)) {
-                    [void] $ran.Add([string] $book.View.ClientCertificate.ClearCommand)
-                } else {
-                    [void] $ran.Add($book.View.ClientCertificate.ApplyCommandFormat -f
-                        [string] $book.View.ClientCertificate.Path)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($book.View.Driver.Group)) {
-                    [void] $ran.Add([string] $book.View.Driver.ClearCommand)
-                } else {
-                    [void] $ran.Add($book.View.Driver.ApplyCommandFormat -f [string] $book.View.Driver.Group)
-                }
-
-                [void] $ran.Add("Save-HDTWorkspaceDocument -Line `$line -Path '{0}'" -f $Path)
-
-                $commandText.Text = (@($ran) -join [System.Environment]::NewLine)
+                $commandText.Text = ($ran -join [System.Environment]::NewLine)
             }.GetNewClosure())
 
         # -- Update, which is minutes rather than milliseconds ---------------
