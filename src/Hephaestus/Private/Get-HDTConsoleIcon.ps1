@@ -84,10 +84,12 @@
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
 
-        # A TICK BOX, BECAUSE THAT IS WHAT A PROFILE IS. It is a saved set of
-        # ticks over the share's folders, and the row's picture says so before
-        # anybody opens the window that draws them.
-        SelectionProfile = [string] ([char] 0x2611)           # ballot box with check
+        # A CLIPBOARD - A SAVED LIST - AND DELIBERATELY NOT A TICK BOX. The
+        # first version used one, and a tick box in a tree says "tick me": these
+        # rows cannot be ticked, and the ticking happens in the profile editor
+        # this row OPENS. An icon that offers an interaction the row does not
+        # have is worse than a dull one, because somebody clicks it to find out.
+        SelectionProfile = [char]::ConvertFromUtf32(0x1F4CB)   # clipboard - a saved list of folders
         Folder          = [char]::ConvertFromUtf32(0x1F4C1)   # closed folder - it holds things and does nothing itself
         StepGroup       = [char]::ConvertFromUtf32(0x1F4C2)   # open folder - a group holds steps, it does not do anything
         # A GEAR, NOT A TRIANGLE. The first version used a small right triangle,

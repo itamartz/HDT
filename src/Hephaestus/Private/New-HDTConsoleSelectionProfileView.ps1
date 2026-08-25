@@ -288,7 +288,8 @@ function New-HDTConsoleSelectionProfileView {
             # this is the one form that carries a switch.
             try {
                 $book.Line = [string[]] @(& $call 'New-HDTSelectionProfile' @{
-                        Line = $book.Line; Id = $id; Name = $name; Confirm = $false
+                        Line = $book.Line; Id = $id; Name = $name
+                        Root = $Root; FileSystem = $writer; Confirm = $false
                     })
             } catch {
                 $commandText.Text = '# {0}' -f [string] $_.Exception.Message
@@ -354,9 +355,14 @@ function New-HDTConsoleSelectionProfileView {
             $include = @(& $call 'Get-HDTConsoleSelectionProfileInclude' -Tree ([object[]] @($tree.ItemsSource)))
 
             try {
+                # -Root, SO THE SHARE HAS THE LAST WORD. Every path here came
+                # from a tick on a folder the tree read off the share, so this
+                # can only fail if somebody deleted one while the window was
+                # open - which is exactly when it should.
                 $book.Line = [string[]] @(& $call 'Set-HDTSelectionProfile' @{
                         Line = $book.Line; Id = $book.SelectedId
-                        Include = [string[]] $include; Confirm = $false
+                        Include = [string[]] $include
+                        Root = $Root; FileSystem = $writer; Confirm = $false
                     })
 
                 [void] (& $call 'Save-HDTSelectionProfileDocument' @{

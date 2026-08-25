@@ -39,6 +39,13 @@ function Set-HDTSelectionProfile {
         .PARAMETER Name
             The new display name. Omitted, the name is left alone.
 
+        .PARAMETER Root
+            The deployment share. Supplied, every include must be a folder that
+            is actually on it.
+
+        .PARAMETER FileSystem
+            The IFileSystem to check -Root with. Omitted, the real one.
+
         .PARAMETER Include
             The new include list, replacing the old one entirely. Omitted, what
             the profile includes is left alone.
@@ -84,7 +91,19 @@ function Set-HDTSelectionProfile {
         [Parameter(Position = 3)]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [string[]] $Include
+        [string[]] $Include,
+
+        # THE SHARE, WHEN THE CALLER CAN SEE ONE. Supplied, every include must be
+        # a folder that is actually there. The console always supplies it,
+        # because its tree only offers folders the share has - this is what stops
+        # the command line being the weaker door.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Root = '',
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem = $null
     )
 
     Set-StrictMode -Version Latest
@@ -95,7 +114,7 @@ function Set-HDTSelectionProfile {
     $checkInclude = @()
     if ($PSBoundParameters.ContainsKey('Include')) { $checkInclude = @($Include) }
 
-    Assert-HDTSelectionProfileId -Id $Id -Include $checkInclude -Cmdlet $PSCmdlet
+    Assert-HDTSelectionProfileId -Id $Id -Include $checkInclude -Root $Root -FileSystem $FileSystem -Cmdlet $PSCmdlet
 
     if ((-not $PSBoundParameters.ContainsKey('Name')) -and (-not $PSBoundParameters.ContainsKey('Include'))) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Id `

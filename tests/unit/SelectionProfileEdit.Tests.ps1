@@ -126,6 +126,46 @@ Describe 'New-HDTSelectionProfile' {
         $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
     }
 
+    # A PROFILE NAMES FOLDERS THAT EXIST. The console's tree offers only folders
+    # the share actually has, so a profile written through the window cannot name
+    # one that does not - and a command that let somebody type one anyway would
+    # be the weaker door, and would put a boot image on a bench with a vendor's
+    # drivers silently absent.
+    It 'refuses a folder that is not on the share when it is given one' {
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\HDTLab\Share\Drivers\WinPE\Dell WinPE 11 x64\e.inf' = '[Version]'
+        }
+
+        $record = $null
+        try {
+            New-HDTSelectionProfile -Line ([string[]] @()) -Id 'stale' -Name 'Stale' `
+                -Include 'Drivers\WinPE\HP WinPE 10 x64' `
+                -Root 'C:\HDTLab\Share' -FileSystem $fs | Out-Null
+        } catch { $record = $_ }
+
+        $record | Should -Not -BeNullOrEmpty
+        [string] $record.Exception.Message | Should -BeLike '*not a folder on this share*'
+    }
+
+    It 'accepts a folder that IS on the share' {
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\HDTLab\Share\Drivers\WinPE\Dell WinPE 11 x64\e.inf' = '[Version]'
+        }
+
+        { New-HDTSelectionProfile -Line ([string[]] @()) -Id 'dell' -Name 'Dell' `
+                -Include 'Drivers\WinPE\Dell WinPE 11 x64' `
+                -Root 'C:\HDTLab\Share' -FileSystem $fs } | Should -Not -Throw
+    }
+
+    # WITHOUT -Root THERE IS NOTHING TO CHECK AGAINST, and that is a real case:
+    # a profile is legitimately authored on a workstation against a UNC path
+    # nobody has mounted. The missing folder is then reported by the Drivers tab
+    # and by the build's warning instead.
+    It 'checks nothing when no share was named' {
+        { New-HDTSelectionProfile -Line ([string[]] @()) -Id 'offline' -Name 'Offline' `
+                -Include 'Drivers\WinPE\HP WinPE 10 x64' } | Should -Not -Throw
+    }
+
     # THE TRAVERSAL IS REFUSED AT THE POINT IT IS TYPED, not only at load. A
     # console that writes the document and then reports it unreadable has left a
     # broken file on the share.

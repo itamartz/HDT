@@ -289,7 +289,7 @@ Describe 'Get-HDTConsoleTreeNode' {
             # written once, and the application list moves every time somebody
             # ships a new version.
             @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' } | ForEach-Object { $_.Text }) |
-                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (3)', 'Monitoring')
+                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (2)', 'Monitoring')
         }
 
         It 'counts the shares on the root row' {
@@ -304,15 +304,18 @@ Describe 'Get-HDTConsoleTreeNode' {
             $category | Should -Contain 'Operating Systems (1)'
         }
 
-        It 'says plainly that drivers are not supported yet, rather than showing an empty folder' {
-            # The engine has no driver catalog - no Get-HDTDriver, no schema, no
-            # step that injects. An administrator must learn that here and not
-            # from a deployment that silently installs none.
-            $driver = @($script:node | Where-Object { $_.Text -eq '(not supported yet)' })[0]
+        # THIS ROW USED TO READ '(not supported yet)' AND IT WAS TRUE: nothing
+        # could read the folder and nothing could inject from it. Both exist now
+        # - Import-HDTDriver fills it, a selection profile names a folder in it,
+        # and Update-HDTBootImage injects that folder - so the branch says what
+        # is actually there and how to put something in it.
+        It 'says what the driver store has, and how to fill it when it has nothing' {
+            $driver = @($script:node | Where-Object { $_.Text -like '(no *' -and $_.Kind -eq 'Empty' })[0]
 
             $driver | Should -Not -BeNullOrEmpty
-            $driver.Detail | Should -Match 'no driver catalog'
+            $driver.Detail | Should -Match 'Right-click Drivers'
             $driver.Detail | Should -Match ([regex]::Escape('C:\ws\Drivers'))
+            $driver.Command | Should -BeLike '*Import-HDTDriver*'
         }
 
         It 'indents by depth, so a flat list reads as a tree' {
@@ -377,7 +380,7 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $share.Kind | Should -BeExactly 'Share'
             @($share.Children | ForEach-Object { $_.Text }) |
-                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (3)', 'Monitoring')
+                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (2)', 'Monitoring')
 
             @($share.Children)[0].Children[0].Kind | Should -BeExactly 'BootImage'
             @($share.Children)[4].Children[0].Kind | Should -BeExactly 'TaskSequence'

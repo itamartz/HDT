@@ -87,17 +87,36 @@ Describe 'Get-HDTSelectionProfile' {
 
         $builtIn = @(Get-HDTSelectionProfile -Root $script:root -FileSystem $fs)
 
-        @($builtIn | ForEach-Object { $_.Id }) | Should -Be @('all-drivers', 'everything', 'nothing')
+        @($builtIn | ForEach-Object { $_.Id }) | Should -Be @('all-drivers', 'everything')
         @($builtIn | Where-Object { -not $_.IsBuiltIn }) | Should -BeNullOrEmpty
     }
 
-    It 'gives Nothing an empty include list rather than no list' {
+    # MDT SHIPS A Nothing PROFILE AND HDT DOES NOT. The Windows PE picker's
+    # first row already reads "(none - WinPE uses the drivers Microsoft ships)",
+    # so a Nothing profile would be a second way to say one thing - and the two
+    # would disagree the first time somebody picked one expecting the other.
+    It 'ships no Nothing profile, because the empty row already is one' {
         $fs = New-HDTFakeFileSystem
 
-        $none = Get-HDTSelectionProfile -Root $script:root -Id 'nothing' -FileSystem $fs
+        @(Get-HDTSelectionProfile -Root $script:root -FileSystem $fs |
+                Where-Object { $_.Id -eq 'nothing' }) | Should -BeNullOrEmpty
+    }
 
-        $none.Include | Should -BeNullOrEmpty
-        $none.IsBuiltIn | Should -BeTrue
+    # AND THE ID IS THEREFORE FREE. Nothing reserves it, so an administrator who
+    # wants a profile called 'nothing' may have one.
+    It 'leaves the id nothing available to author' {
+        $yaml = @(
+            'schemaVersion: 1'
+            'profiles:'
+            '  - id: nothing'
+            '    name: Nothing at all'
+            '    include: []'
+        ) -join "`r`n"
+
+        $fs = New-HDTFakeFileSystem -File @{ 'C:\HDTLab\Share\Control\selection-profiles.yaml' = $yaml }
+
+        (Get-HDTSelectionProfile -Root $script:root -Id 'nothing' -FileSystem $fs).IsBuiltIn |
+            Should -BeFalse
     }
 
     It 'sorts every profile by name, built in or not' {
@@ -327,10 +346,18 @@ Describe 'Expand-HDTSelectionProfile' {
         $folder[0].FullPath | Should -BeExactly 'C:\HDTLab\Share\Drivers'
     }
 
-    It 'expands Nothing to nothing at all' {
-        $fs = New-HDTTestProfileFileSystem
+    It 'expands a profile that includes nothing to nothing at all' {
+        $yaml = @(
+            'schemaVersion: 1'
+            'profiles:'
+            '  - id: empty'
+            '    name: Not filled in yet'
+            '    include: []'
+        ) -join "`r`n"
 
-        @(Expand-HDTSelectionProfile -Root $script:root -Id 'nothing' -FileSystem $fs) |
+        $fs = New-HDTTestProfileFileSystem -Yaml $yaml
+
+        @(Expand-HDTSelectionProfile -Root $script:root -Id 'empty' -FileSystem $fs) |
             Should -BeNullOrEmpty
     }
 

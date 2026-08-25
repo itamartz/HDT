@@ -68,11 +68,19 @@ BeforeAll {
 
         if ($null -eq $Line) { $Line = $script:profileLine }
 
-        $folder = Get-HDTShareContentFolder -Root $script:root -FileSystem (New-HDTFakeFileSystem -File @{
+        # THE SAME SHARE THE TREE WAS READ FROM AND THE ONE SAVE WRITES TO. They
+        # have to be one file system: Set-HDTSelectionProfile now refuses an
+        # include that is not a folder on -Root, so a Save against an empty fake
+        # would fail for a reason no administrator could ever hit.
+        if ($null -eq $FileSystem) {
+            $FileSystem = New-HDTFakeFileSystem -File @{
                 'C:\ws\Drivers\WinPE\Dell WinPE 11 x64\e.inf' = '[Version]'
                 'C:\ws\Drivers\WinPE\HP WinPE 11 x64\s.inf'   = '[Version]'
                 'C:\ws\Applications\7Zip\app.yaml'            = 'schemaVersion: 1'
-            })
+            }
+        }
+
+        $folder = Get-HDTShareContentFolder -Root $script:root -FileSystem $FileSystem
 
         $selection = @(Get-HDTSelectionProfileFromLine -Line $Line -Path $script:documentPath)
 
@@ -201,7 +209,7 @@ Describe 'New-HDTConsoleSelectionProfileView' {
         It 'adds nothing and says why' {
             $list = $script:emptyWindow.FindName('HDTSelectionProfileList')
 
-            @($list.ItemsSource).Count | Should -Be 4
+            @($list.ItemsSource).Count | Should -Be 3
             [string] $script:emptyWindow.FindName('HDTSelectionProfileCommandText').Text |
                 Should -BeLike '*type a name*'
         }
@@ -249,14 +257,21 @@ Describe 'New-HDTConsoleSelectionProfileView' {
         It 'leaves the built-ins, which it cannot remove' {
             $list = $script:deleteWindow.FindName('HDTSelectionProfileList')
 
-            @($list.ItemsSource).Count | Should -Be 3
+            @($list.ItemsSource).Count | Should -Be 2
         }
     }
 
     Context 'Save, pressed' {
 
         BeforeAll {
-            $script:saveFs = New-HDTFakeFileSystem
+            # SEEDED WITH THE SAME FOLDERS THE TREE READS, because Save now
+            # refuses an include that is not a folder on the share.
+            $script:saveFs = New-HDTFakeFileSystem -File @{
+                'C:\ws\Drivers\WinPE\Dell WinPE 11 x64\e.inf' = '[Version]'
+                'C:\ws\Drivers\WinPE\HP WinPE 11 x64\s.inf'   = '[Version]'
+                'C:\ws\Applications\7Zip\app.yaml'            = 'schemaVersion: 1'
+            }
+
             $script:saveHost = New-HDTTestProfileHostDouble
             $script:saveWindow = New-HDTTestProfileWindow -ConsoleHost $script:saveHost -FileSystem $script:saveFs
 
@@ -313,7 +328,7 @@ Describe 'New-HDTConsoleSelectionProfileView' {
         It 'opens on the built-ins alone' {
             $list = $script:freshWindow.FindName('HDTSelectionProfileList')
 
-            @($list.ItemsSource).Count | Should -Be 3
+            @($list.ItemsSource).Count | Should -Be 2
         }
 
         It 'has nothing selected, and says what to do about it' {

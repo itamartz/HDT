@@ -842,6 +842,8 @@
         $removeApplication = $window.FindName('HDTRemoveApplicationMenuItem')
         $applicationDependency = $window.FindName('HDTApplicationDependencyMenuItem')
         $applicationDetection = $window.FindName('HDTApplicationDetectionMenuItem')
+        $selectionProfileItem = $window.FindName('HDTSelectionProfileMenuItem')
+
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
         $deleteFolder = $window.FindName('HDTDeleteFolderMenuItem')
@@ -917,6 +919,15 @@
 
                         $isApplication = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Application')
 
+                        # BOTH PROFILE ROWS OFFER IT - the category and a profile
+                        # under it - for the boot image rows' reason: it is one
+                        # action on one document, and which of the two somebody
+                        # right-clicks when there are no profiles yet is not
+                        # worth being wrong about. A share that has never had one
+                        # authored still shows the built-in rows, so the category
+                        # is not the only thing under the pointer. Both are
+                        # decided by Get-HDTConsoleTreeMenuRow, further down.
+
                         $newWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
                         $openWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
                         $closeWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
@@ -965,6 +976,8 @@
                         }
                         $applicationDependency.Visibility = [System.Windows.Visibility]::Collapsed
                         $applicationDetection.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        $selectionProfileItem.Visibility = [System.Windows.Visibility]::Collapsed
 
                         if ($isApplication) {
                             $removeApplication.Visibility = [System.Windows.Visibility]::Visible
@@ -1016,11 +1029,27 @@
                         # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
                         # SIDES OF IT. A line at the top of a menu is a line
                         # nobody drew on purpose.
-                        if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage)) {
+                        # WHAT THIS ROW'S MENU IS, DECIDED IN A COMMAND. Both the
+                        # selection profile label and whether the menu opens at
+                        # all live in Get-HDTConsoleTreeMenuRow, so Pester can
+                        # assert what a right-click does - which nothing could
+                        # before, and which cost a defect: an item made Visible
+                        # for its row still did nothing, because the guard below
+                        # cancelled the whole menu for a kind it did not know.
+                        $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                            -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
+                            -HasFolderAction ([bool] $onFolderRow)
+
+                        if ($menuRow.IsSelectionProfile) {
+                            $selectionProfileItem.Visibility = [System.Windows.Visibility]::Visible
+                            $selectionProfileItem.Header = [string] $menuRow.SelectionProfileHeader
+                        }
+
+                        if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
                             $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
                         }
 
-                        if (-not ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $onFolderRow)) {
+                        if (-not $menuRow.Opens) {
                             $opening.Handled = $true
                         }
                     }.GetNewClosure())
@@ -1049,6 +1078,39 @@
                         # THE IMAGE MAY HAVE BEEN BUILT WHILE IT WAS OPEN, and
                         # the row under Boot Image reads the manifest - so it is
                         # stale until the tree is read again.
+                        & $rebuildTree
+                    }.GetNewClosure())
+
+                # WORKBENCH'S Advanced Configuration \ Selection Profiles. The
+                # row carries the SHARE ROOT rather than a document, because a
+                # profile is share-wide and the window works out its own path.
+                $selectionProfileItem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $shareRoot = [string] $chosen.Subject
+
+                        # IT SAYS SO RATHER THAN DOING NOTHING, as the boot image
+                        # item does: a menu item that returns quietly is one
+                        # somebody presses twice and then reports as broken.
+                        if ([string]::IsNullOrWhiteSpace($shareRoot)) {
+                            $command.Text = 'that row does not name a share, so there are no selection profiles to open.'
+                            return
+                        }
+
+                        try {
+                            [void] (& $call 'Show-HDTSelectionProfileWindow' @{
+                                    Root = $shareRoot; ConsoleHost = $consoleHost
+                                    OwnerWidth = [int] $window.Width; OwnerHeight = [int] $window.Height
+                                })
+                        } catch {
+                            $command.Text = '# {0}' -f [string] $_.Exception.Message
+                            return
+                        }
+
+                        # THE PROFILES MAY HAVE CHANGED WHILE IT WAS OPEN, and
+                        # the branch lists them - so it is stale until the tree
+                        # is read again.
                         & $rebuildTree
                     }.GetNewClosure())
 

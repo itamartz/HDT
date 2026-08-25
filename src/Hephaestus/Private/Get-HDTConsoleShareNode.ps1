@@ -434,16 +434,62 @@
     [void] $node.Add($driverCategory)
     [void] $shareNode.Children.Add($driverCategory)
 
-    $driverRow = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(not supported yet)' `
-        -Field @(
-        New-HDTConsoleField -Label 'Folder' -Value $Workspace.Driver.Folder
-        New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)
-        New-HDTConsoleField -Label '' -Value ('The engine has no driver catalog yet: there is no command that reads this folder and no step that injects from it, so nothing here would reach a deployed machine. The console will list it as soon as the engine can read it.')
-    ) `
-        -Command $driverCommand -Header $header
+    # THE FOLDERS THE STORE ACTUALLY HAS. This row used to read '(not supported
+    # yet)' and it was true: nothing could read the folder and nothing could
+    # inject from it. Both exist now - Import-HDTDriver fills it, a selection
+    # profile names a folder in it, and Update-HDTBootImage injects that folder.
+    #
+    # THE TREE IS FLAT HERE, ONE ROW PER FOLDER AT ANY DEPTH, and each row shows
+    # its whole path. A share with 'Dell\Latitude 7450' under 'Drivers\' is two
+    # rows in Workbench and two rows here; the path on the row is what a profile
+    # includes, so it is what somebody has to be able to read off the screen.
+    $driverParent = @{}
 
-    [void] $node.Add($driverRow)
-    [void] $driverCategory.Children.Add($driverRow)
+    if (@($Workspace.Driver.Tree).Count -eq 0) {
+        $emptyText = '(no drivers imported yet)'
+        if (-not [bool] $Workspace.Driver.Present) { $emptyText = '(no Drivers folder on this share)' }
+
+        $driverEmptyRow = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text $emptyText `
+            -Field @(
+            New-HDTConsoleField -Label 'Folder' -Value $Workspace.Driver.Folder
+            New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)
+            New-HDTConsoleField -Label '' -Value ('Right-click Drivers to make a folder and import a vendor pack into it. A selection profile then names that folder, and the boot image injects it.')
+        ) `
+            -Command ("Import-HDTDriver -Root '{0}' -Path 'WinPE\<vendor>' -Source '<the extracted pack>'" -f $Workspace.Root) `
+            -Header $header -Subject $Workspace.Root
+
+        [void] $node.Add($driverEmptyRow)
+        [void] $driverCategory.Children.Add($driverEmptyRow)
+    }
+
+    foreach ($folder in @($Workspace.Driver.Tree)) {
+        # 'Drivers\WinPE\Dell WinPE 11 x64' is depth 2 under Drivers\, and the
+        # row's Depth has to put it under its parent rather than under the
+        # category - or a two-level store draws as a flat list.
+        $folderRow = New-HDTConsoleNode -Depth (2 + [int] $folder.Depth) -Kind 'Folder' -Status 'Ok' `
+            -Name ([string] $folder.Path) `
+            -Text ('{0} ({1})' -f [string] $folder.Name, [int] $folder.InfCount) `
+            -Field @(
+            New-HDTConsoleField -Label 'Folder' -Value ([string] $folder.Path)
+            New-HDTConsoleField -Label 'Drivers' -Value ([int] $folder.InfCount)
+            New-HDTConsoleField -Label 'On disk' -Value ([System.IO.Path]::Combine($Workspace.Root, [string] $folder.Path))
+        ) `
+            -Command ("Import-HDTDriver -Root '{0}' -Path '{1}' -Source '<the extracted pack>'" -f
+                $Workspace.Root, ([string] $folder.Path -replace '^Drivers\\', '')) `
+            -Header $header -Subject $Workspace.Root
+
+        [void] $node.Add($folderRow)
+
+        $parentPath = [string] (Split-Path -Path ([string] $folder.Path) -Parent)
+
+        if ($driverParent.ContainsKey($parentPath)) {
+            [void] $driverParent[$parentPath].Children.Add($folderRow)
+        } else {
+            [void] $driverCategory.Children.Add($folderRow)
+        }
+
+        $driverParent[[string] $folder.Path] = $folderRow
+    }
 
     # -- task sequences ----------------------------------------------------
 
@@ -600,7 +646,7 @@
         New-HDTConsoleField -Label 'Document' -Value (Get-HDTWorkspacePath -Root $Workspace.Root -Kind Control -ChildPath 'selection-profiles.yaml')
         New-HDTConsoleField -Label 'Profiles' -Value @($Workspace.SelectionProfile).Count
     ) `
-        -Command $profileCommand -Header $header
+        -Command $profileCommand -Header $header -Subject $Workspace.Root
 
     [void] $node.Add($profileCategory)
     [void] $shareNode.Children.Add($profileCategory)
@@ -613,7 +659,7 @@
             -Field @(
             New-HDTConsoleField -Label 'Error' -Value ([string] $Workspace.SelectionProfileFailure)
         ) `
-            -Command $profileCommand -Header $header
+            -Command $profileCommand -Header $header -Subject $Workspace.Root
 
         [void] $node.Add($profileFailureRow)
         [void] $profileCategory.Children.Add($profileFailureRow)
@@ -638,7 +684,7 @@
             New-HDTConsoleField -Label 'Kind' -Value $kindText
             New-HDTConsoleField -Label 'Included folders' -Value $includeText
         ) `
-            -Command $profileCommand -Header $header
+            -Command $profileCommand -Header $header -Subject $Workspace.Root
 
         [void] $node.Add($profileRow)
         [void] $profileCategory.Children.Add($profileRow)

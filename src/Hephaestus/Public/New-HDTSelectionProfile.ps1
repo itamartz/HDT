@@ -28,6 +28,14 @@ function New-HDTSelectionProfile {
             and a traversal is the one mistake here that ends up inside a WIM
             transferred to every machine that PXE boots.
 
+            AND WITH -Root, A FOLDER THAT IS NOT THERE IS REFUSED OUTRIGHT. The
+            console's tree offers only folders the share actually has, so a
+            profile written through the window cannot name one that does not
+            exist; this is what stops the command line being the weaker door.
+            Without -Root there is nothing to check against - a profile is
+            legitimately authored against a UNC path nobody has mounted - and
+            the missing folder is then reported by the tab and by the build.
+
             IT RETURNS LINES AND WRITES NOTHING. Save-HDTSelectionProfileDocument
             is what touches the share.
 
@@ -44,6 +52,13 @@ function New-HDTSelectionProfile {
         .PARAMETER Include
             The share-relative folders, in the order they should be injected.
             Omitted, the profile includes nothing yet.
+
+        .PARAMETER Root
+            The deployment share. Supplied, every include must be a folder that
+            is actually on it.
+
+        .PARAMETER FileSystem
+            The IFileSystem to check -Root with. Omitted, the real one.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -89,7 +104,19 @@ function New-HDTSelectionProfile {
         [Parameter(Position = 3)]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [string[]] $Include = @()
+        [string[]] $Include = @(),
+
+        # THE SHARE, WHEN THE CALLER CAN SEE ONE. Supplied, every include must be
+        # a folder that is actually there - which is what stops a profile naming
+        # a vendor pack nobody has imported. The console always supplies it,
+        # because its tree only offers folders the share has.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Root = '',
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem = $null
     )
 
     Set-StrictMode -Version Latest
@@ -97,7 +124,7 @@ function New-HDTSelectionProfile {
 
     $text = [string[]] @($Line)
 
-    Assert-HDTSelectionProfileId -Id $Id -Include $Include -Cmdlet $PSCmdlet
+    Assert-HDTSelectionProfileId -Id $Id -Include $Include -Root $Root -FileSystem $FileSystem -Cmdlet $PSCmdlet
 
     $map = Get-HDTSelectionProfileLineMap -Line $text
 

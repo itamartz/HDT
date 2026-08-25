@@ -135,10 +135,24 @@ Describe 'Resolve-HDTBootImageDriverPath' {
         [string] $resolved.Warning | Should -BeLike '*HP WinPE 11 x64*'
     }
 
-    It 'answers with nothing at all for the Nothing built-in' {
-        $fs = New-HDTTestDriverShare
+    # A PROFILE THAT INCLUDES NOTHING INJECTS NOTHING, quietly. There is no
+    # built-in for this - the picker's empty row is how "no drivers" is said -
+    # but a profile somebody is halfway through filling in must not warn.
+    It 'answers with nothing at all for a profile that includes nothing' {
+        $yaml = @(
+            'schemaVersion: 1'
+            'profiles:'
+            '  - id: empty'
+            '    name: Not filled in yet'
+            '    include: []'
+        ) -join "`r`n"
 
-        $resolved = Invoke-HDTTestResolve -Name 'nothing' -FileSystem $fs
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\HDTLab\Share\Control\selection-profiles.yaml' = $yaml
+            'C:\HDTLab\Share\Drivers\winpe-nic\e.inf'         = '[Version]'
+        }
+
+        $resolved = Invoke-HDTTestResolve -Name 'empty' -FileSystem $fs
 
         @($resolved.Path) | Should -BeNullOrEmpty
         $resolved.Kind | Should -BeExactly 'Profile'

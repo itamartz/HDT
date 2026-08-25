@@ -373,6 +373,15 @@
                         <MenuItem x:Name="HDTApplicationDependencyMenuItem" />
                         <MenuItem x:Name="HDTApplicationDetectionMenuItem" />
 
+                        <!-- WORKBENCH'S Advanced Configuration \ Selection
+                             Profiles, on the node that holds them. It hangs off
+                             BOTH the category and a profile under it, like the
+                             boot image items: it is one action on one document,
+                             and which of the two somebody right-clicks when
+                             there are no profiles yet is not worth being wrong
+                             about. -->
+                        <MenuItem x:Name="HDTSelectionProfileMenuItem" />
+
                         <!--
                             WORKBENCH'S FOLDERS. MDT nests task sequences and
                             operating systems into real directories under

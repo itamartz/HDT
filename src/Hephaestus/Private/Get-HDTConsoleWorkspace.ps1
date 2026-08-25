@@ -365,9 +365,31 @@
     # forbids.
     $driverFolder = Get-HDTWorkspacePath -Root $root -Kind Drivers
 
+    # THE STORE'S OWN FOLDERS, WHICH THE CONSOLE COULD NOT SHOW BEFORE. This row
+    # used to read '(not supported yet)' and it was true: nothing could read the
+    # folder and nothing could inject from it. Both exist now - a selection
+    # profile names a folder and the boot build injects it - so the branch lists
+    # what is there.
+    #
+    # THE .inf COUNT IS THE NUMBER A PACK IS RECOGNISED BY, and it recurses,
+    # because a vendor pack is a folder per device class.
+    $driverRow = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($current in @(Get-HDTShareContentFolder -Root $root -FileSystem $FileSystem |
+                Where-Object { ([string] $_.Path -like 'Drivers\*') -and [bool] $_.Present })) {
+
+        [void] $driverRow.Add([pscustomobject] @{
+                Path     = [string] $current.Path
+                Name     = [string] $current.Name
+                Depth    = [int] $current.Depth
+                InfCount = [int] (Measure-HDTDriverInf -Path ([System.IO.Path]::Combine($root, [string] $current.Path)) -FileSystem $FileSystem)
+            })
+    }
+
     $driver = [pscustomobject] @{
         Folder  = $driverFolder
         Present = [bool] $FileSystem.TestPath($driverFolder)
+        Tree    = [pscustomobject[]] @($driverRow)
     }
 
     # -- the selection profiles --------------------------------------------

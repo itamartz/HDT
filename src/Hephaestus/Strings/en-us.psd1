@@ -55,6 +55,11 @@
         'HDTRemoveApplicationMenuItem.Header' = 'Remove Application'
         'HDTApplicationDependencyMenuItem.Header' = 'Depends On'
         'HDTApplicationDetectionMenuItem.Header' = 'Detection'
+        # TWO LABELS FOR ONE ITEM. On the category it is New - Workbench's own
+        # wording, and creating is why anybody opens that node. On a profile row
+        # it is the manager, because that row already exists.
+        'HDTSelectionProfileMenuItem.Header' = 'Selection Profiles'
+        'HDTSelectionProfileMenuItem.NewHeader' = 'New Selection Profile'
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'

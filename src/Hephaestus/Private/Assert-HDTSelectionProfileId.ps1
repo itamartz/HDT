@@ -27,6 +27,13 @@ function Assert-HDTSelectionProfileId {
             The include paths to check. Omitted, none are checked - which is what
             Set- passes when it is only renaming.
 
+        .PARAMETER Root
+            The deployment share, when the caller can see one. Supplied, EVERY
+            include must be a folder that is actually there.
+
+        .PARAMETER FileSystem
+            The IFileSystem to check -Root with.
+
         .PARAMETER Cmdlet
             The calling command's $PSCmdlet, so the error is thrown as its own.
 
@@ -48,6 +55,14 @@ function Assert-HDTSelectionProfileId {
         [AllowEmptyCollection()]
         [string[]] $Include = @(),
 
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Root = '',
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $FileSystem = $null,
+
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
         [object] $Cmdlet
@@ -68,12 +83,35 @@ function Assert-HDTSelectionProfileId {
                     -Message ("'{0}' is a built-in profile and has no lines in any document. The built-in ids are {1}." -f $Id, ($reserved -join ', '))))
     }
 
+    $check = $FileSystem
+    if (($null -eq $check) -and (-not [string]::IsNullOrWhiteSpace($Root))) { $check = New-HDTFileSystem }
+
     foreach ($current in @($Include)) {
         $failure = Get-HDTSelectionProfilePathFailure -Include ([string] $current)
 
         if (-not [string]::IsNullOrEmpty($failure)) {
             $Cmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $current `
                         -Message ("'{0}' cannot be included: {1}" -f $current, $failure)))
+        }
+
+        # A FOLDER THAT IS NOT THERE IS NOT A CHOICE. The console's tree offers
+        # only folders the share actually has, so a profile written through the
+        # window cannot name one that does not exist - and a command that let
+        # somebody type one anyway would put a boot image on a bench with a
+        # vendor's drivers silently absent.
+        #
+        # ONLY WHEN A SHARE WAS NAMED. A profile is legitimately authored on a
+        # workstation against a UNC path nobody has mounted; with no -Root there
+        # is nothing to check against and the document's own reader reports a
+        # missing folder later, on the tab and in the build's warning.
+        if ($null -eq $check) { continue }
+
+        $full = [System.IO.Path]::Combine($Root, ([string] $current).TrimStart('\', '/'))
+
+        if (-not $check.TestPath($full)) {
+            $Cmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $current `
+                        -Path $full -Category ObjectNotFound `
+                        -Message ("'{0}' is not a folder on this share, so it cannot be included. A profile names folders that exist; import the drivers first, or tick a folder in the console's profile tree." -f $current)))
         }
     }
 }
