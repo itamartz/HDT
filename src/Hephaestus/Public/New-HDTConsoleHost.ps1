@@ -288,26 +288,20 @@
         $tree.Add_MouseDoubleClick({
                 $selected = $tree.SelectedItem
 
-                if ($null -eq $selected) { return }
-                if (-not $selected.CanOpen) { return }
+                # TWO KINDS OF ROW OPEN, AND THE ROW SAYS WHICH IT IS - routed
+                # on the Kind Get-HDTConsoleTreeNode already decided, not worked
+                # out again here. CanOpen is NOT an invitation to open the
+                # editor: an operating system carries a subject so the details
+                # pane can write its document, and its properties ARE that pane.
+                # tests/unit/ConsoleOpenAction.Tests.ps1.
+                $open = & $call 'Get-HDTConsoleOpenAction' -Row $selected
 
-                # TWO KINDS OF ROW OPEN, AND THE ROW SAYS WHICH IT IS. A task
-                # sequence opens the editor; the boot image opens the Windows PE
-                # window, which is Deployment Workbench's deployment share
-                # Properties. This routes on the Kind the node already carries -
-                # it does not work out for itself which rows are which, because
-                # that is the decision Get-HDTConsoleTreeNode already made.
-                if ([string] $selected.Kind -eq 'BootImage') {
-                    & $openBootImage ([string] $selected.Subject)
+                if ($open.Open -eq 'BootImage') {
+                    & $openBootImage ([string] $open.Subject)
                     return
                 }
 
-                # AND ONLY A TASK SEQUENCE OPENS THE EDITOR. CanOpen says a row
-                # carries a subject, which an operating system now does so the
-                # detail pane can write its document - it is not an invitation
-                # to open a sequence editor on an os.yaml. An OS's properties
-                # ARE the detail pane; there is no second window to show.
-                if ([string] $selected.Kind -ne 'TaskSequence') { return }
+                if ($open.Open -ne 'SequenceEditor') { return }
 
                 # AND IT COMES UP THE SIZE OF THIS WINDOW. ActualWidth, not the
                 # markup and not RestoreBounds: what was asked for is the size
@@ -319,7 +313,7 @@
                 # Show-HDTSequenceEditor builds a fresh host, whose Window is
                 # $null, so the editor is owned by nothing and drops behind the
                 # browser the first time the browser is clicked.
-                [void] (Show-HDTSequenceEditor -Sequence $selected.Subject `
+                [void] (Show-HDTSequenceEditor -Sequence $open.Subject `
                         -ConsoleHost $consoleHost `
                         -OwnerWidth ([int] $window.ActualWidth) -OwnerHeight ([int] $window.ActualHeight))
             }.GetNewClosure())
