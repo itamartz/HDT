@@ -5495,23 +5495,26 @@
 
                     if (-not $final.IsComplete) { continue }
 
+                    # THE SAME COMPOSITION AS THE LOOP ABOVE, and deliberately
+                    # the same call: this window used to spell the completion
+                    # lines out twice, which is two places for "done - " and
+                    # "FAILED - " to drift apart.
+                    $show = & $call 'Get-HDTConsoleBuildProgress' -Report $final `
+                        -Elapsed $elapsed -StepText ([string] $book.StepText)
+
                     $book.Finished = $true
                     $book.Succeeded = [bool] $final.Succeeded
 
-                    $stepText.Text = 'Finished'
-                    $bar.Value = $bar.Maximum
-                    $detailText.Text = [string] $final.Detail
+                    $stepText.Text = [string] $show.StepText
+                    $detailText.Text = [string] $show.DetailText
+                    $bar.Value = [double] $show.BarValue
 
-                    if ($final.Succeeded) {
-                        [void] $line.Add(('{0:mm\:ss}  done - {1}' -f $elapsed, $final.Detail))
-                    } else {
-                        $stepText.Text = 'Failed'
-                        $stepText.Foreground = $window.Resources['HDTErrorBrush']
-                        [void] $line.Add(('{0:mm\:ss}  FAILED - {1}' -f $elapsed, $final.Detail))
-                    }
+                    if ($show.IsFailure) { $stepText.Foreground = $window.Resources['HDTErrorBrush'] }
 
-                    $elapsedText.Text = 'took {0:mm\:ss}' -f $elapsed
-                    $close.IsEnabled = $true
+                    [void] $line.Add([string] $show.LogLine)
+
+                    $elapsedText.Text = [string] $show.ElapsedText
+                    $close.IsEnabled = [bool] $show.CloseEnabled
                 }
 
                 $timer.Stop()
@@ -5521,24 +5524,25 @@
                 # the command runs at all - a module that will not import, for
                 # instance - and that error exists only in this stream.
                 if (-not $book.Finished) {
-                    $failure = 'the build ended without saying why'
-
                     # EndInvoke IS WHAT RAISES THE RUNSPACE'S TERMINATING ERROR.
                     # A build that threw outside its own try - the ISO step is
                     # outside it - reports nothing and leaves Streams.Error
                     # empty, and the window then said "ended without saying why"
-                    # about a failure PowerShell was holding all along.
+                    # about a failure PowerShell was holding all along. Which of
+                    # the three answers wins is
+                    # tests/unit/ConsoleBuildFailure.Tests.ps1.
+                    $raised = ''
+
                     try {
                         [void] $shell.EndInvoke($handle)
                     } catch {
-                        $failure = [string] $_.Exception.Message
+                        $raised = [string] $_.Exception.Message
                     }
 
-                    if ($failure -eq 'the build ended without saying why' -and
-                        @($shell.Streams.Error).Count -gt 0) {
+                    $streamed = [string[]] @(@($shell.Streams.Error) |
+                            ForEach-Object { [string] $_.Exception.Message })
 
-                        $failure = [string] $shell.Streams.Error[0].Exception.Message
-                    }
+                    $failure = & $call 'Get-HDTConsoleBuildFailure' -Raised $raised -Streamed $streamed
 
                     $stepText.Text = 'Failed'
                     $stepText.Foreground = $window.Resources['HDTErrorBrush']
