@@ -62,6 +62,16 @@
         'HDTSelectionProfileMenuItem.NewHeader' = 'New Selection Profile'
         'HDTNewDriverFolderMenuItem.Header' = 'New Folder'
         'HDTImportDriverMenuItem.Header' = 'Import Drivers'
+        'HDTRemoveDriverFolderMenuItem.Header' = 'Delete Driver Folder'
+        # THE DRIVER GRID'S COLUMNS. Enabled leads because it is the one thing
+        # on the row that can be wrong - a pack imported and then half turned
+        # off looks identical to one that was not, until this column says so.
+        'HDTDriverStateColumn.Header' = 'Enabled'
+        'HDTDriverNameColumn.Header' = 'Driver'
+        'HDTDriverClassColumn.Header' = 'Class'
+        'HDTDriverVendorColumn.Header' = 'Manufacturer'
+        'HDTDriverVersionColumn.Header' = 'Version'
+        'HDTDriverDateColumn.Header' = 'Date'
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'
@@ -338,6 +348,27 @@
         'HDTBootstrapRulesReloadButton.ToolTip' = 'Read bootstrap-rules.yaml again and lose what is typed here'
         'HDTBootstrapRulesSaveButton.Content' = 'Save rules'
         'HDTBootstrapRulesSaveButton.ToolTip' = 'Dark while the document would not survive the next boot image build'
+    }
+
+    # The driver properties window: Show-HDTDriverWindow.
+    DriverProperties = @{
+
+        'HDTDriverEnabledCheck.Content' = 'Enable this driver'
+        'HDTDriverEnabledHint.Text' = 'Disabled, it stays on the share and is skipped by every profile that includes this folder - which is how one bad driver is taken out of a vendor pack without deleting the pack.'
+        'HDTDriverClassLabel.Text' = 'Class'
+        'HDTDriverVendorLabel.Text' = 'Manufacturer'
+        'HDTDriverVersionLabel.Text' = 'Version'
+        'HDTDriverDateLabel.Text' = 'Date'
+        'HDTDriverFileLabel.Text' = 'INF file'
+        'HDTDriverCountLabel.Text' = 'PnP IDs'
+        'HDTDriverPnpLabel.Text' = 'PnP IDs - the devices this driver claims'
+        'HDTDriverPnpColumn.Header' = 'PnP ID'
+
+        'HDTDriverDeleteButton.Content' = 'Delete driver'
+        'HDTDriverDeleteButton.ToolTip' = 'Remove the .inf and the files beside it. There is no undo but the vendor download'
+        'HDTDriverSaveButton.Content' = 'Save'
+        'HDTDriverSaveButton.ToolTip' = 'Write the enabled state to Control\driver-state.yaml'
+        'HDTDriverCloseButton.Content' = 'Close'
     }
 
     # The Selection Profiles window: Show-HDTSelectionProfileWindow.

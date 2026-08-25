@@ -1,4 +1,4 @@
-function Get-HDTConsoleDriverRow {
+﻿function Get-HDTConsoleDriverRow {
     <#
         .SYNOPSIS
             The drivers in one folder, as the console's grid shows them.
@@ -35,8 +35,8 @@ function Get-HDTConsoleDriverRow {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject per driver, with
-            StateMark, Name, Class, Provider, Version, Date, Path, Enabled and
-            HardwareId.
+            StateMark, Name, Class, Provider, Version, Date, Path, Folder,
+            Enabled and HardwareId.
 
         .EXAMPLE
             Get-HDTConsoleDriverRow -Root 'C:\HDTLab\Share' -Path 'Drivers\WinPE\Dell'
@@ -99,6 +99,7 @@ function Get-HDTConsoleDriverRow {
                 Version    = [string] $one.Version
                 Date       = [string] $one.Date
                 Path       = [string] $one.Path
+                Folder     = [string] $one.Folder
                 FullPath   = [string] $one.FullPath
                 Enabled    = [bool] $one.Enabled
                 HardwareId = [string[]] @($one.HardwareId)

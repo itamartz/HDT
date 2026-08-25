@@ -1,4 +1,4 @@
-function Get-HDTConsoleRemoval {
+﻿function Get-HDTConsoleRemoval {
     <#
         .SYNOPSIS
             What a technician is asked before something is deleted from a share,
@@ -83,7 +83,7 @@ function Get-HDTConsoleRemoval {
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [ValidateSet('TaskSequence', 'OperatingSystem', 'Application')]
+        [ValidateSet('TaskSequence', 'OperatingSystem', 'Application', 'DriverFolder')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -121,6 +121,22 @@ function Get-HDTConsoleRemoval {
                 Command   = 'Remove-HDTTaskSequence'
                 Parameter = 'Workspace'
                 Goes      = 'the sequence, its answer file and anything else kept beside them'
+                IdName    = 'Id'
+                UsedFormat = ''
+            }
+        }
+        'DriverFolder' {
+            @{
+                Noun      = 'driver folder'
+                Title     = 'Delete Driver Folder'
+                Command   = 'Remove-HDTDriverFolder'
+                Parameter = 'Root'
+                # WHAT GOES IS THE DRIVERS, not "the folder beside it". A driver
+                # folder IS its contents - an .inf with the .sys, .cat and .dll
+                # that only mean anything next to it - so the sentence the other
+                # kinds share would understate this one badly.
+                Goes      = 'every driver under it, and the .sys and .cat files beside each one'
+                IdName    = 'Path'
                 UsedFormat = ''
             }
         }
@@ -131,6 +147,7 @@ function Get-HDTConsoleRemoval {
                 Command   = 'Remove-HDTOperatingSystem'
                 Parameter = 'Workspace'
                 Goes      = 'os.yaml and whatever media was imported beside it'
+                IdName    = 'Id'
                 # A SEQUENCE WITHOUT ITS IMAGE FAILS OUTRIGHT.
                 UsedFormat = 'These task sequences apply it and will fail without it: {0}.'
             }
@@ -142,6 +159,7 @@ function Get-HDTConsoleRemoval {
                 Command   = 'Remove-HDTApplication'
                 Parameter = 'WorkspaceRoot'
                 Goes      = 'app.yaml and the installer copied beside it'
+                IdName    = 'Id'
                 # A MACHINE ARRIVES WITHOUT IT; it does not fail.
                 UsedFormat = 'These task sequences install it: {0}.'
             }
@@ -153,10 +171,14 @@ function Get-HDTConsoleRemoval {
         $article = 'a'
         if ($Kind -eq 'OperatingSystem' -or $Kind -eq 'Application') { $article = 'an' }
 
+        # A FOLDER IS NAMED BY ITS PATH, and 'a driver folder id' names nothing
+        # anybody would recognise on the row they just right-clicked.
+        $what = '{0} {1} id' -f $article, $shape.Noun
+        if ($Kind -eq 'DriverFolder') { $what = 'a folder under Drivers\' }
+
         return [pscustomobject] @{
             CanRemove = $false
-            Refusal   = 'that row does not name a share and {0} {1} id, so there is nothing to remove.' -f
-                $article, $shape.Noun
+            Refusal   = 'that row does not name a share and {0}, so there is nothing to remove.' -f $what
             Title     = [string] $shape.Title
             Warning   = ''
             Question  = ''
@@ -176,8 +198,14 @@ function Get-HDTConsoleRemoval {
             $warning, $newLine, (@($RequiredBy) -join ', ')
     }
 
-    $question = ("Remove the {0} '{1}' from{2}{3}?{2}{2}Its folder goes with it - {4}. This cannot be undone from here.{5}" -f
-        $shape.Noun, $Id, $newLine, $Root, $shape.Goes, $warning)
+    # A DRIVER FOLDER IS ITS CONTENTS, so it does not get the "its folder goes
+    # with it" sentence the other three share - the folder is the thing being
+    # removed, not something that follows it out.
+    $lead = 'Its folder goes with it'
+    if ($Kind -eq 'DriverFolder') { $lead = 'It takes' }
+
+    $question = ("Remove the {0} '{1}' from{2}{3}?{2}{2}{6} - {4}. This cannot be undone from here.{5}" -f
+        $shape.Noun, $Id, $newLine, $Root, $shape.Goes, $warning, $lead)
 
     return [pscustomobject] @{
         CanRemove = $true
@@ -185,6 +213,7 @@ function Get-HDTConsoleRemoval {
         Title     = [string] $shape.Title
         Warning   = $warning
         Question  = $question
-        Command   = "{0} -{1} '{2}' -Id '{3}'" -f $shape.Command, $shape.Parameter, $Root, $Id
+        Command   = "{0} -{1} '{2}' -{3} '{4}'" -f
+            $shape.Command, $shape.Parameter, $Root, $shape.IdName, $Id
     }
 }

@@ -1258,6 +1258,23 @@
     }
 
     # =====================================================================
+    # THE DRIVER PROPERTIES WINDOW
+    # =====================================================================
+    #
+    # Workbench's driver Properties, opened by a double-click on the grid.
+
+    $service | Add-Member -MemberType ScriptMethod -Name ShowDriver -Value {
+        param([string] $Xaml, [string] $Root, [object] $Driver, [object] $Theme, [object] $Size)
+
+        $window = New-HDTConsoleDriverView -ConsoleHost $this `
+            -Xaml $Xaml -Root $Root -Driver $Driver -Theme $Theme -Size $Size
+
+        [void] $window.ShowDialog()
+
+        return [string] $this.Answer
+    }
+
+    # =====================================================================
     # THE SELECTION PROFILES WINDOW
     # =====================================================================
     #

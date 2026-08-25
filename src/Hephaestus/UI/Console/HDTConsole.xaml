@@ -389,6 +389,7 @@
                              parent they meant. -->
                         <MenuItem x:Name="HDTNewDriverFolderMenuItem" />
                         <MenuItem x:Name="HDTImportDriverMenuItem" />
+                        <MenuItem x:Name="HDTRemoveDriverFolderMenuItem" />
 
                         <!--
                             WORKBENCH'S FOLDERS. MDT nests task sequences and
@@ -534,12 +535,12 @@
                              anywhere else. The word, not an abbreviation: a
                              two-letter header that needs explaining has
                              failed. -->
-                        <DataGridTextColumn Header="Enabled" Binding="{Binding StateMark}" Width="62" />
-                        <DataGridTextColumn Header="Driver" Binding="{Binding Name}" Width="330" />
-                        <DataGridTextColumn Header="Class" Binding="{Binding Class}" Width="110" />
-                        <DataGridTextColumn Header="Manufacturer" Binding="{Binding Provider}" Width="130" />
-                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="120" />
-                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" MinWidth="90" />
+                        <DataGridTextColumn x:Name="HDTDriverStateColumn" Binding="{Binding StateMark}" Width="62" />
+                        <DataGridTextColumn x:Name="HDTDriverNameColumn" Binding="{Binding Name}" Width="330" />
+                        <DataGridTextColumn x:Name="HDTDriverClassColumn" Binding="{Binding Class}" Width="110" />
+                        <DataGridTextColumn x:Name="HDTDriverVendorColumn" Binding="{Binding Provider}" Width="130" />
+                        <DataGridTextColumn x:Name="HDTDriverVersionColumn" Binding="{Binding Version}" Width="120" />
+                        <DataGridTextColumn x:Name="HDTDriverDateColumn" Binding="{Binding Date}" Width="*" MinWidth="90" />
                     </DataGrid.Columns>
                 </DataGrid>
 

@@ -185,8 +185,48 @@
         $detail = $window.FindName('HDTDetailList')
         $detailScroll = $window.FindName('HDTDetailScroll')
         $driverGrid = $window.FindName('HDTDriverGrid')
+
         $command = $window.FindName('HDTCommandText')
         $close = $window.FindName('HDTCloseButton')
+
+        # A DOUBLE-CLICK ON A DRIVER OPENS ITS PROPERTIES, which is where the
+        # enabled tick box lives - the grid is read-only on purpose, because a
+        # tick box on two hundred rows leaves no room for the PnP ids that say
+        # which machine each driver is for.
+        #
+        # IT SAYS SO RATHER THAN DOING NOTHING, as every other opener here: a
+        # double-click that opens nothing is one somebody does again.
+        $driverGrid.Add_MouseDoubleClick({
+                $chosen = $driverGrid.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $selected = $tree.SelectedItem
+                if ($null -eq $selected) { return }
+
+                $shareRoot = [string] $selected.Subject
+
+                if ([string]::IsNullOrWhiteSpace($shareRoot)) {
+                    $command.Text = 'that row does not name a share, so the driver cannot be opened.'
+                    return
+                }
+
+                try {
+                    [void] (& $call 'Show-HDTDriverWindow' @{
+                            Root = $shareRoot; Driver = $chosen; ConsoleHost = $consoleHost
+                            OwnerWidth = [int] $window.Width; OwnerHeight = [int] $window.Height
+                        })
+                } catch {
+                    $command.Text = '# {0}' -f [string] $_.Exception.Message
+                    return
+                }
+
+                # THE STATE MAY HAVE CHANGED WHILE IT WAS OPEN, and the grid is
+                # what shows it - so it is stale until the folder is read again.
+                $driverGrid.ItemsSource = [object[]] @(& $call 'Get-HDTConsoleDriverRow' @{
+                        Root = $shareRoot; Path = [string] $selected.Name
+                    })
+            }.GetNewClosure())
+
 
         # -- Apply, which is the only button on this window that writes --------
         #
@@ -451,7 +491,14 @@
                 $first = $tree.ItemContainerGenerator.ContainerFromIndex(0)
                 if ($null -ne $first) { $first.IsSelected = $true }
 
-                $refresh.Start()
+                # A ZERO INTERVAL IS A SPIN, NOT A PAUSE. DispatcherTimer with
+                # TimeSpan.Zero re-queues itself at Background priority as fast
+                # as the thread will take it, so nothing at ApplicationIdle ever
+                # runs again - the window draws and then answers nothing, which
+                # looks exactly like a hang and is one. Show-HDTConsole's
+                # ValidateRange keeps an administrator out of it; this keeps
+                # anything that builds the view directly out of it too.
+                if ($RefreshSecond -gt 0) { $refresh.Start() }
             }.GetNewClosure())
 
         # A timer left running holds a reference to a window that has gone.
@@ -863,6 +910,7 @@
         $selectionProfileItem = $window.FindName('HDTSelectionProfileMenuItem')
         $newDriverFolderItem = $window.FindName('HDTNewDriverFolderMenuItem')
         $importDriverItem = $window.FindName('HDTImportDriverMenuItem')
+        $removeDriverFolderItem = $window.FindName('HDTRemoveDriverFolderMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1063,10 +1111,20 @@
 
                         $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
                         $importDriverItem.Visibility = [System.Windows.Visibility]::Collapsed
+                        $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
 
                         if ($menuRow.IsDriverRow) {
                             $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
                             $importDriverItem.Visibility = [System.Windows.Visibility]::Visible
+                        }
+
+                        # DELETE IS OFFERED ON A FOLDER, NEVER ON THE STORE. The
+                        # Drivers category is a driver row too - it takes New
+                        # Folder and Import - but Remove-HDTDriverFolder refuses
+                        # the store itself, so an item offered there would be one
+                        # that only ever answers no.
+                        if ([string] $chosen.Kind -eq 'DriverFolder') {
+                            $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
                         }
 
                         if ($menuRow.IsSelectionProfile) {
@@ -1711,6 +1769,53 @@
 
                         $command.Text = "Import-HDTDriver -Root '{0}' -Path '{1}' -Source '{2}'   # {3} driver(s)" -f
                             $where, [string] $imported.Path, $source, [int] $imported.DriverCount
+                    }.GetNewClosure())
+
+                # DELETE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED, for
+                # the same reason Remove Task Sequence does: Remove-HDTDriverFolder
+                # carries ConfirmImpact High, which at a console nobody is looking
+                # at is a window that appears to hang. The answer is passed as
+                # -Confirm:$false - one decision, made where it was offered.
+                $removeDriverFolderItem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.Subject
+
+                        # THE ROW NAMES ITSELF FROM THE SHARE'S ROOT -
+                        # 'Drivers\WinPE\Dell' - and Remove-HDTDriverFolder
+                        # counts from inside the store.
+                        $which = [string] $chosen.Name
+                        if ($which -match '^(?i)Drivers\\') { $which = $which.Substring(('Drivers\').Length) }
+
+                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'DriverFolder' -Root $where -Id $which
+                        if (-not $ask.CanRemove) {
+                            $command.Text = [string] $ask.Refusal
+                            return
+                        }
+
+                        $asked = [System.Windows.MessageBox]::Show($window,
+                            [string] $ask.Question,
+                            [string] $ask.Title,
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Warning,
+                            [System.Windows.MessageBoxResult]::No)
+
+                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                        try {
+                            [void] (& $call 'Remove-HDTDriverFolder' @{
+                                    Root = $where; Path = $which; Confirm = $false
+                                })
+                            $command.Text = [string] $ask.Command
+                        } catch {
+                            # THE REFUSAL IS THE ANSWER, and this command's are
+                            # the ones worth reading: the store itself, a path
+                            # that climbs out of it.
+                            $command.Text = [string] $_.Exception.Message
+                        }
+
+                        & $rebuildTree
                     }.GetNewClosure())
 
                 $newFolder.Add_Click({

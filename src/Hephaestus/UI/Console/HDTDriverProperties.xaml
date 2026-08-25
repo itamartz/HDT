@@ -1,0 +1,391 @@
+﻿<Window
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Driver Properties"
+    Height="700" Width="1000"
+    MinHeight="480" MinWidth="720"
+    WindowStartupLocation="Manual"
+    Background="{DynamicResource HDTWindowBrush}">
+
+    <!--
+        ONE DRIVER, AND THE ONE THING ABOUT IT THAT CAN BE CHANGED.
+        Deployment Workbench's driver Properties, with its two tabs collapsed
+        into one: General held a tick box and a comment, Details held everything
+        a technician actually came to read, and somebody checking which machine
+        a driver is for should not have to find the second tab to do it.
+
+        THE PnP IDS ARE THE POINT OF THE WINDOW. They are what says which
+        machine a driver is for and what a PnP match will one day rank, so they
+        get the space that is left rather than a field on a row.
+
+        ONE COLUMN, NOT TWO. The friendly device name beside each id is the
+        vendor's own label out of [Strings] - it reads "Ethernet Connection
+        I219-LM" next to an id that already says so, and resolving those tokens
+        is parser work bought for nothing.
+
+        NO "Signed" FIELD. A .cat sitting beside the .inf is not proof of a
+        valid signature - checking one means verifying the catalog against the
+        file hashes - and a field that read 'yes' without doing that would be
+        worse than no field at all.
+
+        NO x:Class AND NO CODE-BEHIND, as every other window here. Handlers
+        attach in PowerShell, by name.
+
+        NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+        HDTDriverTitleText, HDTDriverPathText, HDTDriverEnabledCheck,
+        HDTDriverEnabledHint, HDTDriverClassText, HDTDriverVendorText,
+        HDTDriverVersionText, HDTDriverDateText, HDTDriverModelText,
+        HDTDriverPnpLabel, HDTDriverPnpGrid, HDTDriverCommandText,
+        HDTDriverDeleteButton, HDTDriverSaveButton and HDTDriverCloseButton.
+    -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTLabelBrush"       Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTHintBrush"        Color="#FF6A6A6A" />
+        <SolidColorBrush x:Key="HDTCommandBrush"     Color="#FFF7F7F7" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FF0A3069" />
+        <SolidColorBrush x:Key="HDTFieldBrush"           Color="#FFEDEDED" />
+        <SolidColorBrush x:Key="HDTFooterBrush"          Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"          Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"      Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTButtonHoverBrush"     Color="#FFCCE4F7" />
+        <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
+        <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
+
+        <!-- The console's button, template and all. See HDTConsole.xaml for why
+             the colours are Setters inside a ControlTemplate rather than local
+             values on the element. -->
+        <!--
+            THE ? THIS PRODUCT ALREADY HAS, copied verbatim from
+            HDTNewWorkspace.xaml, which shares it with HDTNewSequence,
+            HDTImportApplication, HDTApplicationDetection, HDTConsole and
+            HDTSequenceEditor. A 22px outlined dot with a bold glyph and a help
+            cursor - not a solid button, which is what this tab first got and
+            what made it read as a different kind of control.
+        -->
+<Style TargetType="Border" x:Key="HDTHelpDot">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Help" />
+            <Setter Property="Margin" Value="8,0,0,10" />
+            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="200" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTHelpGlyph">
+            <Setter Property="Text" Value="?" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HDTButtonSurface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonHoverBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonPressedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+                            <!-- A disabled action must LOOK disabled. Remove
+                                 means nothing until a row is selected, and a
+                                 bright button that does nothing when pressed is
+                                 how an administrator concludes the window is
+                                 broken. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTFooterBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <!-- The hint under a field: the same size, deliberately quieter. It
+             says what an EMPTY box means, which is the question every one of
+             these fields raises and none of them can answer by itself. -->
+        <Style x:Key="HDTHintText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- WHITE, BECAUSE THESE ARE TYPED INTO. HDTFieldBrush is the read-only
+             wash the console's detail pane puts on rows that are a reading
+             rather than a setting; every box on this window is a setting. It
+             wore the wash for months and nobody could tell, because the wash
+             was #FAFAFA and invisible against white - the moment it became a
+             grey somebody could see, this window started claiming its image
+             name could not be changed. -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="6,4,6,4" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <!-- AND IT MUST NOT LOOK READ-ONLY. WPF's default ComboBox
+                 template paints its own grey chrome and ignores Background, so
+                 a dropdown beside white boxes reads as a disabled one.
+                 IsEditable puts a real text box in the closed control, which
+                 takes the Background; IsReadOnly keeps it from being typed
+                 into. No ComboBox here uses an ItemTemplate, so what it shows
+                 is what it showed before. -->
+            <Setter Property="IsEditable" Value="True" />
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="6,4,6,4" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,5,14,5" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="24,14,24,14">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" x:Name="HDTDriverTitleText"
+                          
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontFamily="Segoe UI" FontSize="19" />
+                <TextBlock Grid.Row="1" x:Name="HDTDriverPathText"
+                           Text=""
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontFamily="Consolas, Courier New" FontSize="12"
+                           Margin="0,4,0,0" />
+            </Grid>
+        </Border>
+
+        <!--
+            ONE TAB, NOT TWO. Workbench splits this into General and Details and
+            the split earns nothing: General holds a tick box and a comment,
+            Details holds everything a technician actually came to read. Somebody
+            checking which machine a driver is for should not have to find the
+            second tab to do it.
+        -->
+        <Grid Grid.Row="1" Margin="24,18,24,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--
+                THE ONE CONTROL ON THIS WINDOW THAT WRITES ANYTHING, and it is at
+                the top because it is why the window was opened. Everything below
+                it is read.
+            -->
+            <CheckBox Grid.Row="0" x:Name="HDTDriverEnabledCheck" IsChecked="True"
+                      FontWeight="SemiBold" />
+            <TextBlock Grid.Row="1" x:Name="HDTDriverEnabledHint" Style="{StaticResource HDTHintText}"
+                       Margin="0,6,0,16" MaxWidth="760" HorizontalAlignment="Left" />
+
+            <Border Grid.Row="2" Background="{DynamicResource HDTPanelBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                    Padding="16,14,16,14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="130" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTDriverClassLabel" Margin="0,0,0,8"
+                               Foreground="{DynamicResource HDTLabelBrush}" />
+                    <TextBlock Grid.Row="0" Grid.Column="1" x:Name="HDTDriverClassText" Margin="0,0,0,8" />
+
+                    <TextBlock Grid.Row="0" Grid.Column="2" x:Name="HDTDriverVendorLabel" Margin="0,0,0,8"
+                               Foreground="{DynamicResource HDTLabelBrush}" />
+                    <TextBlock Grid.Row="0" Grid.Column="3" x:Name="HDTDriverVendorText" Margin="0,0,0,8" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTDriverVersionLabel" Margin="0,0,0,8"
+                               Foreground="{DynamicResource HDTLabelBrush}" />
+                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="HDTDriverVersionText" Margin="0,0,0,8" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="2" x:Name="HDTDriverDateLabel" Margin="0,0,0,8"
+                               Foreground="{DynamicResource HDTLabelBrush}" />
+                    <TextBlock Grid.Row="1" Grid.Column="3" x:Name="HDTDriverDateText" Margin="0,0,0,8" />
+
+                    <!-- NOT "Architecture". An .inf declares its platform in
+                         decorated section names - Intel.NTamd64.10.0...16299 -
+                         and reading that properly is more than this window
+                         needs; a field that guessed would be a field that lies
+                         on the one driver somebody came here to check. The
+                         catalog file is what a technician matches against a
+                         signing complaint, and it is on the row already. -->
+                    <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTDriverFileLabel"
+                               Foreground="{DynamicResource HDTLabelBrush}" />
+                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="HDTDriverArchText" />
+
+                    <!-- NO "Signed" FIELD. A .cat sitting beside the .inf is not
+                         proof of a valid signature - checking one means verifying
+                         the catalog against the file hashes - and a field that
+                         reads 'yes' without doing that is worse than no field. -->
+                    <TextBlock Grid.Row="2" Grid.Column="2" x:Name="HDTDriverCountLabel"
+                               Foreground="{DynamicResource HDTLabelBrush}" />
+                    <TextBlock Grid.Row="2" Grid.Column="3" x:Name="HDTDriverModelText" />
+                </Grid>
+            </Border>
+
+            <!--
+                THE PnP IDS ARE THE POINT OF THIS WINDOW. They are what says
+                which machine a driver is for, they are what a PnP match will one
+                day rank, and there are usually more of them than fit on a line -
+                so they get the space that is left rather than a field on a row.
+            -->
+            <Grid Grid.Row="3" Margin="0,16,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" x:Name="HDTDriverPnpLabel"
+                           Margin="0,0,0,6"
+                           Foreground="{DynamicResource HDTLabelBrush}" FontWeight="SemiBold" />
+
+                <Border Grid.Row="1" Background="{DynamicResource HDTPanelBrush}"
+                        BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
+                    <DataGrid x:Name="HDTDriverPnpGrid"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                              CanUserAddRows="False" SelectionMode="Single" BorderThickness="0"
+                              Background="Transparent" RowBackground="Transparent"
+                              AlternatingRowBackground="{DynamicResource HDTFieldBrush}"
+                              HorizontalGridLinesBrush="{DynamicResource HDTBorderBrush}"
+                              FontFamily="Consolas, Courier New" FontSize="12">
+                        <!-- ONE COLUMN. The friendly device name beside each id
+                             is the vendor's own label out of the .inf's [Strings]
+                             section - it says "Ethernet Connection I219-LM" next
+                             to an id that already says so, and resolving those
+                             tokens is parser work bought for nothing. The ID is
+                             what identifies a machine and what a PnP match will
+                             rank. -->
+                        <DataGrid.Columns>
+                            <DataGridTextColumn x:Name="HDTDriverPnpColumn" Binding="{Binding HardwareId}" Width="*" MinWidth="360" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Grid Grid.Row="2" Margin="24,16,24,20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Background="{DynamicResource HDTCommandBrush}"
+                    BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                    Padding="10,7,10,7">
+                <TextBox x:Name="HDTDriverCommandText"
+                         IsReadOnly="True" BorderThickness="0"
+                         AcceptsReturn="True" MaxHeight="76"
+                         VerticalScrollBarVisibility="Auto"
+                         Background="Transparent"
+                         Foreground="{DynamicResource HDTCommandTextBrush}"
+                         FontFamily="Consolas, Courier New" FontSize="12"
+                         TextWrapping="Wrap" />
+            </Border>
+
+            <Grid Grid.Row="1" Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- AWAY FROM Save, like the boot image window's Update. It
+                     takes the driver off the share and there is no undo but the
+                     vendor download. -->
+                <Button Grid.Column="0" x:Name="HDTDriverDeleteButton" MinWidth="120" />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button x:Name="HDTDriverSaveButton" MinWidth="96" />
+                    <Button x:Name="HDTDriverCloseButton" MinWidth="96" Margin="0" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

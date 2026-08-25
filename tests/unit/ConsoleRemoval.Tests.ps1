@@ -1,4 +1,4 @@
-# What a technician reads before something is deleted from a share, for all
+﻿# What a technician reads before something is deleted from a share, for all
 # three things this window deletes.
 #
 # THREE HANDLERS MADE THIS DECISION SEPARATELY, and they are the three
@@ -174,6 +174,47 @@ Describe 'Get-HDTConsoleRemoval' {
 
         It 'offers no command to run' {
             (Get-HDTConsoleRemoval -Kind 'Application' -Root '' -Id '').Command | Should -BeExactly ''
+        }
+    }
+
+    # THE DRIVER STORE'S FOLDERS, WHICH ARE THE ONE REMOVAL WITH NO id. A
+    # driver folder is named by its path under Drivers\, and what goes with it
+    # is every .inf underneath - so the question has to say that rather than
+    # borrow the "its folder goes with it" sentence, which reads as though the
+    # folder were incidental.
+    Context 'a driver folder' {
+
+        BeforeAll {
+            $script:driverAsk = Get-HDTConsoleRemoval -Kind 'DriverFolder' `
+                -Root 'C:\HDTLab\Share' -Id 'WinPE\Dell WinPE 11 x64'
+        }
+
+        It 'can be removed' {
+            $script:driverAsk.CanRemove | Should -BeTrue
+        }
+
+        It 'is titled for the thing it removes' {
+            $script:driverAsk.Title | Should -BeExactly 'Delete Driver Folder'
+        }
+
+        It 'names the folder and the share in the question' {
+            $script:driverAsk.Question | Should -BeLike '*WinPE\Dell WinPE 11 x64*'
+            $script:driverAsk.Question | Should -BeLike '*C:\HDTLab\Share*'
+        }
+
+        It 'says the drivers under it go too' {
+            $script:driverAsk.Question | Should -BeLike '*driver*'
+        }
+
+        # -Path, NOT -Id. The command line shown is the one an administrator
+        # can paste, and Remove-HDTDriverFolder has no -Id to bind.
+        It 'offers the command with the parameters that command actually has' {
+            $script:driverAsk.Command |
+                Should -BeExactly "Remove-HDTDriverFolder -Root 'C:\HDTLab\Share' -Path 'WinPE\Dell WinPE 11 x64'"
+        }
+
+        It 'refuses a row that names no folder' {
+            (Get-HDTConsoleRemoval -Kind 'DriverFolder' -Root 'C:\ws' -Id '').CanRemove | Should -BeFalse
         }
     }
 

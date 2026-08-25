@@ -61,6 +61,7 @@
         'Import-HDTDriver',
         'Get-HDTDriver',
         'Set-HDTDriverState',
+        'Show-HDTDriverWindow',
         'Show-HDTSelectionProfileWindow',
         'New-HDTSelectionProfile',
         'Set-HDTSelectionProfile',
