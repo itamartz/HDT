@@ -81,7 +81,7 @@ function ConvertFrom-HDTDriverInf {
     $ErrorActionPreference = 'Stop'
 
     $empty = [pscustomobject] @{
-        InfName = $InfName; Class = ''; ClassGuid = ''; Provider = ''
+        InfName = $InfName; Name = ''; Class = ''; ClassGuid = ''; Provider = ''
         Version = ''; Date = ''; CatalogFile = ''; ModelCount = 0
         HardwareId = [string[]] @()
     }
@@ -212,6 +212,13 @@ function ConvertFrom-HDTDriverInf {
     $seen = @{}
     $models = 0
 
+    # THE NAME THE CONSOLE'S GRID SHOWS, which is the FIRST model's description.
+    # A driver has no name of its own - an .inf names DEVICES - so the choice is
+    # this or the file name, and 'e1d68x64.inf' tells a technician nothing about
+    # which machine it is for. It is one %token% resolution per file, not one per
+    # device: the PnP list deliberately shows ids alone.
+    $displayName = ''
+
     foreach ($name in @($modelSection)) {
         if (-not $bucket.ContainsKey($name)) { continue }
 
@@ -220,6 +227,10 @@ function ConvertFrom-HDTDriverInf {
             if ($at -lt 1) { continue }
 
             $models++
+
+            if ([string]::IsNullOrEmpty($displayName)) {
+                $displayName = & $resolve ($line.Substring(0, $at))
+            }
 
             # EVERY NON-EMPTY FIELD AFTER THE INSTALL SECTION. The empty one
             # between them is real - '%Desc% = Install,, PCI\VEN_...' - so this
@@ -242,6 +253,7 @@ function ConvertFrom-HDTDriverInf {
 
     return [pscustomobject] @{
         InfName     = $InfName
+        Name        = $displayName
         Class       = $class
         ClassGuid   = $classGuid
         Provider    = $provider
