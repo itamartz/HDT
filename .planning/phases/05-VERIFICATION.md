@@ -195,7 +195,7 @@ as everything else here — the only code path that would have executed it is on
 Every item here is also in `docs/ROADMAP.md` M4 and in `05-05-SUMMARY.md`, in the
 same words.
 
-- No VM deployed over SMB in this lab, and why.
+- No VM deployed over SMB in this lab, and why. **Closed later by SPIKES S14.**
 - No WDS import has ever executed, and why.
 - The PXE payload is staged and hash-verified but **has never been
   network-booted**.

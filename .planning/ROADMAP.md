@@ -25,8 +25,9 @@ Milestone → phase directory mapping:
 and the zero-keystroke boot path, 05.5 technician UI, 07 applications and full-OS
 steps, 09 admin console.
 
-**v2:** 06 drivers, 08 capture + standalone media, and — added 2026-08-16 — the
-`WindowsUpdate` step out of 07. All keep their full design and roadmap entries
+**v2:** 06 drivers, 08 capture + standalone media, — added 2026-08-16 — the
+`WindowsUpdate` step out of 07, and — added 2026-08-25 — **PXE boot from WDS
+out of 05**. All keep their full design and roadmap entries
 below; they are scheduled out, not cut, and nothing in v1 was built in a way that
 assumes they are absent.
 
@@ -45,6 +46,13 @@ What deferring them actually costs, stated so it is not discovered later:
   boot ISO. `New-HDTBootIso` (phase 05) still produces a bootable WinPE ISO —
   what moves to v2 is `New-HDTMedia`, the full content projection that puts the
   OS, applications and sequences on a USB stick for a site with no server.
+- **No PXE boot.** v1 boots the ISO `New-HDTBootIso` builds, which is proven
+  end to end and is what the lab uses. A site that wants a machine to boot off
+  the wire burns the ISO to a USB stick or attaches it, exactly as it would for
+  a one-off MDT build. `Import-HDTBootImageToWds` and `New-HDTPxePayload` ship
+  and are tested against a fake; what v2 owes them is an isolated `HDT-WDS01`
+  and a real network boot, which `PROJECT.md` rule 3 will not allow beside
+  CM01's responder today.
 - **No in-sequence patching.** A machine HDT builds leaves the bench with exactly
   the patches its source image carried. There is no `WindowsUpdate` step, so
   currency after deployment is whatever Windows Update does on its own schedule
@@ -217,11 +225,12 @@ machine itself, on a deployment that reports `Succeeded`.
 `-NoPromptForKey`, build manifest, WDS import, SMB content provider — **and the
 boot path itself**: `startnet.cmd` plus `Start-HDTDeployment.ps1`, so a machine
 deploys with nobody at the keyboard.
-*Exit:* a VM boots the ISO **HDT built** and deploys Windows 11 with **zero
-keystrokes**; the same image PXE-boots from WDS. (There is no WDS on this host,
-and PROJECT.md forbids standing one up beside `CM01`'s PXE responder — so the WDS
-import is proven against a fake and `New-HDTPxePayload`'s staging completeness is
-demonstrated instead. That gap is stated, not worked around.)
+*Exit (v1):* a VM boots the ISO **HDT built** and deploys Windows 11 with **zero
+keystrokes**. ~~the same image PXE-boots from WDS~~ — **moved to v2 on
+2026-08-25**: there is no WDS on this host and PROJECT.md forbids standing one up
+beside `CM01`'s PXE responder, so the import is proven against a fake and
+`New-HDTPxePayload`'s staging completeness is demonstrated instead. v1 ships the
+ISO.
 
 **Plans:** 6 plans in 6 waves (each depends on the ones before it — the pure
 logic before the providers, the providers before the entry point, the entry point
@@ -265,10 +274,12 @@ Generation 2 VM booted an ISO `Update-HDTBootImage` produced and deployed Window
 11 to completion with **zero keystrokes sent to it** — `RESULT.json` reports
 `status Succeeded`, `launchedBy startnet`, `deployRootSource Discovered`,
 `endedWith "wpeutil shutdown"` (SPIKES S12). The **second** clause, PXE boot from
-WDS, is **NOT met**: this host is Windows 11 Pro with no WDS, and PROJECT.md
+WDS, **moved to v2 on 2026-08-25** — v1 ships the ISO. It was never met here: this host is Windows 11 Pro with no WDS, and PROJECT.md
 rule 3 forbids standing one up beside CM01's PXE responder, so no WDS import has
-ever executed anywhere in this repository. No VM deployed over SMB either, for
-the reason SPIKES S6 records about the isolated switch. `05-VERIFICATION.md`
+ever executed anywhere in this repository. No VM deployed over SMB **at the
+time this phase closed**, for the reason SPIKES S6 records about the isolated
+switch — **that gap is now closed by SPIKES S14**, which deployed `HDT-SMB-01`
+on `HDT External` with `provider: Smb`. `05-VERIFICATION.md`
 states both, and `docs/ROADMAP.md` M4 states them in the same words.
 
 Final counts after 05-06: **4907 passed / 0 failed / 42 skipped** under pwsh

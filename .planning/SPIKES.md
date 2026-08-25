@@ -1133,6 +1133,8 @@ Stated here rather than left to be inferred:
   `HDT Lab` switch and S6 records that a VM there cannot reach a host share, so
   the image declares `provider: Local`. The `Smb` provider's evidence is 05-02's
   unit refusals and its loopback integration run.
+  **SUPERSEDED BY S14**, which deployed over SMB on `HDT External`. This entry
+  records what *this* run did not prove and is left standing as that record.
 - **No WDS import has ever executed.** This host is Windows 11 Pro;
   `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe` both return
   nothing, and PROJECT.md rule 3 forbids standing one up beside CM01's PXE
