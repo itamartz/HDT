@@ -21,7 +21,18 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
-    $script:hostSource = Get-Content -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src\Hephaestus\Public\New-HDTConsoleHost.ps1') -Raw
+    # EVERY FILE THAT OPENS A WINDOW, not just the host. The three big windows
+    # are BUILT in New-HDTConsole*View now and only SHOWN by the host - see
+    # New-HDTConsoleView - so counting the host alone would let a window lose its
+    # icon simply by moving, which is exactly the drift this test exists to stop.
+    $script:hostSource = (@(
+            'src\Hephaestus\Public\New-HDTConsoleHost.ps1'
+            'src\Hephaestus\Private\New-HDTConsoleView.ps1'
+            'src\Hephaestus\Private\New-HDTConsoleEditorView.ps1'
+            'src\Hephaestus\Private\New-HDTConsoleBootImageView.ps1'
+        ) | ForEach-Object {
+            Get-Content -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath $_) -Raw
+        }) -join [System.Environment]::NewLine
 }
 
 Describe 'Get-HDTConsoleWindowIcon' {
