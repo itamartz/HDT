@@ -502,7 +502,49 @@
             <Border Grid.Row="1" Grid.Column="2"
                     Background="{DynamicResource HDTPanelBrush}"
                     BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1">
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                <!--
+                    TWO PANES IN ONE PLACE, AND THE ROW DECIDES WHICH.
+                    A folder in the driver store has a LIST of drivers, not a
+                    handful of fields - Workbench shows exactly this and for the
+                    same reason: a vendor pack is forty drivers and a model pack
+                    two hundred, and forty tree rows is a tree nobody can read
+                    past. Every other row still gets the field list.
+
+                    THE GRID IS NOT IN THE ScrollViewer. A DataGrid scrolls
+                    itself, and one inside a ScrollViewer is measured with
+                    unbounded width - which collapses every star-sized column to
+                    nothing and was how the first version rendered a Driver
+                    column two characters wide.
+                -->
+                <Grid>
+                    <DataGrid x:Name="HDTDriverGrid" Visibility="Collapsed"
+                              AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              SelectionMode="Single" BorderThickness="0"
+                              Background="Transparent" RowBackground="Transparent"
+                              AlternatingRowBackground="{DynamicResource HDTFieldBrush}"
+                              HorizontalGridLinesBrush="{DynamicResource HDTBorderBrush}"
+                              Foreground="{DynamicResource HDTPanelTextBrush}"
+                              FontFamily="Segoe UI" FontSize="12">
+                    <DataGrid.Columns>
+                        <!-- ENABLED IS THE FIRST COLUMN because it is the one
+                             that changes what gets injected, and a disabled
+                             driver in the middle of forty is invisible
+                             anywhere else. The word, not an abbreviation: a
+                             two-letter header that needs explaining has
+                             failed. -->
+                        <DataGridTextColumn Header="Enabled" Binding="{Binding StateMark}" Width="62" />
+                        <DataGridTextColumn Header="Driver" Binding="{Binding Name}" Width="330" />
+                        <DataGridTextColumn Header="Class" Binding="{Binding Class}" Width="110" />
+                        <DataGridTextColumn Header="Manufacturer" Binding="{Binding Provider}" Width="130" />
+                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="120" />
+                        <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="*" MinWidth="90" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <ScrollViewer x:Name="HDTDetailScroll"
+                              VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Padding="14,12,14,12">
                     <ItemsControl x:Name="HDTDetailList">
@@ -632,6 +674,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
+                </Grid>
             </Border>
 
             <!--

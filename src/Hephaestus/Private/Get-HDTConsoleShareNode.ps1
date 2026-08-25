@@ -472,6 +472,19 @@
         # 'Drivers\WinPE\Dell WinPE 11 x64' is depth 2 under Drivers\, and the
         # row's Depth has to put it under its parent rather than under the
         # category - or a two-level store draws as a flat list.
+        # THE COMMAND THAT PRODUCED THE ROW, which is DESIGN 12's rule and which
+        # this row broke: it showed an Import-HDTDriver line with '<the extracted
+        # pack>' in it - a placeholder, so not runnable, and not what produced
+        # the row either. Every other row here echoes a real read.
+        #
+        # WORKED OUT ABOVE THE CALL, NOT INSIDE IT. A comment after a line
+        # continuation ENDS the continuation, so the parameters below it stop
+        # being part of the call - which is exactly what happened here, and the
+        # console failed to draw at all with "missing mandatory parameters:
+        # Command Header".
+        $folderCommand = "Get-HDTShareContentFolder -Root '{0}' | Where-Object {{ `$_.Path -eq '{1}' }}" -f
+        $Workspace.Root, [string] $folder.Path
+
         $folderRow = New-HDTConsoleNode -Depth (2 + [int] $folder.Depth) -Kind 'DriverFolder' -Status 'Ok' `
             -Name ([string] $folder.Path) `
             -Text ('{0} ({1})' -f [string] $folder.Name, [int] $folder.InfCount) `
@@ -480,13 +493,7 @@
             New-HDTConsoleField -Label 'Drivers' -Value ([int] $folder.InfCount)
             New-HDTConsoleField -Label 'On disk' -Value ([System.IO.Path]::Combine($Workspace.Root, [string] $folder.Path))
         ) `
-            # THE COMMAND THAT PRODUCED THE ROW, which is DESIGN 12's rule and
-            # which this row broke: it showed an Import-HDTDriver line with
-            # '<the extracted pack>' in it - a placeholder, so not runnable, and
-            # not what produced the row either. Every other row here echoes a
-            # real read.
-            -Command ("Get-HDTShareContentFolder -Root '{0}' | Where-Object {{ `$_.Path -eq '{1}' }}" -f
-                $Workspace.Root, [string] $folder.Path) `
+            -Command $folderCommand `
             -Header $header -Subject $Workspace.Root
 
         [void] $node.Add($folderRow)

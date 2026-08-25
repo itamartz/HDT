@@ -183,6 +183,8 @@
         $root = $window.FindName('HDTRootText')
         $tree = $window.FindName('HDTConsoleTree')
         $detail = $window.FindName('HDTDetailList')
+        $detailScroll = $window.FindName('HDTDetailScroll')
+        $driverGrid = $window.FindName('HDTDriverGrid')
         $command = $window.FindName('HDTCommandText')
         $close = $window.FindName('HDTCloseButton')
 
@@ -264,6 +266,22 @@
                 $selected = $tree.SelectedItem
                 $detail.ItemsSource = $selected.Field
                 $command.Text = [string] $selected.Command
+
+                # A DRIVER FOLDER SHOWS A LIST, NOT FIELDS. Which pane is on is
+                # the ROW's decision, worked out in a command so Pester can see
+                # it - see Get-HDTConsoleDetailPane.
+                $pane = & $call 'Get-HDTConsoleDetailPane' -Kind ([string] $selected.Kind)
+
+                if ($pane.ShowGrid) {
+                    $driverGrid.ItemsSource = [object[]] @(& $call 'Get-HDTConsoleDriverRow' `
+                            -Root ([string] $selected.Subject) -Path ([string] $selected.Name))
+
+                    $driverGrid.Visibility = [System.Windows.Visibility]::Visible
+                    $detailScroll.Visibility = [System.Windows.Visibility]::Collapsed
+                } else {
+                    $driverGrid.Visibility = [System.Windows.Visibility]::Collapsed
+                    $detailScroll.Visibility = [System.Windows.Visibility]::Visible
+                }
                 $share.Text = [string] $selected.HeaderTitle
                 $deployRoot.Text = [string] $selected.HeaderDeployRoot
                 $root.Text = [string] $selected.HeaderRoot

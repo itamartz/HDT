@@ -843,8 +843,28 @@
         # EACH FOLDER IS ITS OWN CALL, in the profile's declared order. DISM
         # takes one -Driver path at a time, and the order is the author's: a
         # profile listing a storage pack before a network pack meant that.
-        foreach ($current in @($resolved.Path)) {
-            $driver += @($BootImageService.AddDriver($mountPath, [string] $current, $true))
+        #
+        # A FOLDER HOLDING A DISABLED DRIVER GOES IN ONE .inf AT A TIME.
+        # Add-WindowsDriver with -Recurse takes everything under a folder and
+        # there is no "except that one", so a tick box that did not change this
+        # would be decoration. Every other folder still goes in whole - see
+        # Get-HDTBootImageDriverInjection for why that is decided per folder.
+        $catalog = @()
+
+        try {
+            $catalog = @(Get-HDTDriver -Root $WorkspaceRoot -FileSystem $FileSystem)
+        } catch {
+            # A store this cannot read is a store with nothing disabled as far as
+            # the build is concerned: the folders still go in whole, which is
+            # what happened before any of this existed.
+            Write-Warning ("the driver catalog could not be read, so every driver in the profile will be injected: {0}" -f
+                [string] $_.Exception.Message)
+        }
+
+        foreach ($current in @(Get-HDTBootImageDriverInjection -Folder ([string[]] @($resolved.Path)) `
+                    -Driver ([object[]] $catalog) -Root $WorkspaceRoot)) {
+
+            $driver += @($BootImageService.AddDriver($mountPath, [string] $current.Path, [bool] $current.Recurse))
         }
 
         # -- 11. the engine ---------------------------------------------------
