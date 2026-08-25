@@ -1058,15 +1058,19 @@
                         # AND IT SAYS SO RATHER THAN DOING NOTHING. A handler
                         # that returns quietly on a row it cannot read is a menu
                         # item somebody presses twice and then reports as broken.
-                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
-                            $command.Text = 'that row does not name a share and a task sequence id, so there is nothing to remove.'
+                        # This is one of the three irreversible presses in the
+                        # window, and all three compose their question in
+                        # Get-HDTConsoleRemoval now -
+                        # tests/unit/ConsoleRemoval.Tests.ps1.
+                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'TaskSequence' -Root $where -Id $which
+                        if (-not $ask.CanRemove) {
+                            $command.Text = [string] $ask.Refusal
                             return
                         }
 
                         $asked = [System.Windows.MessageBox]::Show($window,
-                            ("Remove the task sequence '{0}' from{1}{2}?{1}{1}Its folder goes with it - the sequence, its answer file and anything else kept beside them. This cannot be undone from here." -f
-                                $which, [System.Environment]::NewLine, $where),
-                            'Remove Task Sequence',
+                            [string] $ask.Question,
+                            [string] $ask.Title,
                             [System.Windows.MessageBoxButton]::YesNo,
                             [System.Windows.MessageBoxImage]::Warning,
                             [System.Windows.MessageBoxResult]::No)
@@ -1075,7 +1079,7 @@
 
                         try {
                             [void] (Remove-HDTTaskSequence -Workspace $where -Id $which -Confirm:$false)
-                            $command.Text = "Remove-HDTTaskSequence -Workspace '{0}' -Id '{1}'" -f $where, $which
+                            $command.Text = [string] $ask.Command
                         } catch {
                             # THE REFUSAL IS THE ANSWER, and this command's
                             # refusals are the ones worth reading: a folder that
@@ -1119,14 +1123,18 @@
                         $where = [string] $chosen.HeaderRoot
                         $which = [string] $chosen.Name
 
-                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
-                            $command.Text = 'that row does not name a share and an operating system id, so there is nothing to remove.'
+                        $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'OperatingSystem' -Root $where -Id $which
+                        if (-not $refusal.CanRemove) {
+                            $command.Text = [string] $refusal.Refusal
                             return
                         }
 
                         # ASKED FOR WITHOUT REMOVING ANYTHING: -WhatIf returns
                         # UsedBy, so the dialog can name the sequences before
-                        # anybody agrees to anything.
+                        # anybody agrees to anything - and a sequence without
+                        # its image FAILS, which is not what a missing
+                        # application does. Get-HDTConsoleRemoval keeps those
+                        # two sentences apart.
                         $using = @()
 
                         try {
@@ -1136,16 +1144,12 @@
                             return
                         }
 
-                        $warning = ''
-                        if (@($using).Count -gt 0) {
-                            $warning = '{0}{0}These task sequences apply it and will fail without it: {1}.' -f
-                                [System.Environment]::NewLine, (@($using) -join ', ')
-                        }
+                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'OperatingSystem' -Root $where -Id $which `
+                            -UsedBy ([string[]] @($using))
 
                         $asked = [System.Windows.MessageBox]::Show($window,
-                            ("Remove the operating system '{0}' from{1}{2}?{1}{1}Its folder goes with it - os.yaml and whatever media was imported beside it. This cannot be undone from here.{3}" -f
-                                $which, [System.Environment]::NewLine, $where, $warning),
-                            'Remove Operating System',
+                            [string] $ask.Question,
+                            [string] $ask.Title,
                             [System.Windows.MessageBoxButton]::YesNo,
                             [System.Windows.MessageBoxImage]::Warning,
                             [System.Windows.MessageBoxResult]::No)
@@ -1154,7 +1158,7 @@
 
                         try {
                             [void] (Remove-HDTOperatingSystem -Workspace $where -Id $which -Confirm:$false)
-                            $command.Text = "Remove-HDTOperatingSystem -Workspace '{0}' -Id '{1}'" -f $where, $which
+                            $command.Text = [string] $ask.Command
                         } catch {
                             $command.Text = [string] $_.Exception.Message
                         }
@@ -1374,8 +1378,18 @@
                         $where = [string] $chosen.HeaderRoot
                         $which = [string] $chosen.Name
 
-                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
-                            $command.Text = 'that row does not name a share and an application id, so there is nothing to remove.'
+                        # WHAT THIS DIALOG SAYS IS THE LAST THING ANYBODY READS
+                        # before the folder goes - app.yaml and the installer
+                        # with it, and no undo in this window. Which sequences
+                        # install it and which applications DEPEND on it are two
+                        # different consequences and get two different
+                        # sentences: the first leaves a machine missing
+                        # something, the second stops an install altogether,
+                        # later, on a deployment nobody connects to this press.
+                        # tests/unit/ConsoleApplicationRemoval.Tests.ps1.
+                        $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'Application' -Root $where -Id $which
+                        if (-not $refusal.CanRemove) {
+                            $command.Text = [string] $refusal.Refusal
                             return
                         }
 
@@ -1388,20 +1402,13 @@
                             return
                         }
 
-                        $warning = ''
-                        if (@($answer.UsedBy).Count -gt 0) {
-                            $warning = '{0}{0}These task sequences install it: {1}.' -f
-                            [System.Environment]::NewLine, (@($answer.UsedBy) -join ', ')
-                        }
-                        if (@($answer.RequiredBy).Count -gt 0) {
-                            $warning = '{0}{1}{1}These applications depend on it and will not install without it: {2}.' -f
-                            $warning, [System.Environment]::NewLine, (@($answer.RequiredBy) -join ', ')
-                        }
+                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'Application' -Root $where -Id $which `
+                            -UsedBy ([string[]] @($answer.UsedBy)) `
+                            -RequiredBy ([string[]] @($answer.RequiredBy))
 
                         $asked = [System.Windows.MessageBox]::Show($window,
-                            ("Remove the application '{0}' from{1}{2}?{1}{1}Its folder goes with it - app.yaml and the installer copied beside it. This cannot be undone from here.{3}" -f
-                                $which, [System.Environment]::NewLine, $where, $warning),
-                            'Remove Application',
+                            [string] $ask.Question,
+                            [string] $ask.Title,
                             [System.Windows.MessageBoxButton]::YesNo,
                             [System.Windows.MessageBoxImage]::Warning,
                             [System.Windows.MessageBoxResult]::No)
@@ -1410,7 +1417,7 @@
 
                         try {
                             [void] (Remove-HDTApplication -WorkspaceRoot $where -Id $which -Confirm:$false)
-                            $command.Text = "Remove-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $which
+                            $command.Text = [string] $ask.Command
                         } catch {
                             $command.Text = [string] $_.Exception.Message
                         }
