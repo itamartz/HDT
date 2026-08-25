@@ -501,7 +501,11 @@ try {
             # the wallpaper in the middle of a run that meant to keep it away.
             if (-not $shellHidden) { $hidden = [bool] (Hide-HDTShellWindow) }
 
-            $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -Title 'Hephaestus Deployment Toolkit' `
+            # THE SAME THEME THE WIZARD PAGES GET. This screen used to carry its
+            # own copy of every style and was the one window a palette change
+            # could not reach; it asks for the theme now like everything else.
+            $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -ThemeXamlPath $WizardThemePath `
+                -Title 'Hephaestus Deployment Toolkit' `
                 -Field $field -Pane $skip.Pane -Collect (Get-HDTWizardHarvest)
         } finally {
             if ($hidden) { [void] (Hide-HDTShellWindow -Restore) }

@@ -221,8 +221,8 @@
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane, [scriptblock] $CommandPrompt,
-            [object[]] $Collect, [hashtable] $String)
+        param([string] $Xaml, [string] $ThemeXaml, [string] $Title, [object[]] $Field, [object[]] $Pane,
+            [scriptblock] $CommandPrompt, [object[]] $Collect, [hashtable] $String)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -230,6 +230,25 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # THE THEME, MERGED THE WAY ShowShell HAS MERGED IT SINCE W2, and the
+        # Welcome screen is the last window to get it. It carried its own inline
+        # copy of every style it needed - the one screen a palette change in
+        # HDTTheme.xaml could not reach - because this method had no theme to
+        # merge. The address boxes stayed 32 high while the theme said 34, and
+        # nothing failed; it just looked slightly wrong on the first screen a
+        # technician sees.
+        #
+        # AFTER THE LOAD, NOT BEFORE, AND THAT ORDER IS LOAD-BEARING TWICE.
+        # A dictionary goes into a window's Resources, so the window has to
+        # exist first - and parsing the theme BEFORE this window would poison
+        # TextBox.IsReadOnly for it as well (see WinPeUiStack.Contract.Tests).
+        # This window is the FIRST XamlReader::Load in the process, so it is
+        # the one window that is always parsed clean.
+        if (-not [string]::IsNullOrWhiteSpace($ThemeXaml)) {
+            $themeReader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $ThemeXaml)
+            $window.Resources.MergedDictionaries.Add([System.Windows.Markup.XamlReader]::Load($themeReader))
+        }
 
         # THE TEXT, BEFORE ANYTHING IS WRITTEN OVER IT. Show-HDTWizard chose the
         # block; this puts it on the window and reads none of it. Apply comes

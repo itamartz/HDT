@@ -111,6 +111,20 @@
         [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
+        # HDTTheme.xaml, merged into this window at runtime so it looks like
+        # every other screen in the image WITHOUT carrying its own copy of the
+        # styles. It used to carry one - about 120 lines the theme already had -
+        # and it was the single screen a palette change could not reach, because
+        # this command had no theme to hand over while Show-HDTWizardShell did.
+        #
+        # OPTIONAL, because a probe or a tool may open the markup bare and
+        # because an image built before this existed stages no theme beside the
+        # window. Named but absent is a refusal; not named at all is the bare
+        # window W1 shipped.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $ThemeXamlPath = '',
+
         [Parameter()]
         [AllowNull()]
         [object[]] $Field,
@@ -168,6 +182,34 @@
                         $XamlPath, [string] $_.Exception.Message)))
     }
 
+    # -- the theme, before anything is shown -------------------------------
+    #
+    # REFUSED BY NAME RATHER THAN DRAWN WITHOUT. An unstyled Welcome screen is
+    # the worst outcome, not the safest: with no implicit TextBox style to
+    # inherit from, every box collapses to 19.95 high - measured, after exactly
+    # that mistake - on the first thing a technician sees, in WinPE, with the
+    # console already hidden. A named file that is not there is somebody's
+    # staging error, and naming it is what gets it put back.
+    $themeXaml = ''
+
+    if (-not [string]::IsNullOrWhiteSpace($ThemeXamlPath)) {
+
+        if (-not $FileSystem.TestPath($ThemeXamlPath)) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $ThemeXamlPath -Category ObjectNotFound `
+                        -Message ("the wizard theme '{0}' is not there, so the window would be drawn with no styles at all. In a boot image it is staged to X:\HDT\UI\ by Update-HDTBootImage." -f $ThemeXamlPath)))
+        }
+
+        $themeXaml = [string] $FileSystem.ReadAllText($ThemeXamlPath)
+
+        try {
+            [void] ([xml] $themeXaml)
+        } catch {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $ThemeXamlPath -Category InvalidData `
+                        -Message ("the wizard theme '{0}' is not well-formed XML, so it could not be merged: {1}" -f
+                            $ThemeXamlPath, [string] $_.Exception.Message)))
+        }
+    }
+
     # -- the text --------------------------------------------------------------
     #
     # THE MARKUP CARRIES NO PROSE, so the block that fills it is chosen here and
@@ -198,7 +240,7 @@
     # reads .Name off under Set-StrictMode. The window never opened: it threw
     # "The property 'Name' cannot be found on this object" while it was being
     # built, in WinPE, with the console already hidden.
-    $answer = [string] $WizardHost.Show($xaml, $Title,
+    $answer = [string] $WizardHost.Show($xaml, $themeXaml, $Title,
         @($Field | Where-Object { $null -ne $_ }),
         @($Pane | Where-Object { $null -ne $_ }),
         $CommandPrompt,

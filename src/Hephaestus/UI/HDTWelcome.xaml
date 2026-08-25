@@ -9,142 +9,29 @@
     Background="#FF1E1E1E">
 
     <!--
-        THE BUTTON TEMPLATE, and it is here because of a real defect: WPF's
-        DEFAULT button template paints its own light hover chrome UNDERNEATH the
-        content, so white text on a dark button becomes unreadable the moment
-        the mouse touches it. Setting Background alone does not fix it - the
-        default template ignores it on hover.
+        NO STYLES OF ITS OWN, AND THAT IS THE CHANGE. This window used to carry
+        an inline copy of the Button, ToggleButton, TextBox, PasswordBox and
+        HDTAddressBox styles - about 120 lines HDTTheme.xaml already had, in
+        literal colours rather than the theme's tokens. It was the ONE screen a
+        palette change could not reach, because Show-HDTWizard had no theme to
+        merge while Show-HDTWizardShell did, and it had already drifted once:
+        the address boxes stayed 32 high after the theme moved to 34.
 
-        So the template is replaced outright with a Border and a
-        ContentPresenter, and the hover and pressed states set the FOREGROUND to
-        black against a light surface. A technician must be able to read the
-        button they are about to press.
+        THE THEME IS MERGED AT RUNTIME, NOT WITH ResourceDictionary Source=.
+        A Source= reference is a second file that has to reach the RAM disk
+        intact, and a half-copied one is a XamlParseException where the first
+        screen of a deployment should be; WinPeUiStack.Contract.Tests.ps1
+        refuses one. New-HDTWizardHost adds the dictionary to this window's
+        Resources after XamlReader::Load returns - which is why every reference
+        below is a DynamicResource: a StaticResource is resolved during the
+        parse, when the theme is not there yet.
 
-        INLINE, NOT AN EXTERNAL ResourceDictionary. A merged dictionary is
-        another file that has to reach the RAM disk intact, and
-        tests/contract/WinPeUiStack.Contract.Tests.ps1 refuses one.
+        WHY THE STYLES EXIST AT ALL is in HDTTheme.xaml beside each one: WPF's
+        default Button template paints its own light hover chrome underneath the
+        content, so white-on-dark becomes unreadable the moment the mouse
+        touches it, and the eye's glyph is drawn from geometry because Segoe
+        MDL2 Assets is not guaranteed to be in a WinPE image.
     -->
-    <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="HDTButtonSurface"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="HDTButtonSurface" Property="Background" Value="#FFE6E6E6" />
-                                <Setter Property="Foreground" Value="Black" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="HDTButtonSurface" Property="Background" Value="#FFBDBDBD" />
-                                <Setter Property="Foreground" Value="Black" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="HDTButtonSurface" Property="Background" Value="#FF2A2A2A" />
-                                <Setter Property="Foreground" Value="#FF6E6E6E" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--
-            THE EYE, and it gets its own template for the same reason Button
-            does: WPF's default ToggleButton chrome paints light-on-light on
-            hover, and an eye you cannot see is worse than no eye.
-
-            THE GLYPH IS A VECTOR, NOT A FONT CHARACTER. Segoe MDL2 Assets is
-            not guaranteed to be in a WinPE image built from the ADK, and a
-            missing glyph renders as a box - so the eye is drawn from geometry
-            that needs no font at all. Its colour follows the button's
-            Foreground so the hover trigger recolours the drawing too.
-        -->
-        <Style TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="#FFCCCCCC" />
-            <Setter Property="Background" Value="#FF2D2D30" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="HDTToggleSurface" Background="{TemplateBinding Background}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="HDTToggleSurface" Property="Background" Value="#FF0E639C" />
-                                <Setter Property="Foreground" Value="White" />
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="HDTToggleSurface" Property="Background" Value="#FFE6E6E6" />
-                                <Setter Property="Foreground" Value="Black" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--
-            THE ADDRESS BOXES FOLLOW THE RADIO, DECLARATIVELY. A DataTrigger
-            bound to HDTUseStaticRadio.IsChecked - no code-behind, because there
-            is no compiler in WinPE and the contract refuses one.
-
-            READ-ONLY, NOT DISABLED. Under DHCP these boxes SHOW THE LEASE the
-            machine actually got - address, mask, gateway, DNS - so a technician
-            can read what it was given before deciding whether to override it.
-            A disabled box greys its text out and is harder to read, which
-            defeats the point; read-only keeps it legible and uncopyable-over.
-        -->
-        <!--
-            EVERY FIELD ON THIS SCREEN IS 34 HIGH, AND IT IS SET HERE BECAUSE
-            THIS WINDOW DOES NOT LOAD HDTTheme.xaml. It carries its own copy of
-            the styles it needs - it is the one screen that runs before the
-            share is reachable - so the theme's HDTFieldHeight token does not
-            reach it, and a change made there alone leaves this screen behind.
-            Measured after exactly that mistake: the address boxes stayed 32
-            while the theme said 34.
-
-            AND WITHOUT AN IMPLICIT STYLE, A BOX HAS NO HEIGHT AT ALL. The
-            deploy-root box carried Height="32" as a local value; removing that
-            in favour of "the style will do it" left it 19.95 high, because
-            there was no TextBox style for it to inherit from. The two implicit
-            styles below are what make that true now.
-        -->
-        <Style TargetType="TextBox">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-
-        <Style TargetType="PasswordBox">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-        </Style>
-
-        <Style x:Key="HDTAddressBox" TargetType="TextBox">
-            <Setter Property="Height" Value="34" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="BorderBrush" Value="#FF3F3F46" />
-            <Setter Property="IsReadOnly" Value="True" />
-            <Setter Property="Background" Value="#FF232326" />
-            <Setter Property="Foreground" Value="#FF9A9A9A" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsChecked, ElementName=HDTUseStaticRadio}" Value="True">
-                    <Setter Property="IsReadOnly" Value="False" />
-                    <Setter Property="Background" Value="#FF2D2D30" />
-                    <Setter Property="Foreground" Value="White" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
 
 
     <!--
@@ -245,19 +132,19 @@
 
                         <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTWelcomeIpAddressLabel"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTIpAddressBox" Style="{StaticResource HDTAddressBox}" />
+                        <TextBox   Grid.Row="0" Grid.Column="1" x:Name="HDTIpAddressBox" Style="{DynamicResource HDTAddressBox}" />
 
                         <TextBlock Grid.Row="0" Grid.Column="2" x:Name="HDTWelcomeSubnetMaskLabel"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" Margin="12,0,0,0" />
-                        <TextBox   Grid.Row="0" Grid.Column="3" x:Name="HDTSubnetMaskBox" Style="{StaticResource HDTAddressBox}" />
+                        <TextBox   Grid.Row="0" Grid.Column="3" x:Name="HDTSubnetMaskBox" Style="{DynamicResource HDTAddressBox}" />
 
                         <TextBlock Grid.Row="1" Grid.Column="0" x:Name="HDTWelcomeGatewayLabel"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" />
-                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTGatewayBox" Style="{StaticResource HDTAddressBox}" />
+                        <TextBox   Grid.Row="1" Grid.Column="1" x:Name="HDTGatewayBox" Style="{DynamicResource HDTAddressBox}" />
 
                         <TextBlock Grid.Row="1" Grid.Column="2" x:Name="HDTWelcomeDnsLabel"
                                    Foreground="#FFCCCCCC" FontSize="15" VerticalAlignment="Center" Margin="12,0,0,0" />
-                        <TextBox   Grid.Row="1" Grid.Column="3" x:Name="HDTDnsBox" Style="{StaticResource HDTAddressBox}" />
+                        <TextBox   Grid.Row="1" Grid.Column="3" x:Name="HDTDnsBox" Style="{DynamicResource HDTAddressBox}" />
 
                         <!--
                             UNDER THE BOX IT DESCRIBES, NOT A TOOLTIP. It sat
