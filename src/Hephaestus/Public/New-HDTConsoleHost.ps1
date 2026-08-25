@@ -196,6 +196,39 @@
             $apply.IsEnabled = $ready
         }.GetNewClosure()
 
+        # -- Open Report, the last clause of DESIGN 12's monitoring view -------
+        #
+        # "tails Logs\_active\ ... AND OPENS THE FULL REPORT ON COMPLETION."
+        # ConvertTo-HDTReport has rendered that report since M2; this is the
+        # click that reaches it.
+        #
+        # DARK UNTIL THERE IS ONE TO OPEN. The report is rendered from the log
+        # Copy-HDTLog brings back when the sequence ends, so a run still
+        # deploying has nothing to render - and a button that is live on every
+        # row is one somebody presses to be told no.
+        #
+        # THE DECISION IS Get-HDTConsoleMonitorReport'S. It searches the share,
+        # recovers the machine's name and picks the paths; this asks it whether
+        # there is anything, which is why the handler below has no rule of its
+        # own about where a log lives.
+
+        $report = $window.FindName('HDTReportButton')
+
+        $reportState = {
+            if ($null -eq $report) { return }
+
+            $chosen = $tree.SelectedItem
+            $ready = $false
+
+            if ($null -ne $chosen -and [string] $chosen.Kind -eq 'MonitorRun' -and $null -ne $chosen.Subject) {
+                $ready = ((& $call 'Get-HDTConsoleMonitorReport' -Path ([string] $chosen.HeaderRoot) `
+                            -RunId ([string] $chosen.Name) `
+                            -Health ([string] $chosen.Subject.Health)).Status -eq 'Ok')
+            }
+
+            $report.IsEnabled = $ready
+        }.GetNewClosure()
+
 
         # The roots only. WPF builds the rest from each row's Children through
         # the HierarchicalDataTemplate, so the nesting, the expanders and the
@@ -219,6 +252,10 @@
                 # $applyState is a variable, not a function, so it only has to
                 # exist by the time somebody clicks.
                 if ($null -ne $applyState) { & $applyState }
+
+                # AND Open Report follows the selection the same way, because
+                # whether there is a report to open is a fact about the row.
+                if ($null -ne $reportState) { & $reportState }
             }.GetNewClosure())
 
         # OPENING THE WINDOWS PE WINDOW, IN ONE PLACE. Two rows reach it - the
@@ -312,28 +349,29 @@
         $refresh.Interval = [timespan]::FromSeconds([double] $RefreshSecond)
 
         $refresh.Add_Tick({
-                # THE TREE, NOT THE COLLECTION THIS METHOD WAS HANDED. Creating
-                # a task sequence rebuilds the rows, and a timer still holding
-                # the originals refreshes rows that are no longer on screen.
-                foreach ($root in @($tree.ItemsSource)) {
-                    foreach ($share in @($root.Children)) {
-                        $at = -1
+                # WHICH ROWS TO REBUILD AND WHAT TO REBUILD THEM WITH, decided
+                # away from the window. Finding the monitoring row under every
+                # share and remembering which run was highlighted used to happen
+                # here, in the tick, where no test could reach it;
+                # tests/unit/ConsoleMonitorRefresh.Tests.ps1 covers it now.
+                #
+                # The highlight is read before anything is replaced, because
+                # replacing the branch is what loses it.
+                foreach ($item in @(& $call 'Get-HDTConsoleMonitorRefresh' `
+                            -Root $tree.ItemsSource -Selected $tree.SelectedItem)) {
 
-                        for ($i = 0; $i -lt $share.Children.Count; $i++) {
-                            if ($share.Children[$i].Kind -eq 'MonitorCategory') { $at = $i }
-                        }
-
-                        if ($at -lt 0) { continue }
-
-                        $share.Children[$at] = & $call 'Get-HDTConsoleMonitorNode' `
-                            -Path $share.Children[$at].HeaderRoot `
-                            -Header ([pscustomobject] @{
-                                Title      = $share.Children[$at].HeaderTitle
-                                Root       = $share.Children[$at].HeaderRoot
-                                DeployRoot = $share.Children[$at].HeaderDeployRoot
-                            })
-                    }
+                    $item.Parent.Children[$item.Index] = & $call 'Get-HDTConsoleMonitorNode' `
+                        -Path $item.Path `
+                        -SelectedName $item.SelectedName `
+                        -Header $item.Header
                 }
+
+                # THE RUN BEING WATCHED IS THE ONE THAT FINISHES WHILE SOMEBODY
+                # IS WATCHING IT, and that is the tick where Open Report becomes
+                # available. Without this it stays dark until the row is clicked
+                # again - which is the click a technician makes to find out
+                # whether they can click.
+                if ($null -ne $reportState) { & $reportState }
             }.GetNewClosure())
 
         # Selecting the root raises SelectedItemChanged, which is what fills the
@@ -749,6 +787,48 @@
                     $command.Text = (@($ran) -join [System.Environment]::NewLine)
 
                     & $applyState
+                }.GetNewClosure())
+        }
+
+        # -- and the click that renders the report and opens it ---------------
+        #
+        # RENDER, THEN HAND IT TO THE SHELL. ConvertTo-HDTReport returns the
+        # path it wrote and Start-Process opens it in whatever the machine uses
+        # for HTML, which is the same two lines the command in the footer says.
+        #
+        # IT RENDERS EVERY TIME rather than reusing a report already sitting in
+        # the folder. The stream is finished, so the answer is the same one -
+        # but the RENDERER is not: a report written by an older module would
+        # otherwise outlive the version that can explain it.
+        #
+        # A FAILURE GOES IN THE FOOTER, WHICH IS WHERE THIS WINDOW PUTS THEM.
+        # A share that went away between the button lighting up and the click,
+        # or a folder that cannot be written to, must not take the console down
+        # while a technician is watching a deployment through it.
+        if ($null -ne $report) {
+            $report.Add_Click({
+                    $chosen = $tree.SelectedItem
+
+                    if ($null -eq $chosen -or [string] $chosen.Kind -ne 'MonitorRun' -or $null -eq $chosen.Subject) { return }
+
+                    $answer = & $call 'Get-HDTConsoleMonitorReport' -Path ([string] $chosen.HeaderRoot) `
+                        -RunId ([string] $chosen.Name) -Health ([string] $chosen.Subject.Health)
+
+                    if ($answer.Status -ne 'Ok') {
+                        $command.Text = [string] $answer.Message
+                        return
+                    }
+
+                    try {
+                        $written = ConvertTo-HDTReport -JsonlPath $answer.JsonlPath -Path $answer.ReportPath `
+                            -Title $answer.Title -Confirm:$false
+
+                        $command.Text = [string] $answer.Command
+
+                        [void] (Start-Process -FilePath ([string] $written))
+                    } catch {
+                        $command.Text = [string] $_.Exception.Message
+                    }
                 }.GetNewClosure())
         }
 
@@ -5148,64 +5228,39 @@
         # refuses. Set-HDTShareCredential does both halves.
         #
         $save.Add_Click({
+                # WHAT THIS PRESS WRITES, decided away from the window.
+                # Fourteen branches used to live in this handler - "an empty
+                # property box is a question nobody answered, an empty document
+                # box is an instruction to clear the key" - and none of them
+                # could be tested from here.
+                # tests/unit/ConsoleBootImageEdit.Tests.ps1 covers them now.
+                $edit = & $call 'Get-HDTConsoleBootImageEdit' `
+                    -BootImageName ([string] $nameBox.Text) `
+                    -Architecture ([string] $architectureBox.SelectedValue) `
+                    -Language ([string] $languageBox.Text) `
+                    -ScratchSpaceMB ([string] $scratchBox.SelectedValue) `
+                    -PromptForKey ([bool] $promptForKeyCheck.IsChecked) `
+                    -Unattend ([string] $unattendBox.Text) `
+                    -Background ([string] $backgroundBox.Text) `
+                    -TimeZone ([string] $timeZoneBox.SelectedValue) `
+                    -ClientCertificate ([string] $clientCertificateBox.Text) `
+                    -Driver ([string] $driverBox.SelectedValue)
+
                 $propertySplat = @{ Line = $book.Line; Confirm = $false }
-
-                if (-not [string]::IsNullOrWhiteSpace($nameBox.Text)) {
-                    $propertySplat['BootImageName'] = [string] $nameBox.Text
-                }
-                if (-not [string]::IsNullOrWhiteSpace($architectureBox.SelectedValue)) {
-                    $propertySplat['Architecture'] = [string] $architectureBox.SelectedValue
-                }
-                if (-not [string]::IsNullOrWhiteSpace($languageBox.Text)) {
-                    $propertySplat['Language'] = [string] $languageBox.Text
-                }
-                if (-not [string]::IsNullOrWhiteSpace($scratchBox.SelectedValue)) {
-                    $propertySplat['ScratchSpaceMB'] = [int] $scratchBox.SelectedValue
-                }
-
-                # WRITTEN WHICHEVER WAY IT IS SET, unlike the boxes above, which
-                # are skipped when empty. A tick box has no empty: unticked is
-                # an answer, and 'promptForKey: false' in the document is what
-                # tells the next reader somebody decided rather than never
-                # looked.
-                $propertySplat['PromptForKey'] = [bool] $promptForKeyCheck.IsChecked
-
+                foreach ($key in @($edit.Property.Keys)) { $propertySplat[$key] = $edit.Property[$key] }
 
                 $book.Line = @(Set-HDTWorkspaceProperty @propertySplat)
 
-                if ([string]::IsNullOrWhiteSpace($unattendBox.Text)) {
-                    $book.Line = @(Set-HDTBootImageUnattend -Line $book.Line -Clear -Confirm:$false)
-                } else {
-                    $book.Line = @(Set-HDTBootImageUnattend -Line $book.Line `
-                            -Path ([string] $unattendBox.Text) -Confirm:$false)
-                }
+                # THE PARAMETER TRAVELS WITH THE VALUE, because three of these
+                # commands take -Path and two take -Name.
+                foreach ($one in @($edit.Edit)) {
+                    if ($one.Clear) {
+                        $book.Line = @(& $one.Command -Line $book.Line -Clear -Confirm:$false)
+                        continue
+                    }
 
-                if ([string]::IsNullOrWhiteSpace($backgroundBox.Text)) {
-                    $book.Line = @(Set-HDTBootImageBackground -Line $book.Line -Clear -Confirm:$false)
-                } else {
-                    $book.Line = @(Set-HDTBootImageBackground -Line $book.Line `
-                            -Path ([string] $backgroundBox.Text) -Confirm:$false)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($timeZoneBox.SelectedValue)) {
-                    $book.Line = @(Set-HDTBootImageTimeZone -Line $book.Line -Clear -Confirm:$false)
-                } else {
-                    $book.Line = @(Set-HDTBootImageTimeZone -Line $book.Line `
-                            -Name ([string] $timeZoneBox.SelectedValue) -Confirm:$false)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($clientCertificateBox.Text)) {
-                    $book.Line = @(Set-HDTBootImageClientCertificate -Line $book.Line -Clear -Confirm:$false)
-                } else {
-                    $book.Line = @(Set-HDTBootImageClientCertificate -Line $book.Line `
-                            -Path ([string] $clientCertificateBox.Text) -Confirm:$false)
-                }
-
-                if ([string]::IsNullOrWhiteSpace($driverBox.SelectedValue)) {
-                    $book.Line = @(Set-HDTBootImageDriver -Line $book.Line -Clear -Confirm:$false)
-                } else {
-                    $book.Line = @(Set-HDTBootImageDriver -Line $book.Line `
-                            -Name ([string] $driverBox.SelectedValue) -Confirm:$false)
+                    $valueSplat = @{ $one.Parameter = $one.Value }
+                    $book.Line = @(& $one.Command -Line $book.Line @valueSplat -Confirm:$false)
                 }
 
                 [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `

@@ -55,6 +55,21 @@ bootImage:
   scratchSpaceMB: 512
 '@
 
+    # Two rules, one of them the fallback every share ends with - MDT's
+    # [Default]. The count is what the share row reports.
+    $script:rulesYaml = @'
+schemaVersion: 1
+rules:
+  - name: Latitude naming
+    when: { HDTModel: "Latitude*" }
+    set:
+      HDTComputerName: "LT-%HDTSerialNumber%"
+
+  - name: Fallback
+    set:
+      HDTComputerName: "PC-%HDTSerialNumber%"
+'@
+
     $script:demoSequenceYaml = @'
 schemaVersion: 1
 id: DEMO-M4
@@ -396,6 +411,56 @@ Describe 'Get-HDTConsoleWorkspace' {
             @($model.TaskSequence).Count | Should -Be 0
             @($model.OperatingSystem).Count | Should -Be 0
             $model.BootImage.Status | Should -BeExactly 'Missing'
+        }
+    }
+
+    # rules.yaml WAS THE ONE DOCUMENT WITH NO STATUS ON THE TREE. Sequences,
+    # operating systems and applications all carry one - a share whose
+    # rules.yaml would not parse looked perfectly healthy in the browser, and
+    # said so until somebody opened the Windows PE window's Rules tab, which is
+    # where its per-keystroke validation has always lived.
+    #
+    # AND IT IS THE DOCUMENT THAT BREAKS EVERY DEPLOYMENT FROM THE SHARE, not
+    # one of them. DESIGN 12: "the same JSON Schemas the cmdlets use, surfaced
+    # inline" - a share is where this one surfaces, because it belongs to the
+    # share rather than to anything under it.
+    Context 'the rules document' {
+
+        It 'reads a rules file that parses and says how many rules it holds' {
+            $fs = New-HDTConsoleTestFileSystem -Override @{ 'C:\ws\rules.yaml' = $script:rulesYaml }
+
+            $model = Get-HDTConsoleWorkspace -Path $script:root -FileSystem $fs
+
+            $model.Rule.Status | Should -BeExactly 'Ok'
+            $model.Rule.Path | Should -BeExactly 'C:\ws\rules.yaml'
+            $model.Rule.Problem | Should -BeExactly ''
+            $model.Rule.Summary | Should -BeLike '*2*'
+        }
+
+        # THE ENGINE'S OWN REFUSAL, not a second opinion written here. It is the
+        # message a deployment would fail with at three in the morning, said at
+        # the desk instead.
+        It 'carries the refusal when the document will not parse' {
+            $fs = New-HDTConsoleTestFileSystem -Override @{
+                'C:\ws\rules.yaml' = "schemaVersion: 1`nrules:`n  - name: Nothing to set`n"
+            }
+
+            $model = Get-HDTConsoleWorkspace -Path $script:root -FileSystem $fs
+
+            $model.Rule.Status | Should -BeExactly 'Error'
+            $model.Rule.Problem | Should -Not -BeNullOrEmpty
+        }
+
+        # A SHARE WITHOUT ONE STILL DEPLOYS - every variable falls to its
+        # default, which is a share nobody has configured rather than a broken
+        # one. Drawing it red would put a mark on every new share there is.
+        It 'does not call a share with no rules file broken' {
+            $fs = New-HDTConsoleTestFileSystem
+
+            $model = Get-HDTConsoleWorkspace -Path $script:root -FileSystem $fs
+
+            $model.Rule.Status | Should -BeExactly 'Missing'
+            $model.Rule.Problem | Should -BeExactly ''
         }
     }
 }

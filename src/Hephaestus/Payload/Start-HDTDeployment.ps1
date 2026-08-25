@@ -1129,6 +1129,48 @@ try {
     # by Contains. It is the same rule, not a second one: see $seedEngineDefault.
     & $seedEngineDefault $variable
 
+    # -- WHERE EVERY VARIABLE CAME FROM, SAID ONCE, BEFORE ANYTHING RUNS -------
+    #
+    # DESIGN 3.1's whole promise is that the engine can explain every value it
+    # resolved, and for eight milestones nothing asked it to. Write-HDTVariableLog
+    # and Export-HDTVariableProvenance were both written, helped, exported and
+    # unit tested - and neither had a single caller, so the report's Variables
+    # section said "No variable resolutions were recorded" on every deployment
+    # this lab has run, and DESIGN 4.4's Gather\provenance.json never existed.
+    # This is MDT's ZTIGather writing "Property X is now = Y", which is the line
+    # an administrator goes looking for first.
+    #
+    # HERE, AND NOT EARLIER. $resolved is the SECOND-PASSED set when a wizard ran
+    # - a typed computer name has been back through the resolver as the Wizard
+    # source, so both the value and its provenance differ from the first pass.
+    # Logging before the wizard would describe a deployment that did not happen.
+    #
+    # AND NOT LATER. A run that dies on step two must already have said what it
+    # was going to run with; provenance written at the end is provenance the
+    # interesting runs never reach.
+    #
+    # THE RECORDS ARE Debug, which is DESIGN 4.4's decision, not a hedge: an Info
+    # run drops them and a share that wants them sets logLevel: Debug. The one
+    # exception is already inside the command - an unresolved %Var% comes out at
+    # Warning, because that is the half nobody should have to opt in to.
+    #
+    # NEITHER MAY END A DEPLOYMENT. This is evidence about the run, not part of
+    # it: a full disk or a read-only log share must cost the explanation, never
+    # the machine.
+    try {
+        Write-HDTVariableLog -Context $log -Resolution $resolved
+    } catch {
+        & $say ("the variable provenance could not be logged: {0}" -f $_.Exception.Message)
+    }
+
+    try {
+        [void] (Export-HDTVariableProvenance -Resolution $resolved `
+                -Path ([System.IO.Path]::Combine($logDirectory, 'Gather', 'provenance.json')) `
+                -FileSystem $fileSystem)
+    } catch {
+        & $say ("Gather\provenance.json could not be written: {0}" -f $_.Exception.Message)
+    }
+
     # WHAT THIS BOOT IMAGE CARRIES, so a sequence can ask before it acts. The
     # client template's Install Certificates step is conditioned on it, and it
     # is set here rather than gathered because it is a fact about the IMAGE, not

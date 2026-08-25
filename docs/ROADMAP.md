@@ -523,8 +523,16 @@ written** — three behaviours built for SMB that a disc has no answer for:
 round-trip fidelity (a load/save cycle on every sample produces a byte-identical
 file) — the constraint from DESIGN §11 that keeps git review usable.
 
-**Exit:** an admin can build and run a sequence without the command line, and
-read off the equivalent cmdlets while doing it.
+**Exit:** an admin can author a task sequence and get it deployed without ever
+opening a shell — edit it in the console, build the boot image and ISO from the
+console, then watch the run land in Monitoring — and read off the equivalent
+cmdlet for every action while doing it.
+
+**The console never starts a deployment, and "run" here does not mean a Run
+button.** That is MDT's split and HDT keeps it: the Workbench authors, the
+*target machine* boots ISO or PXE into WinPE, and LiteTouch runs the sequence
+there. The console's whole share in the run is upstream (boot image, ISO,
+published share) and downstream (`Logs\_active\`, the report).
 
 ---
 

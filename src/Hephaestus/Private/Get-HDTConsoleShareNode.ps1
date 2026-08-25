@@ -113,9 +113,25 @@
             -Hint ('Read-only here: setting it writes this line and a protected file beside it. ' +
             'Set-HDTShareCredential writes both.')
         New-HDTConsoleField -Label 'Document' -Value $Workspace.WorkspacePath
+
+        # DESIGN 12's inline validation, on the share's own document. What
+        # CustomSettings.ini was: a rules.yaml that will not parse breaks every
+        # deployment from this share, so it is reported here rather than under
+        # any one category - and the refusal shown is the engine's own, the same
+        # one the Windows PE window's Rules tab puts under the box.
+        New-HDTConsoleField -Label 'Rules' `
+            -Value (Get-HDTConsoleDisplayText -Text $Workspace.Rule.Problem -Fallback ([string] $Workspace.Rule.Summary)) `
+            -Hint ('Read-only here: the rules are edited on the Rules tab of the Windows PE window. ' +
+            'Add-HDTRule and Save-HDTRuleDocument write them.')
     )
 
-    $shareNode = New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status 'Ok' `
+    # RED ONLY EVER MEANS WRONG. A share with no rules.yaml is one nobody has
+    # configured - every variable falls to its default - and that is every new
+    # share there is; only a document that will not parse marks the row.
+    $shareStatus = 'Ok'
+    if ([string] $Workspace.Rule.Status -eq 'Error') { $shareStatus = 'Error' }
+
+    $shareNode = New-HDTConsoleNode -Depth 1 -Kind 'Share' -Status $shareStatus `
         -Text ('{0} ({1})' -f $Workspace.Name, $Workspace.Id) `
         -Field $shareField `
         -Command ("Import-HDTWorkspaceDocument -Path '{0}\workspace.yaml'" -f $Workspace.Root) `

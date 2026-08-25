@@ -97,5 +97,21 @@
         HDTButtonHoverBrush      = '#FFCCE4F7'
         HDTButtonHoverTextBrush  = '#FF000000'
         HDTButtonPressedBrush    = '#FFA9CFEC'
+
+        # A BUTTON THAT CANNOT BE PRESSED, AND THE BUG THIS PAIR EXISTS FOR. The
+        # console's Button template replaces WPF's chrome outright, and it
+        # carried triggers for hover and press and none for IsEnabled - so Apply
+        # painted the same live blue whether or not there was anything to write,
+        # and so did Open Report on every row that has no report. The markup had
+        # said for months that Apply "is dark until there is something to write";
+        # it never was.
+        #
+        # GREY, NOT FADED BLUE. A dimmed version of the accent reads as the same
+        # button in worse light; a grey one reads as a different state. And the
+        # label stays legible on it - a disabled button still has to say what it
+        # would do, because that is how somebody works out what to select to
+        # make it live.
+        HDTButtonDisabledBrush     = '#FFD6D6D6'
+        HDTButtonDisabledTextBrush = '#FF595959'
     }
 }

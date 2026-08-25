@@ -68,14 +68,26 @@
             Gathers from the live machine through the real adapters.
 
         .EXAMPLE
-            $fact = Get-HDTMachineFact
+            $service = @{
+                CimProvider         = New-HDTCimProvider
+                RegistryService     = New-HDTRegistryService
+                EnvironmentProvider = New-HDTEnvironmentProvider
+            }
+
+            $fact = Get-HDTMachineFact @service
             @($fact.Keys | Where-Object { $_ -like 'HDTIs*' }) |
                 ForEach-Object { '{0} = {1}' -f $_, $fact[$_] }
 
             The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual,
-            HDTIsUefi - read off this machine. Every adapter defaults to the real
-            one, so the bare call is the one to type; a test passes fakes for all
-            three instead.
+            HDTIsUefi - read off this machine.
+
+            THERE IS NO BARE CALL, AND THAT IS THE POINT. All three adapters are
+            mandatory with no default, so `Get-HDTMachineFact` on its own does
+            not gather - it PROMPTS for three objects nobody can type at a
+            prompt. Every other command here defaults its services to the real
+            ones; this is the one whose whole job is reading hardware, so a
+            default would let a test that forgot its fakes poll the live CIM
+            stack and pass. Splatting is the readable way to hand over three.
 
         .NOTES
             The chassis type tables (laptop 8, 9, 10, 11, 12, 14, 18, 21;

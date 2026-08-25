@@ -90,6 +90,29 @@ steps:
             -FileSystem (New-HDTFakeFileSystem -File $file -Directory @('C:\ws\Logs\_active')) `
             -Clock (New-HDTFakeClock -UtcNow $script:now)
     }
+
+    # THE BRANCH ON ITS OWN, built the way the refresh timer builds it: one
+    # directory read, one node, no share re-read. That is the call whose
+    # selection behaviour matters, because it is the one that runs every few
+    # seconds while somebody is watching a machine.
+    function New-HDTTestMonitorBranch {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds a projection from an in-memory fake; it changes no state.')]
+        [CmdletBinding()]
+        [OutputType([object])]
+        param([Parameter()] [AllowEmptyString()] [string] $SelectedName = '')
+
+        $file = @{
+            'C:\ws\Logs\_active\RUN-1.json' = (New-HDTTestBeat -RunId 'RUN-1' -Updated '2026-08-15T21:59:40.0000000Z')
+            'C:\ws\Logs\_active\RUN-2.json' = (New-HDTTestBeat -RunId 'RUN-2' -Updated '2026-08-15T20:00:00.0000000Z')
+        }
+
+        $header = [pscustomobject] @{ Title = 'share'; Root = 'C:\ws'; DeployRoot = 'C:\ws' }
+
+        return Get-HDTConsoleMonitorNode -Path 'C:\ws' -Header $header -SelectedName $SelectedName `
+            -FileSystem (New-HDTFakeFileSystem -File $file -Directory @('C:\ws\Logs\_active')) `
+            -Clock (New-HDTFakeClock -UtcNow $script:now)
+    }
 }
 
 Describe 'Get-HDTConsoleWorkspace and the monitor' {
@@ -240,6 +263,49 @@ Describe 'the Monitoring node' {
             $live = @($script:category.Children | Where-Object { $_.Name -eq 'RUN-1' })[0]
 
             $live.Status | Should -BeExactly 'Ok'
+        }
+
+        # THE ROW CARRIES ITS RUN, which is what -Subject is for: the Open
+        # Report button has to know whether this deployment finished, and
+        # Health is a distinction Status flattens - 'Live' and 'Finished' are
+        # both drawn 'Ok' because neither is wrong. A window peeling the answer
+        # back out of the Health field's TEXT would be reading its own display.
+        # THE REFRESH USED TO TAKE THE SELECTION WITH IT. This branch is
+        # REPLACED every few seconds - that is what makes it tail - and the row
+        # object that was selected stops existing, so the highlight fell back to
+        # the Monitoring container and the panes followed it. A technician
+        # watching one machine lost it every ten seconds, and Open Report went
+        # dark with it.
+        It 'puts the selection back on the row that had it' {
+            $node = New-HDTTestMonitorBranch -SelectedName 'RUN-2'
+
+            $chosen = @($node.Children | Where-Object { $_.IsSelected })
+
+            @($chosen).Count | Should -Be 1
+            $chosen[0].Name | Should -BeExactly 'RUN-2'
+        }
+
+        # A RUN THAT HAS FINISHED AND GONE, or a name from another share, must
+        # not leave the branch with nothing selected AND must not guess. It
+        # selects nothing, which is what the tree already does.
+        It 'selects nothing when the row it was told about is gone' {
+            $node = New-HDTTestMonitorBranch -SelectedName 'RUN-GONE'
+
+            @($node.Children | Where-Object { $_.IsSelected }).Count | Should -Be 0
+        }
+
+        It 'selects nothing when it is told about no row at all' {
+            $node = New-HDTTestMonitorBranch
+
+            @($node.Children | Where-Object { $_.IsSelected }).Count | Should -Be 0
+        }
+
+        It 'carries the run itself, so a button can ask what state it is in' {
+            $live = @($script:category.Children | Where-Object { $_.Name -eq 'RUN-1' })[0]
+
+            $live.Subject | Should -Not -BeNullOrEmpty
+            $live.Subject.Health | Should -BeExactly 'Live'
+            $live.Subject.RunId | Should -BeExactly 'RUN-1'
         }
     }
 

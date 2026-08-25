@@ -339,6 +339,38 @@ Describe 'Get-HDTConsoleTreeNode' {
             $share.Detail | Should -Match ([regex]::Escape('C:\ws'))
         }
 
+        # DESIGN 12's inline validation, on the one document that had none.
+        # rules.yaml belongs to the SHARE - it is what CustomSettings.ini was -
+        # so a broken one breaks every deployment from it rather than one task
+        # sequence, and the share row is where that has to show.
+        It 'says on the share row how many rules the share carries' {
+            $share = @($script:node | Where-Object { $_.Kind -eq 'Share' })[0]
+
+            $share.Detail | Should -Match 'Rules'
+        }
+
+        # A SHARE WITH NO RULES FILE IS NOT A BROKEN ONE. Every variable falls
+        # to its default, which is a share nobody has configured yet - and that
+        # is every new share, so drawing it red would make red mean nothing.
+        It 'leaves a share with no rules file alone' {
+            $share = @($script:node | Where-Object { $_.Kind -eq 'Share' })[0]
+
+            $share.Status | Should -BeExactly 'Ok'
+        }
+
+        It 'marks the share when its rules document will not parse' {
+            $model = Get-HDTConsoleWorkspace -Path $script:root -FileSystem (New-HDTFakeFileSystem -File @{
+                    'C:\ws\workspace.yaml' = $script:workspaceYaml
+                    'C:\ws\rules.yaml'     = "schemaVersion: 1`nrules:`n  - name: Nothing to set`n"
+                })
+
+            $node = @(Get-HDTConsoleTreeNode -Workspace @($model))
+            $share = @($node | Where-Object { $_.Kind -eq 'Share' })[0]
+
+            $share.Status | Should -BeExactly 'Error'
+            $share.Detail | Should -Match 'Rules'
+        }
+
         It 'nests the rows, so the window can expand and collapse them' {
             $root = @($script:node | Where-Object { $_.Kind -eq 'Root' })[0]
             $share = @($root.Children)[0]

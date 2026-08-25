@@ -90,6 +90,20 @@ function Get-HDTConsoleMonitorNode {
         [AllowNull()]
         [object] $Monitor,
 
+        # WHICH RUN WAS SELECTED WHEN THIS BRANCH WAS LAST DRAWN, so the refresh
+        # can hand the highlight back to it.
+        #
+        # THE BRANCH IS REPLACED, NOT EDITED - that is what makes it tail - so
+        # the row object that WAS selected stops existing every few seconds and
+        # WPF drops the highlight to the Monitoring container, taking the detail
+        # pane and the Open Report button with it. A technician watching one
+        # machine lost it on a timer. IsSelected is carried on the row for
+        # exactly this, and it is read at container-generation time, so it has
+        # to be set before the tree is handed the rows.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $SelectedName = '',
+
         [Parameter()]
         [AllowNull()]
         [object] $FileSystem,
@@ -139,6 +153,11 @@ function Get-HDTConsoleMonitorNode {
         $runStatus = 'Ok'
         if ($current.Health -eq 'Stalled' -or $current.Health -eq 'Unreadable') { $runStatus = 'Error' }
 
+        # THE ROW CARRIES THE RUN, so Open Report can ask whether this
+        # deployment finished. Health is a distinction Status flattens - 'Live'
+        # and 'Finished' are both drawn 'Ok', because neither of them is wrong -
+        # and a window recovering it from the Health field's text would be
+        # parsing its own display back into a decision.
         $runRow = New-HDTConsoleNode -Depth 3 -Kind 'MonitorRun' -Status $runStatus `
             -Text $current.Text -Name $current.RunId `
             -Field @(
@@ -152,7 +171,16 @@ function Get-HDTConsoleMonitorNode {
             New-HDTConsoleField -Label 'Last heartbeat' -Value (Get-HDTConsoleDisplayText -Text $current.SinceText -Fallback '(never)')
             New-HDTConsoleField -Label 'Heartbeat file' -Value $current.Path
         ) `
-            -Command $current.Command -Header $Header
+            -Command $current.Command -Header $Header -Subject $current
+
+        # AN EMPTY NAME MATCHES NOTHING, and so does a run that has since gone:
+        # the branch then comes back with nothing selected, which is what the
+        # tree does on its own rather than a guess about which row to jump to.
+        if (-not [string]::IsNullOrEmpty($SelectedName) -and
+            [string]::Equals([string] $current.RunId, $SelectedName, [System.StringComparison]::OrdinalIgnoreCase)) {
+
+            $runRow.IsSelected = $true
+        }
 
         [void] $category.Children.Add($runRow)
     }

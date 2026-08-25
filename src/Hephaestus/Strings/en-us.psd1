@@ -58,6 +58,7 @@
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'
+        'HDTReportButton.Content' = 'Open Report'
     }
 
     # THE TRANSPARENT PANEL THAT REPLACES THE WinPE CONSOLE, between

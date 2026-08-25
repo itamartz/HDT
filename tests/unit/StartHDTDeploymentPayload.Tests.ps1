@@ -865,6 +865,56 @@ Describe 'Start-HDTDeployment.ps1 and the engine s own defaults' {
     }
 }
 
+Describe 'Start-HDTDeployment.ps1 and where every variable came from' {
+
+    # THE ONE THING MDT MAKES HARDEST TO GET, and HDT built the answer twice and
+    # wired up neither. Write-HDTVariableLog puts one var.resolve record per
+    # variable into the stream; Export-HDTVariableProvenance writes the same
+    # answer to Gather\provenance.json (DESIGN 4.4's log layout names that file).
+    # Both were exported, helped and unit tested, and NOTHING IN THE ENGINE
+    # CALLED EITHER - so the report's Variables section read "No variable
+    # resolutions were recorded" on every deployment this lab has ever run, and
+    # Gather\ was empty.
+    #
+    # A COMMAND NOBODY CALLS IS NOT A FEATURE. That is the whole assertion here:
+    # not that the commands exist - their own test files cover what they emit -
+    # but that the entry point reaches them.
+
+    It 'writes every variable and its provenance into the log stream' {
+        @(& $script:commandNamed 'Write-HDTVariableLog').Count | Should -BeGreaterOrEqual 1
+    }
+
+    It 'writes the same answer to Gather\provenance.json' {
+        @(& $script:commandNamed 'Export-HDTVariableProvenance').Count | Should -BeGreaterOrEqual 1
+    }
+
+    # AFTER THE WIZARD, NOT BEFORE IT. A technician who types a computer name
+    # changes the answer and its source - DESIGN 3.1 re-resolves rather than
+    # patching - so provenance read before the wizard describes a deployment
+    # that did not happen. Get-HDTWizardPage is where the wizard begins.
+    It 'logs the resolution the machine actually deployed with' {
+        $check = @(& $script:commandNamed 'Get-HDTWizardPage')
+        $write = @(& $script:commandNamed 'Write-HDTVariableLog')
+
+        $check.Count | Should -BeGreaterOrEqual 1
+        $write.Count | Should -BeGreaterOrEqual 1
+
+        $write[0].Extent.StartOffset | Should -BeGreaterThan $check[0].Extent.StartOffset
+    }
+
+    # AND BEFORE THE FIRST STEP RUNS. A deployment that fails on step two must
+    # already have said what it was going to run with; provenance written at the
+    # end is provenance the interesting runs never reach.
+    It 'logs it before the sequence is handed to the engine' {
+        $write = @(& $script:commandNamed 'Write-HDTVariableLog')
+        $run = @(& $script:commandNamed 'Invoke-HDTTaskSequence')
+
+        $run.Count | Should -BeGreaterOrEqual 1
+
+        $write[0].Extent.StartOffset | Should -BeLessThan $run[0].Extent.StartOffset
+    }
+}
+
 Describe 'Start-HDTDeployment.ps1 and a share it cannot reach' {
 
     # ZTI HAS NO TECHNICIAN. That is what the letters mean, and it decides this

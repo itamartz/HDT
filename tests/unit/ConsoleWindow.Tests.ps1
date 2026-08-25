@@ -362,6 +362,37 @@ Describe 'Show-HDTConsole' {
             $ratio | Should -BeGreaterThan 4.5 -Because "button text on button background"
         }
 
+        # THE BUG THIS EXISTS FOR: a button this console disables looked exactly
+        # like one it had not. The custom ControlTemplate replaces WPF's chrome
+        # entirely, and it carried triggers for hover and press and NONE for
+        # IsEnabled - so Apply, which the markup says "is dark until there is
+        # something to write", was never dark, and neither was Open Report on
+        # the rows that have no report. A button that cannot be pressed and does
+        # not look it is one somebody presses to find out.
+        It 'has a colour for a button that cannot be pressed' {
+            $palette = Get-HDTConsoleTheme
+
+            $palette.Contains('HDTButtonDisabledBrush') | Should -BeTrue
+            $palette.Contains('HDTButtonDisabledTextBrush') | Should -BeTrue
+        }
+
+        It 'makes a disabled button look different from a live one' {
+            $palette = Get-HDTConsoleTheme
+
+            $palette['HDTButtonDisabledBrush'] | Should -Not -BeExactly $palette['HDTButtonBrush']
+        }
+
+        # STILL READABLE, THOUGH. Greyed out is not the same as illegible: the
+        # label says what the button WOULD do, which is how somebody works out
+        # what to select to make it live.
+        It 'keeps a disabled button legible' {
+            $palette = Get-HDTConsoleTheme
+
+            $ratio = Get-HDTContrastRatio $palette['HDTButtonDisabledBrush'] $palette['HDTButtonDisabledTextBrush']
+
+            $ratio | Should -BeGreaterThan 4.5 -Because "disabled text on disabled background"
+        }
+
         It 'keeps the detail pane readable' {
             $palette = Get-HDTConsoleTheme
 

@@ -338,7 +338,10 @@ than by a Hyper-V run.
 
 **09 — Console.** WPF thin client over the module, comment-preserving YAML
 round-trip, monitoring view.
-*Exit:* an admin can build and run a sequence without the command line.
+*Exit:* an admin can author a sequence and get it deployed without a shell —
+edit, build the boot image and ISO, then watch it in Monitoring. **The console
+never starts a deployment**; the target machine boots into WinPE and runs it
+there, exactly as MDT's Workbench and LiteTouch divide the work.
 
 ## Sequencing notes
 

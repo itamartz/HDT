@@ -2002,8 +2002,12 @@ automation surface by clicking around, and script anything they can do in the UI
 - **Layout:** tree navigation mirroring the workspace (Operating Systems, Task
   Sequences, Applications, Drivers, Media, Monitoring) — deliberately close to
   Deployment Workbench so muscle memory transfers.
-- **Task sequence editor:** drag-and-drop step tree with a properties pane,
-  editing `sequence.yaml` in place. Comments and key order in the YAML are
+- **Task sequence editor:** a step tree with a properties pane, editing
+  `sequence.yaml` in place. **Reordering is by button, not by drag-and-drop**
+  (decided 2026-08-24): `Move-HDTConsoleStep` is the operation, and a drag is
+  a second way to invoke it that a technician cannot see, cannot undo halfway,
+  and cannot read off the footer as a cmdlet — which is the one thing every
+  action on this window is required to do. Comments and key order in the YAML are
   preserved on round-trip; a UI that reformats the file breaks git review, which
   is one of the reasons config-as-code fails in practice.
 - **Monitoring view:** tails `Logs\_active\`, showing in-flight deployments,

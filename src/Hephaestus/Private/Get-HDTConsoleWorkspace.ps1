@@ -390,6 +390,18 @@
         # needs to know which kind it is holding.
         Status          = 'Ok'
         Error           = ''
+
+        # WHETHER THE RULES DOCUMENT WOULD PARSE, which was the one document on
+        # a share with no status anywhere in the tree. Sequences, operating
+        # systems and applications all carry one; rules.yaml was validated per
+        # keystroke in the Windows PE window's Rules tab and NOWHERE ELSE, so a
+        # share whose rules were broken looked healthy in the browser until
+        # somebody happened to open that tab.
+        #
+        # AND IT BREAKS EVERY DEPLOYMENT FROM THE SHARE, not one of them - it is
+        # what CustomSettings.ini was. That is why it belongs on the share row
+        # rather than under a category.
+        Rule            = (Get-HDTConsoleWorkspaceRule -Root $root -FileSystem $FileSystem)
         # THE FOLDERS THE SHARE DECLARES, which are the ones nothing is in
         # yet - see Add-HDTWorkspaceFolder. A folder a document names needs
         # no declaration, and the tree draws the union of the two.

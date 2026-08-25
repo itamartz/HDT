@@ -887,8 +887,17 @@ Provenance        where each of those came from</pre></div></div></div>
 -CimProvider (New-HDTCimProvider) `
 -RegistryService (New-HDTRegistryService) `
 -EnvironmentProvider (New-HDTEnvironmentProvider)
-$fact[&#x27;HDTModel&#x27;]</pre><p>Gathers from the live machine through the real adapters.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$fact = Get-HDTMachineFact</pre><p>@($fact.Keys | Where-Object { $_ -like &#x27;HDTIs*&#x27; }) | ForEach-Object { &#x27;{0} = {1}&#x27; -f $_, $fact[$_] }</p>
-<p>The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual, HDTIsUefi - read off this machine. Every adapter defaults to the real one, so the bare call is the one to type; a test passes fakes for all three instead.</p></div></section>
+$fact[&#x27;HDTModel&#x27;]</pre><p>Gathers from the live machine through the real adapters.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$service = @{
+    CimProvider         = New-HDTCimProvider
+    RegistryService     = New-HDTRegistryService
+    EnvironmentProvider = New-HDTEnvironmentProvider
+}
+
+$fact = Get-HDTMachineFact @service
+@($fact.Keys | Where-Object { $_ -like &#x27;HDTIs*&#x27; }) |
+    ForEach-Object { &#x27;{0} = {1}&#x27; -f $_, $fact[$_] }</pre>
+<p>The yes-or-no facts a rule matches on - HDTIsLaptop, HDTIsVirtual, HDTIsUefi - read off this machine.</p>
+<p>THERE IS NO BARE CALL, AND THAT IS THE POINT. All three adapters are mandatory with no default, so <code>Get-HDTMachineFact</code> on its own does not gather - it PROMPTS for three objects nobody can type at a prompt. Every other command here defaults its services to the real ones; this is the one whose whole job is reading hardware, so a default would let a test that forgot its fakes poll the live CIM stack and pass. Splatting is the readable way to hand over three.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>HDT&#x27;s replacement for ZTIGather.wsf. It produces the gathered-facts layer of the variable model - hardware, firmware, chassis and network - as an ordered, case-insensitive dictionary keyed by HDT variable name.</p>
 <p>It touches nothing itself. Every value arrives through one of three injected services, which is why the whole fact table can be proven under Pester against captured fixtures with no machine attached, and why a BIOS machine, an ARM machine and a machine with no TPM are all testable from a desk that has none of them. There is deliberately no Get-CimInstance, Get-ItemProperty or $env: reference anywhere in this file.</p>
 <p>CIM classes are queried once each, in a fixed order, and everything is derived from those locals - a second query is a second round trip to WMI, which is slow in WinPE. The order is asserted by a test:</p>

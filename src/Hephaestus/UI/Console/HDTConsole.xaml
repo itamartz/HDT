@@ -109,6 +109,8 @@
         <SolidColorBrush x:Key="HDTButtonHoverBrush"     Color="#FFCCE4F7" />
         <SolidColorBrush x:Key="HDTButtonHoverTextBrush" Color="#FF000000" />
         <SolidColorBrush x:Key="HDTButtonPressedBrush"   Color="#FFA9CFEC" />
+        <SolidColorBrush x:Key="HDTButtonDisabledBrush"     Color="#FFD6D6D6" />
+        <SolidColorBrush x:Key="HDTButtonDisabledTextBrush" Color="#FF595959" />
 
         <!-- THE ? THIS TOOLKIT'S PAGES USE, in the same shape as the New
              Application and Windows PE windows: a Border rather than a bare
@@ -175,6 +177,27 @@
                                         Value="{DynamicResource HDTButtonPressedBrush}" />
                                 <Setter Property="Foreground"
                                         Value="{DynamicResource HDTButtonHoverTextBrush}" />
+                            </Trigger>
+
+                            <!--
+                                A DISABLED BUTTON HAS TO LOOK DISABLED. This
+                                template replaces WPF's chrome outright, so the
+                                greying it would have done for free does not
+                                happen - and without this trigger Apply painted
+                                live blue with nothing to write, and Open Report
+                                painted live on every row that has no report.
+                                Both are pressable-looking buttons that do
+                                nothing, which is the one thing a window must
+                                never offer.
+
+                                IT IS LAST, so it wins over hover: a pointer
+                                crossing a dead button must not light it up.
+                            -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HDTButtonSurface" Property="Background"
+                                        Value="{DynamicResource HDTButtonDisabledBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource HDTButtonDisabledTextBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -378,6 +401,17 @@
                     <Style TargetType="TreeViewItem">
                         <!-- Which branches start open is the row's decision. -->
                         <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+
+                        <!--
+                            AND WHICH ROW IS SELECTED IS THE ROW'S DECISION TOO,
+                            because the Monitoring branch is REPLACED every few
+                            seconds to make it tail. The selected row object
+                            stops existing, WPF drops the highlight to the
+                            Monitoring container, and the detail pane and Open
+                            Report follow it - so a technician watching one
+                            machine lost it on a timer.
+                        -->
+                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
                         <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
                         <Setter Property="Padding" Value="2,3,2,3" />
 
@@ -632,6 +666,18 @@
                     Apply asks them to click elsewhere before their change is
                     real, which is a rule nobody can see.
                 -->
+                <!--
+                    DESIGN 12's monitoring view "opens the full report on
+                    completion". The report is rendered by ConvertTo-HDTReport
+                    from the log Copy-HDTLog brought back to the share, so it
+                    exists only for a run that finished - the button is dark for
+                    a row that is still deploying, and Get-HDTConsoleMonitorReport
+                    decides which.
+                -->
+                <Button x:Name="HDTReportButton"
+                        Width="128" Height="34" Margin="0,0,10,0"
+                        IsEnabled="False" />
+
                 <Button x:Name="HDTApplyButton"
                         Width="112" Height="34" Margin="0,0,10,0"
                         IsEnabled="False" />

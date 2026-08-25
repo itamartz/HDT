@@ -110,5 +110,17 @@
             IsoBootWimSha256 = ''
             HashMatch        = $false
         }
+
+        # THE SAME SHAPE, for the same reason as Monitor above: a consumer that
+        # had to ask which kind of share it was holding before reading Rule
+        # would be the branch this command exists to remove. A share that could
+        # not be opened was never looked in, so its rules were not judged - and
+        # 'Missing' is what nothing-was-found means everywhere else here.
+        Rule            = [pscustomobject] @{
+            Path    = [System.IO.Path]::Combine($Path, 'rules.yaml')
+            Status  = 'Missing'
+            Summary = 'the share could not be opened, so its rules were never read.'
+            Problem = ''
+        }
     }
 }
