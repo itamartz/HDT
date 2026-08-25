@@ -479,8 +479,10 @@ function Get-HDTConsoleBootImageSetting {
         if ([bool] $current.IsBuiltIn) { $label = '{0}  (built in)' -f $label }
 
         [void] $driverChoice.Add([pscustomobject] @{
-                Name    = [string] $current.Id
-                Display = $label
+                Name     = [string] $current.Id
+                Display  = $label
+                Folder   = [pscustomobject[]] @(Get-HDTConsoleProfileFolder -SelectionProfile $current)
+                Summary  = [string] (Get-HDTConsoleProfileSummary -SelectionProfile $current)
             })
     }
 
@@ -503,8 +505,16 @@ function Get-HDTConsoleBootImageSetting {
         [void] $driverChoice.Add([pscustomobject] @{
                 Name    = $declaredGroup
                 Display = '{0}  (not a selection profile on this share)' -f $declaredGroup
+                Folder  = [pscustomobject[]] @()
+                Summary = 'Not a selection profile. If it is a folder under Drivers\ the build still injects it; otherwise no drivers are injected and the build says so.'
             })
     }
+
+    # THE "no drivers" ROW NEEDS THE TWO PROPERTIES TOO, or binding to a
+    # selection of it throws for a property the other rows have.
+    @($driverChoice)[0] | Add-Member -NotePropertyName 'Folder' -NotePropertyValue ([pscustomobject[]] @()) -Force
+    @($driverChoice)[0] | Add-Member -NotePropertyName 'Summary' `
+        -NotePropertyValue 'No drivers are injected. WinPE uses what Microsoft ships, which is what a virtual machine wants.' -Force
 
     $driver = [pscustomobject] @{
         Group              = $declaredGroup

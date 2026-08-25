@@ -749,6 +749,54 @@
                         <TextBlock x:Name="HDTBootImageSelectionProfileHint" Style="{StaticResource HDTHintText}" Margin="0,6,0,0" MaxWidth="620"
  HorizontalAlignment="Left"
  />
+
+                        <!--
+                            WHAT THE PROFILE ACTUALLY RESOLVES TO, on the tab
+                            that chose it. A profile name is a promise; this is
+                            the list Update-HDTBootImage hands Add-WindowsDriver,
+                            and a folder somebody renamed shows up HERE instead
+                            of on a bench with a laptop that cannot see its disk.
+
+                            IT IS NOT A PICKER AND NOTHING IN IT IS CLICKABLE.
+                            The folders are chosen in the profile editor, which
+                            is share-wide; this is the tab reading its own answer
+                            back. A second place to edit the same list is two
+                            places that disagree.
+                        -->
+                        <TextBlock x:Name="HDTBootImageProfileFolderLabel" Margin="0,20,0,6"
+                                   Foreground="{DynamicResource HDTLabelBrush}" FontWeight="SemiBold" />
+
+                        <Border Background="{DynamicResource HDTPanelBrush}"
+                                BorderBrush="{DynamicResource HDTBorderBrush}" BorderThickness="1"
+                                HorizontalAlignment="Left" Width="700">
+                            <ItemsControl x:Name="HDTSelectionProfileFolderList" Margin="12,10,12,10">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,3,0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0" Text="{Binding Path}"
+                                                       FontFamily="Consolas, Courier New" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Path}" />
+
+                                            <!-- The only thing on this tab that
+                                                 is ever red, because it is the
+                                                 only thing on it that is wrong. -->
+                                            <TextBlock Grid.Column="1" Text="{Binding Detail}"
+                                                       Foreground="{DynamicResource HDTErrorBrush}"
+                                                       FontSize="12" Margin="16,0,0,0" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+
+                        <TextBlock x:Name="HDTSelectionProfileSummaryText" Style="{StaticResource HDTHintText}"
+                                   Margin="0,6,0,0" MaxWidth="700" HorizontalAlignment="Left" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

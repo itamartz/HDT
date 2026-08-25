@@ -154,7 +154,22 @@
     $selectionProfile = @()
 
     try {
-        $selectionProfile = @(Get-HDTSelectionProfile -Root (Split-Path -Parent $Path) -FileSystem $FileSystem)
+        $shareRoot = Split-Path -Parent $Path
+        $selectionProfile = @(Get-HDTSelectionProfile -Root $shareRoot -FileSystem $FileSystem)
+
+        # WHAT EACH ONE ACTUALLY RESOLVES TO, worked out HERE because it needs an
+        # IFileSystem and the view model deliberately has none. Every profile is
+        # expanded rather than only the selected one: the tab has to answer the
+        # moment the picker changes, and a window that had to go back to disk to
+        # redraw a six-row list is a window with a service in it.
+        #
+        # A profile is two or three folders. This is three TestPath calls each,
+        # not a walk of a driver store.
+        foreach ($current in $selectionProfile) {
+            $current | Add-Member -NotePropertyName 'Resolved' `
+                -NotePropertyValue ([object[]] @(Expand-HDTSelectionProfile -Root $shareRoot -Id $current.Id -FileSystem $FileSystem)) `
+                -Force
+        }
     } catch {
         Write-Warning ("the selection profiles could not be read, so the Drivers tab offers only what workspace.yaml already declares: {0}" -f
             $_.Exception.Message)

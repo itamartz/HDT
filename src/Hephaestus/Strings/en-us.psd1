@@ -280,6 +280,7 @@
         'HDTBootImageMachineCertificateHint4.Text' = 'Which drivers go INTO THE BOOT IMAGE - storage and network, so WinPE can see the disk and reach the share. This is not what the deployed OS gets; that is the sequence''s own driver step.'
         'HDTBootImageSelectionProfileLabel.Text' = 'Selection profile'
         'HDTBootImageSelectionProfileHint.Text' = 'A named set of folders on the share, so one image can carry two vendors'' WinPE packs. Empty means no drivers are injected and WinPE uses what Microsoft ships.'
+        'HDTBootImageProfileFolderLabel.Text' = 'This profile injects'
         'HDTBootImageCustomisations.Header' = 'Customisations'
         'HDTBootImageExtraContentLabel.Text' = 'Extra content'
         'HDTBootImageSourceOnThisMachine.Text' = 'Source, on this machine or the share'

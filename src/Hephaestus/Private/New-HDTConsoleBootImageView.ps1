@@ -232,6 +232,8 @@
         $clientCertificateWarning = $window.FindName('HDTClientCertificateWarningText')
 
         $driverBox = $window.FindName('HDTSelectionProfileBox')
+        $driverFolderList = $window.FindName('HDTSelectionProfileFolderList')
+        $driverSummary = $window.FindName('HDTSelectionProfileSummaryText')
 
         $contentList = $window.FindName('HDTContentList')
         $contentSource = $window.FindName('HDTContentSourceBox')
@@ -309,6 +311,28 @@
             return $book.View
         }.GetNewClosure()
 
+        # THE FOLDER LIST, FROM WHATEVER THE BOX IS SHOWING. It reads the
+        # selected ITEM rather than going back to the view model: the rows carry
+        # their own resolved folders, so switching profiles redraws this without
+        # a disk read and without rebuilding the whole window.
+        #
+        # NOTHING SELECTED IS A CASE, NOT AN ERROR - a document naming a profile
+        # this share has not got selects no row at all.
+        $showProfileFolder = {
+            $chosen = $driverBox.SelectedItem
+
+            if ($null -eq $chosen) {
+                $driverFolderList.ItemsSource = [object[]] @()
+                $driverSummary.Text = ''
+                return
+            }
+
+            $driverFolderList.ItemsSource = [object[]] @($chosen.Folder)
+            $driverSummary.Text = [string] $chosen.Summary
+        }.GetNewClosure()
+
+        $driverBox.Add_SelectionChanged({ & $showProfileFolder }.GetNewClosure())
+
         $fillBoxes = {
             $view = & $ask
 
@@ -335,6 +359,13 @@
             # do repeatedly.
             $driverBox.ItemsSource = $view.Driver.Choice
             $driverBox.SelectedValue = [string] $view.Driver.Group
+
+            # THE FOLDER LIST FOLLOWS THE BOX, both now and on every later
+            # change. Assigning SelectedValue above raises SelectionChanged, but
+            # only when the value actually lands - a document naming a profile
+            # this share has not got selects nothing - so the list is filled
+            # here as well as from the handler.
+            & $showProfileFolder
 
             # SAME ORDER AS THE DRIVER LIST, and for the same reason:
             # SelectedValue means nothing until the item carrying that value
