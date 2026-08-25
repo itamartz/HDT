@@ -522,16 +522,29 @@
                 [scriptblock] $revert
             )
 
+            # ITS OWN DOOR, because this one is not a closure. $writeRow is a
+            # plain scriptblock, so it does not carry the Show method's locals
+            # the way the .GetNewClosure() handlers do, and a $call inherited by
+            # luck from whichever scope invoked it is a null reference waiting
+            # for the one caller that is not a closure. The console surface
+            # contract asserts that every scope naming $call declares it.
+            $call = Get-HDTHandlerCall
+
             # WHICH DOCUMENT THIS ROW EDITS IS THE ROW'S KIND, and the pair
             # of commands follows from it: a sequence and an imported
             # operating system have the same flat header and two different
             # validators, so the wrong pair writes a file the other one then
-            # refuses to read.
+            # refuses to read. That decision, the Share projection's missing
+            # Path and the rebuild rule all live in
+            # Get-HDTConsoleRowDocument now, with tests -
+            # tests/unit/ConsoleRowDocument.Tests.ps1.
             $selected = $tree.SelectedItem
             if ($null -eq $selected) { return }
 
-            $kind = [string] $selected.Kind
-            if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application') -notcontains $kind) { return }
+            $edit = & $call 'Get-HDTConsoleRowDocument' -Row $selected -Property ([string] $row.Property)
+            if (-not $edit.Supported) { return }
+
+            $kind = [string] $edit.Kind
 
             # AN APPLICATION IS THE ONE THAT WRITES ITSELF. Set-HDTApplication
             # takes a share and an id rather than lines, and saves - there is
@@ -594,21 +607,12 @@
 
             # A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, because
             # a workspace projection carries the root it was opened from as
-            # well as the document.
-            #
-            # ONE BRANCH, NOT AN ASSIGNMENT THEN A CORRECTION. Reading .Path
-            # first and fixing it up for a Share afterwards looks equivalent and
-            # is not: the projection has no Path at all, and under Set-StrictMode
-            # reading a property that is not there is a terminating error - on
-            # the dispatcher, which takes the window down. It survived only
-            # because a click arrives with no strict mode on the stack; driving
-            # the same control from a probe that sets it is what surfaced it.
-            $documentPath = ''
-            if ($kind -eq 'Share') {
-                $documentPath = [string] $selected.Subject.WorkspacePath
-            } else {
-                $documentPath = [string] $selected.Subject.Path
-            }
+            # well as the document - and it has NO Path at all, so reading one
+            # off it under Set-StrictMode is a terminating error on the
+            # dispatcher, which takes the window down. That branch is
+            # Get-HDTConsoleRowDocument's now, and it is asserted rather than
+            # remembered.
+            $documentPath = [string] $edit.DocumentPath
 
             try {
                 $fileSystem = New-HDTFileSystem
@@ -617,21 +621,13 @@
                 $splat = @{ Line = $document; Confirm = $false }
                 $splat[[string] $row.Property] = $typed
 
-                # Save-HDTSequenceDocument, NOT Save-HDTWorkspaceDocument:
-                # every one of these checks the lines before writing them,
-                # and the workspace one checks them against workspace.yaml's
-                # keys - so it refuses a sequence for declaring
-                # 'description'.
-                if ($kind -eq 'Share') {
-                    [void] (Save-HDTWorkspaceDocument -Path $documentPath `
-                            -Line @(Set-HDTWorkspaceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
-                } elseif ($kind -eq 'OperatingSystem') {
-                    [void] (Save-HDTOperatingSystemDocument -Path $documentPath `
-                            -Line @(Set-HDTOperatingSystemProperty @splat) -FileSystem $fileSystem -Confirm:$false)
-                } else {
-                    [void] (Save-HDTSequenceDocument -Path $documentPath `
-                            -Line @(Set-HDTTaskSequenceProperty @splat) -FileSystem $fileSystem -Confirm:$false)
-                }
+                # THE SETTER AND THE SAVER ARE A PAIR, and which pair is the
+                # row's kind: every one of these validates the lines before
+                # writing them, and the workspace one checks them against
+                # workspace.yaml's keys - so it refuses a sequence for
+                # declaring 'description'.
+                [void] (& $edit.Saver -Path $documentPath `
+                        -Line @(& $edit.Setter @splat) -FileSystem $fileSystem -Confirm:$false)
 
                 $row.Original = $typed
 
@@ -642,23 +638,15 @@
                 # it is only out of date when the NAME changed; a
                 # description is not on it, and re-reading the share to find
                 # that out would be paying the cost to learn nothing.
-                if ([string] $row.Property -eq 'name') { & $rebuildTree }
+                if ($edit.NeedsRebuild) { & $rebuildTree }
 
                 # DESIGN 12's "learn the automation surface by clicking
-                # around": what was just run, in the box that shows it. The
-                # key is 'name' in the document and the parameter is -Name.
+                # around": what was just run, in the box that shows it.
                 #
                 # AFTER THE REBUILD, NOT BEFORE. Rebuilding the tree changes
                 # the selection, and the selection handler writes this box -
                 # so a line written first is gone before anybody reads it.
-                $key = [string] $row.Property
-                $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
-
-                $setter = 'Set-HDTTaskSequenceProperty'
-                if ($kind -eq 'OperatingSystem') { $setter = 'Set-HDTOperatingSystemProperty' }
-                if ($kind -eq 'Share') { $setter = 'Set-HDTWorkspaceProperty' }
-
-                $command.Text = "{0} -Line `$line -{1} '{2}'" -f $setter, $parameter, $typed
+                $command.Text = $edit.CommandFormat -f $typed
             } catch {
                 # A REFUSAL PUTS THE BOX BACK. Set-HDTTaskSequenceProperty
                 # will not clear a name, and a box left holding a value the
@@ -3899,63 +3887,48 @@
                 if ($imageTab.Visibility -ne [System.Windows.Visibility]::Visible) { return }
                 if ([string]::IsNullOrWhiteSpace([string] $book.Selected)) { return }
 
-                # UNCHANGED MEANS UNCHANGED. The box shows the image a variable
-                # resolves to, so writing what the box holds would replace
-                # '%HDTOSImage%' with today's answer - silently, on a press
-                # meant for the time limit.
-                $image = [string] $book.Image
-                if ([string] $imageBox.SelectedValue -ne [string] $book.ImageShown) {
-                    $image = [string] $imageBox.SelectedValue
+                # WHAT THIS PRESS WRITES, decided away from the window: whether
+                # the image box was really changed, whether the new choice
+                # belongs in the variables block or in the step, and which of
+                # the two commands to echo. Eight branches turning on the fact
+                # that THE BOX SHOWS WHAT THE STEP RESOLVES TO, not what it
+                # says - so writing back what the box holds would replace
+                # '%HDTOSImage%' with today's answer, on a press meant for the
+                # time limit. tests/unit/ConsoleImageWrite.Tests.ps1 covers it.
+                #
+                # The index box is read here rather than in the command because
+                # only WPF knows the difference between the selected row and the
+                # label it displays.
+                $indexSelected = ''
+                if ($null -ne $imageIndexBox.SelectedItem) {
+                    $indexSelected = [string] $imageIndexBox.SelectedItem.Index
                 }
 
-                # THE VARIABLE, NOT THE TOKEN. When the step names its image
-                # through a %Var% this sequence sets, a new choice belongs in
-                # the variables block - writing the literal into the step would
-                # delete the indirection the sequence was built on, and leave
-                # the Variables tab showing an image the step no longer uses.
-                $imageChanged = ([string] $imageBox.SelectedValue -ne [string] $book.ImageShown)
+                $write = & $call 'Get-HDTConsoleImageWrite' `
+                    -Step ([string] $book.Selected) `
+                    -Image ([string] $book.Image) `
+                    -ImageShown ([string] $book.ImageShown) `
+                    -ImageVariable ([string] $book.ImageVariable) `
+                    -Chosen ([string] $imageBox.SelectedValue) `
+                    -IndexTyped ([string] $imageIndexBox.Text) `
+                    -IndexSelected $indexSelected `
+                    -IndexShown ([string] $book.IndexShown) `
+                    -IndexWritten ([string] $book.IndexWritten) `
+                    -Target ([string] $imageTargetBox.Text) `
+                    -TimeoutMinutes ([string] $imageTimeoutBox.Text)
 
-                if ($imageChanged -and -not [string]::IsNullOrWhiteSpace([string] $book.ImageVariable)) {
+                if ($write.VariableName -ne '') {
                     $book.Line = @(Set-HDTSequenceVariable -Line $book.Line `
-                            -Name ([string] $book.ImageVariable) `
-                            -Value ([string] $imageBox.SelectedValue) -Confirm:$false)
-
-                    # And the step keeps saying %HDTOSImage%.
-                    $image = [string] $book.Image
+                            -Name ([string] $write.VariableName) `
+                            -Value ([string] $write.VariableValue) -Confirm:$false)
                 }
-
-                $written = @(
-                    @{ Key = 'os'; Value = $image }
-                    @{ Key = 'index'; Value = $(
-                            # WHAT THE FILE GETS IS THE NUMBER, never the label.
-                            # A selected editable ComboBox reports its Display as
-                            # Text - '1  -  Windows 11 Enterprise LTSC' - and
-                            # that is not an index.
-                            $typed = [string] $imageIndexBox.Text
-                            if ($null -ne $imageIndexBox.SelectedItem) {
-                                $typed = [string] $imageIndexBox.SelectedItem.Index
-                            }
-
-                            if ($typed -eq [string] $book.IndexShown) {
-                                [string] $book.IndexWritten
-                            } else { $typed }) }
-                    @{ Key = 'target'; Value = [string] $imageTargetBox.Text }
-                    @{ Key = 'timeoutMinutes'; Value = [string] $imageTimeoutBox.Text }
-                )
 
                 & $partitionAttempt {
-                    foreach ($one in $written) {
+                    foreach ($one in @($write.Property)) {
                         $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $book.Selected `
                                 -Property ([string] $one.Key) -Value ([string] $one.Value) -Confirm:$false)
                     }
-                } $(
-                    if ($imageChanged -and -not [string]::IsNullOrWhiteSpace([string] $book.ImageVariable)) {
-                        "Set-HDTSequenceVariable -Line `$line -Name '{0}' -Value '{1}'" -f
-                        [string] $book.ImageVariable, [string] $imageBox.SelectedValue
-                    } else {
-                        "Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'os' -Value '{1}'" -f
-                        $book.Selected, [string] $imageBox.SelectedValue
-                    }) $Rebuild
+                } ([string] $write.Command) $Rebuild
             }.GetNewClosure()
 
         # PICKING FROM A LIST IS THE EDIT - there is nothing more to confirm.
