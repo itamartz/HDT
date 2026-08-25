@@ -417,11 +417,12 @@ PnP fallback.
   deployment that *failed*, which is the case that matters. This is MDT's
   `AdminPassword`, and it removes a step type rather than adding one.
 
-  **Still outstanding:** `HDTAdminPasswordPolicy` — `keep` (the default) needs no
-  code and is what v1 does today; `rotate`, `laps` and `disable` are DESIGN
-  §4.5.4's way for a sequence to declare a different end state, and none of the
-  three is built. They need a local-account service, so they are a plan of their
-  own rather than a loose end of this one.
+  **`HDTAdminPasswordPolicy` is CUT (user, 2026-08-25), and M6 has no loose end
+  left.** HDT supplies the password as clear text, exactly as MDT does:
+  `HDTAdminPassword` resolves through the rules engine and the deployed machine
+  keeps it. `rotate`, `laps` and `disable` were a local-account service and
+  three more end states to test, for a policy MDT never had — a site that wants
+  LAPS installs LAPS. DESIGN §4.5.4 records the decision.
 - Server task sequence in `samples/`.
 - **`WindowsUpdate` is deferred to v2** — see below.
 

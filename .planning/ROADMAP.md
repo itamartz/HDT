@@ -303,7 +303,8 @@ ranked by specificity → version → date, coverage reporting.
 
 **07 — Apps and full-OS steps.** Application catalog with **optional** detection
 and with dependencies, plus `InstallRoles`, `EnableBitLocker`, and the
-`HDTAdminPasswordPolicy` half of DESIGN 4.5.4. `WindowsUpdate` is **deferred to
+~~`HDTAdminPasswordPolicy` half of DESIGN 4.5.4~~ (**cut** 2026-08-25 - the
+password is clear text, as in MDT). `WindowsUpdate` is **deferred to
 v2** (2026-08-16), and no Server VM joins the E2E matrix — `InstallRoles` still
 ships with a server sample sequence.
 *Exit:* a dependency chain installs across a reboot, idempotently.
@@ -324,9 +325,9 @@ ships with a server sample sequence.
       before encryption begins, `scope` mapping, `escrow: none` warning,
       `wait: false`
 - [x] `07-05-PLAN.md` — the default `HDTAdminPassword`, in the fallback rule of
-      `rules.yaml` (MDT's `[Default]`). **`HDTAdminPasswordPolicy` is NOT built:**
-      `keep` is the default and needs no code, which is what v1 does; `rotate`,
-      `laps` and `disable` need a local-account service and are outstanding
+      `rules.yaml` (MDT's `[Default]`). **`HDTAdminPasswordPolicy` is CUT** (user,
+      2026-08-25): the password is supplied as clear text the way MDT supplies
+      it, and `rotate`/`laps`/`disable` are not a thing this engine keywords
 - [x] `07-06-PLAN.md` — wiring and samples: manifest exports, console step
       catalog, a server sequence and two applications in `samples/`
 
@@ -337,9 +338,9 @@ Phase 07 is **complete**, on `feat/apps-fullos`. Three new step types
 which an `InstallApplications` step that hit a 3010 halfway down its list would
 have silently skipped everything after it while reporting success.
 
-Two things it does NOT ship, both deliberate and both recorded above:
-`WindowsUpdate` (v2) and `HDTAdminPasswordPolicy`'s `rotate`/`laps`/`disable`
-(needs a local-account service). No Windows Server VM joined the E2E matrix, so
+One thing it does NOT ship, deliberately and recorded above: `WindowsUpdate`
+(v2). `HDTAdminPasswordPolicy` is cut rather than outstanding. No Windows Server
+VM joined the E2E matrix, so
 `STD-SERVER` is proven by import, schema validation and console round-trip rather
 than by a Hyper-V run.
 

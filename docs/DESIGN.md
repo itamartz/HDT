@@ -852,9 +852,10 @@ These are the reasons to reimplement rather than copy:
   **The real control is the same one that governs the share credential (§6.3):
   treat boot media and the workspace as credentials.** Restrict who can read
   them, and give the account a password worth only what a freshly-built machine
-  is worth — then rotate it, hand off to LAPS, or disable the account at the end
-  (`HDTAdminPasswordPolicy`, below). That is how MDT has been operated for
-  fifteen years, and it is honest about where the trust actually sits.
+  is worth — then rotate it, hand off to LAPS, or disable the account with the
+  tools that own those jobs. That is how MDT has been operated for fifteen
+  years, and it is honest about where the trust actually sits. HDT builds no
+  keyword for it: see §4.5.4 on why `HDTAdminPasswordPolicy` was cut.
 - **It is stored as an LSA secret, not registry cleartext.** Winlogon reads
   `DefaultPassword` from LSA private data as well as from the registry; this is
   the mechanism Sysinternals' `Autologon.exe` uses. Same behavior, no plaintext
@@ -958,12 +959,19 @@ technician can log in — including into a machine whose deployment failed, whic
 is the case that matters. What teardown removes is the *autologon*, not the
 account.
 
-A sequence may still declare a different end state, and then it is explicit
-rather than incidental: `HDTAdminPasswordPolicy` of `keep` (the default),
-`rotate` (to a second configured value), `laps` (hand off to LAPS and let it
-own the password from then on), or `disable` (turn the built-in Administrator
-off entirely, for fleets that manage access another way). `rotate` and `laps`
-are the right pairing for `HDTAdminPassword: <random>`.
+~~A sequence may still declare a different end state~~ —
+**`HDTAdminPasswordPolicy` IS CUT (user, 2026-08-25), not deferred.**
+
+**HDT supplies the Administrator password as clear text, exactly as MDT does.**
+`HDTAdminPassword` resolves through the ordinary rules engine — MDT's
+`AdminPassword` in `CustomSettings.ini` — and the deployed machine keeps it.
+That is the whole model, it is the one an MDT admin already operates, and it is
+what the paragraph above describes as the honest place for the trust to sit.
+
+`rotate`, `laps` and `disable` were a fourth thing to configure, a local-account
+service to build and three more end states to test, in service of a policy MDT
+never had. A site that wants LAPS installs LAPS; a site that wants the account
+rotated runs a step that rotates it. Neither needs a keyword in this engine.
 
 This checklist is a test in M2, asserted against a fake registry and LSA
 provider, and again in M3's integration layer against a real VM: after a
@@ -1914,7 +1922,7 @@ confirmation entirely; the skip variable is the rule.
 | Credentials | Share credentials, when not embedded (§6.3) | `HDTSkipCredentials` | `SkipBDDWelcome` in part |
 | Applications | Which apps to install | `HDTSkipApplications` | `SkipApplications` |
 | Locale and time | `HDTTimeZone`, locale | `HDTSkipTimeZone`, `HDTSkipLocaleSelection` | same names |
-| Admin password | The local Administrator password policy (§10.3, §4.5.4) | `HDTSkipAdminPassword` | `SkipAdminPassword` |
+| ~~Admin password~~ | **NOT A PAGE.** `HDTAdminPassword` is set in the console's New Task Sequence window (MDT's placement) and resolves through the rules like any other variable. §4.5.4 | — | `SkipAdminPassword` |
 | Summary | Confirm before anything destructive | `HDTSkipSummary` | `SkipSummary` |
 
 ¹ **Name and domain membership are one page**, as they are in MDT's "Computer
@@ -1922,6 +1930,15 @@ Details" pane — one decision about a machine's identity, and the screen an MDT
 admin already knows. It keeps **both** skip variables, because MDT does: they
 hide the two halves independently, through the same pane-visibility mechanism
 `Get-HDTWizardSkip` already uses for the Welcome screen.
+
+**There is no product key page either, and it needs none (user, 2026-08-25).**
+`HDTProductKey` is a variable like every other — MDT's `ProductKey` in
+`Get-HDTVariableMap` — so a site sets it in `rules.yaml`, per model or per
+machine, or a sequence sets it with a `SetVariable` step. `ApplyUnattend`
+substitutes it into `<ProductKey>` and **removes the element entirely** when it
+resolves empty, which is what makes a keyless deployment work without a second
+template. A page would add a screen to type by hand what a rule already knows
+per model, which is the opposite of what the rules engine is for.
 
 `HDTSkipWizard: true` skips all pages at once — the unattended case.
 
