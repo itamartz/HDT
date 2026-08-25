@@ -723,8 +723,15 @@
 
                     if (@($pending).Count -eq 0) { return }
 
+                    # WHAT THIS PRESS WRITES AND WHAT IT ECHOES, decided away
+                    # from the window: the parameter each document key binds to,
+                    # whether one of them was the name, and every command line
+                    # the press ran. tests/unit/ConsoleSequenceSave.Tests.ps1.
+                    $save = & $call 'Get-HDTConsoleSequenceSave' -Pending ([object[]] @($pending)) `
+                        -Path $documentPath
+
                     $ran = New-Object -TypeName System.Collections.ArrayList
-                    $renamed = $false
+                    $renamed = [bool] $save.Renamed
 
                     try {
                         $fileSystem = New-HDTFileSystem
@@ -734,25 +741,17 @@
                         # write the document twice for a name and a description
                         # typed together, and the second write would be built
                         # from lines read before the first.
-                        foreach ($one in @($pending)) {
-                            $key = [string] $one.Property
-                            $parameter = $key.Substring(0, 1).ToUpperInvariant() + $key.Substring(1)
-
+                        foreach ($one in @($save.Edit)) {
                             $splat = @{ Line = $line; Confirm = $false }
-                            $splat[$parameter] = [string] $one.Value
+                            $splat[[string] $one.Parameter] = [string] $one.Value
 
                             $line = [string[]] @(Set-HDTTaskSequenceProperty @splat)
-
-                            [void] $ran.Add(("Set-HDTTaskSequenceProperty -Line `$line -{0} '{1}'" -f
-                                    $parameter, [string] $one.Value))
-
-                            if ($key -eq 'name') { $renamed = $true }
                         }
 
                         [void] (Save-HDTSequenceDocument -Path $documentPath -Line $line `
                                 -FileSystem $fileSystem -Confirm:$false)
 
-                        [void] $ran.Add(("Save-HDTSequenceDocument -Line `$line -Path '{0}'" -f $documentPath))
+                        foreach ($one in @($save.Command)) { [void] $ran.Add([string] $one) }
 
                         foreach ($one in @($pending)) {
                             @($detail.ItemsSource) |
@@ -1497,26 +1496,27 @@
                         $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
                         if (-not $action.CanCreate) { return }
 
-                        $inside = ''
-                        if (-not [string]::IsNullOrWhiteSpace([string] $action.Parent)) {
-                            $inside = ' inside ''{0}''' -f [string] $action.Parent
-                        }
+                        # THE PARENT IS THE ROW IT WAS ASKED FOR ON, which is
+                        # what makes one item serve both "at the top" and
+                        # "inside this one" - and the prompt is the last place
+                        # anybody can tell which of the two is about to happen.
+                        # tests/unit/ConsoleFolderCreate.Tests.ps1.
+                        #
+                        # Asked once for the prompt, and again once a name has
+                        # been typed: the folder path is not known until then.
+                        $ask = & $call 'Get-HDTConsoleFolderCreate' -Root $where `
+                            -Parent ([string] $action.Parent) -Category ([string] $action.Category)
 
-                        $typed = & $askForFolder 'New Folder' `
-                        ('A name for the folder{0}. It organises this window and nothing else: nothing moves on disk, and a deployment does not know folders exist.' -f $inside) `
-                        @() ''
+                        $typed = & $askForFolder 'New Folder' ([string] $ask.Prompt) @() ''
 
                         if ([string]::IsNullOrWhiteSpace($typed)) { return }
 
-                        # THE PARENT IS THE ROW IT WAS ASKED FOR ON, which is
-                        # what makes one item serve both "at the top" and
-                        # "inside this one".
-                        $path = $typed
-                        if (-not [string]::IsNullOrWhiteSpace([string] $action.Parent)) {
-                            $path = '{0}\{1}' -f [string] $action.Parent, $typed
-                        }
+                        $make = & $call 'Get-HDTConsoleFolderCreate' -Root $where `
+                            -Parent ([string] $action.Parent) -Name $typed `
+                            -Category ([string] $action.Category)
 
-                        $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
+                        $path = [string] $make.Folder
+                        $documentPath = [string] $make.DocumentPath
 
                         try {
                             $fileSystem = New-HDTFileSystem
@@ -1532,8 +1532,7 @@
 
                         & $rebuildTree
 
-                        $command.Text = "Add-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}'" -f
-                        [string] $action.Category, $path
+                        $command.Text = [string] $make.Command
                     }.GetNewClosure())
 
                 # MOVING IS A ONE-KEY EDIT TO THE DOCUMENT, not a file
