@@ -321,8 +321,11 @@ all.
   `sources\boot.wim` from removable media; a TFTP/HTTP stack generally needs its
   own store and its own device element. The source file, the integration test and
   this list all say so in those words.
-- **No drivers** (M5, deferred to v2) and **no applications, updates, roles or
-  BitLocker** (M6).
+- **No drivers in the deployed OS** (M5) and **no applications, updates, roles
+  or BitLocker** (M6). Drivers reach the BOOT IMAGE — a selection profile names
+  folders and `Update-HDTBootImage` injects them — but nothing puts a driver on
+  the machine being built, because that is the `ApplyDrivers` step and it does
+  not exist.
 - **No engine-driven reboot into an autologon resume.** `DEMO-M4` has no
   `Restart` step, deliberately and for DEMO-M3's unexpired reason: the reboot
   ceremony arms autologon through the registry and an LSA secret, and in WinPE
@@ -366,24 +369,57 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
 
 ---
 
-## M5 — Drivers  ·  **DEFERRED TO v2**
+## M5 — Drivers  ·  **GROUP MATCH SHIPPED · PnP DEFERRED TO v2**
 
-> **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
-> kept here in full so v2 starts from a written plan rather than a memory. See
-> `.planning/ROADMAP.md` "v1 scope" for what deferring it costs.
+> **Half of this is built.** The group-match path — which is MDT's PRIMARY one —
+> ships: drivers can be put on the share, named by a selection profile, and
+> injected into a boot image. What is deferred is everything that needs a
+> CATALOG: parsing `.inf` files into an index, and the PnP fallback that index
+> exists for. See `.planning/ROADMAP.md` "v1 scope".
 
+### Shipped
 
-- `Import-HDTDriver`: `.inf` parsing → `driver-index.json`.
-- `ApplyDrivers` step: group match primary, PnP match fallback, ranking by
-  hardware-ID specificity → version → date.
-- Boot-critical driver tracking; `Get-HDTDriverCoverage`.
+- **Selection profiles** — `Control\selection-profiles.yaml`, MDT's selection
+  profile kept: a named set of share-relative include paths, reused by the boot
+  image and (later) by media. `Get-`/`Expand-`/`New-`/`Set-`/`Remove-` and
+  `Save-HDTSelectionProfileDocument`, all splicing so an administrator's
+  comments survive. Two built-ins — `all-drivers`, `everything` — resolve with
+  no document, so a share nobody has authored on still builds.
+- **The driver store** — `New-HDTDriverFolder` makes `Make\Model` in one call;
+  `Import-HDTDriver` copies an extracted vendor pack in whole and counts its
+  `.inf` files. It is a COUNT, not a catalog.
+- **Boot image injection** — `bootImage.drivers:` names a profile, and
+  `Update-HDTBootImage` calls `AddDriver` once per included folder, in declared
+  order. **One image carries a Dell WinPE pack and an HP one**, which a single
+  folder name never could. A share written before profiles existed still names a
+  folder and still works: `Resolve-HDTBootImageDriverPath` tries the profile
+  first and falls back.
+- **The console** — a Selection Profiles node with a tick-box tree editor
+  (tri-state, because "some of Drivers" and "all of Drivers" are a hundred
+  `.inf` files apart), New Folder and Import Drivers on the Drivers node, and a
+  Drivers tab that shows the folders it will actually inject and marks in red
+  any the share has not got.
 
-**Tests first:** `.inf` parsing against real fixture headers (including
-malformed and multi-arch ones); ranking order for every tie-break; group match
-taking precedence over PnP; empty-match behavior; coverage report correctness.
+### Still deferred to v2
 
-**Exit:** an unrecognized model deploys with working network and storage via
-PnP fallback.
+- `Import-HDTDriver`'s **catalog half**: `.inf` parsing → `driver-index.json`
+  carrying hardware ids, class, provider, version and date.
+- `ApplyDrivers` **step** — nothing injects drivers into the DEPLOYED OS yet;
+  this is boot-image only.
+- **PnP match fallback**, ranked by hardware-ID specificity → version → date.
+  It cannot exist without the index.
+- The **class filter** — MDT's "network and mass storage only" on the Windows PE
+  tab. It needs `Class=` read out of each `.inf`, which is a slice of the same
+  catalog. No control is drawn for it, because there is no command behind it.
+- **Boot-critical tracking** and `Get-HDTDriverCoverage`.
+
+**Tests first (for the deferred half):** `.inf` parsing against real fixture
+headers (including malformed and multi-arch ones); ranking order for every
+tie-break; group match taking precedence over PnP; empty-match behavior;
+coverage report correctness.
+
+**Exit (still unmet):** an unrecognized model deploys with working network and
+storage via PnP fallback.
 
 ---
 

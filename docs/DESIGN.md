@@ -36,11 +36,17 @@ engine on PowerShell instead of VBScript/WSH.
 These are **fully designed below and not cut** — v2 starts from a written plan.
 They are simply not in v1:
 
-- **§7 Driver management.** No out-of-box driver store, no `ApplyDrivers` step.
-  v1 deploys with the drivers inbox in the applied image. Boot-critical driver
-  injection into the WinPE image is **not** affected — it belongs to
-  `Update-HDTBootImage` (§5.1) and stays in v1, so a machine needing a NIC
-  driver to reach the share still gets one.
+- **§7 Driver management — partly built.** There **is** an out-of-box driver
+  store now: `New-HDTDriverFolder` and `Import-HDTDriver` fill it, a **selection
+  profile** (`Control\selection-profiles.yaml`) names folders in it, and
+  `Update-HDTBootImage` injects every folder a profile names — so one boot image
+  carries two vendors' WinPE packs, and a machine needing a NIC driver to reach
+  the share gets one.
+
+  What is **not** in v1 is everything that needs a CATALOG: `.inf` parsing into
+  `driver-index.json`, the PnP match fallback that index exists for, the
+  `ApplyDrivers` step, and the network/mass-storage class filter. So v1 still
+  deploys the OS with the drivers inbox in the applied image.
 - **§9.3 Capture** and **§6.2 standalone media.** v1 applies images; it does not
   sysprep and capture its own, and it does not project a workspace onto a USB
   stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
