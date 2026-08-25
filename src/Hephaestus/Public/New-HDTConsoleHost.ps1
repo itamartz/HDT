@@ -4644,22 +4644,20 @@
                 $row = $raised.OriginalSource.DataContext
                 if ($null -eq $row) { return }
 
-                # ALREADY THERE MEANS WPF RAISED THIS, NOT A PERSON. See the
-                # block comment above: the Features tab's checkboxes are built
-                # the first time it is clicked, and each one raises Checked as
-                # it takes its bound value. Add-HDTBootImageComponent refuses a
-                # duplicate outright, so without this the window dies on the
-                # first click of that tab.
-                if ($book.View.DeclaredName -contains [string] $row.Name) { return }
-
-                # A LOCKED ROW IS NOT THE DOCUMENT'S TO NAME. The six components
-                # the engine applies to every image are shown ticked and cannot
-                # be unticked, and the document does not list them - so they pass
-                # the test above and would be written into optionalComponents by
-                # the very click that first draws them. That is how a share that
-                # named nothing ended up naming ten, freezing today's defaults
-                # into a file that is meant to inherit tomorrow's.
-                if (-not $row.CanChange) { return }
+                # TWO GUARDS THAT CANNOT BE COLLAPSED, and both were paid for.
+                # ALREADY THERE means WPF raised this and not a person - the
+                # Features tab builds its checkboxes on first click and each
+                # raises Checked as it takes its bound value, which killed the
+                # window on that click. A LOCKED ROW is not the document's to
+                # name: the six the engine always applies are ticked and absent
+                # from the document, so they PASS the first guard and would be
+                # written by the click that first draws them. That is how a
+                # share which named nothing ended up naming ten.
+                # tests/unit/ConsoleComponentWrite.Tests.ps1.
+                if (-not (& $call 'Test-HDTConsoleComponentWrite' -Row $row `
+                            -Declared ([string[]] @($book.View.DeclaredName)) -Ticking)) {
+                    return
+                }
 
                 $book.Line = @(Add-HDTBootImageComponent -Line $book.Line -Name ([string] $row.Name) -Confirm:$false)
                 $book.Dirty = $true
@@ -4679,8 +4677,11 @@
                 # NOT THERE MEANS THERE IS NOTHING TO REMOVE - the mirror of the
                 # Checked guard, and it also covers the six components the engine
                 # applies to every image, which are ticked without the document
-                # ever naming them.
-                if ($book.View.DeclaredName -notcontains [string] $row.Name) { return }
+                # ever naming them, so no lock test is needed on this side.
+                if (-not (& $call 'Test-HDTConsoleComponentWrite' -Row $row `
+                            -Declared ([string[]] @($book.View.DeclaredName)))) {
+                    return
+                }
 
                 $book.Line = @(Remove-HDTBootImageComponent -Line $book.Line -Name ([string] $row.Name) -Confirm:$false)
                 $book.Dirty = $true
