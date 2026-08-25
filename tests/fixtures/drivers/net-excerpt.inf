@@ -1,0 +1,48 @@
+; Captured from C:\Windows\INF\net1ic64.inf and netrtwlane.inf on the lab host,
+; trimmed to the sections a driver catalog reads. NOT invented: every shape in
+; here is one a real .inf actually has, and several of them are traps.
+;
+;   - the section name is sometimes lowercase ([version] in netrtwlane.inf)
+;   - Provider and the manufacturer names are %tokens% resolved from [Strings]
+;   - DriverVer is a DATE and a VERSION in one value, date first
+;   - a model line has a DOUBLE comma: the install section, an empty field,
+;     then the hardware id
+;   - a line can carry more than one hardware id
+;   - trailing ;; comments sit on the end of model lines
+;   - [Manufacturer] names DECORATED sections - 'Intel' plus '.NTamd64.10.0.1'
+;   - a file can declare more than one manufacturer
+;   - [ControlFlags] sits between the sections and is not a model section
+
+[version]
+Signature   = "$Windows NT$"
+Class       = Net
+ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}
+Provider    = %MSFT%
+CatalogFile = net1ic64.cat
+DriverVer = 08/03/2015,12.19.1.32
+
+[Manufacturer]
+%Intel%     = Intel, NTamd64.10.0.1
+%Realtek%   = Realtek, NTamd64.10.0
+
+[ControlFlags]
+ExcludeFromSelect = *
+
+[Intel.NTamd64.10.0.1]
+%E10DENC.DeviceDesc%            = E10DE.10.0.1,,       PCI\VEN_8086&DEV_10DE
+%E10DENC.DeviceDesc%            = E10DE.10.0.1,,       PCI\VEN_8086&DEV_10DE&SUBSYS_10DE8086
+%E10DFNC.DeviceDesc%            = E10DF.10.0.1,,       PCI\VEN_8086&DEV_10DF
+%E1502NC.DeviceDesc%            = E1502.10.0.1,,       PCI\VEN_8086&DEV_1502, PCI\VEN_8086&DEV_1503
+
+[Realtek.NTamd64.10.0]
+%RTL8822be.DeviceDesc%          = RTL8822be.ndi,,      PCI\VEN_10EC&DEV_B822&SUBSYS_B82210EC
+%RTL8822be.DeviceDesc%          = RTL8822be.ndi,,      PCI\VEN_10EC&DEV_B822&SUBSYS_B12510EC ;; HP Dragon
+
+[Strings]
+MSFT        = "Microsoft"
+Intel       = "Intel"
+Realtek     = "Realtek Semiconductor Corp."
+E10DENC.DeviceDesc = "Intel(R) 82576 Gigabit Dual Port Network Connection"
+E10DFNC.DeviceDesc = "Intel(R) 82576 Gigabit Dual Port Server Network Connection"
+E1502NC.DeviceDesc = "Intel(R) 82579LM Gigabit Network Connection"
+RTL8822be.DeviceDesc = "Realtek 8822be Wireless LAN 802.11ac PCI-E NIC"
