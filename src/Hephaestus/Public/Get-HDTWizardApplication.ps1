@@ -81,7 +81,9 @@ function Get-HDTWizardApplication {
             Every application on the share, none ticked.
 
         .EXAMPLE
-            $resolved = Resolve-HDTVariable -Rule $rule -Fact (Get-HDTMachineFact)
+            $root = 'Z:\Deploy'
+            $rule = Import-HDTRuleDocument -Path (Join-Path $root 'rules.yaml')
+            $resolved = Resolve-HDTVariable -Rule $rule.Rule -Fact (Get-HDTMachineFact)
             $application = Get-HDTWizardApplication -WorkspaceRoot $root -Variable $resolved.Variable
             @($application.Choice | Where-Object { $_.IsSelected } | ForEach-Object { $_.Id })
 
@@ -89,7 +91,11 @@ function Get-HDTWizardApplication {
             technician is asked to confirm it.
 
         .EXAMPLE
-            Show-HDTWizardShell -Page $ask.Page -Field (@($field) + @($application.Field))
+            $root = 'Z:\Deploy'
+            $application = Get-HDTWizardApplication -WorkspaceRoot $root
+            $provider = New-HDTLocalContentProvider -Root $root
+            $ask = Import-HDTWizardDocument -Provider $provider
+            Show-HDTWizardShell -Page $ask.Page -Field @($application.Field)
 
             What the payload does: the list is one more field, applied by name
             like every other.

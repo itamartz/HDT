@@ -446,10 +446,17 @@ Describe 'the Welcome screen asks the theme for its look, like every other windo
             Should -Throw -ExpectedMessage '*HDTTheme.xaml*'
     }
 
-    It 'carries no <Style> of its own any more' {
+    It 'carries no Style element of its own any more' {
         # THE POINT OF THE WHOLE CHANGE, asserted on the markup rather than on
         # the screen. A style added back here is a style the theme does not
         # know about, and the drift starts again from one line.
+        #
+        # THE NAME SAYS "Style element" AND NOT "<Style>" ON PURPOSE. Pester
+        # reads <Word> in a test name as a -ForEach placeholder and resolves it
+        # against $Word - so the angle brackets made this test die with "The
+        # variable '$Style' cannot be retrieved", inside Pester, with no frame
+        # of its own in the stack. It passed a direct run and failed the gate,
+        # because only the gate sets Set-StrictMode -Version Latest.
         $code = [regex]::Replace($script:realWelcome, '(?s)<!--.*?-->', '')
 
         $code | Should -Not -Match '<Style\b' -Because (

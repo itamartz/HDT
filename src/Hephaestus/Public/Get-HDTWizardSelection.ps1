@@ -59,12 +59,16 @@ function Get-HDTWizardSelection {
             deploys.
 
         .EXAMPLE
-            Get-HDTWizardSelection -Row @($list.ItemsSource)
+            $row = @(
+                [pscustomobject] @{ Id = '7Zip-24.09'; IsSelected = $true }
+                [pscustomobject] @{ Id = 'VSCode-1.96'; IsSelected = $false })
+            Get-HDTWizardSelection -Row $row
 
-            '7Zip-24.09, Firefox-ESR-128'
+            '7Zip-24.09'
 
         .EXAMPLE
-            $catalog = Get-HDTWizardApplication -WorkspaceRoot $root -Variable $resolved.Variable
+            $root = 'Z:\Deploy'
+            $catalog = Get-HDTWizardApplication -WorkspaceRoot $root
             Get-HDTWizardSelection -Row $catalog.Choice
 
             What a rules.yaml already selected, in the form HDTApplications
