@@ -824,17 +824,27 @@
         # driver store. A group that is not there WARNS AND CONTINUES: M5 owns
         # the driver store, and a boot image build must not be blocked by a
         # folder nobody has imported into yet.
+        #
+        # THE KEY NAMES A SELECTION PROFILE NOW, WHICH CAN BE SEVERAL FOLDERS.
+        # That is what lets one boot image carry a Dell WinPE pack and an HP
+        # WinPE pack - the thing a single folder name could never say. A share
+        # written before profiles existed still names a folder, and
+        # Resolve-HDTBootImageDriverPath still answers with it.
 
         $driverGroup = [string] $workspace.BootImage.Drivers
 
-        if (-not [string]::IsNullOrWhiteSpace($driverGroup)) {
-            $driverPath = Get-HDTWorkspacePath -Root $WorkspaceRoot -Kind Drivers -ChildPath $driverGroup
+        $resolved = Resolve-HDTBootImageDriverPath -WorkspaceRoot $WorkspaceRoot `
+            -Name $driverGroup -FileSystem $FileSystem
 
-            if ($FileSystem.TestPath($driverPath)) {
-                $driver = @($BootImageService.AddDriver($mountPath, $driverPath, $true))
-            } else {
-                Write-Warning ("The boot driver group '{0}' is declared in workspace.yaml but there is nothing at '{1}', so no drivers were injected. Import drivers into that folder, or remove the drivers: key." -f $driverGroup, $driverPath)
-            }
+        if (-not [string]::IsNullOrEmpty([string] $resolved.Warning)) {
+            Write-Warning ([string] $resolved.Warning)
+        }
+
+        # EACH FOLDER IS ITS OWN CALL, in the profile's declared order. DISM
+        # takes one -Driver path at a time, and the order is the author's: a
+        # profile listing a storage pack before a network pack meant that.
+        foreach ($current in @($resolved.Path)) {
+            $driver += @($BootImageService.AddDriver($mountPath, [string] $current, $true))
         }
 
         # -- 11. the engine ---------------------------------------------------

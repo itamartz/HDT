@@ -9,19 +9,29 @@
             and storage drivers, and the one anything with a driver picker has to
             run.
 
-            THE VALUE IS A GROUP UNDER Drivers\, NOT A PATH AND NOT A FILE. The
-            build injects that folder recursively, so a group is how a set of
-            of .inf files is named once and kept together.
+            THE VALUE IS A SELECTION PROFILE, NOT A PATH AND NOT A FILE. A
+            profile is a named set of share folders - MDT's, kept - and that is
+            what lets ONE boot image carry a Dell WinPE pack and an HP WinPE
+            pack together. A single folder name could never say that, which is
+            the whole reason profiles exist. Get-HDTSelectionProfile lists them,
+            including the built-ins every share has.
+
+            A PLAIN FOLDER UNDER Drivers\ STILL WORKS. This key used to mean one,
+            and a share written before profiles existed still says so.
+            Resolve-HDTBootImageDriverPath tries the profile first and falls back
+            to the folder, so nothing has to be migrated. A profile wins a tie:
+            an administrator who authored one with that name did it after the
+            folder already existed, and the folder is what they were replacing.
 
             A BOOT IMAGE GETS NETWORK AND STORAGE DRIVERS ONLY, never the whole
             driver store. WinPE has to reach the share and see the disk; every
             other driver belongs to the deployed operating system, and a boot
             image carrying the lot is a slow boot and a larger image for no gain.
 
-            A GROUP THAT IS NOT THERE YET IS FINE. Nothing on the share is checked
-            here, and the build only warns: the driver store is imported into over
-            time, and a boot image build must not be blocked by a folder nobody
-            has filled in.
+            A PROFILE THAT IS NOT THERE YET IS FINE. Nothing on the share is
+            checked here, and the build only warns: the driver store is imported
+            into over time, and a boot image build must not be blocked by a
+            folder nobody has filled in.
 
             -Clear REMOVES THE KEY RATHER THAN EMPTYING IT. A drivers: written
             blank is a document the engine refuses, so "no driver group" can only
@@ -35,7 +45,9 @@
             The document, already split into lines.
 
         .PARAMETER Name
-            The driver group, as a folder name under the share's Drivers\ folder.
+            The selection profile, by id. A folder name under the share's
+            Drivers\ folder is still accepted, which is what this key meant
+            before profiles existed.
 
         .PARAMETER Clear
             Inject no drivers at all.
@@ -51,9 +63,10 @@
             $line = Set-HDTBootImageDriver -Line $line -Name 'boot-critical'
             Save-HDTWorkspaceDocument -Path 'C:\HDTLab\Share\workspace.yaml' -Line $line
 
-            Which driver group goes into the boot image. A machine whose storage or
-            network driver is missing from WinPE is a machine that boots to a
-            screen and stops.
+            Which selection profile goes into the boot image. Point it at a
+            profile naming both vendors' WinPE packs and one image serves a mixed
+            floor - a machine whose storage or network driver is missing from
+            WinPE is a machine that boots to a screen and stops.
 
         .EXAMPLE
             $line = Set-HDTBootImageDriver -Line $line -Clear
@@ -99,7 +112,7 @@
     } else {
         if ([string]::IsNullOrWhiteSpace($Name)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name `
-                        -Message 'a driver group is a folder name under the share Drivers\ folder. Pass -Clear to inject no drivers at all.'))
+                        -Message 'name a selection profile - Get-HDTSelectionProfile lists them - or a folder under the share Drivers\ folder. Pass -Clear to inject no drivers at all.'))
         }
 
         if (-not $PSCmdlet.ShouldProcess($Name, 'Inject this driver group into the boot image')) {

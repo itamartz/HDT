@@ -81,7 +81,12 @@ bootImage:
         param(
             [Parameter()]
             [AllowEmptyString()]
-            [string] $WorkspaceYaml = ''
+            [string] $WorkspaceYaml = '',
+
+            # Anything this build needs that the standard share has not got -
+            # a selection profile document, a second vendor's driver folder.
+            [Parameter()]
+            [hashtable] $ExtraFile
         )
 
         $yaml = $WorkspaceYaml
@@ -122,6 +127,12 @@ bootImage:
         $seed[($script:yamlPath + '\powershell-yaml.psd1')] = '@{ ModuleVersion = ''0.4.12'' }'
         $seed[($script:yamlPath + '\net47\YamlDotNet.dll')] = 'binary'
 
+        # Guarded rather than @()-wrapped: under Set-StrictMode -Version Latest,
+        # reaching .Keys on an unbound parameter is an error, not an empty list.
+        if ($null -ne $ExtraFile) {
+            foreach ($key in @($ExtraFile.Keys)) { $seed[[string] $key] = $ExtraFile[$key] }
+        }
+
         return $seed
     }
 
@@ -138,11 +149,14 @@ bootImage:
             [hashtable] $Failure,
 
             [Parameter()]
-            [object[]] $Driver
+            [object[]] $Driver,
+
+            [Parameter()]
+            [hashtable] $ExtraFile
         )
 
         $journal = [System.Collections.ArrayList]::new()
-        $fs = New-HDTFakeFileSystem -File (New-HDTBootImageTestSeed -WorkspaceYaml $WorkspaceYaml) -Journal $journal
+        $fs = New-HDTFakeFileSystem -File (New-HDTBootImageTestSeed -WorkspaceYaml $WorkspaceYaml -ExtraFile $ExtraFile) -Journal $journal
         $registry = New-HDTFakeRegistryService -Value @{
             'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows Kits\Installed Roots' = @{ KitsRoot10 = $script:kitsRoot10 }
         } -Journal $journal
@@ -874,6 +888,60 @@ Describe 'Update-HDTBootImage' {
             [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
             [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\boot-critical')
             [bool] $call[0].Arguments[2] | Should -BeTrue
+        }
+
+        # THE WHOLE REASON SELECTION PROFILES EXIST, proven at the level that
+        # matters: a mixed Dell and HP floor, ONE boot image, and both vendors'
+        # WinPE packs inside it. A single folder name could never say this.
+        It 'injects every folder a selection profile names, in declared order' {
+            $yaml = $script:workspaceYaml -replace 'drivers: boot-critical', 'drivers: winpe-both'
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml -ExtraFile @{
+                ($script:workspaceRoot + '\Control\selection-profiles.yaml') = @(
+                    'schemaVersion: 1'
+                    'profiles:'
+                    '  - id: winpe-both'
+                    '    name: Boot critical - Dell and HP'
+                    '    include:'
+                    '      - Drivers\WinPE\Dell WinPE 11 x64'
+                    '      - Drivers\WinPE\HP WinPE 11 x64'
+                ) -join "`r`n"
+                ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64\e1d68x64.inf') = '[Version]'
+                ($script:workspaceRoot + '\Drivers\WinPE\HP WinPE 11 x64\stornvme.inf')   = '[Version]'
+            }
+
+            $null = Invoke-HDTBootImageTestBuild -Context $context
+
+            $call = @($context.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
+
+            $call.Count | Should -Be 2
+            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64')
+            [string] $call[1].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\HP WinPE 11 x64')
+        }
+
+        # THE DANGEROUS CASE. The image builds, one vendor's drivers are simply
+        # absent, and it is found on a bench with a laptop that cannot see its
+        # disk - so the folder that went missing has to be named in a warning.
+        It 'warns by name when a profile includes a folder the share has not got' {
+            $yaml = $script:workspaceYaml -replace 'drivers: boot-critical', 'drivers: winpe-both'
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $yaml -ExtraFile @{
+                ($script:workspaceRoot + '\Control\selection-profiles.yaml') = @(
+                    'schemaVersion: 1'
+                    'profiles:'
+                    '  - id: winpe-both'
+                    '    name: Boot critical - Dell and HP'
+                    '    include:'
+                    '      - Drivers\WinPE\Dell WinPE 11 x64'
+                    '      - Drivers\WinPE\HP WinPE 11 x64'
+                ) -join "`r`n"
+                ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64\e1d68x64.inf') = '[Version]'
+            }
+
+            $warning = @()
+            $result = Invoke-HDTBootImageTestBuild -Context $context -WarningVariable warning -WarningAction SilentlyContinue
+
+            @($context.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' }).Count | Should -Be 1
+            @($warning | Where-Object { [string] $_ -like '*HP WinPE 11 x64*' }).Count | Should -BeGreaterThan 0
+            $result.DriverCount | Should -BeGreaterThan -1
         }
 
         It 'warns and continues when the driver group does not exist' {
