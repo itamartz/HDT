@@ -375,3 +375,103 @@ Describe 'Show-HDTWizard' {
         }
     }
 }
+
+Describe 'the Welcome screen asks the theme for its look, like every other window' {
+
+    # THE DUPLICATION HDTTheme.xaml EXISTS TO REMOVE. This window carried its own
+    # inline copy of the Button, ToggleButton, TextBox, PasswordBox and
+    # HDTAddressBox styles - 120 lines the theme already had, in literal colours
+    # rather than tokens - and it was the ONE screen the theme could not reach,
+    # because Show-HDTWizard had no theme parameter at all while
+    # Show-HDTWizardShell did. A palette change made in the theme left this
+    # screen behind, silently, and it had already happened once: the address
+    # boxes stayed 32 high while the theme said 34.
+    #
+    # MERGED AT RUNTIME, NOT BY ResourceDictionary Source=. The markup still
+    # names no other file - WinPeUiStack.Contract.Tests.ps1 enforces that, and
+    # a Source= reference is a second file that has to reach the RAM disk
+    # intact. This is the same mechanism ShowShell has used since W2.
+
+    BeforeAll {
+        $script:themePath = 'C:\HDTLab\Share\Boot\HDTTheme.xaml'
+
+        $script:realTheme = [System.IO.File]::ReadAllText(
+            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/HDTTheme.xaml'))
+
+        $script:realWelcome = [System.IO.File]::ReadAllText(
+            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/HDTWelcome.xaml'))
+
+        function New-HDTWelcomeTestFileSystem {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+                Justification = 'Builds an in-memory fake file system; it changes no state.')]
+            [CmdletBinding()]
+            param(
+                [Parameter()]
+                [switch] $NoTheme
+            )
+
+            $file = @{ $script:xamlPath = $script:realWelcome }
+            if (-not $NoTheme) { $file[$script:themePath] = $script:realTheme }
+
+            return New-HDTFakeFileSystem -File $file
+        }
+    }
+
+    It 'hands the theme to the host' {
+        $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+        [void] (Show-HDTWizard -XamlPath $script:xamlPath -ThemeXamlPath $script:themePath `
+                -WizardHost $wizardHost -FileSystem (New-HDTWelcomeTestFileSystem))
+
+        [string] $wizardHost.LastThemeXaml | Should -BeLike '*ResourceDictionary*'
+    }
+
+    It 'shows the screen with no theme when none was named, because a tool may open it bare' {
+        $wizardHost = New-HDTFakeWizardHost -Action 'Next'
+
+        [void] (Show-HDTWizard -XamlPath $script:xamlPath `
+                -WizardHost $wizardHost -FileSystem (New-HDTWelcomeTestFileSystem -NoTheme))
+
+        [string] $wizardHost.LastThemeXaml | Should -BeNullOrEmpty
+    }
+
+    It 'refuses a theme that is not there BY NAME, rather than drawing an unstyled screen' {
+        # AN UNSTYLED WELCOME SCREEN IS THE WORST OUTCOME, not the safest: every
+        # box collapses to 19.95 high with no implicit style to inherit from, in
+        # WinPE, on the first thing the technician sees. Refusing names the file
+        # somebody can put back.
+        { Show-HDTWizard -XamlPath $script:xamlPath -ThemeXamlPath $script:themePath `
+                -WizardHost (New-HDTFakeWizardHost -Action 'Next') `
+                -FileSystem (New-HDTWelcomeTestFileSystem -NoTheme) } |
+            Should -Throw -ExpectedMessage '*HDTTheme.xaml*'
+    }
+
+    It 'carries no Style element of its own any more' {
+        # THE POINT OF THE WHOLE CHANGE, asserted on the markup rather than on
+        # the screen. A style added back here is a style the theme does not
+        # know about, and the drift starts again from one line.
+        #
+        # THE NAME SAYS "Style element" AND NOT "<Style>" ON PURPOSE. Pester
+        # reads <Word> in a test name as a -ForEach placeholder and resolves it
+        # against $Word - so the angle brackets made this test die with "The
+        # variable '$Style' cannot be retrieved", inside Pester, with no frame
+        # of its own in the stack. It passed a direct run and failed the gate,
+        # because only the gate sets Set-StrictMode -Version Latest.
+        $code = [regex]::Replace($script:realWelcome, '(?s)<!--.*?-->', '')
+
+        $code | Should -Not -Match '<Style\b' -Because (
+            'HDTTheme.xaml is where the wizard look lives; this screen asks for it')
+    }
+
+    It 'asks for the address-box style with DynamicResource, because the theme arrives after the parse' {
+        # A StaticResource is resolved WHILE the window is being parsed, and the
+        # theme is merged into its Resources after XamlReader::Load returns -
+        # so a StaticResource here throws "Provide value on
+        # StaticResourceExtension threw an exception" and the Welcome screen
+        # never appears. The share pages already live under this rule.
+        $code = [regex]::Replace($script:realWelcome, '(?s)<!--.*?-->', '')
+
+        $code | Should -Not -Match '\{\s*StaticResource'
+        $code | Should -Match 'DynamicResource HDTAddressBox'
+    }
+}

@@ -501,7 +501,11 @@ try {
             # the wallpaper in the middle of a run that meant to keep it away.
             if (-not $shellHidden) { $hidden = [bool] (Hide-HDTShellWindow) }
 
-            $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -Title 'Hephaestus Deployment Toolkit' `
+            # THE SAME THEME THE WIZARD PAGES GET. This screen used to carry its
+            # own copy of every style and was the one window a palette change
+            # could not reach; it asks for the theme now like everything else.
+            $answer = Show-HDTWizard -XamlPath $WelcomeXamlPath -ThemeXamlPath $WizardThemePath `
+                -Title 'Hephaestus Deployment Toolkit' `
                 -Field $field -Pane $skip.Pane -Collect (Get-HDTWizardHarvest)
         } finally {
             if ($hidden) { [void] (Hide-HDTShellWindow -Restore) }
@@ -1034,7 +1038,50 @@ try {
                 & $say ("computer name: '{0}' from {1}{2}" -f $computerName.Value, $computerName.Source,
                     $(if ($computerName.Severity -eq 'None') { '' } else { " - {0}: {1}" -f $computerName.Severity, $computerName.Reason }))
 
-                $field = @($field) + @($sequenceChoice.Field) + @($computerName.Field)
+                # THE APPLICATIONS PAGE, AND THE LAST HAND-TYPED LIST IN THE
+                # WIZARD. Applications.xaml carried three CheckBoxes somebody
+                # wrote and admitted it in its own comment; this reads the
+                # share's Applications\ catalog and preticks whatever
+                # HDTApplications already resolved to, so a site that selects
+                # its standard load in rules.yaml shows the technician what
+                # they are about to get rather than an empty page.
+                #
+                # A PROBLEM IS LOGGED AND THE WIZARD STILL OPENS, exactly as
+                # the sequence picker does: one unreadable app.yaml must not
+                # cost the technician the whole screen.
+                $applicationChoice = Get-HDTWizardApplication -WorkspaceRoot $workspaceRoot `
+                    -FileSystem $fileSystem -Variable $resolved.Variable
+
+                foreach ($problem in @($applicationChoice.Problem)) {
+                    & $say ("applications page: {0}" -f $problem) 'Warning'
+                }
+
+                & $say ("applications page: {0} published on the share, {1} already selected" -f
+                    @($applicationChoice.Choice).Count,
+                    @($applicationChoice.Choice | Where-Object { $_.IsSelected }).Count)
+
+                # EVERY OTHER BOX THE RULES CAN ALREADY FILL. MDT prefills its
+                # panes from CustomSettings.ini; every page here except the
+                # computer name came up holding whatever the markup said, so a
+                # share whose rules.yaml had answered a question still showed a
+                # blank box asking it again.
+                #
+                # SEEDED FIRST, SO THE COMMANDS ABOVE WIN. Fields are applied in
+                # order and the last write to a control is what stays, so the
+                # picker, the computer name and the application list overwrite
+                # anything the generic seed put in the same box - they know more
+                # about their own control than a variable lookup does.
+                #
+                # AND IT DOES NOT COST THE PROVENANCE. New-HDTWizardHost
+                # remembers what was seeded and Test-HDTWizardAnswerChanged
+                # drops a value that comes back untouched, so a rule shown to
+                # the technician stays a Rule in the report rather than becoming
+                # a Wizard answer nobody typed.
+                $seed = @(Get-HDTWizardSeed -Page $ask.Page -Variable $resolved.Variable)
+
+                & $say ("prefilled {0} box(es) from the resolved rules" -f @($seed).Count)
+
+                $field = @($seed) + @($field) + @($sequenceChoice.Field) + @($computerName.Field) + @($applicationChoice.Field)
 
                 # HDTBrandingName ON THE RAIL. A technician at a bench is often
                 # looking at two toolkits, and the banner is the fastest way to

@@ -215,10 +215,33 @@
                 <TextBox Grid.Column="0" x:Name="HDTPasswordRevealBox" Width="380"
                          HorizontalAlignment="Left" Visibility="Collapsed" />
 
+                <!--
+                    THE EYE FOLLOWS ITS BOX, and it was the one control in this
+                    half that did not. Every other one here - the OU, the join
+                    account, the password, the account domain - carries the
+                    trigger below; this carried none, so on a WORKGROUP machine
+                    the password box was greyed out and the eye beside it was
+                    live and tabbable. It was also the only thing left from the
+                    domain half in the tab order, which put it between the two
+                    radio buttons where nothing else was.
+
+                    AN ATTRIBUTE, NOT A <Style> LIKE ITS NEIGHBOURS, AND THAT IS
+                    NOT INCONSISTENCY FOR ITS OWN SAKE. A local Style REPLACES
+                    the implicit one, and this control's implicit style is the
+                    theme's ToggleButton template - the one that stops WPF
+                    painting light-on-light chrome over the glyph on hover.
+                    Recovering it would need BasedOn with a StaticResource, and
+                    a share page is parsed DETACHED, where StaticResource throws
+                    (see WinPeUiStack.Contract.Tests). Binding IsEnabled
+                    directly keeps the template and says the same thing: a
+                    RadioButton's IsChecked is bool?, and null reads as false,
+                    which is exactly "not joining a domain".
+                -->
                 <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle" Content="&#x1F441;"
                               Width="36" Height="34" Margin="8,0,0,0"
                               Background="#FF3A3A3C" Foreground="White" BorderThickness="0"
-                              ToolTip="Show the password" />
+                              ToolTip="Show the password"
+                              IsEnabled="{Binding IsChecked, ElementName=HDTJoinDomainRadio}" />
             </Grid>
 
             <!--
@@ -267,7 +290,15 @@
 
             <TextBlock Grid.Column="0" Text="Workgroup" Foreground="#FF8A8A8A"
                        FontSize="13" VerticalAlignment="Center" />
-            <TextBox Grid.Column="1" x:Name="HDTJoinWorkgroupBox" Text="WORKGROUP" MaxLength="15"
+            <!--
+                NO Text="WORKGROUP" ANY MORE, AND THE BOX STILL SAYS IT.
+                rules.yaml's Fallback rule carries HDTJoinWorkgroup: WORKGROUP -
+                MDT's [Default] - and Get-HDTWizardSeed puts it here. A literal
+                in the markup was a second place for the same answer to live and
+                the one nobody would think to change; worse, it looked like a
+                rule and was not one, so the summary offered no line for it.
+            -->
+            <TextBox Grid.Column="1" x:Name="HDTJoinWorkgroupBox" MaxLength="15"
                      Width="380" HorizontalAlignment="Left">
                 <TextBox.Style>
                     <Style TargetType="TextBox">

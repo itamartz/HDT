@@ -187,6 +187,26 @@ Describe 'Assert-HDTWizardDocument' {
             Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page) | Should -Not -BeNullOrEmpty
         }
 
+        It 'accepts select: many, which is how a page of ticks answers' {
+            # THE APPLICATIONS PAGE. Every other collect declaration reads ONE
+            # property off ONE control; a column of tick boxes is none of those,
+            # and the page shipped collecting nothing rather than bending a
+            # single-value declaration into a multi-value one from the markup.
+            $page = "  - id: A`n    reference: a.xaml`n    collect:`n      - control: HDTApplicationList`n        variable: HDTApplications`n        select: many`n"
+
+            Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page) | Should -BeNullOrEmpty
+        }
+
+        It 'rejects a select this engine does not implement, and names the ones it does' {
+            # A definition on a SHARE is authored by an administrator, so an
+            # unknown value is refused with the closed set beside it rather than
+            # ignored - a page that silently collected nothing is exactly the
+            # bug this whole change is fixing.
+            $page = "  - id: A`n    reference: a.xaml`n    collect:`n      - control: HDTApplicationList`n        variable: HDTApplications`n        select: some`n"
+
+            (Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page)).Exception.Message | Should -BeLike '*many*'
+        }
+
         It 'rejects a split with no splitVariable to put the other half in' {
             $page = "  - id: A`n    reference: a.xaml`n    collect:`n      - control: HDTAccountBox`n        variable: HDTDomainAdmin`n        split: AccountName`n"
 

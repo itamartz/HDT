@@ -102,6 +102,19 @@
         # Get-HDTWizardHarvest's list exactly as ShowShell fills it from each
         # page's collect declarations.
         Value  = @{}
+
+        # WHAT WAS PUT IN EACH BOX BEFORE THE TECHNICIAN SAW IT, keyed by
+        # control name. Get-HDTWizardSeed fills the boxes from the resolved
+        # rules - MDT's behaviour - and every value the wizard collects re-enters
+        # the engine as the WIZARD source, the highest precedence in DESIGN 3.1.
+        # Without this, a seeded box nobody touched would be collected as though
+        # somebody had typed it, and the report would say a name was typed at
+        # the bench when a rule on the share produced it.
+        #
+        # ORDINAL-INSENSITIVE ON THE KEY because a control name is a name; the
+        # VALUES are compared case-sensitively, by Test-HDTWizardAnswerChanged.
+        Seed   = (New-Object -TypeName 'System.Collections.Generic.Dictionary[string,string]' -ArgumentList (
+                [System.StringComparer]::OrdinalIgnoreCase))
     }
 
     # EVERYTHING DONE BY NAME, IN ONE PLACE. Both Show and ShowShell fill boxes,
@@ -154,7 +167,26 @@
                 $control.ItemsSource = @($current.Item)
             }
 
+            # A FIELD MAY BE ROWS AND NOTHING ELSE, and until the Applications
+            # page there was no such field so this line ran unconditionally.
+            # It threw "The property 'Text' cannot be found on this object"
+            # while the page was being built - under Set-StrictMode a field
+            # without one is an exception, and an ItemsControl has no Text to
+            # write to even if the field carried an empty one.
+            #
+            # FOUND BY OPENING THE PAGE. Every unit test passed: the field is
+            # built by one command and consumed by an adapter nothing calls
+            # without a window.
+            if ($null -eq $current.PSObject.Properties['Text']) { continue }
+
             $control.$property = [string] $current.Text
+
+            # REMEMBERED, NOT JUST WRITTEN. See $service.Seed above: the harvest
+            # compares against this so a rule shown back is not collected as a
+            # typed answer. Recorded for EVERY field, not only seeds - the task
+            # sequence picker and the computer name box prefill too, and a
+            # technician who accepts what a rule chose did not type it either.
+            $this.Seed[[string] $current.Name] = [string] $current.Text
         }
 
         # WHICH PANES EXIST WAS ALSO DECIDED SOMEWHERE ELSE. Get-HDTWizardSkip
@@ -221,8 +253,8 @@
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane, [scriptblock] $CommandPrompt,
-            [object[]] $Collect, [hashtable] $String)
+        param([string] $Xaml, [string] $ThemeXaml, [string] $Title, [object[]] $Field, [object[]] $Pane,
+            [scriptblock] $CommandPrompt, [object[]] $Collect, [hashtable] $String)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -230,6 +262,25 @@
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $window = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # THE THEME, MERGED THE WAY ShowShell HAS MERGED IT SINCE W2, and the
+        # Welcome screen is the last window to get it. It carried its own inline
+        # copy of every style it needed - the one screen a palette change in
+        # HDTTheme.xaml could not reach - because this method had no theme to
+        # merge. The address boxes stayed 32 high while the theme said 34, and
+        # nothing failed; it just looked slightly wrong on the first screen a
+        # technician sees.
+        #
+        # AFTER THE LOAD, NOT BEFORE, AND THAT ORDER IS LOAD-BEARING TWICE.
+        # A dictionary goes into a window's Resources, so the window has to
+        # exist first - and parsing the theme BEFORE this window would poison
+        # TextBox.IsReadOnly for it as well (see WinPeUiStack.Contract.Tests).
+        # This window is the FIRST XamlReader::Load in the process, so it is
+        # the one window that is always parsed clean.
+        if (-not [string]::IsNullOrWhiteSpace($ThemeXaml)) {
+            $themeReader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $ThemeXaml)
+            $window.Resources.MergedDictionaries.Add([System.Windows.Markup.XamlReader]::Load($themeReader))
+        }
 
         # THE TEXT, BEFORE ANYTHING IS WRITTEN OVER IT. Show-HDTWizard chose the
         # block; this puts it on the window and reads none of it. Apply comes
@@ -462,6 +513,34 @@
             $pageHost.Content = $pageRoot
             $trip.Root = $pageRoot
 
+            # THE CURSOR GOES IN THE FIRST BOX. Nothing here ever called Focus()
+            # and it showed: an STA probe walking MoveFocus found focus on the
+            # WINDOW, with the rail and the page host taking Tab 1 and Tab 2
+            # before a field saw Tab 3. Those two are IsTabStop="False" in the
+            # markup now; this is the other half.
+            #
+            # THE ORDER IS Get-HDTWizardFocus'S, NOT THIS METHOD'S. All that
+            # happens here is taking the first name that answers, is enabled and
+            # will accept focus - Computer Details disables half of itself, so
+            # the first candidate is regularly one that cannot have it.
+            #
+            # ON THE DISPATCHER, AT Loaded PRIORITY. The page has only just been
+            # put into the tree; Focus() before WPF has loaded it silently does
+            # nothing, which is the same screen as never calling it.
+            foreach ($wanted in @(Get-HDTWizardFocus -Page $Current.Page)) {
+
+                $candidate = $pageRoot.FindName([string] $wanted)
+                if ($null -eq $candidate) { continue }
+                if (-not $candidate.IsEnabled) { continue }
+                if (-not $candidate.Focusable) { continue }
+
+                [void] $candidate.Dispatcher.BeginInvoke(
+                    [System.Windows.Threading.DispatcherPriority]::Loaded,
+                    [action] { [void] $candidate.Focus() }.GetNewClosure())
+
+                break
+            }
+
             # THE SUMMARY'S ROWS ARE COMPUTED BY THE NAVIGATOR, NOT HERE. This
             # puts them where the page said to put them and nothing else - the
             # same ItemsSource mechanism the rail uses, for the same reason.
@@ -578,10 +657,44 @@
                 # than restating it in PowerShell.
                 if (-not $control.IsEnabled) { continue }
 
+                # A PAGE OF TICKS, WHICH IS NOT ONE PROPERTY ON ONE CONTROL.
+                # Every declaration below reads a single value; the Applications
+                # page answers with a column, and it shipped collecting NOTHING
+                # rather than have that answer quietly dropped. The join, the
+                # order and what to do with a row carrying no id are decided by
+                # Get-HDTWizardSelection - this reads the rows and assigns.
+                #
+                # ItemsSource, NOT THE VISUAL TREE. The markup binds each
+                # CheckBox TwoWay to its row's IsSelected, so the ticks are on
+                # the objects the host handed over and no walk is needed.
+                if ($null -ne $declaration.PSObject.Properties['Select'] -and
+                    ([string] $declaration.Select) -eq 'many') {
+
+                    $trip.Value[[string] $declaration.Variable] =
+                        Get-HDTWizardSelection -Row @($control.ItemsSource)
+
+                    continue
+                }
+
                 $property = 'Text'
                 if (-not [string]::IsNullOrWhiteSpace([string] $declaration.Property)) { $property = [string] $declaration.Property }
 
                 $raw = [string] $control.$property
+
+                # A RULE SHOWN BACK IS NOT AN ANSWER. The box may have been
+                # seeded from the resolved variables (Get-HDTWizardSeed); if it
+                # comes back exactly as it went in, the technician read it and
+                # moved on, and collecting it would re-enter the value as the
+                # WIZARD source and overwrite the rule's own provenance. The
+                # deployment would be identical and the report would say the
+                # value was typed at the bench. Edit the box - including
+                # clearing it - and it is an answer.
+                $seeded = $null
+                if ($wizardHost.Seed.ContainsKey([string] $declaration.Control)) {
+                    $seeded = [string] $wizardHost.Seed[[string] $declaration.Control]
+                }
+
+                if (-not (Test-HDTWizardAnswerChanged -Seeded $seeded -Answered $raw)) { continue }
 
                 # ONE BOX, TWO VARIABLES. The join account is typed as
                 # CORP\svc-hdt-join and DESIGN 4.5.3 wants HDTDomainAdmin and

@@ -60,7 +60,9 @@
             'Console' or 'Suppressed'), Reason, XamlPath and DisplayHost.
 
         .EXAMPLE
-            $resolved = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolved = Resolve-HDTVariable -Fact $fact
             $progress = New-HDTProgressHost
             $display = Start-HDTProgressDisplay -XamlPath 'X:\HDT\UI\HDTProgress.xaml' -Variable $resolved
 

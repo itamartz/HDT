@@ -236,11 +236,16 @@ than duplicating an existing image; payload staging completeness; provider
 contract tests (`Smb` and `Local` behave identically from a step's
 perspective); refusal to fall back to guest auth.
 
-**Exit:** a VM boots the ISO unattended with no keypress, and a physical or
-virtual machine PXE-boots the same image from WDS and deploys.
+**Exit (v1):** a VM boots the ISO unattended with no keypress and deploys.
 
-**✅ Met — the first half in full, the second half not at all, and the
-difference is stated rather than blurred.**
+~~**and** a physical or virtual machine PXE-boots the same image from WDS.~~
+**MOVED TO v2 by the user on 2026-08-25.** v1 deploys from the ISO, which is
+proven; PXE needs an isolated `HDT-WDS01` that `PROJECT.md` rule 3 will not let
+stand beside CM01's responder, and waiting on lab hardware is not a reason to
+hold v1. `Import-HDTBootImageToWds` and `New-HDTPxePayload` still ship — they
+are scheduled out, not cut, and nothing in v1 assumes they are absent.
+
+**✅ Met, as scoped above.**
 
 `tests/e2e/UnattendedDeployment.E2E.Tests.ps1` builds a boot image with
 `Update-HDTBootImage`, creates `HDT-M4-Deploy` — Generation 2, Secure Boot on,
@@ -292,11 +297,14 @@ all.
 
 **What M4 ships without, stated plainly:**
 
-- **No VM deployed over SMB.** `PROJECT.md` rule 2 keeps test VMs on the isolated
-  `HDT Lab` switch and SPIKES S6 records that a VM there cannot reach a share on
-  the host, so the image declares `provider: Local` and a **volume-relative**
-  `deployRoot`. The `Smb` provider's evidence is 05-02's unit refusals plus its
-  loopback integration run — not a lab deployment.
+- ~~**No VM deployed over SMB.**~~ **CLOSED by SPIKES S14.** This was true of
+  the M4 run above and of every run before it: on the isolated `HDT Lab` switch
+  a VM cannot reach a share on the host (SPIKES S6), so that image declared
+  `provider: Local` and a **volume-relative** `deployRoot`. S14 moved the VM to
+  `HDT External`, which carries a real DHCP lease, and deployed `HDT-SMB-01`
+  through the product with `provider: Smb` and a UNC `deployRoot` — image
+  pulled across the network, logs written back to the share. SMB deployment has
+  since run repeatedly, the wizard E2E included.
 - **No WDS import has ever executed, anywhere in this repository.** This host is
   Windows 11 Pro; `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe`
   both return nothing, and standing WDS up beside `CM01`'s PXE responder is
@@ -304,8 +312,8 @@ all.
   semantics — including "importing the same image twice leaves one image" — are
   asserted against `New-HDTFakeWdsService`. The one thing this machine can prove
   is proven against the real adapter: `New-HDTWdsService` refuses with a named
-  `HDTDependencyError`. **So the second clause of M4's exit criterion above is
-  NOT met**, and no amount of green elsewhere changes that.
+  `HDTDependencyError`. **This is why the PXE clause moved to v2** rather than
+  being carried as an open v1 gap — see the exit criterion above.
 - **The PXE payload is staged and hash-verified but has never been
   network-booted.** `New-HDTPxePayload`'s `Complete` means "every declared file
   is staged and its bytes verify" and **not** "a machine will PXE boot from
@@ -409,11 +417,12 @@ PnP fallback.
   deployment that *failed*, which is the case that matters. This is MDT's
   `AdminPassword`, and it removes a step type rather than adding one.
 
-  **Still outstanding:** `HDTAdminPasswordPolicy` — `keep` (the default) needs no
-  code and is what v1 does today; `rotate`, `laps` and `disable` are DESIGN
-  §4.5.4's way for a sequence to declare a different end state, and none of the
-  three is built. They need a local-account service, so they are a plan of their
-  own rather than a loose end of this one.
+  **`HDTAdminPasswordPolicy` is CUT (user, 2026-08-25), and M6 has no loose end
+  left.** HDT supplies the password as clear text, exactly as MDT does:
+  `HDTAdminPassword` resolves through the rules engine and the deployed machine
+  keeps it. `rotate`, `laps` and `disable` were a local-account service and
+  three more end states to test, for a policy MDT never had — a site that wants
+  LAPS installs LAPS. DESIGN §4.5.4 records the decision.
 - Server task sequence in `samples/`.
 - **`WindowsUpdate` is deferred to v2** — see below.
 

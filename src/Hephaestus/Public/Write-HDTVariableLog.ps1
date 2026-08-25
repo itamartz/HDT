@@ -46,7 +46,9 @@
             $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
                 -WorkspaceRoot 'C:\HDTLab\Share' -Variable ([ordered] @{}) `
                 -Service (New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock) -Log $log
-            $resolution = Resolve-HDTVariable -Rule @() -Fact (Get-HDTMachineFact)
+            $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
+                -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
+            $resolution = Resolve-HDTVariable -Fact $fact
             Write-HDTVariableLog -Context $context -Resolution $resolution
 
             Writes one record per resolved variable, each carrying which source set it.

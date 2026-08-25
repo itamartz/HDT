@@ -5300,10 +5300,14 @@ function New-HDTFakeWizardHost {
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
-        param([string] $Xaml, [string] $Title, [object[]] $Field, [object[]] $Pane,
+        param([string] $Xaml, [string] $ThemeXaml, [string] $Title, [object[]] $Field, [object[]] $Pane,
             [scriptblock] $CommandPrompt, [object[]] $Collect, [hashtable] $String)
 
         $this.LastXaml = $Xaml
+
+        # THE SAME FIELD ShowShell FILLS, because it is the same theme and the
+        # Welcome screen is no longer the one window that could not have it.
+        $this.LastThemeXaml = $ThemeXaml
         $this.LastTitle = $Title
         $this.LastField = @($Field)
         $this.LastPane = @($Pane)

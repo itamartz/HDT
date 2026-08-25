@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'Hephaestus.psm1'
-    ModuleVersion        = '0.6.1'
+    ModuleVersion        = '0.7.0'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
@@ -117,11 +117,15 @@
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
         'Get-HDTWizardField',
+        'Get-HDTWizardFocus',
         'Get-HDTWizardHarvest',
         'Get-HDTDeploymentFailure',
         'Get-HDTFinishAction',
+        'Get-HDTWizardApplication',
         'Get-HDTWizardComputerName',
         'Get-HDTWizardPage',
+        'Get-HDTWizardSeed',
+        'Get-HDTWizardSelection',
         'Get-HDTWizardSequence',
         'Get-HDTWizardSkip',
         'Get-HDTWizardSummary',
@@ -224,6 +228,7 @@
         'Test-HDTApplicationDetection',
         'Test-HDTComputerName',
         'Test-HDTRunStateAbandoned',
+        'Test-HDTWizardAnswerChanged',
         'Test-HDTShareAcl',
         'Test-HDTPowerShellStepApplicable',
         'Test-HDTStepApplicable',
@@ -303,8 +308,8 @@
         # against and bumping on that would move the number for a tree nobody
         # touched.
         HDT = @{
-            SourceHash = '5640D3A193EB49F1EBA7123ACFD0AF99A909698C1BA419AAED0AC62F8D73E3A5'
-            LayoutHash = '5C4B51D657BD00861BB717D1FFB3E571562AEDA2242A032D6C1B95BEC75B2CD6'
+            SourceHash = '9D40F00F9E8D6D6F5E9DD97D6B5DFE9EFD9F11872934A749C34A55D3802648A5'
+            LayoutHash = '17AC2238B39E74E91FC9A3A7539128B1391E88CE3ABBCE13588824A7EF6E3647'
         }
     }
 }

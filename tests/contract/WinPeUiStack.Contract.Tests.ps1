@@ -604,4 +604,99 @@ Describe 'the WinPE UI stack' {
                 'the Ready to Deploy page needs a selectable read-only box and may no longer say so itself')
         }
     }
+
+    Context 'Tab reaches a field, and reaches nothing that is not one' {
+
+        # MEASURED, NOT REASONED ABOUT. An STA probe walked MoveFocus down the
+        # Computer Details page and printed what each Tab landed on:
+        #
+        #   before any Tab:  the Window          <- nothing focused at all
+        #   Tab 1:  HDTPageList    [ItemsControl]   the progress rail
+        #   Tab 2:  HDTPageHost    [ContentControl] the container
+        #   Tab 3:  HDTComputerNameBox              the first real field
+        #
+        # SO A TECHNICIAN PRESSES Tab THREE TIMES TO REACH A BOX ALREADY IN
+        # FRONT OF THEM, and the first two presses land on things that do
+        # nothing when focused. Control.IsTabStop defaults to TRUE, and both of
+        # those inherit it: the rail is a decorative ItemsControl of Borders and
+        # TextBlocks with nothing to click, and the page host is the shell's
+        # ContentControl.
+
+        BeforeAll {
+            $script:shell = @($script:scanned |
+                    Where-Object { $_.Relative -like '*HDTWizardShell.xaml' } |
+                    ForEach-Object {
+                        [pscustomobject] @{
+                            Relative = $_.Relative
+                            Code     = [regex]::Replace($_.Text, '(?s)<!--.*?-->', '')
+                        }
+                    })
+        }
+
+        It 'found the shell, so the two rules below are not vacuous' {
+            @($script:shell).Count | Should -Be 1
+        }
+
+        It 'takes the progress rail out of the tab order' {
+            $script:shell[0].Code | Should -Match 'x:Name="HDTPageList"[^>]*IsTabStop="False"' -Because (
+                'the rail is a picture of progress, not a control - focusing it does nothing')
+        }
+
+        It 'takes the page host out of the tab order' {
+            $script:shell[0].Code | Should -Match 'x:Name="HDTPageHost"[^>]*IsTabStop="False"' -Because (
+                'the container is not the thing being filled in; what is inside it is')
+        }
+    }
+
+    Context 'a control the page disabled is a control Tab skips' {
+
+        # THE EYE WAS THE ONE THAT GOT AWAY. Computer Details disables the whole
+        # domain half when Workgroup is chosen - the OU box, the join account,
+        # the password, the account domain - each with its own DataTrigger. The
+        # password REVEAL toggle carries none, so on a workgroup machine it sits
+        # live and tabbable beside a greyed-out password box, and it was the
+        # only control from that half still in the tab order.
+        #
+        # That is what put it at Tab 5, between the two radio buttons: every
+        # neighbour was correctly skipped and it was not. A disabled box with a
+        # working eye is also just wrong on its own terms.
+
+        BeforeAll {
+            # THE SHARE PAGES ARE OUTSIDE $script:scanned - it covers the module
+            # - and this file has been caught by that before: the markup that
+            # broke a live deployment was under samples\, not src\.
+            $script:detailPath = Join-Path -Path $script:repoRoot `
+                -ChildPath 'samples/workspace/Scripts/UI/ComputerDetail.xaml'
+
+            $script:detail = @()
+            if (Test-Path -LiteralPath $script:detailPath) {
+                $script:detail = @([pscustomobject] @{
+                        Relative = 'samples/workspace/Scripts/UI/ComputerDetail.xaml'
+                        Code     = [regex]::Replace(
+                            [System.IO.File]::ReadAllText($script:detailPath), '(?s)<!--.*?-->', '')
+                    })
+            }
+        }
+
+        It 'found the page, so the rule below is not vacuous' {
+            @($script:detail).Count | Should -Be 1
+        }
+
+        It 'disables the password reveal toggle with the rest of the domain half' {
+            # ASSERTED ON THE TOGGLE'S OWN STYLE, not on the file as a whole:
+            # every other control in that half already matches, so a file-wide
+            # search for IsEnabled would have passed before the fix.
+            # SELF-CLOSING OR NOT. The fix turned this element from a block
+            # with a <ToggleButton.Style> into a one-line binding, and a pattern
+            # that demanded a closing tag would have gone red on the very change
+            # it was written to demand.
+            $toggle = [regex]::Match($script:detail[0].Code,
+                '(?s)<ToggleButton[^>]*x:Name="HDTPasswordRevealToggle"(.*?</ToggleButton>|[^>]*/>)')
+
+            $toggle.Success | Should -BeTrue -Because 'the toggle must still be findable by name'
+            $toggle.Value | Should -Match 'IsEnabled' -Because (
+                'a live eye on a disabled password box is a control that lies, and it is the ' +
+                'only thing from the domain half a workgroup machine can still tab to')
+        }
+    }
 }
