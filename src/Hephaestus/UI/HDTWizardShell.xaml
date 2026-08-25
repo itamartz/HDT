@@ -104,7 +104,16 @@
                     command: a second place the palette is defined, and the
                     first one to drift from HDTTheme.xaml.
                 -->
+                <!--
+                    IsTabStop="False" BECAUSE THIS IS A PICTURE, NOT A CONTROL.
+                    Control.IsTabStop defaults to TRUE and the rail inherited
+                    it, so the FIRST Tab on every page landed here - on an
+                    ItemsControl of Borders and TextBlocks with nothing to
+                    click. Measured with an STA probe walking MoveFocus: Tab 1
+                    the rail, Tab 2 the page host, Tab 3 the first real field.
+                -->
                 <ItemsControl x:Name="HDTPageList" Margin="0,8,0,0"
+                              IsTabStop="False"
                               Background="Transparent" BorderThickness="0">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
@@ -191,7 +200,12 @@
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           Padding="0,0,12,0">
-                <ContentControl x:Name="HDTPageHost" /></ScrollViewer>
+                <!--
+                    AND THE SECOND DEAD STOP. The container is not the thing
+                    being filled in; what is loaded INTO it is, and that is
+                    where Tab should arrive.
+                -->
+                <ContentControl x:Name="HDTPageHost" IsTabStop="False" /></ScrollViewer>
         </Grid>
 
         <!-- ============ the buttons ============ -->

@@ -107,6 +107,7 @@
         'Get-HDTVariableMap',
         'Get-HDTWizardCredential',
         'Get-HDTWizardField',
+        'Get-HDTWizardFocus',
         'Get-HDTWizardHarvest',
         'Get-HDTDeploymentFailure',
         'Get-HDTFinishAction',

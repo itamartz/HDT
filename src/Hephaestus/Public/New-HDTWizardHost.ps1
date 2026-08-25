@@ -493,6 +493,34 @@
             $pageHost.Content = $pageRoot
             $trip.Root = $pageRoot
 
+            # THE CURSOR GOES IN THE FIRST BOX. Nothing here ever called Focus()
+            # and it showed: an STA probe walking MoveFocus found focus on the
+            # WINDOW, with the rail and the page host taking Tab 1 and Tab 2
+            # before a field saw Tab 3. Those two are IsTabStop="False" in the
+            # markup now; this is the other half.
+            #
+            # THE ORDER IS Get-HDTWizardFocus'S, NOT THIS METHOD'S. All that
+            # happens here is taking the first name that answers, is enabled and
+            # will accept focus - Computer Details disables half of itself, so
+            # the first candidate is regularly one that cannot have it.
+            #
+            # ON THE DISPATCHER, AT Loaded PRIORITY. The page has only just been
+            # put into the tree; Focus() before WPF has loaded it silently does
+            # nothing, which is the same screen as never calling it.
+            foreach ($wanted in @(Get-HDTWizardFocus -Page $Current.Page)) {
+
+                $candidate = $pageRoot.FindName([string] $wanted)
+                if ($null -eq $candidate) { continue }
+                if (-not $candidate.IsEnabled) { continue }
+                if (-not $candidate.Focusable) { continue }
+
+                [void] $candidate.Dispatcher.BeginInvoke(
+                    [System.Windows.Threading.DispatcherPriority]::Loaded,
+                    [action] { [void] $candidate.Focus() }.GetNewClosure())
+
+                break
+            }
+
             # THE SUMMARY'S ROWS ARE COMPUTED BY THE NAVIGATOR, NOT HERE. This
             # puts them where the page said to put them and nothing else - the
             # same ItemsSource mechanism the rail uses, for the same reason.
