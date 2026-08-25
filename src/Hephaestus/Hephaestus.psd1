@@ -53,6 +53,8 @@
         'Export-HDTVariableProvenance',
         'Get-HDTAutoLogonState',
         'Get-HDTDriverGroup',
+        'Get-HDTSelectionProfile',
+        'Expand-HDTSelectionProfile',
         'Get-HDTDiskLayout',
         'Get-HDTLogDestination',
         'Get-HDTLogPath',

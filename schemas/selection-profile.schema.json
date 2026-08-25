@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hephaestus/schemas/selection-profile.schema.json",
+  "title": "HDT Control\\selection-profiles.yaml",
+  "description": "The named sets of share folders a boot image, a driver step and standalone media point at - MDT's selection profile, in the format the rest of HDT is authored in. The console, editors and CI validate against this; Assert-HDTSelectionProfileDocument is the gate that runs in WinPE, where Test-Json does not exist.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "profiles"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "profiles": {
+      "description": "Every profile the share declares. The built-ins - all-drivers, everything, nothing - are answered by the engine and are never written here.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/profile"
+      }
+    }
+  },
+  "definitions": {
+    "profile": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "include"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "What workspace.yaml and a sequence step name this profile by. The built-in ids are reserved; Assert-HDTSelectionProfileDocument refuses one that shadows them, which draft-07 cannot express and which is listed as a blind spot in the schema's contract test.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        },
+        "name": {
+          "description": "What the console's picker shows. The id is what documents reference.",
+          "type": "string",
+          "minLength": 1
+        },
+        "include": {
+          "description": "Share-relative folders, each meaning that folder and everything under it. An empty list is legal and is what MDT's Nothing profile is.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/includePath"
+          }
+        }
+      }
+    },
+    "includePath": {
+      "description": "A path RELATIVE to the share whose first segment is a content folder. The boot image build hands what this names to Add-WindowsDriver with -Recurse, so a rooted path or a '..' segment would project whatever it reaches into a WIM transferred to every machine that PXE boots. The pattern refuses a drive, a UNC path, a leading separator and any '..' segment.",
+      "type": "string",
+      "pattern": "^(Applications|OperatingSystems|Drivers|TaskSequences|Scripts)(\\\\[^\\\\/:*?\"<>|]+)*$",
+      "not": {
+        "pattern": "(^|\\\\)\\.\\.(\\\\|$)"
+      }
+    }
+  }
+}
