@@ -281,6 +281,8 @@
         'HDTBootImageSelectionProfileLabel.Text' = 'Selection profile'
         'HDTBootImageSelectionProfileHint.Text' = 'A named set of folders on the share, so one image can carry two vendors'' WinPE packs. Empty means no drivers are injected and WinPE uses what Microsoft ships.'
         'HDTBootImageProfileFolderLabel.Text' = 'This profile injects'
+        'HDTSelectionProfileEditButton.Content' = 'Edit profiles...'
+        'HDTSelectionProfileEditButton.ToolTip' = 'Create a profile, or change which folders one carries'
         'HDTBootImageCustomisations.Header' = 'Customisations'
         'HDTBootImageExtraContentLabel.Text' = 'Extra content'
         'HDTBootImageSourceOnThisMachine.Text' = 'Source, on this machine or the share'
@@ -329,6 +331,28 @@
         'HDTBootstrapRulesReloadButton.ToolTip' = 'Read bootstrap-rules.yaml again and lose what is typed here'
         'HDTBootstrapRulesSaveButton.Content' = 'Save rules'
         'HDTBootstrapRulesSaveButton.ToolTip' = 'Dark while the document would not survive the next boot image build'
+    }
+
+    # The Selection Profiles window: Show-HDTSelectionProfileWindow.
+    SelectionProfile = @{
+
+        'HDTSelectionProfileTitleText.Text' = 'Selection profiles'
+        'HDTSelectionProfileListLabel.Text' = 'Profiles'
+
+        'HDTSelectionProfileNameLabel.Text' = 'Name'
+        'HDTSelectionProfileNewButton.Content' = 'New'
+        'HDTSelectionProfileNewButton.ToolTip' = 'Add a profile to this share'
+        'HDTSelectionProfileRenameButton.Content' = 'Rename'
+        'HDTSelectionProfileRenameButton.ToolTip' = 'Change what the picker shows. The id documents reference stays as it is'
+        'HDTSelectionProfileDeleteButton.Content' = 'Delete'
+        'HDTSelectionProfileDeleteButton.ToolTip' = 'Remove this profile. A boot image still pointing at it will build with no drivers'
+
+        'HDTSelectionProfileIncludeLabel.Text' = 'Included folders'
+        'HDTSelectionProfileIncludeHint.Text' = 'Tick a folder to include it and everything under it. A square means only some of what is under it is ticked.'
+
+        'HDTSelectionProfileSaveButton.Content' = 'Save'
+        'HDTSelectionProfileSaveButton.ToolTip' = 'Write the ticks to Control\selection-profiles.yaml'
+        'HDTSelectionProfileCloseButton.Content' = 'Close'
     }
 
     # THE FIRST SCREEN IN WinPE: Show-HDTWizard on HDTWelcome.xaml. It is the

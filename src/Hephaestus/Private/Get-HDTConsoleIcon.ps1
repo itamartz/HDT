@@ -52,7 +52,7 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -83,6 +83,11 @@
         Application     = [char]::ConvertFromUtf32(0x1F4E6)   # package - one thing that gets installed
         BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
+
+        # A TICK BOX, BECAUSE THAT IS WHAT A PROFILE IS. It is a saved set of
+        # ticks over the share's folders, and the row's picture says so before
+        # anybody opens the window that draws them.
+        SelectionProfile = [string] ([char] 0x2611)           # ballot box with check
         Folder          = [char]::ConvertFromUtf32(0x1F4C1)   # closed folder - it holds things and does nothing itself
         StepGroup       = [char]::ConvertFromUtf32(0x1F4C2)   # open folder - a group holds steps, it does not do anything
         # A GEAR, NOT A TRIANGLE. The first version used a small right triangle,

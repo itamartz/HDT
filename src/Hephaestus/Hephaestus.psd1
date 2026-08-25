@@ -55,6 +55,8 @@
         'Get-HDTDriverGroup',
         'Get-HDTSelectionProfile',
         'Expand-HDTSelectionProfile',
+        'Get-HDTShareContentFolder',
+        'Show-HDTSelectionProfileWindow',
         'New-HDTSelectionProfile',
         'Set-HDTSelectionProfile',
         'Remove-HDTSelectionProfile',

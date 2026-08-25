@@ -94,47 +94,17 @@ function Get-HDTSelectionProfile {
 
     $documentPath = Get-HDTWorkspacePath -Root $Root -Kind Control -ChildPath 'selection-profiles.yaml'
 
-    $all = New-Object -TypeName System.Collections.ArrayList
-
-    foreach ($current in @(Get-HDTSelectionProfileBuiltIn)) {
-        [void] $all.Add([pscustomobject] @{
-                Id        = [string] $current.Id
-                Name      = [string] $current.Name
-                Include   = [string[]] @($current.Include)
-                IsBuiltIn = $true
-                Path      = ''
-            })
-    }
+    # ONE PARSER, SHARED WITH THE CONSOLE'S EDITOR. This reads a share and hands
+    # the lines over; the profile window holds lines it is splicing and hands
+    # those over instead. Two projections would be two answers to "what does this
+    # document say", and the one that mattered would be whichever ran last.
+    $line = [string[]] @()
 
     if ($FileSystem.TestPath($documentPath)) {
-        $text = $FileSystem.ReadAllText($documentPath)
-
-        $document = ConvertFrom-HDTYaml -Yaml $text -Path $documentPath
-        Assert-HDTSelectionProfileDocument -Document $document -Path $documentPath
-
-        # The validator has already refused anything this loop could trip over -
-        # a missing key, a duplicate id, an include that escapes the share - so
-        # this is a projection and not a second set of rules.
-        if (($null -ne $document) -and $document.Contains('profiles') -and ($null -ne $document['profiles'])) {
-            foreach ($entry in @($document['profiles'])) {
-                $include = @()
-                if ($null -ne $entry['include']) { $include = @($entry['include']) }
-
-                [void] $all.Add([pscustomobject] @{
-                        Id        = [string] $entry['id']
-                        Name      = [string] $entry['name']
-                        Include   = [string[]] @($include | ForEach-Object { [string] $_ })
-                        IsBuiltIn = $false
-                        Path      = [string] $documentPath
-                    })
-            }
-        }
+        $line = [string[]] @(($FileSystem.ReadAllText($documentPath)) -split "`r?`n")
     }
 
-    # IN NAME ORDER, for the reason Get-HDTDriverGroup sorts: a list an
-    # administrator scans for a name they half remember has to be somewhere
-    # predictable, and the file system's order is not.
-    $sorted = [pscustomobject[]] @($all | Sort-Object -Property Name)
+    $sorted = [pscustomobject[]] @(Get-HDTSelectionProfileFromLine -Line $line -Path $documentPath)
 
     if (-not $PSBoundParameters.ContainsKey('Id')) { return $sorted }
 

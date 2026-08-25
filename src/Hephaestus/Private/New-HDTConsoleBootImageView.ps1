@@ -234,6 +234,7 @@
         $driverBox = $window.FindName('HDTSelectionProfileBox')
         $driverFolderList = $window.FindName('HDTSelectionProfileFolderList')
         $driverSummary = $window.FindName('HDTSelectionProfileSummaryText')
+        $driverEditButton = $window.FindName('HDTSelectionProfileEditButton')
 
         $contentList = $window.FindName('HDTContentList')
         $contentSource = $window.FindName('HDTContentSourceBox')
@@ -288,6 +289,13 @@
             Line  = [string[]] @($Line)
             Dirty = $false
             View  = $null
+
+            # THE PROFILES, ON THE SHARED OBJECT RATHER THAN CAPTURED FROM THE
+            # PARAMETER. Edit profiles... opens a window that WRITES the
+            # document, so this list goes stale the moment it closes - and a
+            # closure captures a value, not a variable, so re-reading has to
+            # land somewhere every handler already looks.
+            SelectionProfile = [object[]] @($SelectionProfile)
         }
 
         # THE QUERY, AND ONLY ASSIGNMENT AFTER IT. Every value put on a control
@@ -306,7 +314,7 @@
             # through $call. Test-HDTBootImageCertificatePassword above is
             # exported and needs no door.
             $book.View = & $call 'Get-HDTConsoleBootImageSetting' -Line $book.Line -Path $Path `
-                -Component $Component -SelectionProfile $SelectionProfile `
+                -Component $Component -SelectionProfile $book.SelectionProfile `
                 -HasCertificatePassword ([bool] $stored) -TimeZone $TimeZone
             return $book.View
         }.GetNewClosure()
@@ -332,6 +340,7 @@
         }.GetNewClosure()
 
         $driverBox.Add_SelectionChanged({ & $showProfileFolder }.GetNewClosure())
+
 
         $fillBoxes = {
             $view = & $ask
@@ -400,6 +409,55 @@
             $clientCertificateWarning.Text = [string] $view.ClientCertificate.Warning
             $componentSize.Text = [string] $view.SelectedSizeText
         }.GetNewClosure()
+
+        # -- Edit profiles..., which opens the share-wide window ---------------
+        #
+        # WIRED HERE AND NOT BESIDE THE PICKER, because a closure captures a
+        # variable's VALUE: hung before $fillBoxes exists, this handler would
+        # capture $null and do nothing on the one press that matters.
+        #
+        # THE PICKER IS REBUILT AFTER THAT WINDOW CLOSES. A profile created in
+        # there and not offered here until the boot image window was reopened
+        # would look exactly like a save that did not work.
+        #
+        # THE SHARE IS RE-READ RATHER THAN GUESSED AT: that window WRITES the
+        # document, and asking the share what it now says is the only answer
+        # that cannot drift from what the build will inject.
+        $driverEditButton.Add_Click({
+                $chosen = [string] $driverBox.SelectedValue
+                $shareRoot = [string] (Split-Path -Path $Path -Parent)
+
+                try {
+                    [void] (& $call 'Show-HDTSelectionProfileWindow' -Root $shareRoot `
+                            -ConsoleHost $imageHost `
+                            -OwnerWidth ([int] $window.Width) -OwnerHeight ([int] $window.Height))
+
+                    $fresh = @(& $call 'Get-HDTSelectionProfile' -Root $shareRoot)
+
+                    foreach ($one in $fresh) {
+                        $one | Add-Member -NotePropertyName 'Resolved' `
+                            -NotePropertyValue ([object[]] @(& $call 'Expand-HDTSelectionProfile' `
+                                    -Root $shareRoot -Id $one.Id)) -Force
+                    }
+
+                    $book.SelectionProfile = [object[]] @($fresh)
+                } catch {
+                    # A share that cannot be re-read leaves the picker as it was
+                    # rather than emptying it, which would read as "your profiles
+                    # are gone".
+                    return
+                }
+
+                & $fillBoxes
+
+                # $fillBoxes has already put back whatever the DOCUMENT says; this
+                # restores an unsaved choice the administrator had made here.
+                if (-not [string]::IsNullOrEmpty($chosen)) {
+                    $driverBox.SelectedValue = $chosen
+                }
+
+                & $showProfileFolder
+            }.GetNewClosure())
 
         & $fillBoxes
         & $fillLists

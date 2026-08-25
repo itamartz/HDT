@@ -370,6 +370,25 @@
         Present = [bool] $FileSystem.TestPath($driverFolder)
     }
 
+    # -- the selection profiles --------------------------------------------
+    #
+    # WHAT THE DRIVER STORE COULD NOT BE. There is still no driver catalog, but
+    # a selection profile is a document with a reader behind it - so this branch
+    # of the tree can say something an administrator can act on, which is
+    # exactly the test the Drivers node fails.
+    #
+    # A BROKEN DOCUMENT LEAVES THE BRANCH EMPTY RATHER THAN TAKING THE CONSOLE
+    # DOWN. Get-HDTConsoleShareNode draws a row saying so; a share whose profile
+    # document has a typo in it still has five other branches worth opening.
+    $selectionProfile = @()
+    $selectionProfileFailure = ''
+
+    try {
+        $selectionProfile = @(Get-HDTSelectionProfile -Root $root -FileSystem $FileSystem)
+    } catch {
+        $selectionProfileFailure = [string] $_.Exception.Message
+    }
+
     # -- the boot image ----------------------------------------------------
 
     $bootImage = Get-HDTConsoleBootImage -Root $root -BootImage $workspace.BootImage -FileSystem $FileSystem
@@ -411,6 +430,8 @@
         OperatingSystem = [pscustomobject[]] @($osRow)
         Application     = [pscustomobject[]] @($appRow)
         Driver          = $driver
+        SelectionProfile = [object[]] @($selectionProfile)
+        SelectionProfileFailure = $selectionProfileFailure
         BootImage       = $bootImage
 
         # WHAT IS RUNNING ON IT, right now. DESIGN 12 lists Monitoring among the

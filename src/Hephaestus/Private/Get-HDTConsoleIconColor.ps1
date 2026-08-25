@@ -58,7 +58,7 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -92,6 +92,11 @@
         Application     = '#FF0F7B8A'   # teal too: a package is brought in, like media
         BootImage       = '#FF0F7B8A'
         DriverStore     = '#FF0F7B8A'
+
+        # VIOLET, LIKE A TASK SEQUENCE, because a profile is the other thing on
+        # this share an administrator AUTHORS. The teal above is content brought
+        # in from outside; a profile is a decision somebody made about it.
+        SelectionProfile = '#FF8764B8'
         Folder          = '#FFCA5010'   # the amber every other container in this tree uses
         StepGroup       = '#FF8764B8'   # a group belongs to its sequence
         Step            = '#FF6E7781'   # grey-blue: many of them, and none is news

@@ -1258,6 +1258,30 @@
     }
 
     # =====================================================================
+    # THE SELECTION PROFILES WINDOW
+    # =====================================================================
+    #
+    # Workbench's Advanced Configuration \ Selection Profiles. It is reached
+    # from TWO places - the share tree, and the Edit profiles button beside the
+    # Windows PE picker - and both come through here, so there is one window and
+    # not two implementations of it.
+
+    $service | Add-Member -MemberType ScriptMethod -Name ShowSelectionProfile -Value {
+        param(
+            [string] $Xaml, [string] $Root, [string[]] $Line,
+            [object[]] $SelectionProfile, [object[]] $Folder, [object] $Theme, [object] $Size
+        )
+
+        $window = New-HDTConsoleSelectionProfileView -ConsoleHost $this `
+            -Xaml $Xaml -Root $Root -Line $Line -SelectionProfile $SelectionProfile `
+            -Folder $Folder -Theme $Theme -Size $Size
+
+        [void] $window.ShowDialog()
+
+        return [string] $this.Answer
+    }
+
+    # =====================================================================
     # THE BUILD PROGRESS WINDOW
     # =====================================================================
     #

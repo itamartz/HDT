@@ -578,6 +578,72 @@
     # shape as the tree as refreshed. One builder, called from both, is the only
     # arrangement in which they cannot drift.
 
+    # -- selection profiles -------------------------------------------------
+    #
+    # WHERE MDT PUTS THEM: Advanced Configuration, not the Windows PE tab,
+    # because a profile is SHARE-WIDE. DESIGN 13 calls standalone media a content
+    # projection of the share and a selection profile is that projection's
+    # filter, so the same document that picks two vendor WinPE packs for a boot
+    # image picks which applications go on a USB stick.
+    #
+    # THIS IS THE BRANCH THE DRIVERS NODE CANNOT BE. There is still no driver
+    # catalog and Drivers\ says so; a profile is a document with a reader behind
+    # it, so every row here is something an administrator can act on.
+
+    $profileCommand = "Show-HDTSelectionProfileWindow -Root '{0}'" -f $Workspace.Root
+
+    $profileCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
+        -Name 'SelectionProfiles' `
+        -Text ('Selection Profiles ({0})' -f @($Workspace.SelectionProfile).Count) `
+        -Icon (Get-HDTConsoleIcon -Kind 'SelectionProfile' -Status 'Ok') `
+        -Field @(
+        New-HDTConsoleField -Label 'Document' -Value (Get-HDTWorkspacePath -Root $Workspace.Root -Kind Control -ChildPath 'selection-profiles.yaml')
+        New-HDTConsoleField -Label 'Profiles' -Value @($Workspace.SelectionProfile).Count
+    ) `
+        -Command $profileCommand -Header $header
+
+    [void] $node.Add($profileCategory)
+    [void] $shareNode.Children.Add($profileCategory)
+
+    # A DOCUMENT WITH A TYPO IN IT GETS A ROW SAYING SO rather than an empty
+    # branch that reads as "you have no profiles".
+    if (-not [string]::IsNullOrEmpty([string] $Workspace.SelectionProfileFailure)) {
+        $profileFailureRow = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Error' `
+            -Text '(the document could not be read)' `
+            -Field @(
+            New-HDTConsoleField -Label 'Error' -Value ([string] $Workspace.SelectionProfileFailure)
+        ) `
+            -Command $profileCommand -Header $header
+
+        [void] $node.Add($profileFailureRow)
+        [void] $profileCategory.Children.Add($profileFailureRow)
+    }
+
+    foreach ($selection in @($Workspace.SelectionProfile)) {
+        # THE PATHS ARE ON THE ROW, because "which folders is this one" is the
+        # only question anybody opens this branch to answer.
+        $includeText = '(nothing yet)'
+        if (@($selection.Include).Count -gt 0) {
+            $includeText = (@($selection.Include) -join '; ')
+        }
+
+        $kindText = 'authored'
+        if ([bool] $selection.IsBuiltIn) { $kindText = 'built in' }
+
+        $profileRow = New-HDTConsoleNode -Depth 3 -Kind 'SelectionProfile' -Status 'Ok' `
+            -Name ([string] $selection.Id) `
+            -Text ([string] $selection.Name) `
+            -Field @(
+            New-HDTConsoleField -Label 'Id' -Value ([string] $selection.Id)
+            New-HDTConsoleField -Label 'Kind' -Value $kindText
+            New-HDTConsoleField -Label 'Included folders' -Value $includeText
+        ) `
+            -Command $profileCommand -Header $header
+
+        [void] $node.Add($profileRow)
+        [void] $profileCategory.Children.Add($profileRow)
+    }
+
     $monitorCategory = Get-HDTConsoleMonitorNode -Path $Workspace.Root -Header $header `
         -Monitor $Workspace.Monitor
 

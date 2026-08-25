@@ -735,8 +735,27 @@
                             cannot say it in.
                         -->
                         <TextBlock x:Name="HDTBootImageSelectionProfileLabel" Margin="0,0,0,6" />
-                        <ComboBox x:Name="HDTSelectionProfileBox" Width="420" HorizontalAlignment="Left"
-                                  DisplayMemberPath="Display" SelectedValuePath="Name" />
+
+                        <!--
+                            THE SECOND DOOR TO ONE WINDOW. Selection profiles
+                            live in the share tree, where MDT puts them, because
+                            a profile is share-wide. This button is here because
+                            the real first run is "open the picker, find only the
+                            built-ins, need one NOW" - and closing this window to
+                            hunt a tree node is the friction that makes people
+                            type a folder name instead.
+
+                            IT REOPENS THE PICKER AFTER IT CLOSES. A profile
+                            created in that window and not offered in this list
+                            until the boot image window was reopened would look
+                            exactly like a save that did not work.
+                        -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                            <ComboBox x:Name="HDTSelectionProfileBox" Width="420"
+                                      DisplayMemberPath="Display" SelectedValuePath="Name" />
+                            <Button x:Name="HDTSelectionProfileEditButton" Height="26"
+                                    MinWidth="120" Margin="10,0,0,0" />
+                        </StackPanel>
                         <!--
                             NO APPLY AND NO CLEAR HERE EITHER. Save writes what
                             is in the box, and EMPTYING IT IS CLEARING IT - a
