@@ -487,6 +487,14 @@
         # exists - and reselecting by index would leave the highlight where the
         # row USED to be, which is the one thing that makes an arrow unusable:
         # a second press would move a different row.
+        # A CLOSURE, AND IT HAS TO BE. This block reads $startList, $book,
+        # $commandText and $fillLists - all locals of this function - and it is
+        # invoked from { & $move Up }.GetNewClosure(), which captured $move and
+        # NOTHING ELSE. Without this, pressing Up or Down on the Start Command
+        # list threw "the variable '$startList' cannot be retrieved" on the
+        # dispatcher, which takes the window down. Same class as $writeRow and
+        # $drain, found by pressing every button in
+        # tests/unit/ConsoleButtonPress.Tests.ps1.
         $move = {
             param([string] $Direction)
 
@@ -504,7 +512,7 @@
             & $fillLists
 
             $startList.SelectedItem = @($startList.ItemsSource | Where-Object { $_.Text -eq $moved })[0]
-        }
+        }.GetNewClosure()
 
         $startUp.Add_Click({ & $move 'Up' }.GetNewClosure())
         $startDown.Add_Click({ & $move 'Down' }.GetNewClosure())
