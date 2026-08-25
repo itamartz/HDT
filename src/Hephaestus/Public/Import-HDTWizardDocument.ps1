@@ -147,6 +147,13 @@
                     Control          = & $reader 'control'
                     Variable         = & $reader 'variable'
                     Property         = & $reader 'property'
+
+                    # HOW MANY VALUES THE CONTROL ANSWERS WITH. 'many' is a
+                    # column of ticks - the Applications page - and it is the
+                    # one declaration that reads the ROWS rather than a property
+                    # on the control. Absent reads as 'one', which is every
+                    # page written before this existed.
+                    Select           = & $reader 'select'
                     IsSecret         = $isSecret
                     Optional         = $isOptional
                     Split            = & $reader 'split'

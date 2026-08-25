@@ -61,17 +61,23 @@ pages:
         property: Password
         isSecret: true
 
-  # MDT's Applications pane. It declares NO collect, and that is the page being
-  # honest: this file reads one property off one control, and what this page
-  # holds is a column of ticks. The shape that carries them is the next thing
-  # built - a page that silently dropped the answer would be worse than one
-  # that visibly does not carry it yet.
+  # MDT's Applications pane, and the one page that answers with a COLUMN rather
+  # than a value. `select: many` is what says so: the host reads the rows the
+  # list was filled with instead of one property off the control, and joins the
+  # ticked ids the way Invoke-HDTInstallApplicationsStep splits them apart.
+  #
+  # The rows come from Get-HDTWizardApplication - the share's own catalog - so
+  # this file names no application, and neither does the markup.
   - id: Applications
     title: Applications
     heading: Choose what to install
     subheading: Everything published on the share. Nothing ticked is a normal answer.
     reference: Applications.xaml
     skip: HDTSkipApplications
+    collect:
+      - control: HDTApplicationList
+        variable: HDTApplications
+        select: many
 
   - id: LocaleTime
     title: Locale and time

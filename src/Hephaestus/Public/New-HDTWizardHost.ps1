@@ -154,6 +154,18 @@
                 $control.ItemsSource = @($current.Item)
             }
 
+            # A FIELD MAY BE ROWS AND NOTHING ELSE, and until the Applications
+            # page there was no such field so this line ran unconditionally.
+            # It threw "The property 'Text' cannot be found on this object"
+            # while the page was being built - under Set-StrictMode a field
+            # without one is an exception, and an ItemsControl has no Text to
+            # write to even if the field carried an empty one.
+            #
+            # FOUND BY OPENING THE PAGE. Every unit test passed: the field is
+            # built by one command and consumed by an adapter nothing calls
+            # without a window.
+            if ($null -eq $current.PSObject.Properties['Text']) { continue }
+
             $control.$property = [string] $current.Text
         }
 
@@ -596,6 +608,25 @@
                 # so the fact is already on the page and this reads it rather
                 # than restating it in PowerShell.
                 if (-not $control.IsEnabled) { continue }
+
+                # A PAGE OF TICKS, WHICH IS NOT ONE PROPERTY ON ONE CONTROL.
+                # Every declaration below reads a single value; the Applications
+                # page answers with a column, and it shipped collecting NOTHING
+                # rather than have that answer quietly dropped. The join, the
+                # order and what to do with a row carrying no id are decided by
+                # Get-HDTWizardSelection - this reads the rows and assigns.
+                #
+                # ItemsSource, NOT THE VISUAL TREE. The markup binds each
+                # CheckBox TwoWay to its row's IsSelected, so the ticks are on
+                # the objects the host handed over and no walk is needed.
+                if ($null -ne $declaration.PSObject.Properties['Select'] -and
+                    ([string] $declaration.Select) -eq 'many') {
+
+                    $trip.Value[[string] $declaration.Variable] =
+                        Get-HDTWizardSelection -Row @($control.ItemsSource)
+
+                    continue
+                }
 
                 $property = 'Text'
                 if (-not [string]::IsNullOrWhiteSpace([string] $declaration.Property)) { $property = [string] $declaration.Property }

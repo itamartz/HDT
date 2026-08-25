@@ -74,9 +74,18 @@
     $knownRootKey = @('schemaVersion', 'title', 'pages')
 
     $knownPageKey = @('id', 'title', 'heading', 'subheading', 'reference', 'skip', 'validate', 'summary', 'collect')
-    $knownCollectKey = @('control', 'variable', 'property', 'isSecret', 'optional', 'split', 'splitVariable', 'splitDefaultFrom')
+    $knownCollectKey = @('control', 'variable', 'property', 'isSecret', 'optional', 'select', 'split', 'splitVariable', 'splitDefaultFrom')
 
     $knownProperty = @('Text', 'SelectedValue', 'Password', 'IsChecked')
+
+    # HOW MANY VALUES ONE CONTROL ANSWERS WITH, and 'many' is the whole reason
+    # the Applications page could not collect anything. Every declaration above
+    # reads ONE property off ONE control; a column of tick boxes is none of
+    # those, and the page shipped uncollected rather than have its answer
+    # silently dropped. 'many' reads the rows themselves - Id and IsSelected -
+    # and joins the ticked ids the way Invoke-HDTInstallApplicationsStep splits
+    # them apart again.
+    $knownSelect = @('one', 'many')
     $knownRule = @('ComputerName')
     $knownSplit = @('AccountName')
 
@@ -255,6 +264,11 @@
                 if ($collect.Contains('property') -and $knownProperty -notcontains [string] $collect['property']) {
                     & $fail ("the page '{0}' reads '{1}' from a control, which the host cannot read. The properties are {2}." -f
                         $id, [string] $collect['property'], ($knownProperty -join ', '))
+                }
+
+                if ($collect.Contains('select') -and $knownSelect -notcontains [string] $collect['select']) {
+                    & $fail ("the page '{0}' selects '{1}', which this engine does not implement. The values are {2}." -f
+                        $id, [string] $collect['select'], ($knownSelect -join ', '))
                 }
 
                 if ($collect.Contains('split') -and -not [string]::IsNullOrWhiteSpace([string] $collect['split'])) {

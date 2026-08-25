@@ -150,6 +150,14 @@
                 "optional": {
                   "description": "The skip check does not demand this one. For a page with two mutually exclusive halves - MDT's Computer Details offers a domain OR a workgroup - only the half the machine is getting has to be supplied.",
                   "type": "boolean"
+                },
+                "select": {
+                  "description": "How many values this control answers with. 'one' - the default - reads the named property off the control. 'many' reads every row of an ItemsControl and joins the ids of the ticked ones with ', ', which is what the Applications page needs and what Invoke-HDTInstallApplicationsStep splits back apart. The rows carry Id and IsSelected by convention, the way a picker's rows carry SelectedValuePath.",
+                  "type": "string",
+                  "enum": [
+                    "one",
+                    "many"
+                  ]
                 }
               }
             }

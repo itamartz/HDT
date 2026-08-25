@@ -1038,7 +1038,29 @@ try {
                 & $say ("computer name: '{0}' from {1}{2}" -f $computerName.Value, $computerName.Source,
                     $(if ($computerName.Severity -eq 'None') { '' } else { " - {0}: {1}" -f $computerName.Severity, $computerName.Reason }))
 
-                $field = @($field) + @($sequenceChoice.Field) + @($computerName.Field)
+                # THE APPLICATIONS PAGE, AND THE LAST HAND-TYPED LIST IN THE
+                # WIZARD. Applications.xaml carried three CheckBoxes somebody
+                # wrote and admitted it in its own comment; this reads the
+                # share's Applications\ catalog and preticks whatever
+                # HDTApplications already resolved to, so a site that selects
+                # its standard load in rules.yaml shows the technician what
+                # they are about to get rather than an empty page.
+                #
+                # A PROBLEM IS LOGGED AND THE WIZARD STILL OPENS, exactly as
+                # the sequence picker does: one unreadable app.yaml must not
+                # cost the technician the whole screen.
+                $applicationChoice = Get-HDTWizardApplication -WorkspaceRoot $workspaceRoot `
+                    -FileSystem $fileSystem -Variable $resolved.Variable
+
+                foreach ($problem in @($applicationChoice.Problem)) {
+                    & $say ("applications page: {0}" -f $problem) 'Warning'
+                }
+
+                & $say ("applications page: {0} published on the share, {1} already selected" -f
+                    @($applicationChoice.Choice).Count,
+                    @($applicationChoice.Choice | Where-Object { $_.IsSelected }).Count)
+
+                $field = @($field) + @($sequenceChoice.Field) + @($computerName.Field) + @($applicationChoice.Field)
 
                 # HDTBrandingName ON THE RAIL. A technician at a bench is often
                 # looking at two toolkits, and the banner is the fastest way to
