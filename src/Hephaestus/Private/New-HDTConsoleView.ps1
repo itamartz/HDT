@@ -843,6 +843,8 @@
         $applicationDependency = $window.FindName('HDTApplicationDependencyMenuItem')
         $applicationDetection = $window.FindName('HDTApplicationDetectionMenuItem')
         $selectionProfileItem = $window.FindName('HDTSelectionProfileMenuItem')
+        $newDriverFolderItem = $window.FindName('HDTNewDriverFolderMenuItem')
+        $importDriverItem = $window.FindName('HDTImportDriverMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1038,7 +1040,16 @@
                         # cancelled the whole menu for a kind it did not know.
                         $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
                             -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
-                            -HasFolderAction ([bool] $onFolderRow)
+                            -HasFolderAction ([bool] $onFolderRow) `
+                            -DriverPath ([string] $chosen.Name)
+
+                        $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
+                        $importDriverItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        if ($menuRow.IsDriverRow) {
+                            $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
+                            $importDriverItem.Visibility = [System.Windows.Visibility]::Visible
+                        }
 
                         if ($menuRow.IsSelectionProfile) {
                             $selectionProfileItem.Visibility = [System.Windows.Visibility]::Visible
@@ -1514,7 +1525,14 @@
                     Add-Type -AssemblyName PresentationFramework
 
                     $ask = New-Object -TypeName System.Windows.Window
-                    $ask.Icon = Get-HDTConsoleWindowIcon
+                    # THROUGH THE DOOR, because this prompt is reached from
+                    # closures. A closure resolves commands in the session state
+                    # it was rebound to - the console's - where a PRIVATE
+                    # function does not exist, so naming it directly here threw
+                    # "'Get-HDTConsoleWindowIcon' is not recognized" out of a
+                    # menu click and took the whole window down with it. See
+                    # Get-HDTHandlerCall.
+                    $ask.Icon = & $call 'Get-HDTConsoleWindowIcon'
                     $ask.Title = $Title
                     $ask.Width = 440
                     $ask.SizeToContent = [System.Windows.SizeToContent]::Height
@@ -1563,6 +1581,119 @@
 
                     return ([string] $entry.Text).Trim()
                 }.GetNewClosure()
+
+                # -- the driver store's two, which are MDT's ------------------
+                #
+                # WIRED HERE BECAUSE $askForFolder HAS TO EXIST FIRST. A closure
+                # captures a variable's VALUE, so a handler hung above it would
+                # capture $null and do nothing on the one press that matters.
+                #
+                # NO WINDOW OF THEIR OWN. New Folder needs one string and the
+                # console already has a prompt for exactly that; Import needs a
+                # folder and the boot image window already browses for one. A
+                # third dialog would be a third thing to keep in step.
+                $newDriverFolderItem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        # AND IT SAYS SO RATHER THAN DOING NOTHING, which this
+                        # console has a rule about and which this handler broke:
+                        # the Drivers category carried no Subject, so both items
+                        # appeared and neither did anything, twice, before
+                        # somebody reported it as broken.
+                        $where = [string] $chosen.Subject
+                        if ([string]::IsNullOrWhiteSpace($where)) {
+                            $command.Text = 'that row does not name a share, so there is no driver store to add to.'
+                            return
+                        }
+
+                        $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                            -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
+                            -DriverPath ([string] $chosen.Name)
+
+                        # THE PARENT IS THE ROW IT WAS ASKED ON, which is what
+                        # makes one item serve both "at the top of the store" and
+                        # "inside this vendor folder".
+                        $parent = [string] $menuRow.DriverParent
+
+                        $prompt = 'A folder in the driver store. Vendor WinPE packs usually go under WinPE\, model packs under the Make.'
+                        if (-not [string]::IsNullOrWhiteSpace($parent)) {
+                            $prompt = 'A folder inside {0}.' -f $parent
+                        }
+
+                        $typed = & $askForFolder 'New Folder' $prompt @() ''
+
+                        if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                        $path = $typed
+                        if (-not [string]::IsNullOrWhiteSpace($parent)) {
+                            $path = [System.IO.Path]::Combine($parent, $typed)
+                        }
+
+                        try {
+                            $made = & $call 'New-HDTDriverFolder' @{
+                                Root = $where; Path = $path; Confirm = $false
+                            }
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        & $rebuildTree
+
+                        $command.Text = "New-HDTDriverFolder -Root '{0}' -Path '{1}'" -f $where, [string] $made.Path
+                    }.GetNewClosure())
+
+                $importDriverItem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        $where = [string] $chosen.Subject
+                        if ([string]::IsNullOrWhiteSpace($where)) {
+                            $command.Text = 'that row does not name a share, so there is nowhere to import to.'
+                            return
+                        }
+
+                        $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                            -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
+                            -DriverPath ([string] $chosen.Name)
+
+                        $parent = [string] $menuRow.DriverParent
+
+                        # SHELL COM, NOT System.Windows.Forms - a contract test
+                        # says so, because System.Windows.Forms is not guaranteed
+                        # by WinPE-NetFx and the rule is file-blind on purpose.
+                        $shell = New-Object -ComObject Shell.Application
+                        $picked = $shell.BrowseForFolder(0, 'Choose the folder the vendor pack was extracted into', 0)
+
+                        if ($null -eq $picked) { return }
+
+                        $source = [string] $picked.Self.Path
+                        if ([string]::IsNullOrWhiteSpace($source)) { return }
+
+                        # THE FOLDER IT LANDS IN IS NAMED AFTER THE PACK unless
+                        # the row already is one. Importing onto the store root
+                        # would tip a vendor's whole tree in beside the others.
+                        $path = $parent
+
+                        if ([string]::IsNullOrWhiteSpace($path)) {
+                            $path = [string] (Split-Path -Path $source -Leaf)
+                        }
+
+                        try {
+                            $imported = & $call 'Import-HDTDriver' @{
+                                Root = $where; Path = $path; Source = $source; Confirm = $false
+                            }
+                        } catch {
+                            $command.Text = [string] $_.Exception.Message
+                            return
+                        }
+
+                        & $rebuildTree
+
+                        $command.Text = "Import-HDTDriver -Root '{0}' -Path '{1}' -Source '{2}'   # {3} driver(s)" -f
+                            $where, [string] $imported.Path, $source, [int] $imported.DriverCount
+                    }.GetNewClosure())
 
                 $newFolder.Add_Click({
                         $chosen = $tree.SelectedItem

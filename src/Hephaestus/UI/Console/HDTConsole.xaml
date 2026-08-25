@@ -382,6 +382,14 @@
                              about. -->
                         <MenuItem x:Name="HDTSelectionProfileMenuItem" />
 
+                        <!-- WORKBENCH'S Out-of-Box Drivers ACTIONS, on the
+                             category and on every folder in the store. A vendor
+                             WinPE pack goes under WinPE\ and a model pack under
+                             a Make, so the row somebody right-clicks is the
+                             parent they meant. -->
+                        <MenuItem x:Name="HDTNewDriverFolderMenuItem" />
+                        <MenuItem x:Name="HDTImportDriverMenuItem" />
+
                         <!--
                             WORKBENCH'S FOLDERS. MDT nests task sequences and
                             operating systems into real directories under

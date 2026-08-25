@@ -97,14 +97,26 @@ function Get-HDTConsoleTreeMenuRow {
     # it. MDT hangs New Folder and Import Drivers off both, and for the reason it
     # does: a vendor pack goes under WinPE\, and a model pack goes under a Make -
     # so the row you right-click is the parent you meant.
+    # A DRIVER FOLDER IS ITS OWN KIND, not a Folder with a telltale path. They
+    # look alike and are not: Delete Folder edits a folder: LABEL in a task
+    # sequence or an application document, and a driver folder is a real
+    # directory - so while they shared a Kind, every folder in the driver store
+    # was offered an action that would have edited the wrong thing entirely.
     $isDriverCategory = (($Kind -eq 'Category') -and ($Name -eq 'Drivers'))
-    $isDriverFolder = (($Kind -eq 'Folder') -and ($DriverPath -like 'Drivers\*'))
+    $isDriverFolder = ($Kind -eq 'DriverFolder')
     $isDriverRow = ($isDriverCategory -or $isDriverFolder)
 
     # WHERE A NEW FOLDER OR AN IMPORT LANDS, relative to Drivers\. The category
     # is the store's root, so it contributes nothing to the path.
     $under = ''
-    if ($isDriverFolder) { $under = ($DriverPath -replace '^Drivers\\', '') }
+    # THE ROW'S OWN NAME CARRIES IT - 'Drivers\WinPE' - so -DriverPath is only a
+    # fallback for a caller that has the path and not the row.
+    if ($isDriverFolder) {
+        $source = $Name
+        if ([string]::IsNullOrWhiteSpace($source)) { $source = $DriverPath }
+
+        $under = ($source -replace '^Drivers\\', '')
+    }
 
     $opens = ($offers -contains $Kind) -or $isSelectionProfile -or $isDriverRow -or $HasFolderAction
 

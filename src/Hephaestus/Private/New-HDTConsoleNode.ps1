@@ -88,7 +88,7 @@
 
         [Parameter(Mandatory = $true)]
         [ValidateSet('Root', 'Share', 'Category', 'Folder', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'SelectionProfile', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'DriverFolder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true)]

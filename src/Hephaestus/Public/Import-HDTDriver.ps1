@@ -121,7 +121,10 @@ function Import-HDTDriver {
         }
     }
 
-    Copy-HDTContentTree -Source $Source -Destination $full -FileSystem $FileSystem
+    # [void], BECAUSE IT RETURNS THE FILES IT COPIED. Left unswallowed they join
+    # this command's output, and the caller gets an ARRAY whose last element is
+    # the result object - so '.DriverCount' is a property that cannot be found.
+    [void] (Copy-HDTContentTree -Source $Source -Destination $full -FileSystem $FileSystem)
 
     return [pscustomobject] @{
         Path        = $Path

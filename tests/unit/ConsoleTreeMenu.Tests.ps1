@@ -108,7 +108,7 @@ Describe 'Get-HDTConsoleTreeMenuRow' {
         }
 
         It 'is on a folder inside the store' {
-            $row = & $script:ask 'Folder' 'Drivers\WinPE' $false 'Drivers\WinPE'
+            $row = & $script:ask 'DriverFolder' 'Drivers\WinPE' $false 'Drivers\WinPE'
 
             $row.IsDriverRow | Should -BeTrue
         }
@@ -128,12 +128,12 @@ Describe 'Get-HDTConsoleTreeMenuRow' {
         }
 
         It 'puts it under the folder that was right-clicked' {
-            (& $script:ask 'Folder' 'Drivers\WinPE' $false 'Drivers\WinPE').DriverParent |
+            (& $script:ask 'DriverFolder' 'Drivers\WinPE' $false 'Drivers\WinPE').DriverParent |
                 Should -BeExactly 'WinPE'
         }
 
         It 'keeps a nested path whole' {
-            (& $script:ask 'Folder' 'Drivers\Dell\Latitude 7450' $false 'Drivers\Dell\Latitude 7450').DriverParent |
+            (& $script:ask 'DriverFolder' 'Drivers\Dell\Latitude 7450' $false 'Drivers\Dell\Latitude 7450').DriverParent |
                 Should -BeExactly 'Dell\Latitude 7450'
         }
     }

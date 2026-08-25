@@ -58,7 +58,7 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'SelectionProfile', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -97,6 +97,7 @@
         # this share an administrator AUTHORS. The teal above is content brought
         # in from outside; a profile is a decision somebody made about it.
         SelectionProfile = '#FF8764B8'
+        DriverFolder    = '#FFCA5010'   # a container, like the amber ones below
         Folder          = '#FFCA5010'   # the amber every other container in this tree uses
         StepGroup       = '#FF8764B8'   # a group belongs to its sequence
         Step            = '#FF6E7781'   # grey-blue: many of them, and none is news

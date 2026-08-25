@@ -60,6 +60,8 @@
         # it is the manager, because that row already exists.
         'HDTSelectionProfileMenuItem.Header' = 'Selection Profiles'
         'HDTSelectionProfileMenuItem.NewHeader' = 'New Selection Profile'
+        'HDTNewDriverFolderMenuItem.Header' = 'New Folder'
+        'HDTImportDriverMenuItem.Header' = 'Import Drivers'
         'HDTConsoleDetailLabel.Text' = 'Details'
         'HDTConsoleCommandLabel.Text' = 'Command'
         'HDTApplyButton.Content' = 'Apply'

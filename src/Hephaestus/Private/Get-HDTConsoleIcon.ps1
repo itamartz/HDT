@@ -52,7 +52,7 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'SelectionProfile', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -90,6 +90,10 @@
         # this row OPENS. An icon that offers an interaction the row does not
         # have is worse than a dull one, because somebody clicks it to find out.
         SelectionProfile = [char]::ConvertFromUtf32(0x1F4CB)   # clipboard - a saved list of folders
+        # THE STORE'S OWN FOLDERS ARE THEIR OWN KIND. They look like folders and
+        # are not: Delete Folder edits a folder: LABEL in a document, and a driver
+        # folder is a real directory - so a shared Kind offered the wrong action.
+        DriverFolder    = [char]::ConvertFromUtf32(0x1F4C1)   # closed folder, like any container
         Folder          = [char]::ConvertFromUtf32(0x1F4C1)   # closed folder - it holds things and does nothing itself
         StepGroup       = [char]::ConvertFromUtf32(0x1F4C2)   # open folder - a group holds steps, it does not do anything
         # A GEAR, NOT A TRIANGLE. The first version used a small right triangle,

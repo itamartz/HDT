@@ -423,13 +423,19 @@
 
     $driverCommand = "Get-HDTWorkspacePath -Root '{0}' -Kind Drivers" -f $Workspace.Root
 
+    # NAMED AND CARRYING THE SHARE. The window tells this category from the other
+    # five by NAME to hang New Folder and Import Drivers off it, and both of
+    # those need the share root - which arrives as Subject. Without it the
+    # handlers read an empty root and return, so right-clicking offered two items
+    # that did nothing.
     $driverCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' -Text 'Drivers' `
+        -Name 'Drivers' `
         -Icon (Get-HDTConsoleIcon -Kind 'DriverStore' -Status 'Ok') `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $Workspace.Driver.Folder
         New-HDTConsoleField -Label 'Folder exists' -Value (Get-HDTConsoleFlagText -Value $Workspace.Driver.Present)
     ) `
-        -Command $driverCommand -Header $header
+        -Command $driverCommand -Header $header -Subject $Workspace.Root
 
     [void] $node.Add($driverCategory)
     [void] $shareNode.Children.Add($driverCategory)
@@ -466,7 +472,7 @@
         # 'Drivers\WinPE\Dell WinPE 11 x64' is depth 2 under Drivers\, and the
         # row's Depth has to put it under its parent rather than under the
         # category - or a two-level store draws as a flat list.
-        $folderRow = New-HDTConsoleNode -Depth (2 + [int] $folder.Depth) -Kind 'Folder' -Status 'Ok' `
+        $folderRow = New-HDTConsoleNode -Depth (2 + [int] $folder.Depth) -Kind 'DriverFolder' -Status 'Ok' `
             -Name ([string] $folder.Path) `
             -Text ('{0} ({1})' -f [string] $folder.Name, [int] $folder.InfCount) `
             -Field @(
