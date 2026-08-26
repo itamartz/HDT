@@ -163,10 +163,39 @@
         return $node
     }
 
+    # WHERE EACH FOLDER SITS AMONG ITS SIBLINGS, as workspace.yaml declared it.
+    #
+    # A folder here is a label in an ORDERED YAML list, not a directory - so the
+    # order already exists and this used to throw it away, sorting every level by
+    # name. That is what made Up and Down impossible to offer: the two buttons
+    # move a folder in that list, and nothing on screen would have moved.
+    #
+    # A FOLDER NOBODY DECLARED HAS NO POSITION TO HONOUR. It exists because a
+    # document names it, which nobody chose an order for, so it takes MaxValue
+    # and falls in after the arranged ones, alphabetically among its own kind.
+    $rank = @{}
+    $at = 0
+
+    foreach ($current in @($empty)) {
+        $path = ([string] $current).Trim()
+        if (-not $rank.ContainsKey($path)) { $rank[$path] = $at }
+        $at++
+    }
+
+    $rankOf = {
+        param([object] $Node)
+
+        $path = ''
+        if ($null -ne $Node.PSObject.Properties['FolderPath']) { $path = [string] $Node.FolderPath }
+
+        if ($rank.ContainsKey($path)) { return [int] $rank[$path] }
+        return [int]::MaxValue
+    }
+
     # THE DECLARED ONES FIRST, so a folder with nothing in it is built before any
     # row can decide the order - and $ensure builds each path once, so a folder
     # that is both declared and named by a row is one node.
-    foreach ($current in @($empty | Sort-Object)) { [void] (& $ensure ([string] $current).Trim()) }
+    foreach ($current in @($empty)) { [void] (& $ensure ([string] $current).Trim()) }
 
     foreach ($current in @($filed | Sort-Object -Property @{ Expression = { & $folderOf $_ } }, Text)) {
         $path = & $folderOf $current
@@ -176,15 +205,43 @@
         [void] $parent.Children.Add($current)
     }
 
-    # NAME ORDER, AT EVERY LEVEL, so editing a document does not reshuffle the
-    # tree - the order rows arrive in is the order the share enumerated them.
-    $ordered = @($topFolder | Sort-Object -Property Text)
+    # DECLARED ORDER, THEN NAME ORDER, AT EVERY LEVEL. The share's own arrangement
+    # first; everything it never positioned falls in behind it alphabetically, so
+    # editing a document still does not reshuffle the tree.
+    $ordered = @($topFolder | Sort-Object -Property @{ Expression = { & $rankOf $_ } }, Text)
 
     foreach ($node in @($made.Values)) {
-        $sorted = @($node.Children | Sort-Object -Property @{ Expression = { [string] $_.Kind -ne 'Folder' } }, Text)
+        # FOLDERS ABOVE ITEMS IS UNCHANGED - it is the first key here as it was
+        # before. Items stay in name order; only the folders were ever arranged.
+        $sorted = @($node.Children | Sort-Object -Property `
+                @{ Expression = { [string] $_.Kind -ne 'Folder' } }, `
+                @{ Expression = { & $rankOf $_ } }, `
+                Text)
 
         $node.Children.Clear()
         foreach ($child in $sorted) { [void] $node.Children.Add($child) }
+    }
+
+    # WHERE EACH FOLDER SITS AMONG ITS OWN KIND, stamped while the order is
+    # known. Move Up and Move Down are offered on a ROW, and a menu that had to
+    # work out a row's neighbours would have to re-read the share to do it -
+    # 400ms on the lab share, in front of a menu meant to appear under the
+    # pointer. Here it is two integers and free.
+    $stamp = {
+        param([object[]] $Sibling)
+
+        $count = @($Sibling).Count
+
+        for ($index = 0; $index -lt $count; $index++) {
+            $Sibling[$index] | Add-Member -MemberType NoteProperty -Name 'FolderIndex' -Value $index -Force
+            $Sibling[$index] | Add-Member -MemberType NoteProperty -Name 'FolderSiblingCount' -Value $count -Force
+        }
+    }
+
+    & $stamp ([object[]] @($ordered))
+
+    foreach ($node in @($made.Values)) {
+        & $stamp ([object[]] @($node.Children | Where-Object { [string] $_.Kind -eq 'Folder' }))
     }
 
     $top = [object[]] @(@($ordered) + @($loose))

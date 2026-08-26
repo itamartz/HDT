@@ -163,6 +163,57 @@ Describe 'Group-HDTConsoleFolderRow' {
         }
     }
 
+    # THE ORDER workspace.yaml DECLARES, HONOURED.
+    #
+    # A folder here is a label in an ordered YAML list, not a directory - so the
+    # list already has an order and the tree threw it away, sorting every level
+    # alphabetically. That made Up and Down impossible to offer: there was
+    # nothing on screen for them to change. Declaration order is what those two
+    # buttons move.
+    #
+    # UNDECLARED FOLDERS STILL SORT BY NAME, and they come after the declared
+    # ones. A folder that exists only because a document names it was never
+    # positioned by anybody, so there is no order to honour - and putting them
+    # last keeps the ones somebody DID arrange where they were put.
+    Context 'the order the share declared' {
+
+        It 'draws top-level folders in the order workspace.yaml lists them' {
+            $grouped = Group-HDTTestRow -Row @() -EmptyFolder @('Servers', 'Clients', 'Kiosks')
+
+            @($grouped.TopLevel | ForEach-Object { [string] $_.Text }) |
+                Should -Be @('Servers', 'Clients', 'Kiosks')
+        }
+
+        It 'draws a folder''s children in that order too' {
+            $grouped = Group-HDTTestRow -Row @() -EmptyFolder @(
+                'Clients', 'Clients\Laptops', 'Clients\Desktops')
+
+            @(@($grouped.TopLevel)[0].Children | ForEach-Object { [string] $_.Text }) |
+                Should -Be @('Laptops', 'Desktops')
+        }
+
+        It 'puts a folder nobody declared after the ones somebody arranged' {
+            # 'Kiosks' arrives only because a row is filed in it.
+            $grouped = Group-HDTTestRow -Row @(
+                (New-HDTTestRow -Text 'KIOSK-01' -Folder 'Kiosks')
+            ) -EmptyFolder @('Servers', 'Clients')
+
+            @($grouped.TopLevel | ForEach-Object { [string] $_.Text }) |
+                Should -Be @('Servers', 'Clients', 'Kiosks')
+        }
+
+        It 'still keeps folders above items at the same level' {
+            # The user chose to leave ITEMS sorted by name; what changes is where
+            # the FOLDERS sit relative to each other, not the folders-first rule.
+            $grouped = Group-HDTTestRow -Row @(
+                (New-HDTTestRow -Text 'AAA-LOOSE' -Folder 'Clients')
+            ) -EmptyFolder @('Clients', 'Clients\Laptops')
+
+            @(@($grouped.TopLevel)[0].Children | ForEach-Object { [string] $_.Text }) |
+                Should -Be @('Laptops', 'AAA-LOOSE')
+        }
+    }
+
     Context 'the flat list the tree binds to' {
 
         It 'returns every node once, parents before their children' {

@@ -1,4 +1,4 @@
-function Get-HDTConsolePartitionTypeText {
+function Get-HDTPartitionTypeText {
     <#
         .SYNOPSIS
             A built-in layout's partition type, as the word an author writes.
@@ -30,7 +30,7 @@ function Get-HDTConsolePartitionTypeText {
             System.String - EFI, Recovery or Primary.
 
         .EXAMPLE
-            Get-HDTConsolePartitionTypeText -Partition (Get-HDTDiskLayout -Name uefi-standard).Partition[0]
+            Get-HDTPartitionTypeText -Partition (Get-HDTDiskLayout -Name uefi-standard).Partition[0]
     #>
     [CmdletBinding()]
     [OutputType([string])]

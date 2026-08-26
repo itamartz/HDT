@@ -1,4 +1,4 @@
-function Get-HDTConsolePartitionSizeText {
+function Get-HDTPartitionSizeText {
     <#
         .SYNOPSIS
             A built-in layout's partition size, written the way an author would
@@ -29,7 +29,7 @@ function Get-HDTConsolePartitionSizeText {
             System.String
 
         .EXAMPLE
-            Get-HDTConsolePartitionSizeText -Partition (Get-HDTDiskLayout -Name uefi-standard).Partition[0]
+            Get-HDTPartitionSizeText -Partition (Get-HDTDiskLayout -Name uefi-standard).Partition[0]
     #>
     [CmdletBinding()]
     [OutputType([string])]

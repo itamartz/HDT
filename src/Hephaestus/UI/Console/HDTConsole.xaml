@@ -412,6 +412,19 @@
                         <MenuItem x:Name="HDTNewFolderMenuItem" />
                         <MenuItem x:Name="HDTMoveToFolderMenuItem" />
                         <MenuItem x:Name="HDTDeleteFolderMenuItem" />
+
+                        <!--
+                            UP AND DOWN, ON A FOLDER AND NOT ON AN ITEM.
+                            A folder is an entry in an ordered list in
+                            workspace.yaml, so where it sits is something
+                            somebody chose - and until this shipped the tree
+                            sorted every level by name and threw that choice
+                            away. An ITEM has no declared position: a task
+                            sequence is a directory on the share, so offering to
+                            move one would promise an order nothing could keep.
+                        -->
+                        <MenuItem x:Name="HDTMoveFolderUpMenuItem" />
+                        <MenuItem x:Name="HDTMoveFolderDownMenuItem" />
                     </ContextMenu>
                 </TreeView.ContextMenu>
 

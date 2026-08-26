@@ -915,6 +915,8 @@
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
         $deleteFolder = $window.FindName('HDTDeleteFolderMenuItem')
+        $folderUp = $window.FindName('HDTMoveFolderUpMenuItem')
+        $folderDown = $window.FindName('HDTMoveFolderDownMenuItem')
         $folderSeparator = $window.FindName('HDTFolderMenuSeparator')
 
         if ($null -ne $newSequence) {
@@ -1071,9 +1073,24 @@
                         $moveToFolder.Visibility = [System.Windows.Visibility]::Collapsed
                         $deleteFolder.Visibility = [System.Windows.Visibility]::Collapsed
                         $folderSeparator.Visibility = [System.Windows.Visibility]::Collapsed
+                        $folderUp.Visibility = [System.Windows.Visibility]::Collapsed
+                        $folderDown.Visibility = [System.Windows.Visibility]::Collapsed
 
                         if ($folderAction.CanCreate) { $newFolder.Visibility = [System.Windows.Visibility]::Visible }
                         if ($folderAction.CanMove) { $moveToFolder.Visibility = [System.Windows.Visibility]::Visible }
+
+                        # BOTH ARE SHOWN ON EVERY FOLDER AND DISABLED AT THE
+                        # ENDS, rather than one of them vanishing. An item that
+                        # disappears at the top of a list teaches that folders
+                        # cannot be moved up at all; a greyed one says "not this
+                        # one, it is already first", which is the true statement.
+                        if ([string] $chosen.Kind -eq 'Folder') {
+                            $folderUp.Visibility = [System.Windows.Visibility]::Visible
+                            $folderDown.Visibility = [System.Windows.Visibility]::Visible
+
+                            $folderUp.IsEnabled = [bool] $folderAction.CanMoveUp
+                            $folderDown.IsEnabled = [bool] $folderAction.CanMoveDown
+                        }
 
                         # DELETE IS SHOWN AND DISABLED RATHER THAN HIDDEN when
                         # the folder still has something in it: an item that
@@ -1956,6 +1973,63 @@
                         $command.Text = "Remove-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}'" -f
                         [string] $action.Category, [string] $action.Parent
                     }.GetNewClosure())
+
+                # UP AND DOWN ARE ONE HANDLER TWICE, because they differ in one
+                # word. A folder is an entry in an ordered list in
+                # workspace.yaml; this moves it among the entries beside it and
+                # rebuilds the tree, which now draws that order.
+                $moveFolder = {
+                    param([string] $Direction)
+
+                    $chosen = $tree.SelectedItem
+                    if ($null -eq $chosen) { return }
+
+                    $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
+
+                    $allowed = $action.CanMoveUp
+                    if ($Direction -eq 'Down') { $allowed = $action.CanMoveDown }
+
+                    # SAID, NOT SWALLOWED - the item is disabled at the ends, so
+                    # this only runs if something else opened it, and a handler
+                    # that returns quietly is a menu item somebody presses twice
+                    # and then reports as broken.
+                    if (-not $allowed) {
+                        $command.Text = ("'{0}' is already {1} in this folder, so there is nowhere to move it." -f
+                            [string] $chosen.Text, $(if ($Direction -eq 'Down') { 'last' } else { 'first' }))
+                        return
+                    }
+
+                    # HeaderRoot, NOT Subject. Group-HDTConsoleFolderRow builds a
+                    # folder node without a subject - a folder is not a thing on
+                    # the share to act on - so the share it belongs to comes off
+                    # the banner it carries, which is where Delete Folder reads
+                    # it from too. Reading Subject here returned an empty string
+                    # and the handler gave up in silence.
+                    $where = [string] $chosen.HeaderRoot
+                    if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                    $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
+
+                    try {
+                        $fileSystem = New-HDTFileSystem
+                        $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                        [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                                -Line @(Move-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
+                                    -Folder ([string] $action.Parent) -Direction $Direction -Confirm:$false))
+                    } catch {
+                        $command.Text = [string] $_.Exception.Message
+                        return
+                    }
+
+                    & $rebuildTree
+
+                    $command.Text = "Move-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}' -Direction {2}" -f
+                    [string] $action.Category, [string] $action.Parent, $Direction
+                }.GetNewClosure()
+
+                $folderUp.Add_Click({ & $moveFolder 'Up' }.GetNewClosure())
+                $folderDown.Add_Click({ & $moveFolder 'Down' }.GetNewClosure())
             }
         }
 

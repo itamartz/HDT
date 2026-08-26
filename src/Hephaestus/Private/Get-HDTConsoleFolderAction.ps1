@@ -43,6 +43,10 @@
               CanDelete      Delete Folder applies
               DeleteRefusal  why it does not, when it does not
               CanMove        Move To Folder applies
+              CanMoveUp      Move Up applies - a folder with one above it
+              CanMoveDown    Move Down applies
+              MoveUpCommand, MoveDownCommand
+                             the command each would run, for the footer
               Choice         the folders it could be moved into
 
         .EXAMPLE
@@ -139,6 +143,31 @@
         }
     }
 
+    # UP AND DOWN, ON FOLDERS ONLY, AND ONLY WHERE THERE IS SOMEWHERE TO GO.
+    #
+    # A folder is an entry in an ordered list in workspace.yaml, so its position
+    # is a thing somebody chose and can change - which is what these two do. An
+    # ITEM has no declared position: a task sequence is a directory on the share
+    # and the tree sorts them by name, so offering to move one would promise an
+    # order nothing could keep.
+    #
+    # Group-HDTConsoleFolderRow stamped the row with where it sits, because
+    # working it out here would mean re-reading the share while a menu is
+    # opening.
+    $canUp = $false
+    $canDown = $false
+
+    if ($onFolder) {
+        $index = -1
+        $count = 0
+
+        if ($null -ne $Row.PSObject.Properties['FolderIndex']) { $index = [int] $Row.FolderIndex }
+        if ($null -ne $Row.PSObject.Properties['FolderSiblingCount']) { $count = [int] $Row.FolderSiblingCount }
+
+        $canUp = ($index -gt 0)
+        $canDown = ($index -ge 0 -and $index -lt ($count - 1))
+    }
+
     return [pscustomobject] @{
         Category      = $category
         CanCreate     = ($onCategory -or $onFolder)
@@ -146,6 +175,10 @@
         CanDelete     = $canDelete
         DeleteRefusal = $refusal
         CanMove       = $onItem
+        CanMoveUp     = $canUp
+        CanMoveDown   = $canDown
+        MoveUpCommand = ("Move-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}' -Direction Up" -f $category, $parent)
+        MoveDownCommand = ("Move-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}' -Direction Down" -f $category, $parent)
         Choice        = [string[]] @($all)
     }
 }

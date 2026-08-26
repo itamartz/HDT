@@ -36,6 +36,7 @@
         'Set-HDTWorkspaceProperty',
         'Add-HDTWorkspaceFolder',
         'Remove-HDTWorkspaceFolder',
+        'Move-HDTWorkspaceFolder',
         'Save-HDTWorkspaceDocument',
         'Write-HDTModuleBundle',
         'Resolve-HDTBundleLine',

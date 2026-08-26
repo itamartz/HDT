@@ -51,6 +51,12 @@
         'HDTNewFolderMenuItem.Header' = 'New Folder'
         'HDTDeleteFolderMenuItem.Header' = 'Delete Folder'
         'HDTMoveToFolderMenuItem.Header' = 'Move to Folder'
+
+        # THE GLYPH IS PART OF THE CAPTION, as it is on the editor's toolbar -
+        # the arrow is what says which way, and a translation that drops it
+        # loses the affordance rather than a character.
+        'HDTMoveFolderUpMenuItem.Header' = '↑ Move Up'
+        'HDTMoveFolderDownMenuItem.Header' = '↓ Move Down'
         'HDTNewApplicationMenuItem.Header' = 'New Application'
         'HDTRemoveApplicationMenuItem.Header' = 'Remove Application'
         'HDTApplicationDependencyMenuItem.Header' = 'Depends On'
