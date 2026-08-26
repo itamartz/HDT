@@ -47,14 +47,24 @@ function Test-HDTConsoleLineChange {
     [CmdletBinding()]
     [OutputType([bool])]
     param(
+        # AllowEmptyString IS NOT THE SAME PERMISSION AS AllowEmptyCollection,
+        # and the difference cost every partition edit in the console. The
+        # collection may be empty; so may a LINE in it, because every sequence
+        # this toolkit writes has blank lines - between groups, around the
+        # commentary the templates carry. Without this, the whole document was
+        # refused at the parameter with "Cannot bind argument to parameter
+        # 'Before' because it is an empty string", and that sentence was printed
+        # on the strip where the command should have been.
         [Parameter(Mandatory = $true, Position = 0)]
         [AllowNull()]
         [AllowEmptyCollection()]
+        [AllowEmptyString()]
         [string[]] $Before,
 
         [Parameter(Mandatory = $true, Position = 1)]
         [AllowNull()]
         [AllowEmptyCollection()]
+        [AllowEmptyString()]
         [string[]] $After
     )
 

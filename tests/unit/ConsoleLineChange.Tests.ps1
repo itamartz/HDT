@@ -87,6 +87,38 @@ Describe 'Test-HDTConsoleLineChange' {
         }
     }
 
+    Context 'a document with a blank line in it' {
+
+        # EVERY SEQUENCE THIS TOOLKIT WRITES HAS BLANK LINES - between groups,
+        # around the commentary the templates carry, wherever a person put one.
+        # The document IS the argument here, so refusing a blank line refuses
+        # every real document.
+        #
+        # IT WAS NOT THEORETICAL. This guard has one caller - the partition
+        # page's $partitionAttempt - and every press of New, Edit, Remove or
+        # either arrow died on it with "Cannot bind argument to parameter
+        # 'Before' because it is an empty string", printed on the strip where
+        # the command should have been. Nothing caught it because the tests
+        # exercise the COMMANDS and the button sweep skips these five.
+        It 'compares two documents that contain blank lines' {
+            $line = [string[]] @('id: DEMO', '', 'name: demo', '')
+
+            Test-HDTConsoleLineChange -Before $line -After $line | Should -BeFalse
+        }
+
+        It 'sees a change made in a document that contains blank lines' {
+            $before = [string[]] @('id: DEMO', '', 'name: demo')
+            $after = [string[]] @('id: DEMO', '', 'name: renamed')
+
+            Test-HDTConsoleLineChange -Before $before -After $after | Should -BeTrue
+        }
+
+        It 'sees a blank line being added, because that is a change to the file' {
+            Test-HDTConsoleLineChange -Before ([string[]] @('a', 'b')) -After ([string[]] @('a', '', 'b')) |
+                Should -BeTrue
+        }
+    }
+
     It 'has comment-based help with a synopsis' {
         $help = Get-Help -Name Test-HDTConsoleLineChange -ErrorAction Stop
 
