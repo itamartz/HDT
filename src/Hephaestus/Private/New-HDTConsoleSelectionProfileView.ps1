@@ -1,4 +1,4 @@
-function New-HDTConsoleSelectionProfileView {
+﻿function New-HDTConsoleSelectionProfileView {
     <#
         .SYNOPSIS
             Builds the Selection Profiles window and wires every control on it,
@@ -225,6 +225,84 @@ function New-HDTConsoleSelectionProfileView {
         $deleteButton.IsEnabled = [bool] $view.CanEdit
         $saveButton.IsEnabled = [bool] $view.CanEdit
     }.GetNewClosure()
+
+    # A TICK HAS TO REACH THE WHOLE BRANCH, or the tree lies about the build.
+    #
+    # The box was bound straight to the node's State with nothing behind it, so
+    # ticking 'Drivers\WinPE' set that one box and left Dell and HP blank
+    # underneath it - while Save included the whole branch, because an include
+    # means the folder and everything under it. What was on screen and what
+    # would be injected were two different profiles.
+    #
+    # ONE HANDLER ON THE TREE, NOT ONE PER BOX. The boxes are made by a
+    # HierarchicalDataTemplate and remade whenever the tree is rebuilt, so a
+    # handler attached to each would have to be attached again every time.
+    # Checked and Unchecked are routed and bubble; OriginalSource is the box.
+    #
+    # THE INCLUDE LIST IS READ BACK FROM THE TREE, decided by
+    # Set-HDTConsoleSelectionProfileTick, and the tree rebuilt from the answer -
+    # so the ticks a person sees are always the ticks the builder computes from
+    # a document, and never a second opinion drawn by a handler.
+    $onTick = {
+        # THE NAMES MATTER. $Args collides with PowerShell's own automatic
+        # variable, so a parameter called that is not the event arguments and
+        # every read off it is a property that is not there - which StrictMode
+        # turns into a terminating error INSIDE a WPF handler, where it does
+        # nothing and says nothing. This window's other routed handlers already
+        # use $raiser and a typed second parameter; so does this one.
+        param([object] $raiser, [System.Windows.RoutedEventArgs] $ticked)
+
+        # See $book.Filling: rebinding ItemsSource raises Checked for every row
+        # that comes back ticked, and each would rebuild the tree again.
+        if ($book.Filling) { return }
+
+        $box = $ticked.OriginalSource -as [System.Windows.Controls.CheckBox]
+        if ($null -eq $box) { return }
+
+        $node = $box.DataContext
+        if ($null -eq $node) { return }
+        if ($null -eq $node.PSObject.Properties['Path']) { return }
+
+        $wanted = ($box.IsChecked -eq $true)
+
+        # READ AFTER THE CLICK, WHICH IS SAFE: the include list is the SHALLOWEST
+        # ticked folders, and this node's own new state is the only one that has
+        # moved. Unticking a child of a ticked parent still reads the parent,
+        # which is exactly what the tick command needs in order to expand it.
+        $include = @(& $call 'Get-HDTConsoleSelectionProfileInclude' `
+                -Tree ([object[]] @($tree.ItemsSource)))
+
+        $next = @(& $call 'Set-HDTConsoleSelectionProfileTick' -Folder ([object[]] @($Folder)) `
+                -Include ([string[]] @($include)) -Path ([string] $node.Path) -State $wanted)
+
+        # THE GUARD HAS TO OUTLIVE THIS METHOD, and a try/finally does not.
+        #
+        # Assigning ItemsSource does not build the boxes: WPF generates the
+        # containers during the NEXT layout pass, and each box that comes back
+        # ticked raises Checked then - long after a finally would have cleared
+        # the flag. So every rebuild started another one, and the window died of
+        # it. Clearing at ContextIdle puts the flag down after the containers
+        # exist, which is the moment the re-entrant ticks have finished.
+        $book.Filling = $true
+
+        try {
+            $tree.ItemsSource = [object[]] @(& $call 'Get-HDTConsoleSelectionProfileTree' `
+                    -Folder ([object[]] @($Folder)) -Include ([string[]] @($next)))
+        } catch {
+            $book.Filling = $false
+            throw
+        }
+
+        [void] $tree.Dispatcher.BeginInvoke(
+            [action] { $book.Filling = $false }.GetNewClosure(),
+            [System.Windows.Threading.DispatcherPriority]::ContextIdle)
+    }.GetNewClosure()
+
+    $tree.AddHandler([System.Windows.Controls.Primitives.ToggleButton]::CheckedEvent,
+        [System.Windows.RoutedEventHandler] $onTick)
+
+    $tree.AddHandler([System.Windows.Controls.Primitives.ToggleButton]::UncheckedEvent,
+        [System.Windows.RoutedEventHandler] $onTick)
 
     # THE ID, AS IT IS TYPED. workspace.yaml references it, so somebody who has
     # to write one into a document by hand has to be able to read it here.

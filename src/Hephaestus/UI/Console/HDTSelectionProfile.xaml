@@ -368,7 +368,18 @@
                                         two-state box cannot tell those apart
                                         without opening every branch.
                                     -->
-                                    <CheckBox IsThreeState="True"
+                                    <!--
+                                        IsThreeState is FALSE and the square
+                                        still appears. A null IsChecked draws
+                                        the square whatever this says; what
+                                        IsThreeState="True" adds is the USER
+                                        cycling into it - ticked, square,
+                                        clear - and "some of Drivers" is not
+                                        something anybody can mean by clicking.
+                                        It is computed, from what is ticked
+                                        below.
+                                    -->
+                                    <CheckBox IsThreeState="False"
                                               IsChecked="{Binding State, Mode=TwoWay}"
                                               VerticalAlignment="Center" />
 
