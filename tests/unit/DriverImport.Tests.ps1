@@ -271,23 +271,38 @@ Describe 'Import-HDTDriver' {
         $fs.TestPath('C:\HDTLab\Share\Drivers\Empty\readme.txt') | Should -BeFalse
     }
 
-    # DELL AND HP SHIP WinPE PACKS AS A .cab, and pointing at the download rather
-    # than the extracted folder is the commonest way to get this wrong - so the
-    # refusal names what it DID find and says what to do about it, instead of
-    # only saying what it wanted.
-    It 'names the archive it found, because that is the actual mistake' {
+    # DELL AND HP SHIP WinPE PACKS AS A .cab, and browsing to the folder the
+    # download sits in is the easier gesture than picking the file - so a folder
+    # holding one archive and no .inf tree is EXPANDED, not refused. It used to
+    # be refused with a message naming the cab; the refusal is gone because the
+    # ordinary case is no longer a mistake.
+    #
+    # THE FAKE PROCESS IS THE POINT OF THE TEST, not scenery. Without it this
+    # reached the real expand.exe, whose working directory is a driver folder
+    # that exists on a bench and not on a build agent - so it passed here and
+    # failed in CI with "The directory name is invalid".
+    It 'expands a folder holding nothing but the vendor cab' {
         $fs = New-HDTFakeFileSystem -File @{
             'D:\packs\dell-winpe\WinPE11.0-Drivers-A10-XCXDW.cab' = 'binary'
         }
 
-        $record = $null
-        try {
-            Import-HDTDriver -Root $script:root -Path 'WinPE\Dell' -Source 'D:\packs\dell-winpe' `
-                -FileSystem $fs -Confirm:$false | Out-Null
-        } catch { $record = $_ }
+        $process = New-HDTFakeProcessService
+        $process | Add-Member -MemberType ScriptMethod -Name Start -Force -Value {
+            param([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond)
+            $this.Record('Start', @($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond))
+            return [pscustomobject] @{ ExitCode = 0 }
+        }
 
-        [string] $record.Exception.Message | Should -BeLike '*WinPE11.0-Drivers-A10-XCXDW.cab*'
-        [string] $record.Exception.Message | Should -BeLike '*expand*'
+        # What the expansion would leave behind.
+        $fs.WriteAllText('C:\HDTLab\Share\Drivers\WinPE\Dell\network\e1d68x64.inf', '[Version]')
+
+        $result = Import-HDTDriver -Root $script:root -Path 'WinPE\Dell' -Source 'D:\packs\dell-winpe' `
+            -FileSystem $fs -Process $process -Confirm:$false
+
+        $call = @($process.Operations | Where-Object { $_.Operation -eq 'Start' })[0]
+
+        [string] $call.Arguments[1] | Should -BeLike '*WinPE11.0-Drivers-A10-XCXDW.cab*'
+        $result.DriverCount | Should -Be 1
     }
 
     It 'refuses a source that is not there' {
