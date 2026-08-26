@@ -374,6 +374,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
                 <!-- AWAY FROM Save, like the boot image window's Update. It
@@ -381,7 +382,17 @@
                      vendor download. -->
                 <Button Grid.Column="0" x:Name="HDTDriverDeleteButton" MinWidth="120" />
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <!-- WHAT THE BUTTON BESIDE IT JUST DID, or is waiting to do.
+                     Save on its own gave no answer: pressing it wrote the
+                     document and left the window looking exactly as it had a
+                     moment earlier. It carries no text in the string table
+                     because it has none until something happens -
+                     Get-HDTConsoleDriverSaveState decides every word of it. -->
+                <TextBlock Grid.Column="2" x:Name="HDTDriverStatusText"
+                           VerticalAlignment="Center" Margin="0,0,14,0"
+                           Foreground="{DynamicResource HDTLabelBrush}" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal">
                     <Button x:Name="HDTDriverSaveButton" MinWidth="96" />
                     <Button x:Name="HDTDriverCloseButton" MinWidth="96" Margin="0" />
                 </StackPanel>

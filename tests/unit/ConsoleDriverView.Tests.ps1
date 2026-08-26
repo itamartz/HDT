@@ -124,8 +124,8 @@ InModuleScope -ModuleName Hephaestus {
                         'HDTDriverEnabledHint', 'HDTDriverClassText', 'HDTDriverVendorText',
                         'HDTDriverVersionText', 'HDTDriverDateText', 'HDTDriverArchText',
                         'HDTDriverModelText', 'HDTDriverPnpLabel', 'HDTDriverPnpGrid',
-                        'HDTDriverCommandText', 'HDTDriverDeleteButton', 'HDTDriverSaveButton',
-                        'HDTDriverCloseButton')) {
+                        'HDTDriverCommandText', 'HDTDriverStatusText', 'HDTDriverDeleteButton',
+                        'HDTDriverSaveButton', 'HDTDriverCloseButton')) {
 
                     $script:window.FindName($name) |
                         Should -Not -BeNullOrEmpty -Because "the markup promises $name"
@@ -185,9 +185,45 @@ InModuleScope -ModuleName Hephaestus {
                 [string] $script:window.Title | Should -BeExactly 'e1d68x64.inf Properties'
             }
 
+            # THE ONE THAT WOULD HAVE CAUGHT THE REPORT. Unticking and pressing
+            # Save wrote the document and left the button and the text exactly
+            # as they were - nothing on the window said the press had landed.
+            It 'opens with Save grey, because there is nothing to write yet' {
+                $script:window.FindName('HDTDriverSaveButton').IsEnabled | Should -BeFalse
+                [string] $script:window.FindName('HDTDriverStatusText').Text | Should -BeExactly ''
+            }
+
             It 'shows the command the Save would run' {
                 [string] $script:window.FindName('HDTDriverCommandText').Text |
                     Should -BeLike 'Set-HDTDriverState *'
+            }
+        }
+
+        Context 'when the box is unticked and nothing has been pressed' {
+
+            BeforeAll {
+                $script:edited = New-HDTTestDriverWindow -ConsoleHost (New-HDTTestDriverHostDouble)
+
+                $script:editedBox = $script:edited.FindName('HDTDriverEnabledCheck')
+                $script:editedBox.IsChecked = $false
+                $script:editedBox.RaiseEvent(
+                    (New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+            }
+
+            It 'lights Save' {
+                $script:edited.FindName('HDTDriverSaveButton').IsEnabled | Should -BeTrue
+            }
+
+            It 'says the change is not on the share yet' {
+                [string] $script:edited.FindName('HDTDriverStatusText').Text |
+                    Should -BeExactly 'Unsaved change'
+            }
+
+            # THE COMMAND FOLLOWS THE BOX, not the share - it is what the button
+            # is about to run, and lower case because it is copied by hand.
+            It 'shows the command it is about to run' {
+                [string] $script:edited.FindName('HDTDriverCommandText').Text |
+                    Should -BeLike '*-Enabled $false'
             }
         }
 
@@ -219,6 +255,30 @@ InModuleScope -ModuleName Hephaestus {
 
             It 'tells the console it saved' {
                 [string] $script:saveHost.Answer | Should -BeExactly 'saved'
+            }
+
+            It 'says so on the window, where the person who pressed it is looking' {
+                [string] $script:saveWindow.FindName('HDTDriverStatusText').Text |
+                    Should -BeExactly 'Saved'
+            }
+
+            It 'and greys Save again, because there is nothing left to write' {
+                $script:saveWindow.FindName('HDTDriverSaveButton').IsEnabled | Should -BeFalse
+            }
+
+            # PRESSING IT TWICE MUST NOT UNDO IT. A second press on a button
+            # left lit would write whatever the box says now, which is the same
+            # value - harmless here, and not harmless on the window this
+            # pattern gets copied to.
+            It 'lights again the moment the box disagrees with the share once more' {
+                $box = $script:saveWindow.FindName('HDTDriverEnabledCheck')
+                $box.IsChecked = $true
+                $box.RaiseEvent(
+                    (New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+
+                $script:saveWindow.FindName('HDTDriverSaveButton').IsEnabled | Should -BeTrue
+                [string] $script:saveWindow.FindName('HDTDriverStatusText').Text |
+                    Should -BeExactly 'Unsaved change'
             }
 
             # THE CATALOG IS THE PROOF, not the document: a state file the

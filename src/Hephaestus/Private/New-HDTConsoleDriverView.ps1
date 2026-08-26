@@ -18,6 +18,13 @@
             vendor's file, and a console that edited one would be a console
             producing a driver no vendor shipped.
 
+            SAVE ANSWERS. It opens grey, lights when the box stops agreeing with
+            the share, and goes grey again with a word beside it once the write
+            comes back - because a button identical before and after a press is
+            one somebody presses twice and then checks the share by hand. What
+            it may do and what it says are Get-HDTConsoleDriverSaveState's,
+            where a test can reach them.
+
             DELETE TAKES THE .inf AND THE FILES BESIDE IT, which is why it is
             bottom-left and away from Save - and why it goes through
             Remove-HDTDriverFolder's rules rather than removing a path this
@@ -140,21 +147,33 @@
         @($Driver.HardwareId) | ForEach-Object { [pscustomobject] @{ HardwareId = [string] $_ } })
 
     $command = $window.FindName('HDTDriverCommandText')
+    $status = $window.FindName('HDTDriverStatusText')
+    $save = $window.FindName('HDTDriverSaveButton')
 
-    $showCommand = {
-        param([bool] $Want)
+    # WHAT THE SHARE SAYS, WHICH IS NOT WHAT THE BOX SAYS. The difference
+    # between the two is the whole of Save's state, and it moves only when a
+    # write comes back - which is why it is tracked on an object rather than in
+    # a variable a closure would capture by value.
+    $book = [pscustomobject] @{ Saved = [bool] $Driver.Enabled; Written = $false }
 
-        $command.Text = "Set-HDTDriverState -Root '{0}' -Path '{1}' -Enabled `${2}" -f
-        $Root, [string] $Driver.Path, $Want
+    $showState = {
+        $state = & $call 'Get-HDTConsoleDriverSaveState' @{
+            Enabled = [bool] $enabled.IsChecked; Saved = [bool] $book.Saved
+            Root = $Root; Path = [string] $Driver.Path; Written = [bool] $book.Written
+        }
+
+        $command.Text = [string] $state.Command
+        $status.Text = [string] $state.Status
+        $save.IsEnabled = [bool] $state.CanSave
     }.GetNewClosure()
 
-    & $showCommand ([bool] $Driver.Enabled)
+    & $showState
 
-    $enabled.Add_Click({ & $showCommand ([bool] $enabled.IsChecked) }.GetNewClosure())
+    $enabled.Add_Click({ & $showState }.GetNewClosure())
 
     # -- Save, which writes one boolean ---------------------------------------
 
-    $window.FindName('HDTDriverSaveButton').Add_Click({
+    $save.Add_Click({
             $want = [bool] $enabled.IsChecked
 
             try {
@@ -163,12 +182,18 @@
                         Enabled = $want; FileSystem = $writer; Confirm = $false
                     })
             } catch {
+                # THE BOOK DOES NOT MOVE ON A REFUSAL. Save stays lit and the
+                # status stays where it was, because the share still says what
+                # it said before.
                 $command.Text = '# {0}' -f [string] $_.Exception.Message
                 return
             }
 
+            $book.Saved = $want
+            $book.Written = $true
             $driverHost.Answer = 'saved'
-            & $showCommand $want
+
+            & $showState
         }.GetNewClosure())
 
     # -- Delete ---------------------------------------------------------------
