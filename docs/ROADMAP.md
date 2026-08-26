@@ -594,6 +594,42 @@ button.** That is MDT's split and HDT keeps it: the Workbench authors, the
 there. The console's whole share in the run is upstream (boot image, ISO,
 published share) and downstream (`Logs\_active\`, the report).
 
+**Three of the four legs are met, walked in the real window on 2026-08-26.**
+Not read out of the source: the console was opened on `C:\HDTLab\Share` and
+driven through UI Automation with a real mouse, because the last five defects in
+it were found by looking at it and every one of them passed its tests first.
+
+| Leg | How it was proven |
+|---|---|
+| **Author** | New Task Sequence on the Task Sequences node wrote `M8-WALK` to the share, and `sequence.yaml` came back carrying `HDTOSImage`, `HDTFullName`, `HDTOrgName` and `HDTAdminPassword` |
+| **Edit** | the editor opened it, eight tabs, and the Disk tab's five buttons edited the partition table |
+| **Build the boot image and ISO** | Update Boot Image, from the Windows PE window: 17 steps in **1:47**, `HDTPE_wiz_x64.wim` (476 MB) and `.iso` (529 MB) rewritten, manifest `builtUtc` moving from `2026-08-23T21:18:33Z` to `2026-08-26T18:01:50Z` |
+| **Read the cmdlet off every action** | a contract now asserts every console window's markup carries a `*CommandText`, with `HDTBuildProgress.xaml` the one named exception |
+
+**The fourth leg is not met, and it is not a console gap.** Monitoring says *"there
+is no deployment running on this share"*, which is the true answer: nothing has
+booted the image built above. Watching a run land needs a machine to run it, and
+the console deliberately cannot start one. `Get-HDTConsoleMonitor` and the 15s
+`DispatcherTimer` that rebuilds only that branch are tested, and the view was
+watched live when it was built — what is outstanding is a deployment, not code.
+
+**Three defects the walk found, all fixed, all of which passed their tests:**
+
+1. **New Task Sequence named a command that built a different sequence.** The
+   footer showed three parameters; Create passed a fourth, `-Variable`, carrying
+   the operating system, the registered owner, the organisation and the
+   administrator password — so an administrator who copied the line, which is
+   the one thing DESIGN 12 says it is for, got a sequence with none of them.
+   §4.5.4 makes that window the admin password's only home, which is what made
+   it the worst place to lose it.
+2. **Partition Properties had nowhere to print what OK runs** — the only console
+   window without a command line, and the one place eight boxes are decided.
+3. **Every partition edit died on a blank line.** `Test-HDTConsoleLineChange`
+   allowed an empty collection and not an empty string, and its argument is a
+   whole sequence document. Three test files cover that area and the defect sat
+   in the gap between them: they exercise the commands, and the button sweep
+   skips the five that would have hit it.
+
 ---
 
 ## Post-v1 candidates
