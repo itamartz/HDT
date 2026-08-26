@@ -662,17 +662,26 @@
             # have to write a table into the step, silently converting it from
             # "the standard layout, whatever that becomes" into a frozen copy of
             # today's - a decision to make deliberately, not by pressing Edit.
+            # A ROW FROM A NAMED LAYOUT IS NOT IN THE DOCUMENT YET, and it used
+            # to be untouchable for that reason - which left the five buttons
+            # dark on every sequence the standard client template produces.
+            # MDT's Format and Partition Disk grid is editable the moment it
+            # opens; pressing one of these now writes the layout out as the
+            # step's own table first and then does what was asked. The
+            # conversion is named on the strip, so it is a decision somebody can
+            # see rather than a side effect they cannot.
             $ownRow = ($at -gt 0 -and -not $partitionList.SelectedItem.FromLayout)
+            $rowEditable = ($at -gt 0 -and ($ownRow -or $view.CanExpand))
 
-            $partitionUp.IsEnabled = ($ownRow -and $at -gt 1)
-            $partitionDown.IsEnabled = ($ownRow -and $at -lt @($view.Row).Count)
-            $partitionRemove.IsEnabled = ($ownRow -and @($view.Row).Count -gt 1)
-            $partitionEdit.IsEnabled = $ownRow
+            $partitionUp.IsEnabled = ($rowEditable -and $at -gt 1)
+            $partitionDown.IsEnabled = ($rowEditable -and $at -lt @($view.Row).Count)
+            $partitionRemove.IsEnabled = ($rowEditable -and @($view.Row).Count -gt 1)
+            $partitionEdit.IsEnabled = $rowEditable
 
-            # New needs a table to add to. A step that names a layout has none,
-            # and swapping one for the other is a decision to make in the
-            # Properties tab rather than as a side effect of pressing New.
-            $partitionAdd.IsEnabled = $view.HasTable
+            # New needs a table to add to, or a layout it can turn into one. A
+            # layout named by a variable is neither, because which table it means
+            # is not decided until the machine is in front of it.
+            $partitionAdd.IsEnabled = ($view.HasTable -or $view.CanExpand)
 
             $book.Quiet = $false
         }.GetNewClosure()
@@ -1076,6 +1085,35 @@
             }
         }.GetNewClosure()
 
+        # THE STEP HAS TO OWN A TABLE BEFORE ANY OF THE FIVE CAN EDIT ONE.
+        #
+        # A step that names uefi-standard carries no rows, so every one of these
+        # commands would refuse it - which is why the buttons were dark, on every
+        # sequence the standard client template produces. This writes the layout
+        # out first, ONCE, and says on the strip that it did: after it the step
+        # no longer follows the built-in, and that is a change somebody is
+        # entitled to see rather than discover.
+        #
+        # IT RETURNS FALSE RATHER THAN THROWING when the layout cannot be
+        # expanded - a name picked by a variable at run time is an ordinary
+        # document, not a mistake, and the note already on the strip says so.
+        $ensureTable = {
+            $current = & $call 'Get-HDTConsolePartitionRow' -Line $book.Line -Path $Path -Name $book.Selected
+
+            if ($current.HasTable) { return $true }
+
+            if (-not $current.CanExpand) {
+                $command.Text = [string] $current.ExpandNote
+                return $false
+            }
+
+            & $partitionAttempt {
+                $book.Line = @(Expand-HDTStepPartition -Line $book.Line -Name $book.Selected -Confirm:$false)
+            } ([string] $current.ExpandCommand)
+
+            return $true
+        }.GetNewClosure()
+
         # THE DIALOG, AND WHAT COMES BACK FROM IT. It returns a hashtable ready
         # to splat at Add-HDTStepPartition or Set-HDTStepPartition, or $null if
         # it was cancelled - so the two handlers below differ only in which
@@ -1095,6 +1133,11 @@
         }.GetNewClosure()
 
         $partitionAdd.Add_Click({
+                # BEFORE THE DIALOG, not after it: a person who filled eight
+                # boxes and then met "this step names a layout" would have
+                # filled them for nothing.
+                if (-not (& $ensureTable)) { return }
+
                 $answer = & $partitionDialog $null
                 if ($null -eq $answer) { return }
 
@@ -1114,6 +1157,8 @@
         $partitionEdit.Add_Click({
                 $chosen = $partitionList.SelectedItem
                 if ($null -eq $chosen) { return }
+
+                if (-not (& $ensureTable)) { return }
 
                 $answer = & $partitionDialog $chosen
                 if ($null -eq $answer) { return }
@@ -1138,6 +1183,8 @@
 
         $partitionRemove.Add_Click({
                 if ([string]::IsNullOrWhiteSpace($book.Partition)) { return }
+                if (-not (& $ensureTable)) { return }
+
                 $subject = [string] $book.Partition
 
                 & $partitionAttempt {
@@ -1150,6 +1197,8 @@
 
         $partitionUp.Add_Click({
                 if ([string]::IsNullOrWhiteSpace($book.Partition)) { return }
+                if (-not (& $ensureTable)) { return }
+
                 $subject = [string] $book.Partition
 
                 & $partitionAttempt {
@@ -1160,6 +1209,8 @@
 
         $partitionDown.Add_Click({
                 if ([string]::IsNullOrWhiteSpace($book.Partition)) { return }
+                if (-not (& $ensureTable)) { return }
+
                 $subject = [string] $book.Partition
 
                 & $partitionAttempt {

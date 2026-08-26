@@ -249,6 +249,7 @@
         'Set-HDTStepPartition',
         'Remove-HDTStepPartition',
         'Move-HDTStepPartition',
+        'Expand-HDTStepPartition',
         'Copy-HDTStep',
         'Move-HDTStep',
         'Remove-HDTStep',

@@ -101,19 +101,63 @@ steps:
       # workspace, or one that is read-only or offline.
       #
       # ON A TWO-DISK MACHINE, CHECK IT. Disk 0 is not always the one you mean.
+      # THE ROWS ARE WRITTEN OUT RATHER THAN NAMED, so the console's Format and
+      # Partition Disk grid is editable the moment a sequence is created - which
+      # is MDT's behaviour and was not HDT's. 'layout: uefi-standard' means "the
+      # standard layout, whatever it becomes", and a step carrying it has no rows
+      # of its own for the New, Edit, Remove and arrow buttons to act on. A
+      # template that every sequence starts from is exactly the wrong place for
+      # a table nobody can touch.
+      #
+      # THE NAMES ARE THE ROLES, AND THAT IS LOAD-BEARING. The step publishes
+      # HDTSystemVolume, HDTOSVolume and HDTRecoveryVolume by role, and a row's
+      # role is its name - so ApplyImage finds the volume through the name
+      # written here. Renaming Windows to anything friendlier applies the image
+      # to nowhere.
+      #
+      # A SEQUENCE THAT WOULD RATHER TRACK THE BUILT-IN still can: delete the
+      # table and write 'layout: uefi-standard' in its place. Nothing about the
+      # named layouts has changed, and Expand-HDTStepPartition converts the other
+      # way for the sequences that name them.
+      #
+      # 260 MB FOR THE ESP is Microsoft's minimum for a 4Kn drive, which is what
+      # FAT32 needs at a 4096-byte sector - MDT's 499 MB predates that guidance.
+      # DESIGN 9.1.
       - name: Format and Partition Disk (UEFI)
         type: DiskPartition
         diskNumber: 0
-        layout: uefi-standard
         wipe: true
         condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+          - name: Recovery
+            type: Recovery
+            size: 1GB
+            filesystem: NTFS
 
+      # MBR BOOTS FROM AN ACTIVE PARTITION, which the first row is by default,
+      # and 500 MB is the System Reserved size Windows setup has used since 7.
       - name: Format and Partition Disk (BIOS)
         type: DiskPartition
         diskNumber: 0
-        layout: bios-standard
         wipe: true
         condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
 
   # ------------------------------------------------------------------- Install
   - group: Install

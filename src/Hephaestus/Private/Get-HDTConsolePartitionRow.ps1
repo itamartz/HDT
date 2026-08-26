@@ -287,8 +287,8 @@
             [void] $row.Add([pscustomobject] @{
                     Order         = $order
                     Name          = [string] $current.Role
-                    Type          = (Get-HDTConsolePartitionTypeText -Partition $current)
-                    Size          = (Get-HDTConsolePartitionSizeText -Partition $current)
+                    Type          = (Get-HDTPartitionTypeText -Partition $current)
+                    Size          = (Get-HDTPartitionSizeText -Partition $current)
                     Amount        = ''
                     Unit          = ''
                     QuickFormat   = $true
@@ -340,15 +340,48 @@
     # string follows.
     $summary = 'Partition style: {0}.' -f $styleText
 
+    # WHETHER THE FIVE BUTTONS CAN WORK ON A STEP THAT NAMES A BUILT-IN. They
+    # used to be dark on every sequence the standard client template produces,
+    # which is every sequence anybody makes - MDT's grid is editable the moment
+    # it opens and this one was read-only. Pressing one now expands the layout
+    # into the step's own table first (Expand-HDTStepPartition) and then does
+    # what was asked.
+    #
+    # TWO NAMED LAYOUTS CANNOT BE EXPANDED, and the note says which and why. A
+    # name carrying a %Variable% is picked at run time, so there is no single
+    # table to write; a name this engine does not have has nothing to write from.
+    # Both are ordinary documents rather than mistakes, so neither is an error
+    # here - the buttons simply stay dark and the strip explains.
+    $canExpand = $false
+    $expandNote = ''
+
+    if (-not $hasTable -and -not [string]::IsNullOrWhiteSpace($layout)) {
+        if ($layout -like '*%*') {
+            $expandNote = ("This step picks its layout at run time with '{0}', so there is no single table to edit. Replace the variable with a layout name to lay the disk out row by row." -f $layout)
+        } elseif ($null -eq (& { try { Get-HDTDiskLayout -Name $layout } catch { $null } })) {
+            $expandNote = ("This engine has no layout called '{0}', so there is nothing to write a table from. Correct the name on the Properties tab." -f $layout)
+        } else {
+            $canExpand = $true
+            $expandNote = ("Editing a row writes '{0}' out as this step's own table, after which the step no longer follows the built-in." -f $layout)
+        }
+    }
+
     if (-not [string]::IsNullOrWhiteSpace($layout)) {
         $summary = ("This step uses the named layout '{0}', so it writes no table of its own. Partition style: {1}." -f
             $layout, $styleText)
+
+        if (-not [string]::IsNullOrWhiteSpace($expandNote)) {
+            $summary = '{0} {1}' -f $summary, $expandNote
+        }
     }
 
     return [pscustomobject] @{
         IsDiskStep        = $isDiskStep
         Summary           = $summary
         HasTable          = $hasTable
+        CanExpand         = $canExpand
+        ExpandNote        = $expandNote
+        ExpandCommand     = ("Expand-HDTStepPartition -Line `$line -Name '{0}'" -f $Name)
         Row               = [pscustomobject[]] @($row)
         Unit              = $unitOption
 
