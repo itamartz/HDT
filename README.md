@@ -60,6 +60,35 @@ than re-serialising, so the comments in it survive a Save.
 
 ![The task sequence editor](docs/images/task-sequence-editor.png)
 
+Drivers are a store of real folders, and the console fills them the way MDT did.
+**Import Drivers** takes a vendor pack and expands it: a Dell `.cab` through
+`expand.exe`, an HP SoftPaq by running the `.exe` with the switches that make it
+unpack instead of install. Landing the archive on the share unopened is what MDT
+never asked you to sort out, so neither does this.
+
+Selecting a driver folder shows what is actually in it — read out of the `.inf`
+files themselves, not from an index that can go stale.
+
+![The driver store](docs/images/console-drivers.png)
+
+Double-click a row and you get the driver: its class, vendor, version and date,
+and the PnP ids it claims. One tab, because Workbench put a tick box on General
+and everything a technician came to read on Details, so the ordinary question —
+which machine is this driver for — was always one tab away from the answer.
+
+Unticking **Enable this driver** leaves it on the share and takes it out of
+every injection. That matters because DISM's `-Recurse` takes a whole folder and
+has no "except that one": when something in a folder is disabled, HDT injects the
+remaining `.inf` files one at a time instead.
+
+![A driver's properties](docs/images/driver-properties.png)
+
+A **selection profile** is a named set of folders, and it exists because one
+folder name cannot say *the Dell WinPE pack AND the HP one*. A boot image points
+at a profile; the profile points at as many folders as the floor needs.
+
+![Selection profiles](docs/images/selection-profiles.png)
+
 The boot image's settings are the `bootImage` block of `workspace.yaml`. **Save**
 writes that file and is instant; **Update Boot Image** mounts a WIM, injects,
 exports and builds an ISO, and takes minutes.

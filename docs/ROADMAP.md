@@ -369,13 +369,15 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
 
 ---
 
-## M5 — Drivers  ·  **GROUP MATCH SHIPPED · PnP DEFERRED TO v2**
+## M5 — Drivers  ·  **GROUP MATCH AND CATALOG SHIPPED · PnP MATCH DEFERRED TO v2**
 
-> **Half of this is built.** The group-match path — which is MDT's PRIMARY one —
-> ships: drivers can be put on the share, named by a selection profile, and
-> injected into a boot image. What is deferred is everything that needs a
-> CATALOG: parsing `.inf` files into an index, and the PnP fallback that index
-> exists for. See `.planning/ROADMAP.md` "v1 scope".
+> **Most of this is built.** The group-match path — which is MDT's PRIMARY one —
+> ships, and so does the catalog it was once deferred with: drivers go on the
+> share, are named by a selection profile, are read out of their own `.inf`
+> files, can be turned off one at a time, and are injected into a boot image.
+> What is still deferred is the PnP FALLBACK — matching an unrecognised machine
+> against those hardware ids and ranking the candidates. See `.planning/ROADMAP.md`
+> "v1 scope".
 
 ### Shipped
 
@@ -386,8 +388,21 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
   comments survive. Two built-ins — `all-drivers`, `everything` — resolve with
   no document, so a share nobody has authored on still builds.
 - **The driver store** — `New-HDTDriverFolder` makes `Make\Model` in one call;
-  `Import-HDTDriver` copies an extracted vendor pack in whole and counts its
-  `.inf` files. It is a COUNT, not a catalog.
+  `Import-HDTDriver` puts a vendor pack on the share and EXPANDS it: a Dell
+  `.cab` through `expand.exe`, an HP SoftPaq by running the `.exe` with the
+  switches that unpack rather than install. The `.inf` count is taken afterwards,
+  from the files on disk, because a vendor installer's exit code is not evidence.
+- **The catalog** — `ConvertFrom-HDTDriverInf` reads a driver out of its own
+  `.inf`: name, class, provider, version, date and every hardware id, through
+  decorated `[Manufacturer]` sections, `%TOKEN%` indirection and UTF-16LE.
+  `Get-HDTDriver` walks the store and answers a row per file. There is no index
+  document: the `.inf` files ARE the index, and an index beside them is a second
+  answer that can go stale.
+- **A driver can be turned off** — `Set-HDTDriverState` writes only the disabled
+  set to `Control\driver-state.yaml`, and deletes the document when the last one
+  is enabled. DISM's `-Recurse` takes a whole folder and has no "except that
+  one", so `Get-HDTBootImageDriverInjection` hands it the folder whole when
+  nothing is disabled and one `.inf` at a time when something is.
 - **Boot image injection** — `bootImage.drivers:` names a profile, and
   `Update-HDTBootImage` calls `AddDriver` once per included folder, in declared
   order. **One image carries a Dell WinPE pack and an HP one**, which a single
@@ -396,27 +411,27 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
   first and falls back.
 - **The console** — a Selection Profiles node with a tick-box tree editor
   (tri-state, because "some of Drivers" and "all of Drivers" are a hundred
-  `.inf` files apart), New Folder and Import Drivers on the Drivers node, and a
-  Drivers tab that shows the folders it will actually inject and marks in red
-  any the share has not got.
+  `.inf` files apart); New Folder, Import Drivers and Delete Driver Folder on the
+  Drivers node; a Drivers tab that shows the folders it will actually inject and
+  marks in red any the share has not got; a grid of the drivers in a folder; and
+  a properties window per driver — Workbench's, with its two tabs collapsed into
+  one — carrying the Enable tick box and the PnP ids.
 
 ### Still deferred to v2
 
-- `Import-HDTDriver`'s **catalog half**: `.inf` parsing → `driver-index.json`
-  carrying hardware ids, class, provider, version and date.
 - `ApplyDrivers` **step** — nothing injects drivers into the DEPLOYED OS yet;
   this is boot-image only.
 - **PnP match fallback**, ranked by hardware-ID specificity → version → date.
-  It cannot exist without the index.
+  The ids it needs are read now; what is missing is the ranking and the machine
+  to rank them for.
 - The **class filter** — MDT's "network and mass storage only" on the Windows PE
-  tab. It needs `Class=` read out of each `.inf`, which is a slice of the same
-  catalog. No control is drawn for it, because there is no command behind it.
+  tab. `Class=` is read out of every `.inf` already; no control is drawn for it,
+  because there is no command behind it.
 - **Boot-critical tracking** and `Get-HDTDriverCoverage`.
 
-**Tests first (for the deferred half):** `.inf` parsing against real fixture
-headers (including malformed and multi-arch ones); ranking order for every
-tie-break; group match taking precedence over PnP; empty-match behavior;
-coverage report correctness.
+**Tests first (for the deferred half):** ranking order for every tie-break;
+group match taking precedence over PnP; empty-match behavior; coverage report
+correctness.
 
 **Exit (still unmet):** an unrecognized model deploys with working network and
 storage via PnP fallback.
