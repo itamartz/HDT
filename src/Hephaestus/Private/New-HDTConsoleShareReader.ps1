@@ -111,7 +111,12 @@
             }
         }
 
-        $Carried['Node'] = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($Share)))
+        # FOLDED, BECAUSE THIS IS THE FIRST BUILD. A share with two operating
+        # systems, seventy drivers and a task sequence draws about thirty rows
+        # expanded, and everything below the fold is hidden by the very thing
+        # meant to reveal it. Workbench opens folded and so does this; a REBUILD
+        # does not pass this switch, and carries the open branches forward.
+        $Carried['Node'] = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($Share)) -Collapsed)
 
         return [object[]] @($Carried['Node'] | Where-Object { $_.Depth -eq 0 })
     }.GetNewClosure()

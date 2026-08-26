@@ -92,7 +92,19 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateNotNull()]
-        [object[]] $Workspace
+        [object[]] $Workspace,
+
+        # HOW THE WINDOW OPENS. A share with two operating systems, seventy
+        # drivers and a task sequence draws about thirty rows fully expanded,
+        # and everything below the fold is hidden by the very thing that was
+        # supposed to reveal it. Workbench opens folded, and so does this.
+        #
+        # IT IS A SWITCH AND NOT THE DEFAULT because a REBUILD must not use it:
+        # the tree is rebuilt after every edit, and a rebuild that folded the
+        # tree would shut whatever somebody had opened, every time they typed a
+        # name. New-HDTConsoleView passes the expansion forward instead.
+        [Parameter()]
+        [switch] $Collapsed
     )
 
     Set-StrictMode -Version Latest
@@ -135,6 +147,24 @@
 
         foreach ($row in $subtree) {
             [void] $node.Add($row)
+        }
+    }
+
+    # FOLDED AFTER THE FACT, not by threading a switch through nine builders.
+    # Every row in this tree is made by New-HDTConsoleNode, which sets
+    # IsExpanded, and the window binds to it TwoWay - so setting it here is the
+    # same fact said in one place instead of nine.
+    #
+    # FROM THE CATEGORIES DOWN, AND NOT THE ROOT AND THE SHARE. Folding
+    # everything is one row saying 'Deployment Shares (1)', which is a window
+    # asking to be clicked twice before it says anything - and the reason to
+    # fold was that thirty expanded rows hid what mattered, not that the share
+    # itself is noise. Depth 0 is the window, depth 1 is a share; the categories
+    # at depth 2 are the map, so they stay VISIBLE and go SHUT, which is
+    # Workbench's shape and what the tree is for.
+    if ($Collapsed) {
+        foreach ($row in @($node)) {
+            if ([int] $row.Depth -ge 2) { $row.IsExpanded = $false }
         }
     }
 

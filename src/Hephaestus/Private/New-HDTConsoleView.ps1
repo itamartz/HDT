@@ -552,9 +552,20 @@
             # THE DEPTH-0 ROWS, NOT EVERY ROW. Get-HDTConsoleTreeNode returns the
             # tree flat and WPF builds the branches from each row's Children, so
             # handing it everything draws every node twice.
+            # WHAT WAS OPEN, BEFORE IT STOPS EXISTING. Every node below is a new
+            # object, so the chevrons somebody clicked go with the old ones -
+            # and the console now opens FOLDED, so without this a rename would
+            # fold the tree back up around the person doing it.
+            $wasOpen = [string[]] @(& $call 'Get-HDTConsoleExpandedPath' `
+                    -Node ([object[]] @($tree.ItemsSource)))
+
             $rebuiltNode = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($rebuiltShare)))
 
-            $tree.ItemsSource = @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
+            $rebuiltRoot = [object[]] @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
+
+            [void] (& $call 'Set-HDTConsoleExpandedPath' -Node $rebuiltRoot -Path $wasOpen)
+
+            $tree.ItemsSource = $rebuiltRoot
 
             # WHAT THE WINDOW ENDED UP WITH, for Show-HDTConsole to remember
             # after it closes. Read from the rebuild rather than from the tree,

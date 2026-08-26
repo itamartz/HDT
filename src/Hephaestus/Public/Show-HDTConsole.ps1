@@ -292,7 +292,9 @@
             [void] $share.Add($current)
         }
 
-        $carried.Node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($share)))
+        # FOLDED ON THE FIRST BUILD - see New-HDTConsoleShareReader, which does
+        # the same for the -Path set.
+        $carried.Node = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @($share)) -Collapsed)
 
         # THE HOST IS HANDED THE ROOTS, NOT EVERY ROW. WPF builds the branches
         # from each row's Children, so the depth-0 rows are the whole
