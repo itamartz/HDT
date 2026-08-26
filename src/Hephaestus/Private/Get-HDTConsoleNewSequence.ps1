@@ -42,7 +42,7 @@ function Get-HDTConsoleNewSequence {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Template, Image,
-            Setting and CommandFormat.
+            Setting and Command.
 
         .EXAMPLE
             (Get-HDTConsoleNewSequence -Workspace C:\HDTLab\Share).Template
@@ -124,7 +124,11 @@ function Get-HDTConsoleNewSequence {
         Image         = [pscustomobject[]] @($image)
         Setting       = $setting
 
-        CommandFormat = "New-HDTTaskSequence -Workspace '$Workspace' -Id '{0}' -Name '{1}' -Template {2}"
+        # WHAT CREATE WOULD RUN IS RENDERED, NOT FORMATTED. There was a format
+        # string here taking three of the seven answers this window collects, so
+        # the footer named a command that produced a different sequence from the
+        # button beside it. Get-HDTConsoleNewSequenceCommand builds the whole
+        # line, -Variable included, and masks whatever these rows mark Secret.
         Command       = "Get-HDTConsoleNewSequence -Workspace '$Workspace'"
     }
 }

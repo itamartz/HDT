@@ -402,5 +402,41 @@ Describe 'the variable a layout row publishes' {
     }
 }
 
+# WHAT OK WOULD RUN, ON THE DIALOG RATHER THAN BEHIND IT. Partition Properties
+# was the one console window with nowhere to print a command - the editor prints
+# it AFTER the modal has closed, which is the one moment somebody is no longer
+# looking at the eight boxes they are deciding about. DESIGN 12.
+Describe 'Get-HDTConsolePartitionCommand' {
+
+    It 'names Add for a volume the table has not got' {
+        $line = Get-HDTConsolePartitionCommand -Step 'Format and Partition' -Partition 'Recovery'
+
+        $line | Should -BeExactly "Add-HDTStepPartition -Line `$line -Name 'Format and Partition' -Partition 'Recovery'"
+    }
+
+    It 'names Set for one it has, by the name the document still carries' {
+        # THE EXISTING NAME, NOT THE TYPED ONE. Set-HDTStepPartition finds the row
+        # by what the file says; a rename is a value it writes, not the row it
+        # looks up - so a line naming the new name would find nothing.
+        $line = Get-HDTConsolePartitionCommand -Step 'Format and Partition' `
+            -Partition 'Windows 11' -Existing 'Windows'
+
+        $line | Should -BeExactly "Set-HDTStepPartition -Line `$line -Name 'Format and Partition' -Partition 'Windows'"
+    }
+
+    It 'says nothing at all until the volume has a name' {
+        # AN EMPTY BOX IS NOT A COMMAND. A line with -Partition '' reads as one
+        # somebody could run, and it is refused.
+        Get-HDTConsolePartitionCommand -Step 'Format and Partition' -Partition '' |
+            Should -BeExactly ''
+    }
+
+    It 'doubles a quote, so the line can be pasted as it stands' {
+        $line = Get-HDTConsolePartitionCommand -Step "Frank's disk" -Partition 'Windows'
+
+        $line | Should -BeLike "*-Name 'Frank''s disk'*"
+    }
+}
+
 
 }

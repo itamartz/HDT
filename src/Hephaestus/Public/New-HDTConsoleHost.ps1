@@ -992,6 +992,36 @@
         $passwordHint.Text = [string] @($offer.Setting |
                 Where-Object { $_.Key -eq 'HDTAdminPassword' })[0].Hint
 
+        # WHAT WAS TYPED, AND ONLY WHAT WAS TYPED. An empty box writes no
+        # variable rather than an empty one: a sequence carrying
+        # HDTOrgName: '' looks like a decision somebody made.
+        #
+        # IT IS ONE SCRIPTBLOCK BECAUSE THE FOOTER AND THE BUTTON MAY NOT
+        # DISAGREE. They did: the line named three parameters and Create passed
+        # a fourth, so an administrator who copied it - the one thing DESIGN 12
+        # says the line is for - got a sequence with no operating system and no
+        # administrator password. Two copies of this loop is how that happens
+        # again, so there is one, and both callers read it.
+        $typed = {
+            $variable = [ordered] @{}
+
+            if (-not [string]::IsNullOrWhiteSpace([string] $imageBox.SelectedValue)) {
+                $variable['HDTOSImage'] = [string] $imageBox.SelectedValue
+            }
+
+            foreach ($pair in @(
+                    @{ Key = 'HDTFullName'; Value = [string] $fullNameBox.Text }
+                    @{ Key = 'HDTOrgName'; Value = [string] $orgBox.Text }
+                    @{ Key = 'HDTAdminPassword'; Value = [string] $passwordBox.Text }
+                )) {
+
+                if ([string]::IsNullOrWhiteSpace([string] $pair.Value)) { continue }
+                $variable[[string] $pair.Key] = [string] $pair.Value
+            }
+
+            return $variable
+        }.GetNewClosure()
+
         # WHETHER THE ANSWERS CAN BE USED, ON EVERY KEYSTROKE. The alternative
         # is a wizard that takes seven answers and refuses on the last press.
         $check = {
@@ -1001,13 +1031,23 @@
             $create.IsEnabled = [bool] $answer.CanCreate
             $messageText.Text = [string] $answer.Message
 
-            $commandText.Text = ($offer.CommandFormat -f
-                [string] $idBox.Text, [string] $nameBox.Text, [string] $templateBox.SelectedValue)
+            $commandText.Text = & $call 'Get-HDTConsoleNewSequenceCommand' `
+                -Workspace $Workspace -Id ([string] $idBox.Text) -Name ([string] $nameBox.Text) `
+                -Template ([string] $templateBox.SelectedValue) `
+                -Variable (& $typed) -Setting ([object[]] @($offer.Setting))
         }.GetNewClosure()
 
         $idBox.Add_TextChanged({ & $check }.GetNewClosure())
         $nameBox.Add_TextChanged({ & $check }.GetNewClosure())
         $templateBox.Add_SelectionChanged({ & $check }.GetNewClosure())
+
+        # THE OTHER FOUR BOXES MOVE THE LINE TOO, now that the line carries what
+        # they write. Before, typing an organisation changed the file and not a
+        # character on screen.
+        $imageBox.Add_SelectionChanged({ & $check }.GetNewClosure())
+        $fullNameBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $orgBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $passwordBox.Add_TextChanged({ & $check }.GetNewClosure())
 
         & $check
 
@@ -1015,24 +1055,8 @@
         $dialogHost = $this
 
         $create.Add_Click({
-                # WHAT WAS TYPED, AND ONLY WHAT WAS TYPED. An empty box writes no
-                # variable rather than an empty one: a sequence carrying
-                # HDTOrgName: '' looks like a decision somebody made.
-                $variable = [ordered] @{}
-
-                if (-not [string]::IsNullOrWhiteSpace([string] $imageBox.SelectedValue)) {
-                    $variable['HDTOSImage'] = [string] $imageBox.SelectedValue
-                }
-
-                foreach ($pair in @(
-                        @{ Key = 'HDTFullName'; Value = [string] $fullNameBox.Text }
-                        @{ Key = 'HDTOrgName'; Value = [string] $orgBox.Text }
-                        @{ Key = 'HDTAdminPassword'; Value = [string] $passwordBox.Text }
-                    )) {
-
-                    if ([string]::IsNullOrWhiteSpace([string] $pair.Value)) { continue }
-                    $variable[[string] $pair.Key] = [string] $pair.Value
-                }
+                # THE SAME BLOCK THE FOOTER READ. See $typed above.
+                $variable = & $typed
 
                 try {
                     $made = New-HDTTaskSequence -Workspace $Workspace `
@@ -1071,10 +1095,15 @@
     # failure, and that is a decision in an adapter.
     $service | Add-Member -MemberType ScriptMethod -Name ShowPartitionProperties -Value {
         param(
-            [string] $Xaml, [object] $Row, [object[]] $Unit, [object] $Theme, [object] $Owner
+            [string] $Xaml, [object] $Row, [object[]] $Unit, [object] $Theme, [object] $Owner,
+            [string] $Step
         )
 
         Add-Type -AssemblyName PresentationFramework
+
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
 
         $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
         $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
@@ -1099,10 +1128,27 @@
         $quickCheck = $dialog.FindName('HDTVolumeQuickFormatCheck')
         $bootCheck = $dialog.FindName('HDTVolumeBootableCheck')
         $messageText = $dialog.FindName('HDTVolumeMessageText')
+        $commandText = $dialog.FindName('HDTVolumeCommandText')
         $ok = $dialog.FindName('HDTVolumeOkButton')
 
         $unitBox.ItemsSource = $Unit
         $unitBox.SelectedIndex = 0
+
+        # THE ROW THIS DIALOG WOULD LOOK UP. Empty for New, and for Edit the name
+        # the document still carries - a rename is a value Set-HDTStepPartition
+        # writes, not the row it finds.
+        $existing = ''
+        if ($null -ne $Row) { $existing = [string] $Row.Name }
+
+        # WHAT OK WOULD RUN, ON EVERY KEYSTROKE. See
+        # Get-HDTConsolePartitionCommand: the editor prints the same line, but
+        # only once this window has closed.
+        $describe = {
+            $commandText.Text = & $call 'Get-HDTConsolePartitionCommand' `
+                -Step $Step -Partition ([string] $nameBox.Text) -Existing $existing
+        }.GetNewClosure()
+
+        $nameBox.Add_TextChanged({ & $describe }.GetNewClosure())
 
         # THE NUMBER GOES FLAT FOR A UNIT THAT TAKES NONE. "the rest of the
         # disk" is not a quantity, and a live box beside it invites a number
@@ -1145,6 +1191,7 @@
         }
 
         & $followUnit
+        & $describe
 
         $this.PartitionAnswer = $null
 

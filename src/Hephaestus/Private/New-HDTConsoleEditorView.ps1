@@ -1085,7 +1085,10 @@
 
             $view = & $call 'Get-HDTConsolePartitionRow' -Line $book.Line -Path $Path -Name $book.Selected
 
-            $dialog = $editorHost.ShowPartitionProperties($PartitionXaml, $Row, $view.Unit, $Theme, $window)
+            # THE STEP GOES IN because the dialog prints the command OK would
+            # run, and that line names the step whose table is being edited.
+            $dialog = $editorHost.ShowPartitionProperties($PartitionXaml, $Row, $view.Unit, $Theme,
+                $window, $book.Selected)
             if ($null -eq $dialog) { return $null }
 
             return $dialog

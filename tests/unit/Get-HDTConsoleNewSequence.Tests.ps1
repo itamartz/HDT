@@ -83,7 +83,72 @@ Describe 'Get-HDTConsoleNewSequence' {
         }
 
         It 'shows the command it would run' {
-            $script:view.CommandFormat | Should -BeLike '*New-HDTTaskSequence*'
+            $line = Get-HDTConsoleNewSequenceCommand -Workspace 'C:\ws' -Id 'WIN11' `
+                -Name 'Windows 11' -Template 'client'
+
+            $line | Should -BeLike '*New-HDTTaskSequence*'
+        }
+    }
+
+    # WHAT THE FOOTER SAYS AND WHAT THE BUTTON DOES ARE ONE THING OR THEY ARE A
+    # LIE. DESIGN 12: an administrator learns the automation surface by clicking
+    # around, and scripts anything they can do in the UI - so a line that omits
+    # half of what Create writes sends them away with a sequence that has no
+    # operating system and no administrator password, and nothing on screen said
+    # so. This window collects seven answers; the line has to carry all seven.
+    Context 'the line an administrator would copy' {
+
+        BeforeAll {
+            $script:typed = [ordered] @{
+                HDTOSImage       = 'Win11-LTSC-2024'
+                HDTFullName      = 'HDT Lab'
+                HDTOrgName       = 'Hephaestus'
+                HDTAdminPassword = 'P@ssw0rd-lab'
+            }
+
+            $script:setting = @(Get-HDTConsoleNewSequence -Workspace 'C:\ws' `
+                    -FileSystem $script:fileSystem).Setting
+
+            $script:line = Get-HDTConsoleNewSequenceCommand -Workspace 'C:\ws' -Id 'WIN11' `
+                -Name 'Windows 11' -Template 'client' -Variable $script:typed -Setting $script:setting
+        }
+
+        It 'names the command, the share, the id, the name and the template' {
+            $script:line | Should -BeLike "New-HDTTaskSequence -Workspace 'C:\ws' -Id 'WIN11' -Name 'Windows 11' -Template client*"
+        }
+
+        It 'carries every variable the button will write' {
+            $script:line | Should -BeLike '*-Variable*'
+            $script:line | Should -BeLike "*HDTOSImage = 'Win11-LTSC-2024'*"
+            $script:line | Should -BeLike "*HDTFullName = 'HDT Lab'*"
+            $script:line | Should -BeLike "*HDTOrgName = 'Hephaestus'*"
+        }
+
+        It 'names the administrator password without printing it' {
+            # THE ONE KEY Get-HDTConsoleNewSequence MARKS Secret. It is readable
+            # in the file it lands in, and that is a deliberate decision this
+            # toolkit inherits from MDT - but a footer is selectable, copied and
+            # photographed, and none of those is the file. The key has to appear,
+            # because a line that silently dropped it would be the same defect
+            # again; the value must not.
+            $script:line | Should -BeLike '*HDTAdminPassword*'
+            $script:line | Should -Not -BeLike '*P@ssw0rd-lab*'
+        }
+
+        It 'omits the variable block entirely when nothing else was typed' {
+            # AN EMPTY HASH IS NOT AN ANSWER SOMEBODY GAVE. New-HDTTaskSequence
+            # is called without -Variable in that case, and the line says so.
+            $bare = Get-HDTConsoleNewSequenceCommand -Workspace 'C:\ws' -Id 'WIN11' `
+                -Name 'Windows 11' -Template 'client' -Variable ([ordered] @{})
+
+            $bare | Should -Not -BeLike '*-Variable*'
+        }
+
+        It 'doubles a quote in a name, so the line can be pasted as it stands' {
+            $odd = Get-HDTConsoleNewSequenceCommand -Workspace 'C:\ws' -Id 'WIN11' `
+                -Name "Frank's laptop" -Template 'client'
+
+            $odd | Should -BeLike "*-Name 'Frank''s laptop'*"
         }
     }
 

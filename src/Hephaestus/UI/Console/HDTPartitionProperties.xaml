@@ -15,7 +15,7 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Partition Properties"
-        Width="470" Height="420"
+        Width="470" Height="470"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -87,6 +87,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Grid.ColumnDefinitions>
@@ -144,7 +145,22 @@
                    Foreground="{DynamicResource HDTErrorBrush}"
                    TextWrapping="Wrap" VerticalAlignment="Bottom" Margin="0,12,0,0" />
 
-        <StackPanel Grid.Row="8" Grid.ColumnSpan="2" Orientation="Horizontal"
+        <!-- WHAT OK WOULD RUN, WHILE THERE IS STILL TIME TO READ IT. DESIGN 12:
+             every action maps to a cmdlet and the console shows which, so an
+             administrator scripts what they can click.
+
+             THE EDITOR PRINTS IT TOO, AND THAT IS NOT THE SAME THING. It prints
+             the line AFTER this dialog has closed, on a strip behind it - so
+             the one moment somebody is deciding whether these eight boxes say
+             what they meant is the one moment the command is not on screen.
+             Every other modal in this console shows it live; this one did not,
+             which is how it was found. -->
+        <TextBlock Grid.Row="8" Grid.ColumnSpan="2" x:Name="HDTVolumeCommandText"
+                   Foreground="{DynamicResource HDTCommandTextBrush}"
+                   FontFamily="Consolas, Courier New" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,10,0,0" />
+
+        <StackPanel Grid.Row="9" Grid.ColumnSpan="2" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button x:Name="HDTVolumeOkButton" IsDefault="True" />
             <!-- NAMED, BUT NOT WIRED. IsCancel is WPF closing its own dialog

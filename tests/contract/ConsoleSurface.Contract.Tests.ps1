@@ -358,4 +358,43 @@ Describe 'Console surface contract' {
 
         $offence.Count | Should -Be 0 -Because $because
     }
+
+    # DESIGN 12: "every action it performs maps to a cmdlet invocation, and the
+    # console shows that invocation - so an admin can learn the automation
+    # surface by clicking around, and script anything they can do in the UI."
+    #
+    # THAT IS A PROPERTY OF THE SET, NOT OF THE WINDOW SOMEBODY REMEMBERED. It
+    # was already missed twice: Partition Properties ships eight boxes and an OK
+    # that runs Add-HDTStepPartition and had nowhere to print it, and the New
+    # Task Sequence footer named three of the seven answers its own Create
+    # button writes. Neither could be seen from inside the file it was in. A
+    # window added tomorrow with no line on it fails here instead.
+    It 'gives every console window somewhere to print the command it runs' {
+        $consoleUi = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/UI/Console'
+
+        # THE ONE THAT RUNS NOTHING. HDTBuildProgress watches a build the
+        # Windows PE window started and already named; it has an elapsed time, a
+        # log and a Close, and no action of its own to describe.
+        $watchesOnly = @('HDTBuildProgress.xaml')
+
+        $markup = @(Get-ChildItem -Path $consoleUi -Filter '*.xaml' -File |
+                Where-Object { $_.Name -notin $watchesOnly })
+
+        $markup.Count | Should -BeGreaterThan 0 -Because 'a sweep that walked no files would pass without looking at anything'
+
+        $silent = @()
+
+        foreach ($file in $markup) {
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+
+            if ($text -notmatch 'x:Name="[A-Za-z]*CommandText"') { $silent += $file.Name }
+        }
+
+        $because = 'a window whose buttons run cmdlets has to show which - DESIGN 12'
+        if ($silent.Count -gt 0) {
+            $because = "{0}. Silent: {1}" -f $because, (@($silent) -join ', ')
+        }
+
+        $silent.Count | Should -Be 0 -Because $because
+    }
 }
