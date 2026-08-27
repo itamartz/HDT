@@ -12,7 +12,7 @@ function New-HDTImageService {
             swapped for New-HDTFakeImageService in a test with no media, no disk
             and no reboot.
 
-            FIVE METHODS, AND THE EXACT MECHANISM EACH WRAPS:
+            SIX METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
               GetImageInfo(imagePath)
                   Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
@@ -23,6 +23,22 @@ function New-HDTImageService {
                   dism.exe /Apply-Image /ImageFile: /Index: /ApplyDir:, with
                   every line the tool prints handed to onOutput as it arrives.
                   That is where the percentage comes from - see the method.
+
+              AddDriver(imagePath, driverPath, recurse)
+                  Add-WindowsDriver -Path <imagePath> -Driver <driverPath>
+                      -Recurse:<recurse>
+
+                  OFFLINE INJECTION INTO THE APPLIED OS, which is MDT's
+                  behaviour and DESIGN 7's: the driver is written into
+                  <imagePath>\Windows\System32\DriverStore\FileRepository and
+                  staged, and WINDOWS binds it to a device on the first boot.
+                  Nothing here installs a driver onto a running machine.
+
+                  imagePath is the applied OS VOLUME - %HDTOSVolume%, W:\ - not
+                  a mounted WIM. It is the same DISM verb IBootImageService
+                  calls with a mount path, which is why the shape matches; the
+                  engine gets its own copy because a deployment in WinPE must
+                  not have to carry a boot image builder to inject a NIC driver.
 
               InstallBootFile(osRoot, systemVolume, firmware)
                   bcdboot.exe "<OsRoot>\Windows" /s <systemVolume> /f <firmware>,
@@ -252,6 +268,30 @@ function New-HDTImageService {
 
         # Exit-code check, with dism's own sentence attached.
         $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name AddDriver -Value {
+        param([string] $ImagePath, [string] $DriverPath, [bool] $Recurse)
+
+        $this.Record('AddDriver', @($ImagePath, $DriverPath, $Recurse))
+
+        # -Recurse:$Recurse is parameter binding, not a branch.
+        $added = @(Add-WindowsDriver -Path $ImagePath -Driver $DriverPath -Recurse:$Recurse)
+
+        $row = foreach ($item in $added) {
+            [pscustomobject] @{
+                Inf      = [string] $item.Driver
+                Provider = [string] $item.ProviderName
+                Version  = [string] $item.Version
+                Date     = [string] $item.Date
+            }
+        }
+
+        # The unary comma is mandatory: a ScriptMethod returning an array
+        # collapses a one-element array to a scalar without it, and one driver
+        # is the ordinary case for a matched injection (tests/helpers/README.md
+        # F3).
+        return , ([object[]] @($row))
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name InstallBootFile -Value {

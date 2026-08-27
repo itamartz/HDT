@@ -36,8 +36,14 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         $script:documented.Count | Should -BeGreaterThan 0 -Because 'DESIGN 4.4.2 has to list the vocabulary somewhere this test can read'
     }
 
-    It 'has fourteen names in the engine' {
-        $script:accepted.Count | Should -Be 14
+    It 'has nineteen names in the engine' {
+        # Fourteen until 2026-08-27, when ApplyDrivers added the five driver.*
+        # events. The number is asserted rather than derived on purpose: it is
+        # the tripwire that makes adding a name a deliberate act, documented in
+        # DESIGN 4.4.2 in the same change, instead of something that lands in a
+        # ValidateSet and is discovered later by a report renderer that does not
+        # know the name.
+        $script:accepted.Count | Should -Be 19
     }
 
     It 'documents every name the engine accepts' {

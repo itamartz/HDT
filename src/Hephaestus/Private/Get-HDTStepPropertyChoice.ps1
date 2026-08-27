@@ -73,6 +73,15 @@ function Get-HDTStepPropertyChoice {
         'ConfigureBoot' = @{
             'firmware' = @('auto', 'UEFI', 'BIOS')
         }
+
+        # MDT's two radio buttons on the Inject Drivers step, in MDT's order:
+        # install everything in the selection, or only what matches. 'all' leads
+        # because a group an administrator built for one model is already the
+        # answer for that model - matching it again is work with nothing to
+        # gain.
+        'ApplyDrivers' = @{
+            'mode' = @('all', 'matching')
+        }
     }
 
     if (-not $table.ContainsKey($Type)) { return [string[]] @() }

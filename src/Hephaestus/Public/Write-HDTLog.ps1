@@ -106,6 +106,21 @@
 
         [Parameter()]
         [ValidateSet(
+            # THE DRIVER DECISION IS ITS OWN VOCABULARY, for the reason
+            # var.resolve is: "why did this machine get that driver" is a
+            # question asked of a finished deployment, and it is answered by
+            # FILTERING the log, not by reading it. driver.group says which
+            # folder was resolved and whether it was there, driver.fallback says
+            # a PnP match happened and why, driver.enumerate how many devices
+            # the machine reported, driver.match the id and rank behind each
+            # choice, and driver.injected what DISM said came back. MDT put all
+            # of this in ZTIDrivers.log; these are the records that let
+            # Copy-HDTLog split the same file back out.
+            'driver.enumerate',
+            'driver.fallback',
+            'driver.group',
+            'driver.injected',
+            'driver.match',
             'message',
             'native.exec',
             'phase.change',

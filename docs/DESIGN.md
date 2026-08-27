@@ -639,7 +639,23 @@ document and the engine disagree about is not controlled:
 | `reboot.arm` | autologon was armed before a restart (§4.5) |
 | `reboot.resume` | the boot reconcile resumed a run |
 | `reboot.teardown` | the §4.5.4 teardown checklist ran |
+| `driver.group` | the driver group a rule resolved, and whether it was on the share |
+| `driver.fallback` | group match did not apply, with the reason PnP matching was used instead |
+| `driver.enumerate` | how many devices the machine reported hardware ids for |
+| `driver.match` | a driver was chosen, with the id it matched, the rank, and the device |
+| `driver.injected` | a driver was injected, as DISM named it back |
 | `message` | the default: any `Write-HDTLog` call that names no event, which is every custom step's log line under §4.4.4 |
+
+**Why drivers get five names of their own.** Every other step reports what it
+did; `ApplyDrivers` has to report what it *decided*, because the two most common
+driver complaints — "this model got no drivers" and "this machine got the wrong
+one" — are questions about a choice, not about an outcome. A group that resolved
+to a folder nobody created, a fallback nobody expected, and a pack that won on
+version rather than specificity all look identical in a log that records only
+"drivers injected". They are separate events rather than one `driver.*` with a
+sub-type so that a filter can pull just the matches out of a deployment that
+made two hundred of them. This is MDT's `ZTIDrivers.log` restated as structure:
+the same facts, filterable rather than greppable.
 
 `data` carries step-specific detail without polluting the top level.
 

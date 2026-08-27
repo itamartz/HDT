@@ -1,13 +1,22 @@
 # The IImageService contract (PROJECT constraint 4, DESIGN 9.2, DESIGN 12.2.1).
 #
-# Five methods:
+# Six methods:
 #
 #   GetImageInfo(imagePath) -> object[]  Index, Name, Description, Edition,
 #                                        SizeBytes, Architecture, Version
 #   ApplyImage(imagePath, index, applyPath)
+#   AddDriver(imagePath, driverPath, recurse) -> object[]  Inf, Provider,
+#                                                          Version, Date
 #   InstallBootFile(osRoot, systemVolume, firmware)
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
+#
+# AddDriver IS OFFLINE INJECTION INTO THE APPLIED OS, and it is deliberately the
+# same shape as IBootImageService.AddDriver because it is the same DISM verb -
+# only the path differs: a mounted WIM for a boot image, the applied OS volume
+# (%HDTOSVolume%, W:\) for a deployment. It is NOT reached through
+# IBootImageService: that service mounts, dismounts and calls oscdimg, and the
+# engine running in WinPE has no business carrying a boot image builder.
 #
 # THE REAL ROW CALLS GetImageInfo AND NOTHING ELSE.
 #
@@ -82,7 +91,7 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
             # real adapter is a pscustomobject carrying ScriptMethod members.
             $method = @($script:image | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
-            foreach ($name in @('GetImageInfo', 'ApplyImage', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
+            foreach ($name in @('GetImageInfo', 'ApplyImage', 'AddDriver', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
                 $method | Should -Contain $name -Because "IImageService requires $name"
             }
         }

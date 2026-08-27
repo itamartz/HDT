@@ -116,14 +116,25 @@
         }
         'ApplyImage'    = @{ Text = 'Apply Operating System'; Category = 'Images'; Order = 1 }
         'ApplyUnattend' = @{ Text = 'Apply Windows Settings'; Category = 'Images'; Order = 2 }
-        'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 3 }
+
+        # MDT CALLS IT 'Inject Drivers' AND SO DOES THIS. An MDT administrator
+        # looking for the step they already know must find it under the name
+        # they know it by, not under 'ApplyDrivers', which is the type - the
+        # thing they will never type.
+        #
+        # BETWEEN Apply Windows Settings AND Configure Boot, which is MDT's own
+        # order and the only one that works: injection is offline into the
+        # volume the image was just applied to, so it must come after the apply
+        # and before the machine boots off it.
+        'ApplyDrivers'  = @{ Text = 'Inject Drivers'; Category = 'Images'; Order = 3 }
+        'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 4 }
         'EnableBitLocker' = @{ Text = 'Enable BitLocker'; Category = 'Disks'; Order = 2 }
         'InstallRoles'  = @{ Text = 'Install Roles and Features'; Category = 'Roles'; Order = 1 }
 
         # ON THE IMAGES SHELF, AFTER Apply Windows Settings, because that is
         # where it belongs in a sequence: it acts on the volume the image was
         # just applied to, and it has to be there before the Restart below it.
-        'InstallCertificate' = @{ Text = 'Install Certificates'; Category = 'Images'; Order = 4 }
+        'InstallCertificate' = @{ Text = 'Install Certificates'; Category = 'Images'; Order = 5 }
     }
 
     # Workbench's order, and Custom last because it is whatever this particular

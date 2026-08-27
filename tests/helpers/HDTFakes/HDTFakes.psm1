@@ -25,6 +25,17 @@ class HDTFakeFileSystem {
     # Path -> $true. A set, held separately so an empty directory still exists.
     [hashtable] $Directory
 
+    # Path -> a hashtable of the IDENTITY fields the file claims: company,
+    # product, description. $VersionOverride below is the same resource's
+    # version NUMBER and is the shorthand this is the long form of - the real
+    # adapter reads both off one System.Diagnostics.FileVersionInfo.
+    #
+    # It exists because a Dell Update Package and an HP SoftPaq are both 'a
+    # self-extracting .exe' by every other measure available and they take
+    # INCOMPATIBLE switches, so the vendor has to be readable before the file
+    # is run.
+    [hashtable] $VersionInfoOverride
+
     # Path -> the message a write to it throws. DESIGN 4.5.3's teardown runs from
     # a finally block, so it has to survive the checkpoint that block just tried
     # and could not make - which needs a filesystem where one path, and only one,
@@ -65,6 +76,7 @@ class HDTFakeFileSystem {
         $this.WriteFailure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.HashOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.VersionOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.VersionInfoOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'FileSystem'
     }
@@ -170,6 +182,13 @@ class HDTFakeFileSystem {
     # to code that verifies by hash.
     [void] SeedHash([string] $Path, [string] $Hash) {
         $this.HashOverride[$this.Normalize($Path)] = $Hash
+    }
+
+    # THE IDENTITY FIELDS. See $VersionInfoOverride above. Keys: CompanyName,
+    # ProductName, FileDescription, FileVersion - any subset; the rest answer
+    # empty, as the real adapter does for a resource that omits them.
+    [void] SeedVersionInfo([string] $Path, [hashtable] $Info) {
+        $this.VersionInfoOverride[$this.Normalize($Path)] = $Info
     }
 
     # THE VERSION RESOURCE. See $VersionOverride above.
@@ -400,6 +419,37 @@ class HDTFakeFileSystem {
         }
 
         return [long] ([System.Text.Encoding]::UTF8.GetByteCount([string] $this.File[$full]))
+    }
+
+    # What the file claims about itself. Seeded per path through -VersionInfo,
+    # because a test about "a Dell pack takes Dell's switches" needs the file to
+    # SAY it is Dell without a 2 GB .exe being anywhere near the suite.
+    #
+    # AN UNSEEDED FILE ANSWERS EMPTY STRINGS, matching the real adapter on a file
+    # carrying no version block - which is most files, and the case the caller
+    # has to survive.
+    [object] GetVersionInfo([string] $Path) {
+        $this.Record('GetVersionInfo', @($Path))
+        $full = $this.Normalize($Path)
+
+        if (-not $this.File.ContainsKey($full)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.", $full)
+        }
+
+        if ($this.VersionInfoOverride.ContainsKey($full)) {
+            $seeded = $this.VersionInfoOverride[$full]
+
+            return [pscustomobject] @{
+                CompanyName     = [string] $seeded['CompanyName']
+                ProductName     = [string] $seeded['ProductName']
+                FileDescription = [string] $seeded['FileDescription']
+                FileVersion     = [string] $seeded['FileVersion']
+            }
+        }
+
+        return [pscustomobject] @{
+            CompanyName = ''; ProductName = ''; FileDescription = ''; FileVersion = ''
+        }
     }
 
     # SHA256 OVER THE SAME BYTES THE REAL ADAPTER WOULD HASH. The real one runs
@@ -3375,12 +3425,17 @@ class HDTFakeImageService {
     # transcript, or a handful of lines a test wrote to make one point.
     [string[]] $ApplyOutput
 
+    # What AddDriver reports back - the rows the step logs as injected. Named
+    # and shaped as IBootImageService's, because it is the same DISM verb.
+    [object[]] $Driver
+
     HDTFakeImageService() {
         $this.Image = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'ImageService'
         $this.ApplyOutput = [string[]] @()
+        $this.Driver = [object[]] @()
     }
 
     # -- recording ---------------------------------------------------------
@@ -3523,6 +3578,16 @@ class HDTFakeImageService {
         $this.AssertNoFailure('ApplyImage')
     }
 
+    # Offline injection into the applied OS. The real adapter returns what
+    # Add-WindowsDriver reported; this returns what it was seeded with, so a
+    # step asserting "it injected three drivers" needs no DISM and no volume.
+    [object[]] AddDriver([string] $ImagePath, [string] $DriverPath, [bool] $Recurse) {
+        $this.Record('AddDriver', @($ImagePath, $DriverPath, $Recurse))
+        $this.AssertNoFailure('AddDriver')
+
+        return [object[]] @($this.Driver)
+    }
+
     [void] InstallBootFile([string] $OsRoot, [string] $SystemVolume, [string] $Firmware) {
         $this.Record('InstallBootFile', @($OsRoot, $SystemVolume, $Firmware))
         $this.AssertNoFailure('InstallBootFile')
@@ -3599,6 +3664,12 @@ function New-HDTFakeImageService {
             tests/fixtures/image/dism-apply-image-output.txt to give a step a
             real apply's worth of progress in no time at all.
 
+        .PARAMETER Driver
+            What AddDriver reports back - one row per driver injected, with Inf,
+            Provider, Version and Date, as Add-WindowsDriver returns them. A
+            step that logs which drivers it put on a machine can then be
+            asserted with no DISM and no volume.
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -3640,6 +3711,10 @@ function New-HDTFakeImageService {
         [string[]] $ApplyOutput = @(),
 
         [Parameter()]
+        [AllowEmptyCollection()]
+        [object[]] $Driver = @(),
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
@@ -3647,6 +3722,7 @@ function New-HDTFakeImageService {
     $fake = [HDTFakeImageService]::new()
     $fake.Journal = $Journal
     $fake.ApplyOutput = [string[]] @($ApplyOutput)
+    $fake.Driver = [object[]] @($Driver)
 
     if ($PSBoundParameters.ContainsKey('FixturePath')) {
         if (-not (Test-Path -LiteralPath $FixturePath -PathType Container)) {

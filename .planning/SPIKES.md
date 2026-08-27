@@ -1879,3 +1879,61 @@ rebuilt six times. No VM was created or removed. One dismount of
 `C:\HDTLab\scratch\bootimage\mount` was needed after a build was killed
 mid-flight and left the image `NeedsRemount`.
 
+
+---
+
+## S19 — `Win32_PnPEntity` is fully populated in WinPE ✅⚠
+
+**The question S1 did not answer.** S1 proved `Get-CimInstance` works in WinPE
+using `Win32_ComputerSystem`. `Win32_PnPEntity` is a **different provider
+class**, and the PnP driver-match fallback — `Get-HDTPresentDevice`,
+`Get-HDTDriverMatch` — is built entirely on it. If it answered empty in WinPE
+the fallback would match nothing, silently, and every unrecognised model would
+deploy bare. That is the failure the fallback exists to prevent, so it could not
+stay assumed.
+
+Verified in a Gen2 VM on **`HDT External`** with a real DHCP lease, running
+WinPE from HDT's own built boot image. The probe wrote JSON straight to the
+share and it was read back on the host — not transcribed off a screenshot:
+
+```
+Count: 44   WithHwId: 42   PnpClassPopulated: 32   ElapsedMs: 498
+```
+
+```json
+{ "Name": "Microsoft Hyper-V Video", "PNPClass": "Display",
+  "HardwareID": ["VMBUS\{da0a7802-...}", "VMBUS\{5620e0c7-...}"],
+  "CompatibleID": ["VMBUS\{da0a7802-...}"] }
+```
+
+- **It works.** 44 devices, 42 carrying a populated `HardwareID` array, in
+  **498 ms** — negligible against a deployment, and it runs once, only on the
+  fallback path. No `pnputil /enum-devices` or SetupAPI P/Invoke fallback is
+  needed. MDT's `Microsoft.BDD.PnpEnum.exe` has no job here, which is just as
+  well because rule 4 forbids it.
+
+- ⚠ **`PNPClass` is on 32 of 44 rows, not all of them.** One VMBUS row carries
+  `null` for `Name` **and** `PNPClass`. So a class filter must treat an absent
+  class as "unknown" rather than assuming every device has one — and a grid
+  grouped by class has an empty bucket that is real data, not a bug.
+
+- **`CompatibleID` is `null` on some rows** (ACPI Module Device, Basic Display)
+  and populated on others. That is the same pattern a full OS shows, not a
+  WinPE artefact — `Get-HDTPresentDevice` turns it into an empty array so
+  StrictMode code downstream never reads a null.
+
+**Method, worth keeping.** Driving WinPE by screenshot and OCR was tried first
+and was far too slow for reading an array of hardware ids. What worked: put the
+VM on `HDT External`, reach the cmd prompt through HDT's **own** wizard "Open
+CMD" escape hatch with `Msvm_Keyboard` (Tab + Enter — no mouse), `ipconfig
+/renew` for a lease, then one `powershell -NoProfile -Command` line that ran the
+query, timed it, and `Set-Content`'d the JSON to the share. **Catch the answer
+in a file, never off the screen.**
+
+**And the switch matters, exactly as S6 says.** The VM was first created on
+`HDT Lab` and got no lease and no route to the share — which is precisely what
+S6 records, rediscovered the hard way. `HDT External` is the switch for anything
+that needs the network.
+
+`HDT-PnP-Spike`, its VHDX under `C:\HDTLab\vms\`, and the probe file were all
+removed; they were created by this spike. `CM01` and `DC01` were never touched.

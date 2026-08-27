@@ -119,6 +119,26 @@
     # every Get-HDT*StepTemplate writes its keys in this order.
     $row = switch ($Type) {
 
+        # THE HINT UNDER 'Driver group' IS THE ONLY DOCUMENTATION MOST PEOPLE
+        # WILL READ, and it has one job: teach that the path takes variables.
+        # An administrator who has not met MDT's Total Control method will type
+        # a literal folder name, get drivers on the one model they tested, and
+        # find out on somebody else's desk that the step does nothing for every
+        # other machine in the fleet. The pattern in the hint is the fix, and it
+        # fits in the space the neighbouring hints use.
+        #
+        # WHAT IS DELIBERATELY NOT IN THE HINT: that the store's shape is the
+        # administrator's own - any names, any depth - and that group match
+        # skips the PnP ranking entirely. Both are true, neither changes what
+        # they type into this box, and four lines under one field is a screen
+        # explaining itself at the cost of the controls around it.
+        'ApplyDrivers' {
+            & $new 'group' 'Driver group' 'Text' 'Win11\%HDTMake%\%HDTModel%' 'A folder under Drivers\, resolved per machine - %HDTMake% and %HDTModel% are filled in as the deployment runs. Empty matches by hardware id instead.'
+            & $new 'mode' 'Install' 'Choice' 'all' 'All installs every driver in the group. Matching installs only the ones this machine reports hardware for.'
+            & $new 'profile' 'Selection profile' 'Text' '' 'Limits which folders are considered when matching by hardware id. Empty considers the whole driver store.'
+            & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the drivers are injected into. Empty uses the volume the partition step published.'
+        }
+
         'ApplyUnattend' {
             & $new 'template' 'Answer file' 'Text' '' 'The unattend.xml this step stages, relative to the sequence folder or rooted. It is copied into the image, not applied to the running machine.'
             & $new 'expand' 'Expand variables' 'Check' 'true' 'Replace %HDTComputerName% and the rest inside the answer file as it is copied. Off writes the file through untouched.'
