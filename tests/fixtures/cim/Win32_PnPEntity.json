@@ -1,0 +1,446 @@
+﻿[
+    {
+        "Name":  "Intel(R) Iris(R) Xe Graphics",
+        "PNPClass":  "Display",
+        "PNPDeviceID":  "PCI\\VEN_8086\u0026DEV_46A6\u0026SUBSYS_3AE817AA\u0026REV_0C\\3\u002611583659\u00261\u002610",
+        "HardwareID":  [
+                           "PCI\\VEN_8086\u0026DEV_46A6\u0026SUBSYS_3AE817AA\u0026REV_0C",
+                           "PCI\\VEN_8086\u0026DEV_46A6\u0026SUBSYS_3AE817AA",
+                           "PCI\\VEN_8086\u0026DEV_46A6\u0026CC_030000",
+                           "PCI\\VEN_8086\u0026DEV_46A6\u0026CC_0300"
+                       ],
+        "CompatibleID":  [
+                             "PCI\\VEN_8086\u0026DEV_46A6\u0026REV_0C",
+                             "PCI\\VEN_8086\u0026DEV_46A6",
+                             "PCI\\VEN_8086\u0026CC_030000",
+                             "PCI\\VEN_8086\u0026CC_0300",
+                             "PCI\\VEN_8086",
+                             "PCI\\CC_030000\u0026DT_9",
+                             "PCI\\CC_030000",
+                             "PCI\\CC_0300\u0026DT_9",
+                             "PCI\\CC_0300"
+                         ],
+        "Manufacturer":  "Intel Corporation",
+        "Service":  "igfxn"
+    },
+    {
+        "Name":  "NVIDIA GeForce RTX 3060 Laptop GPU",
+        "PNPClass":  "Display",
+        "PNPDeviceID":  "PCI\\VEN_10DE\u0026DEV_2560\u0026SUBSYS_3AE817AA\u0026REV_A1\\4\u0026341139ED\u00260\u00260008",
+        "HardwareID":  [
+                           "PCI\\VEN_10DE\u0026DEV_2560\u0026SUBSYS_3AE817AA\u0026REV_A1",
+                           "PCI\\VEN_10DE\u0026DEV_2560\u0026SUBSYS_3AE817AA",
+                           "PCI\\VEN_10DE\u0026DEV_2560\u0026CC_030000",
+                           "PCI\\VEN_10DE\u0026DEV_2560\u0026CC_0300"
+                       ],
+        "CompatibleID":  [
+                             "PCI\\VEN_10DE\u0026DEV_2560\u0026REV_A1",
+                             "PCI\\VEN_10DE\u0026DEV_2560",
+                             "PCI\\VEN_10DE\u0026CC_030000",
+                             "PCI\\VEN_10DE\u0026CC_0300",
+                             "PCI\\VEN_10DE",
+                             "PCI\\CC_030000\u0026DT_1",
+                             "PCI\\CC_030000",
+                             "PCI\\CC_0300\u0026DT_1",
+                             "PCI\\CC_0300"
+                         ],
+        "Manufacturer":  "NVIDIA",
+        "Service":  "nvlddmkm"
+    },
+    {
+        "Name":  "Bluetooth Device (Personal Area Network)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "BTH\\MS_BTHPAN\\6\u002614C0826C\u00260\u00262",
+        "HardwareID":  [
+                           "BTH\\MS_BTHPAN"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "BthPan"
+    },
+    {
+        "Name":  "Hyper-V Virtual Ethernet Adapter #2",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMS_MP\\0000",
+        "HardwareID":  [
+                           "vms_mp"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "VMSNPXYMP"
+    },
+    {
+        "Name":  "Hyper-V Virtual Ethernet Adapter #3",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMS_MP\\0001",
+        "HardwareID":  [
+                           "vms_mp"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "VMSNPXYMP"
+    },
+    {
+        "Name":  "Hyper-V Virtual Switch Extension Adapter",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMS_VSMP\\0000",
+        "HardwareID":  [
+                           "vms_vsmp"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "VMSMP"
+    },
+    {
+        "Name":  "Hyper-V Virtual Switch Extension Adapter #2",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMS_VSMP\\0001",
+        "HardwareID":  [
+                           "vms_vsmp"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "VMSMP"
+    },
+    {
+        "Name":  "Hyper-V Virtual Switch Extension Adapter #3",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMS_VSMP\\0002",
+        "HardwareID":  [
+                           "vms_vsmp"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "VMSMP"
+    },
+    {
+        "Name":  "Hyper-V Virtual Switch Extension Adapter #4",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMS_VSMP\\0003",
+        "HardwareID":  [
+                           "vms_vsmp"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "VMSMP"
+    },
+    {
+        "Name":  "Intel(R) Wi-Fi 6E AX211 160MHz",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "PCI\\VEN_8086\u0026DEV_51F0\u0026SUBSYS_00948086\u0026REV_01\\3\u002611583659\u00261\u0026A3",
+        "HardwareID":  [
+                           "PCI\\VEN_8086\u0026DEV_51F0\u0026SUBSYS_00948086\u0026REV_01",
+                           "PCI\\VEN_8086\u0026DEV_51F0\u0026SUBSYS_00948086",
+                           "PCI\\VEN_8086\u0026DEV_51F0\u0026CC_028000",
+                           "PCI\\VEN_8086\u0026DEV_51F0\u0026CC_0280"
+                       ],
+        "CompatibleID":  [
+                             "PCI\\VEN_8086\u0026DEV_51F0\u0026REV_01",
+                             "PCI\\VEN_8086\u0026DEV_51F0",
+                             "PCI\\VEN_8086\u0026CC_028000",
+                             "PCI\\VEN_8086\u0026CC_0280",
+                             "PCI\\VEN_8086",
+                             "PCI\\CC_028000\u0026DT_9",
+                             "PCI\\CC_028000",
+                             "PCI\\CC_0280\u0026DT_9",
+                             "PCI\\CC_0280"
+                         ],
+        "Manufacturer":  "Intel Corporation",
+        "Service":  "Netwtw14"
+    },
+    {
+        "Name":  "Microsoft Kernel Debug Network Adapter",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\KDNIC\\0000",
+        "HardwareID":  [
+                           "root\\kdnic"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "kdnic"
+    },
+    {
+        "Name":  "Microsoft Network Adapter Multiplexor Driver",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "COMPOSITEBUS\\MS_IMPLAT_MP\\{EF493C0C-F03C-47EA-BBB1-C3940EC822B4}",
+        "HardwareID":  [
+                           "COMPOSITEBUS\\MS_IMPLAT_MP"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Microsoft",
+        "Service":  "NdisImPlatformMp"
+    },
+    {
+        "Name":  "Microsoft Wi-Fi Direct Virtual Adapter",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "{5D624F94-8850-40C3-A3FA-A4FD2080BAF3}\\VWIFIMP_WFD\\4\u00261978578F\u00260\u002611",
+        "HardwareID":  [
+                           "{5d624f94-8850-40c3-a3fa-a4fd2080baf3}\\vwifimp_wfd"
+                       ],
+        "CompatibleID":  [
+                             "{5d624f94-8850-40c3-a3fa-a4fd2080baf3}\\vwifimp_wfd"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "vwifimp"
+    },
+    {
+        "Name":  "Microsoft Wi-Fi Direct Virtual Adapter #2",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "{5D624F94-8850-40C3-A3FA-A4FD2080BAF3}\\VWIFIMP_WFD\\4\u00261978578F\u00260\u002612",
+        "HardwareID":  [
+                           "{5d624f94-8850-40c3-a3fa-a4fd2080baf3}\\vwifimp_wfd"
+                       ],
+        "CompatibleID":  [
+                             "{5d624f94-8850-40c3-a3fa-a4fd2080baf3}\\vwifimp_wfd"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "vwifimp"
+    },
+    {
+        "Name":  "Realtek PCIe GbE Family Controller",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "PCI\\VEN_10EC\u0026DEV_8168\u0026SUBSYS_393917AA\u0026REV_15\\01000000684CE00000",
+        "HardwareID":  [
+                           "PCI\\VEN_10EC\u0026DEV_8168\u0026SUBSYS_393917AA\u0026REV_15",
+                           "PCI\\VEN_10EC\u0026DEV_8168\u0026SUBSYS_393917AA",
+                           "PCI\\VEN_10EC\u0026DEV_8168\u0026CC_020000",
+                           "PCI\\VEN_10EC\u0026DEV_8168\u0026CC_0200"
+                       ],
+        "CompatibleID":  [
+                             "PCI\\VEN_10EC\u0026DEV_8168\u0026REV_15",
+                             "PCI\\VEN_10EC\u0026DEV_8168",
+                             "PCI\\VEN_10EC\u0026CC_020000",
+                             "PCI\\VEN_10EC\u0026CC_0200",
+                             "PCI\\VEN_10EC",
+                             "PCI\\CC_020000\u0026DT_0",
+                             "PCI\\CC_020000",
+                             "PCI\\CC_0200\u0026DT_0",
+                             "PCI\\CC_0200"
+                         ],
+        "Manufacturer":  "Realtek",
+        "Service":  "rt68cx21"
+    },
+    {
+        "Name":  "Tailscale Tunnel",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\WINTUN\\{37217669-42DA-4657-A55B-0D995D328250}",
+        "HardwareID":  [
+                           "Wintun"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "WireGuard LLC",
+        "Service":  "wintun"
+    },
+    {
+        "Name":  "VMware Virtual Ethernet Adapter for VMnet1",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMWARE\\0000",
+        "HardwareID":  [
+                           "*VMnetAdapter1"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Broadcom Inc.",
+        "Service":  "VMnetAdapter"
+    },
+    {
+        "Name":  "VMware Virtual Ethernet Adapter for VMnet2",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMWARE\\0001",
+        "HardwareID":  [
+                           "*VMnetAdapter2"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Broadcom Inc.",
+        "Service":  "VMnetAdapter"
+    },
+    {
+        "Name":  "VMware Virtual Ethernet Adapter for VMnet3",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMWARE\\0003",
+        "HardwareID":  [
+                           "*VMnetAdapter3"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Broadcom Inc.",
+        "Service":  "VMnetAdapter"
+    },
+    {
+        "Name":  "VMware Virtual Ethernet Adapter for VMnet4",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMWARE\\0004",
+        "HardwareID":  [
+                           "*VMnetAdapter4"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Broadcom Inc.",
+        "Service":  "VMnetAdapter"
+    },
+    {
+        "Name":  "VMware Virtual Ethernet Adapter for VMnet8",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "ROOT\\VMWARE\\0002",
+        "HardwareID":  [
+                           "*VMnetAdapter8"
+                       ],
+        "CompatibleID":  null,
+        "Manufacturer":  "Broadcom Inc.",
+        "Service":  "VMnetAdapter"
+    },
+    {
+        "Name":  "WAN Miniport (IKEv2)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_AGILEVPNMINIPORT",
+        "HardwareID":  [
+                           "ms_agilevpnminiport"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "RasAgileVpn"
+    },
+    {
+        "Name":  "WAN Miniport (IP)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_NDISWANIP",
+        "HardwareID":  [
+                           "ms_ndiswanip"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "NdisWan"
+    },
+    {
+        "Name":  "WAN Miniport (IPv6)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_NDISWANIPV6",
+        "HardwareID":  [
+                           "ms_ndiswanipv6"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "NdisWan"
+    },
+    {
+        "Name":  "WAN Miniport (L2TP)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_L2TPMINIPORT",
+        "HardwareID":  [
+                           "ms_l2tpminiport"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "Rasl2tp"
+    },
+    {
+        "Name":  "WAN Miniport (Network Monitor)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_NDISWANBH",
+        "HardwareID":  [
+                           "ms_ndiswanbh"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "NdisWan"
+    },
+    {
+        "Name":  "WAN Miniport (PPPOE)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_PPPOEMINIPORT",
+        "HardwareID":  [
+                           "ms_pppoeminiport"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "RasPppoe"
+    },
+    {
+        "Name":  "WAN Miniport (PPTP)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_PPTPMINIPORT",
+        "HardwareID":  [
+                           "ms_pptpminiport"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "PptpMiniport"
+    },
+    {
+        "Name":  "WAN Miniport (SSTP)",
+        "PNPClass":  "Net",
+        "PNPDeviceID":  "SWD\\MSRRAS\\MS_SSTPMINIPORT",
+        "HardwareID":  [
+                           "ms_sstpminiport"
+                       ],
+        "CompatibleID":  [
+                             "SWD\\Generic"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "RasSstp"
+    },
+    {
+        "Name":  "Microsoft Storage Spaces Controller",
+        "PNPClass":  "SCSIAdapter",
+        "PNPDeviceID":  "ROOT\\SPACEPORT\\0000",
+        "HardwareID":  [
+                           "Root\\Spaceport"
+                       ],
+        "CompatibleID":  [
+                             "DETECTEDInternal\\spaceport",
+                             "DETECTED\\spaceport"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "spaceport"
+    },
+    {
+        "Name":  "Microsoft VHD Loopback Controller",
+        "PNPClass":  "SCSIAdapter",
+        "PNPDeviceID":  "{8E7BD593-6E6C-4C52-86A6-77175494DD8E}\\MSVHDHBA\\1\u00263030E83\u00260\u002601",
+        "HardwareID":  [
+                           "{8e7bd593-6e6c-4c52-86a6-77175494dd8e}\\MsVhdHba"
+                       ],
+        "CompatibleID":  [
+                             "{8e7bd593-6e6c-4c52-86a6-77175494dd8e}\\MsCompatibleVhdHba"
+                         ],
+        "Manufacturer":  "Microsoft",
+        "Service":  "vhdmp"
+    },
+    {
+        "Name":  "Standard NVM Express Controller",
+        "PNPClass":  "SCSIAdapter",
+        "PNPDeviceID":  "PCI\\VEN_144D\u0026DEV_A80A\u0026SUBSYS_A801144D\u0026REV_00\\4\u00263FC471F\u00260\u00260032",
+        "HardwareID":  [
+                           "PCI\\VEN_144D\u0026DEV_A80A\u0026SUBSYS_A801144D\u0026REV_00",
+                           "PCI\\VEN_144D\u0026DEV_A80A\u0026SUBSYS_A801144D",
+                           "PCI\\VEN_144D\u0026DEV_A80A\u0026CC_010802",
+                           "PCI\\VEN_144D\u0026DEV_A80A\u0026CC_0108"
+                       ],
+        "CompatibleID":  [
+                             "PCI\\VEN_144D\u0026DEV_A80A\u0026REV_00",
+                             "PCI\\VEN_144D\u0026DEV_A80A",
+                             "PCI\\VEN_144D\u0026CC_010802",
+                             "PCI\\VEN_144D\u0026CC_0108",
+                             "PCI\\VEN_144D",
+                             "PCI\\CC_010802\u0026DT_0",
+                             "PCI\\CC_010802",
+                             "PCI\\CC_0108\u0026DT_0",
+                             "PCI\\CC_0108"
+                         ],
+        "Manufacturer":  "Standard NVM Express Controller",
+        "Service":  "stornvme"
+    }
+]

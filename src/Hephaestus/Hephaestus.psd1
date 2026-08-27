@@ -61,6 +61,8 @@
         'Remove-HDTDriverFolder',
         'Import-HDTDriver',
         'Get-HDTDriver',
+        'Get-HDTDriverMatch',
+        'Get-HDTPresentDevice',
         'Set-HDTDriverState',
         'Show-HDTDriverWindow',
         'Show-HDTSelectionProfileWindow',
