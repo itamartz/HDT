@@ -166,6 +166,18 @@
         Filling    = $false
     }
 
+    # PUTTING THE GUARD DOWN, AS A CLOSURE MADE HERE AND NOWHERE ELSE.
+    #
+    # GetNewClosure() captures the LOCAL scope only. Written inside the tick
+    # handler - which is itself a closure, where $book is inherited rather than
+    # local - the nested closure captured no $book at all, so the dispatcher ran
+    # it against $null and WPF put up "The property 'Filling' cannot be found on
+    # this object". And because it never ran, the flag stayed UP: the first tick
+    # worked and every one after it returned at the guard.
+    #
+    # $book IS a local right here, which is the whole reason this lives beside it.
+    $clearFilling = [action] { $book.Filling = $false }.GetNewClosure()
+
     $documentPath = Get-HDTWorkspacePath -Root $Root -Kind Control -ChildPath 'selection-profiles.yaml'
 
     # -- reading the document back after every edit ---------------------------
@@ -293,8 +305,7 @@
             throw
         }
 
-        [void] $tree.Dispatcher.BeginInvoke(
-            [action] { $book.Filling = $false }.GetNewClosure(),
+        [void] $tree.Dispatcher.BeginInvoke($clearFilling,
             [System.Windows.Threading.DispatcherPriority]::ContextIdle)
     }.GetNewClosure()
 
