@@ -89,7 +89,16 @@ function Import-HDTDriver {
         # provable without expand.exe actually running.
         [Parameter()]
         [AllowNull()]
-        [object] $Process = $null
+        [object] $Process = $null,
+
+        # WHERE IT SAYS WHAT IT IS DOING, and it is optional because the command
+        # line does not need one. A 2.38 GB Dell pack takes 86 seconds to expand
+        # and reports nothing while it does; on a console that reads as a hung
+        # prompt, and in the window that used to call this ON THE DISPATCHER it
+        # read as a crashed application. Same channel Update-HDTBootImage uses.
+        [Parameter()]
+        [AllowNull()]
+        [object] $Progress = $null
     )
 
     Set-StrictMode -Version Latest
@@ -111,6 +120,18 @@ function Import-HDTDriver {
     # NOT '$source' - PowerShell is case-insensitive, so that assignment would
     # overwrite the -Source parameter with this object and every later use of it
     # would read a property off a string.
+    # A NULL SINK IS THE ORDINARY CASE, so every report goes through this rather
+    # than guarding each call site. The command line passes none.
+    $say = {
+        param([int] $Step, [int] $Total, [string] $Title, [string] $Detail)
+
+        if ($null -eq $Progress) { return }
+
+        $Progress.Report($Step, $Total, $Title, $Detail)
+    }
+
+    & $say 1 4 'Reading the pack' $Source
+
     $sourceKind = Get-HDTDriverSourceKind -Path $Source -FileSystem $FileSystem
 
     # NOTHING USABLE IS REFUSED HERE, not by the archive path - that one takes a
@@ -139,8 +160,11 @@ function Import-HDTDriver {
             -Kind ([string] $sourceKind.Kind) -Archive ([string] $sourceKind.Archive) `
             -Vendor ([string] $sourceKind.Vendor) `
             -FileSystem $FileSystem -Process $Process -Cmdlet $PSCmdlet `
+            -Progress $Progress `
             -WhatIf:$WhatIfPreference
     }
+
+    & $say 2 4 'Counting drivers' $Source
 
     # HOW MANY DRIVERS ARE ACTUALLY IN THERE, COUNTED BEFORE ANYTHING IS MADE.
     # The folder used to be created first, so a refused import still left an

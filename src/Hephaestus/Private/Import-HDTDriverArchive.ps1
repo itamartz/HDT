@@ -76,7 +76,8 @@ function Import-HDTDriverArchive {
         [Parameter()] [AllowEmptyString()] [ValidateSet('', 'Dell', 'Hp')] [string] $Vendor = '',
         [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $FileSystem,
         [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $Process,
-        [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $Cmdlet
+        [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $Cmdlet,
+        [Parameter()] [AllowNull()] [object] $Progress = $null
     )
 
     Set-StrictMode -Version Latest
@@ -113,6 +114,15 @@ function Import-HDTDriverArchive {
                         [System.IO.Path]::GetFileName($Archive))))
     }
 
+    # THE LONG ONE, AND THE ONLY ONE WORTH A LINE ON A SCREEN. The Latitude 5420
+    # pack is 2.38 GB and takes 86 seconds here; everything else in this command
+    # is milliseconds. The name is in the detail because "Expanding" alone, held
+    # for a minute and a half, is indistinguishable from stuck.
+    if ($null -ne $Progress) {
+        $Progress.Report(3, 4, 'Expanding the pack',
+            ('{0} - this can take a few minutes' -f [System.IO.Path]::GetFileName($Archive)))
+    }
+
     # TEN MINUTES. A SoftPaq extracting three hundred megabytes onto a share is
     # slow, and a timeout firing mid-expansion leaves a half tree that looks
     # like a driver folder.
@@ -136,6 +146,29 @@ function Import-HDTDriverArchive {
                     -Category InvalidData `
                     -Message ("'{0}' expanded to no .inf files, so it is not a driver pack. Nothing was left on the share." -f
                         [System.IO.Path]::GetFileName($Archive))))
+    }
+
+    # WHAT ACTUALLY LANDED, NAMED ONE BY ONE. A count is a number an
+    # administrator has to trust; a list is the thing they came to see, and it is
+    # the difference between "269 drivers" and "269 drivers, and there is the
+    # network one". It is read back off the disk rather than from anything the
+    # expander claimed, for the same reason the count is.
+    #
+    # THE READ IS GUARDED because it is decoration on a completed import. A
+    # single malformed .inf must not turn a successful expansion of 269 files
+    # into a failure at the last line.
+    if ($null -ne $Progress) {
+        $Progress.Report(4, 4, 'Cataloguing drivers', ('{0} .inf files' -f $infCount))
+
+        try {
+            foreach ($one in @(Get-HDTDriver -Root $Root -Path $Path -FileSystem $FileSystem)) {
+                $Progress.Report(4, 4, 'Cataloguing drivers',
+                    ('{0}  -  {1} {2}' -f [string] $one.Name, [string] $one.Provider, [string] $one.Version))
+            }
+        } catch {
+            $Progress.Report(4, 4, 'Cataloguing drivers',
+                ('the drivers could not be listed: {0}' -f [string] $_.Exception.Message))
+        }
     }
 
     return [pscustomobject] @{

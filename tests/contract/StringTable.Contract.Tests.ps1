@@ -55,6 +55,23 @@ $script:notYet = @{
     'HDTProgress.xaml' = 'every word on it is written at runtime from the event stream; the markup carries none'
 }
 
+# A SECOND WORDING FOR A WINDOW THAT DOES TWO JOBS, declared rather than
+# inferred. The rule above - one block per .xaml, matched by file name - assumed
+# a window has exactly one purpose, and one no longer does: the build progress
+# window runs the boot image build AND a driver pack import, and a window headed
+# 'Updating Boot Image' while it expands a driver pack is lying to whoever is
+# watching it.
+#
+# THESE ARE NOT EXEMPTIONS. A page listed here is validated against the markup it
+# names exactly as a page matched by file name is, so a key that names no control
+# in HDTBuildProgress.xaml still fails. What it buys is only the right to a
+# second block for the same window - and the cost is that adding one is a
+# decision somebody makes here, visibly, rather than an orphan block the table
+# quietly grows.
+$script:alsoFills = @{
+    'ImportProgress' = 'HDTBuildProgress.xaml'
+}
+
 # AT FILE SCOPE, NOT IN BeforeAll: -ForEach is read while Pester is DISCOVERING
 # tests, and BeforeAll has not run by then - a table defined there discovers as
 # an empty array and the whole file fails to load.
@@ -78,6 +95,20 @@ $script:window = @(Get-ChildItem -LiteralPath $script:uiRoot -Filter '*.xaml' -R
 $script:converted = @($script:window |
         Where-Object { (& $script:blockOf $_.File) -in $script:shipped } |
         ForEach-Object { @{ Page = (& $script:blockOf $_.File); File = $_.File; Path = $_.Path } })
+
+# The declared second wordings, joined on the same terms: each one carries the
+# path of the markup it fills, so the per-page assertions below check its keys
+# against that window's controls like any other page.
+$script:converted += @(@($script:alsoFills.Keys) |
+        Where-Object { $_ -in $script:shipped } |
+        ForEach-Object {
+            $fills = [string] $script:alsoFills[$_]
+            $markup = @($script:window | Where-Object { $_.File -eq $fills })
+
+            if ($markup.Count -eq 0) { return }
+
+            @{ Page = [string] $_; File = $fills; Path = [string] $markup[0].Path }
+        })
 
 $script:ledger = @{
     Stale = @($script:notYet.Keys | Where-Object { $_ -notin @($script:window.File) })

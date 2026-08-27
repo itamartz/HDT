@@ -115,6 +115,22 @@
         'HDTBuildLogButton.ToolTip' = 'Writes every line above to Boot\<image>.build.log and opens it. Works while the build is still running.'
     }
 
+    # THE SAME WINDOW, RUNNING A DIFFERENT COMMAND. Importing a driver pack used
+    # to run on the console's own thread: a 2.38 GB Dell pack froze it for 86
+    # seconds and was reported as a crash. It now goes through the build progress
+    # window, which needs its own words - a window headed 'Updating Boot Image'
+    # while it expands a driver pack is a window that is lying, and an
+    # administrator who cancels it because they think they clicked the wrong
+    # thing has learned to distrust the screen.
+    ImportProgress = @{
+
+        'HDTBuildTitleText.Text' = 'Importing Drivers'
+        'HDTBuildStepText.Text' = 'Starting...'
+        'HDTBuildCloseButton.Content' = 'Close'
+        'HDTBuildLogButton.Content' = 'Open Log'
+        'HDTBuildLogButton.ToolTip' = 'Writes every line above to a log file and opens it. Works while the import is still running.'
+    }
+
     # MDT's New Task Sequence wizard, as one dialog: ShowNewSequence.
     NewSequence = @{
 

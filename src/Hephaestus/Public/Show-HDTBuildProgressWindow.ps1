@@ -83,7 +83,36 @@
         # FORWARDED, NOT DECIDED HERE. The Windows PE window's tick box owns the
         # choice; this only carries it into the runspace the build runs in.
         [Parameter()]
-        [switch] $PerDriver
+        [switch] $PerDriver,
+
+        # WHAT TO RUN, defaulting to the build this window was written for so
+        # every existing caller keeps working unchanged. A driver import is the
+        # second thing that needed a window rather than a frozen console, and it
+        # is the same machinery with a different command.
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $Command = 'Update-HDTBootImage',
+
+        # The parameters for $Command. A PLAIN HASHTABLE: it crosses a runspace
+        # boundary, where anything carrying a scriptblock arrives bound to a
+        # session state the far side cannot invoke.
+        [Parameter()]
+        [AllowNull()]
+        [hashtable] $Argument,
+
+        # Which page of Strings\<culture>.psd1 the window is worded from.
+        # 'BuildProgress' for the boot image, 'ImportProgress' for a driver pack.
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $StringPage = 'BuildProgress',
+
+        # Where Open Log writes. Empty derives the boot image's own
+        # Boot\<image>.build.log, which is right for a build and WRONG for
+        # anything else: a driver import that took the default overwrote the
+        # build log of an image it had nothing to do with.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $LogFile = ''
     )
 
     Set-StrictMode -Version Latest
@@ -103,11 +132,19 @@
     # comes from the desktop.
     $work = $Screen.GetWorkArea()
 
+    # THE BUILD'S OWN ARGUMENTS ARE BUILT HERE when the caller named no command,
+    # so Update-HDTBootImage keeps the signature it had and -PerDriver keeps
+    # meaning what it meant.
+    $commandArgument = $Argument
+    if ($null -eq $commandArgument) {
+        $commandArgument = @{ WorkspaceRoot = [string] $WorkspaceRoot; PerDriver = [bool] $PerDriver }
+    }
+
     $answer = $ConsoleHost.ShowBuildProgress(
         [System.IO.File]::ReadAllText($XamlPath), $WorkspaceRoot, $ModulePath,
         (Get-HDTConsoleTheme),
         [pscustomobject] @{ Left = [double] $work.Left; Top = [double] $work.Top },
-        [bool] $PerDriver)
+        [string] $Command, $commandArgument, [string] $StringPage, [string] $LogFile)
 
     return [bool] $answer
 }

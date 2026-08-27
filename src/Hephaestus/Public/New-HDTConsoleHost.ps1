@@ -1367,10 +1367,27 @@
     # dispatcher waits on the build, so the window stays responsive whatever the
     # build is doing - including hanging.
 
+    # THE WORK IS A PARAMETER, NOT A HARD-CODED COMMAND. This ran only
+    # Update-HDTBootImage until 2026-08-27, when importing a 2.38 GB Dell driver
+    # pack froze the console for 86 seconds on the dispatcher - the same defect
+    # this window was built to cure, in a second place. Everything below the
+    # dispatch is already generic: the queue, the timer, the elapsed clock, the
+    # EndInvoke that surfaces a runspace which died before its command ran. Only
+    # four lines named the build.
+    #
+    # Duplicating it for imports was the safer-looking option and was rejected:
+    # two copies of subtle cross-runspace code means the next fix has to be made
+    # twice, and the second copy is the one that gets missed.
+    #
+    # $Command IS A NAME AND $Argument IS A PLAIN HASHTABLE, deliberately - both
+    # cross a runspace boundary, where a scriptblock would arrive bound to a
+    # session state the other side cannot invoke. That is the same trap the
+    # block comment above records about the sink.
     $service | Add-Member -MemberType ScriptMethod -Name ShowBuildProgress -Value {
         param(
             [string] $Xaml, [string] $WorkspaceRoot, [string] $ModulePath,
-            [object] $Theme, [object] $Size, [bool] $PerDriver
+            [object] $Theme, [object] $Size, [string] $Command, [object] $Argument,
+            [string] $StringPage, [string] $LogFile
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -1383,7 +1400,14 @@
 
         # The text comes out of Strings\<culture>.psd1, not out of the markup,
         # and before the first report replaces the starting step.
-        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page 'BuildProgress'))
+        #
+        # WHICH PAGE DEPENDS ON WHAT IS RUNNING. One window, two jobs: a window
+        # headed 'Updating Boot Image' while it expands a driver pack is lying to
+        # the person watching it.
+        $page = 'BuildProgress'
+        if (-not [string]::IsNullOrWhiteSpace($StringPage)) { $page = $StringPage }
+
+        [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page $page))
 
         $window.Left = [double] $Size.Left
         $window.Top = [double] $Size.Top
@@ -1427,7 +1451,7 @@
         $shell = [powershell]::Create()
 
         [void] $shell.AddScript({
-                param($ModulePath, $WorkspaceRoot, $Queue, $PerDriver)
+                param($ModulePath, $Command, $Argument, $Queue)
 
                 Import-Module -Name $ModulePath -Force -ErrorAction Stop
 
@@ -1436,14 +1460,53 @@
                 # scriptblocks this one cannot invoke.
                 $progress = New-HDTBuildProgress -Queue $Queue
 
-                Update-HDTBootImage -WorkspaceRoot $WorkspaceRoot -Progress $progress `
-                    -PerDriver:$PerDriver -Confirm:$false
+                # COPIED RATHER THAN SPLATTED DIRECTLY, so the caller's hashtable
+                # is not mutated by the Progress key - it belongs to a live window
+                # on the other thread.
+                $splat = @{}
+                foreach ($key in @($Argument.Keys)) { $splat[[string] $key] = $Argument[$key] }
+                $splat['Progress'] = $progress
+
+                # -Confirm:$false because every command this runs carries
+                # SupportsShouldProcess and a prompt on a runspace with no host
+                # is a window that waits forever for an answer nobody can give.
+                #
+                # AND THE END IS GUARANTEED HERE, NOT LEFT TO THE COMMAND.
+                # Update-HDTBootImage reports its own completion; Import-HDTDriver
+                # has half a dozen exits - ThrowTerminatingError twice, a
+                # ShouldProcess refusal, the archive branch - and the first import
+                # through this window extracted 269 drivers, listed every one, and
+                # then said 'FAILED - the build ended without saying why'. A
+                # successful import reported as a failure, because nothing
+                # enqueued an ending.
+                #
+                # A command that DOES report keeps its own words: Completed is
+                # checked, so this adds an ending only where one is missing and
+                # never overwrites a failure with a success.
+                try {
+                    & $Command @splat -Confirm:$false
+
+                    if (-not $progress.Completed) { $progress.Complete($true, '') }
+                } catch {
+                    if (-not $progress.Completed) {
+                        $progress.Complete($false, [string] $_.Exception.Message)
+                    }
+
+                    # RETHROWN so EndInvoke still surfaces it. The window reads
+                    # the queue first and the error stream second; swallowing it
+                    # here would lose the stack for anything the message alone
+                    # does not explain.
+                    throw
+                }
             })
 
+        # THE ORDER IS THE param() BLOCK'S ORDER. AddArgument binds positionally,
+        # so a reordered param() and an unreordered set of these bind silently
+        # and wrongly rather than failing.
         [void] $shell.AddArgument($ModulePath)
-        [void] $shell.AddArgument($WorkspaceRoot)
+        [void] $shell.AddArgument($Command)
+        [void] $shell.AddArgument($Argument)
         [void] $shell.AddArgument($queue)
-        [void] $shell.AddArgument($PerDriver)
 
         $handle = $shell.BeginInvoke()
         $startedAt = [datetime]::UtcNow
@@ -1660,16 +1723,31 @@
                     # deriving a name from it produces Share.build.log. A
                     # document that will not read leaves the name empty, which
                     # Get-HDTConsoleBuildLogPath answers for.
-                    $imageName = ''
+                    # WHAT RAN DECIDES WHERE THE LOG GOES. This derived the boot
+                    # image's name unconditionally, so a driver import through
+                    # this window wrote its lines over Boot\<image>.build.log -
+                    # DESTROYING the build log of an image it had nothing to do
+                    # with, and answering "where is the import log" with a file
+                    # named after a boot image.
+                    $path = $LogFile
 
-                    try {
-                        $imageName = [string] (Import-HDTWorkspaceDocument -Path (
-                                [System.IO.Path]::Combine($WorkspaceRoot, 'workspace.yaml'))).BootImage.Name
-                    } catch {
+                    if ([string]::IsNullOrWhiteSpace($path)) {
+                        # THE IMAGE'S OWN NAME, from the document rather than from
+                        # the banner - the banner carries the SHARE root, and
+                        # deriving a name from it produces Share.build.log. A
+                        # document that will not read leaves the name empty, which
+                        # Get-HDTConsoleBuildLogPath answers for.
                         $imageName = ''
-                    }
 
-                    $path = & $call 'Get-HDTConsoleBuildLogPath' -WorkspaceRoot $WorkspaceRoot -Name $imageName
+                        try {
+                            $imageName = [string] (Import-HDTWorkspaceDocument -Path (
+                                    [System.IO.Path]::Combine($WorkspaceRoot, 'workspace.yaml'))).BootImage.Name
+                        } catch {
+                            $imageName = ''
+                        }
+
+                        $path = & $call 'Get-HDTConsoleBuildLogPath' -WorkspaceRoot $WorkspaceRoot -Name $imageName
+                    }
 
                     [System.IO.File]::WriteAllLines($path, [string[]] @($line))
 

@@ -1819,19 +1819,29 @@
                     $path = [string] (Split-Path -Path $source -Leaf)
                 }
 
-                try {
-                    $imported = & $call 'Import-HDTDriver' @{
-                        Root = $where; Path = $path; Source = $source; Confirm = $false
-                    }
-                } catch {
-                    $command.Text = [string] $_.Exception.Message
-                    return
-                }
+                # NOT ON THIS THREAD. A 2.38 GB Dell pack takes 86 seconds to
+                # expand and an administrator reported the console as CRASHED -
+                # it was not, it was the dispatcher blocked inside
+                # Import-HDTDriver, and Windows had painted "Not Responding"
+                # over it. A healthy 141-file pack freezes it too, just for
+                # less time; the size only decided how obvious it was.
+                #
+                # The same window the boot image build uses, which is why that
+                # method now takes a command rather than naming one. It shows
+                # each driver as the catalogue reads it back, so the answer to
+                # "what did I just import" is on screen rather than inferred
+                # from a count.
+                $command.Text = "Import-HDTDriver -Root '{0}' -Path '{1}' -Source '{2}'" -f $where, $path, $source
+
+                [void] (Show-HDTBuildProgressWindow -WorkspaceRoot $where -ConsoleHost $consoleHost `
+                        -Screen (New-HDTConsoleScreen) `
+                        -Command 'Import-HDTDriver' `
+                        -Argument @{ Root = $where; Path = $path; Source = $source } `
+                        -StringPage 'ImportProgress' `
+                        -LogFile ([System.IO.Path]::Combine(
+                            (Get-HDTWorkspacePath -Root $where -Kind Drivers), 'driver-import.log')))
 
                 & $rebuildTree
-
-                $command.Text = "Import-HDTDriver -Root '{0}' -Path '{1}' -Source '{2}'   # {3} driver(s)" -f
-                    $where, [string] $imported.Path, $source, [int] $imported.DriverCount
             }.GetNewClosure())
 
         # DELETE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED, for

@@ -69,6 +69,16 @@ function New-HDTBuildProgress {
 
     $service = [pscustomobject] @{
         Queue = $Queue
+
+        # WHETHER THE END HAS BEEN REPORTED, so the runspace that ran the command
+        # can supply one when the command did not. Update-HDTBootImage reports
+        # its own; Import-HDTDriver has half a dozen exits, including
+        # ThrowTerminatingError and a ShouldProcess refusal, and threading a
+        # report through every one of them is how the next command to use this
+        # window forgets. The first import through it extracted 269 drivers,
+        # listed all of them, and finished 'FAILED - the build ended without
+        # saying why', which is a successful import reported as a failure.
+        Completed = $false
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Report -Value {
@@ -92,6 +102,12 @@ function New-HDTBuildProgress {
     # "finished", "slow" and "died".
     $service | Add-Member -MemberType ScriptMethod -Name Complete -Value {
         param([bool] $Succeeded, [string] $Detail)
+
+        # SET BEFORE THE QUEUE CHECK, so a sink built with no queue - which is
+        # every command-line caller - still records that the end was reported.
+        # Otherwise the flag would mean "there was a queue" rather than "the
+        # command said it had finished".
+        $this.Completed = $true
 
         if ($null -eq $this.Queue) { return }
 
