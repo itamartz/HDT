@@ -369,15 +369,17 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
 
 ---
 
-## M5 — Drivers  ·  **GROUP MATCH AND CATALOG SHIPPED · PnP MATCH DEFERRED TO v2**
+## M5 — Drivers  ·  **BUILT · EXIT NOT YET PROVEN ON HARDWARE**
 
-> **Most of this is built.** The group-match path — which is MDT's PRIMARY one —
-> ships, and so does the catalog it was once deferred with: drivers go on the
-> share, are named by a selection profile, are read out of their own `.inf`
-> files, can be turned off one at a time, and are injected into a boot image.
-> What is still deferred is the PnP FALLBACK — matching an unrecognised machine
-> against those hardware ids and ranking the candidates. See `.planning/ROADMAP.md`
-> "v1 scope".
+> **All of it is built as of 2026-08-27.** The group-match path — MDT's PRIMARY
+> one — shipped first, with the catalog: drivers go on the share, are named by a
+> selection profile, are read out of their own `.inf` files, can be turned off
+> one at a time, and are injected into a boot image. The PnP FALLBACK, the
+> `ApplyDrivers` step, the class filter and the coverage report followed.
+>
+> **What is left is the proof, not the code.** The exit criterion is a real
+> unrecognised model deployed end to end with a working network card, and that
+> deployment has not been run. See "Exit" below.
 
 ### Shipped
 
@@ -417,24 +419,42 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
   a properties window per driver — Workbench's, with its two tabs collapsed into
   one — carrying the Enable tick box and the PnP ids.
 
-### Still deferred to v2
+### Built 2026-08-27 — the half that was deferred
 
-- `ApplyDrivers` **step** — nothing injects drivers into the DEPLOYED OS yet;
-  this is boot-image only.
-- **PnP match fallback**, ranked by hardware-ID specificity → version → date.
-  The ids it needs are read now; what is missing is the ranking and the machine
-  to rank them for.
-- The **class filter** — MDT's "network and mass storage only" on the Windows PE
-  tab. `Class=` is read out of every `.inf` already; no control is drawn for it,
-  because there is no command behind it.
-- **Boot-critical tracking** and `Get-HDTDriverCoverage`.
+- **`ApplyDrivers` step.** Group match primary, PnP behind it, offline injection
+  into the applied volume via `IImageService.AddDriver`. The group is a path a
+  rule builds — `Win11\%HDTMake%\%HDTModel%` — of any depth and any names;
+  nothing discovers or imposes a `Make\Model` shape.
+- **PnP match**, ranked specificity → version → date. **Specificity is not a
+  score HDT invents:** Windows publishes `HardwareID` most-specific-first with
+  `CompatibleID` as the generic tail, so the rank is the INDEX of the match. The
+  original plan was to parse `VEN`/`DEV`/`SUBSYS`/`REV` and score it, which
+  would have been a second opinion about something Windows already decides.
+- **The class filter** — `Get-HDTBootCriticalClass`: Net, SCSIAdapter, HDC,
+  System. A driver whose class cannot be read is KEPT, because dropping a NIC
+  driver over a missing field is the wrong direction to fail in.
+- **`Get-HDTDriverCoverage`** — which models have a group, and which have an
+  EMPTY one, which is a different problem wanting a different fix.
+- **The decision is in the log**: five `driver.*` events, so "why did this
+  machine get that driver" is answered by filtering rather than by reasoning.
 
-**Tests first (for the deferred half):** ranking order for every tie-break;
-group match taking precedence over PnP; empty-match behavior; coverage report
-correctness.
+**No `driver-index.json`, and DESIGN §7 has been corrected to say so.** The
+`.inf` files are the catalog. Measured cost of not having an index: 2.5 s to
+read a 211-file store, 0.5 s for the device query — about three seconds, once,
+on the fallback path only.
 
-**Exit (still unmet):** an unrecognized model deploys with working network and
-storage via PnP fallback.
+**Verified in real WinPE (SPIKES S19)**, which is what the whole fallback rests
+on and what S1 never tested: `Win32_PnPEntity` answers 44 devices with populated
+hardware ids in 498 ms. `PNPClass` is populated on 32 of 44, so nothing may
+assume a class is present.
+
+**Exit — built, not yet proven on hardware.** The criterion is *an unrecognised
+model deploys with working network and storage via PnP fallback*, and that means
+a real machine no rule matches, deployed end to end, with a working NIC
+afterwards. Every piece is in place and unit-tested against captured devices and
+real vendor `.inf` files; what has not happened is the deployment. Recorded as
+built rather than met, because the difference between those two is exactly what
+this section exists to keep honest.
 
 ---
 

@@ -129,7 +129,11 @@
     $window.FindName('HDTDriverClassText').Text = [string] $Driver.Class
     $window.FindName('HDTDriverVendorText').Text = [string] $Driver.Provider
     $window.FindName('HDTDriverVersionText').Text = [string] $Driver.Version
-    $window.FindName('HDTDriverDateText').Text = [string] $Driver.Date
+    # THE SAME RENDERING THE GRID USES. This window is opened by double-clicking
+    # a grid row, so the two are read within a second of each other - and while
+    # the grid formatted its own date and this took the raw string, the same
+    # driver showed as 2024-11-28 in one and 11/28/2024 in the other.
+    $window.FindName('HDTDriverDateText').Text = [string] (Format-HDTDriverDate -Date ([string] $Driver.Date))
 
     # THE TITLE IS THE FILE, as Workbench titles it. Several drivers in one
     # folder describe themselves with the same friendly name - "Intel(R)

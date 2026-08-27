@@ -43,10 +43,13 @@ They are simply not in v1:
   carries two vendors' WinPE packs, and a machine needing a NIC driver to reach
   the share gets one.
 
-  What is **not** in v1 is everything that needs a CATALOG: `.inf` parsing into
-  `driver-index.json`, the PnP match fallback that index exists for, the
-  `ApplyDrivers` step, and the network/mass-storage class filter. So v1 still
-  deploys the OS with the drivers inbox in the applied image.
+  **This is now built, and the catalog it was waiting for turned out not to need
+  an index.** `ConvertFrom-HDTDriverInf` reads a driver out of its own `.inf`;
+  `Get-HDTDriverMatch` ranks the store against the ids a machine publishes;
+  `ApplyDrivers` injects a group whole and falls back to PnP when no rule
+  recognised the model; and the network/mass-storage class filter picks the
+  classes a boot image actually needs. `driver-index.json` was never written —
+  see §7.
 - **§9.3 Capture** and **§6.2 standalone media.** v1 applies images; it does not
   sysprep and capture its own, and it does not project a workspace onto a USB
   stick. `New-HDTBootIso` still ships in v1 — a bootable WinPE ISO is not the
@@ -104,7 +107,7 @@ Seven concepts. Everything else is a property of one of them.
 | **Operating system** | Operating Systems node | Imported WIM/FFU + `os.yaml` metadata |
 | **Task sequence** | Task Sequences node | `sequence.yaml` (ordered steps) |
 | **Application** | Applications node | Source folder + `app.yaml` |
-| **Driver** | Out-of-Box Drivers | `.inf` set + derived `driver-index.json` |
+| **Driver** | Out-of-Box Drivers | `.inf` set — the files are the catalog (§7) |
 | **Rules** | CustomSettings.ini + MDT DB | `rules.yaml` (ordered match/assign) |
 | **Media** | Offline Media | Generated ISO/USB output |
 
@@ -131,10 +134,9 @@ Seven concepts. Everything else is a property of one of them.
     7Zip-24.09\
       app.yaml
       source\
-  Drivers\
-    Dell\Latitude 7450\
-      <inf tree>
-    driver-index.json         # generated: PnP ID -> driver path map
+  Drivers\                    # free-form: any names, any depth, yours to shape
+    Win11\Dell inc\Latitude 7450\
+      <inf tree>              # no generated index - the .inf files ARE it (§7)
   Scripts\                    # user extension points (.ps1)
   Modules\                    # engine payload staged to clients
   Logs\                       # per-deployment logs, if logging to share
@@ -619,10 +621,15 @@ deployment fails.
 ```
 
 `event` is a controlled vocabulary, so the report renderer and the console filter
-on a known set rather than regexing prose. **Thirteen names, and exactly the
-thirteen `Write-HDTLog`'s `ValidateSet` accepts** — the list and the parameter
-are asserted against each other by a test, because a "controlled" vocabulary the
-document and the engine disagree about is not controlled:
+on a known set rather than regexing prose. **The table below is exactly what
+`Write-HDTLog`'s `ValidateSet` accepts** — the two are asserted against each
+other in both directions by a test, because a "controlled" vocabulary the
+document and the engine disagree about is not controlled.
+
+**The count is deliberately not written here.** It said "thirteen" while the
+table held twenty-two: the test enforces the *names*, nobody enforces a number
+in a sentence, and a number in prose beside an enforced table is a number that
+drifts. Count the rows.
 
 | Event | Written when |
 |---|---|
@@ -644,7 +651,20 @@ document and the engine disagree about is not controlled:
 | `driver.enumerate` | how many devices the machine reported hardware ids for |
 | `driver.match` | a driver was chosen, with the id it matched, the rank, and the device |
 | `driver.injected` | a driver was injected, as DISM named it back |
+| `console.session` | the admin console opened or closed, with its version |
+| `console.action` | the console invoked a command, with its name, parameter names and duration |
+| `console.error` | a console action threw, with the exception type and stack |
 | `message` | the default: any `Write-HDTLog` call that names no event, which is every custom step's log line under §4.4.4 |
+
+**The console logs to the administrator's machine, not to the share.** Its three
+events go to `%LOCALAPPDATA%\Hephaestus\Logs`, in the same two formats as
+everything else, because a console opens many shares, opens them read-only, and
+starts before one is chosen — so a log on the share cannot record the failure to
+reach the share, which is the failure most worth recording. `console.action`
+records the command name, its **parameter names and never their values**, and
+how long it took: the console is where the local administrator password is set,
+and a log that helpfully recorded every argument would be the one place that
+password came to rest in plain text.
 
 **Why drivers get five names of their own.** Every other step reports what it
 did; `ApplyDrivers` has to report what it *decided*, because the two most common
@@ -1361,9 +1381,25 @@ MDT's "Total Control" method — a folder per `%Make%\%HDTModel%`, selected by a
 — works, and HDT keeps it as the primary path. What it adds is a fallback so an
 unrecognized model still gets a usable machine.
 
-- **Import** (`Import-HDTDriver`) parses each `.inf`, extracting hardware IDs,
-  class, provider, version, and date into `driver-index.json`. Importing is
-  where the cost is paid; matching at deploy time is then a dictionary lookup.
+- **Import** (`Import-HDTDriver`) puts a vendor pack on the share and expands it
+  — a Dell `.cab` through `expand.exe`, a Dell Update Package with `/s /e=`, an
+  HP SoftPaq with `/s /e /f`. The `.inf` count is taken from the files on disk
+  afterwards, because a vendor installer's exit code is not evidence.
+
+  **There is no `driver-index.json`, and this section used to say there was.**
+  The index was specified so that matching at deploy time could be a dictionary
+  lookup, and it was not built: the `.inf` files **are** the index, and a
+  generated file beside them is a second answer about the share that can go
+  stale against the first. Every command reads the `.inf` files.
+
+  What that costs, measured on a real 211-file store rather than argued:
+  reading the whole store is **2.5 s**, and the PnP fallback's device query
+  is **0.5 s** — so the matching an index would have saved is about three
+  seconds, once, on the one path that runs when no group matched. The console,
+  which re-reads a folder every time an administrator selects one, keeps a
+  cache in the window instead: it dies with the window and every entry is keyed
+  on the file's own last-write time, so unlike an index it cannot disagree with
+  the disk.
 - **Group match (primary).** `ApplyDrivers` with a `group` resolves to a folder
   and injects it wholesale via `Add-WindowsDriver -Path W:\ -Recurse`.
 - **PnP match (fallback).** If no group matches, the engine enumerates present

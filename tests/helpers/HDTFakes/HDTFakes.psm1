@@ -36,6 +36,10 @@ class HDTFakeFileSystem {
     # is run.
     [hashtable] $VersionInfoOverride
 
+    # Path -> the instant GetLastWriteTimeUtc answers with. How a test says a
+    # file changed on disk without touching a clock.
+    [hashtable] $WriteTimeOverride
+
     # Path -> the message a write to it throws. DESIGN 4.5.3's teardown runs from
     # a finally block, so it has to survive the checkpoint that block just tried
     # and could not make - which needs a filesystem where one path, and only one,
@@ -77,6 +81,7 @@ class HDTFakeFileSystem {
         $this.HashOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.VersionOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.VersionInfoOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.WriteTimeOverride = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'FileSystem'
     }
@@ -182,6 +187,11 @@ class HDTFakeFileSystem {
     # to code that verifies by hash.
     [void] SeedHash([string] $Path, [string] $Hash) {
         $this.HashOverride[$this.Normalize($Path)] = $Hash
+    }
+
+    # WHEN IT CHANGED. See $WriteTimeOverride above.
+    [void] SeedWriteTime([string] $Path, [datetime] $When) {
+        $this.WriteTimeOverride[$this.Normalize($Path)] = $When
     }
 
     # THE IDENTITY FIELDS. See $VersionInfoOverride above. Keys: CompanyName,
@@ -419,6 +429,25 @@ class HDTFakeFileSystem {
         }
 
         return [long] ([System.Text.Encoding]::UTF8.GetByteCount([string] $this.File[$full]))
+    }
+
+    # WHEN THE FAKE SAYS A FILE LAST CHANGED. Unseeded files all answer the same
+    # fixed instant, which is what a cache test needs: two reads of an untouched
+    # file must hit, and SeedWriteTime is how a test says "and then somebody
+    # re-imported this one" without a clock or a sleep.
+    [datetime] GetLastWriteTimeUtc([string] $Path) {
+        $this.Record('GetLastWriteTimeUtc', @($Path))
+        $full = $this.Normalize($Path)
+
+        if (-not $this.File.ContainsKey($full)) {
+            throw [System.IO.FileNotFoundException]::new("Could not find file '$full'.", $full)
+        }
+
+        if ($this.WriteTimeOverride.ContainsKey($full)) {
+            return [datetime] $this.WriteTimeOverride[$full]
+        }
+
+        return [datetime]::new(2026, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc)
     }
 
     # What the file claims about itself. Seeded per path through -VersionInfo,

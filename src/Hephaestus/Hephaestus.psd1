@@ -61,6 +61,8 @@
         'Remove-HDTDriverFolder',
         'Import-HDTDriver',
         'Get-HDTDriver',
+        'Get-HDTConsoleLogPath',
+        'Get-HDTDriverCoverage',
         'Get-HDTDriverMatch',
         'Get-HDTPresentDevice',
         'Set-HDTDriverState',

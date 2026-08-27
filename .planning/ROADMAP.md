@@ -14,7 +14,7 @@ Milestone → phase directory mapping:
 | 04 | M3 — Imaging | `.planning/phases/04-imaging/` | 03 |
 | 05 | M4 — Boot image, ISO, PXE | `.planning/phases/05-bootimage/` | 03, 04 |
 | 05.5 | **M4.5 — Technician UI (WinPE wizard + progress)** | `.planning/phases/05.5-technician-ui/` | 04, 05 |
-| 06 | M5 — Drivers — **group match shipped, PnP deferred to v2** | `.planning/phases/06-drivers/` | 04 |
+| 06 | M5 — Drivers — **built 2026-08-27; exit not yet proven on hardware** | `.planning/phases/06-drivers/` | 04 |
 | 07 | M6 — Applications and full-OS steps | `.planning/phases/07-apps-fullos/` | 03, 04 |
 | ~~08~~ | ~~M7 — Capture and standalone media~~ **DEFERRED TO v2** | `.planning/phases/08-capture-media/` | 04, 05, 07 |
 | 09 | M8 — Admin console (WPF) | `.planning/phases/09-console/` | 02–05, 05.5, 07 |
@@ -25,26 +25,19 @@ Milestone → phase directory mapping:
 and the zero-keystroke boot path, 05.5 technician UI, 07 applications and full-OS
 steps, 09 admin console.
 
-**v2:** 06 drivers, 08 capture + standalone media, — added 2026-08-16 — the
-`WindowsUpdate` step out of 07, and — added 2026-08-25 — **PXE boot from WDS
-out of 05**. All keep their full design and roadmap entries
-below; they are scheduled out, not cut, and nothing in v1 was built in a way that
-assumes they are absent.
+**v2:** 08 capture + standalone media, — added 2026-08-16 — the `WindowsUpdate`
+step out of 07, and — added 2026-08-25 — **PXE boot from WDS out of 05**. All
+keep their full design and roadmap entries below; they are scheduled out, not
+cut, and nothing in v1 was built in a way that assumes they are absent.
 
-What deferring them actually costs, stated so it is not discovered later:
+**06 drivers came BACK from v2 on 2026-08-27** and is built — the `ApplyDrivers`
+step, the PnP fallback, the class filter and `Get-HDTDriverCoverage`. Its exit
+criterion is a real unrecognised model deployed end to end with a working
+network card, and that deployment has not been run: built, not yet proven on
+hardware.
 
-- **No out-of-box driver injection *into the deployed OS*.** v1 deploys with
-  whatever drivers are inbox in the applied image. That is fine for VMs and for
-  hardware Windows already supports; a machine needing an OEM storage or network
-  driver will deploy and then be missing that device. The missing piece is the
-  `ApplyDrivers` step, and behind it the `.inf` catalog that PnP matching needs.
+What deferring the rest actually costs, stated so it is not discovered later:
 
-  **The boot image half shipped, and more of it than this list once assumed.**
-  Drivers can be put on the share (`New-HDTDriverFolder`, `Import-HDTDriver`),
-  named by a **selection profile** — MDT's, kept — and injected by
-  `Update-HDTBootImage`, which calls `AddDriver` once per included folder. So one
-  boot image carries a Dell WinPE pack *and* an HP one, and a machine that needs
-  a NIC driver to reach the share gets it.
 - **No reference-image capture.** v1 applies images; it does not sysprep and
   capture its own. Images come from Microsoft media or an existing pipeline.
 - **No standalone offline media.** v1 deploys from a share, over PXE or from the

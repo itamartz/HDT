@@ -85,7 +85,25 @@
         # drivers becomes seventy calls instead of one. The build asks for it
         # deliberately; every other caller keeps the cheap shape.
         [Parameter()]
-        [switch] $PerDriver
+        [switch] $PerDriver,
+
+        # MDT'S "network and mass storage drivers only", as a list of classes.
+        # Empty injects everything, which is what every share does today.
+        #
+        # A FILTER FORCES PER-DRIVER INJECTION. DISM's -Recurse takes a folder
+        # whole and has no "except the display ones", so the moment a class is
+        # named the folder has to be handed over one .inf at a time - the same
+        # reason a disabled driver already forces it.
+        #
+        # A DRIVER WHOSE CLASS CANNOT BE READ IS KEPT. Some .inf files declare no
+        # Class at all, and dropping one because a field was missing could remove
+        # the NIC driver from a boot image and leave a machine that boots and
+        # cannot reach the share - failing towards a smaller image is the wrong
+        # direction when the cost of being wrong is a bench visit.
+        [Parameter()]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [string[]] $Class = @()
     )
 
     Set-StrictMode -Version Latest
@@ -115,6 +133,25 @@
 
         $off = @($inside | Where-Object { -not [bool] $_.Enabled })
 
+        # THE CLASS FILTER, WHICH BEHAVES LIKE A SECOND KIND OF 'disabled': it
+        # decides which drivers go in, so it forces the same per-driver shape.
+        $filtered = $false
+
+        if (@($Class).Count -gt 0) {
+            $filtered = $true
+
+            $inside = @($inside | Where-Object {
+                    $one = [string] $_.Class
+
+                    # NO CLASS MEANS KEEP, not drop. See the parameter's note:
+                    # removing a driver because a field was unreadable is how a
+                    # boot image loses the card it needed.
+                    [string]::IsNullOrWhiteSpace($one) -or ($Class -contains $one)
+                })
+
+            $off = @($inside | Where-Object { -not [bool] $_.Enabled })
+        }
+
         # A CATALOG THAT ANSWERED NOTHING FOR THIS FOLDER CANNOT BE SPLIT BY, and
         # that is not the same as a folder with no drivers in it: Get-HDTDriver
         # failing, or a folder whose .inf files this build cannot read, would
@@ -123,8 +160,16 @@
         # works.
         $splittable = ($PerDriver -and @($inside).Count -gt 0)
 
+        # A FILTER THAT MATCHED NOTHING INJECTS NOTHING FROM THIS FOLDER, and
+        # says so by adding no calls - rather than falling through to the
+        # whole-folder shape below, which would inject everything the filter had
+        # just excluded. A profile naming a folder of display drivers with a
+        # network-and-storage filter is a legitimate combination that should
+        # contribute no drivers, not all of them.
+        if ($filtered -and @($inside).Count -eq 0) { continue }
+
         # NOTHING DISABLED: ONE CALL, the whole folder, exactly as before.
-        if (@($off).Count -eq 0 -and -not $splittable) {
+        if (@($off).Count -eq 0 -and -not $splittable -and -not $filtered) {
             [void] $call.Add([pscustomobject] @{ Path = $full; Recurse = $true; Name = '' })
             continue
         }
