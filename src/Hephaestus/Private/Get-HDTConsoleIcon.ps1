@@ -25,11 +25,19 @@
             row, and they survive being copied out of the window as text.
 
             'DriverStore' IS A GLYPH NAME, NOT A ROW KIND. The Drivers category
-            is a Category like the other three and behaves like one; it just
-            does not look like a folder, because "where the drivers are" is the
-            one category an administrator scans the tree for by eye. Asking for
-            a named glyph keeps that choice in this table with all the others
-            rather than putting a literal character in the node builder.
+            is a Category like the others and behaves like one; it just does not
+            look like a folder. Asking for a named glyph keeps that choice in
+            this table with all the others rather than putting a literal
+            character in the node builder.
+
+            AND EVERY CATEGORY DOES THAT NOW. Drivers and Selection Profiles
+            were the only two that did, so the other five rows under a share -
+            Boot Image, Applications, Operating Systems, Task Sequences and
+            Monitoring - all drew the same closed folder, one under another.
+            Five identical pictures is worse than none: the eye stops on each
+            one and learns nothing, so the tree has to be read top to bottom
+            every time. Each category wears the glyph of what it HOLDS, which is
+            the pattern those two already set.
 
         .PARAMETER Kind
             The row's kind, or a glyph name for a caller that wants a specific
@@ -81,7 +89,13 @@
         TaskSequence    = [char]::ConvertFromUtf32(0x1F5D2)   # spiral notepad - an ordered list of steps
         OperatingSystem = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc
         Application     = [char]::ConvertFromUtf32(0x1F4E6)   # package - one thing that gets installed
-        BootImage       = [char]::ConvertFromUtf32(0x1F4BE)   # floppy disk
+        # A SATELLITE DISH, NOT A FLOPPY. The floppy is the universal Save icon -
+        # every toolbar in Windows has used it for thirty years - so on the one
+        # row that is a bootable image it read as "save this", which is not an
+        # action this row has. A dish is where a boot image is SERVED FROM: the
+        # thing a bare machine reaches for over PXE before it has an operating
+        # system, which is the whole point of the row.
+        BootImage       = [char]::ConvertFromUtf32(0x1F4E1)   # satellite antenna - served to a machine that has nothing yet
         DriverStore     = [char]::ConvertFromUtf32(0x1F5A7)   # networked computers - the NIC nobody can boot without
 
         # A CLIPBOARD - A SAVED LIST - AND DELIBERATELY NOT A TICK BOX. The
@@ -107,7 +121,11 @@
         # picturing when they scan the list. A stalled one takes the warning
         # sign at the top of this function, like everything else that is wrong.
         MonitorRun      = [char]::ConvertFromUtf32(0x1F5A5)   # desktop computer - one machine deploying
-        MonitorCategory = [char]::ConvertFromUtf32(0x1F4C1)   # folder - it is a category like the others
+        # A CHART, NOT A FOLDER AND NOT A SECOND COMPUTER. The category is the
+        # list of what is happening; a run under it is one machine. Giving the
+        # category the machine glyph too would put the same picture on a parent
+        # and its child, which is the thing this table stopped doing.
+        MonitorCategory = [char]::ConvertFromUtf32(0x1F4CA)   # bar chart - what every machine is doing
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 

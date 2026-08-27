@@ -160,8 +160,14 @@
     # and reads Text. And it carries workspace.yaml: the Windows PE window hangs
     # off this row as well as off the image under it, and that window edits the
     # document rather than the share root.
+    # THE CATEGORY WEARS WHAT IT HOLDS. Every category here used to fall
+    # through to Kind 'Category', which is a closed folder - so five of the seven
+    # rows under a share were the same picture stacked on top of each other.
+    # Drivers and Selection Profiles already asked for a named glyph; these four
+    # now do the same. See Get-HDTConsoleIcon.
     $bootCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
         -Name 'BootImage' -Text 'Boot Image' `
+        -Icon (Get-HDTConsoleIcon -Kind 'BootImage' -Status 'Ok') `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $bootFolder
         New-HDTConsoleField -Label 'Image name' -Value $Workspace.BootImage.Name
@@ -195,6 +201,7 @@
     $appCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
         -Name 'Applications' `
         -Text ('Applications ({0})' -f @($Workspace.Application).Count) `
+        -Icon (Get-HDTConsoleIcon -Kind 'Application' -Status 'Ok') `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $appFolder
         New-HDTConsoleField -Label 'Applications' -Value @($Workspace.Application).Count
@@ -336,6 +343,7 @@
     $osCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
         -Name 'OperatingSystems' `
         -Text ('Operating Systems ({0})' -f @($Workspace.OperatingSystem).Count) `
+        -Icon (Get-HDTConsoleIcon -Kind 'OperatingSystem' -Status 'Ok') `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $osFolder
         New-HDTConsoleField -Label 'Operating Systems' -Value @($Workspace.OperatingSystem).Count
@@ -521,6 +529,7 @@
     $sequenceCategory = New-HDTConsoleNode -Depth 2 -Kind 'Category' -Status 'Ok' `
         -Name 'TaskSequences' `
         -Text ('Task Sequences ({0})' -f @($Workspace.TaskSequence).Count) `
+        -Icon (Get-HDTConsoleIcon -Kind 'TaskSequence' -Status 'Ok') `
         -Field @(
         New-HDTConsoleField -Label 'Folder' -Value $sequenceFolder
         New-HDTConsoleField -Label 'Task Sequences' -Value @($Workspace.TaskSequence).Count
