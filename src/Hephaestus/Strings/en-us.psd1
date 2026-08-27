@@ -69,6 +69,9 @@
         'HDTNewDriverFolderMenuItem.Header' = 'New Folder'
         'HDTImportDriverMenuItem.Header' = 'Import Drivers'
         'HDTRemoveDriverFolderMenuItem.Header' = 'Delete Driver Folder'
+        # CLEAR, NOT DELETE. Nothing on the share reads a heartbeat, so this is
+        # the one item on this menu that costs a record rather than a component.
+        'HDTRemoveMonitorRunMenuItem.Header' = 'Clear Run'
         # THE DRIVER GRID'S COLUMNS. Enabled leads because it is the one thing
         # on the row that can be wrong - a pack imported and then half turned
         # off looks identical to one that was not, until this column says so.

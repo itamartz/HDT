@@ -90,8 +90,11 @@ function Get-HDTConsoleTreeMenuRow {
 
     # EVERY KIND THAT HAS SOMETHING ON THE MENU. Adding an item without adding
     # its kind here is the defect this command exists to make impossible.
+    # A MONITORED RUN IS HERE BECAUSE IT CAN BE CLEARED. Nothing ever took a
+    # heartbeat off this node, so a share that had deployed fifty machines drew
+    # fifty rows and the live one was somewhere among them.
     $offers = @('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem',
-        'Application', 'BootImage', 'Folder')
+        'Application', 'BootImage', 'Folder', 'MonitorRun')
 
     # THE DRIVER STORE'S OWN TWO, on the Drivers category and on every folder in
     # it. MDT hangs New Folder and Import Drivers off both, and for the reason it

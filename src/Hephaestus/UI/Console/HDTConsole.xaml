@@ -391,6 +391,20 @@
                         <MenuItem x:Name="HDTImportDriverMenuItem" />
                         <MenuItem x:Name="HDTRemoveDriverFolderMenuItem" />
 
+                        <!-- WORKBENCH'S Monitoring NODE, AND THE THING IT
+                             ALWAYS NEEDED. The engine writes a heartbeat per
+                             deployment under Logs\_active\ and nothing ever
+                             removed one, so a share that had built fifty
+                             machines drew fifty rows and the one still running
+                             was somewhere among them.
+
+                             ON THE RUN, NOT ON THE CATEGORY. Clearing one row
+                             and clearing every run on the share are different
+                             actions, and an item that means whichever row you
+                             happened to right-click is the kind of delete this
+                             console does not offer. -->
+                        <MenuItem x:Name="HDTRemoveMonitorRunMenuItem" />
+
                         <!--
                             WORKBENCH'S FOLDERS. MDT nests task sequences and
                             operating systems into real directories under

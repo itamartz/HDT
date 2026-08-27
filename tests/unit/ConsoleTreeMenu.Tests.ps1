@@ -1,4 +1,4 @@
-# The tree's right-click menu: which rows open one, and what is on it.
+﻿# The tree's right-click menu: which rows open one, and what is on it.
 #
 # THIS FILE EXISTS BECAUSE NOTHING TESTED THE MENU AT ALL, and the gap cost a
 # defect that reached the administrator's screen. A menu item was added and made
@@ -43,7 +43,8 @@ Describe 'Get-HDTConsoleTreeMenuRow' {
 
         It 'opens one on every kind that has an item' {
             foreach ($kind in @('Root', 'Share', 'Category', 'TaskSequence',
-                    'OperatingSystem', 'Application', 'BootImage', 'Folder')) {
+                    'OperatingSystem', 'Application', 'BootImage', 'Folder',
+                    'MonitorRun')) {
 
                 (& $script:ask $kind '').Opens |
                     Should -BeTrue -Because "$kind has items on the menu"
@@ -56,7 +57,15 @@ Describe 'Get-HDTConsoleTreeMenuRow' {
         It 'opens none on a row with nothing to offer' {
             (& $script:ask 'Step' 'Apply OS').Opens | Should -BeFalse
             (& $script:ask 'Empty' '').Opens | Should -BeFalse
-            (& $script:ask 'MonitorRun' 'PC-0001').Opens | Should -BeFalse
+        }
+
+        # A MONITORED RUN USED TO BE ON THE LIST ABOVE, and it belonged there
+        # while nothing could be done to one. Clear Run is what changed it: the
+        # engine writes a heartbeat per deployment and nothing ever removed one,
+        # so a share that had built fifty machines drew fifty rows with the live
+        # one somewhere among them. See tests/unit/MonitorRunRemoval.Tests.ps1.
+        It 'opens one on a monitored run, which can now be cleared' {
+            (& $script:ask 'MonitorRun' 'PC-0001').Opens | Should -BeTrue
         }
 
         # THE FOLDER ITEMS ARE DECIDED ELSEWHERE and arrive as a flag, but they

@@ -67,6 +67,7 @@
         'New-HDTSelectionProfile',
         'Set-HDTSelectionProfile',
         'Remove-HDTSelectionProfile',
+        'Remove-HDTMonitorRun',
         'Save-HDTSelectionProfileDocument',
         'Get-HDTDiskLayout',
         'Get-HDTLogDestination',

@@ -922,6 +922,7 @@
         $newDriverFolderItem = $window.FindName('HDTNewDriverFolderMenuItem')
         $importDriverItem = $window.FindName('HDTImportDriverMenuItem')
         $removeDriverFolderItem = $window.FindName('HDTRemoveDriverFolderMenuItem')
+        $removeMonitorRunItem = $window.FindName('HDTRemoveMonitorRunMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1140,6 +1141,16 @@
                         $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
                         $importDriverItem.Visibility = [System.Windows.Visibility]::Collapsed
                         $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
+                        $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                        # ON THE RUN, NEVER ON THE Monitoring CATEGORY. Clearing
+                        # this row and clearing every run on the share are
+                        # different actions; one item that means whichever the
+                        # mouse happened to be over is how somebody loses the
+                        # record of a deployment they were still reading.
+                        if ([string] $chosen.Kind -eq 'MonitorRun') {
+                            $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Visible
+                        }
 
                         if ($menuRow.IsDriverRow) {
                             $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
@@ -1840,6 +1851,52 @@
                             # THE REFUSAL IS THE ANSWER, and this command's are
                             # the ones worth reading: the store itself, a path
                             # that climbs out of it.
+                            $command.Text = [string] $_.Exception.Message
+                        }
+
+                        & $rebuildTree
+                    }.GetNewClosure())
+
+                # CLEARING A RUN ASKS TOO, for the reason every other delete on
+                # this menu asks: Remove-HDTMonitorRun carries ConfirmImpact
+                # High, and a prompt raised on a console nobody is looking at is
+                # a window that appears to have hung. The answer is passed as
+                # -Confirm:$false - one decision, made where it was offered.
+                #
+                # THE QUESTION IS NOT THE OTHERS' QUESTION. Nothing on the share
+                # reads a heartbeat, so Get-HDTConsoleRemoval says so rather than
+                # warning about an undo that nobody needs.
+                $removeMonitorRunItem.Add_Click({
+                        $chosen = $tree.SelectedItem
+                        if ($null -eq $chosen) { return }
+
+                        # THE ROW CARRIES ITS SHARE. Building the root from the
+                        # window instead would be wrong the moment two shares are
+                        # open, which is the case this console was built for.
+                        $where = [string] $chosen.HeaderRoot
+                        $which = [string] $chosen.Name
+
+                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'MonitorRun' -Root $where -Id $which
+                        if (-not $ask.CanRemove) {
+                            $command.Text = [string] $ask.Refusal
+                            return
+                        }
+
+                        $asked = [System.Windows.MessageBox]::Show($window,
+                            [string] $ask.Question,
+                            [string] $ask.Title,
+                            [System.Windows.MessageBoxButton]::YesNo,
+                            [System.Windows.MessageBoxImage]::Question,
+                            [System.Windows.MessageBoxResult]::No)
+
+                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                        try {
+                            [void] (& $call 'Remove-HDTMonitorRun' @{
+                                    Root = $where; RunId = $which; Confirm = $false
+                                })
+                            $command.Text = [string] $ask.Command
+                        } catch {
                             $command.Text = [string] $_.Exception.Message
                         }
 

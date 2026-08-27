@@ -83,7 +83,7 @@
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [ValidateSet('TaskSequence', 'OperatingSystem', 'Application', 'DriverFolder')]
+        [ValidateSet('TaskSequence', 'OperatingSystem', 'Application', 'DriverFolder', 'MonitorRun')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -140,6 +140,21 @@
                 UsedFormat = ''
             }
         }
+        'MonitorRun' {
+            @{
+                Noun      = 'monitored run'
+                # CLEAR, NOT REMOVE. Every other word on this menu takes
+                # something off the share that a deployment needs; this one
+                # takes a row off a screen. Calling it Remove would put it in
+                # the same sentence as deleting an operating system.
+                Title     = 'Clear Monitored Run'
+                Command   = 'Remove-HDTMonitorRun'
+                Parameter = 'Root'
+                Goes      = 'the heartbeat file this row is drawn from, and nothing else'
+                IdName    = 'RunId'
+                UsedFormat = ''
+            }
+        }
         'OperatingSystem' {
             @{
                 Noun      = 'operating system'
@@ -175,6 +190,7 @@
         # anybody would recognise on the row they just right-clicked.
         $what = '{0} {1} id' -f $article, $shape.Noun
         if ($Kind -eq 'DriverFolder') { $what = 'a folder under Drivers\' }
+        if ($Kind -eq 'MonitorRun') { $what = 'a run under Logs\_active' }
 
         return [pscustomobject] @{
             CanRemove = $false
@@ -203,6 +219,23 @@
     # removed, not something that follows it out.
     $lead = 'Its folder goes with it'
     if ($Kind -eq 'DriverFolder') { $lead = 'It takes' }
+
+    # A HEARTBEAT IS A RECORD, NOT A PART OF THE SHARE. Nothing reads it, so
+    # 'this cannot be undone' would be true and useless - what somebody actually
+    # wants to know before pressing this is whether they are about to interfere
+    # with a machine that is still deploying. They are not.
+    if ($Kind -eq 'MonitorRun') {
+        return [pscustomobject] @{
+            CanRemove = $true
+            Refusal   = ''
+            Title     = [string] $shape.Title
+            Warning   = ''
+            Question  = ("Clear the {0} '{1}' from{2}{3}?{2}{2}It takes {4}. The deployment itself is not affected - a run still in progress reappears here when the engine writes its next step." -f
+                $shape.Noun, $Id, $newLine, $Root, $shape.Goes)
+            Command   = "{0} -{1} '{2}' -{3} '{4}'" -f
+                $shape.Command, $shape.Parameter, $Root, $shape.IdName, $Id
+        }
+    }
 
     $question = ("Remove the {0} '{1}' from{2}{3}?{2}{2}{6} - {4}. This cannot be undone from here.{5}" -f
         $shape.Noun, $Id, $newLine, $Root, $shape.Goes, $warning, $lead)
