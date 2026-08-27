@@ -1060,7 +1060,56 @@
                 leg       = [int] $state.leg
             })
 
-        Write-HDTStatus -Context $log -Path $statusPathValue -Status $runStatus -ActivePath $activeStatusPath
+        # WHERE THE RUN GOT TO, SAID OUT LOUD.
+        #
+        # $log has had ClearStep called on it by the step that just ended, and
+        # correctly so - a finished step is not the current step. But this is
+        # the VERDICT, and it used to inherit that cleared context: every run
+        # ended by writing stepIndex 0 with no name, so a deployment that ran
+        # all twelve steps and succeeded was drawn '(no step yet)' and
+        # '0 of 12', and a failed one threw away the single fact anybody opens
+        # the Monitoring node to find - WHICH step it died on.
+        #
+        # THE FAILING STEP, NOT THE LAST ONE ATTEMPTED. A step with
+        # continueOnError set lets the run carry on past a failure, so the last
+        # entry is not necessarily the one that went wrong; on a failed run the
+        # last FAILED entry is what somebody is looking for.
+        # INDEXED ONLY AFTER COUNTING. A run can end having attempted NO step at
+        # all - a checkpoint that cannot be written fails the run before the
+        # first one - and @()[0] on an empty array throws under StrictMode
+        # rather than yielding $null.
+        $reached = $null
+
+        if ($runStatus -eq 'Failed') {
+            # NOT $failedStep - THAT NAME IS ALREADY THE RUN'S. It holds the
+            # step this function RETURNS as FailedStep, and reusing it here
+            # overwrote a single step with the whole list of failures, so a run
+            # with a tolerated failure before a fatal one returned both.
+            $failedOutcome = @($outcome | Where-Object { $_.Status -eq 'Failed' })
+            if ($failedOutcome.Count -gt 0) { $reached = $failedOutcome[$failedOutcome.Count - 1] }
+        }
+
+        if ($null -eq $reached) {
+            $attempted = @($outcome)
+            if ($attempted.Count -gt 0) { $reached = $attempted[$attempted.Count - 1] }
+        }
+
+        $statusArgument = @{
+            Context    = $log
+            Path       = $statusPathValue
+            Status     = $runStatus
+            ActivePath = $activeStatusPath
+        }
+
+        # A RUN THAT REACHED NO STEP AT ALL says so by leaving these unset,
+        # which keeps the cleared context's zero rather than inventing one.
+        if ($null -ne $reached) {
+            $statusArgument['StepIndex'] = [int] $reached.Index
+            $statusArgument['StepName'] = [string] $reached.Name
+            $statusArgument['StepType'] = [string] $reached.Type
+        }
+
+        Write-HDTStatus @statusArgument
 
         # THE LAST THING THE SCREEN IS TOLD, and the only update that carries a
         # verdict: run.end has just been written, so this is where Running

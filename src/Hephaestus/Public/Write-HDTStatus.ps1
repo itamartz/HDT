@@ -33,6 +33,16 @@
         .PARAMETER Status
             The run status. Defaults to Running.
 
+        .PARAMETER StepIndex
+            The step the run reached, for a caller writing a verdict after the
+            context has been cleared. Omitted, the context's own step is written.
+
+        .PARAMETER StepName
+            The name of that step. Omitted, the context's own.
+
+        .PARAMETER StepType
+            The type of that step. Omitted, the context's own.
+
         .OUTPUTS
             None.
 
@@ -75,7 +85,35 @@
         # to feed.
         [Parameter()]
         [AllowEmptyString()]
-        [string] $ActivePath = ''
+        [string] $ActivePath = '',
+
+        # WHERE THE RUN GOT TO, WHEN THE CONTEXT NO LONGER KNOWS.
+        #
+        # The engine calls SetStep before a step and ClearStep after it, and the
+        # VERDICT is written after the loop - so the last heartbeat of every run
+        # reported stepIndex 0 and no name. A deployment that ran all twelve
+        # steps and succeeded was drawn '(no step yet)' with '0 of 12', and a
+        # deployment that FAILED discarded the one fact anybody opens the
+        # Monitoring node to find: which step it died on.
+        #
+        # ClearStep is not the bug - a step that has ended is not the current
+        # step, and the logger must not tag later records with it. So the caller
+        # that knows the run is over says what it reached.
+        #
+        # UNSUPPLIED IS NOT ZERO, which is why these are tested with
+        # ContainsKey rather than given sentinel defaults: a run that failed
+        # before any step began really did reach step 0, and every per-step
+        # heartbeat must still read the context or a live row would stop moving.
+        [Parameter()]
+        [int] $StepIndex,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $StepName,
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $StepType
     )
 
     Set-StrictMode -Version Latest
@@ -83,19 +121,27 @@
 
     $updated = $Context.Clock.GetUtcNow().ToUniversalTime().ToString('o', [System.Globalization.CultureInfo]::InvariantCulture)
 
+    $stepIndexValue = $Context.StepIndex
+    $stepNameValue = $Context.StepName
+    $stepTypeValue = $Context.StepType
+
+    if ($PSBoundParameters.ContainsKey('StepIndex')) { $stepIndexValue = $StepIndex }
+    if ($PSBoundParameters.ContainsKey('StepName')) { $stepNameValue = $StepName }
+    if ($PSBoundParameters.ContainsKey('StepType')) { $stepTypeValue = $StepType }
+
     $document = [ordered] @{
         schemaVersion = 1
         runId         = $Context.RunId
         phase         = $Context.Phase
         status        = $Status
-        stepIndex     = $Context.StepIndex
+        stepIndex     = $stepIndexValue
 
         # ALWAYS PRESENT, EVEN AS ZERO. A key that is sometimes absent is a key
         # every reader has to test for, and this one is read by a console that
         # may be looking at a share written by an older engine.
         stepCount     = $Context.StepCount
-        stepName      = $Context.StepName
-        stepType      = $Context.StepType
+        stepName      = $stepNameValue
+        stepType      = $stepTypeValue
         updated       = $updated
     }
 
