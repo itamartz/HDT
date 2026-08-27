@@ -80,7 +80,23 @@ function ConvertTo-HDTCmTraceLine {
 
         [Parameter(Mandatory = $true)]
         [AllowEmptyString()]
-        [string] $File
+        [string] $File,
+
+        # CMTrace's OWN COLUMN FOR WHO DID IT, and it was always written empty.
+        # The console log lives on the share, where two administrators append to
+        # one file, so "who ran this" is not a detail - it is the difference
+        # between a session somebody can account for and a line they cannot.
+        #
+        # CMTrace shows it as a column with no configuration and no plugin,
+        # which is the reason this format was chosen at all: an MDT admin's
+        # existing tooling works on day one.
+        #
+        # EMPTY BY DEFAULT, so a deployment's own logs stay byte-for-byte what
+        # they were. The engine runs as SYSTEM in WinPE and "who" is not a
+        # question anybody asks of it.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $UserContext = ''
     )
 
     Set-StrictMode -Version Latest
@@ -99,11 +115,18 @@ function ConvertTo-HDTCmTraceLine {
         $type = '3'
     }
 
-    return ('<![LOG[{0}]LOG]!><time="{1}+000" date="{2}" component="{3}" context="" type="{4}" thread="{5}" file="{6}">' -f
+    # THE CONTEXT IS FLATTENED LIKE THE MESSAGE. A user name cannot normally
+    # hold a quote or a newline, but this writes an attribute in a line-oriented
+    # format and a value that could close it early would corrupt every entry
+    # after it - so it is treated as untrusted text, exactly as the message is.
+    $flatContext = ([string] $UserContext) -replace '[\r\n]', ' ' -replace '"', "'"
+
+    return ('<![LOG[{0}]LOG]!><time="{1}+000" date="{2}" component="{3}" context="{4}" type="{5}" thread="{6}" file="{7}">' -f
         $flat,
         $Timestamp.ToString('HH:mm:ss.fff', $invariant),
         $Timestamp.ToString('MM-dd-yyyy', $invariant),
         $Component,
+        $flatContext,
         $type,
         $ThreadId.ToString($invariant),
         $File)

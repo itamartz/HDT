@@ -32,6 +32,14 @@ BeforeAll {
         'New-HDTConsoleScreen'
         'New-HDTConsoleProgressHost'
         'New-HDTConsoleBootStatusHost'
+
+        # WHERE ARE MY CONSOLE LOGS is a question an administrator asks out
+        # loud, so the answer is a command they can type. Start- and
+        # Stop-HDTConsoleLog are NOT here and are not exported: they are the
+        # session's lifecycle, called by Show-HDTConsole, and nobody has a
+        # reason to run them by hand - which is exactly the line this contract
+        # draws.
+        'Get-HDTConsoleLogPath'
     )
 }
 

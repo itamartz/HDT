@@ -15,14 +15,19 @@ BeforeAll {
     $script:jsonlPath = 'X:\HDT\Logs\HDT.jsonl'
     $script:masterPath = 'X:\HDT\Logs\HDT.log'
 
-    # The nineteen names of DESIGN 4.4.2's controlled vocabulary: the eleven the
-    # design lists, plus reboot.teardown (DESIGN 4.5.3's failsafe, emitted by
+    # The twenty-two names of DESIGN 4.4.2's controlled vocabulary: the eleven
+    # the design lists, plus reboot.teardown (DESIGN 4.5.3's failsafe, emitted by
     # 03-03), message (what a custom step's bare Write-HDTLog produces, DESIGN
     # 4.4.4) and step.progress (a step long enough to report on itself - an
     # apply, which prints a percentage for nine minutes), plus the five driver.*
-    # events ApplyDrivers writes its DECISION to rather than just its outcome.
+    # events ApplyDrivers writes its DECISION to rather than just its outcome,
+    # plus the three console.* ones - the console wrote no log at all until
+    # 2026-08-27, so a reported crash could only be answered by reading source.
     # Every addition is written back into DESIGN 4.4.2.
     $script:eventVocabulary = @(
+        'console.action'
+        'console.error'
+        'console.session'
         'driver.enumerate'
         'driver.fallback'
         'driver.group'
@@ -204,7 +209,7 @@ Describe 'Write-HDTLog' {
             $record.event | Should -BeExactly $_
         }
 
-        It 'validates exactly nineteen events and no more' {
+        It 'validates exactly twenty-two events and no more' {
             # This is what ties the engine to DESIGN 4.4.2's controlled vocabulary
             # rather than to a comment. It goes red when somebody adds a twentieth
             # event without touching the design.
@@ -212,7 +217,7 @@ Describe 'Write-HDTLog' {
                     Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })
 
             $attribute.Count | Should -Be 1
-            @($attribute[0].ValidValues).Count | Should -Be 19
+            @($attribute[0].ValidValues).Count | Should -Be 22
             @($attribute[0].ValidValues | Sort-Object) | Should -Be $script:eventVocabulary
         }
 

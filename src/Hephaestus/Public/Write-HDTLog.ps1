@@ -30,11 +30,16 @@
 
             EVENT IS A CONTROLLED VOCABULARY, enforced by ValidateSet, so the
             report renderer and the console filter on a known set rather than
-            regexing prose. Fourteen names: the base eleven, plus
-            reboot.teardown for the autologon failsafe, message for a custom
-            step's bare call, and step.progress for a step long enough that the
-            bar would otherwise not move for nine minutes. Adding a fifteenth
-            means editing the vocabulary as well - a test asserts the exact list.
+            regexing prose. The names are the ones DESIGN 4.4.2 tabulates, and a
+            contract test asserts the two lists against each other in both
+            directions - so adding a name here without documenting it fails, and
+            documenting one the engine will not accept fails too.
+
+            THE COUNT IS DELIBERATELY NOT WRITTEN HERE. This said "fourteen"
+            while the ValidateSet held twenty-two, and the .PARAMETER below said
+            "thirteen": the test enforces the NAMES, nothing enforces a number
+            in a sentence, and a number in prose beside an enforced list is a
+            number that drifts. Read the ValidateSet.
 
             Verbosity order is Error < Warning < Info < Debug, so Level = Warning
             emits Error and Warning only.
@@ -53,7 +58,8 @@
             produces.
 
         .PARAMETER Event
-            One of the thirteen vocabulary names. Defaults to message.
+            One of the vocabulary names DESIGN 4.4.2 tabulates. Defaults to
+            message.
 
         .PARAMETER Component
             The subsystem the entry came from. Defaults to the context's
@@ -116,6 +122,15 @@
             # choice, and driver.injected what DISM said came back. MDT put all
             # of this in ZTIDrivers.log; these are the records that let
             # Copy-HDTLog split the same file back out.
+            # THE CONSOLE'S OWN THREE, added because it had no log at all and a
+            # reported crash could only be answered by reading source. They are
+            # separate names so a session can be filtered down to what was
+            # pressed (console.action), what went wrong (console.error), and
+            # where a window started and stopped (console.session) - the three
+            # questions asked of a UI that misbehaved, in that order.
+            'console.action',
+            'console.error',
+            'console.session',
             'driver.enumerate',
             'driver.fallback',
             'driver.group',
@@ -204,8 +219,16 @@
     # default rendering spans many.
     $json = ConvertTo-Json -InputObject $record -Depth 8 -Compress
 
+    # THE USER, WHEN THE CONTEXT CARRIES ONE. A deployment's context does not -
+    # the engine runs as SYSTEM and its logs are byte-for-byte what they were -
+    # but the console's does, because its log lives on the share where two
+    # administrators append to one file.
+    $userContext = ''
+    if ($null -ne $Context.PSObject.Properties['User']) { $userContext = [string] $Context.User }
+
     $line = ConvertTo-HDTCmTraceLine -Message $Message -Component $componentName `
-        -Severity $Severity -Timestamp $timestamp -ThreadId ([int] $Context.ThreadId) -File $sourceName
+        -Severity $Severity -Timestamp $timestamp -ThreadId ([int] $Context.ThreadId) -File $sourceName `
+        -UserContext $userContext
 
     $Context.FileSystem.AppendAllText($Context.JsonlPath, ($json + "`n"))
     $Context.FileSystem.AppendAllText($Context.MasterLogPath, ($line + "`n"))

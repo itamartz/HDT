@@ -124,7 +124,22 @@
         [string] $Component = 'Engine',
 
         [Parameter()]
-        [int] $ThreadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId
+        [int] $ThreadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId,
+
+        # WHO IS WRITING, rendered into CMTrace's own context column. Empty for
+        # a deployment - see the property below - and set by the console.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $User = '',
+
+        # WHAT THE PAIR OF FILES IS CALLED. 'HDT' gives HDT.jsonl and HDT.log,
+        # which is every deployment and the reason this defaults rather than
+        # asks. The console writes Console.log beside them in the share's Logs
+        # folder, because a deployment log and a console log in one file would
+        # interleave two machines' worth of story into one thread.
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $BaseName = 'HDT'
     )
 
     Set-StrictMode -Version Latest
@@ -156,8 +171,15 @@
         StepLogPath   = $null
         Component     = $Component
         ThreadId      = $ThreadId
-        JsonlPath     = ('{0}\HDT.jsonl' -f $trimmed)
-        MasterLogPath = ('{0}\HDT.log' -f $trimmed)
+
+        # WHO, FOR THE LOGS THAT HAVE A WHO. Empty for a deployment: the engine
+        # runs as SYSTEM in WinPE, nobody is sitting at it, and filling this
+        # would change every line of every existing deployment log for no
+        # answer anybody wanted. The console sets it, because its log is on the
+        # share and more than one administrator writes to it.
+        User          = $User
+        JsonlPath     = ('{0}\{1}.jsonl' -f $trimmed, $BaseName)
+        MasterLogPath = ('{0}\{1}.log' -f $trimmed, $BaseName)
     }
 
     $context | Add-Member -MemberType ScriptMethod -Name SetStep -Value {

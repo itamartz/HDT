@@ -354,10 +354,34 @@
         $newWorkspaceXaml = [System.IO.File]::ReadAllText($NewWorkspaceXamlPath)
     }
 
-    $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
-        (Get-HDTConsoleTheme), $size, $RefreshSecond, $newSequenceXaml,
-        $importOperatingSystemXaml, $importApplicationXaml, $applicationDependencyXaml,
-        $applicationDetectionXaml, $fill, $newWorkspaceXaml)
+    # THE LOG OPENS BEFORE THE WINDOW AND CLOSES AFTER IT, and the close is in a
+    # finally: the session worth reading is the one that ended badly, and a log
+    # that records an open and never a close cannot tell a console somebody shut
+    # from one that died. Start-HDTConsoleLog never throws, so a log that will
+    # not open costs the administrator a log and not a console.
+    # THE FIRST SHARE IS WHERE IT WRITES. A console can be opened on several;
+    # its log goes in the Logs folder of the one it opened with, beside that
+    # share's deployment logs. Opened on none, there is no log - see
+    # Get-HDTConsoleLogPath, which says what that costs.
+    $logShare = ''
+    if (@($Path).Count -gt 0) { $logShare = [string] @($Path)[0] }
+
+    # THROUGH THE INJECTED FILE SYSTEM, like everything else this command
+    # touches. Omitting it defaulted to the REAL adapter, so every test that
+    # opens a console on the fake root wrote C:\ws\Logs\Console.log to an actual
+    # disk - which is what GatherAndResolve.EndToEnd's "the run touched nothing
+    # real" assertion is for, and what it caught within hours of this being
+    # added. Rule 5 is not only about hardware: a log is a write like any other.
+    [void] (Start-HDTConsoleLog -WorkspaceRoot $logShare -FileSystem $FileSystem)
+
+    try {
+        $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
+            (Get-HDTConsoleTheme), $size, $RefreshSecond, $newSequenceXaml,
+            $importOperatingSystemXaml, $importApplicationXaml, $applicationDependencyXaml,
+            $applicationDetectionXaml, $fill, $newWorkspaceXaml)
+    } finally {
+        Stop-HDTConsoleLog
+    }
 
     # THE SIZE IT WAS LEFT AT, REMEMBERED. Save-HDTConsoleSetting refuses a size
     # below the window's minimum and never throws, so a closing window cannot

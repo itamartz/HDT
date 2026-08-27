@@ -518,6 +518,23 @@ Describe 'Show-HDTConsole' {
         It 'writes that nowhere near the deployment share' {
             # C1 reads a live share and writes nothing to it. A window size is a
             # preference of one administrator on one workstation anyway.
+            #
+            # THE CONSOLE LOG IS THE ONE DELIBERATE EXCEPTION, added 2026-08-28
+            # at the author's direction: Console.log and Console.jsonl go in the
+            # share's Logs folder, beside the deployment logs, because that is
+            # where an administrator already looks when something went wrong.
+            #
+            # SO THIS NO LONGER FORBIDS EVERY WRITE - it forbids the SETTINGS
+            # write, which is what it was always about. Stating that as a
+            # narrowed rule rather than deleting the test, because the rest of
+            # the invariant still holds and is worth holding: opening a console
+            # must not put an administrator's window size on somebody's share.
+            #
+            # WHAT THIS COSTS, RECORDED SO IT IS NOT REDISCOVERED: opening the
+            # console is no longer a read-only act. A share opened just to look
+            # at gets a log line, and a read-only share gets none at all -
+            # Start-HDTConsoleLog never throws, so that costs a log rather than
+            # a console.
             $fs = New-HDTFakeFileSystem -File @{
                 'C:\ws\workspace.yaml' = $script:workspaceYaml
                 $script:xamlPath       = '<Window />'
@@ -527,8 +544,24 @@ Describe 'Show-HDTConsole' {
                     -ConsoleHost (New-HDTFakeConsoleHost) -FileSystem $fs `
                     -Environment (New-HDTFakeEnvironmentProvider -Variable @{ APPDATA = $script:appData }))
 
-            foreach ($write in @($fs.Operations | Where-Object { $_.Operation -in 'WriteAllText', 'AppendAllText', 'RemoveItem', 'CopyItem' })) {
-                $write.Arguments[0] | Should -Not -Match ([regex]::Escape('C:\ws'))
+            $write = @($fs.Operations |
+                    Where-Object { $_.Operation -in 'WriteAllText', 'AppendAllText', 'RemoveItem', 'CopyItem' } |
+                    Where-Object { [string] $_.Arguments[0] -notmatch '(?i)\\Logs\\Console\.(log|jsonl)$' })
+
+            foreach ($one in $write) {
+                [string] $one.Arguments[0] | Should -Not -Match ([regex]::Escape('C:\ws'))
+            }
+
+            # AND THE SETTINGS FILE SPECIFICALLY, named rather than inferred from
+            # the absence of everything else - so this keeps failing if the size
+            # ever lands on a share, even once something else legitimately
+            # writes there.
+            $setting = @($fs.Operations |
+                    Where-Object { $_.Operation -in 'WriteAllText', 'AppendAllText' } |
+                    Where-Object { [string] $_.Arguments[0] -match '(?i)console.*\.json$' })
+
+            foreach ($one in $setting) {
+                [string] $one.Arguments[0] | Should -Not -Match ([regex]::Escape('C:\ws'))
             }
         }
     }
