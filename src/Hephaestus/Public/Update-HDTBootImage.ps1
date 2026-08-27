@@ -1225,7 +1225,27 @@
         $bootstrapRuleSource = Join-Path -Path $WorkspaceRoot -ChildPath 'bootstrap-rules.yaml'
 
         if ($FileSystem.TestPath($bootstrapRuleSource)) {
-            [void] (Import-HDTBootstrapRuleDocument -Path $bootstrapRuleSource -FileSystem $FileSystem)
+            $bootstrapDocument = Import-HDTBootstrapRuleDocument -Path $bootstrapRuleSource -FileSystem $FileSystem
+
+            # A RULE HERE OVERRIDES deployRoot, AND NOTHING USED TO SAY SO.
+            #
+            # This file is read in WinPE before the share is reachable, so a rule
+            # matching on gateway or MAC decides which server a machine actually
+            # goes to - and workspace.yaml's deployRoot is only the fallback.
+            # When the lab's DHCP lease moved, deployRoot was corrected, the
+            # image rebuilt, and every machine still went to the old address
+            # because both rules still named it. No screen, no step and no test
+            # mentioned the disagreement; the Welcome screen even showed the
+            # CORRECTED address, because that box is filled from the workspace.
+            #
+            # IT WARNS AND BUILDS. Pointing some machines at another server is
+            # what these rules are for.
+            foreach ($sentence in @(Get-HDTBootstrapDeployRootWarning `
+                        -DeployRoot ([string] $workspace.DeployRoot) `
+                        -Rule ([object[]] @($bootstrapDocument.Rule)))) {
+
+                Write-Warning ([string] $sentence)
+            }
 
             $FileSystem.WriteAllText([System.IO.Path]::Combine($hdtRoot, 'bootstrap-rules.yaml'),
                 [string] $FileSystem.ReadAllText($bootstrapRuleSource))

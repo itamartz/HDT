@@ -211,6 +211,44 @@ Describe 'Get-HDTConsoleMonitor' {
         }
     }
 
+    # A MACHINE IN WinPE HAS THE WRONG TIME, AND THAT IS NORMAL.
+    #
+    # WinPE does not sync a clock and has no time zone until the sequence sets
+    # one, so a heartbeat routinely carries a stamp AHEAD of the console's own
+    # clock - eight hours ahead, on the run this was found in. The age then came
+    # out negative, and negative was the same value the reader used to mean "no
+    # timestamp at all" - so a healthy live deployment was branded Unreadable,
+    # counted as finished, and shown with its last heartbeat as "(never)".
+    #
+    # THE FILE IS FINE. Two clocks disagree, which is a fact about the lab and
+    # not a fault in the run, and the screen exists to show that run.
+    Context 'a machine whose clock is ahead of the console' {
+
+        BeforeAll {
+            $script:ahead = Get-HDTConsoleMonitor -Path $script:root `
+                -FileSystem (New-HDTTestMonitorFileSystem -File @{
+                        'C:\ws\Logs\_active\RUN-FAST.json' = (New-HDTTestHeartbeat -RunId 'RUN-FAST' -Updated '2026-08-16T06:00:00.0000000Z')
+                    }) `
+                -Clock (New-HDTFakeClock -UtcNow $script:now)
+        }
+
+        It 'is live, not unreadable' {
+            $script:ahead.Run[0].Health | Should -BeExactly 'Live'
+        }
+
+        It 'is not counted as finished' {
+            $script:ahead.FinishedCount | Should -Be 0
+            $script:ahead.LiveCount | Should -Be 1
+        }
+
+        It 'says the heartbeat is recent rather than "(never)"' {
+            # CLAMPED TO NOW, because a heartbeat from the future is not older
+            # than any threshold and saying "in 8 hours" helps nobody.
+            $script:ahead.Run[0].SinceText | Should -Not -BeNullOrEmpty
+            $script:ahead.Run[0].SinceText | Should -Not -BeLike '*never*'
+        }
+    }
+
     Context 'a deployment that stopped talking' {
 
         It 'calls it stalled once the heartbeat is older than the threshold' {

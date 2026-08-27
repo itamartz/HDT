@@ -1,4 +1,4 @@
-function New-HDTConsoleMonitorRow {
+﻿function New-HDTConsoleMonitorRow {
     <#
         .SYNOPSIS
             One deployment's row on the monitoring view.
@@ -118,6 +118,18 @@ function New-HDTConsoleMonitorRow {
     # -- how long since it said anything -----------------------------------
 
     $updated = $null
+
+    # -1 MEANT TWO DIFFERENT THINGS AND THAT WAS THE BUG. It was the sentinel for
+    # "this heartbeat carries no timestamp", and it was ALSO what the arithmetic
+    # produced when the machine's clock was AHEAD of the console's - which is the
+    # normal state of a machine in WinPE, where nothing syncs a clock and there
+    # is no time zone until the sequence sets one. A live deployment eight hours
+    # ahead was therefore branded Unreadable, counted as finished, and shown with
+    # its last heartbeat as "(never)".
+    #
+    # So the two are separate now: $hasStamp says whether one was read at all,
+    # and $since is free to be negative.
+    $hasStamp = $false
     $since = -1
 
     $stamp = & $read 'updated' $null
@@ -137,6 +149,7 @@ function New-HDTConsoleMonitorRow {
     if ($stamp -is [datetime]) {
         $updated = ([datetime] $stamp).ToUniversalTime()
         $since = [int] ($Now - $updated).TotalSeconds
+        $hasStamp = $true
     } elseif (-not [string]::IsNullOrWhiteSpace([string] $stamp)) {
         $parsed = [datetime]::MinValue
 
@@ -150,8 +163,15 @@ function New-HDTConsoleMonitorRow {
 
             $updated = $parsed.ToUniversalTime()
             $since = [int] ($Now - $updated).TotalSeconds
+            $hasStamp = $true
         }
     }
+
+    # A HEARTBEAT FROM THE FUTURE IS NOT OLD. Clamping to zero keeps it out of
+    # the stale threshold and off the "(never)" path, and "in 8 hours" is not
+    # something anybody needs on this screen: what matters is that the machine
+    # is still talking.
+    if ($hasStamp -and $since -lt 0) { $since = 0 }
 
     # -- what that makes it ------------------------------------------------
     #
@@ -162,8 +182,9 @@ function New-HDTConsoleMonitorRow {
 
     if ($runStatus -ne 'Running' -and -not [string]::IsNullOrWhiteSpace($runStatus)) {
         $health = 'Finished'
-    } elseif ($since -lt 0) {
-        # It parsed, but carried no timestamp anybody can read.
+    } elseif (-not $hasStamp) {
+        # It parsed, but carried no timestamp anybody can read. NOT the same as
+        # a timestamp that is merely ahead of this console's clock.
         $health = 'Unreadable'
     } elseif ($since -gt ($StaleMinute * 60)) {
         $health = 'Stalled'
