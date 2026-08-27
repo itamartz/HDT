@@ -659,6 +659,40 @@ why an administrator cannot open the share in Explorer.
    in the gap between them: they exercise the commands, and the button sweep
    skips the five that would have hit it.
 
+### Still open on the console — found 2026-08-27, importing a Dell `.exe`
+
+**The console writes no log at all.** Not a thin one, not a debug one — nothing
+in the repository writes a console log. The engine has `HDT.jsonl` and a
+numbered file per step; the window beside it has nothing, so when an
+administrator says "it crashed" there is no evidence and the only way to answer
+is to read the source and guess. That is what happened here. **This is the first
+one to fix**, because the other two are the kind of thing a log would have
+named in a line.
+
+What it has to record, which is what was wanted and missing on the day: what the
+window was asked to do, which command it invoked with which arguments, how long
+that took, and the whole exception with its stack when one is thrown - including
+the ones already swallowed into a status line, where the message survives and
+the type and stack do not.
+
+1. **A long import freezes the window.** `Import-HDTDriverArchive` runs the
+   expander through `IProcessService` with a ten-minute timeout, and the console
+   calls it on the WPF dispatcher thread. Nothing is marshalled off it. A vendor
+   `.exe` that opens a GUI instead of self-extracting blocks for the full ten
+   minutes and Windows paints "Not Responding" — but so does a perfectly healthy
+   pack of a hundred and forty `.inf` files, for less time. **The freeze is not
+   about the `.exe`**; it is every import, and every other long console action
+   on the same thread.
+
+2. **Dell's `.exe` switches were never verified.**
+   `Get-HDTDriverExpandCommand` hands every `.exe` HP's SoftPaq switches -
+   `/s /e /f"dest"` - under a comment asserting "Dell's own .exe packs accept
+   the same shape". Nobody ran one. Dell Update Packages take `/s /e=<path>`,
+   so a Dell `.exe` gets switches it does not understand and either shows its
+   interactive installer or extracts nothing. An unverified claim in a comment
+   is exactly what `.planning/SPIKES.md` exists to replace, and this one has
+   been sitting in the code being believed.
+
 ---
 
 ## Post-v1 candidates

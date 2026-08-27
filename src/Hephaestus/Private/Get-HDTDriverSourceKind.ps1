@@ -70,7 +70,31 @@ function Get-HDTDriverSourceKind {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $none = [pscustomobject] @{ Kind = 'Empty'; Archive = '' }
+    $none = [pscustomobject] @{ Kind = 'Empty'; Archive = ''; Vendor = '' }
+
+    # WHO MADE IT, WHICH ONLY MATTERS FOR AN .exe. A Dell Update Package and an
+    # HP SoftPaq are both a self-extracting .exe and take INCOMPATIBLE switches;
+    # a .cab goes through expand.exe whoever built it, so reading a version
+    # block for one would be work with nothing behind it.
+    #
+    # THE FILE'S OWN VERSION BLOCK, NOT ITS NAME. 'sp150000.exe' is a convention
+    # somebody can rename; CompanyName 'Dell Inc.' is a field the vendor set.
+    $readVendor = {
+        param([string] $ExePath)
+
+        try {
+            $info = $FileSystem.GetVersionInfo($ExePath)
+        } catch {
+            return ''
+        }
+
+        $said = '{0} {1} {2}' -f [string] $info.CompanyName, [string] $info.ProductName, [string] $info.FileDescription
+
+        if ($said -match '(?i)\bdell\b') { return 'Dell' }
+        if ($said -match '(?i)\b(hp|hewlett)\b') { return 'Hp' }
+
+        return ''
+    }
 
     if (-not $FileSystem.TestPath($Path)) { return $none }
 
@@ -86,9 +110,15 @@ function Get-HDTDriverSourceKind {
         $extension = ([System.IO.Path]::GetExtension($Path)).ToLowerInvariant()
 
         if ($archiveExtension -contains $extension) {
+            $kind = (& { if ($extension -eq '.cab') { 'Cab' } elseif ($extension -eq '.zip') { 'Zip' } else { 'Exe' } })
+
+            $vendor = ''
+            if ($kind -eq 'Exe') { $vendor = [string] (& $readVendor $Path) }
+
             return [pscustomobject] @{
-                Kind    = (& { if ($extension -eq '.cab') { 'Cab' } elseif ($extension -eq '.zip') { 'Zip' } else { 'Exe' } })
+                Kind    = $kind
                 Archive = $Path
+                Vendor  = $vendor
             }
         }
 
@@ -97,7 +127,7 @@ function Get-HDTDriverSourceKind {
 
     # A TREE WINS OVER AN ARCHIVE BESIDE IT.
     if ((Measure-HDTDriverInf -Path $Path -FileSystem $FileSystem) -gt 0) {
-        return [pscustomobject] @{ Kind = 'Folder'; Archive = '' }
+        return [pscustomobject] @{ Kind = 'Folder'; Archive = ''; Vendor = '' }
     }
 
     $found = @($FileSystem.GetChildItem($Path) | Where-Object {

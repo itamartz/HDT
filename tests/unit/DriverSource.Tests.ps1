@@ -23,13 +23,30 @@ BeforeAll {
     }
 
     $script:command = {
-        param([string] $Kind, [string] $Archive, [string] $Destination)
+        param([string] $Kind, [string] $Archive, [string] $Destination, [string] $Vendor = '')
 
         $module = Get-Module -Name Hephaestus
         return & $module {
-            param($K, $A, $D)
-            Get-HDTDriverExpandCommand -Kind $K -Archive $A -Destination $D
-        } $Kind $Archive $Destination
+            param($K, $A, $D, $V)
+            Get-HDTDriverExpandCommand -Kind $K -Archive $A -Destination $D -Vendor $V
+        } $Kind $Archive $Destination $Vendor
+    }
+
+    # THE REAL FILE, AS THE USER DOWNLOADED IT. Captured from
+    # Latitude-5420-X8RTR_Win11_1.0_A13.exe - 2.38 GB, and the version block is
+    # the only thing that distinguishes it from an HP SoftPaq before it is run.
+    $script:dellVersionInfo = @{
+        CompanyName     = 'Dell Inc.'
+        ProductName     = 'Command Deploy Driver Pack for Latitude , 1.0, A13'
+        FileDescription = 'Dell Update Package: Command Deploy Driver Pack for Latitude , 1.0, A13'
+        FileVersion     = '1.0'
+    }
+
+    $script:hpVersionInfo = @{
+        CompanyName     = 'HP Inc.'
+        ProductName     = 'HP Softpaq'
+        FileDescription = 'HP Softpaq Self-Extracting Package'
+        FileVersion     = '1.0'
     }
 }
 
@@ -121,5 +138,80 @@ Describe 'Get-HDTDriverExpandCommand' {
 
     It 'names no process for a zip, which the file system expands' {
         (& $script:command 'Zip' 'D:\p\pack.zip' 'C:\out').FilePath | Should -BeExactly ''
+    }
+
+    # THE DEFECT, AS THE USER HIT IT ON 2026-08-27. Every .exe was handed HP's
+    # switches under a comment claiming "Dell's own .exe packs accept the same
+    # shape". Nobody had run one. Verified against the real 2.38 GB
+    # Latitude-5420 pack: '/s /e=<path>' exits 0 and extracts 269 .inf files in
+    # 86 seconds, and HP's shape is not what it takes.
+    It 'runs a Dell Update Package with Dell''s own switches' {
+        $run = & $script:command 'Exe' 'D:\p\Latitude-5420-X8RTR_Win11_1.0_A13.exe' 'C:\out' 'Dell'
+
+        $run.FilePath | Should -BeExactly 'D:\p\Latitude-5420-X8RTR_Win11_1.0_A13.exe'
+        $run.Argument | Should -BeExactly '/s /e="C:\out"'
+    }
+
+    It 'still runs an HP SoftPaq with HP''s switches when the vendor is known' {
+        (& $script:command 'Exe' 'D:\p\sp150000.exe' 'C:\out' 'Hp').Argument |
+            Should -BeExactly '/s /e /f"C:\out"'
+    }
+
+    # AN UNKNOWN VENDOR KEEPS THE OLD BEHAVIOUR rather than guessing Dell,
+    # because most .exe driver packs in the wild are SoftPaqs and a change of
+    # default would be a silent regression for every share that works today.
+    # What protects an unknown pack is not the guess: it is that the import runs
+    # off the UI thread, under a timeout, and that what lands on disk decides
+    # rather than the exit code.
+    It 'falls back to the SoftPaq shape when the vendor cannot be read' {
+        (& $script:command 'Exe' 'D:\p\mystery.exe' 'C:\out' '').Argument |
+            Should -BeExactly '/s /e /f"C:\out"'
+    }
+}
+
+Describe 'Get-HDTDriverSourceKind vendor detection' {
+
+    It 'reads Dell out of the version block of a real Dell pack' {
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\p\Latitude-5420-X8RTR_Win11_1.0_A13.exe' = 'binary' }
+        $fs.SeedVersionInfo('D:\p\Latitude-5420-X8RTR_Win11_1.0_A13.exe', $script:dellVersionInfo)
+
+        $kind = & $script:ask 'D:\p\Latitude-5420-X8RTR_Win11_1.0_A13.exe' $fs
+
+        $kind.Kind | Should -BeExactly 'Exe'
+        $kind.Vendor | Should -BeExactly 'Dell'
+    }
+
+    It 'reads HP out of the version block of a SoftPaq' {
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\p\sp150000.exe' = 'binary' }
+        $fs.SeedVersionInfo('D:\p\sp150000.exe', $script:hpVersionInfo)
+
+        (& $script:ask 'D:\p\sp150000.exe' $fs).Vendor | Should -BeExactly 'Hp'
+    }
+
+    It 'answers an empty vendor for an exe carrying no version block' {
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\p\mystery.exe' = 'binary' }
+
+        (& $script:ask 'D:\p\mystery.exe' $fs).Vendor | Should -BeExactly ''
+    }
+
+    It 'leaves a cab with no vendor, because a cab needs none' {
+        # expand.exe takes the same switches whoever made the cab, so reading a
+        # version block here would be work with nothing behind it.
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\p\dell.cab' = 'binary' }
+
+        (& $script:ask 'D:\p\dell.cab' $fs).Vendor | Should -BeExactly ''
+    }
+
+    It 'finds the vendor of an archive discovered inside a folder' {
+        # THE PATH THE CONSOLE ACTUALLY TAKES. Its Import Drivers menu opens a
+        # FOLDER picker, so the .exe is never chosen directly - it is found one
+        # level down, and the vendor has to survive that recursion.
+        $fs = New-HDTFakeFileSystem -File @{ 'D:\Latitude 5420\Latitude-5420-X8RTR_Win11_1.0_A13.exe' = 'binary' }
+        $fs.SeedVersionInfo('D:\Latitude 5420\Latitude-5420-X8RTR_Win11_1.0_A13.exe', $script:dellVersionInfo)
+
+        $kind = & $script:ask 'D:\Latitude 5420' $fs
+
+        $kind.Kind | Should -BeExactly 'Exe'
+        $kind.Vendor | Should -BeExactly 'Dell'
     }
 }

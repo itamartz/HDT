@@ -76,7 +76,7 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
                     'CreateDirectory', 'RemoveItem', 'CopyItem', 'MoveItem', 'GetChildItem', 'GetDirectory',
-                    'TakeOwnership', 'GrantAccess', 'GetLength', 'GetHash', 'GetVersion')) {
+                    'TakeOwnership', 'GrantAccess', 'GetLength', 'GetHash', 'GetVersion', 'GetVersionInfo')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -554,6 +554,47 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $script:fs.WriteAllText($path, 'x')
 
             $script:fs.GetVersion($path) | Should -BeExactly '0.0.0.0'
+        }
+
+        It 'returns the four identity fields from GetVersionInfo' {
+            # THE LONG FORM OF THE SAME RESOURCE GetVersion reads the number
+            # from. It exists because a Dell Update Package and an HP SoftPaq
+            # are both 'a self-extracting .exe' by every other measure and take
+            # INCOMPATIBLE extraction switches, so the vendor has to be legible
+            # before the file is run.
+            $path = Join-Path -Path $script:root -ChildPath 'identified.txt'
+            $script:fs.WriteAllText($path, 'x')
+
+            $info = $script:fs.GetVersionInfo($path)
+
+            foreach ($field in @('CompanyName', 'ProductName', 'FileDescription', 'FileVersion')) {
+                @($info.PSObject.Properties.Name) | Should -Contain $field
+            }
+        }
+
+        It 'returns empty strings from GetVersionInfo for a file carrying no version resource' {
+            # EMPTY, NOT NULL, AND NOT A THROW. A text file has no version block
+            # and neither does most of what a deployment copies; engine code runs
+            # under StrictMode, where a null here is an error at the point
+            # somebody reads it rather than where it was produced.
+            $path = Join-Path -Path $script:root -ChildPath 'anonymous.txt'
+            $script:fs.WriteAllText($path, 'x')
+
+            $info = $script:fs.GetVersionInfo($path)
+
+            [string] $info.CompanyName | Should -BeExactly ''
+            [string] $info.FileDescription | Should -BeExactly ''
+        }
+
+        It 'throws FileNotFoundException from GetVersionInfo for a path that is not a file' {
+            $record = $null
+            try { $script:fs.GetVersionInfo((Join-Path -Path $script:root -ChildPath 'absent.exe')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.FileNotFoundException])
         }
 
         It 'throws FileNotFoundException from GetVersion for a path that is not a file' {

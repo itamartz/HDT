@@ -69,7 +69,12 @@
 
         [Parameter(Mandatory = $true, Position = 2)]
         [ValidateNotNullOrEmpty()]
-        [string] $Destination
+        [string] $Destination,
+
+        [Parameter(Position = 3)]
+        [AllowEmptyString()]
+        [ValidateSet('', 'Dell', 'Hp')]
+        [string] $Vendor = ''
     )
 
     Set-StrictMode -Version Latest
@@ -82,6 +87,30 @@
         }
     }
 
+    # DELL AND HP DO NOT AGREE, AND THIS CODE USED TO ASSUME THEY DID. A comment
+    # here claimed "Dell's own .exe packs accept the same shape" as HP's
+    # SoftPaqs. Nobody had run one. On 2026-08-27 an administrator pointed the
+    # console at Latitude-5420-X8RTR_Win11_1.0_A13.exe - a 2.38 GB Dell Update
+    # Package - and the window locked up.
+    #
+    # Verified against that exact file: '/s /e="<path>"' exits 0 and extracts
+    # 269 .inf files in 86 seconds. HP's '/s /e /f"<path>"' is not what a DUP
+    # takes, and a DUP given switches it does not understand falls back to its
+    # INTERACTIVE installer - which on a hidden window waits forever, and is why
+    # the symptom was a frozen console rather than a failed import.
+    if ($Kind -eq 'Exe' -and $Vendor -eq 'Dell') {
+        return [pscustomobject] @{
+            FilePath = $Archive
+            Argument = ('/s /e="{0}"' -f $Destination)
+        }
+    }
+
+    # HP's own convention, and the default for a vendor that could not be read:
+    # most .exe driver packs in the wild are SoftPaqs, so changing what an
+    # unidentified pack gets would be a silent regression for every share that
+    # works today. An unknown pack is protected by the import running under a
+    # timeout and by what lands on disk deciding rather than the exit code - not
+    # by this guess being right.
     if ($Kind -eq 'Exe') {
         return [pscustomobject] @{
             FilePath = $Archive

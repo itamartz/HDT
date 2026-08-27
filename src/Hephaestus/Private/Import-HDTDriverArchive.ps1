@@ -73,6 +73,7 @@ function Import-HDTDriverArchive {
         [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string] $Source,
         [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string] $Kind,
         [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string] $Archive,
+        [Parameter()] [AllowEmptyString()] [ValidateSet('', 'Dell', 'Hp')] [string] $Vendor = '',
         [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $FileSystem,
         [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $Process,
         [Parameter(Mandatory = $true)] [ValidateNotNull()] [object] $Cmdlet
@@ -92,7 +93,7 @@ function Import-HDTDriverArchive {
 
     $full = [string] $folder.FullPath
 
-    $run = Get-HDTDriverExpandCommand -Kind $Kind -Archive $Archive -Destination $full
+    $run = Get-HDTDriverExpandCommand -Kind $Kind -Archive $Archive -Destination $full -Vendor $Vendor
 
     if (-not $Cmdlet.ShouldProcess($full, ("Expand '{0}' into the driver store" -f
                 [System.IO.Path]::GetFileName($Archive)))) {

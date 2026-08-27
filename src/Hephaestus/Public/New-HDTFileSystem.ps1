@@ -388,6 +388,42 @@ function New-HDTFileSystem {
         return [long] (New-Object -TypeName System.IO.FileInfo -ArgumentList $full).Length
     }
 
+    # WHAT THE FILE SAYS IT IS, added because a vendor driver pack will not say
+    # so any other way. A Dell Update Package and an HP SoftPaq are both
+    # 'a self-extracting .exe' to every other test available - same extension,
+    # both PE files, both self-extracting - and they take INCOMPATIBLE switches.
+    # Guessing wrong does not fail cleanly: a Dell pack handed HP's switches
+    # opens its interactive installer and blocks until the timeout, which is
+    # exactly the bug this exists to remove.
+    #
+    # Reading it off the filename was the cheaper option and it is not good
+    # enough: 'sp150000.exe' is a convention, not a guarantee, and the file
+    # already carries the answer in a field the vendor set on purpose -
+    # CompanyName 'Dell Inc.', FileDescription 'Dell Update Package: ...'.
+    #
+    # A file with no version block answers empty strings rather than throwing.
+    # Plenty of legitimate archives carry none, and 'unknown vendor' is a case
+    # the caller has to handle anyway.
+    $service | Add-Member -MemberType ScriptMethod -Name GetVersionInfo -Value {
+        param([string] $Path)
+
+        $this.Record('GetVersionInfo', @($Path))
+        $full = $this.NormalizePath($Path)
+
+        if (-not [System.IO.File]::Exists($full)) {
+            throw (New-Object -TypeName System.IO.FileNotFoundException -ArgumentList "Could not find file '$full'.", $full)
+        }
+
+        $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($full)
+
+        return [pscustomobject] @{
+            CompanyName     = [string] $info.CompanyName
+            ProductName     = [string] $info.ProductName
+            FileDescription = [string] $info.FileDescription
+            FileVersion     = [string] $info.FileVersion
+        }
+    }
+
     # THE TENTH METHOD, ADDED IN 05-04. DESIGN 6.1.1's claim - "the WIM inside
     # the ISO and the standalone WIM have identical hashes" - has to be written
     # into the boot image manifest so an operator can check it without the test

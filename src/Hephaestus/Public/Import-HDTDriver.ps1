@@ -137,6 +137,7 @@ function Import-HDTDriver {
     if ([string] $sourceKind.Kind -ne 'Folder') {
         return Import-HDTDriverArchive -Root $Root -Path $Path -Source $Source `
             -Kind ([string] $sourceKind.Kind) -Archive ([string] $sourceKind.Archive) `
+            -Vendor ([string] $sourceKind.Vendor) `
             -FileSystem $FileSystem -Process $Process -Cmdlet $PSCmdlet `
             -WhatIf:$WhatIfPreference
     }
