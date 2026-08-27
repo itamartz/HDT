@@ -594,7 +594,7 @@ button.** That is MDT's split and HDT keeps it: the Workbench authors, the
 there. The console's whole share in the run is upstream (boot image, ISO,
 published share) and downstream (`Logs\_active\`, the report).
 
-**Three of the four legs are met, walked in the real window on 2026-08-26.**
+**✅ Met. All four legs, walked in the real window on 2026-08-26 and finished on a real machine on 2026-08-27.**
 Not read out of the source: the console was opened on `C:\HDTLab\Share` and
 driven through UI Automation with a real mouse, because the last five defects in
 it were found by looking at it and every one of them passed its tests first.
@@ -606,12 +606,41 @@ it were found by looking at it and every one of them passed its tests first.
 | **Build the boot image and ISO** | Update Boot Image, from the Windows PE window: 17 steps in **1:47**, `HDTPE_wiz_x64.wim` (476 MB) and `.iso` (529 MB) rewritten, manifest `builtUtc` moving from `2026-08-23T21:18:33Z` to `2026-08-26T18:01:50Z` |
 | **Read the cmdlet off every action** | a contract now asserts every console window's markup carries a `*CommandText`, with `HDTBuildProgress.xaml` the one named exception |
 
-**The fourth leg is not met, and it is not a console gap.** Monitoring says *"there
-is no deployment running on this share"*, which is the true answer: nothing has
-booted the image built above. Watching a run land needs a machine to run it, and
-the console deliberately cannot start one. `Get-HDTConsoleMonitor` and the 15s
-`DispatcherTimer` that rebuilds only that branch are tested, and the view was
-watched live when it was built — what is outstanding is a deployment, not code.
+**✅ The fourth leg is met too, on 2026-08-27, and it brought the rest of the
+toolkit with it.** `HDT-MON-01` — Generation 2, Secure Boot on, 4 GB, 2 vCPU, on
+`HDT External` — booted the ISO the console had just built, reached
+`\\192.168.2.112\HDTShare`, and ran `DEMO-05` zero-touch. Fourteen seconds after
+the VM started, a run appeared in `Logs\_active\` and the console's Monitoring
+node drew it; it was watched through `Install Operating System` and
+`Restart into Windows`.
+
+**And it did not stop at WinPE.** The machine restarted into full Windows 11,
+resumed under autologon, and the engine carried on to step 11 of 12 — which is
+the whole WinPE→full-OS handoff, proven on a machine, not the Monitoring branch
+alone. It ended on the failure screen (DESIGN 11.3) naming the step, the type,
+the reason and the log path, because `DEMO-05` carries a `Run Command Line` step
+with `command: ''` — the share's own content, and exactly what the console's
+Command page already warns about when that step is selected.
+
+**Two defects the deployment found**, both in the screen that exists to watch
+one, and neither reachable without a real machine:
+
+1. **A live run showed as `Unreadable`, counted as "1 finished", and reported
+   its last heartbeat as "(never)".** WinPE syncs no clock, so the heartbeat's
+   stamp was eight hours AHEAD of the console's; the age went negative, and `-1`
+   was also the sentinel for "no timestamp at all". One value, two meanings.
+2. **Nothing compared `deployRoot` with `bootstrap-rules.yaml`'s
+   `HDTDeployRoot`.** The lab's lease moved, `deployRoot` was corrected, the
+   image was rebuilt — and every machine still went to the old address because
+   both bootstrap rules still named it. The Welcome screen even displayed the
+   corrected address, because that box is filled from the workspace while the
+   rule is what the connection used. Step 12b warns per rule now.
+
+**What the run needed from the lab, recorded because none of it was HDT's
+doing:** the host's DHCP lease had moved (`PROJECT.md`'s rule, met in practice),
+SMB was blocked on `HDT External` (Public profile, `SMB-In` disabled), and the
+share ACL grants only `svc-hdt-deploy` — which is DESIGN 6.3 working, and also
+why an administrator cannot open the share in Explorer.
 
 **Three defects the walk found, all fixed, all of which passed their tests:**
 
