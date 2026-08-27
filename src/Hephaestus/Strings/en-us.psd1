@@ -105,6 +105,11 @@
         'HDTBuildTitleText.Text' = 'Updating Boot Image'
         'HDTBuildStepText.Text' = 'Starting...'
         'HDTBuildCloseButton.Content' = 'Close'
+
+        # IT WRITES AND THEN OPENS, which is why it is "Open Log" and not "Save
+        # Log": the file is a by-product, and what somebody wants is to read it.
+        'HDTBuildLogButton.Content' = 'Open Log'
+        'HDTBuildLogButton.ToolTip' = 'Writes every line above to Boot\<image>.build.log and opens it. Works while the build is still running.'
     }
 
     # MDT's New Task Sequence wizard, as one dialog: ShowNewSequence.
@@ -305,6 +310,12 @@
         'HDTBootImageSelectionProfileHint.Text' = 'A named set of folders on the share, so one image can carry two vendors'' WinPE packs. Empty means no drivers are injected and WinPE uses what Microsoft ships.'
         'HDTBootImageProfileFolderLabel.Text' = 'This profile injects'
         'HDTSelectionProfileEditButton.Content' = 'Edit profiles...'
+
+        # TWO LINES, AND THE NUMBERS ARE THE POINT. A technician deciding this
+        # needs the cost, not the mechanism - the mechanism is in the markup
+        # comment for whoever changes it next.
+        'HDTBootImagePerDriverCheck.Content' = 'List every driver as it is injected'
+        'HDTBootImagePerDriverHint.Text' = 'Slower - about 7 minutes for a seventy-driver pack against under a minute. Worth it when a machine has booted without its network card and you need to see which drivers actually went in.'
         'HDTSelectionProfileEditButton.ToolTip' = 'Create a profile, or change which folders one carries'
         'HDTBootImageCustomisations.Header' = 'Customisations'
         'HDTBootImageExtraContentLabel.Text' = 'Extra content'

@@ -816,6 +816,26 @@
 
                         <TextBlock x:Name="HDTSelectionProfileSummaryText" Style="{StaticResource HDTHintText}"
                                    Margin="0,6,0,0" MaxWidth="700" HorizontalAlignment="Left" />
+
+                        <!--
+                            WHAT IT COSTS, MEASURED ON THIS LAB'S OWN PACK:
+                            seventy Dell WinPE drivers took 7 minutes one .inf at
+                            a time against 56 seconds handed to DISM as one
+                            folder. So it is OFF, and the build's progress bar
+                            sweeps through the silent minute instead of freezing
+                            - which is what says "working" rather than "hung".
+
+                            IT EARNS ITS PLACE ON THE BUILD THAT WENT WRONG. A
+                            machine that comes up without its network card turns
+                            "which of these seventy actually went in" into the
+                            only question, and the per-driver log is the only
+                            thing that answers it.
+                        -->
+                        <CheckBox x:Name="HDTBootImagePerDriverCheck" Margin="0,18,0,0"
+                                  HorizontalAlignment="Left" />
+
+                        <TextBlock x:Name="HDTBootImagePerDriverHint" Style="{StaticResource HDTHintText}"
+                                   Margin="24,4,0,0" MaxWidth="700" HorizontalAlignment="Left" />
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>

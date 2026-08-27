@@ -78,7 +78,12 @@
 
         [Parameter()]
         [AllowNull()]
-        [object] $Screen
+        [object] $Screen,
+
+        # FORWARDED, NOT DECIDED HERE. The Windows PE window's tick box owns the
+        # choice; this only carries it into the runspace the build runs in.
+        [Parameter()]
+        [switch] $PerDriver
     )
 
     Set-StrictMode -Version Latest
@@ -101,7 +106,8 @@
     $answer = $ConsoleHost.ShowBuildProgress(
         [System.IO.File]::ReadAllText($XamlPath), $WorkspaceRoot, $ModulePath,
         (Get-HDTConsoleTheme),
-        [pscustomobject] @{ Left = [double] $work.Left; Top = [double] $work.Top })
+        [pscustomobject] @{ Left = [double] $work.Left; Top = [double] $work.Top },
+        [bool] $PerDriver)
 
     return [bool] $answer
 }

@@ -641,6 +641,120 @@ Describe 'Update-HDTBootImage' {
             @($report | Where-Object { [string]::IsNullOrWhiteSpace($_.Title) }) | Should -BeNullOrEmpty
         }
 
+        # TWO IDENTICAL ROWS A SECOND APART, AND THEN A SILENT MINUTE AND A HALF.
+        # It read as the build stalling twice on the same step, and it was found
+        # by watching the log rather than by any test: the step announced itself
+        # naming the profile, and then the injection loop reported the single
+        # folder call with the same detail again. A folder call has no name to
+        # add, so it must add nothing.
+        It 'reports the driver step once when the whole folder goes in at once' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $driverReport = @($progress.Drain() |
+                    Where-Object { -not $_.IsComplete -and [string] $_.Title -like '*boot drivers*' })
+
+            $driverReport.Count | Should -Be 1
+        }
+
+        # AND STILL ONE PER DRIVER WHEN ASKED, which is the whole point of the
+        # switch: the announcement plus one row for each .inf.
+        It 'reports every driver under -PerDriver' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress `
+                -Argument @{ PerDriver = $true } | Out-Null
+
+            $driverReport = @($progress.Drain() |
+                    Where-Object { -not $_.IsComplete -and [string] $_.Title -like '*boot drivers*' })
+
+            # The announcement, and the one driver this fixture holds.
+            $driverReport.Count | Should -Be 2
+            [string] $driverReport[1].Detail | Should -BeLike '1 of 1 - *oem0.inf'
+        }
+
+        # "2 entry(s)" SAID HOW MANY AND NOT WHICH, and these are the folders a
+        # site's own startCommand lines run out of - X:\Tools\TightVNC and
+        # X:\Tools\BGInfo on this lab's image - so which they are is the whole
+        # point of the line. The optional components have named themselves one
+        # at a time since they were written; this is that, for the step that
+        # carries somebody's own tools.
+        It 'names each extra content entry by where it lands in WinPE' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $extra = @($progress.Drain() |
+                    Where-Object { -not $_.IsComplete -and [string] $_.Title -like '*extra content*' })
+
+            # The announcement, and one row naming the entry the fixture holds.
+            $extra.Count | Should -Be 2
+            [string] $extra[1].Detail | Should -BeExactly '1 of 1 - \HDT\Modules\MyVendorTools'
+        }
+
+        # THE FILE THAT DECIDES WHETHER A MACHINE DEPLOYS OR SITS AT A PROMPT
+        # was the least visible thing in the build: one row, no detail. Reading
+        # it afterwards means mounting the image.
+        It 'writes out every line of startnet.cmd as it goes in' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $startnet = @($progress.Drain() |
+                    Where-Object { -not $_.IsComplete -and [string] $_.Title -like '*startnet*' })
+
+            # The announcement plus a row per line, and wpeinit is always one of
+            # them - WinPE has no network until it runs.
+            $startnet.Count | Should -BeGreaterThan 1
+            [string] $startnet[0].Detail | Should -BeLike '*line(s)'
+
+            $shown = @($startnet | Select-Object -Skip 1 | ForEach-Object { [string] $_.Detail })
+            @($shown | Where-Object { $_ -like '*wpeinit*' }) | Should -Not -BeNullOrEmpty
+
+            # Numbered, so a long file can be followed.
+            [string] $shown[0] | Should -BeLike '1 of *'
+        }
+
+        # THE TWO ISOs ARE INDISTINGUISHABLE AFTERWARDS - same name, same size to
+        # the megabyte - and the difference decides whether a machine boots on
+        # its own or waits at "Press any key" for somebody who is not there.
+        # DESIGN 5.2, and the only way to find out used to be to boot a VM.
+        It 'says which kind of ISO it is building' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress | Out-Null
+
+            $iso = @($progress.Drain() |
+                    Where-Object { -not $_.IsComplete -and [string] $_.Title -like '*ISO*' })[0]
+
+            [string] $iso.Detail | Should -BeLike '*no keypress*'
+        }
+
+        It 'says so when a keypress WILL be needed' {
+            $queue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new())
+            $progress = New-HDTBuildProgress -Queue $queue
+
+            $context = New-HDTBootImageTestContext
+            Invoke-HDTBootImageTestBuild -Context $context -Progress $progress `
+                -Argument @{ PromptForKey = $true } | Out-Null
+
+            $iso = @($progress.Drain() |
+                    Where-Object { -not $_.IsComplete -and [string] $_.Title -like '*ISO*' })[0]
+
+            [string] $iso.Detail | Should -BeLike '*press a key*'
+        }
+
         It 'says the mount is happening before it happens' {
             # THE STEP THAT TAKES THE LONGEST HAS TO ANNOUNCE ITSELF FIRST.
             # Reporting a step after doing it means the window sits on the
@@ -881,16 +995,29 @@ Describe 'Update-HDTBootImage' {
             $record.Exception.Message | Should -BeLike '*escape*'
         }
 
-        # ONE CALL PER DRIVER, NOT PER FOLDER, and the change is deliberate.
-        # Add-WindowsDriver on a folder with -Recurse is a single call DISM works
-        # through for about a minute saying nothing, so the build's step 10
-        # parked on its own name for the whole of it. The calls have to BE the
-        # drivers for anything to count them. It costs a call per .inf.
-        It 'adds each driver in the boot-critical group, one call apiece' {
+        # ONE CALL FOR THE WHOLE FOLDER, WHICH IS THE FAST SHAPE AND THE DEFAULT.
+        # Handing DISM the folder takes 56s for the lab's seventy-driver pack;
+        # one call per .inf takes seven minutes. A build is not seven times
+        # slower by default so a number can move - the bar sweeps instead.
+        It 'adds the boot-critical driver group when it exists' {
             $call = @($script:contentContext.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
 
             $call.Count | Should -Be 1
             [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
+            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\boot-critical')
+            [bool] $call[0].Arguments[2] | Should -BeTrue
+        }
+
+        # AND THE SLOW SHAPE, WHEN SOMEBODY ASKS FOR IT. This is the build where
+        # a machine came up without its network card and "which of these seventy
+        # actually went in" is the question.
+        It 'injects one .inf at a time under -PerDriver, so each can be reported' {
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $script:workspaceYaml
+            $null = Invoke-HDTBootImageTestBuild -Context $context -Argument @{ PerDriver = $true }
+
+            $call = @($context.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
+
+            $call.Count | Should -Be 1
             [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\boot-critical\oem0.inf')
 
             # NOT RECURSED: a single .inf is a file, and -Recurse on one would be
@@ -921,13 +1048,9 @@ Describe 'Update-HDTBootImage' {
 
             $call = @($context.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
 
-            # THE PROPERTY IS THE SAME ONE, SAID PER DRIVER. Both vendors' packs
-            # reach one image and the profile's declared order still decides
-            # which goes first - Dell's driver before HP's, because Dell's folder
-            # is listed first. Only the grain changed.
             $call.Count | Should -Be 2
-            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64\e1d68x64.inf')
-            [string] $call[1].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\HP WinPE 11 x64\stornvme.inf')
+            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64')
+            [string] $call[1].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\HP WinPE 11 x64')
         }
 
         # THE DANGEROUS CASE. The image builds, one vendor's drivers are simply

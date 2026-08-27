@@ -1370,7 +1370,7 @@
     $service | Add-Member -MemberType ScriptMethod -Name ShowBuildProgress -Value {
         param(
             [string] $Xaml, [string] $WorkspaceRoot, [string] $ModulePath,
-            [object] $Theme, [object] $Size
+            [object] $Theme, [object] $Size, [bool] $PerDriver
         )
 
         Add-Type -AssemblyName PresentationFramework
@@ -1394,6 +1394,14 @@
             $window.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
         }
 
+        # THE DOOR, HELD AT METHOD SCOPE SO A HANDLER CAN CAPTURE IT.
+        # GetNewClosure rebinds a handler to the session state of whoever called
+        # this method, where only EXPORTED functions resolve - so a handler that
+        # calls Get-HDTHandlerCall itself gets "not recognized" and takes the
+        # window down with it. The method body still runs in the module's own
+        # state, which is the one place this can be asked for.
+        $call = Get-HDTHandlerCall
+
         $titleText = $window.FindName('HDTBuildTitleText')
         $pathText = $window.FindName('HDTBuildPathText')
         $stepText = $window.FindName('HDTBuildStepText')
@@ -1403,6 +1411,7 @@
         $bar = $window.FindName('HDTBuildBar')
         $log = $window.FindName('HDTBuildLog')
         $close = $window.FindName('HDTBuildCloseButton')
+        $logButton = $window.FindName('HDTBuildLogButton')
 
         $titleText.Text = 'Updating Boot Image'
         $pathText.Text = $WorkspaceRoot
@@ -1418,7 +1427,7 @@
         $shell = [powershell]::Create()
 
         [void] $shell.AddScript({
-                param($ModulePath, $WorkspaceRoot, $Queue)
+                param($ModulePath, $WorkspaceRoot, $Queue, $PerDriver)
 
                 Import-Module -Name $ModulePath -Force -ErrorAction Stop
 
@@ -1427,12 +1436,14 @@
                 # scriptblocks this one cannot invoke.
                 $progress = New-HDTBuildProgress -Queue $Queue
 
-                Update-HDTBootImage -WorkspaceRoot $WorkspaceRoot -Progress $progress -Confirm:$false
+                Update-HDTBootImage -WorkspaceRoot $WorkspaceRoot -Progress $progress `
+                    -PerDriver:$PerDriver -Confirm:$false
             })
 
         [void] $shell.AddArgument($ModulePath)
         [void] $shell.AddArgument($WorkspaceRoot)
         [void] $shell.AddArgument($queue)
+        [void] $shell.AddArgument($PerDriver)
 
         $handle = $shell.BeginInvoke()
         $startedAt = [datetime]::UtcNow
@@ -1448,6 +1459,13 @@
             # not stuck; a line that does not is indistinguishable from one.
             StepAt    = [datetime]::UtcNow
             StepText  = ''
+
+            # WHEN ANYTHING WAS LAST HEARD. The bar sweeps on SILENCE rather
+            # than on elapsed time - see Get-HDTConsoleBuildBusy - because a
+            # step that reports seventy times over seven minutes has a position
+            # worth keeping, and one that reports once and works for ninety
+            # seconds does not.
+            ReportAt  = [datetime]::UtcNow
         }
 
         $timer = New-Object -TypeName System.Windows.Threading.DispatcherTimer
@@ -1471,6 +1489,12 @@
 
                     $elapsedText.Text = 'elapsed {0:mm\:ss}   -   {1:N0}s on "{2}"' -f
                         $elapsed, $onStep.TotalSeconds, $book.StepText
+
+                    # A FROZEN BAR AND A HUNG BUILD LOOK THE SAME. This is the
+                    # only thing on the window that says "working" during a
+                    # DISM call that will not report again for a minute.
+                    $bar.IsIndeterminate = [bool] (& $call 'Get-HDTConsoleBuildBusy' `
+                            -QuietSecond ([datetime]::UtcNow - $book.ReportAt).TotalSeconds)
                 }
 
                 # DEQUEUED DIRECTLY, not through the sink: the sink belongs to
@@ -1492,6 +1516,10 @@
 
                     $stepText.Text = [string] $show.StepText
                     $detailText.Text = [string] $show.DetailText
+
+                    # NEWS: the bar measures again, from here.
+                    $book.ReportAt = [datetime]::UtcNow
+                    $bar.IsIndeterminate = $false
                     $bar.Maximum = [double] $show.BarMaximum
                     $bar.Value = [double] $show.BarValue
 
@@ -1610,6 +1638,45 @@
                     $book.Finished = $true
                     $close.IsEnabled = $true
                     $timer.Stop()
+                }
+            }.GetNewClosure())
+
+        # EVERY LINE THIS WINDOW SHOWED, WRITTEN AND OPENED.
+        #
+        # The log was in the list and nowhere else, so closing the window threw
+        # away the record of what the build did - including the build that
+        # failed, which is the one worth reading. It writes on the press rather
+        # than at the end so it works MID-BUILD: the moment a step has been
+        # silent for two minutes is the moment somebody wants to read what led
+        # up to it.
+        #
+        # A FAILURE TO WRITE IS SHOWN AND NOT THROWN. This button is pressed
+        # when something has already gone wrong, and a share that refuses the
+        # write must not take the window down on top of it.
+        $logButton.Add_Click({
+                try {
+                    # THE IMAGE'S OWN NAME, from the document rather than from
+                    # the banner - the banner carries the SHARE root, and
+                    # deriving a name from it produces Share.build.log. A
+                    # document that will not read leaves the name empty, which
+                    # Get-HDTConsoleBuildLogPath answers for.
+                    $imageName = ''
+
+                    try {
+                        $imageName = [string] (Import-HDTWorkspaceDocument -Path (
+                                [System.IO.Path]::Combine($WorkspaceRoot, 'workspace.yaml'))).BootImage.Name
+                    } catch {
+                        $imageName = ''
+                    }
+
+                    $path = & $call 'Get-HDTConsoleBuildLogPath' -WorkspaceRoot $WorkspaceRoot -Name $imageName
+
+                    [System.IO.File]::WriteAllLines($path, [string[]] @($line))
+
+                    [void] (Start-Process -FilePath $path)
+                } catch {
+                    [void] $line.Add(('the log could not be written: {0}' -f $_.Exception.Message))
+                    $log.ScrollIntoView($line[$line.Count - 1])
                 }
             }.GetNewClosure())
 

@@ -85,6 +85,14 @@
         .PARAMETER Language
             Overrides workspace.yaml. The language pack folder, en-us by default.
 
+        .PARAMETER PerDriver
+            Inject the boot drivers one .inf at a time, so the build reports
+            each by name as it goes in. Off by default and for a measured
+            reason: the lab's seventy-driver Dell WinPE pack takes 7 minutes
+            this way against 56 seconds handed to DISM as one folder. Turn it on
+            when a machine has booted without its network card and the question
+            is which drivers actually went in.
+
         .PARAMETER SkipIso
             Build the WIM and skip the ISO, matching MDT's
             per-platform ISO checkbox - generating the ISO is the slow half, and
@@ -202,6 +210,19 @@
 
         [Parameter()]
         [switch] $SkipIso,
+
+        # SEVEN MINUTES INSTEAD OF ONE, DELIBERATELY. Measured on the lab's Dell
+        # WinPE pack: seventy drivers injected one .inf at a time took 7m against
+        # 56s for the same seventy handed to DISM as one folder. A build has no
+        # business being seven times slower by default, so this is off - and the
+        # progress bar sweeps during the silent minute instead, which is what
+        # says "working" (Get-HDTConsoleBuildBusy).
+        #
+        # IT IS WORTH HAVING FOR THE BUILD THAT GOES WRONG. When a machine boots
+        # without its network card, "which of these seventy drivers actually went
+        # in" is the question, and this is the only thing that answers it.
+        [Parameter()]
+        [switch] $PerDriver,
 
         [Parameter()]
         [switch] $PromptForCredential,
@@ -861,14 +882,15 @@
                 [string] $_.Exception.Message)
         }
 
-        # ONE CALL PER DRIVER, BECAUSE A FOLDER CALL CANNOT BE WATCHED.
+        # ONE CALL PER DRIVER ONLY IF SOMEBODY ASKED FOR IT.
         # Add-WindowsDriver with -Recurse is a single call DISM works through
-        # for about a minute with no callback, so this step parked on its own
-        # name and said nothing until it was over - on the one part of the build
-        # where somebody is waiting to see their vendor pack go in. -PerDriver
-        # makes the calls the drivers, and the report below counts them.
+        # for about a minute with no callback, so this step cannot be counted -
+        # and splitting it costs seven minutes against fifty-six seconds, which
+        # is not a price to charge every build for a moving number. The bar
+        # sweeps during the silence instead. -PerDriver is for the build where
+        # a machine came up without its network card.
         $injection = @(Get-HDTBootImageDriverInjection -Folder ([string[]] @($resolved.Path)) `
-                -Driver ([object[]] $catalog) -Root $WorkspaceRoot -PerDriver)
+                -Driver ([object[]] $catalog) -Root $WorkspaceRoot -PerDriver:$PerDriver)
 
         $injectionCount = @($injection).Count
         $injectionAt = 0
@@ -876,16 +898,18 @@
         foreach ($current in @($injection)) {
             $injectionAt++
 
-            # THE NAME IS EMPTY FOR A FOLDER CALL, which is what an unreadable
-            # catalog falls back to - so the detail says the group, exactly as
-            # it did before, rather than "1 of 1 - ".
-            $detail = [string] $driverGroup
-
+            # ONLY WHEN THERE IS SOMETHING NEW TO SAY.
+            #
+            # The step has already announced itself above, naming the profile.
+            # Reporting again for a FOLDER call repeated that line word for word
+            # - two identical rows in the log a second apart, and then a silent
+            # minute and a half - which reads as the build having stalled twice
+            # rather than once. A folder call has no name to add, so it adds
+            # nothing; a per-driver call has, and says it.
             if (-not [string]::IsNullOrEmpty([string] $current.Name)) {
-                $detail = '{0} of {1} - {2}' -f $injectionAt, $injectionCount, [string] $current.Name
+                $Progress.Report(10, $stepTotal, 'Injecting the boot drivers',
+                    ('{0} of {1} - {2}' -f $injectionAt, $injectionCount, [string] $current.Name))
             }
-
-            $Progress.Report(10, $stepTotal, 'Injecting the boot drivers', $detail)
 
             $driver += @($BootImageService.AddDriver($mountPath, [string] $current.Path, [bool] $current.Recurse))
         }
@@ -1212,7 +1236,30 @@
 
         # -- 13. startnet.cmd -------------------------------------------------
 
-        $Progress.Report(13, $stepTotal, 'Writing startnet.cmd', '')
+        # EVERY LINE OF IT, BECAUSE THIS FILE IS THE WHOLE BOOT.
+        #
+        # startnet.cmd is what WinPE runs and nothing else: wpeinit, whatever the
+        # share added, and the line that launches the deployment. It reported as
+        # one bare row with no detail at all, so the file that decides whether a
+        # machine deploys or sits at a prompt was the least visible thing in the
+        # build - and reading it afterwards means mounting the image.
+        #
+        # A BLANK OR A COMMENT IS NOT A COMMAND and is not worth a row; what is
+        # left is exactly what will run, in order.
+        $startnetLine = @([string[]] @($startnet -split "`r?`n") |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and ($_).TrimStart() -notlike '@rem*' -and ($_).TrimStart() -notlike 'rem *' })
+
+        $startnetCount = @($startnetLine).Count
+        $startnetAt = 0
+
+        $Progress.Report(13, $stepTotal, 'Writing startnet.cmd', ('{0} line(s)' -f $startnetCount))
+
+        foreach ($one in @($startnetLine)) {
+            $startnetAt++
+
+            $Progress.Report(13, $stepTotal, 'Writing startnet.cmd',
+                ('{0} of {1} - {2}' -f $startnetAt, $startnetCount, ([string] $one).Trim()))
+        }
 
         $FileSystem.WriteAllText(
             [System.IO.Path]::Combine($mountPath, 'Windows', 'System32', 'startnet.cmd'), $startnet)
@@ -1269,9 +1316,29 @@
 
         # -- 14. extraContent --------------------------------------------------
 
-        $Progress.Report(14, $stepTotal, 'Copying the extra content', ('{0} entry(s)' -f @($extraContentPlan).Count))
+        # THE COUNT ANNOUNCES THE STEP; EACH ENTRY NAMES ITSELF.
+        #
+        # "2 entry(s)" says how many and not which, which is a line that sends
+        # somebody to workspace.yaml to find out what went into their own boot
+        # image - and these are the folders the startCommand lines then run out
+        # of, so which they are is the whole point. The optional components have
+        # named themselves one at a time since they were written; this is that,
+        # for the step that carries a site's own tools.
+        $extraContentCount = @($extraContentPlan).Count
+        $extraContentAt = 0
+
+        $Progress.Report(14, $stepTotal, 'Copying the extra content', ('{0} entry(s)' -f $extraContentCount))
 
         foreach ($entry in $extraContentPlan) {
+            $extraContentAt++
+
+            # THE DECLARED DESTINATION, not the scratch path it is being written
+            # into: '\Tools\BGInfo' is where it lands in WinPE, which is what the
+            # startCommand names and what somebody reading this recognises. The
+            # mount folder underneath is this build's own business.
+            $Progress.Report(14, $stepTotal, 'Copying the extra content',
+                ('{0} of {1} - {2}' -f $extraContentAt, $extraContentCount, [string] $entry.Declared))
+
             $count = Copy-HDTContentTree -Source $entry.Source -Destination $entry.Destination -FileSystem $FileSystem
 
             [void] $extraRow.Add([pscustomobject] @{
@@ -1364,7 +1431,21 @@
     # 17. THE ISO, THEN THE MANIFEST - LAST
     # =====================================================================
 
-    $Progress.Report(17, $stepTotal, 'Building the ISO and writing the manifest', '')
+    # WHICH KIND OF ISO THIS IS, SAID WHILE IT IS BEING MADE.
+    #
+    # The two are indistinguishable afterwards - same name, same size to the
+    # megabyte - and the difference decides whether a machine boots on its own
+    # or waits at "Press any key" for somebody who is not standing there. That
+    # is the whole zero-keystroke story (DESIGN 5.2), and the build said nothing
+    # about it: the only way to find out was to boot a VM and watch.
+    #
+    # -SkipIso SAYS SO TOO rather than reporting a keypress setting for a file
+    # that is not being written.
+    $isoDetail = 'no keypress needed - efisys_noprompt.bin'
+    if ($wantPrompt) { $isoDetail = 'press a key to boot - efisys.bin' }
+    if ($SkipIso) { $isoDetail = 'no ISO - the manifest records it as skipped' }
+
+    $Progress.Report(17, $stepTotal, 'Building the ISO and writing the manifest', $isoDetail)
 
     $skipped = New-Object -TypeName System.Collections.ArrayList
 

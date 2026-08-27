@@ -188,6 +188,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <TextBlock Grid.Column="0" x:Name="HDTBuildElapsedText" Text=""
@@ -195,7 +196,21 @@
                        FontFamily="Consolas, Courier New" FontSize="12"
                        VerticalAlignment="Center" />
 
-            <Button Grid.Column="1" x:Name="HDTBuildCloseButton"
+            <!--
+                EVERY LINE THIS WINDOW SHOWED, KEPT. The log lived in the list
+                and nowhere else, so closing the window threw away the only
+                record of what a build did - including the one that failed, which
+                is the record somebody actually wants. This writes it beside the
+                manifest and opens it.
+
+                IT WORKS MID-BUILD TOO, deliberately: the moment a step has been
+                silent for two minutes is the moment somebody wants to read what
+                led up to it, not after it eventually finishes.
+            -->
+            <Button Grid.Column="1" x:Name="HDTBuildLogButton"
+                    MinWidth="96" Margin="0,0,8,0" />
+
+            <Button Grid.Column="2" x:Name="HDTBuildCloseButton"
                     MinWidth="96" IsEnabled="False" />
         </Grid>
     </Grid>

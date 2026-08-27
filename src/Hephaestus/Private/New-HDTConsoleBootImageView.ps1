@@ -252,6 +252,7 @@
         $startDown = $window.FindName('HDTStartCommandDownButton')
 
         $commandText = $window.FindName('HDTBootImageCommandText')
+        $perDriverCheck = $window.FindName('HDTBootImagePerDriverCheck')
         $update = $window.FindName('HDTBootImageUpdateButton')
         $save = $window.FindName('HDTBootImageSaveButton')
         $close = $window.FindName('HDTBootImageCloseButton')
@@ -1103,10 +1104,18 @@
                             -ArgumentList ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
 
                 $root = Split-Path -Parent $Path
+
+                # THE TICK BOX IS PART OF THE COMMAND, so the footer names the
+                # build that is about to run rather than a shorter one.
+                $perDriver = ($perDriverCheck.IsChecked -eq $true)
+
                 $commandText.Text = "Update-HDTBootImage -WorkspaceRoot '{0}'" -f $root
+                if ($perDriver) {
+                    $commandText.Text = "{0} -PerDriver" -f $commandText.Text
+                }
 
                 [void] (Show-HDTBuildProgressWindow -WorkspaceRoot $root -ConsoleHost $imageHost `
-                        -Screen (New-HDTConsoleScreen))
+                        -Screen (New-HDTConsoleScreen) -PerDriver:$perDriver)
 
                 # The build wrote a manifest and possibly a warning; what this
                 # window shows came out of the document, which the build did not
