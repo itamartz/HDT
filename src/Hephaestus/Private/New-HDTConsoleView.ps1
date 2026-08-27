@@ -931,1175 +931,1197 @@
         $folderDown = $window.FindName('HDTMoveFolderDownMenuItem')
         $folderSeparator = $window.FindName('HDTFolderMenuSeparator')
 
-        if ($null -ne $newSequence) {
-            if ([string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
-                $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
-            } else {
-                # RIGHT-CLICK DOES NOT SELECT, IN WPF. The menu would otherwise
-                # act on whatever was last left-clicked, which is the row above
-                # the one somebody just pointed at - and this menu writes a file
-                # into a share.
-                $tree.Add_PreviewMouseRightButtonDown({
-                        param($raiser, $mouse)
-
-                        $hit = [System.Windows.Media.VisualTreeHelper]::HitTest($tree,
-                            $mouse.GetPosition($tree))
-
-                        if ($null -eq $hit) { return }
-
-                        $walk = $hit.VisualHit
-
-                        while ($null -ne $walk -and $walk -isnot [System.Windows.Controls.TreeViewItem]) {
-                            $walk = [System.Windows.Media.VisualTreeHelper]::GetParent($walk)
-                        }
-
-                        if ($null -ne $walk) { $walk.IsSelected = $true }
-                    }.GetNewClosure())
-
-                # AND NO MENU AT ALL ANYWHERE ELSE. A menu that opens on every
-                # row with one dead item is worse than no menu: it teaches that
-                # right-click does nothing here, on the one row where it does.
-                #
-                # Handled STOPS IT OPENING. The alternative - opening it and
-                # greying the item out - still puts a menu on the boot image,
-                # the drivers folder and every task sequence in the share.
-                $tree.Add_ContextMenuOpening({
-                        param($raiser, $opening)
-
-                        $chosen = $tree.SelectedItem
-
-                        # WORKBENCH'S ROOT NODE: New and Open hang off the
-                        # 'Deployment Shares' row, and Close off a share.
-                        $isRoot = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Root')
-                        $isShare = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Share')
-
-                        $isCategory = ($null -ne $chosen -and
-                            [string] $chosen.Kind -eq 'Category' -and
-                            [string] $chosen.Name -eq 'TaskSequences')
-
-                        # BOTH BOOT IMAGE ROWS OFFER IT - the category and the
-                        # image under it. They are the same action on the same
-                        # document, and which of the two somebody right-clicks
-                        # when there is no image yet is not worth being wrong
-                        # about.
-                        $isBootImage = ($null -ne $chosen -and (
-                                [string] $chosen.Kind -eq 'BootImage' -or
-                                ([string] $chosen.Kind -eq 'Category' -and
-                                    [string] $chosen.Name -eq 'BootImage')))
-
-                        $isSequence = ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence')
-
-                        $isOsCategory = ($null -ne $chosen -and
-                            [string] $chosen.Kind -eq 'Category' -and
-                            [string] $chosen.Name -eq 'OperatingSystems')
-
-                        $isOperatingSystem = ($null -ne $chosen -and [string] $chosen.Kind -eq 'OperatingSystem')
-
-                        $isAppCategory = ($null -ne $chosen -and
-                            [string] $chosen.Kind -eq 'Category' -and
-                            [string] $chosen.Name -eq 'Applications')
-
-                        $isApplication = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Application')
-
-                        # BOTH PROFILE ROWS OFFER IT - the category and a profile
-                        # under it - for the boot image rows' reason: it is one
-                        # action on one document, and which of the two somebody
-                        # right-clicks when there are no profiles yet is not
-                        # worth being wrong about. A share that has never had one
-                        # authored still shows the built-in rows, so the category
-                        # is not the only thing under the pointer. Both are
-                        # decided by Get-HDTConsoleTreeMenuRow, further down.
-
-                        $newWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
-                        $openWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
-                        $closeWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        if ($isRoot) {
-                            # NO MARKUP, NO ITEM, as everywhere else here. Open
-                            # needs no dialog of its own - it is a folder picker
-                            # and one command - so it is offered either way.
-                            if (-not [string]::IsNullOrWhiteSpace($NewWorkspaceXaml)) {
-                                $newWorkspace.Visibility = [System.Windows.Visibility]::Visible
-                            }
-
-                            $openWorkspace.Visibility = [System.Windows.Visibility]::Visible
-                        }
-
-                        if ($isShare) { $closeWorkspace.Visibility = [System.Windows.Visibility]::Visible }
-
-                        $bootImageItem.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        if ($isBootImage) { $bootImageItem.Visibility = [System.Windows.Visibility]::Visible }
-
-                        # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
-                        # with none opens no menu.
-                        $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
-                        $removeSequence.Visibility = [System.Windows.Visibility]::Collapsed
-                        $importOperatingSystem.Visibility = [System.Windows.Visibility]::Collapsed
-                        $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        if ($isCategory) { $newSequence.Visibility = [System.Windows.Visibility]::Visible }
-                        if ($isSequence) { $removeSequence.Visibility = [System.Windows.Visibility]::Visible }
-                        # NO MARKUP, NO ITEM - the same rule the New Task
-                        # Sequence item follows. An item that cannot open its
-                        # window is one somebody presses to find out nothing
-                        # happens.
-                        if ($isOsCategory -and -not [string]::IsNullOrWhiteSpace($ImportOperatingSystemXaml)) {
-                            $importOperatingSystem.Visibility = [System.Windows.Visibility]::Visible
-                        }
-                        if ($isOperatingSystem) { $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
-
-                        $newApplication.Visibility = [System.Windows.Visibility]::Collapsed
-                        $removeApplication.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        # NO MARKUP, NO ITEM, as everywhere else on this menu.
-                        if ($isAppCategory -and -not [string]::IsNullOrWhiteSpace($ImportApplicationXaml)) {
-                            $newApplication.Visibility = [System.Windows.Visibility]::Visible
-                        }
-                        $applicationDependency.Visibility = [System.Windows.Visibility]::Collapsed
-                        $applicationDetection.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        $selectionProfileItem.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        if ($isApplication) {
-                            $removeApplication.Visibility = [System.Windows.Visibility]::Visible
-
-                            # NO MARKUP, NO ITEM, as everywhere else here.
-                            if (-not [string]::IsNullOrWhiteSpace($ApplicationDependencyXaml)) {
-                                $applicationDependency.Visibility = [System.Windows.Visibility]::Visible
-                            }
-
-                            if (-not [string]::IsNullOrWhiteSpace($ApplicationDetectionXaml)) {
-                                $applicationDetection.Visibility = [System.Windows.Visibility]::Visible
-                            }
-                        }
-
-                        # THE FOLDER ITEMS, AND THE ROW DECIDES WHICH.
-                        # Get-HDTConsoleFolderAction is where that is worked out,
-                        # from the row alone - re-reading the share here costs
-                        # 400ms in front of a menu that is supposed to appear
-                        # under the pointer.
-                        $folderAction = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
-
-                        $newFolder.Visibility = [System.Windows.Visibility]::Collapsed
-                        $moveToFolder.Visibility = [System.Windows.Visibility]::Collapsed
-                        $deleteFolder.Visibility = [System.Windows.Visibility]::Collapsed
-                        $folderSeparator.Visibility = [System.Windows.Visibility]::Collapsed
-                        $folderUp.Visibility = [System.Windows.Visibility]::Collapsed
-                        $folderDown.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        if ($folderAction.CanCreate) { $newFolder.Visibility = [System.Windows.Visibility]::Visible }
-                        if ($folderAction.CanMove) { $moveToFolder.Visibility = [System.Windows.Visibility]::Visible }
-
-                        # BOTH ARE SHOWN ON EVERY FOLDER AND DISABLED AT THE
-                        # ENDS, rather than one of them vanishing. An item that
-                        # disappears at the top of a list teaches that folders
-                        # cannot be moved up at all; a greyed one says "not this
-                        # one, it is already first", which is the true statement.
-                        if ([string] $chosen.Kind -eq 'Folder') {
-                            $folderUp.Visibility = [System.Windows.Visibility]::Visible
-                            $folderDown.Visibility = [System.Windows.Visibility]::Visible
-
-                            $folderUp.IsEnabled = [bool] $folderAction.CanMoveUp
-                            $folderDown.IsEnabled = [bool] $folderAction.CanMoveDown
-                        }
-
-                        # DELETE IS SHOWN AND DISABLED RATHER THAN HIDDEN when
-                        # the folder still has something in it: an item that
-                        # vanishes teaches that folders cannot be deleted, and
-                        # what is true is that THIS one cannot be, yet. The
-                        # reason is on the tooltip, where a disabled item's
-                        # reason has to be.
-                        if ([string] $chosen.Kind -eq 'Folder') {
-                            $deleteFolder.Visibility = [System.Windows.Visibility]::Visible
-                            $deleteFolder.IsEnabled = [bool] $folderAction.CanDelete
-                            $deleteFolder.ToolTip = $null
-
-                            if (-not $folderAction.CanDelete) {
-                                $deleteFolder.ToolTip = [string] $folderAction.DeleteRefusal
-                            }
-                        }
-
-                        $onFolderRow = ($folderAction.CanCreate -or $folderAction.CanMove -or
-                            [string] $chosen.Kind -eq 'Folder')
-
-                        # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
-                        # SIDES OF IT. A line at the top of a menu is a line
-                        # nobody drew on purpose.
-                        # WHAT THIS ROW'S MENU IS, DECIDED IN A COMMAND. Both the
-                        # selection profile label and whether the menu opens at
-                        # all live in Get-HDTConsoleTreeMenuRow, so Pester can
-                        # assert what a right-click does - which nothing could
-                        # before, and which cost a defect: an item made Visible
-                        # for its row still did nothing, because the guard below
-                        # cancelled the whole menu for a kind it did not know.
-                        $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
-                            -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
-                            -HasFolderAction ([bool] $onFolderRow) `
-                            -DriverPath ([string] $chosen.Name)
-
-                        $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
-                        $importDriverItem.Visibility = [System.Windows.Visibility]::Collapsed
-                        $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
-                        $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Collapsed
-
-                        # ON THE RUN, NEVER ON THE Monitoring CATEGORY. Clearing
-                        # this row and clearing every run on the share are
-                        # different actions; one item that means whichever the
-                        # mouse happened to be over is how somebody loses the
-                        # record of a deployment they were still reading.
-                        if ([string] $chosen.Kind -eq 'MonitorRun') {
-                            $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Visible
-                        }
-
-                        if ($menuRow.IsDriverRow) {
-                            $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
-                            $importDriverItem.Visibility = [System.Windows.Visibility]::Visible
-                        }
-
-                        # DELETE IS OFFERED ON A FOLDER, NEVER ON THE STORE. The
-                        # Drivers category is a driver row too - it takes New
-                        # Folder and Import - but Remove-HDTDriverFolder refuses
-                        # the store itself, so an item offered there would be one
-                        # that only ever answers no.
-                        if ([string] $chosen.Kind -eq 'DriverFolder') {
-                            $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
-                        }
-
-                        if ($menuRow.IsSelectionProfile) {
-                            $selectionProfileItem.Visibility = [System.Windows.Visibility]::Visible
-                            $selectionProfileItem.Header = [string] $menuRow.SelectionProfileHeader
-                        }
-
-                        if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
-                            $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
-                        }
-
-                        if (-not $menuRow.Opens) {
-                            $opening.Handled = $true
-                        }
-                    }.GetNewClosure())
-
-                # AND IT OPENS THE SAME WINDOW THE DOUBLE-CLICK OPENS. Both
-                # rows carry workspace.yaml, so this reads the subject rather
-                # than building a path from the share root: two shares in this
-                # lab hold an image of the same name, and a window opened by
-                # name could save one share's settings into the other's.
-                $bootImageItem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $document = [string] $chosen.Subject
-
-                        # AND IT SAYS SO RATHER THAN DOING NOTHING, as the
-                        # remove items do: a menu item that returns quietly is
-                        # one somebody presses twice and then reports as broken.
-                        if ([string]::IsNullOrWhiteSpace($document)) {
-                            $command.Text = 'that row does not name a workspace document, so there is no boot image to open.'
-                            return
-                        }
-
-                        & $openBootImage $document
-
-                        # THE IMAGE MAY HAVE BEEN BUILT WHILE IT WAS OPEN, and
-                        # the row under Boot Image reads the manifest - so it is
-                        # stale until the tree is read again.
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                # WORKBENCH'S Advanced Configuration \ Selection Profiles. The
-                # row carries the SHARE ROOT rather than a document, because a
-                # profile is share-wide and the window works out its own path.
-                $selectionProfileItem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $shareRoot = [string] $chosen.Subject
-
-                        # IT SAYS SO RATHER THAN DOING NOTHING, as the boot image
-                        # item does: a menu item that returns quietly is one
-                        # somebody presses twice and then reports as broken.
-                        if ([string]::IsNullOrWhiteSpace($shareRoot)) {
-                            $command.Text = 'that row does not name a share, so there are no selection profiles to open.'
-                            return
-                        }
-
-                        try {
-                            [void] (& $call 'Show-HDTSelectionProfileWindow' @{
-                                    Root = $shareRoot; ConsoleHost = $consoleHost
-                                    OwnerWidth = [int] $window.Width; OwnerHeight = [int] $window.Height
-                                })
-                        } catch {
-                            $command.Text = '# {0}' -f [string] $_.Exception.Message
-                            return
-                        }
-
-                        # THE PROFILES MAY HAVE CHANGED WHILE IT WAS OPEN, and
-                        # the branch lists them - so it is stale until the tree
-                        # is read again.
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                # REMOVE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED.
-                # Remove-HDTTaskSequence carries ConfirmImpact High, which would
-                # otherwise prompt at a console nobody is looking at - a window
-                # that appears to hang. The answer here is passed as
-                # -Confirm:$false: one decision, made where it was offered.
-                $removeSequence.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        $which = [string] $chosen.Name
-
-                        # AND IT SAYS SO RATHER THAN DOING NOTHING. A handler
-                        # that returns quietly on a row it cannot read is a menu
-                        # item somebody presses twice and then reports as broken.
-                        # This is one of the three irreversible presses in the
-                        # window, and all three compose their question in
-                        # Get-HDTConsoleRemoval now -
-                        # tests/unit/ConsoleRemoval.Tests.ps1.
-                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'TaskSequence' -Root $where -Id $which
-                        if (-not $ask.CanRemove) {
-                            $command.Text = [string] $ask.Refusal
-                            return
-                        }
-
-                        $asked = [System.Windows.MessageBox]::Show($window,
-                            [string] $ask.Question,
-                            [string] $ask.Title,
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Warning,
-                            [System.Windows.MessageBoxResult]::No)
-
-                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
-
-                        try {
-                            [void] (Remove-HDTTaskSequence -Workspace $where -Id $which -Confirm:$false)
-                            $command.Text = [string] $ask.Command
-                        } catch {
-                            # THE REFUSAL IS THE ANSWER, and this command's
-                            # refusals are the ones worth reading: a folder that
-                            # holds no sequence, an id that is a path.
-                            $command.Text = [string] $_.Exception.Message
-                        }
-
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                $importOperatingSystem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        # THE ROW SAYS WHICH SHARE, for the same reason the New
-                        # Task Sequence item reads it: several shares in one
-                        # window, and only the row knows which one was clicked.
-                        $where = [string] $chosen.HeaderRoot
-                        if ([string]::IsNullOrWhiteSpace($where)) { return }
-
-                        $made = [string] $consoleHost.ShowImportOperatingSystem(
-                            $ImportOperatingSystemXaml, $where, $Theme, $window)
-
-                        if ([string]::IsNullOrWhiteSpace($made)) { return }
-
-                        $command.Text = "Import-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -SourcePath ..." -f $where, $made
-
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                # REMOVING MEDIA IS WORSE THAN REMOVING A SEQUENCE, and the
-                # dialog says so: a sequence is a file somebody wrote, and this
-                # is several gigabytes that came off a DVD. UsedBy is why the
-                # command reads the sequences first - a deployment that would
-                # have failed at Apply Operating System, minutes in, is worth
-                # naming before it does.
-                $removeOperatingSystem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        $which = [string] $chosen.Name
-
-                        $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'OperatingSystem' -Root $where -Id $which
-                        if (-not $refusal.CanRemove) {
-                            $command.Text = [string] $refusal.Refusal
-                            return
-                        }
-
-                        # ASKED FOR WITHOUT REMOVING ANYTHING: -WhatIf returns
-                        # UsedBy, so the dialog can name the sequences before
-                        # anybody agrees to anything - and a sequence without
-                        # its image FAILS, which is not what a missing
-                        # application does. Get-HDTConsoleRemoval keeps those
-                        # two sentences apart.
-                        $using = @()
-
-                        try {
-                            $using = @((Remove-HDTOperatingSystem -Workspace $where -Id $which -WhatIf).UsedBy)
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'OperatingSystem' -Root $where -Id $which `
-                            -UsedBy ([string[]] @($using))
-
-                        $asked = [System.Windows.MessageBox]::Show($window,
-                            [string] $ask.Question,
-                            [string] $ask.Title,
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Warning,
-                            [System.Windows.MessageBoxResult]::No)
-
-                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
-
-                        try {
-                            [void] (Remove-HDTOperatingSystem -Workspace $where -Id $which -Confirm:$false)
-                            $command.Text = [string] $ask.Command
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                        }
-
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                $newSequence.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        # THE ROW SAYS WHICH SHARE. Two shares in one window
-                        # commonly hold sequences with the same id, so the
-                        # node's own root is the only answer that cannot write
-                        # to the wrong one.
-                        $where = [string] $chosen.HeaderRoot
-                        if ([string]::IsNullOrWhiteSpace($where)) { return }
-
-                        $made = [string] $consoleHost.ShowNewSequence($NewSequenceXaml, $where, $Theme, $window)
-
-                        if ([string]::IsNullOrWhiteSpace($made)) { return }
-
-                        # THE TREE IS REBUILT, or the sequence that was just
-                        # created is not in the window that created it - the
-                        # refresh timer only rebuilds the monitor rows.
-                        & $rebuildTree
-
-                                                $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
-                    }.GetNewClosure())
-
-                # -- the shares themselves -------------------------------
-                #
-                # WORKBENCH'S ROOT NODE ACTIONS, which this console had none of:
-                # the shares in the window were the ones named on the command
-                # line, and a new one was New-HDTWorkspace at a prompt.
-                #
-                # ADDING A SHARE IS A REBUILD WITH ONE MORE PATH. The tree is
-                # what says which shares are open, so there is no second list to
-                # keep in step with it.
-                $newWorkspace.Add_Click({
-                        $made = [string] $consoleHost.ShowNewWorkspace($NewWorkspaceXaml, $Theme, $window)
-
-                        if ([string]::IsNullOrWhiteSpace($made)) { return }
-
-                        & $rebuildFrom ([string[]] @(@(& $openShare) + @($made)))
-
-                        $command.Text = "New-HDTWorkspace -Path '{0}'" -f $made
-                    }.GetNewClosure())
-
-                # OPENING NEEDS NO DIALOG OF ITS OWN: a folder picker and a
-                # check. Test-HDTConsoleOpenWorkspace is that check, and it is
-                # the one place that decides what counts as a share to open.
-                $openWorkspace.Add_Click({
-                        $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
-                        $picker.Title = 'Open the deployment share folder, and press Open'
-                        $picker.CheckFileExists = $false
-                        $picker.FileName = 'this folder'
-                        $picker.Filter = 'All files (*.*)|*.*'
-
-                        if ($picker.ShowDialog($window) -ne $true) { return }
-
-                        $chosenPath = [string] [System.IO.Path]::GetDirectoryName($picker.FileName)
-                        $already = [string[]] @(& $openShare)
-
-                        $answer = & $call 'Test-HDTConsoleOpenWorkspace' -Path $chosenPath -Open $already
-
-                        # THE REFUSAL GOES IN THE COMMAND BOX, which is where
-                        # this window says everything else that went wrong.
-                        if (-not $answer.CanOpen) {
-                            $command.Text = [string] $answer.Message
-                            return
-                        }
-
-                        $window.Cursor = [System.Windows.Input.Cursors]::AppStarting
-
-                        try {
-                            & $rebuildFrom ([string[]] @(@($already) + @($chosenPath)))
-                        } finally {
-                            $window.Cursor = $null
-                        }
-
-                        # A command an administrator can actually run: the
-                        # reader behind this row is internal to the window.
-                        $command.Text = "Show-HDTConsole -Path '{0}'" -f $chosenPath
-                    }.GetNewClosure())
-
-                # CLOSING TAKES IT OUT OF THE WINDOW AND DELETES NOTHING, and
-                # the dialog says so: 'Remove' is what the task sequence and the
-                # operating system items are called, and those do delete.
-                $closeWorkspace.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        if ([string]::IsNullOrWhiteSpace($where)) { return }
-
-                        $keep = [string[]] @(@(& $openShare) | Where-Object {
-                                -not [string]::Equals([string] $_, $where, [System.StringComparison]::OrdinalIgnoreCase)
-                            })
-
-                        & $rebuildFrom $keep
-
-                        $command.Text = "# '{0}' was closed. Nothing on it was changed; Open Deployment Share puts it back." -f $where
-                    }.GetNewClosure())
-
-                # -- applications ----------------------------------------
-                #
-                # THE PART OF A SHARE THAT CHANGES WEEKLY, and until now the one
-                # part with no window at all. Both of these are one cmdlet call,
-                # like every other press here.
-                $newApplication.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        if ([string]::IsNullOrWhiteSpace($where)) { return }
-
-                        $made = [string] $consoleHost.ShowImportApplication(
-                            $ImportApplicationXaml, $where, $Theme, $window)
-
-                        if ([string]::IsNullOrWhiteSpace($made)) { return }
-
-                        & $rebuildTree
-
-                        $command.Text = "Import-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $made
-                    }.GetNewClosure())
-
-                # DETECTION IS A TYPE AND THE BOXES THAT TYPE TAKES, which is
-                # why it gets a window rather than a box: a rule is four shapes,
-                # and typing YAML into a field means knowing which keys the type
-                # takes and the indentation between them.
-                $applicationDetection.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        $which = [string] $chosen.Name
-
-                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
-                            $command.Text = 'that row does not name a share and an application id, so there is nothing to edit.'
-                            return
-                        }
-
-                        # THE DOCUMENT, NOT THE ROW. The row carries the rule as
-                        # a sentence for reading; the window needs the keys.
-                        $rule = $null
-
-                        try {
-                            $rule = (Get-HDTApplication -WorkspaceRoot $where -Id $which -FileSystem (New-HDTFileSystem)).Detect
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        $answer = $consoleHost.ShowApplicationDetection(
-                            $ApplicationDetectionXaml, $where, $which, $rule, $Theme, $window)
-
-                        # A CANCELLED DIALOG AND A CLEARED RULE BOTH COME BACK
-                        # NULL, so the tree is rebuilt either way rather than
-                        # left showing a rule that has just been removed.
-                        & $rebuildTree
-
-                        $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Detect {2}" -f
-                        $where, $which, (& $call 'Get-HDTConsoleDetectionForm' -Detect $answer).CommandText
-                    }.GetNewClosure())
-
-                # DEPENDS ON IS PICKED FROM THE SHARE, and that is the whole
-                # point of the window: a dependency is an application id in a
-                # document, and a misspelled one is not caught until a
-                # deployment runs, when Resolve-HDTApplicationOrder refuses the
-                # WHOLE plan rather than that one application.
-                #
-                # THE SHARE IS RE-READ RATHER THAN TAKEN FROM THE ROW. The tree
-                # holds what the share looked like when it was built, and the
-                # list this offers has to be what is on it now - a dialog is
-                # slow enough to open that 400ms does not show.
-                $applicationDependency.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        $which = [string] $chosen.Name
-
-                        if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
-                            $command.Text = 'that row does not name a share and an application id, so there is nothing to edit.'
-                            return
-                        }
-
-                        try {
-                            $share = & $call 'Get-HDTConsoleWorkspace' -Path $where
-                            $offer = @(& $call 'Get-HDTConsoleDependencyChoice' -Application ([object[]] @($share.Application)) -Id $which)
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        $answer = $consoleHost.ShowApplicationDependency(
-                            $ApplicationDependencyXaml, $where, $which, ([object[]] $offer), $Theme, $window)
-
-                        if ($null -eq $answer) { return }
-
-                        & $rebuildTree
-
-                        $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Dependency @({2})" -f
-                        $where, $which, ((@($answer) | ForEach-Object { "'{0}'" -f $_ }) -join ', ')
-                    }.GetNewClosure())
-
-                # REMOVE ASKS, AND THE DIALOG NAMES WHAT WOULD BREAK. A missing
-                # dependency is worse than a missing package: Resolve-HDTApplicationOrder
-                # refuses the whole plan, so removing this one can stop an
-                # unrelated application installing at all. -WhatIf answers that
-                # without removing anything, which is why it is asked first.
-                $removeApplication.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        $which = [string] $chosen.Name
-
-                        # WHAT THIS DIALOG SAYS IS THE LAST THING ANYBODY READS
-                        # before the folder goes - app.yaml and the installer
-                        # with it, and no undo in this window. Which sequences
-                        # install it and which applications DEPEND on it are two
-                        # different consequences and get two different
-                        # sentences: the first leaves a machine missing
-                        # something, the second stops an install altogether,
-                        # later, on a deployment nobody connects to this press.
-                        # tests/unit/ConsoleApplicationRemoval.Tests.ps1.
-                        $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'Application' -Root $where -Id $which
-                        if (-not $refusal.CanRemove) {
-                            $command.Text = [string] $refusal.Refusal
-                            return
-                        }
-
-                        $answer = $null
-
-                        try {
-                            $answer = Remove-HDTApplication -WorkspaceRoot $where -Id $which -WhatIf
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'Application' -Root $where -Id $which `
-                            -UsedBy ([string[]] @($answer.UsedBy)) `
-                            -RequiredBy ([string[]] @($answer.RequiredBy))
-
-                        $asked = [System.Windows.MessageBox]::Show($window,
-                            [string] $ask.Question,
-                            [string] $ask.Title,
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Warning,
-                            [System.Windows.MessageBoxResult]::No)
-
-                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
-
-                        try {
-                            [void] (Remove-HDTApplication -WorkspaceRoot $where -Id $which -Confirm:$false)
-                            $command.Text = [string] $ask.Command
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                        }
-
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                # -- folders ---------------------------------------------
-                #
-                # WORKBENCH'S FOLDERS, ON A TREE THAT HAS NO DIRECTORIES TO
-                # NEST. What each item offers is Get-HDTConsoleFolderAction's
-                # decision; these three handlers do what every other press in
-                # this window does - read a document, call one cmdlet, save,
-                # rebuild - and each names the cmdlet it ran in the Command box.
-                #
-                # ONE TYPED LINE IS ALL THEY ASK FOR, so the prompt is built
-                # here rather than given markup: a window with a label, a box
-                # and an OK is the whole of it, and a .xaml file for that is a
-                # file to keep in step with three call sites.
-                $askForFolder = {
-                    param([string] $Title, [string] $Prompt, [string[]] $Choice, [string] $Initial)
-
-                    Add-Type -AssemblyName PresentationFramework
-
-                    $ask = New-Object -TypeName System.Windows.Window
-                    # THROUGH THE DOOR, because this prompt is reached from
-                    # closures. A closure resolves commands in the session state
-                    # it was rebound to - the console's - where a PRIVATE
-                    # function does not exist, so naming it directly here threw
-                    # "'Get-HDTConsoleWindowIcon' is not recognized" out of a
-                    # menu click and took the whole window down with it. See
-                    # Get-HDTHandlerCall.
-                    $ask.Icon = & $call 'Get-HDTConsoleWindowIcon'
-                    $ask.Title = $Title
-                    $ask.Width = 440
-                    $ask.SizeToContent = [System.Windows.SizeToContent]::Height
-                    $ask.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
-                    $ask.Owner = $window
-                    $ask.ResizeMode = [System.Windows.ResizeMode]::NoResize
-
-                    $panel = New-Object -TypeName System.Windows.Controls.StackPanel
-                    $panel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 16
-
-                    $label = New-Object -TypeName System.Windows.Controls.TextBlock
-                    $label.Text = $Prompt
-                    $label.TextWrapping = [System.Windows.TextWrapping]::Wrap
-                    $label.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 10
-
-                    # EDITABLE, AND THE LIST IS A CONVENIENCE. Moving something
-                    # into a folder that does not exist yet is how the second
-                    # folder gets made, so the box has to accept a name that is
-                    # not in the list - and on a share with no folders at all
-                    # the list is empty and this is a text box.
-                    $entry = New-Object -TypeName System.Windows.Controls.ComboBox
-                    $entry.IsEditable = $true
-                    $entry.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 12
-
-                    foreach ($one in @($Choice)) { [void] $entry.Items.Add([string] $one) }
-                    $entry.Text = $Initial
-
-                    $accept = New-Object -TypeName System.Windows.Controls.Button
-                    $accept.Content = 'OK'
-                    $accept.IsDefault = $true
-                    $accept.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
-                    $accept.Padding = New-Object -TypeName System.Windows.Thickness -ArgumentList 14, 6, 14, 6
-                    $accept.Add_Click({ $ask.DialogResult = $true }.GetNewClosure())
-
-                    [void] $panel.Children.Add($label)
-                    [void] $panel.Children.Add($entry)
-                    [void] $panel.Children.Add($accept)
-
-                    $ask.Content = $panel
-                    [void] $entry.Focus()
-
-                    # CANCELLED IS NOT EMPTY. An empty box means "take it out of
-                    # every folder", which is a thing to ask for, so the two
-                    # answers cannot come back as the same value.
-                    if ($ask.ShowDialog() -ne $true) { return $null }
-
-                    return ([string] $entry.Text).Trim()
-                }.GetNewClosure()
-
-                # -- the driver store's two, which are MDT's ------------------
-                #
-                # WIRED HERE BECAUSE $askForFolder HAS TO EXIST FIRST. A closure
-                # captures a variable's VALUE, so a handler hung above it would
-                # capture $null and do nothing on the one press that matters.
-                #
-                # NO WINDOW OF THEIR OWN. New Folder needs one string and the
-                # console already has a prompt for exactly that; Import needs a
-                # folder and the boot image window already browses for one. A
-                # third dialog would be a third thing to keep in step.
-                $newDriverFolderItem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        # AND IT SAYS SO RATHER THAN DOING NOTHING, which this
-                        # console has a rule about and which this handler broke:
-                        # the Drivers category carried no Subject, so both items
-                        # appeared and neither did anything, twice, before
-                        # somebody reported it as broken.
-                        $where = [string] $chosen.Subject
-                        if ([string]::IsNullOrWhiteSpace($where)) {
-                            $command.Text = 'that row does not name a share, so there is no driver store to add to.'
-                            return
-                        }
-
-                        $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
-                            -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
-                            -DriverPath ([string] $chosen.Name)
-
-                        # THE PARENT IS THE ROW IT WAS ASKED ON, which is what
-                        # makes one item serve both "at the top of the store" and
-                        # "inside this vendor folder".
-                        $parent = [string] $menuRow.DriverParent
-
-                        $prompt = 'A folder in the driver store. Vendor WinPE packs usually go under WinPE\, model packs under the Make.'
-                        if (-not [string]::IsNullOrWhiteSpace($parent)) {
-                            $prompt = 'A folder inside {0}.' -f $parent
-                        }
-
-                        $typed = & $askForFolder 'New Folder' $prompt @() ''
-
-                        if ([string]::IsNullOrWhiteSpace($typed)) { return }
-
-                        $path = $typed
-                        if (-not [string]::IsNullOrWhiteSpace($parent)) {
-                            $path = [System.IO.Path]::Combine($parent, $typed)
-                        }
-
-                        try {
-                            $made = & $call 'New-HDTDriverFolder' @{
-                                Root = $where; Path = $path; Confirm = $false
-                            }
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        & $rebuildTree
-
-                        $command.Text = "New-HDTDriverFolder -Root '{0}' -Path '{1}'" -f $where, [string] $made.Path
-                    }.GetNewClosure())
-
-                $importDriverItem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.Subject
-                        if ([string]::IsNullOrWhiteSpace($where)) {
-                            $command.Text = 'that row does not name a share, so there is nowhere to import to.'
-                            return
-                        }
-
-                        $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
-                            -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
-                            -DriverPath ([string] $chosen.Name)
-
-                        $parent = [string] $menuRow.DriverParent
-
-                        # SHELL COM, NOT System.Windows.Forms - a contract test
-                        # says so, because System.Windows.Forms is not guaranteed
-                        # by WinPE-NetFx and the rule is file-blind on purpose.
-                        $shell = New-Object -ComObject Shell.Application
-                        $picked = $shell.BrowseForFolder(0, 'Choose the folder the vendor pack was extracted into', 0)
-
-                        if ($null -eq $picked) { return }
-
-                        $source = [string] $picked.Self.Path
-                        if ([string]::IsNullOrWhiteSpace($source)) { return }
-
-                        # THE FOLDER IT LANDS IN IS NAMED AFTER THE PACK unless
-                        # the row already is one. Importing onto the store root
-                        # would tip a vendor's whole tree in beside the others.
-                        $path = $parent
-
-                        if ([string]::IsNullOrWhiteSpace($path)) {
-                            $path = [string] (Split-Path -Path $source -Leaf)
-                        }
-
-                        try {
-                            $imported = & $call 'Import-HDTDriver' @{
-                                Root = $where; Path = $path; Source = $source; Confirm = $false
-                            }
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        & $rebuildTree
-
-                        $command.Text = "Import-HDTDriver -Root '{0}' -Path '{1}' -Source '{2}'   # {3} driver(s)" -f
-                            $where, [string] $imported.Path, $source, [int] $imported.DriverCount
-                    }.GetNewClosure())
-
-                # DELETE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED, for
-                # the same reason Remove Task Sequence does: Remove-HDTDriverFolder
-                # carries ConfirmImpact High, which at a console nobody is looking
-                # at is a window that appears to hang. The answer is passed as
-                # -Confirm:$false - one decision, made where it was offered.
-                $removeDriverFolderItem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.Subject
-
-                        # THE ROW NAMES ITSELF FROM THE SHARE'S ROOT -
-                        # 'Drivers\WinPE\Dell' - and Remove-HDTDriverFolder
-                        # counts from inside the store.
-                        $which = [string] $chosen.Name
-                        if ($which -match '^(?i)Drivers\\') { $which = $which.Substring(('Drivers\').Length) }
-
-                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'DriverFolder' -Root $where -Id $which
-                        if (-not $ask.CanRemove) {
-                            $command.Text = [string] $ask.Refusal
-                            return
-                        }
-
-                        $asked = [System.Windows.MessageBox]::Show($window,
-                            [string] $ask.Question,
-                            [string] $ask.Title,
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Warning,
-                            [System.Windows.MessageBoxResult]::No)
-
-                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
-
-                        try {
-                            [void] (& $call 'Remove-HDTDriverFolder' @{
-                                    Root = $where; Path = $which; Confirm = $false
-                                })
-                            $command.Text = [string] $ask.Command
-                        } catch {
-                            # THE REFUSAL IS THE ANSWER, and this command's are
-                            # the ones worth reading: the store itself, a path
-                            # that climbs out of it.
-                            $command.Text = [string] $_.Exception.Message
-                        }
-
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                # CLEARING A RUN ASKS TOO, for the reason every other delete on
-                # this menu asks: Remove-HDTMonitorRun carries ConfirmImpact
-                # High, and a prompt raised on a console nobody is looking at is
-                # a window that appears to have hung. The answer is passed as
-                # -Confirm:$false - one decision, made where it was offered.
-                #
-                # THE QUESTION IS NOT THE OTHERS' QUESTION. Nothing on the share
-                # reads a heartbeat, so Get-HDTConsoleRemoval says so rather than
-                # warning about an undo that nobody needs.
-                $removeMonitorRunItem.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        # THE ROW CARRIES ITS SHARE. Building the root from the
-                        # window instead would be wrong the moment two shares are
-                        # open, which is the case this console was built for.
-                        $where = [string] $chosen.HeaderRoot
-                        $which = [string] $chosen.Name
-
-                        $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'MonitorRun' -Root $where -Id $which
-                        if (-not $ask.CanRemove) {
-                            $command.Text = [string] $ask.Refusal
-                            return
-                        }
-
-                        $asked = [System.Windows.MessageBox]::Show($window,
-                            [string] $ask.Question,
-                            [string] $ask.Title,
-                            [System.Windows.MessageBoxButton]::YesNo,
-                            [System.Windows.MessageBoxImage]::Question,
-                            [System.Windows.MessageBoxResult]::No)
-
-                        if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
-
-                        try {
-                            [void] (& $call 'Remove-HDTMonitorRun' @{
-                                    Root = $where; RunId = $which; Confirm = $false
-                                })
-                            $command.Text = [string] $ask.Command
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                        }
-
-                        & $rebuildTree
-                    }.GetNewClosure())
-
-                $newFolder.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        if ([string]::IsNullOrWhiteSpace($where)) { return }
-
-                        $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
-                        if (-not $action.CanCreate) { return }
-
-                        # THE PARENT IS THE ROW IT WAS ASKED FOR ON, which is
-                        # what makes one item serve both "at the top" and
-                        # "inside this one" - and the prompt is the last place
-                        # anybody can tell which of the two is about to happen.
-                        # tests/unit/ConsoleFolderCreate.Tests.ps1.
-                        #
-                        # Asked once for the prompt, and again once a name has
-                        # been typed: the folder path is not known until then.
-                        $ask = & $call 'Get-HDTConsoleFolderCreate' -Root $where `
-                            -Parent ([string] $action.Parent) -Category ([string] $action.Category)
-
-                        $typed = & $askForFolder 'New Folder' ([string] $ask.Prompt) @() ''
-
-                        if ([string]::IsNullOrWhiteSpace($typed)) { return }
-
-                        $make = & $call 'Get-HDTConsoleFolderCreate' -Root $where `
-                            -Parent ([string] $action.Parent) -Name $typed `
-                            -Category ([string] $action.Category)
-
-                        $path = [string] $make.Folder
-                        $documentPath = [string] $make.DocumentPath
-
-                        try {
-                            $fileSystem = New-HDTFileSystem
-                            $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
-
-                            [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
-                                    -Line @(Add-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
-                                        -Folder $path -Confirm:$false))
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        & $rebuildTree
-
-                        $command.Text = [string] $make.Command
-                    }.GetNewClosure())
-
-                # MOVING IS A ONE-KEY EDIT TO THE DOCUMENT, not a file
-                # operation: the sequence stays at TaskSequences\<id>, because
-                # its id is the path the engine resolves it from and every rule
-                # and boot image that names it would otherwise break.
-                $moveToFolder.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
-                        if (-not $action.CanMove) { return }
-
-                        # WHICH COMMANDS THIS MOVE TAKES, decided away from the
-                        # window - and in particular WHICH SAVER GOES WITH WHICH
-                        # SETTER. Each saver validates the lines against its own
-                        # document's keys, so the wrong one refuses a document
-                        # the setter has already written correctly, and the
-                        # failure reads as a broken setter.
-                        # tests/unit/ConsoleFolderMove.Tests.ps1 holds that
-                        # pairing, and the application exception with it.
-                        $move = & $call 'Get-HDTConsoleFolderMove' -Row $chosen `
-                            -Category ([string] $action.Category)
-
-                        $typed = & $askForFolder 'Move to Folder' `
-                            'The folder this window draws it under. Type a name that is not in the list to make that folder; leave it empty to take it out of every folder. Nothing moves on disk.' `
-                        ([string[]] @($action.Choice)) $move.Current
-
-                        if ($null -eq $typed) { return }
-                        if ($typed -eq $move.Current) { return }
-
-                        try {
-                            # AN APPLICATION WRITES ITSELF: Set-HDTApplication
-                            # takes a share and an id rather than lines, and
-                            # saves - so there is nothing here to read first.
-                            if ($move.Kind -eq 'Application') {
-                                [void] (Set-HDTApplication -WorkspaceRoot ([string] $move.WorkspaceRoot) `
-                                        -Id ([string] $move.Id) -Folder $typed -Confirm:$false)
-                            } else {
-                                $fileSystem = New-HDTFileSystem
-                                $line = [string[]] @([string] $fileSystem.ReadAllText($move.DocumentPath) -split "`r?`n")
-
-                                [void] (& $move.Saver -Path ([string] $move.DocumentPath) `
-                                        -FileSystem $fileSystem -Confirm:$false `
-                                        -Line @(& $move.Setter -Line $line -Folder $typed -Confirm:$false))
-                            }
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        & $rebuildTree
-
-                        $command.Text = $move.CommandFormat -f $typed
-                    }.GetNewClosure())
-
-                $deleteFolder.Add_Click({
-                        $chosen = $tree.SelectedItem
-                        if ($null -eq $chosen) { return }
-
-                        $where = [string] $chosen.HeaderRoot
-                        $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
-
-                        # THE REFUSAL IS SAID, NOT SWALLOWED. The item is
-                        # disabled, so this only runs if something else opened
-                        # it - and a handler that returns quietly is a menu item
-                        # somebody presses twice and then reports as broken.
-                        if (-not $action.CanDelete) {
-                            $command.Text = [string] $action.DeleteRefusal
-                            return
-                        }
-
-                        $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
-
-                        try {
-                            $fileSystem = New-HDTFileSystem
-                            $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
-
-                            [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
-                                    -Line @(Remove-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
-                                        -Folder ([string] $action.Parent) -Confirm:$false))
-                        } catch {
-                            $command.Text = [string] $_.Exception.Message
-                            return
-                        }
-
-                        & $rebuildTree
-
-                        $command.Text = "Remove-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}'" -f
-                        [string] $action.Category, [string] $action.Parent
-                    }.GetNewClosure())
-
-                # UP AND DOWN ARE ONE HANDLER TWICE, because they differ in one
-                # word. A folder is an entry in an ordered list in
-                # workspace.yaml; this moves it among the entries beside it and
-                # rebuilds the tree, which now draws that order.
-                $moveFolder = {
-                    param([string] $Direction)
-
-                    $chosen = $tree.SelectedItem
-                    if ($null -eq $chosen) { return }
-
-                    $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
-
-                    $allowed = $action.CanMoveUp
-                    if ($Direction -eq 'Down') { $allowed = $action.CanMoveDown }
-
-                    # SAID, NOT SWALLOWED - the item is disabled at the ends, so
-                    # this only runs if something else opened it, and a handler
-                    # that returns quietly is a menu item somebody presses twice
-                    # and then reports as broken.
-                    if (-not $allowed) {
-                        $command.Text = ("'{0}' is already {1} in this folder, so there is nowhere to move it." -f
-                            [string] $chosen.Text, $(if ($Direction -eq 'Down') { 'last' } else { 'first' }))
-                        return
-                    }
-
-                    # HeaderRoot, NOT Subject. Group-HDTConsoleFolderRow builds a
-                    # folder node without a subject - a folder is not a thing on
-                    # the share to act on - so the share it belongs to comes off
-                    # the banner it carries, which is where Delete Folder reads
-                    # it from too. Reading Subject here returned an empty string
-                    # and the handler gave up in silence.
-                    $where = [string] $chosen.HeaderRoot
-                    if ([string]::IsNullOrWhiteSpace($where)) { return }
-
-                    $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
-
-                    try {
-                        $fileSystem = New-HDTFileSystem
-                        $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
-
-                        [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
-                                -Line @(Move-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
-                                    -Folder ([string] $action.Parent) -Direction $Direction -Confirm:$false))
-                    } catch {
-                        $command.Text = [string] $_.Exception.Message
-                        return
-                    }
-
-                    & $rebuildTree
-
-                    $command.Text = "Move-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}' -Direction {2}" -f
-                    [string] $action.Category, [string] $action.Parent, $Direction
-                }.GetNewClosure()
-
-                $folderUp.Add_Click({ & $moveFolder 'Up' }.GetNewClosure())
-                $folderDown.Add_Click({ & $moveFolder 'Down' }.GetNewClosure())
-            }
+        # THE MENU BELOW IS NOT THE NEW TASK SEQUENCE ITEM'S BUSINESS.
+        #
+        # Every handler on this tree's context menu - the guard that decides
+        # what a row offers, right-click-selects-the-row, and the Click on
+        # Clear Run, Delete Folder, Import Drivers, Remove Task Sequence, New
+        # Folder and the rest - used to live inside the ELSE of this test. So a
+        # view built without the New Task Sequence markup got no right-click
+        # menu AT ALL, rather than one item fewer.
+        #
+        # Show-HDTConsole defaults -NewSequenceXamlPath to the shipped file and
+        # so always passes it, which is why nothing ever hit this. It was still
+        # a trap with a lying symptom: a view built any other way - a test, a
+        # probe, an embedded host - comes up with every item Visible and no
+        # guard, which looks exactly like broken visibility logic and is not.
+        # It cost twenty minutes of looking at the wrong code.
+        #
+        # NO MARKUP, NO ITEM is the rule this test is actually for, and it is
+        # all it does now. The item stays collapsed - see the menu guard, which
+        # will not re-show it either - so its Click below can never be reached.
+        if ($null -ne $newSequence -and [string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
+            $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
         }
+
+        # RIGHT-CLICK DOES NOT SELECT, IN WPF. The menu would otherwise
+        # act on whatever was last left-clicked, which is the row above
+        # the one somebody just pointed at - and this menu writes a file
+        # into a share.
+        $tree.Add_PreviewMouseRightButtonDown({
+                param($raiser, $mouse)
+
+                $hit = [System.Windows.Media.VisualTreeHelper]::HitTest($tree,
+                    $mouse.GetPosition($tree))
+
+                if ($null -eq $hit) { return }
+
+                $walk = $hit.VisualHit
+
+                while ($null -ne $walk -and $walk -isnot [System.Windows.Controls.TreeViewItem]) {
+                    $walk = [System.Windows.Media.VisualTreeHelper]::GetParent($walk)
+                }
+
+                if ($null -ne $walk) { $walk.IsSelected = $true }
+            }.GetNewClosure())
+
+        # AND NO MENU AT ALL ANYWHERE ELSE. A menu that opens on every
+        # row with one dead item is worse than no menu: it teaches that
+        # right-click does nothing here, on the one row where it does.
+        #
+        # Handled STOPS IT OPENING. The alternative - opening it and
+        # greying the item out - still puts a menu on the boot image,
+        # the drivers folder and every task sequence in the share.
+        $tree.Add_ContextMenuOpening({
+                param($raiser, $opening)
+
+                $chosen = $tree.SelectedItem
+
+                # WORKBENCH'S ROOT NODE: New and Open hang off the
+                # 'Deployment Shares' row, and Close off a share.
+                $isRoot = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Root')
+                $isShare = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Share')
+
+                $isCategory = ($null -ne $chosen -and
+                    [string] $chosen.Kind -eq 'Category' -and
+                    [string] $chosen.Name -eq 'TaskSequences')
+
+                # BOTH BOOT IMAGE ROWS OFFER IT - the category and the
+                # image under it. They are the same action on the same
+                # document, and which of the two somebody right-clicks
+                # when there is no image yet is not worth being wrong
+                # about.
+                $isBootImage = ($null -ne $chosen -and (
+                        [string] $chosen.Kind -eq 'BootImage' -or
+                        ([string] $chosen.Kind -eq 'Category' -and
+                            [string] $chosen.Name -eq 'BootImage')))
+
+                $isSequence = ($null -ne $chosen -and [string] $chosen.Kind -eq 'TaskSequence')
+
+                $isOsCategory = ($null -ne $chosen -and
+                    [string] $chosen.Kind -eq 'Category' -and
+                    [string] $chosen.Name -eq 'OperatingSystems')
+
+                $isOperatingSystem = ($null -ne $chosen -and [string] $chosen.Kind -eq 'OperatingSystem')
+
+                $isAppCategory = ($null -ne $chosen -and
+                    [string] $chosen.Kind -eq 'Category' -and
+                    [string] $chosen.Name -eq 'Applications')
+
+                $isApplication = ($null -ne $chosen -and [string] $chosen.Kind -eq 'Application')
+
+                # BOTH PROFILE ROWS OFFER IT - the category and a profile
+                # under it - for the boot image rows' reason: it is one
+                # action on one document, and which of the two somebody
+                # right-clicks when there are no profiles yet is not
+                # worth being wrong about. A share that has never had one
+                # authored still shows the built-in rows, so the category
+                # is not the only thing under the pointer. Both are
+                # decided by Get-HDTConsoleTreeMenuRow, further down.
+
+                $newWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
+                $openWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
+                $closeWorkspace.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($isRoot) {
+                    # NO MARKUP, NO ITEM, as everywhere else here. Open
+                    # needs no dialog of its own - it is a folder picker
+                    # and one command - so it is offered either way.
+                    if (-not [string]::IsNullOrWhiteSpace($NewWorkspaceXaml)) {
+                        $newWorkspace.Visibility = [System.Windows.Visibility]::Visible
+                    }
+
+                    $openWorkspace.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                if ($isShare) { $closeWorkspace.Visibility = [System.Windows.Visibility]::Visible }
+
+                $bootImageItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($isBootImage) { $bootImageItem.Visibility = [System.Windows.Visibility]::Visible }
+
+                # EACH ROW GETS THE ITEMS THAT APPLY TO IT, and a row
+                # with none opens no menu.
+                $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
+                $removeSequence.Visibility = [System.Windows.Visibility]::Collapsed
+                $importOperatingSystem.Visibility = [System.Windows.Visibility]::Collapsed
+                $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                # NO MARKUP, NO ITEM, as everywhere else on this menu. Without
+                # the second test this line re-shows an item whose window does
+                # not exist, on every category row.
+                if ($isCategory -and -not [string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
+                    $newSequence.Visibility = [System.Windows.Visibility]::Visible
+                }
+                if ($isSequence) { $removeSequence.Visibility = [System.Windows.Visibility]::Visible }
+                # NO MARKUP, NO ITEM - the same rule the New Task
+                # Sequence item follows. An item that cannot open its
+                # window is one somebody presses to find out nothing
+                # happens.
+                if ($isOsCategory -and -not [string]::IsNullOrWhiteSpace($ImportOperatingSystemXaml)) {
+                    $importOperatingSystem.Visibility = [System.Windows.Visibility]::Visible
+                }
+                if ($isOperatingSystem) { $removeOperatingSystem.Visibility = [System.Windows.Visibility]::Visible }
+
+                $newApplication.Visibility = [System.Windows.Visibility]::Collapsed
+                $removeApplication.Visibility = [System.Windows.Visibility]::Collapsed
+
+                # NO MARKUP, NO ITEM, as everywhere else on this menu.
+                if ($isAppCategory -and -not [string]::IsNullOrWhiteSpace($ImportApplicationXaml)) {
+                    $newApplication.Visibility = [System.Windows.Visibility]::Visible
+                }
+                $applicationDependency.Visibility = [System.Windows.Visibility]::Collapsed
+                $applicationDetection.Visibility = [System.Windows.Visibility]::Collapsed
+
+                $selectionProfileItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($isApplication) {
+                    $removeApplication.Visibility = [System.Windows.Visibility]::Visible
+
+                    # NO MARKUP, NO ITEM, as everywhere else here.
+                    if (-not [string]::IsNullOrWhiteSpace($ApplicationDependencyXaml)) {
+                        $applicationDependency.Visibility = [System.Windows.Visibility]::Visible
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace($ApplicationDetectionXaml)) {
+                        $applicationDetection.Visibility = [System.Windows.Visibility]::Visible
+                    }
+                }
+
+                # THE FOLDER ITEMS, AND THE ROW DECIDES WHICH.
+                # Get-HDTConsoleFolderAction is where that is worked out,
+                # from the row alone - re-reading the share here costs
+                # 400ms in front of a menu that is supposed to appear
+                # under the pointer.
+                $folderAction = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
+
+                $newFolder.Visibility = [System.Windows.Visibility]::Collapsed
+                $moveToFolder.Visibility = [System.Windows.Visibility]::Collapsed
+                $deleteFolder.Visibility = [System.Windows.Visibility]::Collapsed
+                $folderSeparator.Visibility = [System.Windows.Visibility]::Collapsed
+                $folderUp.Visibility = [System.Windows.Visibility]::Collapsed
+                $folderDown.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($folderAction.CanCreate) { $newFolder.Visibility = [System.Windows.Visibility]::Visible }
+                if ($folderAction.CanMove) { $moveToFolder.Visibility = [System.Windows.Visibility]::Visible }
+
+                # BOTH ARE SHOWN ON EVERY FOLDER AND DISABLED AT THE
+                # ENDS, rather than one of them vanishing. An item that
+                # disappears at the top of a list teaches that folders
+                # cannot be moved up at all; a greyed one says "not this
+                # one, it is already first", which is the true statement.
+                if ([string] $chosen.Kind -eq 'Folder') {
+                    $folderUp.Visibility = [System.Windows.Visibility]::Visible
+                    $folderDown.Visibility = [System.Windows.Visibility]::Visible
+
+                    $folderUp.IsEnabled = [bool] $folderAction.CanMoveUp
+                    $folderDown.IsEnabled = [bool] $folderAction.CanMoveDown
+                }
+
+                # DELETE IS SHOWN AND DISABLED RATHER THAN HIDDEN when
+                # the folder still has something in it: an item that
+                # vanishes teaches that folders cannot be deleted, and
+                # what is true is that THIS one cannot be, yet. The
+                # reason is on the tooltip, where a disabled item's
+                # reason has to be.
+                if ([string] $chosen.Kind -eq 'Folder') {
+                    $deleteFolder.Visibility = [System.Windows.Visibility]::Visible
+                    $deleteFolder.IsEnabled = [bool] $folderAction.CanDelete
+                    $deleteFolder.ToolTip = $null
+
+                    if (-not $folderAction.CanDelete) {
+                        $deleteFolder.ToolTip = [string] $folderAction.DeleteRefusal
+                    }
+                }
+
+                $onFolderRow = ($folderAction.CanCreate -or $folderAction.CanMove -or
+                    [string] $chosen.Kind -eq 'Folder')
+
+                # THE SEPARATOR ONLY WHEN THERE IS SOMETHING ON BOTH
+                # SIDES OF IT. A line at the top of a menu is a line
+                # nobody drew on purpose.
+                # WHAT THIS ROW'S MENU IS, DECIDED IN A COMMAND. Both the
+                # selection profile label and whether the menu opens at
+                # all live in Get-HDTConsoleTreeMenuRow, so Pester can
+                # assert what a right-click does - which nothing could
+                # before, and which cost a defect: an item made Visible
+                # for its row still did nothing, because the guard below
+                # cancelled the whole menu for a kind it did not know.
+                $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                    -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
+                    -HasFolderAction ([bool] $onFolderRow) `
+                    -DriverPath ([string] $chosen.Name)
+
+                $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
+                $importDriverItem.Visibility = [System.Windows.Visibility]::Collapsed
+                $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
+                $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                # ON THE RUN, NEVER ON THE Monitoring CATEGORY. Clearing
+                # this row and clearing every run on the share are
+                # different actions; one item that means whichever the
+                # mouse happened to be over is how somebody loses the
+                # record of a deployment they were still reading.
+                if ([string] $chosen.Kind -eq 'MonitorRun') {
+                    $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                if ($menuRow.IsDriverRow) {
+                    $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
+                    $importDriverItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                # DELETE IS OFFERED ON A FOLDER, NEVER ON THE STORE. The
+                # Drivers category is a driver row too - it takes New
+                # Folder and Import - but Remove-HDTDriverFolder refuses
+                # the store itself, so an item offered there would be one
+                # that only ever answers no.
+                if ([string] $chosen.Kind -eq 'DriverFolder') {
+                    $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                if ($menuRow.IsSelectionProfile) {
+                    $selectionProfileItem.Visibility = [System.Windows.Visibility]::Visible
+                    $selectionProfileItem.Header = [string] $menuRow.SelectionProfileHeader
+                }
+
+                if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
+                    $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                if (-not $menuRow.Opens) {
+                    $opening.Handled = $true
+                }
+            }.GetNewClosure())
+
+        # AND IT OPENS THE SAME WINDOW THE DOUBLE-CLICK OPENS. Both
+        # rows carry workspace.yaml, so this reads the subject rather
+        # than building a path from the share root: two shares in this
+        # lab hold an image of the same name, and a window opened by
+        # name could save one share's settings into the other's.
+        $bootImageItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $document = [string] $chosen.Subject
+
+                # AND IT SAYS SO RATHER THAN DOING NOTHING, as the
+                # remove items do: a menu item that returns quietly is
+                # one somebody presses twice and then reports as broken.
+                if ([string]::IsNullOrWhiteSpace($document)) {
+                    $command.Text = 'that row does not name a workspace document, so there is no boot image to open.'
+                    return
+                }
+
+                & $openBootImage $document
+
+                # THE IMAGE MAY HAVE BEEN BUILT WHILE IT WAS OPEN, and
+                # the row under Boot Image reads the manifest - so it is
+                # stale until the tree is read again.
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # WORKBENCH'S Advanced Configuration \ Selection Profiles. The
+        # row carries the SHARE ROOT rather than a document, because a
+        # profile is share-wide and the window works out its own path.
+        $selectionProfileItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $shareRoot = [string] $chosen.Subject
+
+                # IT SAYS SO RATHER THAN DOING NOTHING, as the boot image
+                # item does: a menu item that returns quietly is one
+                # somebody presses twice and then reports as broken.
+                if ([string]::IsNullOrWhiteSpace($shareRoot)) {
+                    $command.Text = 'that row does not name a share, so there are no selection profiles to open.'
+                    return
+                }
+
+                try {
+                    [void] (& $call 'Show-HDTSelectionProfileWindow' @{
+                            Root = $shareRoot; ConsoleHost = $consoleHost
+                            OwnerWidth = [int] $window.Width; OwnerHeight = [int] $window.Height
+                        })
+                } catch {
+                    $command.Text = '# {0}' -f [string] $_.Exception.Message
+                    return
+                }
+
+                # THE PROFILES MAY HAVE CHANGED WHILE IT WAS OPEN, and
+                # the branch lists them - so it is stale until the tree
+                # is read again.
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # REMOVE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED.
+        # Remove-HDTTaskSequence carries ConfirmImpact High, which would
+        # otherwise prompt at a console nobody is looking at - a window
+        # that appears to hang. The answer here is passed as
+        # -Confirm:$false: one decision, made where it was offered.
+        $removeSequence.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                # AND IT SAYS SO RATHER THAN DOING NOTHING. A handler
+                # that returns quietly on a row it cannot read is a menu
+                # item somebody presses twice and then reports as broken.
+                # This is one of the three irreversible presses in the
+                # window, and all three compose their question in
+                # Get-HDTConsoleRemoval now -
+                # tests/unit/ConsoleRemoval.Tests.ps1.
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'TaskSequence' -Root $where -Id $which
+                if (-not $ask.CanRemove) {
+                    $command.Text = [string] $ask.Refusal
+                    return
+                }
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    [string] $ask.Question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (Remove-HDTTaskSequence -Workspace $where -Id $which -Confirm:$false)
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    # THE REFUSAL IS THE ANSWER, and this command's
+                    # refusals are the ones worth reading: a folder that
+                    # holds no sequence, an id that is a path.
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        $importOperatingSystem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                # THE ROW SAYS WHICH SHARE, for the same reason the New
+                # Task Sequence item reads it: several shares in one
+                # window, and only the row knows which one was clicked.
+                $where = [string] $chosen.HeaderRoot
+                if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                $made = [string] $consoleHost.ShowImportOperatingSystem(
+                    $ImportOperatingSystemXaml, $where, $Theme, $window)
+
+                if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                $command.Text = "Import-HDTOperatingSystem -WorkspaceRoot '{0}' -Id '{1}' -SourcePath ..." -f $where, $made
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # REMOVING MEDIA IS WORSE THAN REMOVING A SEQUENCE, and the
+        # dialog says so: a sequence is a file somebody wrote, and this
+        # is several gigabytes that came off a DVD. UsedBy is why the
+        # command reads the sequences first - a deployment that would
+        # have failed at Apply Operating System, minutes in, is worth
+        # naming before it does.
+        $removeOperatingSystem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'OperatingSystem' -Root $where -Id $which
+                if (-not $refusal.CanRemove) {
+                    $command.Text = [string] $refusal.Refusal
+                    return
+                }
+
+                # ASKED FOR WITHOUT REMOVING ANYTHING: -WhatIf returns
+                # UsedBy, so the dialog can name the sequences before
+                # anybody agrees to anything - and a sequence without
+                # its image FAILS, which is not what a missing
+                # application does. Get-HDTConsoleRemoval keeps those
+                # two sentences apart.
+                $using = @()
+
+                try {
+                    $using = @((Remove-HDTOperatingSystem -Workspace $where -Id $which -WhatIf).UsedBy)
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'OperatingSystem' -Root $where -Id $which `
+                    -UsedBy ([string[]] @($using))
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    [string] $ask.Question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (Remove-HDTOperatingSystem -Workspace $where -Id $which -Confirm:$false)
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        $newSequence.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                # THE ROW SAYS WHICH SHARE. Two shares in one window
+                # commonly hold sequences with the same id, so the
+                # node's own root is the only answer that cannot write
+                # to the wrong one.
+                $where = [string] $chosen.HeaderRoot
+                if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                $made = [string] $consoleHost.ShowNewSequence($NewSequenceXaml, $where, $Theme, $window)
+
+                if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                # THE TREE IS REBUILT, or the sequence that was just
+                # created is not in the window that created it - the
+                # refresh timer only rebuilds the monitor rows.
+                & $rebuildTree
+
+                                        $command.Text = "New-HDTTaskSequence -Workspace '{0}'" -f $where
+            }.GetNewClosure())
+
+        # -- the shares themselves -------------------------------
+        #
+        # WORKBENCH'S ROOT NODE ACTIONS, which this console had none of:
+        # the shares in the window were the ones named on the command
+        # line, and a new one was New-HDTWorkspace at a prompt.
+        #
+        # ADDING A SHARE IS A REBUILD WITH ONE MORE PATH. The tree is
+        # what says which shares are open, so there is no second list to
+        # keep in step with it.
+        $newWorkspace.Add_Click({
+                $made = [string] $consoleHost.ShowNewWorkspace($NewWorkspaceXaml, $Theme, $window)
+
+                if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                & $rebuildFrom ([string[]] @(@(& $openShare) + @($made)))
+
+                $command.Text = "New-HDTWorkspace -Path '{0}'" -f $made
+            }.GetNewClosure())
+
+        # OPENING NEEDS NO DIALOG OF ITS OWN: a folder picker and a
+        # check. Test-HDTConsoleOpenWorkspace is that check, and it is
+        # the one place that decides what counts as a share to open.
+        $openWorkspace.Add_Click({
+                $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $picker.Title = 'Open the deployment share folder, and press Open'
+                $picker.CheckFileExists = $false
+                $picker.FileName = 'this folder'
+                $picker.Filter = 'All files (*.*)|*.*'
+
+                if ($picker.ShowDialog($window) -ne $true) { return }
+
+                $chosenPath = [string] [System.IO.Path]::GetDirectoryName($picker.FileName)
+                $already = [string[]] @(& $openShare)
+
+                $answer = & $call 'Test-HDTConsoleOpenWorkspace' -Path $chosenPath -Open $already
+
+                # THE REFUSAL GOES IN THE COMMAND BOX, which is where
+                # this window says everything else that went wrong.
+                if (-not $answer.CanOpen) {
+                    $command.Text = [string] $answer.Message
+                    return
+                }
+
+                $window.Cursor = [System.Windows.Input.Cursors]::AppStarting
+
+                try {
+                    & $rebuildFrom ([string[]] @(@($already) + @($chosenPath)))
+                } finally {
+                    $window.Cursor = $null
+                }
+
+                # A command an administrator can actually run: the
+                # reader behind this row is internal to the window.
+                $command.Text = "Show-HDTConsole -Path '{0}'" -f $chosenPath
+            }.GetNewClosure())
+
+        # CLOSING TAKES IT OUT OF THE WINDOW AND DELETES NOTHING, and
+        # the dialog says so: 'Remove' is what the task sequence and the
+        # operating system items are called, and those do delete.
+        $closeWorkspace.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                $keep = [string[]] @(@(& $openShare) | Where-Object {
+                        -not [string]::Equals([string] $_, $where, [System.StringComparison]::OrdinalIgnoreCase)
+                    })
+
+                & $rebuildFrom $keep
+
+                $command.Text = "# '{0}' was closed. Nothing on it was changed; Open Deployment Share puts it back." -f $where
+            }.GetNewClosure())
+
+        # -- applications ----------------------------------------
+        #
+        # THE PART OF A SHARE THAT CHANGES WEEKLY, and until now the one
+        # part with no window at all. Both of these are one cmdlet call,
+        # like every other press here.
+        $newApplication.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                $made = [string] $consoleHost.ShowImportApplication(
+                    $ImportApplicationXaml, $where, $Theme, $window)
+
+                if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                & $rebuildTree
+
+                $command.Text = "Import-HDTApplication -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $made
+            }.GetNewClosure())
+
+        # DETECTION IS A TYPE AND THE BOXES THAT TYPE TAKES, which is
+        # why it gets a window rather than a box: a rule is four shapes,
+        # and typing YAML into a field means knowing which keys the type
+        # takes and the indentation between them.
+        $applicationDetection.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                    $command.Text = 'that row does not name a share and an application id, so there is nothing to edit.'
+                    return
+                }
+
+                # THE DOCUMENT, NOT THE ROW. The row carries the rule as
+                # a sentence for reading; the window needs the keys.
+                $rule = $null
+
+                try {
+                    $rule = (Get-HDTApplication -WorkspaceRoot $where -Id $which -FileSystem (New-HDTFileSystem)).Detect
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $answer = $consoleHost.ShowApplicationDetection(
+                    $ApplicationDetectionXaml, $where, $which, $rule, $Theme, $window)
+
+                # A CANCELLED DIALOG AND A CLEARED RULE BOTH COME BACK
+                # NULL, so the tree is rebuilt either way rather than
+                # left showing a rule that has just been removed.
+                & $rebuildTree
+
+                $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Detect {2}" -f
+                $where, $which, (& $call 'Get-HDTConsoleDetectionForm' -Detect $answer).CommandText
+            }.GetNewClosure())
+
+        # DEPENDS ON IS PICKED FROM THE SHARE, and that is the whole
+        # point of the window: a dependency is an application id in a
+        # document, and a misspelled one is not caught until a
+        # deployment runs, when Resolve-HDTApplicationOrder refuses the
+        # WHOLE plan rather than that one application.
+        #
+        # THE SHARE IS RE-READ RATHER THAN TAKEN FROM THE ROW. The tree
+        # holds what the share looked like when it was built, and the
+        # list this offers has to be what is on it now - a dialog is
+        # slow enough to open that 400ms does not show.
+        $applicationDependency.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                if ([string]::IsNullOrWhiteSpace($where) -or [string]::IsNullOrWhiteSpace($which)) {
+                    $command.Text = 'that row does not name a share and an application id, so there is nothing to edit.'
+                    return
+                }
+
+                try {
+                    $share = & $call 'Get-HDTConsoleWorkspace' -Path $where
+                    $offer = @(& $call 'Get-HDTConsoleDependencyChoice' -Application ([object[]] @($share.Application)) -Id $which)
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $answer = $consoleHost.ShowApplicationDependency(
+                    $ApplicationDependencyXaml, $where, $which, ([object[]] $offer), $Theme, $window)
+
+                if ($null -eq $answer) { return }
+
+                & $rebuildTree
+
+                $command.Text = "Set-HDTApplication -WorkspaceRoot '{0}' -Id '{1}' -Dependency @({2})" -f
+                $where, $which, ((@($answer) | ForEach-Object { "'{0}'" -f $_ }) -join ', ')
+            }.GetNewClosure())
+
+        # REMOVE ASKS, AND THE DIALOG NAMES WHAT WOULD BREAK. A missing
+        # dependency is worse than a missing package: Resolve-HDTApplicationOrder
+        # refuses the whole plan, so removing this one can stop an
+        # unrelated application installing at all. -WhatIf answers that
+        # without removing anything, which is why it is asked first.
+        $removeApplication.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                # WHAT THIS DIALOG SAYS IS THE LAST THING ANYBODY READS
+                # before the folder goes - app.yaml and the installer
+                # with it, and no undo in this window. Which sequences
+                # install it and which applications DEPEND on it are two
+                # different consequences and get two different
+                # sentences: the first leaves a machine missing
+                # something, the second stops an install altogether,
+                # later, on a deployment nobody connects to this press.
+                # tests/unit/ConsoleApplicationRemoval.Tests.ps1.
+                $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'Application' -Root $where -Id $which
+                if (-not $refusal.CanRemove) {
+                    $command.Text = [string] $refusal.Refusal
+                    return
+                }
+
+                $answer = $null
+
+                try {
+                    $answer = Remove-HDTApplication -WorkspaceRoot $where -Id $which -WhatIf
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'Application' -Root $where -Id $which `
+                    -UsedBy ([string[]] @($answer.UsedBy)) `
+                    -RequiredBy ([string[]] @($answer.RequiredBy))
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    [string] $ask.Question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (Remove-HDTApplication -WorkspaceRoot $where -Id $which -Confirm:$false)
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # -- folders ---------------------------------------------
+        #
+        # WORKBENCH'S FOLDERS, ON A TREE THAT HAS NO DIRECTORIES TO
+        # NEST. What each item offers is Get-HDTConsoleFolderAction's
+        # decision; these three handlers do what every other press in
+        # this window does - read a document, call one cmdlet, save,
+        # rebuild - and each names the cmdlet it ran in the Command box.
+        #
+        # ONE TYPED LINE IS ALL THEY ASK FOR, so the prompt is built
+        # here rather than given markup: a window with a label, a box
+        # and an OK is the whole of it, and a .xaml file for that is a
+        # file to keep in step with three call sites.
+        $askForFolder = {
+            param([string] $Title, [string] $Prompt, [string[]] $Choice, [string] $Initial)
+
+            Add-Type -AssemblyName PresentationFramework
+
+            $ask = New-Object -TypeName System.Windows.Window
+            # THROUGH THE DOOR, because this prompt is reached from
+            # closures. A closure resolves commands in the session state
+            # it was rebound to - the console's - where a PRIVATE
+            # function does not exist, so naming it directly here threw
+            # "'Get-HDTConsoleWindowIcon' is not recognized" out of a
+            # menu click and took the whole window down with it. See
+            # Get-HDTHandlerCall.
+            $ask.Icon = & $call 'Get-HDTConsoleWindowIcon'
+            $ask.Title = $Title
+            $ask.Width = 440
+            $ask.SizeToContent = [System.Windows.SizeToContent]::Height
+            $ask.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
+            $ask.Owner = $window
+            $ask.ResizeMode = [System.Windows.ResizeMode]::NoResize
+
+            $panel = New-Object -TypeName System.Windows.Controls.StackPanel
+            $panel.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 16
+
+            $label = New-Object -TypeName System.Windows.Controls.TextBlock
+            $label.Text = $Prompt
+            $label.TextWrapping = [System.Windows.TextWrapping]::Wrap
+            $label.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 10
+
+            # EDITABLE, AND THE LIST IS A CONVENIENCE. Moving something
+            # into a folder that does not exist yet is how the second
+            # folder gets made, so the box has to accept a name that is
+            # not in the list - and on a share with no folders at all
+            # the list is empty and this is a text box.
+            $entry = New-Object -TypeName System.Windows.Controls.ComboBox
+            $entry.IsEditable = $true
+            $entry.Margin = New-Object -TypeName System.Windows.Thickness -ArgumentList 0, 0, 0, 12
+
+            foreach ($one in @($Choice)) { [void] $entry.Items.Add([string] $one) }
+            $entry.Text = $Initial
+
+            $accept = New-Object -TypeName System.Windows.Controls.Button
+            $accept.Content = 'OK'
+            $accept.IsDefault = $true
+            $accept.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+            $accept.Padding = New-Object -TypeName System.Windows.Thickness -ArgumentList 14, 6, 14, 6
+            $accept.Add_Click({ $ask.DialogResult = $true }.GetNewClosure())
+
+            [void] $panel.Children.Add($label)
+            [void] $panel.Children.Add($entry)
+            [void] $panel.Children.Add($accept)
+
+            $ask.Content = $panel
+            [void] $entry.Focus()
+
+            # CANCELLED IS NOT EMPTY. An empty box means "take it out of
+            # every folder", which is a thing to ask for, so the two
+            # answers cannot come back as the same value.
+            if ($ask.ShowDialog() -ne $true) { return $null }
+
+            return ([string] $entry.Text).Trim()
+        }.GetNewClosure()
+
+        # -- the driver store's two, which are MDT's ------------------
+        #
+        # WIRED HERE BECAUSE $askForFolder HAS TO EXIST FIRST. A closure
+        # captures a variable's VALUE, so a handler hung above it would
+        # capture $null and do nothing on the one press that matters.
+        #
+        # NO WINDOW OF THEIR OWN. New Folder needs one string and the
+        # console already has a prompt for exactly that; Import needs a
+        # folder and the boot image window already browses for one. A
+        # third dialog would be a third thing to keep in step.
+        $newDriverFolderItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                # AND IT SAYS SO RATHER THAN DOING NOTHING, which this
+                # console has a rule about and which this handler broke:
+                # the Drivers category carried no Subject, so both items
+                # appeared and neither did anything, twice, before
+                # somebody reported it as broken.
+                $where = [string] $chosen.Subject
+                if ([string]::IsNullOrWhiteSpace($where)) {
+                    $command.Text = 'that row does not name a share, so there is no driver store to add to.'
+                    return
+                }
+
+                $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                    -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
+                    -DriverPath ([string] $chosen.Name)
+
+                # THE PARENT IS THE ROW IT WAS ASKED ON, which is what
+                # makes one item serve both "at the top of the store" and
+                # "inside this vendor folder".
+                $parent = [string] $menuRow.DriverParent
+
+                $prompt = 'A folder in the driver store. Vendor WinPE packs usually go under WinPE\, model packs under the Make.'
+                if (-not [string]::IsNullOrWhiteSpace($parent)) {
+                    $prompt = 'A folder inside {0}.' -f $parent
+                }
+
+                $typed = & $askForFolder 'New Folder' $prompt @() ''
+
+                if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                $path = $typed
+                if (-not [string]::IsNullOrWhiteSpace($parent)) {
+                    $path = [System.IO.Path]::Combine($parent, $typed)
+                }
+
+                try {
+                    $made = & $call 'New-HDTDriverFolder' @{
+                        Root = $where; Path = $path; Confirm = $false
+                    }
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                & $rebuildTree
+
+                $command.Text = "New-HDTDriverFolder -Root '{0}' -Path '{1}'" -f $where, [string] $made.Path
+            }.GetNewClosure())
+
+        $importDriverItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.Subject
+                if ([string]::IsNullOrWhiteSpace($where)) {
+                    $command.Text = 'that row does not name a share, so there is nowhere to import to.'
+                    return
+                }
+
+                $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                    -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name) `
+                    -DriverPath ([string] $chosen.Name)
+
+                $parent = [string] $menuRow.DriverParent
+
+                # SHELL COM, NOT System.Windows.Forms - a contract test
+                # says so, because System.Windows.Forms is not guaranteed
+                # by WinPE-NetFx and the rule is file-blind on purpose.
+                $shell = New-Object -ComObject Shell.Application
+                $picked = $shell.BrowseForFolder(0, 'Choose the folder the vendor pack was extracted into', 0)
+
+                if ($null -eq $picked) { return }
+
+                $source = [string] $picked.Self.Path
+                if ([string]::IsNullOrWhiteSpace($source)) { return }
+
+                # THE FOLDER IT LANDS IN IS NAMED AFTER THE PACK unless
+                # the row already is one. Importing onto the store root
+                # would tip a vendor's whole tree in beside the others.
+                $path = $parent
+
+                if ([string]::IsNullOrWhiteSpace($path)) {
+                    $path = [string] (Split-Path -Path $source -Leaf)
+                }
+
+                try {
+                    $imported = & $call 'Import-HDTDriver' @{
+                        Root = $where; Path = $path; Source = $source; Confirm = $false
+                    }
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                & $rebuildTree
+
+                $command.Text = "Import-HDTDriver -Root '{0}' -Path '{1}' -Source '{2}'   # {3} driver(s)" -f
+                    $where, [string] $imported.Path, $source, [int] $imported.DriverCount
+            }.GetNewClosure())
+
+        # DELETE ASKS, AND THE DIALOG IS THE ONLY PLACE IT IS ASKED, for
+        # the same reason Remove Task Sequence does: Remove-HDTDriverFolder
+        # carries ConfirmImpact High, which at a console nobody is looking
+        # at is a window that appears to hang. The answer is passed as
+        # -Confirm:$false - one decision, made where it was offered.
+        $removeDriverFolderItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.Subject
+
+                # THE ROW NAMES ITSELF FROM THE SHARE'S ROOT -
+                # 'Drivers\WinPE\Dell' - and Remove-HDTDriverFolder
+                # counts from inside the store.
+                $which = [string] $chosen.Name
+                if ($which -match '^(?i)Drivers\\') { $which = $which.Substring(('Drivers\').Length) }
+
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'DriverFolder' -Root $where -Id $which
+                if (-not $ask.CanRemove) {
+                    $command.Text = [string] $ask.Refusal
+                    return
+                }
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    [string] $ask.Question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (& $call 'Remove-HDTDriverFolder' @{
+                            Root = $where; Path = $which; Confirm = $false
+                        })
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    # THE REFUSAL IS THE ANSWER, and this command's are
+                    # the ones worth reading: the store itself, a path
+                    # that climbs out of it.
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # CLEARING A RUN ASKS TOO, for the reason every other delete on
+        # this menu asks: Remove-HDTMonitorRun carries ConfirmImpact
+        # High, and a prompt raised on a console nobody is looking at is
+        # a window that appears to have hung. The answer is passed as
+        # -Confirm:$false - one decision, made where it was offered.
+        #
+        # THE QUESTION IS NOT THE OTHERS' QUESTION. Nothing on the share
+        # reads a heartbeat, so Get-HDTConsoleRemoval says so rather than
+        # warning about an undo that nobody needs.
+        $removeMonitorRunItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                # THE ROW CARRIES ITS SHARE. Building the root from the
+                # window instead would be wrong the moment two shares are
+                # open, which is the case this console was built for.
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'MonitorRun' -Root $where -Id $which
+                if (-not $ask.CanRemove) {
+                    $command.Text = [string] $ask.Refusal
+                    return
+                }
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    [string] $ask.Question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Question,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (& $call 'Remove-HDTMonitorRun' @{
+                            Root = $where; RunId = $which; Confirm = $false
+                        })
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        $newFolder.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
+                if (-not $action.CanCreate) { return }
+
+                # THE PARENT IS THE ROW IT WAS ASKED FOR ON, which is
+                # what makes one item serve both "at the top" and
+                # "inside this one" - and the prompt is the last place
+                # anybody can tell which of the two is about to happen.
+                # tests/unit/ConsoleFolderCreate.Tests.ps1.
+                #
+                # Asked once for the prompt, and again once a name has
+                # been typed: the folder path is not known until then.
+                $ask = & $call 'Get-HDTConsoleFolderCreate' -Root $where `
+                    -Parent ([string] $action.Parent) -Category ([string] $action.Category)
+
+                $typed = & $askForFolder 'New Folder' ([string] $ask.Prompt) @() ''
+
+                if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                $make = & $call 'Get-HDTConsoleFolderCreate' -Root $where `
+                    -Parent ([string] $action.Parent) -Name $typed `
+                    -Category ([string] $action.Category)
+
+                $path = [string] $make.Folder
+                $documentPath = [string] $make.DocumentPath
+
+                try {
+                    $fileSystem = New-HDTFileSystem
+                    $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                    [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                            -Line @(Add-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
+                                -Folder $path -Confirm:$false))
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                & $rebuildTree
+
+                $command.Text = [string] $make.Command
+            }.GetNewClosure())
+
+        # MOVING IS A ONE-KEY EDIT TO THE DOCUMENT, not a file
+        # operation: the sequence stays at TaskSequences\<id>, because
+        # its id is the path the engine resolves it from and every rule
+        # and boot image that names it would otherwise break.
+        $moveToFolder.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
+                if (-not $action.CanMove) { return }
+
+                # WHICH COMMANDS THIS MOVE TAKES, decided away from the
+                # window - and in particular WHICH SAVER GOES WITH WHICH
+                # SETTER. Each saver validates the lines against its own
+                # document's keys, so the wrong one refuses a document
+                # the setter has already written correctly, and the
+                # failure reads as a broken setter.
+                # tests/unit/ConsoleFolderMove.Tests.ps1 holds that
+                # pairing, and the application exception with it.
+                $move = & $call 'Get-HDTConsoleFolderMove' -Row $chosen `
+                    -Category ([string] $action.Category)
+
+                $typed = & $askForFolder 'Move to Folder' `
+                    'The folder this window draws it under. Type a name that is not in the list to make that folder; leave it empty to take it out of every folder. Nothing moves on disk.' `
+                ([string[]] @($action.Choice)) $move.Current
+
+                if ($null -eq $typed) { return }
+                if ($typed -eq $move.Current) { return }
+
+                try {
+                    # AN APPLICATION WRITES ITSELF: Set-HDTApplication
+                    # takes a share and an id rather than lines, and
+                    # saves - so there is nothing here to read first.
+                    if ($move.Kind -eq 'Application') {
+                        [void] (Set-HDTApplication -WorkspaceRoot ([string] $move.WorkspaceRoot) `
+                                -Id ([string] $move.Id) -Folder $typed -Confirm:$false)
+                    } else {
+                        $fileSystem = New-HDTFileSystem
+                        $line = [string[]] @([string] $fileSystem.ReadAllText($move.DocumentPath) -split "`r?`n")
+
+                        [void] (& $move.Saver -Path ([string] $move.DocumentPath) `
+                                -FileSystem $fileSystem -Confirm:$false `
+                                -Line @(& $move.Setter -Line $line -Folder $typed -Confirm:$false))
+                    }
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                & $rebuildTree
+
+                $command.Text = $move.CommandFormat -f $typed
+            }.GetNewClosure())
+
+        $deleteFolder.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
+
+                # THE REFUSAL IS SAID, NOT SWALLOWED. The item is
+                # disabled, so this only runs if something else opened
+                # it - and a handler that returns quietly is a menu item
+                # somebody presses twice and then reports as broken.
+                if (-not $action.CanDelete) {
+                    $command.Text = [string] $action.DeleteRefusal
+                    return
+                }
+
+                $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
+
+                try {
+                    $fileSystem = New-HDTFileSystem
+                    $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                    [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                            -Line @(Remove-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
+                                -Folder ([string] $action.Parent) -Confirm:$false))
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                & $rebuildTree
+
+                $command.Text = "Remove-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}'" -f
+                [string] $action.Category, [string] $action.Parent
+            }.GetNewClosure())
+
+        # UP AND DOWN ARE ONE HANDLER TWICE, because they differ in one
+        # word. A folder is an entry in an ordered list in
+        # workspace.yaml; this moves it among the entries beside it and
+        # rebuilds the tree, which now draws that order.
+        $moveFolder = {
+            param([string] $Direction)
+
+            $chosen = $tree.SelectedItem
+            if ($null -eq $chosen) { return }
+
+            $action = & $call 'Get-HDTConsoleFolderAction' -Row $chosen
+
+            $allowed = $action.CanMoveUp
+            if ($Direction -eq 'Down') { $allowed = $action.CanMoveDown }
+
+            # SAID, NOT SWALLOWED - the item is disabled at the ends, so
+            # this only runs if something else opened it, and a handler
+            # that returns quietly is a menu item somebody presses twice
+            # and then reports as broken.
+            if (-not $allowed) {
+                $command.Text = ("'{0}' is already {1} in this folder, so there is nowhere to move it." -f
+                    [string] $chosen.Text, $(if ($Direction -eq 'Down') { 'last' } else { 'first' }))
+                return
+            }
+
+            # HeaderRoot, NOT Subject. Group-HDTConsoleFolderRow builds a
+            # folder node without a subject - a folder is not a thing on
+            # the share to act on - so the share it belongs to comes off
+            # the banner it carries, which is where Delete Folder reads
+            # it from too. Reading Subject here returned an empty string
+            # and the handler gave up in silence.
+            $where = [string] $chosen.HeaderRoot
+            if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+            $documentPath = [System.IO.Path]::Combine($where, 'workspace.yaml')
+
+            try {
+                $fileSystem = New-HDTFileSystem
+                $line = [string[]] @([string] $fileSystem.ReadAllText($documentPath) -split "`r?`n")
+
+                [void] (Save-HDTWorkspaceDocument -Path $documentPath -FileSystem $fileSystem -Confirm:$false `
+                        -Line @(Move-HDTWorkspaceFolder -Line $line -Category ([string] $action.Category) `
+                            -Folder ([string] $action.Parent) -Direction $Direction -Confirm:$false))
+            } catch {
+                $command.Text = [string] $_.Exception.Message
+                return
+            }
+
+            & $rebuildTree
+
+            $command.Text = "Move-HDTWorkspaceFolder -Line `$line -Category {0} -Folder '{1}' -Direction {2}" -f
+            [string] $action.Category, [string] $action.Parent, $Direction
+        }.GetNewClosure()
+
+        $folderUp.Add_Click({ & $moveFolder 'Up' }.GetNewClosure())
+        $folderDown.Add_Click({ & $moveFolder 'Down' }.GetNewClosure())
 
         $close.Add_Click({
                 $consoleHost.Answer = 'Close'
