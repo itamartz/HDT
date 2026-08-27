@@ -700,9 +700,23 @@
             # click handler.
             $book.State = $state
 
+            # THE CMDLET THE ACTION JUST ECHOED HAS TO SURVIVE THIS.
+            #
+            # Replacing ItemsSource re-selects a row, and the tree's selection
+            # handler writes the SELECTED STEP's command onto the same line -
+            # so every edit that rebuilds published its cmdlet and had it
+            # overwritten in the same frame. Nobody could read the command off
+            # a rename, an add, a remove or a partition edit, which is the one
+            # thing this line exists for. $book.Quiet silences banking here; it
+            # does not silence that write, and it must not - clicking a row is
+            # how the line gets filled in the first place.
+            $echo = [string] $command.Text
+
             $book.Quiet = $true
             $tree.ItemsSource = $state.Root
             $book.Quiet = $false
+
+            $command.Text = $echo
 
             & $reflect
         }.GetNewClosure()
@@ -1435,7 +1449,69 @@
         # rebuilding the tree would replace the rows under the handler walking
         # them. $partitionAttempt writes nothing when nothing changed, so
         # banking a page nobody touched costs a comparison.
+        # A RENAME BANKS LIKE EVERY OTHER BOX ON THIS WINDOW, and that is the
+        # whole fix.
+        #
+        # It used to commit from LostFocus alone, which RACES the tree's
+        # selection change: clicking another step moves focus first, so the
+        # rename spliced AND rebuilt ItemsSource in the middle of the click that
+        # was still choosing a row. What the selection handler then read was a
+        # row from the tree that no longer existed, so $book.Selected ended up
+        # holding the OLD name - and coming back to the step found nothing under
+        # it, which is why the name box came up disabled and Remove went dark.
+        #
+        # $book.Bank is the controlled moment: it runs BEFORE the pane refills
+        # and asks for no rebuild, exactly as the property, image, command and
+        # condition boxes already do.
+        $nameWrite = {
+                param([bool] $Rebuild = $true)
+
+                if ($book.Quiet) { return }
+
+                $typed = [string] $stepNameBox.Text
+                if ([string]::IsNullOrWhiteSpace($typed)) { return }
+
+                $was = [string] $book.Selected
+                if ($typed -eq $was) { return }
+
+                # THE BOX MAY BE SHOWING A STEP THAT IS NO LONGER SELECTED. Bank
+                # runs from inside the selection change, and a rename is only
+                # this step's if the document still holds the name it started
+                # with.
+                if ([string]::IsNullOrWhiteSpace($was)) { return }
+
+                & $partitionAttempt {
+                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $was `
+                            -Property 'name' -Value $typed -Confirm:$false)
+
+                    $book.Selected = $typed
+                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'name' -Value '{1}'" -f $was, $typed) $Rebuild
+            }.GetNewClosure()
+
+        # THE TREE HAS TO CATCH UP AFTER A BANK, JUST NOT DURING THE CLICK.
+        #
+        # Banking runs from inside the selection change and asks for no rebuild,
+        # because replacing ItemsSource there pulls the rows out from under the
+        # handler that is still choosing one. But a RENAME changes what the rows
+        # SAY - so the tree went on showing the old name, and clicking that row
+        # again selected a step the document no longer had: the name box came up
+        # disabled and Remove went dark.
+        #
+        # Rebuilding at Background priority happens after the click has finished
+        # with the tree, and $rebuild restores the selection BY NAME, so the row
+        # that comes back is the one the person is looking at.
+        #
+        # BUILT HERE, WHERE $rebuild IS A LOCAL. GetNewClosure captures locals
+        # only, and a closure made inside the handler would capture nothing.
+        $deferRebuild = [action] {
+                & $rebuild
+            }.GetNewClosure()
+
         $book.Bank = {
+                # THE NAME FIRST, because every other write addresses the step BY
+                # name - banking a property under the old name and then renaming
+                # would splice two different steps.
+                & $nameWrite $false
                 & $bankProperties
                 & $imageWrite $false
                 & $commandWrite $false
@@ -1574,21 +1650,28 @@
         # RENAMING IS A SPLICE LIKE ANY OTHER, and it has to update what the
         # window then refers to the step by - otherwise the next press acts on a
         # name the document no longer has.
+        #
+        # IT MUST NOT REBUILD THE TREE FROM HERE. Clicking another step moves
+        # focus out of this box BEFORE the tree has finished choosing a row, so
+        # rebuilding synchronously replaced ItemsSource mid-click; the selection
+        # handler then read a row that no longer existed and left $book.Selected
+        # holding the OLD name. Coming back to the step found nothing under that
+        # name, which is why the name box came up DISABLED and Remove went dark.
+        # Committing with no rebuild and queueing $deferRebuild at Background
+        # lets the click finish first, and $rebuild restores the selection by
+        # name - by then the name of whichever step the click landed on.
         $stepNameBox.Add_LostFocus({
-                if ($book.Quiet) { return }
+                $before = [string[]] @($book.Line)
 
-                $typed = [string] $stepNameBox.Text
-                if ([string]::IsNullOrWhiteSpace($typed)) { return }
-                if ($typed -eq [string] $book.Selected) { return }
+                & $nameWrite $false
 
-                $was = [string] $book.Selected
+                if (-not (& $call 'Test-HDTConsoleLineChange' `
+                            -Before ([string[]] $before) -After ([string[]] @($book.Line)))) {
+                    return
+                }
 
-                & $partitionAttempt {
-                    $book.Line = @(Set-HDTStepProperty -Line $book.Line -Name $was `
-                            -Property 'name' -Value $typed -Confirm:$false)
-
-                    $book.Selected = $typed
-                } ("Set-HDTStepProperty -Line `$line -Name '{0}' -Property 'name' -Value '{1}'" -f $was, $typed)
+                [void] $stepNameBox.Dispatcher.BeginInvoke(
+                    [System.Windows.Threading.DispatcherPriority]::Background, $deferRebuild)
             }.GetNewClosure())
 
         $diskNumberBox.Add_LostFocus({
@@ -1643,7 +1726,23 @@
                 # Without this, clicking another step throws away what was typed
                 # into this one - silently, which is worse than the extra button
                 # that used to be here.
+                $beforeBank = [string[]] @($book.Line)
+
                 if ($null -ne $book.Bank -and -not $book.Quiet) { & $book.Bank }
+
+                # AND IF THAT CHANGED THE DOCUMENT, LET THE TREE CATCH UP - after
+                # this click, not inside it. See $deferRebuild.
+
+                if (-not $book.Quiet -and
+                    (& $call 'Test-HDTConsoleLineChange' -Before $beforeBank -After ([string[]] @($book.Line)))) {
+
+                    # PRIORITY FIRST. BeginInvoke(Delegate, params Object[])
+                    # also matches when the priority is passed second, and then
+                    # the priority is an ARGUMENT to an action that takes none -
+                    # which is silently nothing happening at all.
+                    [void] $tree.Dispatcher.BeginInvoke(
+                        [System.Windows.Threading.DispatcherPriority]::Background, $deferRebuild)
+                }
 
                 $detail.ItemsSource = $selected.Field
                 $command.Text = [string] $selected.Command
