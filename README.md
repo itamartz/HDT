@@ -101,6 +101,44 @@ machine cannot reach the share, so a static address can be typed and retried.
 
 ![The WinPE Welcome screen](docs/images/wizard-welcome.png)
 
+**Monitoring** is MDT's node of the same name, without its web service or its
+SQL. The engine writes one small heartbeat per running deployment into
+`Logs\_active\` on the share, and the console tails that directory on a timer:
+a machine appears there within seconds of starting and moves as it works.
+
+Every run carries a **Health**, and the four the engine can report are kept
+apart rather than flattened into "done":
+
+| Health | What it means |
+|---|---|
+| **Live** | running, and it spoke within the stale window |
+| **Rebooting** | waiting to restart, and it will carry on afterwards |
+| **Finished** | the sequence succeeded |
+| **Failed** | it did not, and the row is drawn as an error |
+| **Stalled** | it claims to be working and has said nothing for 20 minutes |
+| **Unreadable** | the heartbeat parsed but carried no timestamp |
+
+A verdict is never aged and a claim always is. Succeeded and Failed are final,
+so they do not decay into Stalled — a completed heartbeat is not a heartbeat
+that stopped, and ageing one into a red row teaches a technician to ignore red.
+Running and Rebooting both *claim* something is still happening, so silence past
+the stale window means the claim is what went wrong: a machine that rebooted and
+never came back is exactly the failure this node exists for.
+
+**Last heartbeat** is a local wall-clock time, not an age — the age is already
+on the tree row, and a time is what gets written into a ticket or lined up
+against a log. Nothing syncs a clock in WinPE, so a machine can be hours ahead
+of the console; the age clamps to zero so it is not branded stale, but the time
+is shown exactly as claimed, because that disagreement is the only thing on
+screen that makes the skew visible.
+
+Nothing ever removed a heartbeat, so a share that had built fifty machines drew
+fifty rows with the live one somewhere among them. **Clear Run** on a row takes
+it off. It is the one deletable thing on a share that breaks nothing — no task
+sequence reads a heartbeat, no boot image names one — so the dialog says the
+deployment itself is unaffected instead of borrowing the "cannot be undone"
+warning the real removals carry.
+
 ## The PowerShell 5.1 constraint
 
 The engine runs inside WinPE, and WinPE ships Windows PowerShell 5.1 only —
@@ -326,32 +364,35 @@ dying mid-write, and it never contains the deployment password.
 
 ## Status
 
-**Phase 01 (M0 — skeleton and harness) is complete.** The module skeleton, the
-`HDTTestTools` and `HDTFakes` helper modules, `build.ps1`, the naming /
-PowerShell 5.1 / no-MDT contract tests, the first service fakes and their
-contracts, the harness self-proof and CI are all in place. `./build.ps1 -Task
-test` is green on a clean clone under both engines.
+A milestone is not done until its exit criteria are met with a green suite.
+`docs/ROADMAP.md` holds each one and how it was proven.
 
-**Phase 02 (M1 — variables and rules) is complete.** Fact gathering behind
-`ICimProvider`, the `rules.yaml` parser and schema, the five-source resolution
-engine with `%Var%` expansion and `setFrom:` script rules, and provenance —
-queryable with `Get-HDTVariableProvenance` and written to `provenance.json`. The
-M1 exit criterion is demonstrated end to end in
-`tests/unit/GatherAndResolve.EndToEnd.Tests.ps1`, over fixtures and fakes only.
+| Milestone | State |
+|---|---|
+| **M0** — skeleton and harness | complete |
+| **M1** — variables and rules | complete |
+| **M2** — task sequence engine | met |
+| **M3** — imaging | met |
+| **M4** — boot image, ISO and PXE | met, as scoped in the roadmap |
+| **M5** — drivers | group match and the catalog shipped; the **PnP fallback** for an unrecognised model is deferred to v2 |
+| **M6** — applications and full-OS steps | the step types ship — `InstallApplications`, `InstallRoles`, `InstallCertificate`, `EnableBitLocker`, `PowerShell`, `Tattoo` — and the roadmap records no exit for it yet |
+| **M7** — capture and standalone media | **deferred to v2**, at the author's direction. Scheduled out, not cut |
+| **M8** — console (WPF) | met |
 
-**Phase 03 (M2 — task sequence engine) is complete.** `sequence.yaml` with its
-schema, groups, nesting and the closed condition grammar; the step contract and
-its discovery convention; the execution loop with `runIn`, conditions,
-`continueOnError`, retry with backoff and timeout detection; the state document
-with a checkpoint either side of every step; the autologon lifecycle with a
-per-deployment password in an LSA secret, `AutoLogonCount`, a boot-time reconcile
-and teardown from `finally`; structured JSONL + CMTrace logging; and
-`ConvertTo-HDTReport`. The M2 exit criterion is demonstrated twice: by
-`tests/unit/TaskSequence.EndToEnd.Tests.ps1`, which runs the `DEMO-M2` sample
-across three legs and two reboots against fakes and asserts the exact ordered
-list of operations it would have performed on a machine, and by a live run of the
-same sequence against the real filesystem, clock and process service whose report
-was opened in a browser.
+**M8's four legs were walked in the real window, not read out of the source.**
+Author a task sequence, edit it, build the boot image and ISO from the console,
+and watch the run land in Monitoring — with the equivalent cmdlet readable off
+every action. The fourth leg finished on real hardware on 2026-08-27: a
+Generation 2 VM booted the ISO the console had just built, reached the share,
+ran the sequence zero-touch, restarted into the full OS, resumed under
+autologon, and was watched from the Monitoring node the whole way.
+
+That last leg is also where three defects in this node were found, none of which
+any test had caught: a failed deployment drawn as a green "Finished", a
+last-heartbeat that repeated the age already on the row, and a final heartbeat
+that reported step 0 of 12 because the step context had been cleared before the
+verdict was written. The console is checked by looking at it for exactly this
+reason.
 
 ## Test-driven, without exception
 
