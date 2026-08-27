@@ -178,6 +178,34 @@
         # would read as an editor that closed itself.
         $consoleHost.Window = $window
 
+        # PARSED .inf FILES, FOR AS LONG AS THIS WINDOW IS OPEN. Selecting a
+        # driver folder re-read and re-parsed every .inf under it: 2.5 seconds
+        # for the 211 on the real share, every single click, on this thread.
+        #
+        # IT IS NOT AN INDEX AND IT CANNOT GO STALE AGAINST THE SHARE, which is
+        # the distinction DESIGN 7 draws when it rejects a driver-index.json.
+        # This lives in the window, dies with it, and every entry is keyed on the
+        # file's own last-write time - so a re-imported pack re-reads exactly the
+        # files that changed and nothing else.
+        # SYNCHRONIZED, because it crosses a thread boundary. The grid is read
+        # in the window's own runspace (see $gridReader below) and both threads
+        # touch this table; a plain hashtable corrupts under that in a way that
+        # surfaces much later as a wrong driver list.
+        $driverCache = [hashtable]::Synchronized(@{})
+
+        # THE GRID IS READ OFF THE DISPATCHER. Selecting a folder used to call
+        # Get-HDTConsoleDriverRow from the selection handler and freeze the
+        # window for the length of the read - 2.5 seconds cold, on every FIRST
+        # look at a folder. An administrator clicking two folders waits twice,
+        # and a window that ignores the mouse gets reported as hung.
+        #
+        # THE RUNSPACE IS OPENED ONCE, HERE. The comment on the tree fill below
+        # is right that a second runspace costs a module import before it can
+        # read anything - so that cost is paid at window open, once, rather than
+        # per click. The tree fills once and the dispatcher suits it; the grid
+        # reloads on every selection and it does not.
+        $gridReader = & $call 'New-HDTConsoleGridReader' -ModulePath $script:HDTModuleRoot
+
         $share = $window.FindName('HDTShareText')
         $deployRoot = $window.FindName('HDTDeployRootText')
         $root = $window.FindName('HDTRootText')
@@ -188,6 +216,69 @@
 
         $command = $window.FindName('HDTCommandText')
         $close = $window.FindName('HDTCloseButton')
+
+        # =====================================================================
+        # THE GRID'S READER, WIRED HERE AND NOT EARLIER
+        # =====================================================================
+        #
+        # GetNewClosure() COPIES WHAT IS IN SCOPE AT THE MOMENT IT RUNS. This
+        # block sat above the FindName calls, so the tick closure captured
+        # $driverGrid and $command as nothing - and under Set-StrictMode the
+        # first tick threw INSIDE A DISPATCHER TIMER, which is unhandled and
+        # takes the whole console down. Clicking a driver folder crashed the
+        # window.
+        #
+        # The comment inside the tick already said an exception here takes the
+        # console down. It was right, and the capture order made it happen
+        # anyway: a rule written down is not a rule enforced.
+        $gridTimer = New-Object -TypeName System.Windows.Threading.DispatcherTimer
+        $gridTimer.Interval = [timespan]::FromMilliseconds(60)
+
+        # THE ONLY THING ON THE DISPATCHER IS DRAWING THE ANSWER. The timer asks
+        # "is it done", and when it is, hands the rows over and stops.
+        # Everything expensive happened on the reader's thread.
+        $gridTimer.Add_Tick({
+                # WRAPPED WHOLE, because this is a dispatcher timer and nothing
+                # it throws has anywhere to go but the top of the application.
+                # A grid that fails to fill is a grid; a tick that throws is a
+                # closed console.
+                try {
+                    if (-not $gridReader.IsDone()) { return }
+
+                    $gridTimer.Stop()
+                    $window.Cursor = $null
+
+                    $row = @($gridReader.End())
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $gridReader.Failure)) {
+                        $command.Text = '# {0}' -f [string] $gridReader.Failure
+                    }
+
+                    $driverGrid.ItemsSource = [object[]] $row
+                } catch {
+                    $gridTimer.Stop()
+                    $window.Cursor = $null
+                    $window.Tag = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        # THE READ, STARTED AND LEFT TO RUN. The wait cursor is what the tree
+        # fill already uses to say the window is busy rather than broken - and
+        # unlike the tree, this one keeps taking the mouse while it works.
+        $startGridRead = {
+            param([string] $Root, [string] $Path)
+
+            try {
+                $window.Cursor = [System.Windows.Input.Cursors]::AppStarting
+
+                [void] $gridReader.Begin($Root, $Path, $driverCache)
+
+                $gridTimer.Start()
+            } catch {
+                $window.Cursor = $null
+                $command.Text = '# {0}' -f [string] $_.Exception.Message
+            }
+        }.GetNewClosure()
 
         # A DOUBLE-CLICK ON A DRIVER OPENS ITS PROPERTIES, which is where the
         # enabled tick box lives - the grid is read-only on purpose, because a
@@ -210,9 +301,38 @@
                     return
                 }
 
+                # THE IDS ARE FETCHED HERE, FOR THIS ONE DRIVER. The grid is
+                # filled without them - they are 43% of the parse and it shows
+                # none of them - so the properties window, which is the only
+                # thing that displays them, reads the file it is about to
+                # describe. One .inf instead of two hundred and eleven.
+                #
+                # A FAILURE HERE IS NOT FATAL: the window still opens, with an
+                # empty PnP list, rather than refusing to show the driver's
+                # class and version because its ids could not be re-read.
+                $full = $chosen
+
+                try {
+                    # -Path IS A FOLDER, and the row's Path names the .inf
+                    # itself. Its Folder is the one to ask for, and the file is
+                    # matched back by FullPath - a folder holds many drivers and
+                    # taking the first would describe the wrong one.
+                    $withIds = @(& $call 'Get-HDTDriver' @{
+                            Root = $shareRoot; Path = [string] $chosen.Folder
+                        })
+
+                    $mine = @($withIds | Where-Object {
+                            [string] $_.FullPath -eq [string] $chosen.FullPath
+                        })
+
+                    if (@($mine).Count -gt 0) { $full = @($mine)[0] }
+                } catch {
+                    Write-Verbose ("the hardware ids could not be re-read: {0}" -f [string] $_.Exception.Message)
+                }
+
                 try {
                     [void] (& $call 'Show-HDTDriverWindow' @{
-                            Root = $shareRoot; Driver = $chosen; ConsoleHost = $consoleHost
+                            Root = $shareRoot; Driver = $full; ConsoleHost = $consoleHost
                             OwnerWidth = [int] $window.Width; OwnerHeight = [int] $window.Height
                         })
                 } catch {
@@ -222,9 +342,7 @@
 
                 # THE STATE MAY HAVE CHANGED WHILE IT WAS OPEN, and the grid is
                 # what shows it - so it is stale until the folder is read again.
-                $driverGrid.ItemsSource = [object[]] @(& $call 'Get-HDTConsoleDriverRow' @{
-                        Root = $shareRoot; Path = [string] $selected.Name
-                    })
+                & $startGridRead $shareRoot ([string] $selected.Name)
             }.GetNewClosure())
 
 
@@ -313,8 +431,13 @@
                 $pane = & $call 'Get-HDTConsoleDetailPane' -Kind ([string] $selected.Kind)
 
                 if ($pane.ShowGrid) {
-                    $driverGrid.ItemsSource = [object[]] @(& $call 'Get-HDTConsoleDriverRow' `
-                            -Root ([string] $selected.Subject) -Path ([string] $selected.Name))
+                    # THE GRID IS SHOWN EMPTY AND FILLED WHEN THE READ LANDS,
+                    # rather than the window stopping for two seconds and then
+                    # showing a full one. The rows of the folder somebody just
+                    # left must not sit under the name of the one they picked.
+                    $driverGrid.ItemsSource = [object[]] @()
+
+                    & $startGridRead ([string] $selected.Subject) ([string] $selected.Name)
 
                     $driverGrid.Visibility = [System.Windows.Visibility]::Visible
                     $detailScroll.Visibility = [System.Windows.Visibility]::Collapsed
@@ -502,7 +625,16 @@
             }.GetNewClosure())
 
         # A timer left running holds a reference to a window that has gone.
-        $window.Add_Closed({ $refresh.Stop() }.GetNewClosure())
+        # A RUNSPACE NOBODY CLOSED IS A THREAD THAT OUTLIVES ITS WINDOW, and a
+        # console opened and closed a dozen times in a session would leak one
+        # each time. Close is guarded internally, because this runs while the
+        # window is coming down and sometimes because something already went
+        # wrong.
+        $window.Add_Closed({
+                $refresh.Stop()
+                $gridTimer.Stop()
+                $gridReader.Close()
+            }.GetNewClosure())
 
         # MDT'S New Task Sequence. It creates into the share the tree is showing
         # - the selected row carries its own root, and two shares in one window

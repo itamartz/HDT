@@ -89,10 +89,19 @@ InModuleScope -ModuleName Hephaestus {
 
             if ($null -eq $FileSystem) { $FileSystem = New-HDTTestDriverFileSystem }
 
-            # THE ROW THE GRID HANDS OVER, not a hand-written shape: the window
-            # opens on what a double-click carries, so the test opens on the
-            # same thing.
-            $row = @(Get-HDTConsoleDriverRow -Root $script:root -Path 'Drivers\WinPE\Dell' -FileSystem $FileSystem)
+            # THE ROW A DOUBLE-CLICK HANDS OVER, not a hand-written shape - and
+            # since the grid stopped carrying hardware ids, that is no longer the
+            # grid's row.
+            #
+            # The grid is filled without ids: they were 43% of the parse and it
+            # shows none of them. So New-HDTConsoleView's handler re-reads the
+            # single .inf it is about to describe and passes THAT, because this
+            # window's whole point is the PnP list. Building the row from
+            # Get-HDTConsoleDriverRow here would test the window against a shape
+            # production never gives it, and the ids would be empty for a reason
+            # that is not a defect.
+            $row = @(Get-HDTDriver -Root $script:root -Path 'WinPE\Dell' -FileSystem $FileSystem |
+                    Where-Object { [string] $_.InfName -eq 'e1d68x64.inf' })
 
             return New-HDTConsoleDriverView -ConsoleHost $ConsoleHost -Xaml $script:driverXaml `
                 -Root $script:root -Driver $row[0] -FileSystem $FileSystem `
@@ -150,7 +159,12 @@ InModuleScope -ModuleName Hephaestus {
                 [string] $script:window.FindName('HDTDriverClassText').Text | Should -BeExactly 'Net'
                 [string] $script:window.FindName('HDTDriverVendorText').Text | Should -BeExactly 'Intel'
                 [string] $script:window.FindName('HDTDriverVersionText').Text | Should -BeExactly '12.19.2.60'
-                [string] $script:window.FindName('HDTDriverDateText').Text | Should -BeExactly '01/18/2024'
+                # ISO, and the SAME rendering the grid uses. This window opens
+                # from a double-click on a grid row, so the two are read within
+                # a second of each other - and while each formatted its own
+                # date, one driver showed as 2024-01-18 in the grid and
+                # 01/18/2024 here.
+                [string] $script:window.FindName('HDTDriverDateText').Text | Should -BeExactly '2024-01-18'
             }
 
             # THE PnP IDS ARE THE POINT OF THE WINDOW. A grid that binds to a

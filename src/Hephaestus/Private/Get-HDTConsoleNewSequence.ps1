@@ -68,8 +68,22 @@ function Get-HDTConsoleNewSequence {
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
+    # -FileSystem IS FORWARDED, and it was not. Get-HDTSequenceTemplate defaults
+    # to the real adapter, so this command - which takes an injected file system
+    # and forwards it to Get-HDTConsoleWorkspace five lines below - reached the
+    # REAL disk for the template list while every other read went to the fake.
+    #
+    # UNDER A TEST THAT MEANS THE ANSWER CAME FROM THE DEVELOPER'S OWN MACHINE
+    # rather than from the seeded workspace, which is the kind of pass that
+    # holds until it runs somewhere else. The same shape put a real
+    # C:\ws\Logs\Console.log on disk from Show-HDTConsole on 2026-08-28; this is
+    # the other instance of it.
+    #
+    # THE CATCH STAYS, and it is why nobody noticed: a template folder that
+    # cannot be read is an empty list and a dialog with no templates in it, not
+    # an error. That is right for a dialog and it is also very quiet.
     $template = @()
-    try { $template = @(Get-HDTSequenceTemplate -Path $TemplatePath) } catch { $template = @() }
+    try { $template = @(Get-HDTSequenceTemplate -Path $TemplatePath -FileSystem $FileSystem) } catch { $template = @() }
 
     $image = New-Object -TypeName System.Collections.ArrayList
 

@@ -90,7 +90,23 @@ function Get-HDTConsoleMonitorReport {
         [string] $RunId,
 
         [Parameter(Mandatory = $true, Position = 2)]
-        [ValidateSet('Live', 'Stalled', 'Finished', 'Unreadable')]
+        # ALL SIX, AND IT USED TO BE FOUR. New-HDTConsoleMonitorRow answers
+        # Live, Finished, Failed, Rebooting, Stalled or Unreadable; this
+        # accepted only four of them, so opening the report on a run that had
+        # FAILED - or one part-way through a reboot - threw a parameter
+        # validation error out of a click handler and closed the console.
+        #
+        # Failed and Rebooting arrived with a866d60, which fixed a failed
+        # deployment being drawn as a green finished one. The producing side
+        # grew two values and this consuming side did not, and nothing checked
+        # the two against each other: a ValidateSet is a contract with whoever
+        # calls it, and half a contract is worse than none because it fails at
+        # the call rather than at the build.
+        #
+        # THE CONSOLE LOG IS WHAT FOUND IT, on the day the log was added -
+        # 'Get-HDTConsoleMonitorReport threw: ... does not belong to the set'.
+        # Before that, this was a window that vanished.
+        [ValidateSet('Live', 'Stalled', 'Finished', 'Unreadable', 'Failed', 'Rebooting')]
         [string] $Health,
 
         [Parameter()]

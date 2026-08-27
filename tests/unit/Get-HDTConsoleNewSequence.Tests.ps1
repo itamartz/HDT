@@ -20,7 +20,27 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
-    $script:fileSystem = New-HDTFakeFileSystem -File @{
+    # THE SHIPPED TEMPLATES, SEEDED INTO THE FAKE, and this used to be missing.
+    #
+    # Get-HDTConsoleNewSequence takes an injected file system and forwarded it
+    # everywhere EXCEPT to Get-HDTSequenceTemplate, which therefore defaulted to
+    # the real adapter and read src\Hephaestus\Templates off the developer's own
+    # disk. These tests passed because of that: the fake held no templates and
+    # the assertion was satisfied by a directory nobody had seeded. Fixing the
+    # forwarding on 2026-08-28 turned them red, correctly.
+    #
+    # THE CONTENT IS THE REAL FILE, read here and handed to the fake, so the
+    # fixture is what the toolkit actually ships rather than a plausible
+    # invention - and the command under test still touches nothing but the fake.
+    $script:templateRoot = Join-Path -Path $script:HDTModuleRoot -ChildPath 'Templates'
+
+    $script:templateFile = @{}
+
+    foreach ($one in @(Get-ChildItem -LiteralPath $script:templateRoot -Filter '*.yaml' -File)) {
+        $script:templateFile[$one.FullName] = [System.IO.File]::ReadAllText($one.FullName)
+    }
+
+    $script:fileSystem = New-HDTFakeFileSystem -File ($script:templateFile + @{
         'C:\ws\workspace.yaml' = "schemaVersion: 1`nid: LAB`nname: lab`ndeployRoot: \\host\share"
         'C:\ws\TaskSequences\TAKEN\sequence.yaml' = "schemaVersion: 1`nid: TAKEN`nname: already here`nsteps: []"
         'C:\ws\OperatingSystems\Win11-LTSC-2024\os.yaml' = @'
@@ -34,7 +54,7 @@ images:
   - index: 1
     name: Windows 11 Enterprise LTSC
 '@
-    }
+        })
 }
 
 Describe 'Get-HDTConsoleNewSequence' {
@@ -207,7 +227,12 @@ Describe 'Get-HDTConsoleNewSequence' {
     Context 'a share with no catalog' {
 
         It 'still offers the templates, because a sequence can be created before an image is imported' {
-            $view = Get-HDTConsoleNewSequence -Workspace 'C:\nowhere' -FileSystem (New-HDTFakeFileSystem)
+            # THE TEMPLATES BUT NO SHARE. They ship with the module, not with the
+            # workspace, so a folder nobody has imported an image into still
+            # offers all of them - which is the point of this test and the reason
+            # the fake carries the templates and nothing else.
+            $view = Get-HDTConsoleNewSequence -Workspace 'C:\nowhere' `
+                -FileSystem (New-HDTFakeFileSystem -File $script:templateFile)
 
             @($view.Template).Count | Should -BeGreaterThan 0
             @($view.Image).Count | Should -Be 0
