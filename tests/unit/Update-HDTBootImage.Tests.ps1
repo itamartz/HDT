@@ -881,13 +881,21 @@ Describe 'Update-HDTBootImage' {
             $record.Exception.Message | Should -BeLike '*escape*'
         }
 
-        It 'adds the boot-critical driver group when it exists' {
+        # ONE CALL PER DRIVER, NOT PER FOLDER, and the change is deliberate.
+        # Add-WindowsDriver on a folder with -Recurse is a single call DISM works
+        # through for about a minute saying nothing, so the build's step 10
+        # parked on its own name for the whole of it. The calls have to BE the
+        # drivers for anything to count them. It costs a call per .inf.
+        It 'adds each driver in the boot-critical group, one call apiece' {
             $call = @($script:contentContext.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
 
             $call.Count | Should -Be 1
             [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
-            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\boot-critical')
-            [bool] $call[0].Arguments[2] | Should -BeTrue
+            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\boot-critical\oem0.inf')
+
+            # NOT RECURSED: a single .inf is a file, and -Recurse on one would be
+            # asking DISM to walk a folder that is not there.
+            [bool] $call[0].Arguments[2] | Should -BeFalse
         }
 
         # THE WHOLE REASON SELECTION PROFILES EXIST, proven at the level that
@@ -913,9 +921,13 @@ Describe 'Update-HDTBootImage' {
 
             $call = @($context.Boot.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
 
+            # THE PROPERTY IS THE SAME ONE, SAID PER DRIVER. Both vendors' packs
+            # reach one image and the profile's declared order still decides
+            # which goes first - Dell's driver before HP's, because Dell's folder
+            # is listed first. Only the grain changed.
             $call.Count | Should -Be 2
-            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64')
-            [string] $call[1].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\HP WinPE 11 x64')
+            [string] $call[0].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\Dell WinPE 11 x64\e1d68x64.inf')
+            [string] $call[1].Arguments[1] | Should -BeExactly ($script:workspaceRoot + '\Drivers\WinPE\HP WinPE 11 x64\stornvme.inf')
         }
 
         # THE DANGEROUS CASE. The image builds, one vendor's drivers are simply

@@ -861,8 +861,31 @@
                 [string] $_.Exception.Message)
         }
 
-        foreach ($current in @(Get-HDTBootImageDriverInjection -Folder ([string[]] @($resolved.Path)) `
-                    -Driver ([object[]] $catalog) -Root $WorkspaceRoot)) {
+        # ONE CALL PER DRIVER, BECAUSE A FOLDER CALL CANNOT BE WATCHED.
+        # Add-WindowsDriver with -Recurse is a single call DISM works through
+        # for about a minute with no callback, so this step parked on its own
+        # name and said nothing until it was over - on the one part of the build
+        # where somebody is waiting to see their vendor pack go in. -PerDriver
+        # makes the calls the drivers, and the report below counts them.
+        $injection = @(Get-HDTBootImageDriverInjection -Folder ([string[]] @($resolved.Path)) `
+                -Driver ([object[]] $catalog) -Root $WorkspaceRoot -PerDriver)
+
+        $injectionCount = @($injection).Count
+        $injectionAt = 0
+
+        foreach ($current in @($injection)) {
+            $injectionAt++
+
+            # THE NAME IS EMPTY FOR A FOLDER CALL, which is what an unreadable
+            # catalog falls back to - so the detail says the group, exactly as
+            # it did before, rather than "1 of 1 - ".
+            $detail = [string] $driverGroup
+
+            if (-not [string]::IsNullOrEmpty([string] $current.Name)) {
+                $detail = '{0} of {1} - {2}' -f $injectionAt, $injectionCount, [string] $current.Name
+            }
+
+            $Progress.Report(10, $stepTotal, 'Injecting the boot drivers', $detail)
 
             $driver += @($BootImageService.AddDriver($mountPath, [string] $current.Path, [bool] $current.Recurse))
         }

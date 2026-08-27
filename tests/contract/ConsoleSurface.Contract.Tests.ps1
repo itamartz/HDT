@@ -359,6 +359,122 @@ Describe 'Console surface contract' {
         $offence.Count | Should -Be 0 -Because $because
     }
 
+    # GetNewClosure() CAPTURES THE LOCAL SCOPE, AND A HANDLER'S SCOPE IS NOT IT.
+    #
+    # Inside a handler - itself a closure - the window's own variables are
+    # INHERITED, not local. So a second GetNewClosure() written in there captures
+    # none of them: the block it makes sees $null where $book was, and the moment
+    # something invokes it, StrictMode makes that terminating inside WPF, where
+    # it does nothing and says nothing.
+    #
+    # IT COST A DAY, TWICE OVER. The selection profile tick box put up "The
+    # property 'Filling' cannot be found on this object" and - far worse - left
+    # its re-entrancy guard UP, so the box worked exactly once per window. The
+    # cure is always the same: build the block where the variables ARE local,
+    # beside them, and let the handler capture the finished block.
+    It 'never calls GetNewClosure inside a handler, where there are no locals to capture' {
+        $auto = @('_', 'this', 'null', 'true', 'false', 'args', 'PSItem', 'error', 'PSCmdlet',
+            'PSBoundParameters', 'MyInvocation', 'PSScriptRoot', 'PSCommandPath',
+            'ErrorActionPreference', 'matches', 'LASTEXITCODE', 'input')
+
+        $view = @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src\Hephaestus\Private') `
+                -Filter 'New-HDTConsole*View.ps1')
+
+        $view += @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src\Hephaestus\Public') `
+                -Filter 'New-HDTConsoleHost.ps1')
+
+        $view.Count | Should -BeGreaterThan 0 -Because 'a scan of nothing must not read as success'
+
+        $offence = @()
+
+        foreach ($file in $view) {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $null, [ref] $null)
+
+            # DEPTH ALONE IS NOT THE TEST, and saying so cost a red run over 58
+            # innocent lines. A GetNewClosure inside a ScriptMethod body is
+            # ordinary and correct: the window's controls are assigned IN that
+            # body, so they are local to it and the closure captures them.
+            #
+            # WHAT IS WRONG IS CAPTURING WHAT IS NOT THERE. The block being
+            # closured has to name only variables the ENCLOSING block owns -
+            # assigned in it, or one of its parameters. A name that merely
+            # arrives from further out is inherited, and GetNewClosure does not
+            # take inherited variables: it takes locals. That block then holds
+            # $null and dies at the first property.
+            foreach ($call in $ast.FindAll({
+                        param($n)
+                        $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                        [string] $n.Member.Value -eq 'GetNewClosure'
+                    }, $true)) {
+
+                $inner = $call.Expression -as [System.Management.Automation.Language.ScriptBlockExpressionAst]
+                if ($null -eq $inner) { continue }
+
+                # THE BLOCK THIS ONE IS WRITTEN INSIDE. None means the function
+                # body, where every local is genuinely local.
+                $outer = $call.Parent
+                while ($null -ne $outer -and $outer -isnot [System.Management.Automation.Language.ScriptBlockExpressionAst]) {
+                    $outer = $outer.Parent
+                }
+
+                if ($null -eq $outer) { continue }
+
+                $owned = @{}
+
+                foreach ($a in $outer.FindAll({ param($n) $n -is [System.Management.Automation.Language.AssignmentStatementAst] }, $true)) {
+                    $v = $a.Left -as [System.Management.Automation.Language.VariableExpressionAst]
+                    if ($v) { $owned[$v.VariablePath.UserPath] = $true }
+                }
+
+                if ($null -ne $outer.ScriptBlock.ParamBlock) {
+                    foreach ($p in @($outer.ScriptBlock.ParamBlock.Parameters)) {
+                        $owned[$p.Name.VariablePath.UserPath] = $true
+                    }
+                }
+
+                # A foreach ITERATOR IS A LOCAL TOO, and it is not an assignment
+                # - so without this every closure built inside a loop reads as
+                # borrowing the thing it is looping over, which is seven honest
+                # handlers in this console alone.
+                foreach ($loop in $outer.FindAll({ param($n) $n -is [System.Management.Automation.Language.ForEachStatementAst] }, $true)) {
+                    $owned[$loop.Variable.VariablePath.UserPath] = $true
+                }
+
+                # AND THE BLOCK'S OWN PARAMETERS ARE ITS OWN. A closure written as
+                # { param($text) ... } is handed $text when it runs; it is not
+                # borrowing anything from the scope that made it.
+                if ($null -ne $inner.ScriptBlock.ParamBlock) {
+                    foreach ($p in @($inner.ScriptBlock.ParamBlock.Parameters)) {
+                        $owned[$p.Name.VariablePath.UserPath] = $true
+                    }
+                }
+
+                $borrowed = @{}
+
+                foreach ($v in $inner.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] }, $true)) {
+                    $name = $v.VariablePath.UserPath
+
+                    if ($auto -contains $name) { continue }
+                    if ($owned.ContainsKey($name)) { continue }
+
+                    $borrowed[$name] = $true
+                }
+
+                if ($borrowed.Count -eq 0) { continue }
+
+                $offence += '{0}:{1} borrows {2}' -f $file.Name, $call.Extent.StartLineNumber,
+                ((@($borrowed.Keys) | Sort-Object) -join ', ')
+            }
+        }
+
+        $because = 'build the block where its variables are local and let the handler capture the finished block - a GetNewClosure inside a handler captures nothing and fails silently under WPF'
+        if ($offence.Count -gt 0) {
+            $because = "{0}. Nested: {1}" -f $because, (@($offence) -join ', ')
+        }
+
+        $offence.Count | Should -Be 0 -Because $because
+    }
+
     # DESIGN 12: "every action it performs maps to a cmdlet invocation, and the
     # console shows that invocation - so an admin can learn the automation
     # surface by clicking around, and script anything they can do in the UI."

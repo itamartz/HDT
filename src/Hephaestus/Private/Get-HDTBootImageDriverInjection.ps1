@@ -71,7 +71,21 @@
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNullOrEmpty()]
-        [string] $Root
+        [string] $Root,
+
+        # ONE CALL PER DRIVER, SO SOMETHING CAN COUNT THEM.
+        #
+        # A folder injected with -Recurse is ONE Add-WindowsDriver that DISM
+        # works through for a minute with no callback of any kind, so the build's
+        # step 10 parked on "Injecting the boot drivers" and said nothing else
+        # for the whole of it. There is nothing to report against unless the
+        # calls are the drivers.
+        #
+        # IT IS A SWITCH BECAUSE THE COST IS REAL: a vendor pack of seventy
+        # drivers becomes seventy calls instead of one. The build asks for it
+        # deliberately; every other caller keeps the cheap shape.
+        [Parameter()]
+        [switch] $PerDriver
     )
 
     Set-StrictMode -Version Latest
@@ -101,14 +115,31 @@
 
         $off = @($inside | Where-Object { -not [bool] $_.Enabled })
 
+        # A CATALOG THAT ANSWERED NOTHING FOR THIS FOLDER CANNOT BE SPLIT BY, and
+        # that is not the same as a folder with no drivers in it: Get-HDTDriver
+        # failing, or a folder whose .inf files this build cannot read, would
+        # otherwise turn -PerDriver into a boot image with NOTHING injected.
+        # The folder goes in whole - one call, no progress, and a build that
+        # works.
+        $splittable = ($PerDriver -and @($inside).Count -gt 0)
+
         # NOTHING DISABLED: ONE CALL, the whole folder, exactly as before.
-        if (@($off).Count -eq 0) {
-            [void] $call.Add([pscustomobject] @{ Path = $full; Recurse = $true })
+        if (@($off).Count -eq 0 -and -not $splittable) {
+            [void] $call.Add([pscustomobject] @{ Path = $full; Recurse = $true; Name = '' })
             continue
         }
 
         foreach ($one in @($inside | Where-Object { [bool] $_.Enabled })) {
-            [void] $call.Add([pscustomobject] @{ Path = [string] $one.FullPath; Recurse = $false })
+            [void] $call.Add([pscustomobject] @{
+                    Path    = [string] $one.FullPath
+                    Recurse = $false
+
+                    # WHAT THE WINDOW PUTS BESIDE THE COUNT. A full path is the
+                    # width of the strip and tells a technician nothing they
+                    # cannot see from the folder they picked; the .inf name is
+                    # what a driver is called.
+                    Name    = [string] $one.InfName
+                })
         }
     }
 

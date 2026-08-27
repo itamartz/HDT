@@ -922,7 +922,15 @@
         # invocation - which is exactly why the two tabs cannot end up sharing a
         # control or a path.
         $wireRuleTab = {
-            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap)
+            # $Command IS A PARAMETER AND NOT A REACH UPWARDS, and that is the
+            # whole difference between a footer that updates and a message box.
+            # This block is invoked with & and is NOT a closure, so $commandText
+            # up in the function body is READABLE here through the scope chain
+            # but is not a LOCAL - and GetNewClosure captures locals only. The
+            # Save handler below therefore captured $null, saved the document
+            # and then threw "The property 'Text' cannot be found on this
+            # object" on the way out.
+            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap, $Command)
 
             # ITS OWN DOOR, BECAUSE GetNewClosure CAPTURES THE LOCAL SCOPE ONLY.
             # The $call declared in ShowBootImage is a parent scope from in here:
@@ -988,18 +996,18 @@
                     & $fill
                     & $judge
 
-                    $commandText.Text = [string] $judged.SaveCommand
+                    $Command.Text = [string] $judged.SaveCommand
                 }.GetNewClosure())
 
             return [pscustomobject] @{ Fill = $fill; Judge = $judge }
         }
 
         $rulesTab = & $wireRuleTab $rulesBox $rulesSummaryText $rulesProblemText `
-            $rulesSaveButton $rulesReloadButton $rulesPath $false
+            $rulesSaveButton $rulesReloadButton $rulesPath $false $commandText
 
         $bootstrapRulesTab = & $wireRuleTab $bootstrapRulesBox $bootstrapRulesSummaryText `
             $bootstrapRulesProblemText $bootstrapRulesSaveButton $bootstrapRulesReloadButton `
-            $bootstrapRulesPath $true
+            $bootstrapRulesPath $true $commandText
 
         # FILLED NOW, not with the boxes three hundred lines above: these
         # scriptblocks are made here, and one called before it is assigned is

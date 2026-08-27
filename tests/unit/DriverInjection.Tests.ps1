@@ -41,6 +41,16 @@ BeforeAll {
                 Get-HDTBootImageDriverInjection -Folder $F -Driver $D -Root $R
             } $Folder $Driver $script:root)
     }
+
+    $script:decidePerDriver = {
+        param([string[]] $Folder, [object[]] $Driver)
+
+        $module = Get-Module -Name Hephaestus
+        return @(& $module {
+                param($F, $D, $R)
+                Get-HDTBootImageDriverInjection -Folder $F -Driver $D -Root $R -PerDriver
+            } $Folder $Driver $script:root)
+    }
 }
 
 Describe 'Get-HDTBootImageDriverInjection' {
@@ -149,5 +159,59 @@ Describe 'Get-HDTBootImageDriverInjection' {
         )
 
         @($call) | Should -BeNullOrEmpty
+    }
+
+    # ONE CALL PER DRIVER, SO THE BUILD CAN COUNT THEM.
+    #
+    # A folder injected with -Recurse is a SINGLE Add-WindowsDriver that DISM
+    # works through for a minute with no callback, so step 10 parked at
+    # "Injecting the boot drivers" and said nothing else for the whole of it.
+    # There is nothing to report against unless the calls ARE the drivers.
+    #
+    # IT IS A SWITCH AND NOT THE NEW DEFAULT. A folder is one call and this is
+    # seventy; the cost is real, so the build asks for it deliberately and every
+    # other caller keeps the cheap shape.
+    Context 'one call per driver' {
+
+        It 'splits a folder nothing has disabled' {
+            $call = & $script:decidePerDriver @('C:\S\Drivers\WinPE\Dell') @(
+                (New-HDTTestDriverRow 'WinPE\Dell\net\a.inf')
+                (New-HDTTestDriverRow 'WinPE\Dell\storage\b.inf')
+            )
+
+            @($call).Count | Should -Be 2
+            @($call | Where-Object { $_.Recurse }) | Should -BeNullOrEmpty
+        }
+
+        It 'names each .inf, because that is what the window shows' {
+            $call = & $script:decidePerDriver @('C:\S\Drivers\WinPE\Dell') @(
+                (New-HDTTestDriverRow 'WinPE\Dell\net\a.inf')
+                (New-HDTTestDriverRow 'WinPE\Dell\storage\b.inf')
+            )
+
+            @($call | ForEach-Object { $_.Name }) | Should -Be @('a.inf', 'b.inf')
+        }
+
+        It 'still leaves a disabled driver out' {
+            $call = & $script:decidePerDriver @('C:\S\Drivers\WinPE\Dell') @(
+                (New-HDTTestDriverRow 'WinPE\Dell\a.inf')
+                (New-HDTTestDriverRow 'WinPE\Dell\bad.inf' $false)
+            )
+
+            @($call).Count | Should -Be 1
+            @($call)[0].Path | Should -BeLike '*a.inf'
+        }
+
+        It 'falls back to the folder when there is no catalog to split by' {
+            # A STORE THIS CANNOT READ IS NOT A STORE WITH NO DRIVERS.
+            # Get-HDTDriver failing must not turn into a boot image with nothing
+            # injected, so the folder still goes in whole - one call and no
+            # progress, which is the honest outcome rather than a silent empty
+            # build.
+            $call = & $script:decidePerDriver @('C:\S\Drivers\WinPE\Dell') @()
+
+            @($call).Count | Should -Be 1
+            @($call)[0].Recurse | Should -BeTrue
+        }
     }
 }
