@@ -1,4 +1,4 @@
-function Get-HDTConsoleMonitorSummary {
+﻿function Get-HDTConsoleMonitorSummary {
     <#
         .SYNOPSIS
             The one line somebody scans before reading any of the rows.
@@ -53,6 +53,12 @@ function Get-HDTConsoleMonitorSummary {
         [Parameter(Mandatory = $true)] [int] $Finished,
         [Parameter(Mandatory = $true)] [int] $Unreadable,
 
+        # THE TWO THE CAPTION USED TO HIDE. Failed and RebootPending both landed
+        # in $Finished, so a share with a broken deployment on it said
+        # '1 finished' - which is the opposite of what happened.
+        [Parameter()] [int] $Failed = 0,
+        [Parameter()] [int] $Rebooting = 0,
+
         [Parameter()]
         [switch] $Caption
     )
@@ -60,7 +66,7 @@ function Get-HDTConsoleMonitorSummary {
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    if (($Live + $Stalled + $Finished + $Unreadable) -eq 0) {
+    if (($Live + $Stalled + $Finished + $Unreadable + $Failed + $Rebooting) -eq 0) {
         if ($Caption) { return 'Monitoring' }
 
         return 'There is no deployment running on this share.'
@@ -68,8 +74,12 @@ function Get-HDTConsoleMonitorSummary {
 
     $part = New-Object -TypeName System.Collections.ArrayList
 
+    # WORST FIRST. This caption is read at a glance and often only its first
+    # word is read at all, so what is wrong leads and what went well trails.
+    if ($Failed -gt 0) { [void] $part.Add(('{0} failed' -f $Failed)) }
     if ($Stalled -gt 0) { [void] $part.Add(('{0} stalled' -f $Stalled)) }
     if ($Unreadable -gt 0) { [void] $part.Add(('{0} unreadable' -f $Unreadable)) }
+    if ($Rebooting -gt 0) { [void] $part.Add(('{0} rebooting' -f $Rebooting)) }
     if ($Live -gt 0) { [void] $part.Add(('{0} running' -f $Live)) }
     if ($Finished -gt 0) { [void] $part.Add(('{0} finished' -f $Finished)) }
 

@@ -1,4 +1,4 @@
-function Get-HDTConsoleMonitorNode {
+﻿function Get-HDTConsoleMonitorNode {
     <#
         .SYNOPSIS
             The Monitoring category and the rows beneath it, built on its own.
@@ -150,8 +150,12 @@ function Get-HDTConsoleMonitorNode {
         # A stalled or unreadable run is drawn the way every other broken thing
         # in this tree is drawn, which is what makes it findable by somebody who
         # has never used this screen before.
+        # A FAILURE HAS TO LOOK LIKE ONE. Failed was drawn 'Ok' - the same green
+        # as a machine that deployed perfectly - because Health called it
+        # Finished. Rebooting stays 'Ok': it is in flight, not wrong.
         $runStatus = 'Ok'
-        if ($current.Health -eq 'Stalled' -or $current.Health -eq 'Unreadable') { $runStatus = 'Error' }
+        if ($current.Health -eq 'Stalled' -or $current.Health -eq 'Unreadable' -or
+            $current.Health -eq 'Failed') { $runStatus = 'Error' }
 
         # THE ROW CARRIES THE RUN, so Open Report can ask whether this
         # deployment finished. Health is a distinction Status flattens - 'Live'
@@ -168,7 +172,11 @@ function Get-HDTConsoleMonitorNode {
             New-HDTConsoleField -Label 'Step' -Value (Get-HDTConsoleDisplayText -Text $current.StepName -Fallback '(no step yet)')
             New-HDTConsoleField -Label 'Step type' -Value (Get-HDTConsoleDisplayText -Text $current.StepType -Fallback '(unknown)')
             New-HDTConsoleField -Label 'Step number' -Value (Get-HDTConsoleDisplayText -Text $current.StepText -Fallback '(not started)')
-            New-HDTConsoleField -Label 'Last heartbeat' -Value (Get-HDTConsoleDisplayText -Text $current.SinceText -Fallback '(never)')
+            # THE TIME, NOT THE AGE. The row a few pixels above already carries
+            # '(1m 30s ago)', so repeating it here spent the pane's most-read
+            # line on a fact that was already on screen - and left out the one
+            # thing somebody puts in a ticket or lines up against a log.
+            New-HDTConsoleField -Label 'Last heartbeat' -Value (Get-HDTConsoleDisplayText -Text $current.UpdatedText -Fallback '(never)')
             New-HDTConsoleField -Label 'Heartbeat file' -Value $current.Path
         ) `
             -Command $current.Command -Header $Header -Subject $current

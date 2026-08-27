@@ -1,4 +1,4 @@
-function Get-HDTConsoleMonitor {
+﻿function Get-HDTConsoleMonitor {
     <#
         .SYNOPSIS
             Which deployments are in flight on a share, and where each has got to.
@@ -148,23 +148,31 @@ function Get-HDTConsoleMonitor {
     $stalled = @($ordered | Where-Object { $_.Health -eq 'Stalled' })
     $finished = @($ordered | Where-Object { $_.Health -eq 'Finished' })
     $unreadable = @($ordered | Where-Object { $_.Health -eq 'Unreadable' })
+    # A FAILED RUN AND A REBOOTING ONE USED TO BE COUNTED AS FINISHED, because
+    # Health called both of them that. See New-HDTConsoleMonitorRow.
+    $failed = @($ordered | Where-Object { $_.Health -eq 'Failed' })
+    $rebooting = @($ordered | Where-Object { $_.Health -eq 'Rebooting' })
 
     return [pscustomobject] @{
         Status          = 'Ok'
         Message         = ''
         Run             = [pscustomobject[]] @($ordered)
         Summary         = (Get-HDTConsoleMonitorSummary -Live @($live).Count -Stalled @($stalled).Count `
-                -Finished @($finished).Count -Unreadable @($unreadable).Count)
+                -Finished @($finished).Count -Unreadable @($unreadable).Count `
+                -Failed @($failed).Count -Rebooting @($rebooting).Count)
 
         # The same fact in the form a tree row wears it - see the -Caption note
         # on Get-HDTConsoleMonitorSummary for why the quiet case is not a
         # sentence in brackets.
         Caption         = (Get-HDTConsoleMonitorSummary -Live @($live).Count -Stalled @($stalled).Count `
-                -Finished @($finished).Count -Unreadable @($unreadable).Count -Caption)
+                -Finished @($finished).Count -Unreadable @($unreadable).Count `
+                -Failed @($failed).Count -Rebooting @($rebooting).Count -Caption)
         LiveCount       = @($live).Count
         StalledCount    = @($stalled).Count
         FinishedCount   = @($finished).Count
         UnreadableCount = @($unreadable).Count
+        FailedCount     = @($failed).Count
+        RebootingCount  = @($rebooting).Count
         ActivePath      = $activePath
     }
 }

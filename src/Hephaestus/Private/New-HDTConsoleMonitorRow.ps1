@@ -175,28 +175,89 @@
 
     # -- what that makes it ------------------------------------------------
     #
-    # A run the engine has finished is Finished however long ago that was: a
-    # completed heartbeat is not a heartbeat that stopped, and ageing one into a
-    # red row teaches a technician to ignore red.
+    # WHAT THE ENGINE SAID, TAKEN AT ITS WORD. Invoke-HDTTaskSequence writes
+    # four statuses - Running, RebootPending, Succeeded and Failed - and this
+    # used to ask only "is it the literal string Running?", calling everything
+    # else Finished. Three different things wore one green tick:
+    #
+    #   - a run waiting to REBOOT read as Finished, halfway through its
+    #     sequence. It was caught sitting at 'Finished' on step 9 of 12;
+    #   - a run that FAILED read as Finished, with a green tick and no warning,
+    #     which made a failure invisible on the one screen built to surface it;
+    #   - a run that SUCCEEDED read as Finished, the only one that was right.
+    #
+    # AN UNKNOWN STATUS DOES NOT GET TO CLAIM SUCCESS. Anything not recognised
+    # here - including the blank a heartbeat from an older engine carries - is
+    # treated as still in flight and left to the stale rule below. Being wrong
+    # about "still going" costs a second look; being wrong about "finished"
+    # costs a machine nobody goes back to.
     $health = 'Live'
 
-    if ($runStatus -ne 'Running' -and -not [string]::IsNullOrWhiteSpace($runStatus)) {
+    if ($runStatus -eq 'Succeeded') {
         $health = 'Finished'
-    } elseif (-not $hasStamp) {
-        # It parsed, but carried no timestamp anybody can read. NOT the same as
-        # a timestamp that is merely ahead of this console's clock.
-        $health = 'Unreadable'
-    } elseif ($since -gt ($StaleMinute * 60)) {
-        $health = 'Stalled'
+    } elseif ($runStatus -eq 'Failed') {
+        $health = 'Failed'
+    } elseif ($runStatus -eq 'RebootPending') {
+        $health = 'Rebooting'
+    }
+
+    # A VERDICT IS NOT AGED; A CLAIM IS.
+    #
+    # Succeeded and Failed are terminal - a completed heartbeat is not a
+    # heartbeat that stopped, and ageing one into a red row teaches a technician
+    # to ignore red. Failed also survives a missing timestamp, because the
+    # verdict is known even when the clock is not, and Unreadable would throw
+    # away the one fact that matters.
+    #
+    # Running and RebootPending are the opposite: both CLAIM something is still
+    # happening, so silence past the stale window means the claim is what went
+    # wrong. A machine that rebooted and never came back is precisely the
+    # failure this screen exists for.
+    if ($health -eq 'Live' -or $health -eq 'Rebooting') {
+        if (-not $hasStamp) {
+            # It parsed, but carried no timestamp anybody can read. NOT the same
+            # as a timestamp merely ahead of this console's clock.
+            $health = 'Unreadable'
+        } elseif ($since -gt ($StaleMinute * 60)) {
+            $health = 'Stalled'
+        }
     }
 
     $icon = [string] ([char] 0x25B6)                    # play - running
+    if ($health -eq 'Rebooting') { $icon = [string] ([char] 0x21BB) }   # clockwise arrow - going round again
     if ($health -eq 'Stalled') { $icon = [string] ([char] 0x26A0) }
     if ($health -eq 'Finished') { $icon = [string] ([char] 0x2714) }
+    # A CROSS, NOT THE WARNING TRIANGLE. Stalled means "nobody knows"; Failed
+    # means "the engine knows, and it went wrong". Sharing a glyph would flatten
+    # a verdict into a doubt.
+    if ($health -eq 'Failed') { $icon = [string] ([char] 0x2716) }
     if ($health -eq 'Unreadable') { $icon = [string] ([char] 0x26A0) }
 
     $sinceText = ''
     if ($since -ge 0) { $sinceText = Format-HDTConsoleDuration -Second $since }
+
+    # WHEN IT SPOKE, NOT ONLY HOW LONG AGO. The tree row is SCANNED - 'is this
+    # one still moving?' - and an age answers that. The detail pane is READ, and
+    # what gets written into a ticket or lined up against a log is a time.
+    #
+    # LOCAL, BECAUSE THE CONSOLE IS ON SOMEBODY'S DESK. The heartbeat is stored
+    # in UTC and compared in UTC; this is the only place it becomes a wall
+    # clock, and it becomes the reader's.
+    #
+    # AND THE FORMAT IS FIXED RATHER THAN THE CULTURE'S. Three hours went
+    # missing once to a [string] cast that rendered a DateTime in the current
+    # culture and then had it parsed back as a round-trip stamp - see the note
+    # on $stamp above. 'dd/MM' against 'MM/dd' is that trap wearing a hat.
+    #
+    # A STAMP FROM THE FUTURE IS SHOWN AS IT IS. $since is clamped to zero so a
+    # WinPE machine whose clock nothing syncs is not branded stale, but the TIME
+    # must not be clamped: a heartbeat that claims a moment eight hours from now
+    # is the only thing on this screen that makes that skew visible.
+    $updatedText = ''
+    if ($hasStamp -and $null -ne $updated) {
+        $updatedText = $updated.ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss',
+            [System.Globalization.CultureInfo]::InvariantCulture)
+    }
 
     $step = Get-HDTConsoleDisplayText -Text $stepName -Fallback '(no step yet)'
 
@@ -223,6 +284,7 @@
         StepName    = $stepName
         StepType    = $stepType
         Updated     = $updated
+        UpdatedText = $updatedText
         SinceSecond = $since
         SinceText   = $sinceText
         Health      = $health
