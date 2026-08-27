@@ -25,6 +25,16 @@ BeforeAll {
         } $Text $Name
     }
 
+    $script:readHeader = {
+        param([string] $Text, [string] $Name = 'net-excerpt.inf')
+
+        $module = Get-Module -Name Hephaestus
+        return & $module {
+            param($T, $N)
+            ConvertFrom-HDTDriverInf -Text $T -InfName $N -NoHardwareId
+        } $Text $Name
+    }
+
     $script:driver = & $script:read $script:infText
 }
 
@@ -141,6 +151,58 @@ Describe 'ConvertFrom-HDTDriverInf' {
             $text = @('[Version]', 'Provider = %NOSUCH%') -join "`r`n"
 
             (& $script:read $text 'x.inf').Provider | Should -BeExactly '%NOSUCH%'
+        }
+    }
+
+    # THE GRID DOES NOT SHOW HARDWARE IDS, AND PAYING FOR THEM IS 43% OF THE
+    # PARSE. Measured on the real store: 531 ms to parse fifty .inf files, of
+    # which 228 ms is walking every model section and deduping the ids -
+    # averaging 518 ids per file and peaking at 12,076. The console's driver grid
+    # binds Name, Class, Provider, Version and Date, and the ids are wanted only
+    # by the properties window, one driver at a time.
+    #
+    # THE NAME IS THE CATCH. A driver has no name of its own; the grid shows the
+    # FIRST MODEL'S description, which lives in a model section - so this cannot
+    # skip the manufacturer walk, only stop at the first line it needs.
+    Context 'without the hardware ids' {
+
+        It 'reads the same header fields as a full parse' {
+            $light = & $script:readHeader $script:infText
+
+            $light.Class | Should -BeExactly $script:driver.Class
+            $light.Provider | Should -BeExactly $script:driver.Provider
+            $light.Version | Should -BeExactly $script:driver.Version
+            $light.Date | Should -BeExactly $script:driver.Date
+            $light.ClassGuid | Should -BeExactly $script:driver.ClassGuid
+        }
+
+        It 'still names the driver, which comes from the first model' {
+            $light = & $script:readHeader $script:infText
+
+            $light.Name | Should -Not -BeNullOrEmpty
+            $light.Name | Should -BeExactly $script:driver.Name
+        }
+
+        It 'answers no hardware ids rather than a partial list' {
+            # EMPTY, NOT SOME. A caller handed half the ids would rank a driver
+            # against an incomplete claim and get a plausible wrong answer -
+            # far worse than an obviously empty one.
+            @((& $script:readHeader $script:infText).HardwareId).Count | Should -Be 0
+        }
+
+        It 'still answers the shape every caller reads' {
+            $light = & $script:readHeader $script:infText
+
+            foreach ($field in @('InfName', 'Name', 'Class', 'ClassGuid', 'Provider',
+                    'Version', 'Date', 'CatalogFile', 'ModelCount', 'HardwareId')) {
+                @($light.PSObject.Properties.Name) | Should -Contain $field
+            }
+        }
+
+        It 'survives a file with no model sections at all' {
+            $text = @('[Version]', 'Class = Net', 'Provider = "Acme"') -join "`r`n"
+
+            (& $script:readHeader $text 'x.inf').Class | Should -BeExactly 'Net'
         }
     }
 }

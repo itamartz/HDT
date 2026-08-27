@@ -133,6 +133,106 @@ Describe 'Get-HDTDriver' {
         @($driver).Count | Should -Be 2
         @($driver | Where-Object { $_.InfName -eq 'odd.inf' })[0].Name | Should -BeExactly 'odd.inf'
     }
+
+    # READING THE STORE COSTS 2.5 SECONDS FOR 211 .inf FILES, measured on the
+    # real share, and the console re-reads it every time somebody selects a
+    # folder. The cache is the caller's: it lives as long as the window and dies
+    # with it, so nothing on disk can go stale against the share the way the
+    # driver-index.json DESIGN 7 rejected would.
+    Context 'the cache' {
+
+        BeforeEach {
+            $script:cacheFs = New-HDTFakeFileSystem -File @{
+                'C:\HDTLab\Share\Drivers\WinPE\a.inf' = $script:infText
+                'C:\HDTLab\Share\Drivers\WinPE\b.inf' = $script:infText
+            }
+        }
+
+        It 'parses nothing twice for a store nobody has touched' {
+            $cache = @{}
+
+            $null = Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache
+            $firstReads = @($script:cacheFs.Operations | Where-Object { $_.Operation -eq 'ReadAllText' }).Count
+
+            $null = Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache
+            $secondReads = @($script:cacheFs.Operations | Where-Object { $_.Operation -eq 'ReadAllText' }).Count
+
+            # THE SECOND PASS READS THE DRIVER STATE DOCUMENT AND NOTHING ELSE.
+            $firstReads | Should -BeGreaterThan 1
+            ($secondReads - $firstReads) | Should -BeLessThan $firstReads
+        }
+
+        It 'answers the same rows from the cache as from the disk' {
+            $cache = @{}
+
+            $cold = @(Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache)
+            $warm = @(Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache)
+
+            @($warm).Count | Should -Be @($cold).Count
+            $warm[0].Name | Should -BeExactly $cold[0].Name
+            $warm[0].Version | Should -BeExactly $cold[0].Version
+        }
+
+        It 're-reads a file somebody has re-imported' {
+            # THE WHOLE REASON THE KEY CARRIES A TIMESTAMP. Without it an
+            # administrator who re-imports a pack is shown the drivers the folder
+            # USED to hold, which is worse than the wait the cache saves.
+            $cache = @{}
+
+            $null = Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache
+            $before = @($script:cacheFs.Operations | Where-Object { $_.Operation -eq 'ReadAllText' }).Count
+
+            $script:cacheFs.SeedWriteTime('C:\HDTLab\Share\Drivers\WinPE\a.inf',
+                [datetime]::new(2026, 6, 1, 0, 0, 0, [System.DateTimeKind]::Utc))
+
+            $null = Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache
+            $after = @($script:cacheFs.Operations | Where-Object { $_.Operation -eq 'ReadAllText' }).Count
+
+            ($after - $before) | Should -BeGreaterThan 0
+        }
+
+        It 'never serves a header-only row where the hardware ids were asked for' {
+            # A ROW WITHOUT IDS HANDED TO Get-HDTDriverMatch MATCHES NOTHING, and
+            # reports that as "this machine needs no drivers". The mode is part
+            # of the key for exactly this reason.
+            $cache = @{}
+
+            $null = Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache -NoHardwareId
+            $full = @(Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs -Cache $cache)
+
+            @($full[0].HardwareId).Count | Should -BeGreaterThan 0
+        }
+
+        It 'works with no cache at all, which is what the command line passes' {
+            @(Get-HDTDriver -Root $script:root -FileSystem $script:cacheFs).Count | Should -Be 2
+        }
+    }
+
+    Context 'without the hardware ids' {
+
+        It 'still fills every column the grid binds' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\HDTLab\Share\Drivers\WinPE\a.inf' = $script:infText
+            }
+
+            $row = @(Get-HDTDriver -Root $script:root -FileSystem $fs -NoHardwareId)[0]
+
+            $row.Name | Should -Not -BeNullOrEmpty
+            $row.Class | Should -BeExactly 'Net'
+            $row.Provider | Should -Not -BeNullOrEmpty
+            $row.Version | Should -Not -BeNullOrEmpty
+            $row.Enabled | Should -BeTrue
+        }
+
+        It 'answers no hardware ids, so nothing mistakes it for a full row' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'C:\HDTLab\Share\Drivers\WinPE\a.inf' = $script:infText
+            }
+
+            @((@(Get-HDTDriver -Root $script:root -FileSystem $fs -NoHardwareId)[0]).HardwareId).Count |
+                Should -Be 0
+        }
+    }
 }
 
 Describe 'Set-HDTDriverState' {

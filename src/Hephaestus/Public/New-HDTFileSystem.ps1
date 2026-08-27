@@ -388,6 +388,28 @@ function New-HDTFileSystem {
         return [long] (New-Object -TypeName System.IO.FileInfo -ArgumentList $full).Length
     }
 
+    # WHEN IT LAST CHANGED, which is what makes a cache safe rather than a bet.
+    # Parsing the driver store costs 2.5 seconds for 211 .inf files and the
+    # console re-reads it every time somebody selects a folder; a cache is the
+    # difference between a list that appears and one you wait for. But a cache
+    # with no invalidation shows an administrator the drivers that USED to be in
+    # a folder they have just re-imported, which is worse than the wait.
+    #
+    # UTC, because the value is compared and not displayed, and a share crossing
+    # a daylight-saving boundary must not invalidate every entry at once.
+    $service | Add-Member -MemberType ScriptMethod -Name GetLastWriteTimeUtc -Value {
+        param([string] $Path)
+
+        $this.Record('GetLastWriteTimeUtc', @($Path))
+        $full = $this.NormalizePath($Path)
+
+        if (-not [System.IO.File]::Exists($full)) {
+            throw (New-Object -TypeName System.IO.FileNotFoundException -ArgumentList "Could not find file '$full'.", $full)
+        }
+
+        return [datetime] [System.IO.File]::GetLastWriteTimeUtc($full)
+    }
+
     # WHAT THE FILE SAYS IT IS, added because a vendor driver pack will not say
     # so any other way. A Dell Update Package and an HP SoftPaq are both
     # 'a self-extracting .exe' to every other test available - same extension,

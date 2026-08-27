@@ -74,7 +74,26 @@ function ConvertFrom-HDTDriverInf {
 
         [Parameter(Position = 1)]
         [AllowEmptyString()]
-        [string] $InfName = ''
+        [string] $InfName = '',
+
+        # THE GRID DOES NOT SHOW HARDWARE IDS AND THEY ARE 43% OF THE PARSE.
+        # Measured on the real store: 531 ms for fifty .inf files, 228 ms of it
+        # walking every model section and deduping ids - 518 per file on average,
+        # 12,076 in the worst. The console's driver grid binds Name, Class,
+        # Provider, Version and Date; the ids are wanted by the properties
+        # window, for one driver at a time.
+        #
+        # IT STILL WALKS FAR ENOUGH TO NAME THE DRIVER. An .inf names DEVICES,
+        # not itself, so the grid's Name is the first model's description and
+        # lives in a model section. This stops at that line instead of skipping
+        # the walk.
+        #
+        # AND IT ANSWERS NO IDS RATHER THAN SOME. A caller handed a partial list
+        # would rank a driver against an incomplete claim and get a plausible
+        # wrong answer, which is worse than an obviously empty one - so
+        # Get-HDTDriverMatch must never be given one of these.
+        [Parameter()]
+        [switch] $NoHardwareId
     )
 
     Set-StrictMode -Version Latest
@@ -235,6 +254,15 @@ function ConvertFrom-HDTDriverInf {
             # EVERY NON-EMPTY FIELD AFTER THE INSTALL SECTION. The empty one
             # between them is real - '%Desc% = Install,, PCI\VEN_...' - so this
             # cannot take "the field after the comma".
+            # THE NAME WAS THE ONLY REASON TO BE IN HERE. Everything below this
+            # line is id collection, so a header read stops the moment it has a
+            # description rather than walking a file that declares twelve
+            # thousand ids to fill five columns that show none of them.
+            if ($NoHardwareId) {
+                if (-not [string]::IsNullOrEmpty($displayName)) { break }
+                continue
+            }
+
             $field = @($line.Substring($at + 1) -split ',')
 
             for ($i = 1; $i -lt @($field).Count; $i++) {
@@ -249,7 +277,17 @@ function ConvertFrom-HDTDriverInf {
                 [void] $hardware.Add($id)
             }
         }
+
+        # The outer loop over model SECTIONS needs the same exit: a name found in
+        # the first section must not send this into the next one.
+        if ($NoHardwareId -and -not [string]::IsNullOrEmpty($displayName)) { break }
     }
+
+    # NOT READ IS REPORTED AS NOTHING, NOT AS ONE. A header read stops at the
+    # first model, so $models is 1 for a file that may declare five hundred -
+    # a number that looks like a fact and is an artefact of stopping early.
+    # HardwareId is already empty for the same reason; ModelCount joins it.
+    if ($NoHardwareId) { $models = 0 }
 
     return [pscustomobject] @{
         InfName     = $InfName

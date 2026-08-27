@@ -54,7 +54,15 @@ function ConvertTo-HDTDriverDate {
 
     if ([string]::IsNullOrEmpty($text)) { return $floor }
 
-    $format = [string[]] @('MM/dd/yyyy', 'M/d/yyyy', 'MM/dd/yy', 'M/d/yy')
+    # THE SPEC'S FORM FIRST, THEN THE ONES VENDORS ACTUALLY SHIP. DriverVer is
+    # specified as MM/DD/YYYY and that is what nearly every .inf carries, but a
+    # four-digit year leading is UNAMBIGUOUS - nothing can read 2025-06-11 as a
+    # US date - so accepting it costs no correctness and rescues the packs that
+    # do not follow the spec. A two-digit-year ISO form is deliberately NOT
+    # accepted: 06/11/25 is already claimed by the American reading.
+    $format = [string[]] @(
+        'MM/dd/yyyy', 'M/d/yyyy', 'MM/dd/yy', 'M/d/yy',
+        'yyyy-MM-dd', 'yyyy/MM/dd', 'yyyy.MM.dd', 'yyyy-M-d', 'yyyy/M/d')
     $culture = [System.Globalization.CultureInfo]::InvariantCulture
     $style = [System.Globalization.DateTimeStyles]::None
 

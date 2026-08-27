@@ -62,7 +62,16 @@
 
         [Parameter()]
         [ValidateNotNull()]
-        [object] $FileSystem = (New-HDTFileSystem)
+        [object] $FileSystem = (New-HDTFileSystem),
+
+        # THE CONSOLE'S OWN CACHE, held by the window and passed in. Selecting a
+        # folder cost 2.5 seconds on the real store because every .inf was
+        # re-parsed on every click; with this, only the first look at a folder
+        # pays, and a re-imported pack still re-reads because the key carries
+        # each file's write time.
+        [Parameter()]
+        [AllowNull()]
+        [hashtable] $Cache = $null
     )
 
     Set-StrictMode -Version Latest
@@ -79,7 +88,18 @@
     $driver = @()
 
     try {
-        $driver = @(Get-HDTDriver -Root $Root -Path $inside -FileSystem $FileSystem)
+        # WITHOUT THE HARDWARE IDS, WHICH THIS GRID DOES NOT SHOW. They are 43%
+        # of the parse - 518 ids per file on average across the real store, one
+        # file declaring 12,076 - and the only thing that displays them is the
+        # per-driver properties window, which re-reads the single .inf it is
+        # about to describe.
+        $argument = @{
+            Root = $Root; Path = $inside; FileSystem = $FileSystem; NoHardwareId = $true
+        }
+
+        if ($null -ne $Cache) { $argument['Cache'] = $Cache }
+
+        $driver = @(Get-HDTDriver @argument)
     } catch {
         Write-Verbose ("the driver folder could not be read: {0}" -f [string] $_.Exception.Message)
         return [pscustomobject[]] @()
@@ -97,7 +117,9 @@
                 Class      = [string] $one.Class
                 Provider   = [string] $one.Provider
                 Version    = [string] $one.Version
-                Date       = [string] $one.Date
+                # ISO, so the column sorts as text in the order it claims and
+                # cannot be misread. Format-HDTDriverDate says why at length.
+                Date       = [string] (Format-HDTDriverDate -Date ([string] $one.Date))
                 Path       = [string] $one.Path
                 Folder     = [string] $one.Folder
                 FullPath   = [string] $one.FullPath

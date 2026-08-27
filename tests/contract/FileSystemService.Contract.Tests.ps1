@@ -76,7 +76,8 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
 
             foreach ($name in @('TestPath', 'ReadAllText', 'WriteAllText', 'AppendAllText',
                     'CreateDirectory', 'RemoveItem', 'CopyItem', 'MoveItem', 'GetChildItem', 'GetDirectory',
-                    'TakeOwnership', 'GrantAccess', 'GetLength', 'GetHash', 'GetVersion', 'GetVersionInfo')) {
+                    'TakeOwnership', 'GrantAccess', 'GetLength', 'GetHash', 'GetVersion', 'GetVersionInfo',
+                    'GetLastWriteTimeUtc')) {
                 $method | Should -Contain $name -Because "IFileSystem requires $name"
             }
         }
@@ -554,6 +555,43 @@ Describe 'IFileSystem contract: <Name>' -ForEach $script:HDTImplementation {
             $script:fs.WriteAllText($path, 'x')
 
             $script:fs.GetVersion($path) | Should -BeExactly '0.0.0.0'
+        }
+
+        It 'returns a UTC instant from GetLastWriteTimeUtc' {
+            # UTC BECAUSE IT IS COMPARED, NOT DISPLAYED. It keys the driver
+            # cache, and a share crossing a daylight-saving boundary must not
+            # invalidate every entry at once.
+            $path = Join-Path -Path $script:root -ChildPath 'stamped.txt'
+            $script:fs.WriteAllText($path, 'x')
+
+            $when = $script:fs.GetLastWriteTimeUtc($path)
+
+            $when | Should -BeOfType ([datetime])
+            $when.Kind | Should -Be ([System.DateTimeKind]::Utc)
+        }
+
+        It 'reports a later instant after a file is written again' {
+            # WHAT THE CACHE RESTS ON. If a rewritten file reports the same
+            # instant, a cache keyed on it serves the old content forever.
+            $path = Join-Path -Path $script:root -ChildPath 'rewritten.txt'
+            $script:fs.WriteAllText($path, 'first')
+            $before = $script:fs.GetLastWriteTimeUtc($path)
+
+            $script:fs.WriteAllText($path, 'second - a different length entirely')
+            $after = $script:fs.GetLastWriteTimeUtc($path)
+
+            $after | Should -BeGreaterOrEqual $before
+        }
+
+        It 'throws FileNotFoundException from GetLastWriteTimeUtc for a path that is not a file' {
+            $record = $null
+            try { $script:fs.GetLastWriteTimeUtc((Join-Path -Path $script:root -ChildPath 'absent.txt')) } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+
+            $inner = $record.Exception
+            while ($null -ne $inner.InnerException) { $inner = $inner.InnerException }
+            $inner | Should -BeOfType ([System.IO.FileNotFoundException])
         }
 
         It 'returns the four identity fields from GetVersionInfo' {

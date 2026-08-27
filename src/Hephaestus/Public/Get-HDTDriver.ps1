@@ -86,7 +86,30 @@
 
         [Parameter()]
         [ValidateNotNull()]
-        [object] $FileSystem = (New-HDTFileSystem)
+        [object] $FileSystem = (New-HDTFileSystem),
+
+        # THE GRID'S COLUMNS ONLY. Name, Class, Provider, Version and Date, with
+        # no hardware ids - 43% of the parse, measured, and nothing the grid
+        # shows. THE PnP FALLBACK MUST NEVER BE GIVEN THESE ROWS:
+        # Get-HDTDriverMatch ranks on the ids, and a row that reports none would
+        # silently match nothing.
+        [Parameter()]
+        [switch] $NoHardwareId,
+
+        # A CACHE THE CALLER OWNS, so it lives as long as the window and dies
+        # with it - the console holds one, the command line passes none, and
+        # nothing on disk can go stale against the share the way a
+        # driver-index.json would. That is the distinction DESIGN 7 draws and
+        # this keeps: the .inf files are still the index; this only remembers
+        # what they said a moment ago.
+        #
+        # KEYED ON THE WRITE TIME AS WELL AS THE PATH, so re-importing a pack
+        # invalidates exactly the files that changed. Without that a cache shows
+        # an administrator the drivers a folder USED to hold, which is worse
+        # than the wait it saves.
+        [Parameter()]
+        [AllowNull()]
+        [hashtable] $Cache = $null
     )
 
     Set-StrictMode -Version Latest
@@ -135,9 +158,35 @@
 
         $parsed = $null
 
+        # THE KEY CARRIES THE MODE. A header-only row and a full one are
+        # different answers about the same file, and serving one where the other
+        # was asked for would hand the PnP fallback a driver claiming no ids.
+        $key = ''
+
+        if ($null -ne $Cache) {
+            try {
+                $key = '{0}|{1}|{2:o}' -f [string] $file, [bool] $NoHardwareId,
+                    $FileSystem.GetLastWriteTimeUtc([string] $file)
+            } catch {
+                # A FILE WHOSE TIMESTAMP CANNOT BE READ IS SIMPLY NOT CACHED.
+                # It is still parsed and still shown; it just pays full price
+                # every time, which is the safe direction to fail in.
+                $key = ''
+            }
+
+            if (-not [string]::IsNullOrEmpty($key) -and $Cache.ContainsKey($key)) {
+                $parsed = $Cache[$key]
+            }
+        }
+
         try {
-            $parsed = ConvertFrom-HDTDriverInf -Text ([string] $FileSystem.ReadAllText($file)) `
-                -InfName ([System.IO.Path]::GetFileName([string] $file))
+            if ($null -eq $parsed) {
+                $parsed = ConvertFrom-HDTDriverInf -Text ([string] $FileSystem.ReadAllText($file)) `
+                    -InfName ([System.IO.Path]::GetFileName([string] $file)) `
+                    -NoHardwareId:$NoHardwareId
+
+                if (-not [string]::IsNullOrEmpty($key)) { $Cache[$key] = $parsed }
+            }
         } catch {
             # ONE BAD .inf MUST NOT EMPTY THE GRID.
             $parsed = [pscustomobject] @{

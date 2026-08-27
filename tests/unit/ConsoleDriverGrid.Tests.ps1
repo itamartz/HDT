@@ -88,7 +88,15 @@ Describe 'Get-HDTConsoleDriverRow' {
         $one.Class | Should -BeExactly 'Net'
         $one.Provider | Should -BeExactly 'Microsoft'
         $one.Version | Should -BeExactly '12.19.1.32'
-        $one.Date | Should -BeExactly '08/03/2015'
+
+        # ISO, NOT THE .inf's OWN '08/03/2015'. The column is bound to a string
+        # and a DataGrid sorts strings as TEXT, so the American form sorted
+        # 11/28/2024 above 06/11/2025 - on the one column that exists to say
+        # which driver is newer. It is also unreadable: DriverVer is MM/DD/YYYY
+        # whatever the vendor's country, so everyone outside the United States
+        # read the wrong month. Get-HDTDriver still answers the raw string; this
+        # is the display layer. See Format-HDTDriverDate.
+        $one.Date | Should -BeExactly '2015-08-03'
     }
 
     # A TICK AND THE WORD, NOT A CHECKBOX. A tick box in a read-only grid
@@ -106,9 +114,31 @@ Describe 'Get-HDTConsoleDriverRow' {
             Should -BeExactly 'no'
     }
 
-    It 'carries the PnP ids the properties window shows' {
-        (@(& $script:rows 'Drivers\WinPE\HP' (New-HDTTestGridStore))[0]).HardwareId |
-            Should -Contain 'PCI\VEN_8086&DEV_10DE'
+    # THE GRID DELIBERATELY DOES NOT CARRY THE PnP IDS ANY MORE, and this is the
+    # assertion that says so on purpose rather than by omission.
+    #
+    # Reading them cost 43% of the .inf parse - 518 ids per file across the real
+    # store, one file declaring 12,076 - to fill a grid whose columns are Name,
+    # Class, Provider, Version and Date. Selecting a folder took 3.8 seconds.
+    # The only thing that displays an id is the per-driver properties window,
+    # which now re-reads the single .inf it is about to describe: one file
+    # instead of two hundred and eleven.
+    #
+    # THE PROPERTY IS STILL ON THE ROW, EMPTY, rather than removed. Something
+    # binding to it should draw nothing, not throw under StrictMode.
+    It 'does not carry the PnP ids, which the grid never showed' {
+        $row = @(& $script:rows 'Drivers\WinPE\HP' (New-HDTTestGridStore))[0]
+
+        @($row.PSObject.Properties.Name) | Should -Contain 'HardwareId'
+        @($row.HardwareId).Count | Should -Be 0
+    }
+
+    It 'still carries everything the grid does show' {
+        $row = @(& $script:rows 'Drivers\WinPE\HP' (New-HDTTestGridStore))[0]
+
+        $row.Name | Should -Not -BeNullOrEmpty
+        $row.Class | Should -Not -BeNullOrEmpty
+        $row.Version | Should -Not -BeNullOrEmpty
     }
 
     # THE GRID IS DRAWN WHILE SOMEBODY CLICKS AROUND A TREE, and a folder
