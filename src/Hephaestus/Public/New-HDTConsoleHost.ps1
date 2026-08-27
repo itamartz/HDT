@@ -1437,7 +1437,23 @@
         $close = $window.FindName('HDTBuildCloseButton')
         $logButton = $window.FindName('HDTBuildLogButton')
 
-        $titleText.Text = 'Updating Boot Image'
+        # THE BANNER IS THE STRING TABLE'S, NOT A LITERAL HERE. This line used to
+        # read $titleText.Text = 'Updating Boot Image', set immediately AFTER
+        # Set-HDTWindowText had applied the page - so it clobbered the page every
+        # time and the ImportProgress wording was dead text that no test noticed.
+        # The string-table contract checks that a key names a real control, not
+        # that the value it wrote survives the next ten lines. Opening the window
+        # is what noticed.
+        #
+        # BuildProgress carries the same 'Updating Boot Image' it always did, so
+        # the boot image path is unchanged.
+        #
+        # AND THE WINDOW CHROME FOLLOWS THE BANNER. HDTBuildProgress.xaml carries
+        # Title="Updating Boot Image" as a literal and nothing ever set
+        # $window.Title, so the task bar and the title bar said 'Updating Boot
+        # Image' while the window expanded a driver pack - the one part of a
+        # window somebody reads when it is behind three others.
+        $window.Title = [string] $titleText.Text
         $pathText.Text = $WorkspaceRoot
 
         $line = New-Object -TypeName System.Collections.ObjectModel.ObservableCollection[string]
