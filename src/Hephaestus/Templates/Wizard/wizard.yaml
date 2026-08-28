@@ -85,6 +85,31 @@ pages:
         variable: HDTTimeZone
         property: SelectedValue
 
+  # Whether this machine is encrypted, and with what. The EnableBitLocker step
+  # in client.yaml resolves the two choices and runs at all only when
+  # HDTEnableBitLocker is true, so an unticked box leaves a deployment doing
+  # exactly what it did before this page existed.
+  #
+  # SCOPE AND METHOD ARE NOT ASKED. Which AES, and whether to encrypt used
+  # space or the whole disk, are policy for a site rather than a decision at a
+  # bench; they stay authored in the task sequence.
+  - id: BitLocker
+    title: BitLocker
+    heading: Encrypt this computer
+    subheading: Whether the disk is encrypted, how it unlocks, and where the recovery key goes.
+    reference: BitLocker.xaml
+    skip: HDTSkipBitLocker
+    collect:
+      - control: HDTBitLockerEnableBox
+        variable: HDTEnableBitLocker
+        property: IsChecked
+      - control: HDTBitLockerProtectorBox
+        variable: HDTBitLockerProtector
+        property: SelectedValue
+      - control: HDTBitLockerEscrowBox
+        variable: HDTBitLockerEscrow
+        property: SelectedValue
+
   # The local Administrator password for the machine being deployed - the one
   # value the answer file cannot carry a default for, because HDT will not
   # invent one (DESIGN 4.5.2).

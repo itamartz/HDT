@@ -249,3 +249,25 @@ steps:
     steps:
       - name: Install Applications
         type: InstallApplications
+
+      # ENCRYPTION LAST, AND ONLY IF ASKED FOR. The wizard's BitLocker page
+      # sets these three; an unticked box leaves HDTEnableBitLocker false, the
+      # condition is false and this step does not run - which is what every
+      # deployment did before the page existed.
+      #
+      # AFTER THE APPLICATIONS, because encrypting a disk and then writing
+      # several gigabytes to it is the slow way round, and a failed application
+      # install on an encrypted volume is harder to get at.
+      #
+      # SCOPE AND METHOD ARE AUTHORED, NOT ASKED. They are a site's policy
+      # rather than a decision at a bench, so they are written here once where
+      # an administrator can change them for every machine.
+      - name: Enable BitLocker
+        type: EnableBitLocker
+        condition: '$HDTEnableBitLocker -eq $true'
+        scope: usedSpaceOnly
+        method: XtsAes256
+        protector: '%HDTBitLockerProtector%'
+        escrow: '%HDTBitLockerEscrow%'
+        recoveryPassword: true
+        wait: false

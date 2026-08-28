@@ -4,13 +4,12 @@
             Returns the HDT variable namespace and its MDT translation table.
 
         .DESCRIPTION
-            HDT has the same variable set MDT has, meaning for
-            meaning, under an HDT prefix, so an existing runbook converts by
-            search-and-replace. That table is data here rather than prose in a
-            document: "Get-HDTVariableMap prints this table at runtime, and a
-            contract test asserts every documented MDT name has exactly one HDT
-            counterpart, so the mapping cannot silently drift"
-            (tests/contract/VariableNamespace.Contract.Tests.ps1).
+            HDT has the same variable set MDT has, meaning for meaning, under an
+            HDT prefix, so an existing runbook converts by search-and-replace.
+            The table is data here rather than prose in a document: this command
+            prints it at runtime, and a contract test asserts every documented
+            MDT name has exactly one HDT counterpart, so the mapping cannot
+            silently drift (tests/contract/VariableNamespace.Contract.Tests.ps1).
 
             Three families live in one table:
 
@@ -209,6 +208,9 @@
         @{ HDTName = 'HDTDomainAdmin'; MdtName = 'DomainAdmin'; Origin = 'authored'
             Description = 'Account used to join the domain.'
         }
+        @{ HDTName = 'HDTDomainAdminDomain'; MdtName = 'DomainAdminDomain'; Origin = 'authored'
+            Description = 'Domain the joining account belongs to, when it is not the domain being joined. The wizard splits CORP\svc-hdt-join into this and HDTDomainAdmin.'
+        }
         @{ HDTName = 'HDTDomainAdminPassword'; MdtName = 'DomainAdminPassword'; Origin = 'authored'
             Description = 'Password for HDTDomainAdmin; never written to a log.'
         }
@@ -239,6 +241,15 @@
         }
         @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword'; Origin = 'authored'
             Description = 'Local administrator password for the deployed machine; never written to a log.'
+        }
+        @{ HDTName = 'HDTEnableBitLocker'; MdtName = 'BDEInstall'; Origin = 'authored'
+            Description = 'Whether the deployed machine is encrypted. False, or unset, and the EnableBitLocker step does not run.'
+        }
+        @{ HDTName = 'HDTBitLockerProtector'; MdtName = 'BDEInstall'; Origin = 'authored'
+            Description = 'What unlocks the drive at boot: tpm, tpmPin or tpmStartupKey.'
+        }
+        @{ HDTName = 'HDTBitLockerEscrow'; MdtName = 'BDEKeyLocation'; Origin = 'authored'
+            Description = 'Where the recovery key is escrowed: ad, entra or none. Without one, a machine that loses its TPM cannot be unlocked.'
         }
         @{ HDTName = 'HDTApplications'; MdtName = 'Applications'; Origin = 'authored'
             Description = 'Applications to install, by catalog identifier.'
