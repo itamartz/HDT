@@ -47,7 +47,7 @@ BeforeAll {
         }
     }
 
-    $script:share = '\\192.168.1.219\HDTShare\Logs\LT-7FJ45S2'
+    $script:share = '\\192.0.2.108\HDTShare\Logs\LT-7FJ45S2'
 }
 
 Describe 'Dynamic logging to the share' {

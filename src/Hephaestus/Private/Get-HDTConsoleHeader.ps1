@@ -7,7 +7,7 @@ function Get-HDTConsoleHeader {
             BOTH PATHS, ALWAYS. The share an administrator opened and the
             deployRoot that share declares are different facts and are routinely
             different strings: the lab share is C:\HDTLab\Share on the host and
-            \\192.168.2.108\HDTShare to a machine that booted the image, and the
+            \\192.0.2.108\HDTShare to a machine that booted the image, and the
             boot image carries only the second. Editing a share that no client
             can reach, and not being able to see why, is the mistake this banner
             exists to make impossible.

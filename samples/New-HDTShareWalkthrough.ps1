@@ -110,7 +110,7 @@ $bootstrapPath = Join-Path $root 'bootstrap-rules.yaml'
         'schemaVersion: 1'
         'rules:'
         '  - name: Lab subnet'
-        '    when: { HDTDefaultGateway: "192.168.2.*" }'
+        '    when: { HDTDefaultGateway: "192.168.1.*" }'
         '    set:'
         ('      HDTDeployRoot: {0}' -f $share.DeployRoot)
         ''

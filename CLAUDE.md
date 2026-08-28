@@ -169,27 +169,35 @@ delete target by enumerating a parent directory, and never pass a variable to
 `Remove-Item -Recurse` without asserting first that it is one of the permitted
 locations above.
 
-## ⚠ Networking: 192.168.2.0/24, and nothing else without asking
+## ⚠ Networking: 192.168.1.0/24, and nothing else without asking
 
-**The lab network is `192.168.2.0/24`.** DHCP comes from the real LAN and test
+**The lab network is `192.168.1.0/24`.** DHCP comes from the real LAN and test
 VMs reach the host through the **`HDT External`** switch. Everything that needs
 a network uses that.
 
-**In this lab, the host's own address is a DHCP lease and it moves** — changing
-the Wi-Fi is enough to move it. The subnet is stable; the octet is not. So this
-file does not name one, and neither should any test or plan: **read it before
-you build a boot image**, because the address gets baked into what you build.
+**It moved on 2026-08-28.** It used to be `192.168.2.0/24`; it is
+`192.168.1.0/24` now, gateway `192.168.1.1`. A rule keyed on a `192.168.2.1`
+gateway therefore matches nothing, which is exactly how zero-touch stopped
+firing and the wizard ran instead. Old commits, old plans in `.planning/` and
+old fixtures still carry the `.2` — that is staleness, not a correction, so
+don't change this back to match them.
 
-This is a fact about *this lab*, not about HDT. A real deployment share has a
-stable address, and nothing in `src/` should be shaped around a lease that
-moves.
+**In this lab, the host's own address is local wiring, not a fact about HDT** —
+a static `Manual` address on `HDT External` today, a DHCP lease that moved on
+its own before that. The subnet is the part worth writing down; the octet is one
+machine's setup. So this file names the subnet and never the octet, and neither
+should any test, plan or line in `src/`: **read it before you build a boot
+image**, because the address gets baked into what you build.
+
+This is a fact about *this lab*, not about HDT. A real deployment share has its
+own address, and nothing in `src/` should be shaped around this one.
 
 ```powershell
 Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'vEthernet (HDT External)'
 ```
 
 **Never assign, create or use another subnet without asking the user first.**
-Not a new IP on a vSwitch, not a static address outside `192.168.2.0/24`, not a
+Not a new IP on a vSwitch, not a static address outside `192.168.1.0/24`, not a
 new virtual switch with its own range. Ask, then act.
 
 This rule exists because inventing one caused a near miss: a `10.10.10.0/24`
@@ -211,11 +219,15 @@ asking.**
 This host runs the user's **live lab**. Damaging it is worse than failing a test.
 
 - **Never touch `CM01`** (SCCM server, runs a PXE responder) **or `DC01`**
-  (domain controller). Both on `Default Switch`, 192.168.25.0/24.
+  (domain controller). Both on `Default Switch`, whose subnet is unverified from
+  here — this host's `vEthernet (Default Switch)` carries `172.25.16.1/20`, not
+  the `192.168.25.0/24` this file used to state. As of 2026-08-28 neither VM is
+  registered on this host at all (`Get-VM` returns only `HDT-*`); they may be on
+  another host or deregistered, and the refusal stands either way.
 - HDT test VMs: named `HDT-*`, **Generation 2**, files in `C:\HDTLab\vms\`,
   under 12 GB combined, and on **one of exactly two switches**:
   - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
-    `192.168.2.0/24` and can reach the host on that subnet, which is what a
+    `192.168.1.0/24` and can reach the host on that subnet, which is what a
     deployment over SMB needs. Read the host's address; don't assume it.
   - **`HDT Lab`** — the isolated internal one, reserved for PXE/WDS, where a
     second responder cannot answer. A VM here gets **no lease and cannot reach a

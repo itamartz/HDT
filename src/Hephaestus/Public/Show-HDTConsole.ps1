@@ -112,7 +112,7 @@
             Opens the console on the lab share.
 
         .EXAMPLE
-            Show-HDTConsole -Path 'C:\HDTLab\Share', '\\192.168.2.108\HDTShare'
+            Show-HDTConsole -Path 'C:\HDTLab\Share', '\\192.0.2.108\HDTShare'
 
             Two shares, one window.
 

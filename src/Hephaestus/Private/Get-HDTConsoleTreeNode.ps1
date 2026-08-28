@@ -81,7 +81,7 @@
             The whole window, on a console, with no window.
 
         .EXAMPLE
-            $share = 'C:\HDTLab\Share', '\\192.168.2.108\HDTShare' |
+            $share = 'C:\HDTLab\Share', '\\192.0.2.108\HDTShare' |
                 ForEach-Object { Get-HDTConsoleWorkspace -Path $_ }
             Get-HDTConsoleTreeNode -Workspace $share
 

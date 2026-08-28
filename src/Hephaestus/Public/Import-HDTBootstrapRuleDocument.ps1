@@ -12,7 +12,7 @@
                 schemaVersion: 1
                 rules:
                   - name: Site A
-                    when: { HDTDefaultGateway: "192.168.2.1" }
+                    when: { HDTDefaultGateway: "192.0.2.1" }
                     set:
                       HDTDeployRoot: \\SERVER-A\DeploymentShare$
 

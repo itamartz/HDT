@@ -79,14 +79,14 @@ function Set-HDTStaticAddress {
             AdapterDescription and InterfaceIndex.
 
         .EXAMPLE
-            Set-HDTStaticAddress -IPAddress '192.168.2.50' -SubnetMask '255.255.255.0' -Gateway '192.168.2.1'
+            Set-HDTStaticAddress -IPAddress '192.0.2.50' -SubnetMask '255.255.255.0' -Gateway '192.0.2.1'
 
             What the Welcome screen calls when a technician chooses "Use the
             following IP address".
 
         .EXAMPLE
-            Set-HDTStaticAddress -IPAddress '192.168.2.50' -SubnetMask '255.255.255.0' `
-                -DnsServer '192.168.2.1, 1.1.1.1' -WhatIf
+            Set-HDTStaticAddress -IPAddress '192.0.2.50' -SubnetMask '255.255.255.0' `
+                -DnsServer '192.0.2.1, 1.1.1.1' -WhatIf
 
             What it would do, on a machine it must not touch yet.
     #>
@@ -130,7 +130,7 @@ function Set-HDTStaticAddress {
     if ($null -eq $CimProvider) { $CimProvider = New-HDTCimProvider }
 
     # STRICTER THAN [System.Net.IPAddress]::TryParse ON PURPOSE. TryParse reads
-    # '192.168.2' as 192.168.0.2 and accepts IPv6 outright, so a technician's
+    # '192.0.2' as 192.0.0.2 and accepts IPv6 outright, so a technician's
     # typo becomes a different machine's address rather than a refusal.
     $isIPv4 = {
         param([string] $Value)
@@ -148,7 +148,7 @@ function Set-HDTStaticAddress {
 
     if (-not (& $isIPv4 $IPAddress)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Category InvalidArgument `
-                    -Message ("'{0}' is not an IPv4 address. It must be four numbers 0-255 separated by dots, like 192.168.2.50." -f $IPAddress)))
+                    -Message ("'{0}' is not an IPv4 address. It must be four numbers 0-255 separated by dots, like 192.0.2.50." -f $IPAddress)))
     }
 
     if (-not (& $isIPv4 $SubnetMask)) {

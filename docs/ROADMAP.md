@@ -629,9 +629,10 @@ it were found by looking at it and every one of them passed its tests first.
 **✅ The fourth leg is met too, on 2026-08-27, and it brought the rest of the
 toolkit with it.** `HDT-MON-01` — Generation 2, Secure Boot on, 4 GB, 2 vCPU, on
 `HDT External` — booted the ISO the console had just built, reached
-`\\192.168.2.112\HDTShare`, and ran `DEMO-05` zero-touch. Fourteen seconds after
-the VM started, a run appeared in `Logs\_active\` and the console's Monitoring
-node drew it; it was watched through `Install Operating System` and
+`\\192.168.2.112\HDTShare` (the lab's address then; it moved to
+`192.168.1.0/24` on 2026-08-28), and ran `DEMO-05` zero-touch. Fourteen seconds
+after the VM started, a run appeared in `Logs\_active\` and the console's
+Monitoring node drew it; it was watched through `Install Operating System` and
 `Restart into Windows`.
 
 **And it did not stop at WinPE.** The machine restarted into full Windows 11,

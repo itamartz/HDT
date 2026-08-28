@@ -23,7 +23,7 @@
             THE PATH IT WAS OPENED THROUGH AND THE deployRoot IT DECLARES ARE
             BOTH REPORTED, AND THEY ARE NOT THE SAME FACT. The lab share is
             C:\HDTLab\Share to the administrator sitting at the host and
-            \\192.168.2.108\HDTShare to a machine that booted the image; the
+            \\192.0.2.108\HDTShare to a machine that booted the image; the
             boot image carries the second. Showing only one of them is how an
             admin edits a share that no client can reach and cannot see why.
 
@@ -87,7 +87,7 @@
             What the console calls when it opens a share.
 
         .EXAMPLE
-            (Get-HDTConsoleWorkspace -Path '\\192.168.2.108\HDTShare').TaskSequence |
+            (Get-HDTConsoleWorkspace -Path '\\192.0.2.108\HDTShare').TaskSequence |
                 Format-Table Id, Name, StepCount, Status
 
             The same answer without a window - the console shows nothing the

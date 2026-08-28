@@ -7,7 +7,7 @@
 #   [Settings]
 #   Priority=DefaultGateway, Default
 #   [DefaultGateway]
-#   192.168.2.1=Site-A
+#   192.0.2.1=Site-A
 #   [Site-A]
 #   DeployRoot=\\SERVER-A\DeploymentShare$
 #
@@ -49,7 +49,7 @@ BeforeAll {
         'schemaVersion: 1'
         'rules:'
         '  - name: Site A'
-        '    when: { HDTDefaultGateway: "192.168.2.1" }'
+        '    when: { HDTDefaultGateway: "192.0.2.1" }'
         '    set:'
         '      HDTDeployRoot: \\SERVER-A\HdtShare'
         ''
@@ -252,7 +252,7 @@ Describe 'Resolve-HDTBootstrapRule' {
     }
 
     It 'picks the share the gateway says' {
-        $fact = [ordered] @{ HDTDefaultGateway = '192.168.2.1'; HDTMacAddress = '00:AA:BB:CC:DD:EE' }
+        $fact = [ordered] @{ HDTDefaultGateway = '192.0.2.1'; HDTMacAddress = '00:AA:BB:CC:DD:EE' }
 
         $answer = Resolve-HDTBootstrapRule -RuleDocument $script:document -Fact $fact `
             -DeployRoot '\\FALLBACK\HdtShare'
@@ -312,14 +312,14 @@ Describe 'Resolve-HDTBootstrapRule' {
             'schemaVersion: 1'
             'rules:'
             '  - name: Site with its own account'
-            '    when: { HDTDefaultGateway: "192.168.2.1" }'
+            '    when: { HDTDefaultGateway: "192.0.2.1" }'
             '    set:'
             '      HDTDeployRoot: \\SERVER-A\HdtShare'
             '      HDTUserId: svc-hdt-a'
         )
 
         $answer = Resolve-HDTBootstrapRule -RuleDocument (Get-HDTTestBootstrapRule -Line $line) `
-            -Fact ([ordered] @{ HDTDefaultGateway = '192.168.2.1' }) -DeployRoot '\\FALLBACK\HdtShare'
+            -Fact ([ordered] @{ HDTDefaultGateway = '192.0.2.1' }) -DeployRoot '\\FALLBACK\HdtShare'
 
         $answer.Variable['HDTUserId'] | Should -BeExactly 'svc-hdt-a'
     }

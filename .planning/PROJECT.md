@@ -253,16 +253,26 @@ change the networking of these VMs:**
 | `CM01` | Configuration Manager server, 16 GB, 192.168.25.214 | **Almost certainly runs a PXE responder / WDS** |
 | `DC01` | Domain controller, 192.168.25.200 | The lab's AD |
 
-Both sit on the **`Default Switch`** (192.168.25.0/24).
+Both sit on the **`Default Switch`**, whose subnet is unverified from this host —
+`vEthernet (Default Switch)` carries `172.25.16.1/20` here, not the
+`192.168.25.0/24` recorded above. As of 2026-08-28 neither VM is registered on
+this host (`Get-VM` returns only `HDT-*`); they may be on another host or
+deregistered, and the refusal stands either way.
 
 ### Rules
 
 1. **HDT test VMs are named `HDT-*`.** Only ever act on VMs matching that
    prefix. Before any destructive Hyper-V call, filter explicitly — never
    `Get-VM | Remove-VM` or any unfiltered pipeline.
-2. **THE NETWORK IS `192.168.2.0/24`. NEVER USE ANOTHER SUBNET WITHOUT ASKING
+2. **THE NETWORK IS `192.168.1.0/24`. NEVER USE ANOTHER SUBNET WITHOUT ASKING
    THE USER FIRST.** No new IP on a vSwitch, no static address outside that
    range, no new virtual switch with its own range. Ask, then act.
+
+   **It moved on 2026-08-28.** It used to be `192.168.2.0/24`; it is
+   `192.168.1.0/24` now, gateway `192.168.1.1`. A rule keyed on a `192.168.2.1`
+   gateway therefore matches nothing, which is exactly how zero-touch stopped
+   firing and the wizard ran instead. Old plans, old logs and old fixtures still
+   carry the `.2` — that is staleness, not a correction.
 
    Why: a `10.10.10.0/24` segment was invented for an isolated switch and
    **`10.10.10.1` was already taken by the user's VMware VMnet2**. It was caught
@@ -277,7 +287,7 @@ Both sit on the **`Default Switch`** (192.168.25.0/24).
 
    | Switch | Use it for | Why |
    |---|---|---|
-   | **`HDT External`** (Wi-Fi, 192.168.2.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable on this subnet, but **its octet is a DHCP lease that moves — read it before building a boot image**, do not quote it here. DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps the host's `HDTShare` and applies a 4 GB WIM over it in 95 s |
+   | **`HDT External`** (Wi-Fi, 192.168.1.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable on this subnet, but **its octet is this lab's own wiring — read it before building a boot image**, do not quote it here. DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps the host's `HDTShare` and applies a 4 GB WIM over it in 95 s |
    | **`HDT Lab`** (internal, isolated) | **PXE and WDS work only** | An isolated segment is the only place a second PXE responder cannot collide with CM01's |
 
    An earlier version of this rule sent *every* test VM to the isolated switch.

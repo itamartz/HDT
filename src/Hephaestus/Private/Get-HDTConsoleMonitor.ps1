@@ -79,7 +79,7 @@
                 Format-Table RunId, Phase, StepName, SinceText, Health
 
         .EXAMPLE
-            Get-HDTConsoleMonitor -Path '\\192.168.2.108\HDTShare' -StaleMinute 45
+            Get-HDTConsoleMonitor -Path '\\192.0.2.108\HDTShare' -StaleMinute 45
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

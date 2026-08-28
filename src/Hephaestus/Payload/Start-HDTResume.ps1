@@ -364,7 +364,9 @@ try {
             # PowerShell console sitting over the Deployment Summary, while the
             # log for that run said nothing about it at all. An unencrypted share
             # carrying a deployment credential is exactly the kind of finding
-            # somebody reads a log to find.
+            # somebody reads a log to find. (The 192.168.2.* addresses in
+            # this file are the incidents' own; that lab moved to
+            # 192.168.1.0/24 on 2026-08-28.)
             if ($null -ne $content.PSObject.Properties['Warning']) {
                 foreach ($noticed in @($content.Warning)) {
                     Write-HDTLog -Context $bootLog -Severity Warning -Component 'Content' `

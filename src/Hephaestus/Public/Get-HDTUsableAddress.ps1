@@ -15,6 +15,8 @@
             to a string SPACE-joins it, so the comma split produced one element -
             '192.168.2.39 fe80::7796:...' - which matches no IPv4 pattern. The
             machine waited the full timeout for an address it already had.
+            (Every address quoted here is the incident's own, from a lab
+            that has since moved to 192.168.1.0/24.)
 
             IT IS A COMMAND BECAUSE IT WAS A BUG. Inline in the payload it was
             reachable only by booting a VM; the payload's own test reads that

@@ -13,7 +13,7 @@ function New-HDTLabVirtualMachine {
                       (Assert-HDTLabVmName)
               rule 2  the switch must be 'HDT Lab' - the isolated internal one,
                       reserved for PXE/WDS - or 'HDT External', which reaches the
-                      192.168.2.0/24 lab network and is what a share deployment
+                      192.168.1.0/24 lab network and is what a share deployment
                       needs. 'Default Switch' carries the user's lab and CM01's
                       PXE responder; a test VM there would either break their lab
                       or be answered by SCCM, which silently invalidates the test
@@ -106,7 +106,7 @@ function New-HDTLabVirtualMachine {
     # second responder must not be able to answer (PROJECT.md rule 3).
     #
     # 'HDT External' is how a VM reaches the lab network. PROJECT.md's network
-    # rule: the lab network is 192.168.2.0/24, DHCP comes from the real LAN, and
+    # rule: the lab network is 192.168.1.0/24, DHCP comes from the real LAN, and
     # a VM on the ISOLATED switch gets no lease and cannot reach a share on the
     # host (SPIKES S6) - which is exactly why no deployment had ever run over
     # SMB. A share deployment has to be here.
@@ -131,7 +131,7 @@ function New-HDTLabVirtualMachine {
     }
 
     if ($allowedSwitch -notcontains $SwitchName) {
-        throw ("'{0}' is not a switch an HDT test VM may attach to. The only two are '{1}' - the isolated internal one, reserved for PXE/WDS - and '{2}', which reaches the 192.168.2.0/24 lab network. 'Default Switch' in particular carries the user's lab and CM01's PXE responder, and a test VM there would either break their lab or be answered by SCCM (PROJECT.md, 'Hyper-V lab safety rules', rules 2 and 3, and the network rule)." -f
+        throw ("'{0}' is not a switch an HDT test VM may attach to. The only two are '{1}' - the isolated internal one, reserved for PXE/WDS - and '{2}', which reaches the 192.168.1.0/24 lab network. 'Default Switch' in particular carries the user's lab and CM01's PXE responder, and a test VM there would either break their lab or be answered by SCCM (PROJECT.md, 'Hyper-V lab safety rules', rules 2 and 3, and the network rule)." -f
                 $SwitchName, $labSwitch, $externalSwitch)
     }
 
