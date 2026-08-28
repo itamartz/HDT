@@ -239,6 +239,7 @@
         'Start-HDTBootStatus',
         'Start-HDTProgressDisplay',
         'Start-HDTWizardDeployment',
+        'Test-HDTAdminPassword',
         'Test-HDTApplicationDetection',
         'Test-HDTComputerName',
         'Test-HDTRunStateAbandoned',

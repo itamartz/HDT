@@ -5,12 +5,13 @@
             asks, and in what order.
 
         .DESCRIPTION
-            MDT'S DeployWiz_Definition_ENU.xml, IN HDT'S YAML. MDT lists one
-            <Pane id= reference= /> per screen with a <Condition> deciding
-            whether it appears, and PSD's Classic_Theme_Definitions_en-US.xml
-            lists the same panes the same way. This document is that file, and
-            the condition is reduced to the thing every MDT condition actually
-            tests: a Skip variable.
+            The technician wizard's page list, as YAML: one entry per screen,
+            each declaring an id and the markup under Scripts\UI it draws, in
+            the order they are asked, and each carrying at most a Skip variable
+            deciding whether it appears at all. MDT held the same list in
+            DeployWiz_Definition_ENU.xml as <Pane id= reference= /> entries,
+            and that is the shape this follows, with the condition narrowed to
+            one variable.
 
             A SHARE WITH NO wizard.yaml HAS NO WIZARD, and that is the property
             the whole design hangs off. Every image built before this existed
@@ -86,7 +87,17 @@
     # and joins the ticked ids the way Invoke-HDTInstallApplicationsStep splits
     # them apart again.
     $knownSelect = @('one', 'many')
-    $knownRule = @('ComputerName')
+
+    # THE VALIDATE BLOCK'S OWN KEYS, checked like every other block's. They were
+    # not, so a page could declare validate with a misspelled key and get a
+    # control that silently never validates - which is the exact thing the
+    # header says this file refuses to allow.
+    #
+    # 'confirm' NAMES A SECOND CONTROL TO COMPARE AGAINST, and only the
+    # AdminPassword rule reads it: a password box shows dots, so the only way
+    # to know what was typed is to type it twice.
+    $knownValidateKey = @('control', 'rule', 'confirm')
+    $knownRule = @('ComputerName', 'AdminPassword')
     $knownSplit = @('AccountName')
 
     $fail = {
@@ -211,9 +222,24 @@
                 }
             }
 
+            foreach ($key in @($validate.Keys)) {
+                if ($knownValidateKey -notcontains [string] $key) {
+                    & $fail ("the page '{0}' declares validate with '{1}', which is not something validate carries. It carries {2}." -f
+                        $id, [string] $key, ($knownValidateKey -join ', '))
+                }
+            }
+
             if ($knownRule -notcontains [string] $validate['rule']) {
                 & $fail ("the page '{0}' declares the validation rule '{1}', which this engine does not implement. The rules are {2}." -f
                     $id, [string] $validate['rule'], ($knownRule -join ', '))
+            }
+
+            # A CONFIRM CONTROL IS ONLY MEANINGFUL TO A RULE THAT COMPARES TWO.
+            # Declared beside a rule that reads one control, it would be a
+            # second box the technician fills in and nothing ever looks at.
+            if ($validate.Contains('confirm') -and [string] $validate['rule'] -ne 'AdminPassword') {
+                & $fail ("the page '{0}' declares a confirm control beside the '{1}' rule, which judges one control. Only AdminPassword compares two." -f
+                    $id, [string] $validate['rule'])
             }
         }
 

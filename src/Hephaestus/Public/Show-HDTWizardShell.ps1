@@ -5,7 +5,7 @@
             technician chose.
 
         .DESCRIPTION
-            MDT'S LITETOUCH WIZARD, DRIVEN. Show-HDTWizard shows ONE window and
+            THE WHOLE WIZARD, DRIVEN. Show-HDTWizard shows ONE window and
             reports the button that was pressed. This shows
             HDTWizardShell.xaml - a rail down the left, the current page to the
             right of it, Back / Next / Cancel / Open CMD along the bottom - and
@@ -36,11 +36,11 @@
             partitions a disk, so anything that is not exactly 'Next', 'Cancel'
             or 'CommandPrompt' comes back as 'Cancel'.
 
-            OPENING THE PROMPT IS STILL THE CALLER'S JOB. 'CommandPrompt' is
-            MDT's "Exit to Command Prompt": the window closes and the technician
-            is left at a prompt - which in WinPE means the caller restores the
-            console it hid (Hide-HDTShellWindow -Restore). This command reports
-            what was asked for and opens nothing.
+            OPENING THE PROMPT IS STILL THE CALLER'S JOB. 'CommandPrompt' means
+            the window closes and the technician is left at a prompt - which in
+            WinPE means the caller restores the console it hid
+            (Hide-HDTShellWindow -Restore). This command reports what was asked
+            for and opens nothing.
 
         .PARAMETER ShellXamlPath
             The shell window. X:\HDT\UI\HDTWizardShell.xaml inside a boot image.
@@ -214,6 +214,23 @@
                 return Test-HDTComputerName -Name $Value
             }
             RestrictInput = $true
+        }
+
+        # THE ONE RULE THAT JUDGES TWO CONTROLS. The page names a confirm
+        # control beside it and the host passes what that box holds as the
+        # second argument; every other rule is called with one and this
+        # signature still binds.
+        #
+        # NO RestrictInput. A password may contain any character - refusing
+        # keystrokes here would refuse passwords the domain policy accepts, and
+        # a technician cannot see what they typed to work out why.
+        AdminPassword = [pscustomobject] @{
+            Validator     = {
+                param([string] $Value, [string] $Confirmation = '')
+
+                return Test-HDTAdminPassword -Password $Value -Confirmation $Confirmation
+            }
+            RestrictInput = $false
         }
     }
 

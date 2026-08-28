@@ -5,11 +5,11 @@
             shell can show.
 
         .DESCRIPTION
-            MDT READS ITS PANE DEFINITION OFF THE SHARE AND SO DOES THIS.
-            DeployWiz_Definition_ENU.xml lives in Scripts\ next to the panes it
-            names, precisely so a site can change what the wizard asks without
-            rebuilding a boot image; wizard.yaml lives in Scripts\UI\ next to
-            the pages it names, for the same reason.
+            THE PAGE DEFINITION LIVES ON THE SHARE, NOT IN THE BOOT IMAGE.
+            wizard.yaml sits in Scripts\UI\ next to the pages it names,
+            precisely so a site can change what the wizard asks without
+            rebuilding a boot image. (MDT keeps DeployWiz_Definition_ENU.xml in
+            Scripts\ for the same reason.)
 
             THROUGH THE CONTENT PROVIDER, NEVER THE FILE SYSTEM, and that is
             what means standalone media needs no second code path: media is a
@@ -111,9 +111,18 @@
 
         $validate = $null
         if ($declared.Contains('validate') -and $null -ne $declared['validate']) {
+            # Confirm IS OPTIONAL AND USUALLY EMPTY. Only a rule that compares
+            # two controls reads it - the administrator password, where the box
+            # shows dots and a typo is invisible until the machine is built.
+            $confirmControl = ''
+            if ($declared['validate'].Contains('confirm')) {
+                $confirmControl = [string] $declared['validate']['confirm']
+            }
+
             $validate = [pscustomobject] @{
                 Control = [string] $declared['validate']['control']
                 Rule    = [string] $declared['validate']['rule']
+                Confirm = $confirmControl
             }
         }
 

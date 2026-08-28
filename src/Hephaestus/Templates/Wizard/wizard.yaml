@@ -85,6 +85,37 @@ pages:
         variable: HDTTimeZone
         property: SelectedValue
 
+  # The local Administrator password for the machine being deployed - the one
+  # value the answer file cannot carry a default for, because HDT will not
+  # invent one (DESIGN 4.5.2).
+  #
+  # IT EARNS ITS PLACE THE HARD WAY. A Latitude running the shipped client
+  # template stopped at step 6 of 11 because nothing supplied
+  # %HDTAdminPassword%, and the error told the technician to use this page
+  # before it existed.
+  #
+  # LAST BEFORE THE SUMMARY. It is the one answer to give with the machine
+  # already decided, not the first thing a technician meets.
+  #
+  # TWO CONTROLS, ONE VARIABLE. The confirmation box is collected by nobody -
+  # it exists so the validate rule can compare the two, because a password box
+  # shows dots and a typo is otherwise invisible until the machine is built.
+  - id: AdminPassword
+    title: Administrator password
+    heading: Set the local Administrator password
+    subheading: The password for the Administrator account on the machine being deployed.
+    reference: AdminPassword.xaml
+    skip: HDTSkipAdminPassword
+    validate:
+      control: HDTAdminPasswordBox
+      confirm: HDTAdminPasswordConfirmBox
+      rule: AdminPassword
+    collect:
+      - control: HDTAdminPasswordBox
+        variable: HDTAdminPassword
+        property: Password
+        isSecret: true
+
   - id: Summary
     title: Summary
     heading: Ready to deploy

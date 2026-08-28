@@ -51,9 +51,10 @@
                   one window, one answer.
 
               ShowShell(shellXaml, themeXaml, title, state, field, pane, navigator)
-                  MDT's LiteTouch shell: ONE window whose page is swapped in
-                  place. The navigator - Step-HDTWizardPage, passed in - decides
-                  every move, so page order never enters this adapter.
+                  ONE window whose page is swapped in place, which is the
+                  shape MDT's LiteTouch wizard has. The navigator -
+                  Step-HDTWizardPage, passed in - decides every move, so page
+                  order never enters this adapter.
 
               Apply(root, field, pane)
                   the by-name work both of them do, and that ShowShell repeats
@@ -570,8 +571,33 @@
             $watched = $pageRoot.FindName([string] $Current.Page.Validate.Control)
             if ($null -eq $watched) { return }
 
+            # A PasswordBox DOES NOT HAVE .Text, AND READING IT UNDER STRICT
+            # MODE THROWS. The administrator password page is the first one to
+            # watch a box that is not a TextBox, and a missing property here
+            # would kill the page rather than fail to validate it.
+            $readControl = {
+                param($Control)
+
+                if ($null -eq $Control) { return '' }
+                if ($Control -is [System.Windows.Controls.PasswordBox]) { return [string] $Control.Password }
+
+                return [string] $Control.Text
+            }
+
+            # THE SECOND BOX, WHERE THERE IS ONE. Only a rule that compares two
+            # controls declares it; for every other page this stays null and
+            # the validator is called with one argument exactly as before.
+            $confirmed = $null
+            $confirmName = ''
+            if ($null -ne $Current.Page.Validate.PSObject.Properties['Confirm']) {
+                $confirmName = [string] $Current.Page.Validate.Confirm
+            }
+            if (-not [string]::IsNullOrWhiteSpace($confirmName)) {
+                $confirmed = $pageRoot.FindName($confirmName)
+            }
+
             $judge = {
-                $judgement = & $validator ([string] $watched.Text)
+                $judgement = & $validator (& $readControl $watched) (& $readControl $confirmed)
 
                 if ($null -ne $messageText) {
                     # THE SEVERITY GOES IN Tag AND THE MARKUP PAINTS IT. A

@@ -280,7 +280,25 @@
                             Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />
                     <Button x:Name="HDTCancelButton"
                             Width="110" Height="38" Background="#FF3A3A3C" Margin="0,0,10,0" />
-                    <Button x:Name="HDTNextButton"
+                    <!--
+                        IsDefault IS ENTER, AND THE WIZARD HAD NO KEYBOARD WAY
+                        FORWARD WITHOUT IT. A technician who typed a computer
+                        name and pressed Enter got nothing and had to reach for
+                        the mouse - on a bench, on a machine with a trackpad
+                        nobody has configured yet, on every page.
+
+                        IT CANNOT SKIP A BAD PAGE. WPF fires the default button
+                        only when it is enabled, and the validator already
+                        drives IsEnabled - so Enter on a page whose answer is
+                        refused does exactly what clicking Next does: nothing.
+
+                        NOT IsCancel ON Cancel, deliberately. Escape would then
+                        discard everything typed so far, from one stray key
+                        press, with no confirmation - and the wizard is the only
+                        thing standing between that key and a disk being
+                        repartitioned.
+                    -->
+                    <Button x:Name="HDTNextButton" IsDefault="True"
                             Width="130" Height="38" Background="#FF0E639C" />
                 </StackPanel>
             </Grid>
