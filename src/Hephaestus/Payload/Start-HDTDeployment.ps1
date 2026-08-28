@@ -134,6 +134,20 @@ param(
     [ValidateRange(1, 60)]
     [int] $ConnectAttempt = 5,
 
+    # HOW LONG TO WAIT FOR THE NETWORK TO CARRY TRAFFIC once the machine holds
+    # an address. Those are two different moments: on a Latitude into a real
+    # switch there is roughly fifteen seconds between them, during which every
+    # SMB attempt returns "The network path was not found" - which reads like a
+    # wrong address and is not one.
+    #
+    # 60 RATHER THAN THE 20 THE RETRIES COVERED. A switch port that is learning,
+    # or a link still negotiating, is routinely slower than five attempts with a
+    # doubling back-off. Waiting costs a machine that is already up nothing: the
+    # first ping answers and this returns immediately.
+    [Parameter()]
+    [ValidateRange(0, 600)]
+    [int] $LinkTimeoutSecond = 60,
+
     [Parameter()]
     [AllowEmptyString()]
     [string] $SequenceId = '',
@@ -209,6 +223,17 @@ $content = $null
 # that writes RESULT.json, so the run whose evidence matters most was the one
 # that lost it.
 $display = $null
+
+# WHETHER ANYBODY IS STANDING AT THIS MACHINE, and $display is not the answer.
+# It is created with the PROGRESS window, which opens after the wizard - so a
+# run that died in the wizard had $display still $null, the failure screen was
+# skipped for "nobody is watching", and wpeutil powered the machine off five
+# seconds later with the exception unread. That is exactly the run somebody was
+# standing at: they had just clicked Next.
+#
+# The wizard and the Welcome screen are windows too, and either one having been
+# drawn is proof a human is here.
+$windowShown = $false
 
 # WHETHER THIS PAYLOAD HID THE WinPE CONSOLE, declared out here for the same
 # reason $display is: the tail restores it, and the tail runs after a failure.
@@ -763,6 +788,71 @@ try {
 
     $content = $null
 
+    # -- the network carrying traffic, which is not the same as having an address
+    #
+    # AN ADDRESS IS NOT A NETWORK. The poll above stops the moment the machine
+    # holds an IP, and on a Latitude 5490 into a real switch that is roughly
+    # fifteen seconds before anything can be reached through it - link
+    # negotiation finishes, then the switch port learns, and only then does a
+    # frame get anywhere. In between, every SMB attempt comes back
+    #
+    #     The network path was not found.
+    #
+    # which reads like a wrong address and is not one. Measured on that machine:
+    # five attempts over twenty seconds all failed, the technician pressed Next
+    # about thirty-four seconds in, and it connected instantly with nothing
+    # changed. BgInfo had been showing the correct address the whole time.
+    #
+    # SO IT WAITS FOR THE GATEWAY, which is the nearest thing that answers and
+    # the one every route to the share goes through. This costs nothing on a
+    # machine that is already up - the first ping answers - and it converts a
+    # confusing failure into a few seconds of waiting on one that is not.
+    #
+    # IT NEVER FAILS THE DEPLOYMENT. A gateway that does not answer pings, a
+    # WinPE without Test-Connection, a static configuration with no gateway at
+    # all: each of those simply stops the wait and lets the attempts below
+    # decide, exactly as before this existed.
+    $gateway = ''
+    if ($null -ne $fact -and $fact.Contains('HDTDefaultGateway')) {
+        # THE FIRST ONE, because a dual-stack machine answers with IPv4 and a
+        # link-local IPv6 in one string - the shape that broke a bootstrap rule
+        # earlier the same day.
+        $gateway = @(([string] $fact['HDTDefaultGateway']) -split '[,\s]+' |
+                Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' }) | Select-Object -First 1
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($gateway)) {
+        $reachable = $false
+        $waitedForLink = [System.Diagnostics.Stopwatch]::StartNew()
+
+        while ($waitedForLink.Elapsed.TotalSeconds -lt $LinkTimeoutSecond) {
+            try {
+                if (Test-Connection -ComputerName $gateway -Count 1 -Quiet -ErrorAction Stop) {
+                    $reachable = $true
+                    break
+                }
+            } catch {
+                # NOT A REASON TO WAIT ANY LONGER. If pinging cannot be done
+                # here at all, waiting for a ping is waiting for nothing.
+                & $say ("the gateway could not be pinged, so the share is tried straight away: {0}" -f
+                    [string] $_.Exception.Message) 'Warning'
+                break
+            }
+
+            Start-Sleep -Seconds 2
+        }
+
+        $waitedForLink.Stop()
+
+        if ($reachable) {
+            & $say ("gateway {0} answered after {1:n0}s; the network carries traffic" -f
+                $gateway, $waitedForLink.Elapsed.TotalSeconds)
+        } else {
+            & $say ("gateway {0} did not answer in {1}s; trying the share anyway" -f
+                $gateway, $LinkTimeoutSecond) 'Warning'
+        }
+    }
+
     while ($true) {
         $providerArgument['Root'] = [string] $deployRoot.Path
 
@@ -1091,6 +1181,12 @@ try {
                     $brandingName = [string] $resolved.Variable['HDTBrandingName']
                 }
 
+                # SET BEFORE THE WINDOW OPENS, NOT AFTER IT CLOSES. A wizard
+                # that throws while it is being built never reaches the line
+                # after it - and that is the run whose failure screen matters
+                # most, because a technician is standing in front of it.
+                $windowShown = $true
+
                 $answer = Show-HDTWizardShell -ShellXamlPath $WizardShellPath -ThemeXamlPath $WizardThemePath `
                     -Page $ask.Page -Title $wizard.Title -Field $field -BrandingName $brandingName
 
@@ -1398,6 +1494,19 @@ if ($null -ne $display -and $display.Mode -ne 'Suppressed') {
 
 if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
 
+# AND THE ONE THE WIZARD HID, which is a different flag with a different
+# restore - at line 1156, after the wizard returns. A wizard that THREW never
+# reaches it, so the console stayed hidden for exactly the run that needed it
+# visible: the machine is now left in WinPE on purpose, and a technician
+# standing at a black screen with no console has been told nothing.
+#
+# Get-Variable BECAUSE THE CRASH MAY PREDATE THE ASSIGNMENT. $consoleHidden is
+# set on the way into the wizard; a run that died before that has never heard
+# of it, and StrictMode throws on an unassigned variable - in the tail, where
+# throwing loses the log copy-back as well.
+$wizardConsoleHidden = [bool] (Get-Variable -Name 'consoleHidden' -ValueOnly -Scope Script -ErrorAction SilentlyContinue)
+if ($wizardConsoleHidden) { [void] (Hide-HDTShellWindow -Restore) }
+
 $result['elapsedSecond'] = [int] $started.Elapsed.TotalSeconds
 
 # THE END, AFTER EVERYTHING. The context refreshes HDTDeploymentEnd before every
@@ -1481,9 +1590,17 @@ $result['endedWith'] = 'wpeutil {0}' -f $ending
 # window is a run nobody is standing at (DESIGN 11.1's suppression), and an
 # unattended deployment must not wait for a keypress that will never come. That
 # is what keeps the zero-keystroke E2E proof true.
+# A WINDOW HAVING BEEN DRAWN IS THE TEST, NOT $display. $display is the
+# PROGRESS window and it is created after the wizard, so a run that died in the
+# wizard had it still $null - and this block, which exists to tell a technician
+# what went wrong, decided nobody was there and skipped. Five seconds later
+# wpeutil powered the machine off with the exception unread. The one person who
+# could have fixed it had just clicked Next.
+$technicianPresent = $windowShown -or ($null -ne $display -and $display.Mode -ne 'Suppressed')
+
 if ([string] $result['status'] -eq 'Failed' -and
     -not [bool] $result['leftAtCommandPrompt'] -and
-    $null -ne $display -and $display.Mode -ne 'Suppressed') {
+    $technicianPresent) {
 
     try {
         # A LEG THAT DIED BEFORE THE LOOP HAS NO RECORDS AND NO CONTEXT.
@@ -1619,7 +1736,33 @@ Write-Information ("HDT run {0} ended {1} in {2}s; {3}" -f
 # else means it is finished with it - UNLESS somebody asked for a command
 # prompt, in which case the machine is theirs and this script is finished with
 # it rather than the other way round.
-if (-not [bool] $result['leftAtCommandPrompt']) {
+# A FAILED RUN IS LEFT WHERE IT FAILED, AND THAT IS THE WHOLE POINT OF FAILING
+# VISIBLY. This used to shut down - defensibly, because a failed run has usually
+# not applied an image and a REBOOT would boot the media and start the same
+# deployment again, unwatched. But the answer to "do not loop" is not "power
+# off": it is "stop". A machine sitting in WinPE loops nothing, keeps X: and the
+# console and the error on screen, and can be walked up to. One that powered
+# itself off took the only copy of the reason with it - and this payload's log
+# lives on a share it may never have reached.
+#
+# The same reasoning is already written down twenty lines above, for a share
+# that could not be found: "a machine sitting at a screen can be walked up to,
+# and one that powered off at 3am tells nobody anything." This is that rule
+# applied to every failure rather than one of them.
+#
+# ONLY A TECHNICIAN ENDS A FAILED MACHINE. Restart on the failure screen still
+# reboots, Open CMD still leaves them at a prompt, and a run that SUCCEEDED is
+# untouched by this - it reboots into what it built, or honours HDTFinishAction.
+$endMachine = -not [bool] $result['leftAtCommandPrompt']
+
+if ($endMachine -and [string] $result['status'] -eq 'Failed' -and [string] $ending -eq 'shutdown') {
+    $endMachine = $false
+    $result['endedWith'] = 'nothing - left in WinPE so the failure can be read'
+
+    Write-Information ('HDT left this machine in WinPE: {0}' -f $result['message'])
+}
+
+if ($endMachine) {
     Start-Sleep -Seconds 5
 
     & "$env:SystemRoot\System32\wpeutil.exe" $ending
