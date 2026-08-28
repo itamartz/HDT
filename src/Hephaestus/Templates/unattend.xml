@@ -1,4 +1,79 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  THE ANSWER FILE New-HDTWorkspace SEEDS ONTO A SHARE, and the one Windows Setup
+  reads out of Windows\Panther after the image is applied.
+
+  ITS ANCESTOR DEPLOYED A REAL MACHINE. tests/fixtures/unattend/win11-client.xml
+  was captured off a Windows 11 Enterprise LTSC machine SPIKES S7 had just
+  built - ComputerName applied in specialize, OOBE skipped, the built-in
+  Administrator enabled, FirstLogonCommands executed, autologon armed. This
+  document is that one plus the elements listed in the allow-list of
+  tests/contract/UnattendTemplate.Contract.Tests.ps1, each with its reason.
+
+  EVERY ELEMENT HERE MUST BE A REAL SETTING, IN A PASS THAT ACCEPTS IT. That is
+  not advice, it is the difference between a deployment and a machine sitting at
+  a "Windows could not parse or process the unattend answer file" dialog with
+  the operating system already on the disk. Setup validates the whole document:
+  ONE element it does not recognise and NOTHING in the file is applied.
+
+  On 2026-08-28 that happened here, at step 10 of 11, over two additions:
+
+    * EnableFirstLogonAnimation, which is not an unattend setting at all - it is
+      a Group Policy / Policy CSP value (Policy CSP WindowsLogon). Setup named
+      the oobeSystem pass and refused the file. If the first-logon animation is
+      ever worth suppressing, it is a registry write from a FirstLogonCommands
+      entry, in the pass that can actually do it.
+
+    * Microsoft-Windows-PnpCustomizationsNonWinPE, in specialize. See below.
+
+  BOTH ARE NOW A CONTRACT TEST, driven off this file as parsed XML against the
+  documented passes - so the next one fails in the suite instead of on a bench.
+
+  WHY THERE IS NO DriverPaths BLOCK, AND WHY MOVING IT BACK IS NOT THE FIX
+
+  A DriverPaths block pointing at C:\Drivers used to sit in the specialize pass.
+  Microsoft documents Microsoft-Windows-PnpCustomizationsNonWinPE for auditSystem
+  and offlineServicing ONLY, so specialize was wrong; but offlineServicing is
+  not where it belongs either, and that is the part worth writing down.
+
+  offlineServicing runs when an answer file is APPLIED TO AN OFFLINE IMAGE -
+  DISM /Apply-Unattend, or Setup.exe installing from media. HDT does neither: it
+  applies the image with DISM and stages this document into Panther for the
+  machine to read on its first boot. Nothing in this toolkit runs Apply-Unattend,
+  so an offlineServicing block here would never be processed at all. PSD carries
+  one (Templates\Unattend_x64.xml) because MDT's apply path does run it; ours
+  does not.
+
+  So the block was moved nowhere. It was doing nothing where it was, it would do
+  nothing where it was documented, and leaving it in place would have read to
+  the next person as "drivers are wired up" when they are not.
+
+  ApplyDrivers still copies matched packages to <OSVolume>\Drivers - that part
+  works and is worth keeping. What is MISSING is the thing that tells Plug and
+  Play to look there, and an answer file in this deployment model cannot be it.
+  The mechanism that can is the DevicePath value under
+  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion, which is what MDT actually
+  uses. Until that exists, staged drivers are on the disk and are not installed.
+
+  WHY EVERY SUBSTITUTED VALUE IS XML-ESCAPED
+
+  Invoke-HDTApplyUnattendStep escapes each value as it substitutes it, and the
+  history of that line matters because deleting it is what broke this file.
+
+  There was once a New-HDTDeploymentPassword whose alphabet excluded the five
+  XML metacharacters and the per cent sign ON PURPOSE, so a minted password
+  substituted into this document without escaping. That command is gone -
+  DESIGN 4.5.2 settled it, "the administrator sets the password; HDT does not
+  invent one" - and its guarantee went with it, while the substitution stayed
+  unescaped. Every password reaching this file is now a string a human typed,
+  and 'Pa&ss' is a legal Windows password that produces an answer file Setup
+  cannot parse.
+
+  NOTE THAT THIS COMMENT NAMES TOKENS WITHOUT THEIR PER CENT SIGNS, on purpose:
+  expansion runs over the WHOLE document, comments included, so a comment
+  written with the token in it would put the machine's local Administrator
+  password into a comment in the deployed answer file.
+-->
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="specialize">
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
@@ -7,18 +82,11 @@
       <ComputerName>%HDTComputerName%</ComputerName>
       <RegisteredOwner>%HDTFullName%</RegisteredOwner>
       <RegisteredOrganization>%HDTOrgName%</RegisteredOrganization>
+      <!-- REMOVED ENTIRELY when no key is supplied, never left empty: an empty
+           ProductKey fails the specialize pass, and so does the unexpanded
+           token. Invoke-HDTApplyUnattendStep does the removing. -->
       <ProductKey>%HDTProductKey%</ProductKey>
       <TimeZone>%HDTTimeZone%</TimeZone>
-    </component>
-
-    <component name="Microsoft-Windows-PnpCustomizationsNonWinPE" processorArchitecture="amd64"
-               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
-               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <DriverPaths>
-        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
-          <Path>C:\Drivers</Path>
-        </PathAndCredentials>
-      </DriverPaths>
     </component>
   </settings>
 
@@ -46,8 +114,6 @@
         <UnattendEnableRetailDemo>false</UnattendEnableRetailDemo>
       </OOBE>
 
-      <EnableFirstLogonAnimation>false</EnableFirstLogonAnimation>
-
       <UserAccounts>
         <AdministratorPassword>
           <Value>%HDTAdminPassword%</Value>
@@ -55,6 +121,11 @@
         </AdministratorPassword>
       </UserAccounts>
 
+      <!-- DESIGN 4.5.1: the oobeSystem AutoLogon block is what arms the FIRST
+           logon of the deployed machine. Every leg after that is armed by
+           Set-HDTAutoLogon against the machine's own registry and LSA store.
+           The password token appears twice in this document because Setup reads
+           UserAccounts and AutoLogon separately. -->
       <AutoLogon>
         <Enabled>true</Enabled>
         <LogonCount>999</LogonCount>
