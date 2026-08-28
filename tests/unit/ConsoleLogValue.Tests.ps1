@@ -16,6 +16,33 @@ BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
+    # A SUPPRESSION NEEDS A FUNCTION TO SIT ON. ConvertTo-SecureString with a
+    # literal is the only way to build a SecureString from a known test
+    # constant, and the analyzer flags every call - but the attribute has no
+    # effect above an It block or on a scriptblock's param, only in a real
+    # function's param block (PSScriptAnalyzerSettings.psd1 records the same
+    # four placements). Get-HDTWizardCredential.Tests.ps1 does exactly this.
+    #
+    # THE CONSTANT IS A FIXTURE, NOT A CREDENTIAL. It authenticates to nothing,
+    # and it exists to be the value the redaction assertions below search for.
+    function New-HDTTestSecret {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds an in-memory SecureString; it changes no state.')]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+            Justification = 'The only way to build a SecureString from a known test constant; it authenticates to nothing.')]
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Text',
+            Justification = 'A test fixture constant, not a credential.')]
+        [CmdletBinding()]
+        [OutputType([System.Security.SecureString])]
+        param(
+            [Parameter()]
+            [AllowEmptyString()]
+            [string] $Text = 'unlikely-secret-value'
+        )
+
+        return (ConvertTo-SecureString -String $Text -AsPlainText -Force)
+    }
+
     $script:show = {
         param([string] $Name, [object] $Value)
 
@@ -83,13 +110,13 @@ Describe 'Format-HDTConsoleLogValue' {
         It 'redacts a SecureString under a name nobody thought of' {
             # THE ONE THE NAME LIST CANNOT CATCH. A list only holds words
             # somebody remembered; the type check is what covers the rest.
-            $secure = ConvertTo-SecureString -String 'unlikely-secret-value' -AsPlainText -Force
+            $secure = New-HDTTestSecret
 
             & $script:show 'Thing' $secure | Should -BeExactly '<redacted>'
         }
 
         It 'redacts a PSCredential under a name nobody thought of' {
-            $secure = ConvertTo-SecureString -String 'unlikely-secret-value' -AsPlainText -Force
+            $secure = New-HDTTestSecret
             $credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList 'lab\admin', $secure
 
             & $script:show 'Account' $credential | Should -BeExactly '<redacted>'

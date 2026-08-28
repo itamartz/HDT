@@ -64,6 +64,21 @@ function Test-HDTAdminPassword {
             exists to catch. The Reason never quotes either value - it is
             painted on screen and written to the log.
     #>
+    # A SecureString HERE WOULD BE THEATRE, and it would not work. The value
+    # arrives from a WPF PasswordBox, whose Password property is already a
+    # plain String - so converting it would protect nothing that was not
+    # already in memory in the clear, and the two values still have to be
+    # compared character for character to answer the only question this asks.
+    # The unattend the answer ends up in is plain text as well.
+    #
+    # Set-HDTAutoLogon, New-HDTSmbService and Protect-HDTShareSecret carry the
+    # same suppression for the same reason.
+    # ONLY Password IS SUPPRESSED, because only Password is flagged - the rule
+    # matches the NAME, and Confirmation is not one of the words it looks for.
+    # A suppression with no matching diagnostic is itself an analyzer error:
+    # "Cannot find any DiagnosticRecord with the Rule Suppression ID".
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Password',
+        Justification = 'The value comes from a PasswordBox as a String and is compared, not stored; a SecureString would protect nothing and could not be compared.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(

@@ -128,9 +128,13 @@ Describe 'Invoke-HDTApplyDriversStep' {
         $script:context = & $script:newContext $null
 
         $script:record = {
-            param([string] $Event)
+            # NOT $Event: it is a PowerShell automatic variable, and assigning
+            # to it is a warning the analyzer raises for good reason - the
+            # engine's own log writer carries a suppression for the same name
+            # where it cannot rename. Here it can.
+            param([string] $EventName)
 
-            return @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event $Event)
+            return @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event $EventName)
         }
     }
 
