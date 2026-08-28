@@ -352,6 +352,12 @@ $result = [ordered] @{
     logPath            = ''
     logDestination     = ''
 
+    # WHERE THE LOGS ACTUALLY LANDED, which is not the same question as where
+    # they were meant to. Empty means the copy-back did not happen or did not
+    # work, and RESULT.json is where somebody reading a failed run finds that
+    # out - rather than looking for a log on a share it never reached.
+    logCopyBack        = ''
+
     # HDTFinishAction, AS RESOLVED, and initialised here for the reason every
     # field in this hashtable is: the tail runs after a failure and may only
     # read what a failed run has. A run that died before the rules resolved
@@ -496,6 +502,13 @@ try {
     # IT RETURNS Retry, NOT AN ADDRESS. What the technician did to the machine
     # has already happened by then; the caller's job is to poll again and find
     # out whether it worked, which is the only honest test of a static address.
+    #
+    # AND IT RETURNS THE SHARE AND THE ACCOUNT, because harvesting a value is
+    # not consuming it. Get-HDTWizardHarvest reads nine controls off this
+    # window; for a long time one of them was ever looked at again, so a
+    # technician told their credential was rejected could retype it, press Next,
+    # and watch the retry reconnect with the rejected one. See the two blocks at
+    # the end of this closure.
     $showWelcome = {
 
         # IT TAKES NOTHING. The screen shows what the MACHINE reports, read
@@ -543,7 +556,12 @@ try {
             & $openStatus
         }
 
-        if ($null -eq $answer) { return [pscustomobject] @{ Retry = $false } }
+        # THE SAME SHAPE FROM EVERY EXIT, so a caller reading .Credential or
+        # .DeployRoot under Set-StrictMode gets an answer rather than an
+        # exception on the one path where the screen did not come back.
+        if ($null -eq $answer) {
+            return [pscustomobject] @{ Retry = $false; DeployRoot = ''; Credential = $null }
+        }
 
         & $say ("the Welcome screen answered: {0}" -f $answer.Action)
 
@@ -557,21 +575,168 @@ try {
             # RESULT.json should answer.
             $result['leftAtCommandPrompt'] = $true
 
-            return [pscustomobject] @{ Retry = $false }
+            return [pscustomobject] @{ Retry = $false; DeployRoot = ''; Credential = $null }
         }
 
         # WHAT WAS TYPED COMES BACK WITH THE ANSWER. Until Get-HDTWizardHarvest
         # existed this screen returned an Action alone, so a technician could
         # correct the share, press Next, and watch the machine fail on the
         # address that was already wrong.
-        $typed = ''
-        if ($null -ne $answer.Value -and $answer.Value.ContainsKey('HDTDeployRootBox')) {
-            $typed = [string] $answer.Value['HDTDeployRootBox']
+        #
+        # HARVESTING A VALUE IS NOT CONSUMING IT, and this screen proved that
+        # twice more after the share box was fixed. Get-HDTWizardHarvest reads
+        # NINE controls off the window; for a long time exactly one of them was
+        # ever looked at again. Everything below is the other eight.
+        $boxed = {
+            param([string] $Name)
+
+            # A NAME THE SCREEN DOES NOT CARRY IS AN ORDINARY ANSWER, not an
+            # error - HDTSkipStaticIp hides the address pane outright, and the
+            # host collects nothing for a control that is not there.
+            if ($null -eq $answer.Value) { return '' }
+            if (-not $answer.Value.ContainsKey($Name)) { return '' }
+
+            return [string] $answer.Value[$Name]
+        }
+
+        $typed = & $boxed 'HDTDeployRootBox'
+
+        # -- THE ADDRESS, ACTUALLY APPLIED ------------------------------------
+        #
+        # THE COMMENT AT THE TOP OF THIS CLOSURE HAS ALWAYS SAID a static
+        # address "is applied through WMI (SPIKES S14) by Set-HDTStaticAddress",
+        # and Set-HDTStaticAddress had no caller anywhere in the product. A
+        # technician on a segment with no DHCP - which is the ONLY reason this
+        # screen opens on the no-network path at all - filled in four boxes,
+        # pressed Next, and the machine went back to polling for a lease that
+        # was never coming, until the timeout brought the same screen back.
+        #
+        # ONLY WHEN THE RADIO SAYS SO. The address boxes come up holding the
+        # lease the machine already has (Get-HDTWizardField), and a box showing
+        # what it was prefilled with is not a request to nail that address down.
+        # Get-HDTWizardHarvest says exactly this about HDTUseStaticRadio: it "is
+        # what says whether any of the four below were meant at all".
+        #
+        # AND IT NEVER ENDS THE RUN. Set-HDTStaticAddress refuses a malformed
+        # address by throwing - deliberately, so a typo cannot become a
+        # different machine's address - and the honest response here is to say
+        # so and let the caller show the screen again. Powering a machine off in
+        # front of the person who is fixing it, over one wrong octet, is the
+        # failure this whole screen exists to stop.
+        $useStatic = $false
+        if ($null -ne $answer.Value -and $answer.Value.ContainsKey('HDTUseStaticRadio')) {
+            $useStatic = [bool] $answer.Value['HDTUseStaticRadio']
+        }
+
+        $typedAddress = & $boxed 'HDTIpAddressBox'
+        $typedMask = & $boxed 'HDTSubnetMaskBox'
+
+        if ($useStatic -and -not [string]::IsNullOrWhiteSpace($typedAddress) -and
+            -not [string]::IsNullOrWhiteSpace($typedMask)) {
+
+            try {
+                [void] (Set-HDTStaticAddress -IPAddress $typedAddress -SubnetMask $typedMask `
+                        -Gateway (& $boxed 'HDTGatewayBox') `
+                        -DnsServer @(& $boxed 'HDTDnsBox') -CimProvider $cim)
+
+                & $say ("static address {0} mask {1} gateway '{2}' applied through WMI" -f
+                    $typedAddress, $typedMask, (& $boxed 'HDTGatewayBox'))
+            } catch {
+                & $say ("the static address could not be applied, so the machine keeps the network it had: {0}" -f
+                    [string] $_.Exception.Message) 'Warning'
+            }
+        }
+
+        # -- AND THE ACCOUNT, WHICH WAS THE HALF STILL BEING DISCARDED --------
+        #
+        # THE STORY THIS EXISTS FOR. A technician at a bench is told the share
+        # refused the credential the boot image carries. The screen comes up
+        # with the account boxes in front of them. They retype the password,
+        # press Next, and watch THE SAME REFUSAL come back - because the retry
+        # re-bound $providerArgument['Root'] and nothing else, so the only thing
+        # that screen could ever fix was a wrong path. Then they do it again,
+        # more carefully, and it fails again.
+        #
+        # WHICH IS THE DEFECT Get-HDTWizardHarvest'S OWN HELP SAYS IT WAS
+        # WRITTEN TO END, one window over: a value read off a window and
+        # dropped. It was, and then nobody read the bag.
+        #
+        # EMPTY MEANS KEEP WHAT THIS RUN ALREADY HAS - NEVER "CONNECT WITH
+        # NOTHING". All three boxes are PREFILLED from the embedded account
+        # (Get-HDTWizardField, and its comment on why the password is among
+        # them), so blank is either a deliberate clearing or an image that
+        # carries no account at all. In both cases the useful answer is the
+        # credential the run was already using. The alternative turns a working
+        # zero-touch image into an anonymous connect the moment somebody clears
+        # a box - and DESIGN 6.3 refuses a guest session, so the failure would
+        # arrive as a security refusal naming an account nobody chose. $null is
+        # therefore "no change", and the loop leaves the credential alone.
+        #
+        # BOTH HALVES OR NEITHER. A user with no password cannot be composed
+        # into a PSCredential at all, and half a typed credential is not a
+        # better guess than the whole one already in hand.
+        #
+        # THE DOMAIN IS SPLIT BY Split-HDTAccountName AND NOT HERE. Technicians
+        # type what they know - 'CORP\tech' into the user box as often as 'tech'
+        # plus a domain box - and 'CORP\CORP\tech' is what re-parsing it by hand
+        # produces on the second try.
+        #
+        # BLANK DOMAIN MEANS LOCAL, AND LOCAL IS SPELLED SERVER\user - the rule
+        # Get-HDTWizardCredential documents, because a technician has to be able
+        # to say "this account is LOCAL to that server" without knowing the
+        # convention is to type a server name where a domain goes.
+        #
+        # THAT COMMAND IS NOT CALLED HERE, AND THE REASON IS ITS BEST FEATURE:
+        # it CONNECTS to prove the account. Neither caller of this screen can
+        # use that. The no-network caller has no network to connect over - it is
+        # standing here precisely because there is no address - and the retry
+        # caller connects on the very next pass anyway and reports what
+        # happened. Composing without connecting is what is wanted; the proof
+        # arrives four lines later either way.
+        $credential = $null
+        $typedUser = & $boxed 'HDTUserIdBox'
+        $typedPassword = & $boxed 'HDTPasswordBox'
+
+        if (-not [string]::IsNullOrWhiteSpace($typedUser) -and
+            -not [string]::IsNullOrEmpty($typedPassword)) {
+
+            $account = Split-HDTAccountName -Name $typedUser
+            $domain = [string] $account.Domain
+
+            if ([string]::IsNullOrWhiteSpace($domain)) { $domain = & $boxed 'HDTUserDomainBox' }
+
+            # THE SERVER, WHEN NOTHING ELSE NAMED A DOMAIN: taken from the share
+            # that was just typed, falling back to the one the image was built
+            # with - because the share box may have been left alone.
+            if ([string]::IsNullOrWhiteSpace($domain)) {
+                $share = $typed
+                if ([string]::IsNullOrWhiteSpace($share)) { $share = [string] $bootstrap.DeployRoot }
+
+                if ($share.StartsWith('\\')) {
+                    $segment = @($share.TrimStart('\').Split('\') | Where-Object { $_ })
+                    if ($segment.Count -ge 1) { $domain = [string] $segment[0] }
+                }
+            }
+
+            $composed = [string] $account.User
+            if (-not [string]::IsNullOrWhiteSpace($domain)) {
+                $composed = '{0}\{1}' -f $domain, $account.User
+            }
+
+            $credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList @(
+                $composed,
+                (ConvertTo-SecureString -String $typedPassword -AsPlainText -Force)
+            )
+
+            # THE ACCOUNT IS SAID OUT LOUD AND THE PASSWORD NEVER IS. A
+            # deployment log is copied around far more freely than a password.
+            & $say ("the technician gave the account '{0}'" -f $composed)
         }
 
         return [pscustomobject] @{
             Retry      = ($answer.Action -eq 'Next')
             DeployRoot = $typed
+            Credential = $credential
         }
     }
 
@@ -918,6 +1083,31 @@ try {
                 $deployRoot.Path)
         }
 
+        # THE RETYPED ACCOUNT, RE-BOUND THE WAY THE SHARE IS. Without this line
+        # the credential quartet on that screen was decorative: a technician
+        # told their credential was rejected retyped the password, pressed Next,
+        # and pass two reconnected with THE SAME REJECTED ACCOUNT. The only
+        # thing this screen could actually fix was a wrong path, and the boxes
+        # that would have fixed the other half were read off the window and
+        # thrown away.
+        #
+        # BEFORE THE EMPTY-SHARE-BOX CHECK BELOW, because that one continues the
+        # loop - and a technician who corrected only the password, leaving the
+        # share alone, is the commonest shape of this. Rebinding after it would
+        # skip exactly the case this exists for.
+        #
+        # $null IS "NO CHANGE", NOT "NO CREDENTIAL" - see $showWelcome. Empty
+        # boxes keep whatever this run was already using, which is what stops a
+        # cleared box turning an embedded account into an anonymous connect.
+        # Assigning unconditionally would do precisely that.
+        if ($null -ne $corrected.Credential) {
+            $providerArgument['Credential'] = $corrected.Credential
+            $result['credentialSource'] = 'Welcome'
+
+            & $say ("the technician gave the account '{0}'; the next attempt uses it" -f
+                $corrected.Credential.UserName)
+        }
+
         if ([string]::IsNullOrWhiteSpace($corrected.DeployRoot)) {
             & $say 'the Welcome screen was closed with an empty share box, so the same one is tried again' 'Warning'
             continue
@@ -1022,6 +1212,46 @@ try {
             & $say ("the live log destination '{0}' could not be prepared, so logs stay on this machine until the run ends: {1}" -f
                 $dynamicLogPath, [string] $_.Exception.Message) 'Warning'
         }
+    }
+
+    # -- 10a3. and where the log is COPIED when this run ends -----------------
+    #
+    # MDT'S SLShare, THE OTHER HALF OF THE SAME QUESTION. Ten lines above,
+    # HDTSLShareDynamicLogging said where the log is WRITTEN while the run
+    # happens; this says where the whole directory is COPIED when it ends, and
+    # the tail's copy-back is guarded on nothing else.
+    #
+    # AND IT USED TO BE ANSWERED FOUR HUNDRED LINES DOWN, after the wizard and
+    # after the progress window - which is to say after everything in this file
+    # that can throw. A real deployment in this lab died in WinPE before a
+    # single step ran and its failure screen read:
+    #
+    #   HDTConfigurationError: no task sequence was named.
+    #   Log: (no log destination was resolved)
+    #
+    # true, and useless. The guard was still empty, the tail copied nothing, and
+    # the entire record of why went away with the RAM disk five seconds later.
+    #
+    # b08bb91 MADE THIS MOVE FOR THE LIVE MIRROR AND LEFT THIS HALF BEHIND. Two
+    # answers to one question, computed four hundred lines apart, is exactly how
+    # one of them gets forgotten - so they sit together now, and both are known
+    # before the wizard opens.
+    #
+    # NOTHING DOWNSTREAM CHANGES. $result['logDestination'] is what the failure
+    # screen's Log line, the tail's copy-back and RESULT.json all read; this
+    # fills it sooner and nothing fills it again.
+    $logTarget = Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable
+
+    $result['logDestination'] = [string] $logTarget.Path
+    $result['logDestinationSource'] = [string] $logTarget.Source
+
+    if ([string]::IsNullOrWhiteSpace([string] $logTarget.Path)) {
+        # SAID OUT LOUD, ON THE PANEL. A run with no log destination is a run
+        # whose evidence dies with the machine, and the technician in front of
+        # it is the only person who can do anything about that.
+        & $say 'no log destination was resolved, so this run''s log will not leave this machine' 'Warning'
+    } else {
+        & $say ("logs will be copied to '{0}' ({1})" -f $logTarget.Path, $logTarget.Source)
     }
 
     # -- 10b. THE ENGINE'S OWN DEFAULTS, BEFORE ANYTHING READS THEM -----------
@@ -1156,8 +1386,18 @@ try {
                     & $say ("task sequence picker: {0}" -f $problem) 'Warning'
                 }
 
-                & $say ("task sequence picker: {0} sequence(s) on the share, opening on '{1}'" -f
-                    @($sequenceChoice.Choice).Count, $sequenceChoice.Selected)
+                # "opening on ''" IS NOT A SENTENCE. Nothing preselected is the
+                # normal state now - MDT's Task Sequence pane preselects nothing
+                # and the page will not leave without a choice - so the log says
+                # that in words rather than showing an empty pair of quotes and
+                # leaving whoever reads it wondering what went wrong.
+                $openingOn = 'nothing preselected, so the technician chooses'
+                if (-not [string]::IsNullOrWhiteSpace([string] $sequenceChoice.Selected)) {
+                    $openingOn = "opening on '{0}'" -f [string] $sequenceChoice.Selected
+                }
+
+                & $say ("task sequence picker: {0} sequence(s) on the share, {1}" -f
+                    @($sequenceChoice.Choice).Count, $openingOn)
 
                 # W4: THE NAME THE RULES PRODUCED, IN THE BOX BEFORE ANYBODY
                 # TYPES. rules.yaml owns the convention - PC-%HDTSerialNumber%
@@ -1462,15 +1702,11 @@ try {
     # -LogDestination IS THE LOG ROOT, NOT THE RUN FOLDER: Copy-HDTLog appends
     # <ComputerName>-<RunId> itself.
     #
-    # AND WHICH ROOT IS MDT'S QUESTION, ANSWERED MDT'S WAY. HDTSLShare sends the
-    # logs to a log server; without it they land under the deploy root, which is
-    # what every deployment did before the variable existed.
-    $logTarget = Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $variable
-    $logDestination = [string] $logTarget.Path
-    $result['logDestination'] = $logDestination
-    $result['logDestinationSource'] = [string] $logTarget.Source
-
-    & $say ("logs will be copied to '{0}' ({1})" -f $logDestination, $logTarget.Source)
+    # AND WHICH ROOT IS MDT'S QUESTION, ANSWERED MDT'S WAY, AT STEP 10a3 -
+    # before the wizard, so a run that dies in it still knows where its log
+    # goes. Resolving it a second time here would be a second answer to
+    # re-forget.
+    $logDestination = [string] $result['logDestination']
 
     & $say 'running the task sequence'
 
@@ -1705,6 +1941,46 @@ if ([bool] $result['leftAtCommandPrompt']) {
     $result['endedWith'] = 'nothing - the technician was left at a command prompt'
 }
 
+# THE COPY-BACK, AGAIN AND UNCONDITIONALLY. The loop already did it when it got
+# that far; this is for the runs that did not.
+#
+# BEFORE RESULT.json IS SERIALISED, AND THAT ORDER IS THE POINT. This used to be
+# the last thing the file did, after the evidence file had already been written
+# and after LAUNCHER.log had been closed - so whether the logs reached the share
+# was recorded nowhere at all. It ran, it failed, and the only surface that knew
+# was a Warning inside the copy of the log that never arrived.
+#
+# AND THE ANSWER IS READ RATHER THAN PIPED TO Out-Null. Copy-HDTLog is
+# documented never to throw; it reports on its result instead, and a caller that
+# threw the result away turned "the share is gone" into silence.
+if ($null -ne $log -and -not [string]::IsNullOrWhiteSpace([string] $result['logDestination'])) {
+    try {
+        $copyArgument = @{ Context = $log; Destination = [string] $result['logDestination'] }
+        if (-not [string]::IsNullOrWhiteSpace([string] $result['computerName'])) {
+            $copyArgument['ComputerName'] = [string] $result['computerName']
+        }
+
+        $copied = Copy-HDTLog @copyArgument
+
+        $result['logCopyBack'] = [string] $copied.Path
+
+        if ($copied.Succeeded) {
+            & $say ("the log was copied to '{0}'" -f $copied.Path)
+        } else {
+            $result['logCopyBack'] = ''
+
+            & $say ("the log could NOT be copied to '{0}', so this run's record lives only on this machine: {1}" -f
+                $copied.Path, $copied.Message) 'Warning'
+        }
+    } catch {
+        $result['logCopyBack'] = ''
+
+        & $say ("the log could NOT be copied: {0}" -f $_.Exception.Message) 'Warning'
+    }
+} else {
+    & $say 'no log destination was resolved, so this run''s log stays on this machine' 'Warning'
+}
+
 # UTF-8 WITHOUT A BOM, EXPLICITLY. SPIKES S6's third finding: the default under
 # 5.1 is UTF-16, which half the tooling cannot read.
 $utf8 = New-Object -TypeName System.Text.UTF8Encoding -ArgumentList $false
@@ -1747,21 +2023,6 @@ try {
     [System.IO.File]::WriteAllLines('X:\HDT\LAUNCHER.log', [string[]] @($transcript), $utf8)
 } catch {
     Write-Information ("could not write the fallback RESULT.json: {0}" -f $_.Exception.Message)
-}
-
-# THE COPY-BACK, AGAIN AND UNCONDITIONALLY. The loop already did it when it got
-# that far; this is for the runs that did not.
-if ($null -ne $log -and -not [string]::IsNullOrWhiteSpace([string] $result['logDestination'])) {
-    try {
-        $copyArgument = @{ Context = $log; Destination = [string] $result['logDestination'] }
-        if (-not [string]::IsNullOrWhiteSpace([string] $result['computerName'])) {
-            $copyArgument['ComputerName'] = [string] $result['computerName']
-        }
-
-        Copy-HDTLog @copyArgument | Out-Null
-    } catch {
-        Write-Information ("could not copy the deployment logs: {0}" -f $_.Exception.Message)
-    }
 }
 
 if ($null -ne $content) {
