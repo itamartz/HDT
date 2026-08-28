@@ -4506,7 +4506,7 @@ Import-HDTBootImageToWds -Path &#x27;C:\HDTLab\Share\Boot\HDTPE_x64.wim&#x27;</p
      away. No match: ImportBootImage alone;
   5. return ImageName, Architecture, Path, Replaced, PreviousVersion.</pre>
 <p>SupportsShouldProcess, and not as decoration: step 4 deletes a boot image a fleet PXE boots from. Under -WhatIf NOTHING is called, including the read.</p>
-<p>IT HAS NEVER RUN AGAINST A REAL WDS SERVER. There is none on this host - it is Windows 11 Pro, and WDS is a Windows Server role - and PROJECT.md&#x27;s lab safety rules forbid standing one up beside CM01&#x27;s PXE responder. Everything above is asserted against New-HDTFakeWdsService; the one real assertion this machine can make is that New-HDTWdsService refuses with a named dependency error, and it is made against the real adapter.</p></div></details>
+<p>IT HAS NEVER RUN AGAINST A REAL WDS SERVER. There is none on this host - it is Windows 11 Pro, and WDS is a Windows Server role - and PROJECT.md&#x27;s lab safety rules confine a PXE responder to the isolated &#x27;HDT Lab&#x27; switch, which no share on this host is reachable from. Everything above is asserted against New-HDTFakeWdsService; the one real assertion this machine can make is that New-HDTWdsService refuses with a named dependency error, and it is made against the real adapter.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with ImageName, Architecture, Path, Replaced and PreviousVersion.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
@@ -4532,7 +4532,7 @@ Import-HDTBootImageToWds -Path &#x27;C:\HDTLab\Share\Boot\HDTPE_x64.wim&#x27;</p
   Boot\&lt;arch&gt;\&lt;name&gt;.manifest.json    workspace  Boot\&lt;name&gt;.manifest.json</pre>
 <p>wdsmgfw.efi IS OPTIONAL AND DOES NOT AFFECT Complete, because a site&#x27;s TFTP stack may want either name for the same bootloader and this command does not know which. It is reported in Skipped rather than dropped silently.</p>
 <p>WHAT &#x27;Complete&#x27; MEANS: every declared file is staged and its bytes verify. IT DOES NOT MEAN A MACHINE WILL PXE BOOT FROM THIS, and this file will not make the larger claim. The BCD staged here is the ADK media template, which describes booting sources\boot.wim from removable media; a TFTP/HTTP stack generally needs its own BCD store and its own device element.</p>
-<p>THIS PAYLOAD HAS NEVER BEEN NETWORK-BOOTED by anything in this repository - there is no WDS on this host and PROJECT.md forbids standing one up beside CM01&#x27;s PXE responder - so claiming staging completeness is honest and claiming bootability would not be. tests/integration/PxePayload.Integration.Tests.ps1 asserts that this sentence is still here.</p>
+<p>THIS PAYLOAD HAS NEVER BEEN NETWORK-BOOTED by anything in this repository - there is no WDS on this host and PROJECT.md confines a PXE responder to the isolated &#x27;HDT Lab&#x27; switch - so claiming staging completeness is honest and claiming bootability would not be. tests/integration/PxePayload.Integration.Tests.ps1 asserts that this sentence is still here.</p>
 <p>EVERY COPY IS VERIFIED BY HASH AND A MISMATCH IS A FAILURE, NOT A WARNING. A truncated boot.sdi on a TFTP server is a machine that hangs at boot with no message on the screen and no line in any log; an operator who was warned about it in a scrollback they closed is an operator with a fleet that does not boot.</p>
 <p>Everything goes through IFileSystem and every ADK path through Get-HDTAdkPath - PROJECT.md&#x27;s rule, because the kit layout has moved between ADK releases and a literal would work here forever and fail in the field.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Path, Architecture, BootImageName, Complete, File (Destination, Source, SizeBytes, Sha256, Required), Missing and Skipped.</p>
@@ -6318,11 +6318,12 @@ Import-HDTBootImageToWds -Path &#x27;C:\HDTLab\Share\Boot\HDTPE_x64.wim&#x27; -W
 <pre class="block">  * this machine is Windows 11 Pro. The WDS PowerShell module and
     wdsutil.exe ship with a Windows SERVER role, so there is nothing
     here to adapt;
-  * standing one up is forbidden by PROJECT.md&#x27;s lab safety rules.
-    CM01 runs a PXE responder on &#x27;Default Switch&#x27;, and PROJECT.md
-    rule 3 confines PXE/WDS testing to the isolated &#x27;HDT Lab&#x27; switch
-    - a second responder beside CM01&#x27;s would either break the user&#x27;s
-    SCCM lab or answer our test VMs and silently invalidate the test.</pre>
+  * standing one up is constrained by PROJECT.md&#x27;s lab safety rules.
+    Rule 3 confines PXE/WDS testing to the isolated &#x27;HDT Lab&#x27;
+    switch, because a PXE responder answers every machine on its
+    segment - on a shared switch it would answer machines that are
+    not ours, and anything else answering there would silently
+    invalidate the test.</pre>
 <p>SO IT GETS NO CONTRACT ROW against the real implementation, and tests/contract carries no IWdsService file at all. The ONE thing this machine can prove about it is asserted in tests/unit/Import-HDTBootImageToWds.Tests.ps1, against this function rather than a simulation of it: on a host with no WDS module, the constructor refuses with a named HDTDependencyError. Everything else about the WDS path is asserted against the fake, and that is said here in a plain sentence rather than implied away.</p>
 <p>THE CONSTRUCTOR IS THE ONLY BRANCH, for the same reason Get-HDTAdkPath&#x27;s existence check is: an adapter that is not unit tested must stay branch-free, and a dependency gate that names what is missing is the exception every adapter here is allowed - because the alternative is &quot;The term &#x27;Get-WdsBootImage&#x27; is not recognized&quot;, which tells an administrator nothing about which role to install.</p>
 <p>Import-WdsBootImage is invoked with -SkipVerify:$false. Verification is the slow half of an import and it is the half that catches a truncated WIM before a fleet tries to boot it.</p></div></details>

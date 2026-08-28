@@ -82,12 +82,15 @@ BeforeAll {
     # (helpers README 12). Only ./build.ps1 -Task e2e sets StrictMode; a bare
     # Invoke-Pester does not, which is why it hid.
 
-    # EVERY VM THIS SUITE DOES NOT OWN, not two names. CM01 and DC01 were
-    # deleted from this host, which turned a two-name snapshot into an empty
-    # array - and comparing empty with empty afterwards held while checking
+    # EVERY VM THIS SUITE DOES NOT OWN, not a list of names. This snapshot used
+    # to name two VMs that were retired on 2026-08-29, which turned it into an
+    # empty array - and comparing empty with empty afterwards held while checking
     # nothing (the shape of SPIKES S9.14). Reading every non-HDT-* VM covers
-    # whatever is built next without anyone remembering to add its name.
-    $script:protectedBefore = @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
+    # whatever is built next without anyone remembering to add its name. The
+    # unfiltered Get-VM is READ-ONLY and is the one exception PROJECT.md rule 1
+    # allows: you cannot prove you left the other VMs alone without listing them.
+    $script:protectedBefore = @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike 'HDT-*' } |
             Sort-Object Name |
             ForEach-Object {
                 [pscustomobject] @{
@@ -469,7 +472,8 @@ Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {
     Context 'the lab is unharmed' {
 
         It 'left every VM it does not own exactly as it found it' {
-            $after = @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
+            $after = @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -notlike 'HDT-*' } |
                     Sort-Object Name |
                     ForEach-Object {
                         [pscustomobject] @{

@@ -22,11 +22,12 @@
               * this machine is Windows 11 Pro. The WDS PowerShell module and
                 wdsutil.exe ship with a Windows SERVER role, so there is nothing
                 here to adapt;
-              * standing one up is forbidden by PROJECT.md's lab safety rules.
-                CM01 runs a PXE responder on 'Default Switch', and PROJECT.md
-                rule 3 confines PXE/WDS testing to the isolated 'HDT Lab' switch
-                - a second responder beside CM01's would either break the user's
-                SCCM lab or answer our test VMs and silently invalidate the test.
+              * standing one up is constrained by PROJECT.md's lab safety rules.
+                Rule 3 confines PXE/WDS testing to the isolated 'HDT Lab'
+                switch, because a PXE responder answers every machine on its
+                segment - on a shared switch it would answer machines that are
+                not ours, and anything else answering there would silently
+                invalidate the test.
 
             SO IT GETS NO CONTRACT ROW against the real implementation, and
             tests/contract carries no IWdsService file at all. The ONE thing this

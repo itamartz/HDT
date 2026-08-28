@@ -63,14 +63,15 @@ NON-NEGOTIABLE CONSTRAINTS (violating any is a defect):
   * SupportsShouldProcess on anything destructive; refuse ambiguous targets.
   * Set-StrictMode -Version Latest and $ErrorActionPreference='Stop' in engine code.
 
-HYPER-V LAB SAFETY — the host runs the user's LIVE lab:
-  * PROTECTED, never touch: VMs 'CM01' (SCCM, has a PXE responder) and 'DC01'
-    (domain controller), both on 'Default Switch' 192.168.25.0/24.
+HYPER-V LAB SAFETY — the host is the user's own machine:
+  * PROTECTED, never touch: EVERY VM not named HDT-*. The protected set is a
+    prefix, not a list of names — a name list rots, and this one did.
   * HDT test VMs are named HDT-* , Generation 2, attached ONLY to the isolated
     'HDT Lab' switch, files under C:\\HDTLab\\vms\\, under 12 GB combined.
   * Never run an unfiltered Hyper-V pipeline (no 'Get-VM | Remove-VM').
-  * PXE/WDS testing ONLY on 'HDT Lab' — never on Default Switch, or it collides
-    with CM01's PXE.
+  * PXE/WDS testing ONLY on 'HDT Lab' — a PXE responder answers every machine on
+    its segment, so it goes on the isolated one. 'Default Switch' is Hyper-V's
+    shared NAT segment and is refused.
 
 Commit atomically as you go.
 `
@@ -239,8 +240,10 @@ Verify:
   6. PSScriptAnalyzer clean.
   7. No engine code calling hardware/filesystem/registry directly instead of an
      injected service.
-  8. Hyper-V lab untouched: CM01 and DC01 still present and Running, and no
-     stray HDT-* VMs left powered on.
+  8. Hyper-V lab untouched: every VM not named HDT-* is exactly as it was found
+     — same set, same state, same memory, same switch — and no stray HDT-* VMs
+     left powered on. Compare the enumerated set, not a list of names, and fail
+     if the snapshot is empty rather than passing on empty-equals-empty.
 
 Write .planning/phases/${a.dir}/${a.id}-VERIFICATION.md with findings.
 Report failures plainly — a false pass compounds into every later phase.`,

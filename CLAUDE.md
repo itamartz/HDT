@@ -210,7 +210,8 @@ Ethernet and Wi-Fi; the free-looking ranges are not free.
 
 `HDT Lab` (internal, isolated) still exists and carries `172.30.30.1`, assigned
 before this rule. It is reserved for future PXE/WDS work, where an isolated
-segment is genuinely required so a second responder cannot collide with CM01's.
+segment is genuinely required: a PXE responder answers **every** machine on its
+segment, so it belongs on one where the only machines are the ones under test.
 **Do not use it for anything else, and do not add addresses to it, without
 asking.**
 
@@ -218,12 +219,13 @@ asking.**
 
 This host runs the user's **live lab**. Damaging it is worse than failing a test.
 
-- **Never touch `CM01`** (SCCM server, runs a PXE responder) **or `DC01`**
-  (domain controller). Both on `Default Switch`, whose subnet is unverified from
-  here — this host's `vEthernet (Default Switch)` carries `172.25.16.1/20`, not
-  the `192.168.25.0/24` this file used to state. As of 2026-08-28 neither VM is
-  registered on this host at all (`Get-VM` returns only `HDT-*`); they may be on
-  another host or deregistered, and the refusal stands either way.
+- **Touch no VM this repository did not create.** The rule is the `HDT-*`
+  prefix, not a list of names: act only on VMs matching it, and leave every
+  other VM on the host exactly as you found it. A named exclusion list rots —
+  **`CM01` and `DC01` were retired on 2026-08-29** and this file spent months
+  protecting two machines that had stopped existing, which is worse than
+  useless: it reads as coverage while covering nothing. Do not add their names
+  back from an old commit, and do not replace them with today's names either.
 - HDT test VMs: named `HDT-*`, **Generation 2**, files in `C:\HDTLab\vms\`,
   under 12 GB combined, and on **one of exactly two switches**:
   - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
@@ -235,11 +237,17 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
     needs the network.
 
   `New-HDTLabVirtualMachine` refuses every other switch by name, and
-  **`Default Switch` must stay refused** — it carries the user's live lab and
-  CM01's PXE responder.
-- **PXE/WDS testing only on `HDT Lab`** — on `Default Switch` it would collide
-  with CM01's PXE, breaking their lab or silently invalidating the test.
+  **`Default Switch` must stay refused** — it is Hyper-V's own shared NAT
+  switch, `172.25.16.1/20` on this host, which is not the deployment subnet. A
+  VM there cannot reach the share the way one on `HDT External` can, and it
+  shares a segment with whatever else Hyper-V puts on it.
+- **PXE/WDS testing only on `HDT Lab`** — a PXE responder answers every machine
+  on its segment, so it goes on the isolated one, where the only machines are
+  the ones under test. On a shared switch it would answer machines that are not
+  ours, and anything else answering there would silently invalidate the test.
 - Never run an unfiltered Hyper-V pipeline. Filter to `HDT-*` explicitly.
+  Reading the other VMs to prove you left them alone is the one exception, and
+  it must enumerate them rather than name them — see the note above.
 
 ## Lab assets (already staged — don't re-extract)
 

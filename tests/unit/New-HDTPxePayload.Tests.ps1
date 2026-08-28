@@ -15,7 +15,7 @@
 # sources\boot.wim from removable media; a TFTP/HTTP stack generally needs its
 # own BCD store and its own device element, and NOTHING IN THIS REPOSITORY HAS
 # EVER NETWORK-BOOTED THIS PAYLOAD - there is no WDS on this host and PROJECT.md
-# forbids standing one up beside CM01's PXE responder.
+# confines a PXE responder to the isolated 'HDT Lab' switch.
 #
 # A HASH MISMATCH IS A FAILURE, NOT A WARNING. A truncated boot.sdi on a TFTP
 # server is a machine that hangs at boot with no message on the screen and no

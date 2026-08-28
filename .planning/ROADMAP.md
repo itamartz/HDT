@@ -49,8 +49,8 @@ What deferring the rest actually costs, stated so it is not discovered later:
   the wire burns the ISO to a USB stick or attaches it, exactly as it would for
   a one-off MDT build. `Import-HDTBootImageToWds` and `New-HDTPxePayload` ship
   and are tested against a fake; what v2 owes them is an isolated `HDT-WDS01`
-  and a real network boot, which `PROJECT.md` rule 3 will not allow beside
-  CM01's responder today.
+  and a real network boot on the isolated `HDT Lab` switch, which nothing in
+  this lab can stand up today.
 - **No in-sequence patching.** A machine HDT builds leaves the bench with exactly
   the patches its source image carried. There is no `WindowsUpdate` step, so
   currency after deployment is whatever Windows Update does on its own schedule
@@ -225,8 +225,8 @@ boot path itself**: `startnet.cmd` plus `Start-HDTDeployment.ps1`, so a machine
 deploys with nobody at the keyboard.
 *Exit (v1):* a VM boots the ISO **HDT built** and deploys Windows 11 with **zero
 keystrokes**. ~~the same image PXE-boots from WDS~~ — **moved to v2 on
-2026-08-25**: there is no WDS on this host and PROJECT.md forbids standing one up
-beside `CM01`'s PXE responder, so the import is proven against a fake and
+2026-08-25**: there is no WDS on this host and PROJECT.md confines a PXE
+responder to the isolated `HDT Lab` switch, so the import is proven against a fake and
 `New-HDTPxePayload`'s staging completeness is demonstrated instead. v1 ships the
 ISO.
 
@@ -273,7 +273,7 @@ Generation 2 VM booted an ISO `Update-HDTBootImage` produced and deployed Window
 `status Succeeded`, `launchedBy startnet`, `deployRootSource Discovered`,
 `endedWith "wpeutil shutdown"` (SPIKES S12). The **second** clause, PXE boot from
 WDS, **moved to v2 on 2026-08-25** — v1 ships the ISO. It was never met here: this host is Windows 11 Pro with no WDS, and PROJECT.md
-rule 3 forbids standing one up beside CM01's PXE responder, so no WDS import has
+rule 3 confines a PXE responder to the isolated `HDT Lab` switch, so no WDS import has
 ever executed anywhere in this repository. No VM deployed over SMB **at the
 time this phase closed**, for the reason SPIKES S6 records about the isolated
 switch — **that gap is now closed by SPIKES S14**, which deployed `HDT-SMB-01`

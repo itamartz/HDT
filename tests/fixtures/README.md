@@ -512,8 +512,9 @@ reader**, so these fixtures and the real writer cannot drift apart.
 out loud because everything else under this directory is captured (DESIGN
 12.2.3, `tests/helpers/README.md` section 8).
 
-There is no HDT test VM yet — phase 04 builds the first one — and the lab's
-`CM01` and `DC01` are off-limits under the PROJECT Hyper-V safety rules. So
+There is no HDT test VM yet — phase 04 builds the first one — and every VM on
+this host outside `HDT-*` is off-limits under the PROJECT Hyper-V safety rules.
+So
 `HDTIsVM` has no honest capture available today, and it is exactly the fact that
 cannot be proven without one.
 

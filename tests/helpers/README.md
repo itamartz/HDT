@@ -516,10 +516,11 @@ and that is a deliberate refusal rather than an omission:
   `wdsutil.exe` ship with a Windows **Server** role. `Get-Module -ListAvailable
   WDS` returns nothing, asserted in
   `tests/integration/PxePayload.Integration.Tests.ps1`.
-- **Standing one up is forbidden.** `PROJECT.md` rule 3 confines PXE/WDS testing
-  to the isolated `HDT Lab` switch, because `CM01` already runs a PXE responder
-  on `Default Switch`. A second responder there would either break the user's
-  SCCM lab or answer our test VMs and silently invalidate the test.
+- **Standing one up is constrained.** `PROJECT.md` rule 3 confines PXE/WDS
+  testing to the isolated `HDT Lab` switch, because a PXE responder answers
+  every machine on its segment. On `Default Switch` — Hyper-V's shared NAT
+  segment — it would answer machines that are not part of the test, and anything
+  else answering there would silently invalidate the run.
 
 So **no WDS import has ever executed**, anywhere in this repository. The one
 thing this machine can prove is asserted against the **real**
@@ -792,13 +793,13 @@ repository allowed to call Hyper-V. They exist so that **PROJECT.md's Hyper-V
 lab safety rules are enforced in code, before any Hyper-V call, rather than
 remembered by the person running the test.**
 
-This host runs the user's live lab. `CM01` is a Configuration Manager server
-with a PXE responder; `DC01` is the domain controller. Damaging either is worse
-than failing a test.
+This host is the user's own machine, and it carries VMs this repository did not
+create. Damaging one is worse than failing a test. The protected set is
+**everything not named `HDT-*`** — a prefix, not a list of names.
 
 | Helper | Does |
 |---|---|
-| `Assert-HDTLabVmName` | the name guard: refuses a wildcard, `CM01`, `DC01`, and anything not `HDT-*` |
+| `Assert-HDTLabVmName` | the name guard: refuses a wildcard and anything not `HDT-*` |
 | `Assert-HDTLabVmPath` | the **delete** guard: refuses the VM root itself, anything outside it, and anything in it that is not this VM's own folder |
 | `Assert-HDTLabScratchDisk` | the disk guard: refuses a row that is `IsBoot` or `IsSystem` |
 | `New-HDTLabScratchDisk` / `Remove-HDTLabScratchDisk` | a VHDX under `C:\HDTLab`, created, mounted and destroyed by the test that uses it |
@@ -818,9 +819,11 @@ than failing a test.
 2. **No unfiltered pipeline.** Every `Hyper-V\Get-VM` in a lab helper names a VM
    or a name filter; a unit test asserts it. `Get-VM | Remove-VM` is the failure
    mode PROJECT.md rule 1 exists to prevent.
-3. **`HDT-*` only, and never `CM01` or `DC01`.** `Assert-HDTLabVmName` runs
+3. **`HDT-*` only — every other name is refused.** `Assert-HDTLabVmName` runs
    before the first Hyper-V call in both VM helpers — asserted by comparing AST
-   offsets, so a refactor that moves the guard down is caught.
+   offsets, so a refactor that moves the guard down is caught. It used to carry
+   two protected names as well; they were retired on 2026-08-29, and a prefix
+   covers whatever the user builds next without anyone remembering to add it.
 4. **A wildcard name is refused.** `HDT-*` is a legal Hyper-V filter and would
    remove every test VM at once.
 5. **`HDT Lab` switch only, Generation 2 only, files under `C:\HDTLab\vms`
@@ -837,8 +840,8 @@ than failing a test.
    it is given, and the developer was working in the same lab at the time — but
    the delete was not narrow enough to make the accident *impossible*, and that
    is a defect in the one piece of code whose whole job is to make it
-   impossible. `CM01` and `DC01` were never at risk: they are refused by name,
-   and they do not live under `C:\HDTLab\vms` at all.
+   impossible. No VM outside `HDT-*` was ever at risk: they are refused by the
+   name guard, and they do not live under `C:\HDTLab\vms` at all.
 
 ### Why the guard tests use no `Mock`
 

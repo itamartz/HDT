@@ -82,28 +82,33 @@ a share on the host. So the M4 image declares `provider: Local` and a
 05-02's unit refusals and its loopback integration run — not a lab deployment.
 
 **Do not move a test VM to `HDT External` or `Default Switch` to close that
-gap.** It would put the VM on a segment where `CM01`'s PXE responder can answer
-it, which is what rule 3 exists to prevent.
+gap.** `Default Switch` is Hyper-V's own shared NAT switch, not the deployment
+subnet, and changing the segment under a phase that was verified on the isolated
+one invalidates the verification rather than extending it.
 
 ## ⚠ Lab safety
 
-**This host runs the user's live lab.** `CM01` is a Configuration Manager server
-with a PXE responder; `DC01` is the domain controller. Damaging either is worse
-than failing a test.
+**This host is the user's own machine**, and it carries VMs this repository did
+not create. Damaging one is worse than failing a test. The protected set is
+**everything not named `HDT-*`** — a prefix, not a list of names. This file used
+to name two VMs; they were retired on 2026-08-29 and the named checks had been
+protecting nothing for a while before anyone noticed.
 
 Every rule in `PROJECT.md`'s "Hyper-V lab safety rules" is enforced **in code,
 before any Hyper-V call**, by the helpers in `tests/helpers/HDTTestTools`:
 
 1. Every Hyper-V command is written `Hyper-V\Get-VM` — PowerCLI shadows `Get-VM`
    on this host (SPIKES S8).
-2. `Assert-HDTLabVmName` refuses a wildcard, `CM01`, `DC01`, and anything not
-   named `HDT-*`, and it runs before the first Hyper-V call in every VM helper.
+2. `Assert-HDTLabVmName` refuses a wildcard and anything not named `HDT-*`, and
+   it runs before the first Hyper-V call in every VM helper.
 3. No pipeline is ever unfiltered.
 4. `HDT Lab` switch only, Generation 2 only, files under `C:\HDTLab\vms` only.
 5. Memory: 4 GB per test VM, and the total assigned to running `HDT-*` VMs is
    checked against the 12 GB lab budget before one is started.
-6. `CM01` and `DC01` are recorded **before** the run and asserted identical
-   **after**, in an `AfterAll` that runs even when the test failed.
+6. Every VM **not** named `HDT-*` is enumerated **before** the run and asserted
+   identical **after**, in an `AfterAll` that runs even when the test failed.
+   The count is asserted separately, so an empty host reads as "there was
+   nothing to protect" rather than as "nothing was harmed".
 7. The VM is powered off and removed in that same `AfterAll`, unless
    `$env:HDT_KEEP_LAB_VM -eq '1'`.
 

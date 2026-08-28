@@ -206,9 +206,9 @@ about (SPIKES S9):
   harness types one line at the WinPE prompt instead of `startnet.cmd` doing it.
 - **No PXE.** M4.
 - **WinRE is not configured by HDT** — see finding 4 above.
-- **Domain join is unproven end to end.** The `HDT Lab` switch is isolated by
-  design, so a test VM cannot reach `DC01` and must not be moved to. `JoinDomain`
-  is verified against a fake only (PROJECT.md says so explicitly).
+- **Domain join is unproven end to end.** There is no domain controller in this
+  lab, and the `HDT Lab` switch is isolated by design. `JoinDomain` is verified
+  against a fake only (PROJECT.md says so explicitly).
 
 ---
 
@@ -240,8 +240,8 @@ perspective); refusal to fall back to guest auth.
 
 ~~**and** a physical or virtual machine PXE-boots the same image from WDS.~~
 **MOVED TO v2 by the user on 2026-08-25.** v1 deploys from the ISO, which is
-proven; PXE needs an isolated `HDT-WDS01` that `PROJECT.md` rule 3 will not let
-stand beside CM01's responder, and waiting on lab hardware is not a reason to
+proven; PXE needs an isolated `HDT-WDS01` that `PROJECT.md` rule 3 confines to
+the `HDT Lab` switch, and waiting on lab hardware is not a reason to
 hold v1. `Import-HDTBootImageToWds` and `New-HDTPxePayload` still ship — they
 are scheduled out, not cut, and nothing in v1 assumes they are absent.
 
@@ -307,8 +307,8 @@ all.
   since run repeatedly, the wizard E2E included.
 - **No WDS import has ever executed, anywhere in this repository.** This host is
   Windows 11 Pro; `Get-Module -ListAvailable WDS` and `Get-Command wdsutil.exe`
-  both return nothing, and standing WDS up beside `CM01`'s PXE responder is
-  refused by `PROJECT.md` rule 3. `Import-HDTBootImageToWds`'s replace-in-place
+  both return nothing, and `PROJECT.md` rule 3 confines a PXE responder to the
+  isolated `HDT Lab` switch. `Import-HDTBootImageToWds`'s replace-in-place
   semantics — including "importing the same image twice leaves one image" — are
   asserted against `New-HDTFakeWdsService`. The one thing this machine can prove
   is proven against the real adapter: `New-HDTWdsService` refuses with a named
@@ -332,8 +332,8 @@ all.
   those belong to the RAM disk. The first logon of the deployed machine is
   configured by the unattend, which `ApplyUnattend` stages.
 - **Domain join is still unproven end to end**, for the reason `PROJECT.md`
-  gives: the `HDT Lab` switch is isolated and a test VM must not be moved to
-  reach `DC01`.
+  gives: there is no domain controller in this lab, and the `HDT Lab` switch is
+  isolated by design.
 - **DESIGN 11's technician UI is absent.** It is M8.
 
 **One thing M4 shipped late, in 05-06, because it was the phase's own unanswered

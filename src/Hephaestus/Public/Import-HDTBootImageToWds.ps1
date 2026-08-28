@@ -40,8 +40,9 @@
 
             IT HAS NEVER RUN AGAINST A REAL WDS SERVER. There is none on this
             host - it is Windows 11 Pro, and WDS is a Windows Server role - and
-            PROJECT.md's lab safety rules forbid standing one up beside CM01's
-            PXE responder. Everything above is asserted against
+            PROJECT.md's lab safety rules confine a PXE responder to the
+            isolated 'HDT Lab' switch, which no share on this host is reachable
+            from. Everything above is asserted against
             New-HDTFakeWdsService; the one real assertion this machine can make
             is that New-HDTWdsService refuses with a named dependency error, and
             it is made against the real adapter.

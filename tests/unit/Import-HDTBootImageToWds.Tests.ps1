@@ -12,8 +12,8 @@
 #
 # THE REAL ADAPTER APPEARS EXACTLY ONCE IN THIS FILE, in 'reports the missing WDS
 # module as a dependency error'. There is no WDS on this host - it is Windows 11
-# Pro, and WDS is a Windows Server role - and PROJECT.md forbids standing one up
-# beside CM01's PXE responder. So that refusal is the ONE WDS fact this machine
+# Pro, and WDS is a Windows Server role - and PROJECT.md confines a PXE
+# responder to the isolated 'HDT Lab' switch. So that refusal is the ONE WDS fact this machine
 # can prove, it is proven against the real New-HDTWdsService rather than
 # simulated, and everything else is asserted against the fake.
 

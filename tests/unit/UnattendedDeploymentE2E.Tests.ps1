@@ -247,19 +247,31 @@ Describe 'the M4 E2E, parsed' -Skip:(-not $script:e2eExists) {
                 'unqualified: {0}. Write Hyper-V\<command>' -f ($bare -join ', '))
         }
 
-        It 'filters every Get-VM' {
+        It 'filters every Get-VM, or filters the pipeline it feeds' {
             # PROJECT.md rule 1. An unfiltered pipeline is how a lab loses a VM
             # nobody meant to touch.
+            #
+            # THE ONE EXEMPTION IS THE READ-ONLY LAB-SAFETY SNAPSHOT, and it has
+            # to exist: you cannot prove you left the other VMs alone without
+            # listing them, and listing them by name is what rotted - the two
+            # names this file used to demand were retired on 2026-08-29, leaving
+            # a snapshot that compared an empty array with an empty array. So an
+            # unfiltered Get-VM is allowed ONLY when its own pipeline immediately
+            # discards everything named HDT-*, which is a read, never an act.
             $unfiltered = @(& $script:commandNamed 'Hyper-V\Get-VM' | Where-Object {
-                    @($_.CommandElements | ForEach-Object { [string] $_.Extent.Text }) -notcontains '-Name'
+                    @($_.CommandElements | ForEach-Object { [string] $_.Extent.Text }) -notcontains '-Name' -and
+                    [string] $_.Parent.Extent.Text -notmatch "notlike\s+'HDT-"
                 })
 
             @($unfiltered | ForEach-Object { [string] $_.Extent.Text }) | Should -BeNullOrEmpty
         }
 
-        It 'snapshots CM01 and DC01 before it starts' {
-            $script:codeOnly | Should -Match 'CM01'
-            $script:codeOnly | Should -Match 'DC01'
+        It 'snapshots every VM it does not own before it starts' {
+            # A SET, NOT A LIST OF NAMES. This assertion used to demand the
+            # literal strings for two VMs that were retired on 2026-08-29, and a
+            # suite that names the machines it protects protects nothing the day
+            # one of them goes away. Do not put names back.
+            $script:codeOnly | Should -Match "notlike\s+'HDT-"
         }
 
         It 'reads MemoryStartup and not MemoryStartupBytes off the snapshot' {
@@ -283,8 +295,8 @@ Describe 'the M4 E2E, parsed' -Skip:(-not $script:e2eExists) {
             # on the isolated switch cannot reach a share on the host, and the
             # temptation to move it somewhere it can is exactly what PROJECT.md
             # rule 2 exists to resist. Moving a test VM to reach an SMB share
-            # would also put it on a segment where CM01's PXE responder can
-            # answer it.
+            # would also move it off the isolated segment this phase was
+            # verified on, which invalidates the verification.
             $script:codeOnly | Should -Match 'HDT Lab'
 
             foreach ($switch in @('Default Switch', 'HDT External', 'FSE Switch')) {

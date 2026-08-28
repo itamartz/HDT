@@ -3,9 +3,10 @@
 #
 # THERE IS NO WDS ON THIS HOST AND THERE MAY NOT BE. It is Windows 11 Pro, and
 # WDS is a Windows Server role; standing one up is refused by PROJECT.md's lab
-# safety rules, because CM01 already runs a PXE responder on 'Default Switch'
-# and a second one would either break the user's SCCM lab or answer our test VMs
-# and silently invalidate the test. So the replace-in-place semantics
+# safety rules, which confine a PXE responder to the isolated 'HDT Lab' switch:
+# a responder answers every machine on its segment, so on a shared one it would
+# answer machines that are not part of the test, and anything else answering
+# there would silently invalidate the run. So the replace-in-place semantics
 # Import-HDTBootImageToWds implements are asserted against THIS, and the one
 # thing the real adapter can prove here - that its absence is reported as a named
 # dependency error - is asserted in Import-HDTBootImageToWds.Tests.ps1.

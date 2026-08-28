@@ -8,8 +8,8 @@ function Remove-HDTLabVirtualMachine {
             written about: "never Get-VM | Remove-VM or any unfiltered
             pipeline."
 
-            Assert-HDTLabVmName runs FIRST and refuses a wildcard, CM01, DC01
-            and anything not named HDT-*. The wildcard refusal is the one that
+            Assert-HDTLabVmName runs FIRST and refuses a wildcard and
+            anything not named HDT-*. The wildcard refusal is the one that
             matters here: 'HDT-*' is a legal Hyper-V name filter and would
             remove every test VM at once.
 

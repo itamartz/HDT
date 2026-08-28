@@ -6,6 +6,15 @@ the design has been corrected.
 
 Date: 2026-08-12 · Host: LAP-AMMSO01 · ADK 10.1.26100.2454
 
+> **2026-08-29 — `CM01` and `DC01` were retired.** They are gone from this host;
+> `Get-VM` returns only `HDT-*`. Findings below that record "CM01 and DC01 were
+> untouched" were true of the run that produced them and are **left as written**
+> — this file is a record of what was executed, not a description of the lab as
+> it stands. Everywhere else the protected set is now the `HDT-*` prefix rather
+> than a list of names, because a list of names is what failed: the lab-safety
+> snapshot went on comparing two VMs that no longer existed, which is an empty
+> array against an empty array. Do not restore those names from here.
+
 ---
 
 ## S1 — PowerShell runs in WinPE, and so does CIM ✅

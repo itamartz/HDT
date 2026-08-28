@@ -5,11 +5,11 @@
 #
 #   * There is no WDS on this host. It is Windows 11 Pro; the WDS PowerShell
 #     module and the wdsutil.exe binary ship with a Windows SERVER role.
-#   * Standing one up is refused by PROJECT.md's lab safety rules. CM01 runs a
-#     PXE responder on 'Default Switch', and PROJECT.md rule 3 puts PXE/WDS
-#     testing on the isolated 'HDT Lab' switch only - because a second responder
-#     beside CM01's would either break the user's SCCM lab or answer our test VMs
-#     and silently invalidate the test.
+#   * Standing one up is constrained by PROJECT.md's lab safety rules. Rule 3
+#     puts PXE/WDS testing on the isolated 'HDT Lab' switch only, because a PXE
+#     responder answers every machine on its segment - on a shared switch it
+#     would answer machines that are not part of the test, and anything else
+#     answering there would silently invalidate the run.
 #
 # So NO WDS IMPORT HAS EVER EXECUTED, anywhere in this repository. What is proven
 # instead is New-HDTPxePayload's staging completeness against the REAL ADK media

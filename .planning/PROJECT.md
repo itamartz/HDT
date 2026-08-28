@@ -199,10 +199,10 @@ laptop cannot do — a clean CI environment, PXE/WDS work, or a server role.
   test, a fixture, a commit message or a plan. That rule is unchanged and is the
   one that matters: `.secrets\` is excluded, everything else here is not. Read
   the file, pass the object, print neither.
-- Its lab is `sadab.pri` on an internal `HydrationLab` switch, 192.168.25.0/24,
-  with DC01 `.200` providing AD/DNS/DHCP and CM01 `.214` running ConfigMgr.
-  **Those are the same protected names as this host's VMs — never touch them
-  there either.**
+- Its lab is `sadab.pri` on its own internal `HydrationLab` switch, with a
+  domain controller providing AD/DNS/DHCP and a ConfigMgr server. **That lab
+  belongs to the other project — read its notes, build nothing in it from
+  here.** Nothing in it is registered on this host.
 
 Vagrant is also available locally.
 
@@ -242,22 +242,21 @@ discussed in prose, and is itself proven to bite on a deliberate violation.
 
 ## ⚠ Hyper-V lab safety rules — READ BEFORE TOUCHING ANY VM
 
-This machine hosts the user's **existing, live lab**. Damaging it is worse than
-failing a test.
+This machine hosts the user's **own work**. Damaging it is worse than failing a
+test.
 
 **PROTECTED — never stop, modify, delete, checkpoint-revert, reconfigure, or
-change the networking of these VMs:**
+change the networking of any VM this repository did not create.** The protected
+set is defined by a prefix, not by a list: **everything not named `HDT-*`**.
 
-| VM | What it is | Notes |
-|---|---|---|
-| `CM01` | Configuration Manager server, 16 GB, 192.168.25.214 | **Almost certainly runs a PXE responder / WDS** |
-| `DC01` | Domain controller, 192.168.25.200 | The lab's AD |
-
-Both sit on the **`Default Switch`**, whose subnet is unverified from this host —
-`vEthernet (Default Switch)` carries `172.25.16.1/20` here, not the
-`192.168.25.0/24` recorded above. As of 2026-08-28 neither VM is registered on
-this host (`Get-VM` returns only `HDT-*`); they may be on another host or
-deregistered, and the refusal stands either way.
+**This used to be a two-name list — `CM01` and `DC01` — and those machines were
+retired on 2026-08-29.** They are gone from this host; `Get-VM` returns only
+`HDT-*`. The list is not being refreshed with today's names, because a list of
+names is what failed: the E2E lab-safety assertion went on snapshotting two VMs
+that no longer existed, compared an empty array with an empty array, and passed
+while checking nothing. **Do not restore those names from an old commit, and do
+not write new ones in their place.** Enumerate what is not `HDT-*` and leave it
+alone.
 
 ### Rules
 
@@ -283,12 +282,13 @@ deregistered, and the refusal stands either way.
    future PXE/WDS work only. Do not extend it without asking.
 
    **Two switches, chosen by what the test needs.** Never `Default Switch` —
-   that is where CM01 and DC01 live.
+   it is Hyper-V's own shared NAT switch, `172.25.16.1/20` on this host, which
+   is not the deployment subnet.
 
    | Switch | Use it for | Why |
    |---|---|---|
    | **`HDT External`** (Wi-Fi, 192.168.1.0/24) | **SMB deployment, share access, anything needing DHCP or the host** | The host is reachable on this subnet, but **its octet is this lab's own wiring — read it before building a boot image**, do not quote it here. DHCP comes from the real LAN, and SPIKES S6 proved a WinPE VM maps the host's `HDTShare` and applies a 4 GB WIM over it in 95 s |
-   | **`HDT Lab`** (internal, isolated) | **PXE and WDS work only** | An isolated segment is the only place a second PXE responder cannot collide with CM01's |
+   | **`HDT Lab`** (internal, isolated) | **PXE and WDS work only** | A PXE responder answers every machine on its segment, so it belongs on one where the only machines are the ones under test |
 
    An earlier version of this rule sent *every* test VM to the isolated switch.
    That was over-constrained: it has no DHCP, so VMs land on APIPA and cannot
@@ -296,13 +296,15 @@ deregistered, and the refusal stands either way.
    `provider Local` from an attached content disk, and why HDT's primary model,
    share-based deployment, went unproven end to end. Use `HDT External` unless
    the test involves PXE.
-3. **PXE/WDS testing happens ONLY on the `HDT Lab` switch.** This is the
-   critical one: standing up a WDS or DHCP/PXE responder on `Default Switch`
-   would collide with CM01's PXE — either breaking the user's SCCM lab or
-   having SCCM answer our test VMs and silently invalidate the test. An
-   isolated switch prevents both.
+3. **PXE/WDS testing happens ONLY on the `HDT Lab` switch.** A PXE responder
+   answers every machine on its segment and cannot be told which ones are ours.
+   On `Default Switch` — Hyper-V's shared NAT segment, which anything on this
+   host may be placed on — it would answer machines that are not part of the
+   test, and anything else answering there would hand our VM someone else's
+   boot image and silently invalidate the run. The isolated switch prevents
+   both, and it is reserved for exactly this.
 4. **Memory budget: keep all HDT VMs under 12 GB combined.** Host has 63.7 GB
-   with ~22 GB free; CM01 uses dynamic memory and may grow. Use 4 GB per test
+   and the free figure moves with whatever else is running. Use 4 GB per test
    VM and shut them down when a test finishes.
 5. **VM files go to `C:\HDTLab\vms\`**, not the host default `C:\HyperVVMs`
    where the user's VMs live.
@@ -312,14 +314,14 @@ deregistered, and the refusal stands either way.
 
 ### Consequence: domain join has no live DC to test against
 
-The `HDT Lab` switch is isolated, so HDT test VMs cannot reach DC01 — and they
-must not be moved to reach it. Therefore:
+**There is no domain controller on this host** — the lab's one was retired on
+2026-08-29 — and the `HDT Lab` switch is isolated in any case. Therefore:
 
 - `JoinDomain` is verified **against a fake** at the unit level (its command
   construction, error handling, OU targeting, retry).
 - Real domain-join E2E is **out of scope** unless the user later asks for it,
-  in which case the answer is a throwaway `HDT-DC01` on the isolated switch —
-  never their DC01.
+  in which case the answer is a throwaway `HDT-*` controller this repository
+  builds on the isolated switch and removes afterwards.
 - Sample sequences default to workgroup join so they run end-to-end in the lab.
 
 State this gap plainly in phase verification rather than implying JoinDomain was

@@ -37,8 +37,8 @@ function New-HDTPxePayload {
             and its own device element.
 
             THIS PAYLOAD HAS NEVER BEEN NETWORK-BOOTED by anything in this
-            repository - there is no WDS on this host and PROJECT.md forbids
-            standing one up beside CM01's PXE responder - so claiming staging
+            repository - there is no WDS on this host and PROJECT.md confines a
+            PXE responder to the isolated 'HDT Lab' switch - so claiming staging
             completeness is honest and claiming bootability would not be.
             tests/integration/PxePayload.Integration.Tests.ps1 asserts that this
             sentence is still here.

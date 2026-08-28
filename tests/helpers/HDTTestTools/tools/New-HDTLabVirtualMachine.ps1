@@ -6,17 +6,18 @@ function New-HDTLabVirtualMachine {
 
         .DESCRIPTION
             PROJECT.md's Hyper-V lab safety rules, enforced in code before any
-            Hyper-V call is made. This host runs the user's LIVE lab, so the
+            Hyper-V call is made. This host is the user's own machine, so the
             rules are not advice:
 
-              rule 1  the name must be HDT-*, and never CM01 or DC01
-                      (Assert-HDTLabVmName)
+              rule 1  the name must be HDT-*, which is every VM this repository
+                      created and no VM it did not (Assert-HDTLabVmName)
               rule 2  the switch must be 'HDT Lab' - the isolated internal one,
                       reserved for PXE/WDS - or 'HDT External', which reaches the
                       192.168.1.0/24 lab network and is what a share deployment
-                      needs. 'Default Switch' carries the user's lab and CM01's
-                      PXE responder; a test VM there would either break their lab
-                      or be answered by SCCM, which silently invalidates the test
+                      needs. 'Default Switch' is Hyper-V's own shared NAT switch,
+                      172.25.16.1/20 on this host: not the deployment subnet, and
+                      a VM there cannot reach the share the way one on
+                      'HDT External' can
               rule 4  memory. All HDT VMs stay under 12 GB combined, so one test
                       VM may not take more than 8 GB, and the total already
                       assigned to running HDT-* VMs is checked before this one
@@ -112,9 +113,11 @@ function New-HDTLabVirtualMachine {
     # SMB. A share deployment has to be here.
     #
     # 'Default Switch' REMAINS REFUSED, and that is the rule that must never
-    # relax: it carries the user's live lab and CM01's PXE responder, so a test
-    # VM there would either break their lab or be silently answered by SCCM and
-    # invalidate the test.
+    # relax. It is Hyper-V's own shared NAT switch - 172.25.16.1/20 on this host
+    # - so it is not the deployment subnet, a VM on it cannot reach the share the
+    # way one on 'HDT External' can, and it is shared with whatever else Hyper-V
+    # places there. A green deployment on it would be a deployment over the wrong
+    # network, which is worse than a red one.
     $labSwitch = 'HDT Lab'
     $externalSwitch = 'HDT External'
     $allowedSwitch = @($labSwitch, $externalSwitch)
@@ -131,7 +134,7 @@ function New-HDTLabVirtualMachine {
     }
 
     if ($allowedSwitch -notcontains $SwitchName) {
-        throw ("'{0}' is not a switch an HDT test VM may attach to. The only two are '{1}' - the isolated internal one, reserved for PXE/WDS - and '{2}', which reaches the 192.168.1.0/24 lab network. 'Default Switch' in particular carries the user's lab and CM01's PXE responder, and a test VM there would either break their lab or be answered by SCCM (PROJECT.md, 'Hyper-V lab safety rules', rules 2 and 3, and the network rule)." -f
+        throw ("'{0}' is not a switch an HDT test VM may attach to. The only two are '{1}' - the isolated internal one, reserved for PXE/WDS - and '{2}', which reaches the 192.168.1.0/24 lab network. 'Default Switch' in particular is Hyper-V's own shared NAT switch on 172.25.16.1/20, which is not the deployment subnet: a VM there cannot reach the share the way one on '{2}' can (PROJECT.md, 'Hyper-V lab safety rules', rules 2 and 3, and the network rule)." -f
                 $SwitchName, $labSwitch, $externalSwitch)
     }
 
@@ -142,7 +145,7 @@ function New-HDTLabVirtualMachine {
     }
 
     if ($MemoryByte -gt $maximumVmByte) {
-        throw ("{0} bytes is more than one HDT test VM may take. The whole lab budget is 12 GB combined and the host has about 22 GB free with CM01 using dynamic memory, so a single test VM is capped at 8 GB - 4 GB is the standard (PROJECT.md, 'Hyper-V lab safety rules', rule 4)." -f $MemoryByte)
+        throw ("{0} bytes is more than one HDT test VM may take. The whole lab budget is 12 GB combined and the host's free memory moves with whatever else is running, so a single test VM is capped at 8 GB - 4 GB is the standard (PROJECT.md, 'Hyper-V lab safety rules', rule 4)." -f $MemoryByte)
     }
 
     # -- the memory budget, across every RUNNING HDT VM --------------------

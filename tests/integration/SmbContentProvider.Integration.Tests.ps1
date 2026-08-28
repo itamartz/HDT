@@ -4,8 +4,8 @@
 # PROJECT.md rule 2 puts every HDT test VM on the isolated 'HDT Lab' switch, and
 # SPIKES S6 records that a VM there CANNOT REACH A SHARE ON THE HOST - the host's
 # vNIC on that side is not routed to it. Moving a test VM to a switch that could
-# reach the share would break the rule that exists to keep HDT's PXE work away
-# from CM01's PXE responder. So the Smb provider is proven in two places and
+# reach the share would break the rule that keeps HDT's PXE work on an isolated
+# segment of its own. So the Smb provider is proven in two places and
 # neither of them is a deployment:
 #
 #   - every decision - the guest refusal, SMB1, the dialect warning, the

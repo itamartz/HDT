@@ -4827,9 +4827,11 @@ function New-HDTFakeWdsService {
 
             There is no WDS on this host - it is Windows 11 Pro, and WDS is a
             Windows Server role - and standing one up is refused by PROJECT.md's
-            lab safety rules, because CM01 already runs a PXE responder on
-            'Default Switch' and a second one would either break the user's SCCM
-            lab or answer our test VMs and silently invalidate the test. So the
+            lab safety rules, which confine a PXE responder to the isolated
+            'HDT Lab' switch: a responder answers every machine on its segment,
+            so on a shared one it would answer machines that are not part of the
+            test, and anything else answering there would silently invalidate
+            the run. So the
             real New-HDTWdsService gets no contract row, and this is where
             replace-in-place is asserted.
 

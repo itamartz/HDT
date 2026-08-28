@@ -1,10 +1,16 @@
 # The lab helpers, asserted through their REFUSALS.
 #
-# PROJECT.md's Hyper-V lab safety rules are not advice. This host runs the
-# user's live lab: CM01 is a Configuration Manager server with a PXE responder
-# and DC01 is the domain controller. Every rule below is therefore enforced in
-# code, before any Hyper-V call, rather than remembered by the person running
-# the test.
+# PROJECT.md's Hyper-V lab safety rules are not advice. This host is the user's
+# own machine and carries VMs this repository did not create. Every rule below
+# is therefore enforced in code, before any Hyper-V call, rather than remembered
+# by the person running the test.
+#
+# THE PROTECTED SET IS A PREFIX, NOT A LIST OF NAMES. These tests used to name
+# 'CM01' and 'DC01' - two VMs retired on 2026-08-29 - and a refusal asserted
+# against a machine that has stopped existing proves nothing about the machine
+# that replaces it. Every refusal below is asserted against a SET of names the
+# guard has never been told about, so it fails for the next VM the user builds
+# and not only for the two somebody remembered.
 #
 # EVERY ASSERTION IN THIS FILE IS A REFUSAL, and every refusal happens before
 # the first Hyper-V command - so this file runs in the normal unit suite, on a
@@ -75,16 +81,14 @@ Describe 'Assert-HDTLabVmName' {
         { Assert-HDTLabVmName -Name 'SomeOtherVm' } | Should -Throw '*HDT-*'
     }
 
-    It 'refuses the name CM01' {
-        { Assert-HDTLabVmName -Name 'CM01' } | Should -Throw '*CM01*'
-    }
-
-    It 'refuses the name DC01' {
-        { Assert-HDTLabVmName -Name 'DC01' } | Should -Throw '*DC01*'
-    }
-
-    It 'refuses CM01 whatever the casing' {
-        { Assert-HDTLabVmName -Name 'cm01' } | Should -Throw '*CM01*'
+    It 'refuses every VM name this repository did not create, and names it back' {
+        # A SET, not one name. The guard has been told about none of these, which
+        # is the point: it must refuse whatever the user builds next without
+        # anyone remembering to add it. The message quotes the name back so the
+        # person reading the failure knows which VM they nearly touched.
+        foreach ($name in @('SomeOtherVm', 'FileServer', 'Ubuntu-Dev', 'hdt', 'HDT', 'HDTNoDash')) {
+            { Assert-HDTLabVmName -Name $name } | Should -Throw ('*{0}*' -f $name)
+        }
     }
 
     It 'refuses a wildcard name' {
@@ -98,7 +102,7 @@ Describe 'Assert-HDTLabVmName' {
     It 'names the lab safety rule it is enforcing' {
         # The person who hits this is about to argue with it, so the message
         # points at the document that settles the argument.
-        { Assert-HDTLabVmName -Name 'CM01' } | Should -Throw '*PROJECT.md*'
+        { Assert-HDTLabVmName -Name 'HDT-*' } | Should -Throw '*PROJECT.md*'
         { Assert-HDTLabVmName -Name 'SomeOtherVm' } | Should -Throw '*PROJECT.md*'
     }
 
@@ -120,22 +124,23 @@ Describe 'New-HDTLabVirtualMachine' {
                     -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw '*HDT-*'
         }
 
-        It 'refuses the name CM01' {
-            { New-HDTLabVirtualMachine -Name 'CM01' -MemoryByte 4294967296 -ProcessorCount 2 `
-                    -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw '*CM01*'
+        It 'refuses every VM name this repository did not create' {
+            # A SET, not a list of remembered names - see the header.
+            foreach ($name in @('FileServer', 'Ubuntu-Dev', 'HDTNoDash')) {
+                { New-HDTLabVirtualMachine -Name $name -MemoryByte 4294967296 -ProcessorCount 2 `
+                        -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw ('*{0}*' -f $name)
+            }
         }
 
-        It 'refuses the name DC01' {
-            { New-HDTLabVirtualMachine -Name 'DC01' -MemoryByte 4294967296 -ProcessorCount 2 `
-                    -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw '*DC01*'
-        }
-
-        It 'refuses Default Switch, where CM01''s PXE responder lives' {
-            # PROJECT.md rule 3: PXE/WDS testing on Default Switch would collide
-            # with CM01's PXE - either breaking the lab or silently answering our
-            # test VMs and invalidating the test. THIS IS THE ONE THAT MUST NEVER
-            # RELAX, and it is asserted separately from the two allowed switches
-            # below so that widening the allow-list cannot quietly widen this.
+        It 'refuses Default Switch, which is not the deployment subnet' {
+            # PROJECT.md rules 2 and 3. 'Default Switch' is Hyper-V's own shared
+            # NAT switch - 172.25.16.1/20 on this host - so a VM there cannot
+            # reach the share the way one on 'HDT External' can, and it shares a
+            # segment with whatever else Hyper-V puts on it. A green deployment
+            # over the wrong network is worse than a red one. THIS IS THE ONE
+            # THAT MUST NEVER RELAX, and it is asserted separately from the two
+            # allowed switches below so that widening the allow-list cannot
+            # quietly widen this.
             { New-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -MemoryByte 4294967296 -ProcessorCount 2 `
                     -SwitchName 'Default Switch' -VhdPath $script:legalVhd } | Should -Throw '*Default Switch*'
         }
@@ -189,8 +194,8 @@ Describe 'New-HDTLabVirtualMachine' {
         }
 
         It 'refuses more memory than the lab budget allows' {
-            # PROJECT.md rule 4: all HDT VMs under 12 GB combined, on a host with
-            # ~22 GB free and CM01 using dynamic memory.
+            # PROJECT.md rule 4: all HDT VMs under 12 GB combined, on a host
+            # whose free memory moves with whatever else is running.
             { New-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -MemoryByte 17179869184 -ProcessorCount 2 `
                     -SwitchName 'HDT Lab' -VhdPath $script:legalVhd } | Should -Throw '*12*'
         }
@@ -249,12 +254,11 @@ Describe 'Remove-HDTLabVirtualMachine' {
             { Remove-HDTLabVirtualMachine -Name 'SomeOtherVm' -Confirm:$false } | Should -Throw '*HDT-*'
         }
 
-        It 'refuses the name CM01' {
-            { Remove-HDTLabVirtualMachine -Name 'CM01' -Confirm:$false } | Should -Throw '*CM01*'
-        }
-
-        It 'refuses the name DC01' {
-            { Remove-HDTLabVirtualMachine -Name 'DC01' -Confirm:$false } | Should -Throw '*DC01*'
+        It 'refuses every VM name this repository did not create' {
+            # A SET, not a list of remembered names - see the header.
+            foreach ($name in @('FileServer', 'Ubuntu-Dev', 'HDTNoDash')) {
+                { Remove-HDTLabVirtualMachine -Name $name -Confirm:$false } | Should -Throw ('*{0}*' -f $name)
+            }
         }
 
         It 'refuses a wildcard name' {
@@ -262,7 +266,7 @@ Describe 'Remove-HDTLabVirtualMachine' {
         }
 
         It 'names the lab safety rule it is enforcing' {
-            { Remove-HDTLabVirtualMachine -Name 'DC01' -Confirm:$false } | Should -Throw '*PROJECT.md*'
+            { Remove-HDTLabVirtualMachine -Name 'SomeOtherVm' -Confirm:$false } | Should -Throw '*PROJECT.md*'
         }
     }
 

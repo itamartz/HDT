@@ -22,9 +22,10 @@
 # reports one; full Windows does. The screenshot is saved for a human to look
 # at, which is diagnosis rather than assertion.
 #
-# LAB SAFETY. Every Hyper-V call is module-qualified and name-filtered. CM01 and
-# DC01 are recorded before anything starts and asserted identical afterwards, in
-# an AfterAll that runs even when the test failed. Nothing here creates a VM
+# LAB SAFETY. Every Hyper-V call that ACTS is module-qualified and name-filtered
+# to HDT-*. Every VM outside that prefix is enumerated before anything starts and
+# asserted identical afterwards, in an AfterAll that runs even when the test
+# failed - a set, never a list of names, because a name list rots. Nothing here creates a VM
 # except through New-HDTLabVirtualMachine, whose guards are unit tested.
 #
 # NOTHING TYPES AT THE PROMPT. This file used to send a
@@ -97,19 +98,21 @@ BeforeAll {
     # Set-StrictMode -Version Latest; a bare Invoke-Pester does not. Run the
     # E2E through the build script.
     $script:snapshotProtected = {
-        # EVERY VM THIS SUITE DOES NOT OWN, not two names.
+        # EVERY VM THIS SUITE DOES NOT OWN, not a list of names.
         #
-        # It used to read 'CM01', 'DC01' explicitly. When those two were deleted
-        # from this host the snapshot became an empty array, and comparing an
-        # empty array with an empty array afterwards held while checking nothing
-        # - the same shape as SPIKES S9.14, where the lab-safety assertion
-        # compared 0 with 0 through six green runs.
+        # It used to read 'CM01', 'DC01' explicitly. Those two were retired on
+        # 2026-08-29, the snapshot became an empty array, and comparing an empty
+        # array with an empty array afterwards held while checking nothing - the
+        # same shape as SPIKES S9.14, where the lab-safety assertion compared 0
+        # with 0 through six green runs. The comment saying so was written
+        # before the code was changed to match it; this is the code catching up.
         #
-        # Reading every non-HDT-* VM instead means the guard covers whatever the
-        # user builds next without anyone remembering to add its name, and the
-        # count is asserted separately so an empty host reads as "there was
-        # nothing to protect" rather than as "nothing was harmed".
-        return @(Hyper-V\Get-VM -Name 'CM01', 'DC01' -ErrorAction SilentlyContinue |
+        # Reading every non-HDT-* VM means the guard covers whatever the user
+        # builds next without anyone remembering to add its name. The unfiltered
+        # Get-VM is READ-ONLY and is the one exception PROJECT.md rule 1 allows:
+        # you cannot prove you left the other VMs alone without listing them.
+        return @(Hyper-V\Get-VM -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -notlike 'HDT-*' } |
                 Sort-Object Name |
                 ForEach-Object {
                     [pscustomobject] @{
@@ -903,22 +906,21 @@ Describe 'it boots into Windows' -Tag 'E2E' -Skip:$skipDeployment {
 
 Describe 'the lab is unharmed' -Tag 'E2E' {
 
-    It 'left CM01 in the state it found it' {
-        $after = & $script:snapshotProtected
-
-        $before = @($script:protectedBefore | Where-Object { $_.Name -eq 'CM01' })
-        $now = @($after | Where-Object { $_.Name -eq 'CM01' })
-
-        ($now | ConvertTo-Json -Depth 3) | Should -BeExactly ($before | ConvertTo-Json -Depth 3)
+    It 'had something to protect in the first place' {
+        # ASSERTED SEPARATELY, AND ON PURPOSE. Comparing an empty snapshot with
+        # an empty snapshot passes while checking nothing, which is exactly what
+        # happened when this file named two VMs that had been retired. An empty
+        # host is a finding, not a pass.
+        @($script:protectedBefore).Count | Should -BeGreaterThan 0 -Because (
+            'this host had no VM outside HDT-* when the run started, so the ' +
+            'lab-safety comparison below has nothing to compare')
     }
 
-    It 'left DC01 in the state it found it' {
+    It 'left every VM it does not own exactly as it found it' {
         $after = & $script:snapshotProtected
 
-        $before = @($script:protectedBefore | Where-Object { $_.Name -eq 'DC01' })
-        $now = @($after | Where-Object { $_.Name -eq 'DC01' })
-
-        ($now | ConvertTo-Json -Depth 3) | Should -BeExactly ($before | ConvertTo-Json -Depth 3)
+        ($after | ConvertTo-Json -Depth 3) |
+            Should -BeExactly ($script:protectedBefore | ConvertTo-Json -Depth 3)
     }
 
     It 'left every HDT VM powered off' {
@@ -931,11 +933,12 @@ Describe 'the lab is unharmed' -Tag 'E2E' {
     It 'touched no VM outside HDT-*' {
         # Asserted from the guard rather than from a transcript: every VM this
         # file creates or removes goes through New-/Remove-HDTLabVirtualMachine,
-        # and Assert-HDTLabVmName refuses anything not named HDT-*, plus CM01
-        # and DC01 by name. tests/unit/New-HDTLabVirtualMachine.Tests.ps1 proves
-        # those refusals, and that the guard runs before the first Hyper-V call.
-        { Assert-HDTLabVmName -Name 'CM01' } | Should -Throw
-        { Assert-HDTLabVmName -Name 'DC01' } | Should -Throw
+        # and Assert-HDTLabVmName refuses a wildcard and anything not named
+        # HDT-*, which is every VM this repository did not create.
+        # tests/unit/New-HDTLabVirtualMachine.Tests.ps1 proves those refusals,
+        # and that the guard runs before the first Hyper-V call.
+        { Assert-HDTLabVmName -Name 'SomeOtherVm' } | Should -Throw
+        { Assert-HDTLabVmName -Name 'HDTNoDash' } | Should -Throw
         { Assert-HDTLabVmName -Name 'HDT-*' } | Should -Throw
     }
 }

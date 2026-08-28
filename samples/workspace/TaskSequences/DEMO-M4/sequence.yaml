@@ -33,8 +33,8 @@
 #
 # WHAT IT STILL DOES NOT DO: no Restart, no autologon resume, no drivers (M5, and
 # deferred to v2), no applications, updates, roles or BitLocker (M6), no domain
-# join - the HDT Lab switch is isolated by design and a test VM cannot reach
-# DC01, so JoinDomain is verified against a fake only (PROJECT.md).
+# join - there is no domain controller in this lab and the HDT Lab switch is
+# isolated by design, so JoinDomain is verified against a fake only (PROJECT.md).
 
 schemaVersion: 1
 id: DEMO-M4
