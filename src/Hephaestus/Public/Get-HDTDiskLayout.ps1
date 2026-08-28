@@ -197,6 +197,19 @@ function Get-HDTDiskLayout {
                             -Message ("disk layout '{0}': the {1} partition declares no file system. HDT formats every partition it creates." -f $layoutName, $role)))
             }
 
+            # A PARTITION WITHOUT A LETTER CANNOT BE FORMATTED, for the same
+            # reason it cannot go without a file system: Format-Volume takes a
+            # drive letter and nothing else. Left blank, it reaches the disk
+            # service - which reads an empty letter as "remove this partition's
+            # access path" - and comes back as "The access path is not valid",
+            # naming neither the layout nor the row.
+            $driveLetter = [string] $(if ($row.Contains('DriveLetter')) { $row['DriveLetter'] } else { '' })
+
+            if ([string]::IsNullOrWhiteSpace($driveLetter)) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $layoutName `
+                            -Message ("disk layout '{0}': the {1} partition declares no drive letter. HDT formats every partition it creates, and a format needs one." -f $layoutName, $role)))
+            }
+
             $sizeByte = 0
             if ($row.Contains('SizeByte')) { $sizeByte = [long] $row['SizeByte'] }
 
@@ -211,7 +224,7 @@ function Get-HDTDiskLayout {
                     UseMaximumSize = [bool] $(if ($row.Contains('UseMaximumSize')) { $row['UseMaximumSize'] } else { $false })
                     FileSystem     = $fileSystem
                     Label          = [string] $(if ($row.Contains('Label')) { $row['Label'] } else { '' })
-                    DriveLetter    = [string] $(if ($row.Contains('DriveLetter')) { $row['DriveLetter'] } else { '' })
+                    DriveLetter    = $driveLetter
                     GptType        = [string] $(if ($row.Contains('GptType')) { $row['GptType'] } else { '' })
                     CreateGptType  = [string] $(if ($row.Contains('CreateGptType')) { $row['CreateGptType'] } else { '' })
                     IsActive       = [bool] $(if ($row.Contains('IsActive')) { $row['IsActive'] } else { $false })

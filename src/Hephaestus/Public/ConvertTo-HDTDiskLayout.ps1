@@ -103,6 +103,11 @@
     }
 
     $row = New-Object -TypeName System.Collections.ArrayList
+
+    # EVERY PARTITION NEEDS A LETTER, and until this existed the authored path
+    # gave none of them one - see the drive-letter block below.
+    $claimed = @{}
+
     $remainderCount = 0
     $percentTotal = 0
     $bootableCount = 0
@@ -132,9 +137,41 @@
         $variable = & $read 'variable'
         $quickFormatText = & $read 'quickFormat'
         $bootableText = & $read 'bootable'
+        $letterText = & $read 'letter'
 
         $locator = 'partition {0}' -f $index
         if (-not [string]::IsNullOrWhiteSpace($label)) { $locator = "partition '{0}'" -f $label }
+
+        # -- the drive letter, if the author named one ------------------------
+
+        $driveLetter = ''
+
+        if (-not [string]::IsNullOrWhiteSpace($letterText)) {
+            # 'v', 'V' and 'V:' are the same answer. Somebody who typed the
+            # colon has written a drive letter, not made a mistake.
+            $driveLetter = $letterText.Trim().TrimEnd(':').ToUpperInvariant()
+
+            if ($driveLetter -notmatch '^[A-Z]$') {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $letterText `
+                            -Message ("{0} asks for drive letter '{1}', which is not one. A drive letter is a single letter, written C or C:." -f $locator, $letterText)))
+            }
+
+            # X: IS THE RAM DISK WINPE IS RUNNING FROM. Formatting it ends the
+            # deployment mid-step, and the error it leaves behind names a
+            # missing file rather than the partition table that took the drive
+            # out from under it.
+            if ($driveLetter -eq 'X') {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $letterText `
+                            -Message ("{0} asks for drive letter X, which is WinPE itself - the engine is running from it. Choose another letter." -f $locator)))
+            }
+
+            if ($claimed.ContainsKey($driveLetter)) {
+                $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $letterText `
+                            -Message ("{0} asks for drive letter {1}, which {2} already has. Two partitions on one letter means one is formatted over the other." -f $locator, $driveLetter, $claimed[$driveLetter])))
+            }
+
+            $claimed[$driveLetter] = $locator
+        }
 
         # -- the type ---------------------------------------------------------
 
@@ -229,7 +266,7 @@
                 PercentOfRemainder = $percent
                 FileSystem        = $fileSystem
                 Label             = $label
-                DriveLetter       = ''
+                DriveLetter       = $driveLetter
                 GptType           = $gptType
                 CreateGptType     = $createGptType
 
@@ -257,6 +294,58 @@
     if ($bootableCount -gt 1) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name `
                     -Message ("{0} partitions are declared bootable. The firmware picks one, and which one is then not the author's decision." -f $bootableCount)))
+    }
+
+    # -- the drive letters nobody wrote down ------------------------------
+    #
+    # A PARTITION WITHOUT A LETTER CANNOT BE FORMATTED. Format-Volume takes a
+    # drive letter and nothing else, so a blank one is not a default - it is a
+    # row that cannot be built. Worse, the disk service reads an empty letter as
+    # "remove this partition's access path", so the authored path spent its
+    # whole life asking Windows to unmount ':\' and reporting what came back:
+    #
+    #   disk 0 failed while lettering the System partition:
+    #   SetPartitionDriveLetter ... "The access path is not valid."
+    #
+    # found on the first bare-metal machine that ever ran the shipped template.
+    # HDTSystemVolume, HDTOSVolume and HDTRecoveryVolume come off these rows
+    # too, so every step after the partitioner was being handed a blank target.
+    #
+    # THE THREE ROLES KEEP THE LETTERS THE NAMED LAYOUTS USE - S, W and R, from
+    # uefi-standard - so a share that moves from a named layout to an authored
+    # one does not silently change what every log line and worked example says.
+    # Anything else takes the first free letter.
+    $default = [ordered] @{ System = 'S'; Windows = 'W'; Recovery = 'R' }
+
+    foreach ($entry in $default.GetEnumerator()) {
+        foreach ($current in $row) {
+            if ([string] $current.DriveLetter -ne '') { continue }
+            if ([string] $current.Label -ne [string] $entry.Key) { continue }
+            if ($claimed.ContainsKey([string] $entry.Value)) { continue }
+
+            $current.DriveLetter = [string] $entry.Value
+            $claimed[[string] $entry.Value] = "partition '{0}'" -f $current.Label
+        }
+    }
+
+    # A, B AND C ARE NOT IN THE POOL. A and B are the floppy letters Windows
+    # still reserves; C is what the boot medium itself usually holds in WinPE,
+    # and a USB stick that got C: is exactly the machine this was found on.
+    # X is WinPE's own RAM disk.
+    $pool = @('D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'Y', 'Z')
+
+    foreach ($current in $row) {
+        if ([string] $current.DriveLetter -ne '') { continue }
+
+        $free = @($pool | Where-Object { -not $claimed.ContainsKey($_) })
+
+        if ($free.Count -eq 0) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $Name `
+                        -Message ("this layout has more partitions than there are drive letters to give them. Windows has 26 letters, and A, B, C and X are not among the ones a deployment may take.")))
+        }
+
+        $current.DriveLetter = [string] $free[0]
+        $claimed[[string] $free[0]] = "partition '{0}'" -f $current.Label
     }
 
     if ($percentTotal -gt 100) {

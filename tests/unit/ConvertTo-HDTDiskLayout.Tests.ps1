@@ -280,3 +280,141 @@ Describe 'ConvertTo-HDTDiskLayout' {
         }
     }
 }
+
+# THE DRIVE LETTER, WHICH THE AUTHORED PATH NEVER ASSIGNED.
+#
+# Found on a Dell Latitude, not in this suite: 'Format and Partition Disk
+# (UEFI)' - the step in the SHIPPED client template - failed on the first real
+# machine it ever ran on with
+#
+#   disk 0 failed while lettering the System partition:
+#   SetPartitionDriveLetter ... "The access path is not valid."
+#
+# because every authored row came back with DriveLetter = '', and an empty
+# letter is how the disk service is told to REMOVE an access path. It duly
+# tried to remove ':\'.
+#
+# The named layouts carry S/W/R and the VM runs used a named layout, so ten
+# thousand green tests and a full end-to-end VM deployment never touched this.
+# A blank letter is not a cosmetic gap either: HDTSystemVolume, HDTOSVolume and
+# HDTRecoveryVolume are read straight off these rows, so every step downstream
+# of the partitioner was being handed an empty target as well.
+Describe 'ConvertTo-HDTDiskLayout, the drive letters' {
+
+    Context 'what an author gets without asking' {
+
+        BeforeAll {
+            $script:lettered = ConvertTo-HDTDiskLayout -Partition $script:authored -Style GPT
+        }
+
+        It 'gives every partition a drive letter' {
+            # THE REGRESSION. One blank letter here is a bare-metal deployment
+            # that dies at the partitioner.
+            foreach ($row in $script:lettered.Partition) {
+                $row.DriveLetter | Should -Not -BeNullOrEmpty -Because "$($row.Label) has to be formatted through one"
+            }
+        }
+
+        It 'gives System, Windows and Recovery the letters the named layouts use' {
+            # uefi-standard is S/W/R. An authored table that used different
+            # letters for the same three roles would make every worked example
+            # and every log line in DESIGN wrong for half the shares.
+            $byRole = @{}
+            foreach ($row in $script:lettered.Partition) { $byRole[[string] $row.Label] = [string] $row.DriveLetter }
+
+            $byRole['System']   | Should -BeExactly 'S'
+            $byRole['Windows']  | Should -BeExactly 'W'
+            $byRole['Recovery'] | Should -BeExactly 'R'
+        }
+
+        It 'gives a partition nobody named a letter of its own' {
+            # 'Data' is the commonest thing an MDT admin adds, and it matches
+            # none of the three roles.
+            $data = @($script:lettered.Partition | Where-Object { $_.Label -eq 'Data' })[0]
+
+            $data.DriveLetter | Should -Not -BeNullOrEmpty
+            @('S', 'W', 'R') | Should -Not -Contain $data.DriveLetter
+        }
+
+        It 'hands out no letter twice' {
+            # TWO ROWS ON ONE LETTER IS ONE VOLUME FORMATTED TWICE, and the
+            # second format silently destroys the first partition's contents.
+            $letter = @($script:lettered.Partition | ForEach-Object { [string] $_.DriveLetter })
+
+            @($letter | Sort-Object -Unique).Count | Should -Be $letter.Count
+        }
+
+        It 'never hands out X, which is WinPE itself' {
+            # X: is the RAM disk the engine is RUNNING FROM. Formatting it ends
+            # the deployment mid-step.
+            $many = @(1..12 | ForEach-Object { [pscustomobject] @{ name = "Vol$_"; type = 'Primary'; size = '1GB'; filesystem = 'NTFS' } })
+
+            @((ConvertTo-HDTDiskLayout -Partition $many -Style GPT).Partition | ForEach-Object { $_.DriveLetter }) |
+                Should -Not -Contain 'X'
+        }
+    }
+
+    Context 'what an author writes down' {
+
+        It 'honours a letter the author asked for' {
+            $authored = @(
+                [pscustomobject] @{ name = 'System'; type = 'EFI'; size = '260MB'; filesystem = 'FAT32' }
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS'; letter = 'V' }
+            )
+
+            $row = @((ConvertTo-HDTDiskLayout -Partition $authored -Style GPT).Partition | Where-Object { $_.Label -eq 'Windows' })[0]
+
+            $row.DriveLetter | Should -BeExactly 'V'
+        }
+
+        It 'takes the letter however it was written' {
+            # 'v', 'V:' and 'V' are the same answer, and an administrator who
+            # typed the colon has not made a mistake.
+            $authored = @(
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS'; letter = 'v:' }
+            )
+
+            (ConvertTo-HDTDiskLayout -Partition $authored -Style GPT).Partition[0].DriveLetter | Should -BeExactly 'V'
+        }
+
+        It 'does not give a default letter away to a row that asked for it' {
+            # Windows asked for S. System must not also get S.
+            $authored = @(
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS'; letter = 'S' }
+                [pscustomobject] @{ name = 'System'; type = 'EFI'; size = '260MB'; filesystem = 'FAT32' }
+            )
+
+            $letter = @((ConvertTo-HDTDiskLayout -Partition $authored -Style GPT).Partition | ForEach-Object { [string] $_.DriveLetter })
+
+            @($letter | Sort-Object -Unique).Count | Should -Be 2
+        }
+
+        It 'refuses two partitions claiming the same letter' {
+            # Authored, so it is a mistake in the document rather than something
+            # to resolve quietly - and resolving it quietly formats one of them
+            # over the other.
+            $authored = @(
+                [pscustomobject] @{ name = 'System'; type = 'EFI'; size = '260MB'; filesystem = 'FAT32'; letter = 'S' }
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS'; letter = 'S' }
+            )
+
+            { ConvertTo-HDTDiskLayout -Partition $authored -Style GPT } | Should -Throw -ExpectedMessage '*S*'
+        }
+
+        It 'refuses a letter that is not one' {
+            $authored = @(
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS'; letter = 'CD' }
+            )
+
+            { ConvertTo-HDTDiskLayout -Partition $authored -Style GPT } | Should -Throw
+        }
+
+        It 'refuses X, even asked for by name' {
+            $authored = @(
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS'; letter = 'X' }
+            )
+
+            { ConvertTo-HDTDiskLayout -Partition $authored -Style GPT } | Should -Throw -ExpectedMessage '*X*'
+        }
+    }
+}

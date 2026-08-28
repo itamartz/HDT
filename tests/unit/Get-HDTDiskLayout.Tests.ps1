@@ -259,6 +259,30 @@ Describe 'Get-HDTDiskLayout' {
             $record.Exception.Message | Should -BeLike '*contoso-bad*'
         }
 
+        It 'rejects a definition with no drive letter' {
+            # THE SAME DEFECT THE AUTHORED PATH HAD, by the other door. A blank
+            # letter is not a default: Format-Volume takes a drive letter and
+            # nothing else, and the disk service reads an empty one as "remove
+            # this partition's access path". A custom layout that omitted it
+            # failed on the disk with "The access path is not valid", naming
+            # neither the layout nor the row that was missing a letter.
+            $definition = @{
+                'contoso-bad' = @{
+                    PartitionStyle = 'GPT'
+                    Partition      = @(
+                        @{ Role = 'Windows'; UseMaximumSize = $true; FileSystem = 'NTFS'; Label = 'Windows' }
+                    )
+                }
+            }
+
+            $record = $null
+            try { Get-HDTDiskLayout -Definition $definition } catch { $record = $_ }
+
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+            $record.Exception.Message | Should -BeLike '*contoso-bad*'
+            $record.Exception.Message | Should -BeLike '*Windows*'
+        }
+
         It 'rejects a definition with a negative size' {
             $definition = @{
                 'contoso-bad' = @{
