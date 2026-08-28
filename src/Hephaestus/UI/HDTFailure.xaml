@@ -6,7 +6,6 @@
     ResizeMode="NoResize"
     SizeToContent="WidthAndHeight"
     WindowStartupLocation="CenterScreen"
-    Topmost="True"
     Background="#FF1E1E1E">
 
     <!--
@@ -28,6 +27,40 @@
         all three on one machine minutes apart, and they must look like one
         product: #FF1E1E1E behind, #FF252526 on the card.
 
+        NOT Topmost, AND A TECHNICIAN AT A BENCH IS WHY. This window used to
+        carry Topmost="True", and the cost of it was the one button on the
+        screen that matters: Open CMD (and F8) launched the command prompt
+        CORRECTLY and it opened BEHIND this window, where it could not be seen,
+        clicked, or reached. A topmost window outranks any non-topmost
+        foreground window, so the prompt was not merely unfocused - it was
+        unreachable, on the screen whose entire purpose is to hand a broken
+        machine back to a human being who can look inside it.
+
+        AND IT BOUGHT NOTHING IN RETURN. In WinPE there is no shell, no taskbar
+        and no other application: there is nothing for this window to lose
+        itself behind, which is exactly why the attribute was never noticed.
+        HDTProgress.xaml keeps its Topmost for the opposite reason - that board
+        outlives WinPE and draws on a real desktop, where a Start menu opens
+        over it - and Start-HDTDeployment closes it before any prompt can be
+        opened, so it never stands in front of one.
+
+        TOPMOST IS STATE, NOT MARKUP. A window that hands the machine to
+        another process has to stop outranking it, and an attribute cannot.
+        tests/contract/WinPeWindowReach.Contract.Tests.ps1 holds the rule for
+        every window in this folder.
+
+        AND THE REFERENCE IMPLEMENTATION SAYS THE SAME, WHICH IS WHY THIS IS A
+        RULE AND NOT ONE BENCH'S OPINION. friendsOfMDT/PSD - MIT licensed,
+        NOTICE.md - clears Topmost on the line before EVERY ShowDialog, under
+        its own comment "always force windows on bottom"
+        (Scripts/PSDWizardNew.psm1:760 and :2995,
+        Scripts/PSDStartLoader.psm1:2780), binds Esc to lower the window
+        (PSDWizardNew.psm1:2764-2767), and where it does raise a window it
+        drives it from a runtime flag rather than markup
+        (PSDStartLoader.psm1:2352). What was derived is that mechanism, not
+        code: HDT deletes the attribute instead of assigning the property,
+        because a window that never outranks the prompt has nothing to undo.
+
         NO x:Class AND NO MERGED DICTIONARY: there is no compiler in WinPE, and
         a second file that must reach the RAM disk intact is a
         XamlParseException on the one machine nobody can debug.
@@ -40,34 +73,77 @@
             <StackPanel Margin="36,30,36,30">
 
                 <!--
-                    RED, ONCE, AT THE TOP. The status line on the progress
-                    screen paints failures #FFF48771 and so does this: the same
-                    colour means the same thing across the product.
+                    ============ the grab handle ============
+
+                    THE HEADLINE IS WHAT YOU DRAG THE WINDOW BY. WindowStyle=
+                    "None" is right here - an X on a failure screen is a fourth
+                    answer nobody meant to give - but it takes the title bar
+                    away, and with it the thing a hand reaches for. A technician
+                    in front of a failed machine could not move this window at
+                    all: not off a log they wanted to read behind it, not out of
+                    the way of a command prompt.
+
+                    New-HDTWizardHost wires DragMove onto whatever is named
+                    HDTDragBanner and onto nothing else, and its lookup is
+                    null-guarded - so a window without one does not fail, log or
+                    warn. It is simply immovable, which is precisely how this
+                    screen shipped that way and why the rule now lives in
+                    tests/contract/WinPeWindowReach.Contract.Tests.ps1 rather
+                    than in one file's memory. The wizard shell, the welcome
+                    screen and both credential pages have carried the same
+                    named Border since they were written; this is that.
+
+                    IT NEEDS A GROUND TO BE GRABBED AT ALL. A Border with no
+                    Background is invisible to hit-testing in WPF, and so is a
+                    TextBlock - the mouse would go straight through the headline
+                    to the card behind it and no drag would ever start. So it
+                    paints the card's own #FF252526: the same colour that was
+                    already there, which is why nothing about this screen looks
+                    different. No padding, no margin, no border thickness -
+                    the three lines below sit exactly where they sat.
+
+                    THE BUTTONS ARE OUTSIDE IT, deliberately. A banner that
+                    covered Open CMD would answer a click by moving the window
+                    instead of opening the prompt, which is the same defect in a
+                    new coat.
                 -->
-                <TextBlock x:Name="HDTFailureTitleText" Foreground="#FFF48771"
-                           FontSize="28" FontWeight="SemiBold" />
+                <Border x:Name="HDTDragBanner" Background="#FF252526">
+                    <StackPanel>
 
-                <!--
-                    AND THE SAME WINDOW REPORTS A RUN THAT WORKED, because MDT
-                    ends a deployment on ONE Deployment Summary rather than two
-                    windows to keep in step with each other.
+                        <!--
+                            RED, ONCE, AT THE TOP. The status line on the
+                            progress screen paints failures #FFF48771 and so
+                            does this: the same colour means the same thing
+                            across the product.
+                        -->
+                        <TextBlock x:Name="HDTFailureTitleText" Foreground="#FFF48771"
+                                   FontSize="28" FontWeight="SemiBold" />
 
-                    TWO HEADLINES, ONE VISIBLE. The colour is the whole reason
-                    this is a second TextBlock instead of one line of text that
-                    changes: #FFF48771 is what failure looks like everywhere in
-                    this product, and a success painted in it reads as a failure
-                    that somebody mislabelled. Red only ever means wrong.
+                        <!--
+                            AND THE SAME WINDOW REPORTS A RUN THAT WORKED,
+                            because MDT ends a deployment on ONE Deployment
+                            Summary rather than two windows to keep in step with
+                            each other.
 
-                    Which one shows is a Pane flag, the mechanism the host
-                    already has - Get-HDTDeploymentFailure decides, and this
-                    file only says what the two look like.
-                -->
-                <TextBlock x:Name="HDTFailureSuccessText" Foreground="#FF6FCF97"
-                           FontSize="28" FontWeight="SemiBold"
-                           Visibility="Collapsed" />
+                            TWO HEADLINES, ONE VISIBLE. The colour is the whole
+                            reason this is a second TextBlock instead of one line
+                            of text that changes: #FFF48771 is what failure looks
+                            like everywhere in this product, and a success
+                            painted in it reads as a failure that somebody
+                            mislabelled. Red only ever means wrong.
 
-                <TextBlock x:Name="HDTFailureSequenceText" Text="" Foreground="#FFCCCCCC"
-                           FontSize="15" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                            Which one shows is a Pane flag, the mechanism the
+                            host already has - Get-HDTDeploymentFailure decides,
+                            and this file only says what the two look like.
+                        -->
+                        <TextBlock x:Name="HDTFailureSuccessText" Foreground="#FF6FCF97"
+                                   FontSize="28" FontWeight="SemiBold"
+                                   Visibility="Collapsed" />
+
+                        <TextBlock x:Name="HDTFailureSequenceText" Text="" Foreground="#FFCCCCCC"
+                                   FontSize="15" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Border>
 
                 <Border Height="1" Background="#FF3A3A3C" Margin="0,20,0,20" />
 
