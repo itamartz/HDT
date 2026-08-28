@@ -28,6 +28,12 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
     Import-Module -Name powershell-yaml -ErrorAction Stop
 
+    # The page markup is parsed here as well as read, so WPF has to be loaded
+    # whether or not the module happened to bring it in.
+    Add-Type -AssemblyName PresentationFramework
+    Add-Type -AssemblyName PresentationCore
+    Add-Type -AssemblyName WindowsBase
+
     $script:wizardRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/Wizard'
     $script:templateRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates'
 
@@ -40,6 +46,73 @@ BeforeAll {
             ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }) -join "`n"
 
     $script:mappedName = @(Get-HDTVariableMap | ForEach-Object { [string] $_.HDTName })
+
+    # EVERY MARKUP FILE THAT SHIPS, not the ones the definition happens to
+    # name. A page authored and not yet wired still has to parse, and a file
+    # left behind after a page was renamed is exactly the one nobody looks at.
+    $script:pageFile = @(Get-ChildItem -LiteralPath $script:wizardRoot -Filter '*.xaml' -File)
+
+    # EVERY NAME THE DEFINITION SAYS A PAGE MUST ANSWER TO, gathered by the
+    # SHAPE OF THE KEY rather than a list written here.
+    #
+    # A LIST WOULD HAVE MISSED THE ONE THAT SHIPPED BROKEN. The Summary page
+    # declared summary.rowControl: HDTSummaryList against markup carrying no
+    # such control, and the assertion that existed walked collect entries only,
+    # so nothing said so - see the It below. That declaration has since been
+    # removed from wizard.yaml, which is precisely why this walk must not be a
+    # list of key names: the next one will be called something else again.
+    # Anything the definition calls control, snippetControl or whatever comes
+    # after is caught by the same rule, which is rule 8's "written against the
+    # set" applied to the keys as well as the pages.
+    #
+    # ITERATIVE, OVER A STACK. A page is a dictionary of lists of
+    # dictionaries, and the depth is not fixed - validate is one level down,
+    # collect is a level down inside a list.
+    $script:controlDeclaration = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($current in $script:page) {
+
+        $stack = New-Object -TypeName System.Collections.Stack
+        $stack.Push($current)
+
+        while ($stack.Count -gt 0) {
+
+            $node = $stack.Pop()
+
+            if ($node -is [System.Collections.IDictionary]) {
+
+                foreach ($key in @($node.Keys)) {
+
+                    $value = $node[$key]
+
+                    if ($value -is [System.Collections.IDictionary] -or
+                        ($value -is [System.Collections.IEnumerable] -and $value -isnot [string])) {
+
+                        $stack.Push($value)
+                        continue
+                    }
+
+                    if ([string] $key -notmatch 'control$') { continue }
+                    if ([string]::IsNullOrWhiteSpace([string] $value)) { continue }
+
+                    [void] $script:controlDeclaration.Add([pscustomobject] @{
+                            Page      = [string] $current['id']
+                            Key       = [string] $key
+                            Control   = [string] $value
+                            Reference = [string] $current['reference']
+                        })
+                }
+
+                continue
+            }
+
+            if ($node -is [System.Collections.IEnumerable] -and $node -isnot [string]) {
+                foreach ($item in $node) {
+                    if ($null -ne $item) { $stack.Push($item) }
+                }
+            }
+        }
+    }
 }
 
 Describe 'Wizard page surface contract' {
@@ -191,5 +264,172 @@ Describe 'Wizard page surface contract' {
         }
 
         ($orphan -join ' | ') | Should -BeNullOrEmpty
+    }
+
+    It 'gathered the control names off keys of every shape, not only the collect ones' {
+        # THE GUARD ON THE RULE BELOW. If the walk only ever reached collect
+        # entries, that rule would pass exactly as well as the older one beside
+        # it and catch nothing new - so this asserts the two SHAPES that exist,
+        # by an example of each: the plain 'control' every other page uses,
+        # which appears both one level down in validate and inside the collect
+        # list, and a key the walk can only have found by matching the shape of
+        # the name rather than the name itself.
+        #
+        # IT NAMED rowControl UNTIL 2026-08-28 and would now fail for the right
+        # reason: that key has been removed from the definition. Asserting a
+        # key by name is asserting the definition still says one particular
+        # thing, which is the list this walk exists to avoid - so what is
+        # asserted is that the walk reached a *control key that is NOT called
+        # 'control', and reached the Summary page, whose only declaration is
+        # nested under summary and is what a collect-only walk misses.
+        $key = @($script:controlDeclaration | ForEach-Object { $_.Key } | Sort-Object -Unique)
+
+        $key | Should -Contain 'control'
+        @($key | Where-Object { $_ -ne 'control' }) | Should -Not -BeNullOrEmpty
+        @($script:controlDeclaration | ForEach-Object { $_.Page }) | Should -Contain 'Summary'
+    }
+
+    It 'names a control the markup declares, for every key in the definition that names one' {
+        # THE DEFECT THIS IS THE GENERAL FORM OF. Summary declared
+        #
+        #     summary:
+        #       rowControl: HDTSummaryList
+        #
+        # and Summary.xaml carried no such control. New-HDTWizardHost does
+        #
+        #     $rowControl = $pageRoot.FindName($Current.Page.Summary.RowControl)
+        #     if ($null -ne $rowControl) { $rowControl.ItemsSource = ... }
+        #
+        # so the miss was swallowed by the guard and the "Ready to deploy"
+        # screen showed the snippet with NOT ONE ROW above it - no task
+        # sequence, no computer name, nothing. Get-HDTWizardSummary had
+        # computed them all and handed them over.
+        #
+        # A GUARD THAT SWALLOWS A MISS IS RIGHT AT RUNTIME - a page half a
+        # release ahead of a share must still open in WinPE - and it is exactly
+        # why the miss has to be caught here instead.
+        $broken = @($script:controlDeclaration | Where-Object {
+
+                $markup = [System.IO.File]::ReadAllText((Join-Path $script:wizardRoot $_.Reference))
+                $markup -notmatch ('x:Name\s*=\s*"{0}"' -f [regex]::Escape($_.Control))
+
+            } | ForEach-Object { '{0}: {1}: {2} is declared by no control in {3}' -f $_.Page, $_.Key, $_.Control, $_.Reference })
+
+        ($broken -join ' | ') | Should -BeNullOrEmpty
+    }
+
+    It 'gives every control in a page its own grid cell' {
+        # THE GENERAL FORM OF THE BITLOCKER DEFECT. The escrow ComboBox was
+        # authored at Grid.Row="2" Grid.Column="1" - the PIN box's cell - so
+        # WPF drew it ON TOP of the PasswordBox and the PIN could not be
+        # clicked or typed at all, while the "Recovery key" label two rows down
+        # sat beside an empty cell. It renders as a page that looks finished.
+        #
+        # THE ONE OVERLAP THAT IS DELIBERATE IS THE REVEAL PAIR, and it is
+        # allowed BY THE CONVENTION Get-HDTWizardRevealPair reads rather than
+        # by naming AdminPassword: PasswordBox.Password is not a
+        # DependencyProperty, so a revealable password is HDTFooBox and
+        # HDTFooRevealBox stacked in one cell with the eye swapping which is
+        # visible. Anything else in one cell is two controls fighting.
+        $xaml = 'http://schemas.microsoft.com/winfx/2006/xaml'
+        $broken = New-Object -TypeName System.Collections.ArrayList
+        $cellCount = 0
+
+        foreach ($file in $script:pageFile) {
+
+            $document = [xml] [System.IO.File]::ReadAllText($file.FullName)
+
+            foreach ($grid in @($document.SelectNodes('//*'))) {
+
+                if ($grid.LocalName -ne 'Grid') { continue }
+
+                $cell = @{}
+
+                foreach ($child in @($grid.ChildNodes)) {
+
+                    if ($child.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+
+                    # Grid.RowDefinitions and friends are property elements,
+                    # not controls, and they carry the dot in their name.
+                    if ($child.LocalName -like '*.*') { continue }
+
+                    $row = $child.GetAttribute('Grid.Row')
+                    $column = $child.GetAttribute('Grid.Column')
+
+                    if ([string]::IsNullOrEmpty($row)) { $row = '0' }
+                    if ([string]::IsNullOrEmpty($column)) { $column = '0' }
+
+                    $at = '{0},{1}' -f $row, $column
+                    if (-not $cell.ContainsKey($at)) { $cell[$at] = New-Object -TypeName System.Collections.ArrayList }
+
+                    [void] $cell[$at].Add([pscustomobject] @{
+                            Element = [string] $child.LocalName
+                            Name    = [string] $child.GetAttribute('Name', $xaml)
+                        })
+                }
+
+                foreach ($at in @($cell.Keys)) {
+
+                    $cellCount++
+
+                    $occupant = @($cell[$at])
+                    if ($occupant.Count -lt 2) { continue }
+
+                    $name = @($occupant | ForEach-Object { $_.Name } | Sort-Object)
+
+                    $isRevealPair = $false
+                    if ($occupant.Count -eq 2 -and ($name -notcontains '')) {
+
+                        $base = @($name | Where-Object { $_ -notmatch 'RevealBox$' })
+
+                        if ($base.Count -eq 1 -and $base[0] -match 'Box$') {
+                            $stem = $base[0].Substring(0, $base[0].Length - 3)
+                            $isRevealPair = ($name -contains ('{0}RevealBox' -f $stem))
+                        }
+                    }
+
+                    if ($isRevealPair) { continue }
+
+                    [void] $broken.Add(('{0}: row,column {1} holds {2}' -f
+                            $file.Name, $at, (($occupant | ForEach-Object {
+                                    if ([string]::IsNullOrEmpty($_.Name)) { $_.Element } else { '{0} {1}' -f $_.Element, $_.Name }
+                                }) -join ' and ')))
+                }
+            }
+        }
+
+        $cellCount | Should -BeGreaterThan 20 -Because 'a walk that found no cells passes this without reading anything'
+        ($broken -join ' | ') | Should -BeNullOrEmpty
+    }
+
+    It 'declares both namespaces on every page, and parses' {
+        # A FRAGMENT INHERITS NOTHING. XamlReader loads each page on its own,
+        # so a page missing xmlns:x throws "'x' is an undeclared prefix" and a
+        # page missing xmlns throws before that - which on a bench is a wizard
+        # that never opens, with the console already hidden behind it.
+        $broken = New-Object -TypeName System.Collections.ArrayList
+
+        foreach ($file in $script:pageFile) {
+
+            $text = [System.IO.File]::ReadAllText($file.FullName)
+
+            if ($text -notmatch 'xmlns\s*=\s*"http://schemas\.microsoft\.com/winfx/2006/xaml/presentation"') {
+                [void] $broken.Add(('{0}: no default xmlns' -f $file.Name))
+            }
+
+            if ($text -notmatch 'xmlns:x\s*=\s*"http://schemas\.microsoft\.com/winfx/2006/xaml"') {
+                [void] $broken.Add(('{0}: no xmlns:x' -f $file.Name))
+            }
+
+            try {
+                $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $text)
+                $null = [System.Windows.Markup.XamlReader]::Load($reader)
+            } catch {
+                [void] $broken.Add(('{0}: {1}' -f $file.Name, $_.Exception.Message))
+            }
+        }
+
+        $script:pageFile.Count | Should -BeGreaterThan 5
+        ($broken -join ' | ') | Should -BeNullOrEmpty
     }
 }

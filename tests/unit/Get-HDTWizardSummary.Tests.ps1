@@ -19,6 +19,7 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     function New-HDTSummaryTestPage {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -46,9 +47,278 @@ BeforeAll {
             })
     }
 
+
+    # THE PAGE SETS RULE 8 IS ASSERTED AGAINST, including the one that ships.
+    #
+    # A hand-written shape can drift from the definition a technician actually
+    # meets, so the shipped wizard.yaml is read here by the engine's own reader,
+    # through a content provider over a fake file system - the same route
+    # Start-HDTDeployment takes on a share.
+    function New-HDTSummaryTestPageSet {
+        [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+            Justification = 'Builds in-memory test data; it changes no state.')]
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [string] $Name
+        )
+
+        if ($Name -eq 'one page declaring one variable twice') {
+            return @(
+                [pscustomobject] @{
+                    Id      = 'ComputerDetail'
+                    Title   = 'Computer details'
+                    Skip    = 'HDTSkipComputerName'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTDomainAdminDomainBox'; Variable = 'HDTDomainAdminDomain' },
+                        [pscustomobject] @{
+                            Control       = 'HDTDomainAdminBox'
+                            Variable      = 'HDTDomainAdmin'
+                            Split         = 'AccountName'
+                            SplitVariable = 'HDTDomainAdminDomain'
+                        })
+                })
+        }
+
+        if ($Name -eq 'the same variable on two pages') {
+            return @(
+                [pscustomobject] @{
+                    Id      = 'JoinAccount'
+                    Title   = 'Join account'
+                    Skip    = 'HDTSkipDomainMembership'
+                    Collect = @(
+                        [pscustomobject] @{
+                            Control       = 'HDTDomainAdminBox'
+                            Variable      = 'HDTDomainAdmin'
+                            Split         = 'AccountName'
+                            SplitVariable = 'HDTDomainAdminDomain'
+                        })
+                },
+                [pscustomobject] @{
+                    Id      = 'AccountDomain'
+                    Title   = 'Account domain'
+                    Skip    = 'HDTSkipAccountDomain'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTDomainAdminDomainBox'; Variable = 'HDTDomainAdminDomain' })
+                })
+        }
+
+        if ($Name -eq 'the shipped wizard') {
+            $definitionPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/Wizard/wizard.yaml'
+            $yaml = [System.IO.File]::ReadAllText($definitionPath)
+
+            # EVERY PAGE THE DEFINITION NAMES, taken FROM the definition. A list
+            # written here would go stale the day a page is added - and the
+            # reader refuses a definition naming markup that is not there, so a
+            # stale list fails as a missing page rather than as a duplicate
+            # variable and nobody would look here.
+            $file = @{ 'C:\Share\Scripts\UI\wizard.yaml' = $yaml }
+
+            foreach ($named in [regex]::Matches($yaml, '(?m)^\s*reference:\s*(\S+)\s*$')) {
+                $file[('C:\Share\Scripts\UI\{0}' -f $named.Groups[1].Value)] =
+                '<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" />'
+            }
+
+            $provider = New-HDTLocalContentProvider -Root 'C:\Share' -FileSystem (New-HDTFakeFileSystem -File $file)
+
+            return @((Import-HDTWizardDocument -Provider $provider).Page)
+        }
+
+        throw ("there is no wizard test page set called '{0}'." -f $Name)
+    }
+
+    # EVERY VARIABLE A PAGE SET DECLARES, ANSWERED. A variable nobody supplied
+    # is left out of the snippet by design, so a duplicate would hide from the
+    # snippet assertion unless every declaration is given a value.
+    function Get-HDTSummaryTestValue {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [object[]] $Page
+        )
+
+        $value = @{}
+
+        foreach ($current in @($Page)) {
+            if ($null -eq $current.PSObject.Properties['Collect']) { continue }
+
+            foreach ($declaration in @($current.Collect)) {
+                if ($null -eq $declaration) { continue }
+
+                foreach ($key in @('Variable', 'SplitVariable')) {
+                    if ($null -eq $declaration.PSObject.Properties[$key]) { continue }
+
+                    $name = [string] $declaration.$key
+                    if (-not [string]::IsNullOrWhiteSpace($name)) { $value[$name] = 'ANSWERED' }
+                }
+            }
+        }
+
+        return $value
+    }
+
     $script:value = @{
         HDTTaskSequenceID = 'STD-CLIENT'
         HDTComputerName   = 'HDT-01'
+    }
+
+    # WHAT A TECHNICIAN ACTUALLY TYPED, and not 'ANSWERED' repeated seventeen
+    # times. The line-length assertions below are about LENGTH, so a page set
+    # answered with a short placeholder would pass while the real screen wrapped
+    # on every other row. These are the values the offscreen probe renders, the
+    # OU included - a real distinguished name is the one thing on this page the
+    # command cannot shorten.
+    #
+    # HDTJoinWorkgroup IS DELIBERATELY ABSENT. A machine that joined a domain
+    # joined no workgroup, and the snippet must leave the variable out rather
+    # than write it empty (DESIGN 3.1).
+    $script:realistic = @{
+        HDTTaskSequenceID      = 'STD-CLIENT'
+        HDTComputerName        = 'LAB-W11-014'
+        HDTJoinDomain          = 'corp.contoso.com'
+        HDTMachineObjectOU     = 'OU=Workstations,OU=Lab,DC=corp,DC=contoso,DC=com'
+        HDTDomainAdmin         = 'svc-hdt-join'
+        HDTDomainAdminDomain   = 'CORP'
+        HDTDomainAdminPassword = 'not-shown-anywhere'
+        HDTAdminPassword       = 'also-not-shown'
+        HDTBitLockerPin        = '481507'
+        HDTApplications        = '7-Zip;Google Chrome'
+        HDTUILanguage          = 'en-GB'
+        HDTUserLocale          = 'en-GB'
+        HDTKeyboardLocale      = 'en-GB'
+        HDTTimeZone            = 'GMT Standard Time'
+        HDTEnableBitLocker     = 'True'
+        HDTBitLockerProtector  = 'tpmPin'
+        HDTBitLockerEscrow     = 'ad'
+        HDTBitLockerStartupKey = 'F:'
+    }
+
+    # EVERY LINE THAT IS TOO WIDE FOR THE BOX, with ONE narrow allowance.
+    #
+    # A line is forgiven only when the overage IS THE TECHNICIAN'S OWN VALUE: an
+    # OU of any realistic depth pushes its line past the budget and re-breaking
+    # or truncating a YAML value would change what pastes into rules.yaml. So
+    # the value's own length is subtracted and the REST of the line - indent,
+    # key, colon, quotes - still has to fit on its own.
+    #
+    # Everything the command AUTHORS is measured with no allowance at all. A
+    # comment line over budget is returned here and fails, which is the whole
+    # point: the header was 84 characters and wrapped six times on a real render.
+    function Get-HDTSummaryOverBudgetLine {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [AllowEmptyString()]
+            [string] $Snippet,
+
+            [Parameter(Mandatory = $true)]
+            [hashtable] $Value,
+
+            [Parameter(Mandatory = $true)]
+            [int] $Budget
+        )
+
+        $over = @()
+
+        foreach ($line in ($Snippet -split "`r?`n")) {
+
+            if ($line.Length -le $Budget) { continue }
+
+            $authored = $line.Length
+
+            $set = [regex]::Match($line, '^ {6}(\S+): (.+)$')
+            if ($set.Success -and $Value.ContainsKey($set.Groups[1].Value)) {
+                $authored = $line.Length - ([string] $Value[$set.Groups[1].Value]).Length
+            }
+
+            if ($authored -gt $Budget) { $over += $line }
+        }
+
+        return $over
+    }
+
+    # THE KEYS THE SNIPPET MUST CARRY, TAKEN FROM THE DEFINITION rather than
+    # written down here - rule 8. Every variable the pages declare, including a
+    # split half, minus the ones nobody answered and the ones any declaration
+    # calls a secret; plus every page's skip; plus HDTSkipWizard. A page added
+    # tomorrow is covered without anybody editing this test.
+    function Get-HDTSummaryExpectedKey {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [object[]] $Page,
+
+            [Parameter(Mandatory = $true)]
+            [hashtable] $Value
+        )
+
+        $variable = @()
+        $secret = @{}
+        $skip = @()
+
+        foreach ($current in @($Page)) {
+
+            if ($null -ne $current.PSObject.Properties['Skip'] -and
+                -not [string]::IsNullOrWhiteSpace([string] $current.Skip)) {
+
+                if ($skip -notcontains [string] $current.Skip) { $skip += [string] $current.Skip }
+            }
+
+            if ($null -eq $current.PSObject.Properties['Collect']) { continue }
+
+            foreach ($declaration in @($current.Collect)) {
+                if ($null -eq $declaration) { continue }
+
+                $isSecret = $false
+                if ($null -ne $declaration.PSObject.Properties['IsSecret']) { $isSecret = [bool] $declaration.IsSecret }
+
+                foreach ($key in @('Variable', 'SplitVariable')) {
+                    if ($null -eq $declaration.PSObject.Properties[$key]) { continue }
+
+                    $name = [string] $declaration.$key
+                    if ([string]::IsNullOrWhiteSpace($name)) { continue }
+
+                    # SECRECY IS STICKY, exactly as the command treats it.
+                    if ($isSecret) { $secret[$name] = $true }
+                    if ($variable -notcontains $name) { $variable += $name }
+                }
+            }
+        }
+
+        $expected = @($variable | Where-Object {
+                -not $secret.ContainsKey($_) -and
+                $Value.ContainsKey($_) -and
+                -not [string]::IsNullOrWhiteSpace([string] $Value[$_])
+            })
+
+        return @($expected) + @('HDTSkipWizard') + @($skip)
+    }
+
+    # THE SECRETS THE SHIPPED DEFINITION DECLARES, again read off the definition
+    # so a fourth one is covered the day it is added.
+    function Get-HDTSummarySecretVariable {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory = $true)]
+            [object[]] $Page
+        )
+
+        $secret = @()
+
+        foreach ($current in @($Page)) {
+            if ($null -eq $current.PSObject.Properties['Collect']) { continue }
+
+            foreach ($declaration in @($current.Collect)) {
+                if ($null -eq $declaration) { continue }
+                if ($null -eq $declaration.PSObject.Properties['IsSecret']) { continue }
+                if (-not [bool] $declaration.IsSecret) { continue }
+
+                $name = [string] $declaration.Variable
+                if (-not [string]::IsNullOrWhiteSpace($name) -and $secret -notcontains $name) { $secret += $name }
+            }
+        }
+
+        return $secret
     }
 }
 
@@ -394,6 +664,482 @@ Describe 'Get-HDTWizardSummary' {
 
         It 'accepts no values at all, because a summary of nothing chosen is still a summary' {
             { Get-HDTWizardSummary -Page (New-HDTSummaryTestPage) -Value @{} } | Should -Not -Throw
+        }
+    }
+
+    Context 'a variable that two declarations both fill' {
+
+        # THE FIELD DEFECT, AND IT WAS SEEN ON A REAL RENDER. The shipped
+        # ComputerDetail page declares HDTDomainAdminDomain TWICE - once as its
+        # own collect entry, behind HDTDomainAdminDomainBox, and once as the
+        # splitVariable of HDTDomainAdminBox, which takes CORP\svc-hdt-join and
+        # tears it in half. Both declarations are right: a technician may type
+        # the account and the domain separately, or type one string carrying
+        # both.
+        #
+        # THE SUMMARY WAS WHAT WAS WRONG. It listed CORP on two rows and wrote
+        # the line into the snippet twice, reporting one answer as though the
+        # deployment had been told two things.
+        #
+        # AND A DUPLICATE IN THE SNIPPET IS NOT COSMETIC. That block is meant to
+        # be pasted into rules.yaml, where the FIRST match wins (DESIGN 3.1) - so
+        # a variable written twice in one set: block teaches an administrator a
+        # shape that bites them the day the two lines disagree.
+
+        BeforeAll {
+            $script:twiceOnOnePage = @(
+                [pscustomobject] @{
+                    Id      = 'ComputerDetail'
+                    Title   = 'Computer details'
+                    Skip    = 'HDTSkipComputerName'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTDomainAdminDomainBox'; Variable = 'HDTDomainAdminDomain' },
+                        [pscustomobject] @{
+                            Control       = 'HDTDomainAdminBox'
+                            Variable      = 'HDTDomainAdmin'
+                            Split         = 'AccountName'
+                            SplitVariable = 'HDTDomainAdminDomain'
+                        })
+                })
+        }
+
+        It 'gives HDTDomainAdminDomain one row, not one per declaration' {
+            $summary = Get-HDTWizardSummary -Page $script:twiceOnOnePage `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' }).Count |
+                Should -Be 1
+        }
+
+        It 'still gives the other variable its row, because de-duplication is not deletion' {
+            $summary = Get-HDTWizardSummary -Page $script:twiceOnOnePage `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            @($summary.Row).Count | Should -Be 2
+        }
+
+        It 'writes HDTDomainAdminDomain into the snippet once' {
+            $summary = Get-HDTWizardSummary -Page $script:twiceOnOnePage `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            @([regex]::Matches([string] $summary.Snippet, '(?m)^\s+HDTDomainAdminDomain:')).Count |
+                Should -Be 1
+        }
+
+        It 'shows the value on the row that survived, rather than losing it with the duplicate' {
+            $summary = Get-HDTWizardSummary -Page $script:twiceOnOnePage `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            $surviving = @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' })[0]
+
+            [string] $surviving.Value | Should -BeExactly 'CORP'
+            [bool] $surviving.IsSet | Should -BeTrue
+        }
+
+        It 'says not set once, rather than twice, when nobody supplied it' {
+            # SET BEATS NOT SET, and the row that survives is the one carrying an
+            # answer. A value is looked up by VARIABLE NAME, so both declarations
+            # of one variable agree today about whether it was filled in - which
+            # is why this reads as "exactly one row, and it is the right one"
+            # rather than as a contest between a set row and an unset one.
+            $summary = Get-HDTWizardSummary -Page $script:twiceOnOnePage -Value @{ HDTDomainAdmin = 'svc' }
+
+            $unset = @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' })
+
+            @($unset).Count | Should -Be 1
+            [string] $unset[0].Value | Should -BeExactly '(not set)'
+            [string] $summary.Snippet | Should -Not -BeLike '*HDTDomainAdminDomain:*'
+        }
+    }
+
+    Context 'which of two declarations wins' {
+
+        # THE RULE, AND IT IS DELIBERATE RATHER THAN WHICHEVER ENUMERATION
+        # REACHED FIRST:
+        #
+        #   1. a declaration whose value IS set beats one that is not
+        #   2. a declaration with ITS OWN CONTROL beats a split half
+        #   3. otherwise the first page to ask wins
+        #
+        # Rule 2 is the one that decides the shipped page. The split half is
+        # DERIVED - whatever was left of CORP\svc-hdt-join after the backslash -
+        # while HDTDomainAdminDomainBox is a box a technician typed into, and it
+        # is that box's page, title and skip variable a summary should name.
+
+        BeforeAll {
+            # The split half is asked FIRST here, so "first wins" and "the box
+            # wins" give different answers and the test can tell them apart.
+            $script:splitBeforeBox = @(
+                [pscustomobject] @{
+                    Id      = 'JoinAccount'
+                    Title   = 'Join account'
+                    Skip    = 'HDTSkipDomainMembership'
+                    Collect = @(
+                        [pscustomobject] @{
+                            Control       = 'HDTDomainAdminBox'
+                            Variable      = 'HDTDomainAdmin'
+                            Split         = 'AccountName'
+                            SplitVariable = 'HDTDomainAdminDomain'
+                        })
+                },
+                [pscustomobject] @{
+                    Id      = 'AccountDomain'
+                    Title   = 'Account domain'
+                    Skip    = 'HDTSkipAccountDomain'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTDomainAdminDomainBox'; Variable = 'HDTDomainAdminDomain' })
+                })
+        }
+
+        It 'keeps the declaration that owns a control, not the half split off another box' {
+            $summary = Get-HDTWizardSummary -Page $script:splitBeforeBox `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            $surviving = @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' })
+
+            @($surviving).Count | Should -Be 1
+            [string] $surviving[0].Setting | Should -BeExactly 'Account domain'
+        }
+
+        It 'names the skip of the page that owns the box, which is the page an administrator has to hide' {
+            $summary = Get-HDTWizardSummary -Page $script:splitBeforeBox `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            $surviving = @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' })[0]
+
+            [string] $surviving.Skip | Should -BeExactly 'HDTSkipAccountDomain'
+        }
+
+        It 'still writes the skip of every page, because de-duplicating a variable hides no page' {
+            $summary = Get-HDTWizardSummary -Page $script:splitBeforeBox `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            [string] $summary.Snippet | Should -BeLike '*HDTSkipDomainMembership: true*'
+            [string] $summary.Snippet | Should -BeLike '*HDTSkipAccountDomain: true*'
+        }
+
+        It 'treats the variable as a secret when any declaration of it says so' {
+            # SECRECY IS NOT A TIE-BREAK, IT IS STICKY. A half printed because it
+            # arrived by the other route is exactly the shape a leak takes, so a
+            # variable declared secret anywhere is secret on the row that
+            # survives and is not written into the snippet at all.
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'JoinAccount'
+                    Title   = 'Join account'
+                    Skip    = 'HDTSkipDomainMembership'
+                    Collect = @(
+                        [pscustomobject] @{
+                            Control       = 'HDTDomainAdminBox'
+                            Variable      = 'HDTDomainAdmin'
+                            IsSecret      = $true
+                            Split         = 'AccountName'
+                            SplitVariable = 'HDTDomainAdminDomain'
+                        },
+                        [pscustomobject] @{ Control = 'HDTDomainAdminDomainBox'; Variable = 'HDTDomainAdminDomain' })
+                })
+
+            $summary = Get-HDTWizardSummary -Page $page `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            $surviving = @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' })[0]
+
+            [string] $surviving.Value | Should -BeExactly '(set, not shown)'
+            [string] $summary.Snippet | Should -Not -BeLike '*HDTDomainAdminDomain: CORP*'
+        }
+
+        It 'de-duplicates on the variable, never on the value' {
+            # TWO DIFFERENT VARIABLES THAT HAPPEN TO AGREE. A machine named CORP
+            # joining a domain named CORP is not a duplicate, and a summary that
+            # dropped one of those rows would hide half the deployment.
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'ComputerDetail'
+                    Title   = 'Computer details'
+                    Skip    = 'HDTSkipComputerName'
+                    Collect = @(
+                        [pscustomobject] @{ Control = 'HDTComputerNameBox'; Variable = 'HDTComputerName' },
+                        [pscustomobject] @{ Control = 'HDTJoinDomainBox'; Variable = 'HDTJoinDomain' })
+                })
+
+            $summary = Get-HDTWizardSummary -Page $page -Value @{ HDTComputerName = 'CORP'; HDTJoinDomain = 'CORP' }
+
+            @($summary.Row).Count | Should -Be 2
+            [string] $summary.Snippet | Should -BeLike '*HDTComputerName: CORP*'
+            [string] $summary.Snippet | Should -BeLike '*HDTJoinDomain: CORP*'
+        }
+
+        It 'reaches a split half at all, which is what stops the de-duplication passing vacuously' {
+            # THE GUARD. Every test above would go green if the walk had simply
+            # stopped enumerating splitVariable declarations - a summary that
+            # never saw the second declaration has no duplicate to remove, and no
+            # domain to write either.
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'JoinAccount'
+                    Title   = 'Join account'
+                    Skip    = 'HDTSkipDomainMembership'
+                    Collect = @(
+                        [pscustomobject] @{
+                            Control       = 'HDTDomainAdminBox'
+                            Variable      = 'HDTDomainAdmin'
+                            Split         = 'AccountName'
+                            SplitVariable = 'HDTDomainAdminDomain'
+                        })
+                })
+
+            $summary = Get-HDTWizardSummary -Page $page `
+                -Value @{ HDTDomainAdmin = 'svc-hdt-join'; HDTDomainAdminDomain = 'CORP' }
+
+            @($summary.Row | Where-Object { [string] $_.Variable -eq 'HDTDomainAdminDomain' }).Count |
+                Should -Be 1
+            [string] $summary.Snippet | Should -BeLike '*HDTDomainAdminDomain: CORP*'
+        }
+    }
+
+    Context 'no page set at all produces a repeated variable' {
+
+        # RULE 8, AS A TEST WRITTEN AGAINST THE SET. An It naming
+        # HDTDomainAdminDomain passes for HDTDomainAdminDomain and fails nobody
+        # after it. These drive off the OUTPUT - every row, every key the snippet
+        # carries - so the next page that declares a variable twice fails here
+        # without anybody adding a case for it.
+        #
+        # AND ONE OF THE SETS IS THE SHIPPED DEFINITION, read through
+        # Import-HDTWizardDocument - the same reader Start-HDTDeployment uses -
+        # because the share is a copy of the templates (CLAUDE.md rule 8) and a
+        # hand-written shape here could drift from what a technician meets.
+
+        It 'lists each variable once, whatever the pages declared' -ForEach @(
+            @{ Name = 'one page declaring one variable twice' }
+            @{ Name = 'the same variable on two pages' }
+            @{ Name = 'the shipped wizard' }) {
+
+            $page = @(New-HDTSummaryTestPageSet -Name $Name)
+            $summary = Get-HDTWizardSummary -Page $page -Value (Get-HDTSummaryTestValue -Page $page)
+
+            $repeated = @(@($summary.Row) | Group-Object -Property Variable | Where-Object { $_.Count -gt 1 })
+
+            (@($repeated | ForEach-Object { [string] $_.Name }) -join ', ') | Should -BeExactly ''
+        }
+
+        It 'writes each key into the snippet once, whatever the pages declared' -ForEach @(
+            @{ Name = 'one page declaring one variable twice' }
+            @{ Name = 'the same variable on two pages' }
+            @{ Name = 'the shipped wizard' }) {
+
+            # EVERY KEY, not only the ones this fix was about: the set: lines,
+            # the per-page skips and HDTSkipWizard are all six-space keys inside
+            # one rule, and any of them written twice is the same defect.
+            $page = @(New-HDTSummaryTestPageSet -Name $Name)
+            $summary = Get-HDTWizardSummary -Page $page -Value (Get-HDTSummaryTestValue -Page $page)
+
+            $key = @([regex]::Matches([string] $summary.Snippet, '(?m)^ {6}(\S+):') |
+                    ForEach-Object { $_.Groups[1].Value })
+
+            $repeated = @($key | Group-Object | Where-Object { $_.Count -gt 1 })
+
+            (@($repeated | ForEach-Object { [string] $_.Name }) -join ', ') | Should -BeExactly ''
+        }
+
+        It 'reads the shipped definition through the engine, not through a shape written here' {
+            # THE GUARD ON THE GUARD. If the shipped set arrived empty - a
+            # provider that served nothing, a reader that returned nothing - the
+            # two tests above would pass having summarised nothing at all.
+            $page = @(New-HDTSummaryTestPageSet -Name 'the shipped wizard')
+
+            @($page).Count | Should -BeGreaterThan 0
+            @($page | Where-Object { @($_.Collect).Count -gt 0 }).Count | Should -BeGreaterThan 0
+
+            $declared = @($page | ForEach-Object { @($_.Collect) } |
+                    ForEach-Object { [string] $_.SplitVariable } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+
+            $declared.Count | Should -BeGreaterThan 0 -Because 'the shipped join-account box splits a DOMAIN\user in two, and that is the declaration this defect came from'
+        }
+    }
+
+    Context 'lines that fit the box they are rendered into' {
+
+        # WHERE 68 COMES FROM, AND HOW TO RE-DERIVE IT.
+        #
+        # Summary.xaml gives the whole page to HDTSummarySnippet, and that box is
+        # already as wide as it can get: the shell is 900px, the rail takes 230,
+        # the content margin 36, the ScrollViewer's padding 12 and its own
+        # scrollbar the rest - about 542px of text. HDTSnippetBox is Consolas at
+        # HDTHintSize, which HDTTheme.xaml sets to 14, and Consolas advances
+        # 0.5498em, so a character is 7.7px and 542px is a shade over 70 of them.
+        #
+        # 68 RATHER THAN 70 leaves two characters of margin, because that sum is
+        # a measurement of a layout rather than a guarantee - a scrollbar a pixel
+        # wider eats the difference.
+        #
+        # CHANGE THE SHELL WIDTH, THE RAIL, THE MARGINS OR HDTHintSize AND THIS
+        # NUMBER IS WRONG. The paragraph above is the sum to redo, not decoration.
+        #
+        # WRAPPING STAYS ON REGARDLESS (see Summary.xaml). It is the safety net
+        # for the one line this command cannot shorten - a technician's own OU -
+        # and a net catching every line is a net holding the whole weight.
+
+        BeforeAll {
+            $script:snippetLineBudget = 68
+        }
+
+        It 'emits nothing wider than the box, once a technician value is discounted' {
+            # THE REALISTIC RENDER: the shipped pages, answered the way a bench
+            # answers them, OU and all.
+            $page = @(New-HDTSummaryTestPageSet -Name 'the shipped wizard')
+            $summary = Get-HDTWizardSummary -Page $page -Value $script:realistic
+
+            $over = @(Get-HDTSummaryOverBudgetLine -Snippet ([string] $summary.Snippet) `
+                    -Value $script:realistic -Budget $script:snippetLineBudget)
+
+            ($over -join ' | ') | Should -BeExactly ''
+        }
+
+        It 'keeps every comment it authors inside the budget' {
+            # SAID SEPARATELY BECAUSE THE PROSE IS THE PART THAT WAS WRONG. The
+            # header ran to 84 characters and wrapped six times on a real render.
+            # No allowance applies to a comment, ever - the exemption above is
+            # for YAML VALUES and must never grow to cover an explanation.
+            $page = @(New-HDTSummaryTestPageSet -Name 'the shipped wizard')
+            $summary = Get-HDTWizardSummary -Page $page -Value $script:realistic
+
+            $wide = @([string] $summary.Snippet -split "`r?`n" |
+                    Where-Object { $_ -match '^\s*#' -and $_.Length -gt $script:snippetLineBudget })
+
+            ($wide -join ' | ') | Should -BeExactly ''
+        }
+
+        It 'holds for every page set, not only the one it was measured on' -ForEach @(
+            @{ Name = 'one page declaring one variable twice' }
+            @{ Name = 'the same variable on two pages' }
+            @{ Name = 'the shipped wizard' }) {
+
+            # RULE 8, AS A TEST AGAINST THE SET. This drives off the OUTPUT, so
+            # the next page whose title or variable name pushes a line past the
+            # budget fails here without anybody adding a case for it.
+            $page = @(New-HDTSummaryTestPageSet -Name $Name)
+            $value = Get-HDTSummaryTestValue -Page $page
+            $summary = Get-HDTWizardSummary -Page $page -Value $value
+
+            $over = @(Get-HDTSummaryOverBudgetLine -Snippet ([string] $summary.Snippet) `
+                    -Value $value -Budget $script:snippetLineBudget)
+
+            ($over -join ' | ') | Should -BeExactly ''
+        }
+
+        It 'still wraps rather than truncates the one line it cannot shorten' {
+            # THE OTHER HALF OF THE BARGAIN. Shortening the prose is not licence
+            # to shorten a DN: the OU line is over budget on purpose, written
+            # whole, and the box's TextWrapping is what makes it readable.
+            $page = @(New-HDTSummaryTestPageSet -Name 'the shipped wizard')
+            $summary = Get-HDTWizardSummary -Page $page -Value $script:realistic
+
+            [string] $summary.Snippet |
+                Should -BeLike ('*"{0}"*' -f $script:realistic['HDTMachineObjectOU'])
+
+            $long = @([string] $summary.Snippet -split "`r?`n" |
+                    Where-Object { $_.Length -gt $script:snippetLineBudget })
+
+            @($long).Count | Should -Be 1 -Because 'the technician OU is the only line the command may not re-break'
+        }
+    }
+
+    Context 'what the snippet still says after the prose was shortened' {
+
+        # THE GUARD ON A PROSE EDIT. Re-breaking a comment is one keystroke from
+        # breaking the document - a hash lost off the front of a continuation, a
+        # value pulled onto a line of its own - and every length assertion above
+        # is about SHAPE rather than about the file parsing.
+        #
+        # So this parses it, against the SHIPPED definition read through
+        # Import-HDTWizardDocument: the same reader Start-HDTDeployment uses on a
+        # share, because the share is a copy of the templates (rule 8).
+
+        BeforeAll {
+            Import-Module -Name powershell-yaml -ErrorAction Stop
+
+            $script:shippedPage = @(New-HDTSummaryTestPageSet -Name 'the shipped wizard')
+            $script:shippedSummary = Get-HDTWizardSummary -Page $script:shippedPage -Value $script:realistic
+            $script:parsed = ConvertFrom-Yaml -Yaml ([string] $script:shippedSummary.Snippet) -Ordered
+            $script:setBlock = @($script:parsed['rules'])[0]['set']
+        }
+
+        It 'parses as YAML at all, which is the whole promise of a paste' {
+            $script:parsed | Should -Not -BeNullOrEmpty
+            [int] $script:parsed['schemaVersion'] | Should -Be 1
+        }
+
+        It 'is one fallback rule with no condition, so it matches every machine' {
+            @($script:parsed['rules']).Count | Should -Be 1
+            [string] @($script:parsed['rules'])[0]['name'] | Should -BeExactly 'Unattended'
+            @($script:parsed['rules'])[0].Contains('when') | Should -BeFalse
+        }
+
+        It 'sets exactly the keys the definition and the answers imply, no more and no fewer' {
+            $expected = @(Get-HDTSummaryExpectedKey -Page $script:shippedPage -Value $script:realistic)
+
+            ((@($script:setBlock.Keys) | Sort-Object) -join ', ') |
+                Should -BeExactly ((@($expected) | Sort-Object) -join ', ')
+        }
+
+        It 'round-trips every answered value, so no quoting choice changed one' {
+            $wrong = @()
+
+            foreach ($key in @($script:realistic.Keys)) {
+                if (-not $script:setBlock.Contains($key)) { continue }
+                if ([string] $script:setBlock[$key] -ne [string] $script:realistic[$key]) { $wrong += $key }
+            }
+
+            ($wrong -join ', ') | Should -BeExactly ''
+        }
+
+        It 'writes no secret the definition declares, still' {
+            $secret = @(Get-HDTSummarySecretVariable -Page $script:shippedPage)
+
+            @($secret).Count | Should -BeGreaterThan 0
+
+            $written = @($secret | Where-Object { $script:setBlock.Contains($_) })
+
+            ($written -join ', ') | Should -BeExactly ''
+        }
+
+        It 'names each secret in a comment instead, so nobody wonders whether it was collected' {
+            $missing = @(Get-HDTSummarySecretVariable -Page $script:shippedPage |
+                    Where-Object { [string] $script:shippedSummary.Snippet -notlike ('*{0}*' -f $_) })
+
+            ($missing -join ', ') | Should -BeExactly ''
+        }
+
+        It 'omits a variable nobody answered rather than writing it empty' {
+            # HDTJoinWorkgroup is declared by the shipped ComputerDetail page and
+            # deliberately unanswered: a rule setting it to nothing RESOLVES it,
+            # starving every later rule (DESIGN 3.1).
+            $script:setBlock.Contains('HDTJoinWorkgroup') | Should -BeFalse
+        }
+
+        It 'still hides every page, by the blunt key and by each page key of its own' {
+            [bool] $script:setBlock['HDTSkipWizard'] | Should -BeTrue
+
+            $missing = @($script:shippedPage |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace([string] $_.Skip) } |
+                    ForEach-Object { [string] $_.Skip } |
+                    Where-Object { -not $script:setBlock.Contains($_) })
+
+            ($missing -join ', ') | Should -BeExactly ''
+        }
+
+        It 'still says the Welcome screen is set somewhere else, and where' {
+            [string] $script:shippedSummary.Snippet | Should -BeLike '*WELCOME*'
+            [string] $script:shippedSummary.Snippet | Should -BeLike '*bootstrap.json*'
+            [string] $script:shippedSummary.Snippet | Should -BeLike '*HDTSkipWelcome*'
+            [string] $script:shippedSummary.Snippet | Should -BeLike '*-PromptForCredential*'
+        }
+
+        It 'still says where to put the file' {
+            [string] $script:shippedSummary.Snippet | Should -BeLike '*rules.yaml*'
+            [string] $script:shippedSummary.Snippet | Should -BeLike '*deployment share*'
         }
     }
 }
