@@ -24,6 +24,13 @@ function New-HDTImageService {
                   every line the tool prints handed to onOutput as it arrives.
                   That is where the percentage comes from - see the method.
 
+              ApplyUnattend(imagePath, unattendPath, scratchPath)
+                  dism.exe /Image: /Apply-Unattend: /ScratchDir:. THE ONLY
+                  THING THAT RUNS THE offlineServicing PASS, which is where the
+                  answer file's driver paths live - Setup reading Panther on
+                  first boot runs specialize and oobeSystem and not that one.
+                  MDT LTIApply.wsf:1021-1043; see NOTICE.md.
+
               AddDriver(imagePath, driverPath, recurse)
                   Add-WindowsDriver -Path <imagePath> -Driver <driverPath>
                       -Recurse:<recurse>
@@ -264,6 +271,54 @@ function New-HDTImageService {
                     $null = $OnOutput.Invoke($line)
                     $line
                 })
+
+        # Exit-code check, with dism's own sentence attached.
+        $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)
+    }
+
+    # APPLIES THE ANSWER FILE TO THE OFFLINE OS, WHICH IS THE ONLY THING THAT
+    # RUNS THE offlineServicing PASS.
+    #
+    # DERIVED FROM MDT, LTIApply.wsf function ApplyUnattend (lines 1021-1043),
+    # and PSD does the same through Use-WindowsUnattend (PSDConfigure.ps1:151).
+    # See NOTICE.md. The argument shape is MDT's exactly:
+    #
+    #   dism.exe /Image:<volume>\ /Apply-Unattend:<file> /ScratchDir:<scratch>
+    #
+    # WHY IT MATTERS AT ALL: Setup reading Windows\Panther on first boot runs
+    # specialize and oobeSystem. It does NOT run offlineServicing, which is
+    # where Microsoft-Windows-PnpCustomizationsNonWinPE lives - so the driver
+    # path the answer file declares is inert until this call is made. MDT's own
+    # comment on the line says it "takes care of driver injection and servicing".
+    #
+    # dism.exe RATHER THAN Use-WindowsUnattend, for the reason ApplyImage above
+    # gives: dism.exe is in WinPE as shipped, while the DISM cmdlets need the
+    # WinPE-DismCmdlets optional component. PSD can assume the cmdlet; a thin
+    # adapter that assumes less is the one to keep.
+    #
+    # THE SCRATCH DIRECTORY IS NOT OPTIONAL IN PRACTICE. WinPE runs from an X:
+    # RAM disk, and left to itself DISM expands packages into TEMP there and
+    # runs out of room. Both MDT and PSD hand it a folder on the local disk.
+    $service | Add-Member -MemberType ScriptMethod -Name ApplyUnattend -Value {
+        param([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath)
+
+        $this.Record('ApplyUnattend', @($ImagePath, $UnattendPath, $ScratchPath))
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
+        $null = [System.IO.Directory]::CreateDirectory($ScratchPath)
+
+        $commandLine = 'dism /Image:{0} /Apply-Unattend:{1} /ScratchDir:{2}' -f $ImagePath, $UnattendPath, $ScratchPath
+
+        $output = @(& "$env:SystemRoot\System32\dism.exe" "/Image:$ImagePath" `
+                "/Apply-Unattend:$UnattendPath" "/ScratchDir:$ScratchPath" 2>&1)
 
         # Exit-code check, with dism's own sentence attached.
         $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)

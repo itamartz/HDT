@@ -1413,8 +1413,37 @@ unrecognized model still gets a usable machine.
 **Drivers are copied onto the machine, not injected into it.** `ApplyDrivers`
 copies each matched package to `<OSVolume>\Drivers`, and the answer file
 declares that folder in `Microsoft-Windows-PnpCustomizationsNonWinPE`'s
-`DriverPaths` so Windows installs what it needs during `specialize`. This is
-MDT's model: `ZTIDrivers` stages to the OS volume and lets PnP choose.
+`DriverPaths` so Windows installs what it needs during **`offlineServicing`**.
+This is MDT's model: `ZTIDrivers` stages to the OS volume and lets PnP choose.
+
+The pass matters, and this paragraph named the wrong one until 2026-08-29.
+`Microsoft-Windows-PnpCustomizationsNonWinPE` is documented for `auditSystem`
+and `offlineServicing` only — Windows Setup refuses the **whole** answer file
+over a component in a pass that does not accept it, so `specialize` was not a
+harmless imprecision in prose but a defect in the shipped template, and it cost
+a deployment at step 10 of 11. Both authorities put it in `offlineServicing`:
+MDT's own `Templates\Unattend_x64.xml:168` and PSD's `:124`.
+
+`offlineServicing` is processed when the answer file is applied to an **offline
+image**, which is not something first boot does — Setup reading `Panther` runs
+`specialize` and `oobeSystem`. So `ApplyUnattend` stages the document and then
+applies it, through `IImageService.ApplyUnattend`
+(`dism.exe /Image:<osvolume>\ /Apply-Unattend:<staged> /ScratchDir:…`), which is
+what MDT does at `LTIApply.wsf:1021-1043` and PSD through `Use-WindowsUnattend`.
+Staging without applying leaves the declaration inert — drivers on the disk that
+nothing installs, every step green. `tests/contract/UnattendTemplate.Contract.Tests.ps1`
+asserts the staged folder and the declared path are the same folder by running
+the staging step, because the two silently disagreeing is the failure mode.
+
+The declared `Path` is `\Drivers`, with no drive letter, because it is relative
+to the image root DISM is given — the OS volume — and it stays correct once that
+volume is `C:` at boot.
+
+MDT additionally writes `DevicePath` in the offline `SOFTWARE` hive
+(`ZTIDrivers.wsf:527`); its sibling `UpdateOEMPath` (`:446`) writes
+`OemPnPDriversPath` into a `sysprep.inf`, which is the XP-era text answer file
+and downlevel only. HDT uses the answer file alone — the mechanism MDT's own
+comment on the DISM line credits with driver injection.
 
 This replaced offline `Add-WindowsDriver` injection, and the reason is measured
 rather than aesthetic. Every `Add-WindowsDriver` call opens the offline image,

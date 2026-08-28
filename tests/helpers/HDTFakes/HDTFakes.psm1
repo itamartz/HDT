@@ -3667,6 +3667,17 @@ class HDTFakeImageService {
         return [object[]] @($this.Driver)
     }
 
+    # Applying the answer file to the APPLIED, still-offline OS. This is the
+    # call that processes the offlineServicing pass - the one that installs the
+    # drivers ApplyDrivers staged - and nothing else in a deployment runs it.
+    # The real adapter shells dism.exe /Apply-Unattend; this records that it was
+    # asked, so a step can be shown to ask with the right image root and the
+    # STAGED document rather than the template back on the share.
+    [void] ApplyUnattend([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath) {
+        $this.Record('ApplyUnattend', @($ImagePath, $UnattendPath, $ScratchPath))
+        $this.AssertNoFailure('ApplyUnattend')
+    }
+
     [void] InstallBootFile([string] $OsRoot, [string] $SystemVolume, [string] $Firmware) {
         $this.Record('InstallBootFile', @($OsRoot, $SystemVolume, $Firmware))
         $this.AssertNoFailure('InstallBootFile')
@@ -3701,6 +3712,7 @@ function New-HDTFakeImageService {
               GetImageInfo(imagePath) -> Index, Name, Description, Edition,
                                          SizeBytes, Architecture, Version
               ApplyImage(imagePath, index, applyPath[, onOutput])
+              ApplyUnattend(imagePath, unattendPath, scratchPath)
               InstallBootFile(osRoot, systemVolume, firmware)
               SetRecoveryImage(osRoot, recoveryPath)
               SetBootOrderFirst()

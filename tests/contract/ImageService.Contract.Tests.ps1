@@ -1,10 +1,11 @@
 # The IImageService contract (PROJECT constraint 4, DESIGN 9.2, DESIGN 12.2.1).
 #
-# Six methods:
+# Seven methods:
 #
 #   GetImageInfo(imagePath) -> object[]  Index, Name, Description, Edition,
 #                                        SizeBytes, Architecture, Version
 #   ApplyImage(imagePath, index, applyPath)
+#   ApplyUnattend(imagePath, unattendPath, scratchPath)
 #   AddDriver(imagePath, driverPath, recurse) -> object[]  Inf, Provider,
 #                                                          Version, Date
 #   InstallBootFile(osRoot, systemVolume, firmware)
@@ -91,7 +92,7 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
             # real adapter is a pscustomobject carrying ScriptMethod members.
             $method = @($script:image | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
-            foreach ($name in @('GetImageInfo', 'ApplyImage', 'AddDriver', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
+            foreach ($name in @('GetImageInfo', 'ApplyImage', 'ApplyUnattend', 'AddDriver', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
                 $method | Should -Contain $name -Because "IImageService requires $name"
             }
         }

@@ -165,8 +165,10 @@ BeforeAll {
         'Microsoft-Windows-International-Core/UserLocale'                       = @('offlineServicing', 'oobeSystem', 'specialize')
 
         # -- Microsoft-Windows-PnpCustomizationsNonWinPE -------------------------
-        # KEPT IN THE MAP ALTHOUGH NO SHIPPED DOCUMENT USES IT ANY MORE, so that
-        # re-adding it in the wrong pass fails here rather than on a machine.
+        # THE SHIPPED TEMPLATE CARRIES THIS AGAIN, in offlineServicing, which is
+        # where BOTH authorities put it: MDT's own Templates\Unattend_x64.xml:168
+        # and PSD's Templates\Unattend_x64.xml:124. Putting it back in specialize
+        # fails here, which is the whole point of driving this off the map.
         'Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths'                                = @('auditSystem', 'offlineServicing')
         'Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials'             = @('auditSystem', 'offlineServicing')
         'Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials/Path'        = @('auditSystem', 'offlineServicing')
@@ -204,6 +206,24 @@ BeforeAll {
         'oobeSystem/Microsoft-Windows-Shell-Setup/FirstLogonCommands/SynchronousCommand/CommandLine'       = 'as FirstLogonCommands.'
         'oobeSystem/Microsoft-Windows-Shell-Setup/FirstLogonCommands/SynchronousCommand/Description'       = 'as FirstLogonCommands.'
         'oobeSystem/Microsoft-Windows-Shell-Setup/FirstLogonCommands/SynchronousCommand/RequiresUserInput' = 'as FirstLogonCommands.'
+
+        # THE DRIVER PATH, WHICH IS THE WHOLE REASON DRIVERS INSTALL AT ALL.
+        # ApplyDrivers stages matched packages to <OSVolume>\Drivers and nothing
+        # else tells Windows to look there. The capture predates driver staging.
+        # Both authorities declare exactly this, in this pass, with this path:
+        # MDT Templates\Unattend_x64.xml:167-175 and PSD's :124-131.
+        'offlineServicing/Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths'                         = 'MDT Unattend_x64.xml:170 and PSD Unattend_x64.xml:126. offlineServicing is the pass DISM processes when the answer file is applied to the offline image, which Invoke-HDTApplyUnattendStep now does through IImageService.ApplyUnattend.'
+        'offlineServicing/Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials'      = 'as DriverPaths. wcm:keyValue="1" wcm:action="add" is the shape both authorities use.'
+        'offlineServicing/Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials/Path' = 'as DriverPaths. The value is \Drivers, image-root-relative, which resolves to <OSVolume>\Drivers - the exact folder ApplyDrivers stages to, asserted below rather than believed.'
+    }
+
+    # AND THE SAME DISCIPLINE FOR A WHOLE COMPONENT. A component the capture
+    # never carried is a component no machine has ever accepted here, and the
+    # component test used to have no allow-list at all - so the only way to add
+    # one was to make that test fail and argue with it. It earns a sentence now,
+    # exactly as a setting does.
+    $script:HDTUnattendDeltaComponentReason = @{
+        'offlineServicing/Microsoft-Windows-PnpCustomizationsNonWinPE' = 'the driver path component. Documented for auditSystem and offlineServicing; MDT Unattend_x64.xml:168 and PSD Unattend_x64.xml:125 both put it in offlineServicing, and HDT applies the staged answer file to the offline image so that pass is reached.'
     }
 
     # FLATTENS AN ANSWER FILE INTO ONE RECORD PER ELEMENT: Pass, Component and Path,
@@ -366,7 +386,23 @@ Describe 'the shipped template against the answer file that deployed a machine' 
                 Where-Object { $_.Path -eq '' } |
                 ForEach-Object { '{0}/{1}' -f $_.Pass, $_.Component })
 
-        ($shipped | Where-Object { $captured -notcontains $_ }) -join "`n" | Should -BeNullOrEmpty
+        $unjustified = @($shipped |
+                Where-Object { $captured -notcontains $_ } |
+                Where-Object { -not $script:HDTUnattendDeltaComponentReason.ContainsKey($_) })
+
+        ($unjustified -join "`n") | Should -BeNullOrEmpty
+    }
+
+    # AS FOR SETTINGS: a reason naming a component the template no longer
+    # carries is permission nobody granted.
+    It 'records no reason for a component the template does not actually carry' {
+        $shipped = @(& $script:HDTUnattendSetting -Path $script:HDTShippedUnattendPath |
+                Where-Object { $_.Path -eq '' } |
+                ForEach-Object { '{0}/{1}' -f $_.Pass, $_.Component })
+
+        $stale = @(@($script:HDTUnattendDeltaComponentReason.Keys) | Where-Object { $shipped -notcontains $_ })
+
+        ($stale -join "`n") | Should -BeNullOrEmpty
     }
 
     # THE ALLOW-LIST IS NOT A PLACE TO PARK A DELETED ELEMENT. An entry naming
@@ -380,5 +416,139 @@ Describe 'the shipped template against the answer file that deployed a machine' 
         $stale = @(@($script:HDTUnattendDeltaReason.Keys) | Where-Object { $shipped -notcontains $_ })
 
         ($stale -join "`n") | Should -BeNullOrEmpty
+    }
+}
+
+# THE HALF-FEATURE THIS SUITE EXISTS TO REFUSE.
+#
+# On 2026-08-28 the PnP component was DELETED from the shipped template because
+# it sat in a pass that does not accept it. That was half right - the pass was
+# wrong, the component was not - and the deletion left ApplyDrivers copying
+# packages onto a disk with nothing anywhere telling Windows to install them.
+# The tests below are the two halves of that, asserted rather than assumed:
+# the declaration EXISTS, and it names the folder the staging step ACTUALLY
+# writes to.
+
+Describe 'a driver that is staged is also installable' {
+
+    BeforeAll {
+        $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+        Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+
+        $script:HDTShippedUnattendPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/unattend.xml'
+
+        # THE DECLARED PATH, READ OUT OF THE REAL TEMPLATE. Not a literal: the
+        # next person to edit that element fails here.
+        $script:HDTDeclaredDriverPath = {
+            Set-StrictMode -Version Latest
+            $ErrorActionPreference = 'Stop'
+
+            $xml = New-Object -TypeName System.Xml.XmlDocument
+            $xml.Load($script:HDTShippedUnattendPath)
+
+            $manager = New-Object -TypeName System.Xml.XmlNamespaceManager -ArgumentList $xml.NameTable
+            $manager.AddNamespace('u', 'urn:schemas-microsoft-com:unattend')
+
+            $node = @($xml.SelectNodes(
+                    "/u:unattend/u:settings/u:component[@name='Microsoft-Windows-PnpCustomizationsNonWinPE']" +
+                    '/u:DriverPaths/u:PathAndCredentials/u:Path', $manager))
+
+            return @(@($node) | ForEach-Object { [string] $_.InnerText })
+        }
+    }
+
+    It 'declares a driver path at all, in a pass that installs from it' {
+        $found = @(& $script:HDTUnattendSetting -Path $script:HDTShippedUnattendPath |
+                Where-Object { $_.Component -eq 'Microsoft-Windows-PnpCustomizationsNonWinPE' -and $_.Path -eq '' })
+
+        # PRESENT. Deleting the component is what shipped drivers nobody installs.
+        @($found).Count | Should -BeGreaterThan 0 -Because (
+            'ApplyDrivers stages packages to <OSVolume>\Drivers and NOTHING else tells Windows to look there. ' +
+            'Microsoft-Windows-PnpCustomizationsNonWinPE is the declaration that makes a staged driver an installed one.')
+
+        # AND IN A LEGAL PASS, decided by the same map every other component is
+        # measured against - so putting it back in specialize fails here.
+        foreach ($one in $found) {
+            @($script:HDTUnattendComponentPass[$one.Component]) |
+                Should -Contain $one.Pass -Because 'a component in a pass Windows does not accept fails the WHOLE answer file.'
+        }
+    }
+
+    It 'declares exactly the folder the staging step writes to' {
+        $declared = @(& $script:HDTDeclaredDriverPath)
+        @($declared).Count | Should -Be 1
+
+        # -- the staging side, driven by running the REAL step ----------------
+        #
+        # Not by reading a constant out of the source: the assertion that was
+        # missing is that these two agree, so both sides have to come from the
+        # code that actually runs.
+        $inf = @(
+            '[version]'
+            'Signature   = "$Windows NT$"'
+            'Class       = Net'
+            'ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}'
+            'Provider    = %Acme%'
+            'DriverVer   = 11/28/2024,10.74.1128.2024'
+            ''
+            '[Manufacturer]'
+            '%Acme% = Acme, NTamd64.10.0'
+            ''
+            '[Acme.NTamd64.10.0]'
+            '%Nic.DeviceDesc% = Nic.ndi, PCI\VEN_10EC&DEV_8168'
+            ''
+            '[Strings]'
+            'Acme = "Acme"'
+            'Nic.DeviceDesc = "Acme GbE"'
+        ) -join "`r`n"
+
+        $groupPath = 'Z:\Deploy\Drivers\Win11\Acme\Box'
+        $fileSystem = New-HDTFakeFileSystem -File @{ ('{0}\net-acme.inf' -f $groupPath) = $inf }
+        $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 29, 1, 0, 0, [System.DateTimeKind]::Utc))
+
+        $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
+            -Image (New-HDTFakeImageService) -Cim (New-HDTFakeCimProvider)
+
+        $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+            -FileSystem $fileSystem -Clock $clock -Level Debug
+
+        $variable = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $variable['HDTOSVolume'] = 'W'
+        $variable['HDTMake'] = 'Acme'
+        $variable['HDTModel'] = 'Box'
+
+        $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+            -Variable $variable -Service $catalog -Log $log
+
+        $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $property['group'] = 'Win11\Acme\Box'
+
+        $step = [pscustomobject] @{
+            Index = 5; Name = 'Inject Drivers'; Type = 'ApplyDrivers'; TimeoutMinutes = 30; Log = $null; Property = $property
+        }
+
+        $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
+        $result.Status | Should -Be 'Completed'
+
+        # WHERE THE FILES ACTUALLY LANDED on the fake volume, which is the only
+        # honest answer to "what does staging do".
+        $staged = @(@($fileSystem.File.Keys) |
+                Where-Object { $_ -like 'W:\*' -and $_ -like '*.inf' })
+
+        @($staged).Count | Should -BeGreaterThan 0 -Because 'the step reported Completed, so it staged something'
+
+        # -- and the two sides, compared --------------------------------------
+        #
+        # The declared Path is IMAGE-ROOT-RELATIVE. DISM is handed the OS volume
+        # as the image root (/Image:W:\), so '\Drivers' resolves to 'W:\Drivers'
+        # - which is also what that path means once the volume is C: at boot.
+        $expected = '{0}:{1}' -f $variable['HDTOSVolume'], $declared[0]
+
+        foreach ($one in $staged) {
+            $one | Should -BeLike ('{0}\*' -f $expected) -Because (
+                ("the answer file declares '{0}', so Windows installs from '{1}' and NOWHERE else. " -f $declared[0], $expected) +
+                'A staged driver outside that folder is a file on a disk that nothing will ever install.')
+        }
     }
 }

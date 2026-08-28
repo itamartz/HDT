@@ -386,6 +386,91 @@
         return (& $fail ("the unattend could not be staged at {0}: {1}" -f $unattendPath, [string] $_.Exception.Message) '')
     }
 
+    # -- and applying it, which staging alone does not do -------------------
+    #
+    # SETUP READING Panther ON FIRST BOOT RUNS specialize AND oobeSystem. It
+    # does NOT run offlineServicing, and offlineServicing is where
+    # Microsoft-Windows-PnpCustomizationsNonWinPE lives - the component whose
+    # DriverPaths is the only thing telling Windows to install what ApplyDrivers
+    # staged to <OSVolume>\Drivers. A document staged and never applied leaves
+    # that declaration inert, which is exactly the state this toolkit shipped in
+    # until this call existed: drivers copied onto a disk, nothing installing
+    # them, and every step reporting Completed.
+    #
+    # BOTH AUTHORITIES MAKE THE CALL, at the same point and with the same
+    # arguments - MDT LTIApply.wsf:1021-1043 shells
+    # dism.exe /Image:<vol>\ /Apply-Unattend:<panther> /ScratchDir:<scratch>,
+    # and PSD does it through Use-WindowsUnattend (PSDConfigure.ps1:151). See
+    # NOTICE.md. THE DOCUMENT APPLIED IS THE STAGED ONE, not the template back
+    # on the share: MDT's own comment says the answer file must be applied from
+    # Panther so its image-root-relative \Drivers path resolves.
+    #
+    # ONLY WHEN THE DOCUMENT ACTUALLY DECLARES THAT PASS. A servicing session
+    # costs seconds and takes an exclusive lock on the applied OS, and an answer
+    # file with no offlineServicing settings - the S7 capture is one - has
+    # nothing for it to do. This is the precise condition under which the call
+    # changes anything, so it is the condition it is made under.
+    # READ OFF THE DOCUMENT THAT WAS ACTUALLY STAGED, as XML rather than by
+    # looking for a string: 'offlineServicing' appears in the shipped template's
+    # own comments, and a comment is not a pass.
+    #
+    # A DOCUMENT THAT WILL NOT PARSE IS NOT THIS STEP'S FAILURE TO REPORT. It is
+    # staged already, and Setup refusing it is a different and louder event than
+    # a servicing session that was skipped; saying so at Warning is what lets
+    # somebody find it without turning a pre-existing template into a new
+    # refusal here.
+    $declaresOfflineServicing = $false
+
+    try {
+        $parsed = New-Object -TypeName System.Xml.XmlDocument
+        $parsed.LoadXml($document)
+
+        foreach ($settings in @($parsed.DocumentElement.ChildNodes)) {
+            if ($settings.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+            if ($settings.LocalName -ne 'settings') { continue }
+            if ([string] $settings.GetAttribute('pass') -ne 'offlineServicing') { continue }
+
+            $declaresOfflineServicing = $true
+        }
+    } catch {
+        Write-HDTLog -Context $Context.Log -Severity Warning -Component 'ApplyUnattend' `
+            -Message ("the staged unattend at {0} could not be parsed as XML, so its offlineServicing pass could not be applied: {1}" -f
+                $unattendPath, [string] $_.Exception.Message) `
+            -Data ([ordered] @{ path = $unattendPath })
+    }
+
+    if ($declaresOfflineServicing) {
+        try {
+            $image = $Context.Service.GetRequired('Image', 'ApplyUnattend')
+        } catch {
+            return (& $fail ([string] $_.Exception.Message) '')
+        }
+
+        # THE IMAGE ROOT IS THE OS VOLUME, trailing separator and all: dism's
+        # /Image: wants the root of the offline installation.
+        $imageRoot = '{0}:\' -f $volume
+
+        # OFF THE RAM DISK. WinPE runs from X:, and DISM left to itself expands
+        # into TEMP there and runs out of room on a driver package of any size.
+        # MDT creates <LocalRootPath>\Scratch on the local disk for exactly this.
+        $scratchPath = '{0}:\HDT\Scratch' -f $volume
+
+        try {
+            $image.ApplyUnattend($imageRoot, $unattendPath, $scratchPath)
+        } catch {
+            # NOT SWALLOWED, AND NOT DOWNGRADED TO A WARNING. The staging
+            # succeeded, so everything upstream looks green; if this failure did
+            # not stop the run, the deployment would finish and hand over a
+            # machine with no drivers and a log that said so nowhere.
+            return (& $fail ("the unattend was staged at {0} but could not be applied to the offline image at {1}: {2}" -f
+                    $unattendPath, $imageRoot, [string] $_.Exception.Message) '')
+        }
+
+        Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component 'ApplyUnattend' `
+            -Message ('applied the unattend to the offline image at {0}, which runs its offlineServicing pass.' -f $imageRoot) `
+            -Data ([ordered] @{ imageRoot = $imageRoot; path = $unattendPath; scratch = $scratchPath })
+    }
+
     $Context.Variable['HDTUnattendPath'] = $unattendPath
 
     # THE PATH AND THE BYTE COUNT, AND NOTHING ELSE. The document carries the

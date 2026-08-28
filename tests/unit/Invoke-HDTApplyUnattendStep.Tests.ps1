@@ -1,4 +1,4 @@
-﻿# The unattend, staged where SPIKES S7 proved Setup consumes it.
+# The unattend, staged where SPIKES S7 proved Setup consumes it.
 #
 #   <target>:\Windows\Panther\unattend.xml
 #
@@ -59,10 +59,16 @@ Describe 'Invoke-HDTApplyUnattendStep' {
         $script:fileSystem = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:unattendXml }
         $script:clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, [System.DateTimeKind]::Utc))
 
+        # AN IMAGE SERVICE, BECAUSE A REAL RUN ALWAYS HAS ONE. Start-HDTDeployment
+        # builds the catalog with -Image, and the step needs it to apply the
+        # staged document to the offline image - which is what runs the
+        # offlineServicing pass the shipped template declares.
+        $script:image = New-HDTFakeImageService
+
         $script:newContextFor = {
             param([System.Collections.IDictionary] $Variable, [object] $State)
 
-            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Image $script:image
 
             $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
                 -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
@@ -821,5 +827,138 @@ Describe 'Get-HDTApplyUnattendStepDescription' {
         }
 
         Get-HDTApplyUnattendStepDescription -Step $step | Should -Not -BeNullOrEmpty
+    }
+}
+
+# STAGING AN ANSWER FILE IS HALF OF APPLYING ONE.
+#
+# The offlineServicing pass - which is where the driver path lives, and the only
+# pass that installs drivers from a folder - is processed when the document is
+# APPLIED TO AN OFFLINE IMAGE, and by nothing else. Setup reading Panther on
+# first boot runs specialize and oobeSystem; it does not run offlineServicing.
+#
+# So a document that declares offlineServicing and is only staged is a document
+# whose driver paths are decoration. Both authorities make the call:
+#
+#   MDT  LTIApply.wsf:1021-1043   dism.exe /Image:<vol>\ /Apply-Unattend:<panther> /ScratchDir:<scratch>
+#   PSD  PSDConfigure.ps1:151     Use-WindowsUnattend -UnattendPath ... -Path "<vol>:\" -ScratchDirectory ...
+#
+# HDT made neither until this was written. These tests are the proof it does.
+
+Describe 'Invoke-HDTApplyUnattendStep applies the document offline' {
+
+    BeforeEach {
+        $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+
+        # THE REAL SHIPPED TEMPLATE, not a hand-written stand-in. It is the
+        # document that actually declares offlineServicing, so deleting that
+        # declaration has to break this test too.
+        $script:shippedUnattend = [System.IO.File]::ReadAllText(
+            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/unattend.xml'))
+
+        # The S7 capture declares no offlineServicing pass at all - it is the
+        # 'nothing to apply' case, and it is a real document rather than an
+        # invented one.
+        $script:capturedUnattend = [System.IO.File]::ReadAllText(
+            (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/unattend/win11-client.xml'))
+
+        $script:templatePath = 'Z:\Deploy\TaskSequences\DEMO-M3\unattend.xml'
+        $script:pantherPath = 'W:\Windows\Panther\unattend.xml'
+
+        $script:fileSystem = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:shippedUnattend }
+        $script:clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 29, 1, 0, 0, [System.DateTimeKind]::Utc))
+        $script:image = New-HDTFakeImageService
+
+        $script:newContext = {
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock -Image $script:image
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+            $live['HDTComputerName'] = 'HDT-M3-01'
+            $live['HDTTaskSequenceID'] = 'DEMO-M3'
+            $live['HDTAdminPassword'] = 'Fixture-P@ssw0rd'
+
+            return (New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                    -Variable $live -Service $catalog -Log $log)
+        }
+
+        $script:applyStep = & $script:newStep ([ordered] @{ template = 'unattend.xml' })
+    }
+
+    It 'applies the staged document to the offline image' {
+        $result = Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext)
+
+        $result.Status | Should -BeExactly 'Completed'
+
+        $applied = @($script:image.Operations | Where-Object { $_.Operation -eq 'ApplyUnattend' })
+
+        # The citation stays in this comment and out of the -Because string:
+        # NoMdtDependency.Contract scans string literals and skips comments,
+        # which is the right way round - a name in a string can be something
+        # this code actually reaches for, and a name in a comment cannot.
+        # MDT LTIApply.wsf:1043 makes this exact call.
+        @($applied).Count | Should -Be 1 -Because (
+            'staging alone never runs offlineServicing, so the driver path in the shipped template ' +
+            'would be decoration, and the deployment would install none of the drivers it staged.')
+
+        # THE IMAGE ROOT IS THE OS VOLUME, and the document applied is the one
+        # that was just staged - not the template back on the share. MDT copies
+        # into Panther first and applies THAT, and its comment says why: the
+        # \Drivers path in the answer file is relative to the image root.
+        $applied[0].Arguments[0] | Should -BeExactly 'W:\'
+        $applied[0].Arguments[1] | Should -BeExactly $script:pantherPath
+    }
+
+    It 'applies it only after it has been staged' {
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        # DISM reads the file off the disk, so a call made before the write
+        # would apply either a stale document or none at all.
+        $script:fileSystem.TestPath($script:pantherPath) | Should -BeTrue
+
+        $written = @($script:fileSystem.Operations |
+                Where-Object { $_.Operation -eq 'WriteAllText' -and $_.Arguments[0] -eq $script:pantherPath })
+
+        @($written).Count | Should -Be 1
+    }
+
+    It 'gives DISM a scratch directory off the RAM disk' {
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $applied = @($script:image.Operations | Where-Object { $_.Operation -eq 'ApplyUnattend' })
+
+        # WinPE boots on an X: RAM disk with no room to expand a driver package,
+        # which is why MDT and PSD both hand DISM a scratch folder on the local
+        # disk rather than letting it default to TEMP.
+        [string] $applied[0].Arguments[2] | Should -BeLike 'W:\*'
+    }
+
+    It 'reports a failed apply rather than swallowing it' {
+        $script:image.SeedFailure('ApplyUnattend', 'Error: 0x800f081e')
+
+        $result = Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext)
+
+        # A DEPLOYMENT THAT CONTINUES HERE IS A MACHINE WITH NO DRIVERS and a
+        # green log. The staging succeeded; the thing that installs from it did
+        # not, and only the step knows that.
+        $result.Status | Should -BeExactly 'Failed'
+        $result.Message | Should -BeLike '*0x800f081e*'
+    }
+
+    It 'does not apply a document that declares no offlineServicing pass' {
+        $script:fileSystem = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:capturedUnattend }
+
+        $result = Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext)
+
+        $result.Status | Should -BeExactly 'Completed'
+
+        # NOTHING TO APPLY IS NOT A REASON TO OPEN A SERVICING SESSION. The S7
+        # capture is specialize and oobeSystem only, and both of those are read
+        # by Setup off Panther on first boot.
+        @($script:image.Operations | Where-Object { $_.Operation -eq 'ApplyUnattend' }) |
+            Should -BeNullOrEmpty
     }
 }

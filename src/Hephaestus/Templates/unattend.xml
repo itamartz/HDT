@@ -29,31 +29,46 @@
   BOTH ARE NOW A CONTRACT TEST, driven off this file as parsed XML against the
   documented passes - so the next one fails in the suite instead of on a bench.
 
-  WHY THERE IS NO DriverPaths BLOCK, AND WHY MOVING IT BACK IS NOT THE FIX
+  THE DriverPaths BLOCK, AND WHY IT IS IN offlineServicing
 
-  A DriverPaths block pointing at C:\Drivers used to sit in the specialize pass.
-  Microsoft documents Microsoft-Windows-PnpCustomizationsNonWinPE for auditSystem
-  and offlineServicing ONLY, so specialize was wrong; but offlineServicing is
-  not where it belongs either, and that is the part worth writing down.
+  This block was briefly DELETED, on the reasoning that it sat in the specialize
+  pass (which does not accept it) and that offlineServicing could never run here
+  anyway. The first half was right and the second was wrong, and the wrong half
+  cost the feature: ApplyDrivers went on copying packages to <OSVolume>\Drivers
+  with nothing anywhere telling Windows to install them.
 
-  offlineServicing runs when an answer file is APPLIED TO AN OFFLINE IMAGE -
-  DISM /Apply-Unattend, or Setup.exe installing from media. HDT does neither: it
-  applies the image with DISM and stages this document into Panther for the
-  machine to read on its first boot. Nothing in this toolkit runs Apply-Unattend,
-  so an offlineServicing block here would never be processed at all. PSD carries
-  one (Templates\Unattend_x64.xml) because MDT's apply path does run it; ours
-  does not.
+  BOTH AUTHORITIES PUT IT IN offlineServicing, and they agree to the line:
 
-  So the block was moved nowhere. It was doing nothing where it was, it would do
-  nothing where it was documented, and leaving it in place would have read to
-  the next person as "drivers are wired up" when they are not.
+    MDT   Templates\Unattend_x64.xml:168-175   (Microsoft Deployment Toolkit)
+    PSD   Templates\Unattend_x64.xml:124-131   (friendsOfMDT/PSD, MIT)
 
-  ApplyDrivers still copies matched packages to <OSVolume>\Drivers - that part
-  works and is worth keeping. What is MISSING is the thing that tells Plug and
-  Play to look there, and an answer file in this deployment model cannot be it.
-  The mechanism that can is the DevicePath value under
-  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion, which is what MDT actually
-  uses. Until that exists, staged drivers are on the disk and are not installed.
+  offlineServicing is processed when the answer file is APPLIED TO AN OFFLINE
+  IMAGE, and MDT does exactly that at LTIApply.wsf:1021-1043 - it copies the
+  document into Panther and then runs
+
+    dism.exe /Image:<osvolume>\ /Apply-Unattend:<osvolume>\Windows\Panther\Unattend.xml /ScratchDir:...
+
+  whose own comment reads "This takes care of driver injection and servicing".
+  PSD does the same thing through Use-WindowsUnattend (PSDConfigure.ps1:151).
+  HDT had neither; Invoke-HDTApplyUnattendStep now makes that call through
+  IImageService.ApplyUnattend after staging this file, so the pass below is
+  REACHED rather than merely declared.
+
+  THE PATH IS IMAGE-ROOT-RELATIVE, WHICH IS WHY IT HAS NO DRIVE LETTER. DISM is
+  handed the OS volume as the image root, so \Drivers resolves to
+  <OSVolume>\Drivers - the exact folder ApplyDrivers stages to. That the two
+  agree is asserted in tests/contract/UnattendTemplate.Contract.Tests.ps1 by
+  running the staging step and comparing where it wrote against what this
+  document declares, because the two drifting apart is the whole defect this
+  block was deleted over. It is also the right value once the machine boots and
+  the OS volume is C:, since \Drivers on C: is C:\Drivers either way.
+
+  MDT ALSO WRITES DevicePath, and that is deliberately NOT copied here.
+  ZTIDrivers.wsf:527 loads the offline SOFTWARE hive and appends to
+  HKLM\...\CurrentVersion\DevicePath; its sibling UpdateOEMPath (:446) writes
+  OemPnPDriversPath into a sysprep.inf, which is the XP-era text answer file and
+  is downlevel only. The answer file is the mechanism MDT's own comment credits
+  with installing the drivers, and it is the one HDT uses.
 
   WHY EVERY SUBSTITUTED VALUE IS XML-ESCAPED
 
@@ -151,6 +166,23 @@
           <RequiresUserInput>false</RequiresUserInput>
         </SynchronousCommand>
       </FirstLogonCommands>
+    </component>
+  </settings>
+
+  <!-- WHERE ApplyDrivers PUT THE DRIVERS, declared so Windows installs them.
+       Shape and pass taken from MDT Templates\Unattend_x64.xml:168-175 and PSD
+       Templates\Unattend_x64.xml:124-131 (MIT); see NOTICE.md and the header
+       above. \Drivers has no drive letter because it is relative to the image
+       root DISM is given, which is the OS volume. -->
+  <settings pass="offlineServicing">
+    <component name="Microsoft-Windows-PnpCustomizationsNonWinPE" processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <DriverPaths>
+        <PathAndCredentials wcm:keyValue="1" wcm:action="add">
+          <Path>\Drivers</Path>
+        </PathAndCredentials>
+      </DriverPaths>
     </component>
   </settings>
 </unattend>
