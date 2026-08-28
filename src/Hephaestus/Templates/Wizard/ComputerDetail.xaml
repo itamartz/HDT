@@ -215,10 +215,23 @@
                 <TextBox Grid.Column="0" x:Name="HDTPasswordRevealBox" Width="380"
                          HorizontalAlignment="Left" Visibility="Collapsed" />
 
+                <!--
+                    GREYED OUT WHEN THERE IS NOTHING TO REVEAL. The password box
+                    beside it is only live for a domain join, and an eye a
+                    technician can tab to and press over a disabled box is a
+                    control that does nothing and looks broken.
+
+                    THE SAMPLE SHARE HAD THIS FIX AND THE SHIPPED TEMPLATE DID
+                    NOT, for three days. WinPeUiStack.Contract.Tests.ps1 asserts
+                    it - against samples\workspace, so it stayed green while
+                    every share New-HDTWorkspace created got the unfixed page.
+                    Height 34 matches the box's, from the same fix.
+                -->
                 <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle" Content="&#x1F441;"
-                              Width="36" Height="32" Margin="8,0,0,0"
+                              Width="36" Height="34" Margin="8,0,0,0"
                               Background="#FF3A3A3C" Foreground="White" BorderThickness="0"
-                              ToolTip="Show the password" />
+                              ToolTip="Show the password"
+                              IsEnabled="{Binding IsChecked, ElementName=HDTJoinDomainRadio}" />
             </Grid>
 
             <!--

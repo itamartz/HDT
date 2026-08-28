@@ -662,24 +662,35 @@ Describe 'the WinPE UI stack' {
         # working eye is also just wrong on its own terms.
 
         BeforeAll {
-            # THE SHARE PAGES ARE OUTSIDE $script:scanned - it covers the module
-            # - and this file has been caught by that before: the markup that
-            # broke a live deployment was under samples\, not src\.
-            $script:detailPath = Join-Path -Path $script:repoRoot `
-                -ChildPath 'samples/workspace/Scripts/UI/ComputerDetail.xaml'
-
+            # BOTH COPIES, AND THE TEMPLATE IS THE ONE THAT SHIPS. This rule
+            # asserted the SAMPLE only, and stayed green for three days while
+            # src\Hephaestus\Templates\Wizard\ComputerDetail.xaml - the file
+            # New-HDTWorkspace actually copies onto every new share - did not
+            # carry the fix at all. The sample was AHEAD of the product and the
+            # test was pointed at the sample.
+            #
+            # A rule written against one copy of a file that exists in two is a
+            # rule about the copy nobody deploys.
             $script:detail = @()
-            if (Test-Path -LiteralPath $script:detailPath) {
-                $script:detail = @([pscustomobject] @{
-                        Relative = 'samples/workspace/Scripts/UI/ComputerDetail.xaml'
-                        Code     = [regex]::Replace(
-                            [System.IO.File]::ReadAllText($script:detailPath), '(?s)<!--.*?-->', '')
-                    })
+
+            foreach ($relative in @(
+                    'src/Hephaestus/Templates/Wizard/ComputerDetail.xaml'
+                    'samples/workspace/Scripts/UI/ComputerDetail.xaml'
+                )) {
+                $path = Join-Path -Path $script:repoRoot -ChildPath $relative
+                if (-not (Test-Path -LiteralPath $path)) { continue }
+
+                $script:detail += [pscustomobject] @{
+                    Relative = $relative
+                    Code     = [regex]::Replace(
+                        [System.IO.File]::ReadAllText($path), '(?s)<!--.*?-->', '')
+                }
             }
         }
 
         It 'found the page, so the rule below is not vacuous' {
-            @($script:detail).Count | Should -Be 1
+            # TWO NOW, NOT ONE: the shipped template and the sample share.
+            @($script:detail).Count | Should -Be 2
         }
 
         It 'disables the password reveal toggle with the rest of the domain half' {
@@ -690,13 +701,15 @@ Describe 'the WinPE UI stack' {
             # with a <ToggleButton.Style> into a one-line binding, and a pattern
             # that demanded a closing tag would have gone red on the very change
             # it was written to demand.
-            $toggle = [regex]::Match($script:detail[0].Code,
-                '(?s)<ToggleButton[^>]*x:Name="HDTPasswordRevealToggle"(.*?</ToggleButton>|[^>]*/>)')
+            foreach ($page in $script:detail) {
+                $toggle = [regex]::Match($page.Code,
+                    '(?s)<ToggleButton[^>]*x:Name="HDTPasswordRevealToggle"(.*?</ToggleButton>|[^>]*/>)')
 
-            $toggle.Success | Should -BeTrue -Because 'the toggle must still be findable by name'
-            $toggle.Value | Should -Match 'IsEnabled' -Because (
-                'a live eye on a disabled password box is a control that lies, and it is the ' +
-                'only thing from the domain half a workgroup machine can still tab to')
+                $toggle.Success | Should -BeTrue -Because ('the toggle must still be findable by name in {0}' -f $page.Relative)
+                $toggle.Value | Should -Match 'IsEnabled' -Because (
+                    ('a live eye on a disabled password box is a control that lies, and it is the ' +
+                    'only thing from the domain half a workgroup machine can still tab to - {0}') -f $page.Relative)
+            }
         }
     }
 }

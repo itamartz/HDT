@@ -107,7 +107,13 @@
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
     if ($null -eq $Clock) { $Clock = New-HDTClock }
 
-    $activePath = Join-Path -Path (Get-HDTWorkspacePath -Root $Path -Kind Logs) -ChildPath '_active'
+    # [IO.Path]::Combine ON A CALLER'S ROOT. Join-Path resolves the drive
+    # qualifier against the real PSDrives and throws "Cannot find drive" for one
+    # this process has not got - so this line refused every share under a fake
+    # file system, and the console monitor could only be exercised on a drive
+    # that happened to exist. Same defect New-HDTWorkspace and
+    # New-HDTTaskSequence carry notes about; this is the third call site.
+    $activePath = [System.IO.Path]::Combine((Get-HDTWorkspacePath -Root $Path -Kind Logs), '_active')
 
     $now = $Clock.GetUtcNow().ToUniversalTime()
 

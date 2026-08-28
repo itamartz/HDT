@@ -97,24 +97,50 @@ Describe 'Show-HDTSequenceEditor input' {
 
     Context 'opening it by share and id' {
 
+        # IT BUILDS THE SHARE IT READS, AND THAT IS THE POINT.
+        #
+        # This used to open C:\HDTLab\Share and ask for a sequence called
+        # DEMO-05, so it tested whatever a developer's laptop happened to hold.
+        # The day that sequence was deleted from the lab the test went red - on
+        # a change that touched neither the editor nor the share, reporting a
+        # defect in code nobody had edited.
+        #
+        # A share made here holds exactly what this test needs, on every machine
+        # and on a machine that has never seen the lab. It is also seeded from
+        # the SHIPPED templates, so it exercises what New-HDTWorkspace and
+        # New-HDTTaskSequence actually produce rather than a copy that drifted
+        # from them - which is the whole reason the samples under samples\ are
+        # not used for this.
         BeforeAll {
-            $script:share = 'C:\HDTLab\Share'
-            $script:hasShare = Test-Path -LiteralPath (Join-Path -Path $script:share -ChildPath 'workspace.yaml')
+            $script:share = 'Z:\EditorShare'
+            $script:fileSystem = New-HDTFakeFileSystem
+
+            $null = New-HDTWorkspace -Path $script:share -Id 'EDITOR' -Name 'Editor share' `
+                -FileSystem $script:fileSystem -Confirm:$false
+
+            # -Workspace, NOT -WorkspaceRoot. New-HDTTaskSequence and
+            # Show-HDTSequenceEditor name the same thing differently, and the
+            # binder's complaint arrives from a BeforeAll, where Pester reports
+            # it as "this test should run but it did not" with no stack.
+            $null = New-HDTTaskSequence -Workspace $script:share -Id 'EDIT-01' `
+                -Name 'A sequence to open' -FileSystem $script:fileSystem -Confirm:$false
         }
 
-        It 'reads the share and finds the sequence' -Skip:(-not (Test-Path -LiteralPath 'C:\HDTLab\Share\workspace.yaml')) {
+        It 'reads the share and finds the sequence' {
             $consoleHost = New-HDTFakeEditorHost
 
-            $null = Show-HDTSequenceEditor -WorkspaceRoot $script:share -Id 'DEMO-05' -ConsoleHost $consoleHost
+            $null = Show-HDTSequenceEditor -WorkspaceRoot $script:share -Id 'EDIT-01' `
+                -ConsoleHost $consoleHost -FileSystem $script:fileSystem
 
             $consoleHost.ShowCount | Should -Be 1
-            [string] $consoleHost.Title | Should -BeLike '*DEMO-05*'
+            [string] $consoleHost.Title | Should -BeLike '*EDIT-01*'
         }
 
-        It 'refuses an id the share does not hold, naming it' -Skip:(-not (Test-Path -LiteralPath 'C:\HDTLab\Share\workspace.yaml')) {
+        It 'refuses an id the share does not hold, naming it' {
             $consoleHost = New-HDTFakeEditorHost
 
-            { Show-HDTSequenceEditor -WorkspaceRoot $script:share -Id 'NO-SUCH-SEQUENCE' -ConsoleHost $consoleHost } |
+            { Show-HDTSequenceEditor -WorkspaceRoot $script:share -Id 'NO-SUCH-SEQUENCE' `
+                    -ConsoleHost $consoleHost -FileSystem $script:fileSystem } |
                 Should -Throw '*NO-SUCH-SEQUENCE*'
         }
     }

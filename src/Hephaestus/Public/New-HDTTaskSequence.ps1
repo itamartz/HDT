@@ -96,8 +96,18 @@ function New-HDTTaskSequence {
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
-    $folder = Join-Path -Path (Join-Path -Path $Workspace -ChildPath 'TaskSequences') -ChildPath $Id
-    $path = Join-Path -Path $folder -ChildPath 'sequence.yaml'
+    # [IO.Path]::Combine, NOT Join-Path, ON A CALLER'S PATH. Join-Path resolves
+    # the drive qualifier against the real PSDrives and throws "Cannot find
+    # drive" for one this process has not got - which is every share under a
+    # fake file system, and a mapped drive WinPE has not connected yet.
+    #
+    # New-HDTWorkspace has carried this note since it was written; this command
+    # never got the same treatment, so it could only ever be tested against a
+    # path on a drive that happened to exist. A test that built a share on Z:
+    # found it - the seeding worked and the sequence could not be created
+    # beside it.
+    $folder = [System.IO.Path]::Combine($Workspace, 'TaskSequences', $Id)
+    $path = [System.IO.Path]::Combine($folder, 'sequence.yaml')
 
     if ($FileSystem.TestPath($path)) {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $path -Category ResourceExists `
@@ -223,8 +233,10 @@ function New-HDTTaskSequence {
     # IT NEVER OVERWRITES ONE THAT IS THERE. Somebody's answer file is not this
     # command's to replace, and an existing sequence is refused above - so the
     # only way here is a folder holding an unattend and no sequence.
+    # $answerSource is the MODULE's own path and always exists, so Join-Path is
+    # safe there; $answerPath is the caller's, and is not.
     $answerSource = Join-Path -Path $TemplatePath -ChildPath 'unattend.xml'
-    $answerPath = Join-Path -Path $folder -ChildPath 'unattend.xml'
+    $answerPath = [System.IO.Path]::Combine($folder, 'unattend.xml')
 
     $moduleFileSystem = New-HDTFileSystem
 
