@@ -616,7 +616,37 @@
                 if ($null -ne $nextButton) { $nextButton.IsEnabled = [bool] $judgement.IsValid }
             }.GetNewClosure()
 
-            $watched.Add_TextChanged($judge)
+            # A PasswordBox RAISES PasswordChanged, NOT TextChanged, and asking
+            # it for TextChanged is not a no-op - it throws:
+            #
+            #   [System.Windows.Controls.PasswordBox] does not contain a method
+            #   named 'Add_TextChanged'
+            #
+            # which took the whole wizard down the moment the administrator
+            # password page was wired, on a real machine, one click after the
+            # page before it. Reading the value was already type-aware here and
+            # the subscription was not, which is the half a change that looks
+            # finished.
+            $subscribe = {
+                param($Control)
+
+                if ($null -eq $Control) { return }
+
+                if ($Control -is [System.Windows.Controls.PasswordBox]) {
+                    $Control.Add_PasswordChanged($judge)
+                    return
+                }
+
+                $Control.Add_TextChanged($judge)
+            }
+
+            & $subscribe $watched
+
+            # THE CONFIRM BOX TOO, OR THE PAGE JUDGES HALF OF ITSELF. Typing
+            # the password and then correcting the confirmation would leave the
+            # Next button reading a verdict from two keystrokes ago.
+            & $subscribe $confirmed
+
             & $judge
 
             # A CHARACTER THAT CANNOT BE IN THE ANSWER CANNOT BE TYPED INTO THE

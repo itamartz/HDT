@@ -135,6 +135,20 @@ pages:
         variable: HDTBitLockerEscrow
         property: SelectedValue
 
+      # BLANK UNLESS THE PROTECTOR NEEDS THEM, and the step is what refuses:
+      # "protector: tpmPin needs a pin, and this step declares none." This page
+      # offered both choices and collected neither, so picking one produced a
+      # deployment that failed at the last step over a value nobody was asked
+      # for.
+      - control: HDTBitLockerPinBox
+        variable: HDTBitLockerPin
+        property: Password
+        optional: true
+        isSecret: true
+      - control: HDTBitLockerStartupKeyBox
+        variable: HDTBitLockerStartupKey
+        optional: true
+
   # The local Administrator password for the machine being deployed - the one
   # value the answer file cannot carry a default for, because HDT will not
   # invent one (DESIGN 4.5.2).

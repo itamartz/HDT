@@ -269,5 +269,13 @@ steps:
         method: XtsAes256
         protector: '%HDTBitLockerProtector%'
         escrow: '%HDTBitLockerEscrow%'
+
+        # BLANK UNLESS THE PROTECTOR NEEDS THEM. The step refuses a tpmPin with
+        # no pin and a tpmStartupKey with no path, by name, before it touches
+        # the disk - so passing them empty for a plain TPM costs nothing and
+        # leaving them out entirely would make two of the three choices on the
+        # wizard's BitLocker page fail at the last step of a deployment.
+        pin: '%HDTBitLockerPin%'
+        startupKey: '%HDTBitLockerStartupKey%'
         recoveryPassword: true
         wait: false

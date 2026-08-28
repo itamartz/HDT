@@ -255,6 +255,12 @@
         @{ HDTName = 'HDTBitLockerProtector'; MdtName = 'BDEInstall'; Origin = 'authored'
             Description = 'What unlocks the drive at boot: tpm, tpmPin or tpmStartupKey.'
         }
+        @{ HDTName = 'HDTBitLockerPin'; MdtName = 'BDEPin'; Origin = 'authored'
+            Description = 'The startup PIN, for the tpmPin protector only. Authored as readable text like HDTAdminPassword: a value WinPE must use with nobody present cannot be protected by a key that ships in the same boot image.'
+        }
+        @{ HDTName = 'HDTBitLockerStartupKey'; MdtName = 'BDEKeyLocation'; Origin = 'authored'
+            Description = 'Where the startup key is written, for the tpmStartupKey protector only - for example E:\.'
+        }
         @{ HDTName = 'HDTBitLockerEscrow'; MdtName = 'BDERecoveryKey'; Origin = 'authored'
             Description = 'Where the recovery key is escrowed: ad, entra or none. Without one, a machine that loses its TPM cannot be unlocked by anyone.'
         }
