@@ -15,6 +15,17 @@ pages:
     subheading: What this machine will be deployed with.
     reference: TaskSequence.xaml
     skip: HDTSkipTaskSequence
+
+    # NOTHING IS PRESELECTED, SO THE PAGE HAS TO REFUSE TO MOVE ON. The picker
+    # used to open on its first row and the host recorded that as a seed, which
+    # the harvest drops when it comes back unchanged - so a technician who
+    # accepted the highlighted sequence answered nothing and the machine failed
+    # before its first step with "nothing in the rules resolved
+    # HDTTaskSequenceID". MDT's Task Sequence pane preselects nothing and will
+    # not leave without a choice; this is that.
+    validate:
+      control: HDTTaskSequenceList
+      rule: TaskSequence
     collect:
       - control: HDTTaskSequenceList
         variable: HDTTaskSequenceID
@@ -187,5 +198,4 @@ pages:
     reference: Summary.xaml
     skip: HDTSkipSummary
     summary:
-      rowControl: HDTSummaryList
       snippetControl: HDTSummarySnippet

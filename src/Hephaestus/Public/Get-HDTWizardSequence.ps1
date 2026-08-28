@@ -30,11 +30,29 @@
             has no answer anywhere. So it is excluded and named in Problem,
             which the payload logs.
 
-            THE RESOLVED ID IS PRESELECTED, AND AN ID THE SHARE DOES NOT CARRY
-            IS A PROBLEM RATHER THAN A SILENT FIRST ROW. A rule naming a
-            sequence that is not on this share is a mistake somebody has to be
-            told about, and selecting something else quietly would deploy the
-            wrong build to a machine that is already open.
+            NOTHING IS PRESELECTED UNLESS A RULE CHOSE IT, AND A REAL
+            DEPLOYMENT IS WHY. This used to open on the first row, because a
+            list has to highlight something - and the wizard host records
+            whatever it puts in a box as a SEED, which the harvest then drops if
+            it comes back unchanged (Test-HDTWizardAnswerChanged). So a
+            technician who went through the wizard and chose the sequence the
+            picker was already sitting on answered nothing at all:
+            HDTTaskSequenceID never entered the value bag, the summary said
+            "(not set)", and the machine failed before its first step with
+            "nothing in the rules resolved HDTTaskSequenceID for this machine".
+
+            THE SEED MECHANISM WAS RIGHT AND WHAT IT WAS SEEDING WAS NOT. A
+            value a RULE supplied has provenance worth protecting; a row this
+            command highlighted because a ListBox looks odd with nothing lit has
+            none. So the picker opens on the rule's choice or on nothing, which
+            is also what MDT's Task Sequence pane does - it preselects nothing
+            and will not move on until the technician has chosen.
+
+            AN ID THE SHARE DOES NOT CARRY IS A PROBLEM RATHER THAN A SILENT
+            FIRST ROW. A rule naming a sequence that is not on this share is a
+            mistake somebody has to be told about, and selecting something else
+            quietly would deploy the wrong build to a machine that is already
+            open.
 
             IT RETURNS A FIELD, because that is how the wizard fills a control:
             Show-HDTWizardShell applies fields by name after each page loads,
@@ -64,7 +82,9 @@
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Choice (Id, Name,
-            Description, Text), Selected, Problem and Field.
+            Description, Text), Selected, Problem and Field. The Field carries
+            Seed, true only when a rule chose the row - an empty picker is the
+            wizard opening on nothing, which is not a value to remember.
 
         .EXAMPLE
             $root = 'C:\HDTLab\Share'
@@ -189,8 +209,14 @@
         $wanted = [string] $Variable['HDTTaskSequenceID']
     }
 
+    # EMPTY MEANS NOBODY HAS CHOSEN YET, AND THAT IS A STATE THE WIZARD MUST BE
+    # ABLE TO BE IN. See the header: opening on $ordered[0] made "the technician
+    # picked the first sequence" and "the technician answered nothing" the same
+    # thing to the harvest, and a real machine failed before its first step
+    # because of it. The page gates its own Next button on this being filled in
+    # (wizard.yaml's TaskSequence validate rule), which is MDT's shape: choose
+    # one, or you do not leave this screen.
     $selected = ''
-    if (@($ordered).Count -gt 0) { $selected = [string] $ordered[0].Id }
 
     if (-not [string]::IsNullOrWhiteSpace($wanted)) {
         $match = @($ordered | Where-Object { $_.Id -eq $wanted })
@@ -198,8 +224,8 @@
         if (@($match).Count -gt 0) {
             $selected = [string] $match[0].Id
         } else {
-            [void] $problem.Add(("HDTTaskSequenceID resolved to '{0}', which is not on this share. The picker opens on '{1}' instead." -f
-                    $wanted, $selected))
+            [void] $problem.Add(("HDTTaskSequenceID resolved to '{0}', which is not on this share. Nothing is preselected and the technician has to choose." -f
+                    $wanted))
         }
     }
 
@@ -213,6 +239,14 @@
             Property = 'SelectedValue'
             Text     = $selected
             Item     = $ordered
+
+            # A SEED ONLY WHEN A RULE CHOSE THE ROW. $selected is empty unless
+            # HDTTaskSequenceID resolved to something this share carries, so
+            # this is true exactly when there is provenance worth protecting -
+            # and false when the picker is opening on nothing, which is the
+            # state that made "the technician picked a sequence" and "the
+            # technician answered nothing" the same thing to the harvest.
+            Seed     = (-not [string]::IsNullOrWhiteSpace($selected))
         }
     }
 }

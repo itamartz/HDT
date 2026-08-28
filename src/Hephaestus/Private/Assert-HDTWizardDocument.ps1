@@ -97,7 +97,7 @@
     # AdminPassword rule reads it: a password box shows dots, so the only way
     # to know what was typed is to type it twice.
     $knownValidateKey = @('control', 'rule', 'confirm')
-    $knownRule = @('ComputerName', 'AdminPassword')
+    $knownRule = @('ComputerName', 'AdminPassword', 'TaskSequence')
     $knownSplit = @('AccountName')
 
     $fail = {
@@ -252,8 +252,23 @@
                 & $fail ("the page '{0}' declares summary, which is not a mapping." -f $id)
             }
 
-            if (-not $summary.Contains('rowControl') -or [string]::IsNullOrWhiteSpace([string] $summary['rowControl'])) {
-                & $fail ("the page '{0}' declares summary with no rowControl to fill." -f $id)
+            # THE SNIPPET IS THE ONE THAT MUST BE NAMED, because it is the whole
+            # page. Summary.xaml once carried a table above the snippet and this
+            # demanded rowControl instead; the table went, the demand did not,
+            # and the shipped wizard.yaml went on declaring
+            # rowControl: HDTSummaryList against markup that had no such
+            # control. New-HDTWizardHost's FindName guard swallowed the miss -
+            # rightly, so a share half a release behind still opens - so the
+            # declaration did nothing and said nothing, which is how a defect
+            # elsewhere read as a page missing its data.
+            #
+            # rowControl IS STILL PERMITTED, JUST NOT REQUIRED. A share is never
+            # written over (DESIGN 11.2), so every wizard.yaml seeded before now
+            # carries it; refusing the key would refuse those shares outright,
+            # and Import-HDTWizardDocument still carries it through to a page
+            # that wants to bind a table again.
+            if (-not $summary.Contains('snippetControl') -or [string]::IsNullOrWhiteSpace([string] $summary['snippetControl'])) {
+                & $fail ("the page '{0}' declares summary with no snippetControl to fill." -f $id)
             }
 
             $summaryPage += $id

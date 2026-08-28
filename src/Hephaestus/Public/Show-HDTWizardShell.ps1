@@ -232,6 +232,54 @@
             }
             RestrictInput = $false
         }
+
+        # THE ONE RULE THAT JUDGES A LIST RATHER THAN TYPING, AND A REAL
+        # DEPLOYMENT PAID FOR IT. The task sequence picker used to open on its
+        # first row - a list has to highlight something - and the wizard host
+        # records what it put in a box as a SEED, which the harvest drops when
+        # it comes back unchanged so that a rule shown to a technician does not
+        # become an answer they are said to have typed. So the technician who
+        # chose the sequence the picker was already sitting on answered nothing:
+        # the machine failed before its first step with "nothing in the rules
+        # resolved HDTTaskSequenceID for this machine".
+        #
+        # NOTHING IS PRESELECTED NOW, so the page has to refuse to move on until
+        # something is - which is what MDT's Task Sequence pane does, and the
+        # only alternative to guessing on the technician's behalf.
+        #
+        # NO COMMAND BEHIND IT, DELIBERATELY, and this is the one rule that has
+        # none. There is nothing to judge but presence: a command wrapping
+        # IsNullOrWhiteSpace would be a name for an if, and the value it judges
+        # is not a string somebody typed but whichever row is lit.
+        #
+        # NO RestrictInput. There are no keystrokes to refuse - a technician
+        # picks a row.
+        TaskSequence = [pscustomobject] @{
+            Validator     = {
+                param([string] $Value)
+
+                if ([string]::IsNullOrWhiteSpace($Value)) {
+                    return [pscustomobject] @{
+                        IsValid  = $false
+                        Severity = 'Error'
+                        # TWO LINES IN THE COLUMN IT IS PAINTED IN. The
+                        # message sits left of the buttons in a narrow strip,
+                        # and the sentence that explains WHY a task sequence is
+                        # required ran to three and crowded them. It is in the
+                        # comment above instead, where the next person to change
+                        # this reads it and a technician does not have to.
+                        Reason   = 'choose a task sequence to deploy this machine with.'
+                    }
+                }
+
+                return [pscustomobject] @{
+                    IsValid  = $true
+                    Severity = 'None'
+                    Reason   = ''
+                }
+            }
+            RestrictInput = $false
+        }
     }
 
     # -- every file, before anything is shown ------------------------------

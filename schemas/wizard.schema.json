@@ -70,24 +70,32 @@
                 "type": "string",
                 "pattern": "^HDT[A-Za-z0-9]{1,61}$"
               },
+              "confirm": {
+                "description": "A second control to compare the first against, and only the AdminPassword rule reads it: a password box shows dots, so the only way to know what was typed is to type it twice. The shipped AdminPassword page has declared this since it shipped, and this schema had no such property while validate was additionalProperties: false - so the file this module copies onto every new share failed its own published contract.",
+                "type": "string",
+                "pattern": "^HDT[A-Za-z0-9]{1,61}$"
+              },
               "rule": {
-                "description": "A rule this engine implements. A name it does not know is refused rather than ignored, because a control that silently never validates looks like a wizard that accepts anything.",
+                "description": "A rule this engine implements. A name it does not know is refused rather than ignored, because a control that silently never validates looks like a wizard that accepts anything. KEPT IN STEP WITH Assert-HDTWizardDocument AND Show-HDTWizardShell BY A CONTRACT TEST, which reads all three sets and compares them - a rule missing from here is accepted by the engine and refused by every console and CI job that drives off this file.",
                 "type": "string",
                 "enum": [
-                  "ComputerName"
+                  "ComputerName",
+                  "AdminPassword",
+                  "TaskSequence"
                 ]
               }
             }
           },
           "summary": {
-            "description": "Marks this as the summary page and names the controls the engine fills.",
+            "description": "Marks this as the summary page and names the controls the engine fills. The snippet is the page; rowControl is kept only so a share seeded when Summary.xaml carried a table above it still validates.",
             "type": "object",
             "required": [
-              "rowControl"
+              "snippetControl"
             ],
             "additionalProperties": false,
             "properties": {
               "rowControl": {
+                "description": "Optional and unused by the shipped page. Summary.xaml declares no such control, so New-HDTWizardHost's FindName finds nothing and its guard drops the rows; a page that wants a table again can declare HDTSummaryList and bind it without the engine changing.",
                 "type": "string",
                 "pattern": "^HDT[A-Za-z0-9]{1,61}$"
               },

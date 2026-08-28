@@ -236,14 +236,36 @@ Describe 'Assert-HDTWizardDocument' {
             (Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page)).Exception.Message | Should -BeLike '*control*'
         }
 
-        It 'rejects a summary block with no row control to fill' {
+        It 'rejects a summary block with no snippet control to fill' {
+            # THE SNIPPET IS THE PAGE. It was rowControl that had to be there,
+            # from when Summary.xaml carried a table above the snippet; the
+            # table is gone and the snippet is the whole screen, so the control
+            # that must be named is the one that gets the file.
+            $page = "  - id: A`n    reference: a.xaml`n    summary:`n      rowControl: HDTSummaryList`n"
+
+            (Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page)).Exception.Message | Should -BeLike '*snippetControl*'
+        }
+
+        It 'accepts a summary block that names only the snippet control' {
+            # THE SHIPPED TEMPLATE'S OWN SHAPE. wizard.yaml declares
+            # snippetControl and nothing else; a validator that still demanded
+            # rowControl would refuse the document this module seeds.
             $page = "  - id: A`n    reference: a.xaml`n    summary:`n      snippetControl: HDTSummarySnippet`n"
 
-            (Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page)).Exception.Message | Should -BeLike '*rowControl*'
+            Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page) | Should -BeNullOrEmpty
+        }
+
+        It 'still accepts a share that kept rowControl beside it' {
+            # A SHARE IS NEVER WRITTEN OVER (DESIGN 11.2), so every wizard.yaml
+            # seeded before this carries rowControl and must keep opening.
+            # rowControl is optional now, not unknown.
+            $page = "  - id: A`n    reference: a.xaml`n    summary:`n      rowControl: HDTSummaryList`n      snippetControl: HDTSummarySnippet`n"
+
+            Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page) | Should -BeNullOrEmpty
         }
 
         It 'rejects two summary pages, because there is one file to hand over' {
-            $page = "  - id: A`n    reference: a.xaml`n    summary:`n      rowControl: HDTSummaryList`n  - id: B`n    reference: b.xaml`n    summary:`n      rowControl: HDTSummaryList`n"
+            $page = "  - id: A`n    reference: a.xaml`n    summary:`n      snippetControl: HDTSummarySnippet`n  - id: B`n    reference: b.xaml`n    summary:`n      snippetControl: HDTSummarySnippet`n"
 
             Get-HDTWizardRejection -Yaml (New-HDTWizardYaml -Page $page) | Should -Not -BeNullOrEmpty
         }

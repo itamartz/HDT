@@ -69,7 +69,10 @@
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Value, Source
             ('Rules', 'Serial', 'Machine' or 'None'), Severity, Reason and
-            Field.
+            Field. The Field carries Seed, which is true only for 'Rules' -
+            the other three are this command's own suggestion, and a host that
+            remembered one as a seed would drop the technician's acceptance of
+            it.
 
         .EXAMPLE
             $title = 'Computer Details'
@@ -214,6 +217,21 @@
         Field    = [pscustomobject] @{
             Name = $Control
             Text = $value
+
+            # ONLY THE RULES PUT A REAL SEED IN THIS BOX, AND THE FIELD HAS TO
+            # SAY SO. New-HDTWizardHost records a seed for any field that claims
+            # one, and its harvest DROPS an answer equal to its seed - because a
+            # rule shown back to a technician is not something they typed, and
+            # collecting it would overwrite the rule's own provenance.
+            #
+            # THE OTHER THREE SOURCES ARE THE WIZARD'S OWN SUGGESTIONS. A name
+            # cut out of the serial, or the name the machine already answers to,
+            # was chosen by this command and by nothing on the share: there is no
+            # provenance to protect, and calling it a seed made a technician who
+            # ACCEPTED the suggestion indistinguishable from one who answered
+            # nothing. That is the same defect the task sequence picker shipped
+            # with, and it cost a deployment that failed before its first step.
+            Seed = ($source -eq 'Rules')
         }
     }
 }

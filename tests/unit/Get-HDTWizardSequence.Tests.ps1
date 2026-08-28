@@ -179,10 +179,17 @@ Describe 'Get-HDTWizardSequence' {
             [string] $answer.Selected | Should -BeExactly 'WIN11-LAB'
         }
 
-        It 'falls back to the first row when nothing is resolved' {
+        It 'preselects NOTHING when the rules resolved nothing' {
+            # IT USED TO OPEN ON THE FIRST ROW, and a real deployment failed
+            # because of it. The host records what it puts in a box as a seed
+            # and the harvest drops an answer equal to its seed - so the
+            # technician who chose the sequence the picker was already sitting
+            # on answered nothing, and the machine died before its first step
+            # with "nothing in the rules resolved HDTTaskSequenceID for this
+            # machine". A value the wizard invented is not a seed.
             $answer = Get-HDTWizardSequence -WorkspaceRoot $script:root -FileSystem (& $script:newFileSystem)
 
-            [string] $answer.Selected | Should -BeExactly '001'
+            [string] $answer.Selected | Should -BeExactly ''
         }
 
         It 'reports an id the share does not carry rather than selecting it' {
@@ -193,7 +200,7 @@ Describe 'Get-HDTWizardSequence' {
                 -Variable (& $script:bag ([ordered] @{ HDTTaskSequenceID = 'NO-SUCH-TS' }))
 
             (@($answer.Problem) -join ' ') | Should -BeLike '*NO-SUCH-TS*'
-            [string] $answer.Selected | Should -BeExactly '001'
+            [string] $answer.Selected | Should -BeExactly ''
         }
     }
 
@@ -210,10 +217,20 @@ Describe 'Get-HDTWizardSequence' {
         }
 
         It 'carries the rows as Item and the selection as Text' {
+            $field = (Get-HDTWizardSequence -WorkspaceRoot $script:root -FileSystem (& $script:newFileSystem) `
+                    -Variable (& $script:bag ([ordered] @{ HDTTaskSequenceID = 'DEMO-M4' }))).Field
+
+            @($field.Item).Count | Should -Be 3
+            [string] $field.Text | Should -BeExactly 'DEMO-M4'
+        }
+
+        It 'carries the rows and NO selection when the rules chose none' {
+            # The rows still have to reach the control - the picker is only
+            # empty of a CHOICE, never of the share's sequences.
             $field = (Get-HDTWizardSequence -WorkspaceRoot $script:root -FileSystem (& $script:newFileSystem)).Field
 
             @($field.Item).Count | Should -Be 3
-            [string] $field.Text | Should -BeExactly '001'
+            [string] $field.Text | Should -BeExactly ''
         }
 
         It 'can be told which control to fill' {

@@ -485,6 +485,49 @@ Describe 'Show-HDTWizardShell' {
             }
         }
 
+        It 'gates Next on a task sequence having been chosen' {
+            # THE RULE A REAL DEPLOYMENT BOUGHT. The picker used to open on its
+            # first row, the host recorded that as a seed, and the harvest drops
+            # an answer equal to its seed - so the technician who accepted the
+            # highlighted sequence answered nothing and the machine failed
+            # before its first step with "nothing in the rules resolved
+            # HDTTaskSequenceID for this machine". Nothing is preselected now,
+            # so the page must refuse to move on until something is: MDT's Task
+            # Sequence pane, which will not leave without a choice.
+            $page = @(
+                [pscustomobject] @{
+                    Id         = 'TaskSequence'
+                    Title      = 'Task sequence'
+                    Heading    = ''
+                    Subheading = ''
+                    XamlPath   = 'X:\HDT\UI\TaskSequence.xaml'
+                    Validate   = [pscustomobject] @{ Control = 'HDTTaskSequenceList'; Rule = 'TaskSequence' }
+                })
+
+            $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
+
+            Show-HDTWizardShell -ShellXamlPath $script:shellPath -Page $page `
+                -WizardHost $wizardHost -FileSystem (New-HDTShellTestFileSystem) | Out-Null
+
+            $validator = $wizardHost.LastState.Page.Validator
+            $validator | Should -Not -BeNullOrEmpty
+
+            # NOTHING LIT: Next is shut, and the reason says what to do.
+            $nothing = & $validator ''
+            [bool] $nothing.IsValid | Should -BeFalse
+            [string] $nothing.Severity | Should -BeExactly 'Error'
+            [string] $nothing.Reason | Should -BeLike '*choose a task sequence*'
+
+            # A ROW LIT: Next opens, and there is nothing to say about it.
+            $chosen = & $validator 'WIN11-LAB'
+            [bool] $chosen.IsValid | Should -BeTrue
+            [string] $chosen.Reason | Should -BeExactly ''
+
+            # NO KEYSTROKES TO REFUSE - a technician picks a row, they do not
+            # type one, and PreviewTextInput on a ListBox would filter nothing.
+            [bool] $wizardHost.LastState.Page.RestrictInput | Should -BeFalse
+        }
+
         It 'hands over no validator for a page that declares none' {
             $wizardHost = New-HDTFakeWizardHost -Action 'Cancel'
 

@@ -62,8 +62,10 @@ function Get-HDTWizardSeed {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject per control, with Name,
-            Property and Text - the same field shape Get-HDTWizardField,
-            Get-HDTWizardSequence and Get-HDTWizardComputerName produce.
+            Property, Text and Seed - the same field shape Get-HDTWizardField,
+            Get-HDTWizardSequence and Get-HDTWizardComputerName produce. Seed is
+            always true here: every value came out of the resolved variables,
+            which is what the host has to be told before it will remember one.
 
         .EXAMPLE
             $provider = New-HDTLocalContentProvider -Root 'Z:\Deploy'
@@ -145,10 +147,17 @@ function Get-HDTWizardSeed {
                 $property = [string] $declaration.Property
             }
 
+            # EVERY FIELD THIS COMMAND EMITS IS A REAL SEED, BY CONSTRUCTION:
+            # the value came out of the resolved variables and nothing here
+            # invents one. New-HDTWizardHost believes no field that does not say
+            # this, because a value the WIZARD chose for itself carries no
+            # provenance to protect and dropping it on the way out is how a
+            # technician's accepted answer disappears.
             [void] $field.Add([pscustomobject] @{
                     Name     = $control
                     Property = $property
                     Text     = $value
+                    Seed     = $true
                 })
         }
     }
