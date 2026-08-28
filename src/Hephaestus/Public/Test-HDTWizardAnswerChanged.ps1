@@ -6,13 +6,13 @@ function Test-HDTWizardAnswerChanged {
 
         .DESCRIPTION
             THE HALF OF SEEDING THAT KEEPS PROVENANCE HONEST. Get-HDTWizardSeed
-            puts what the rules resolved into the boxes - MDT's behaviour, and
-            what HDT lacked. But every value the wizard collects re-enters the
-            engine as the Wizard SOURCE, the highest precedence in DESIGN 3.1,
-            so a seeded box nobody touched would be collected as though somebody
-            had typed it. The deployment would be right and the report would say
-            a name was typed at the bench when a rule on the share produced it -
-            which is the one question provenance exists to answer.
+            puts what the rules resolved into the boxes. But every value the
+            wizard collects re-enters the engine as the Wizard SOURCE, the
+            highest precedence in DESIGN 3.1, so a seeded box nobody touched
+            would be collected as though somebody had typed it. The deployment
+            would be right and the report would say a name was typed at the
+            bench when a rule on the share produced it - which is the one
+            question provenance exists to answer.
 
             So the harvest asks this first. A value that came back exactly as it
             went in is not collected at all: the rule stands and keeps its own

@@ -20,13 +20,13 @@ function Get-HDTConsoleNewSequenceCommand {
             nothing on screen had said so.
 
             THE PASSWORD IS NAMED AND NOT PRINTED. It is stored readable in the
-            sequence, deliberately and for MDT's reason - WinPE uses it with
-            nobody present - and Get-HDTConsoleNewSequence says so in the hint on
-            that box. A footer is none of those places: it is selectable, it is
-            what gets copied into a ticket, and it is what a screenshot of this
-            window carries. So the KEY appears, because a line that quietly
-            dropped it would be the same defect over again, and the VALUE is the
-            label in angle brackets for somebody to replace.
+            sequence, deliberately - WinPE uses it with nobody present - and
+            Get-HDTConsoleNewSequence says so in the hint on that box. A footer
+            is none of those places: it is selectable, it is what gets copied
+            into a ticket, and it is what a screenshot of this window carries.
+            So the KEY appears, because a line that quietly dropped it would be
+            the same defect over again, and the VALUE is the label in angle
+            brackets for somebody to replace.
 
             WHICH KEY IS SECRET IS NOT DECIDED HERE. Get-HDTConsoleNewSequence
             marks it, this reads the mark, and a key added there tomorrow is

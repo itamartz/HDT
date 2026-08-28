@@ -6,11 +6,11 @@ function New-HDTImageService {
 
         .DESCRIPTION
             The one place in HDT that names Get-WindowsImage, dism.exe,
-            bcdboot.exe, bcdedit.exe or Reagentc.exe.
-            PROJECT constraint 4 forbids a step from touching hardware directly,
-            so ApplyImage and ConfigureBoot receive this object and can be
-            swapped for New-HDTFakeImageService in a test with no media, no disk
-            and no reboot.
+            bcdboot.exe, bcdedit.exe or Reagentc.exe. PROJECT constraint 4
+            forbids a step from touching hardware directly, so ApplyImage and
+            ConfigureBoot receive this object and can be swapped for
+            New-HDTFakeImageService in a test with no media, no disk and no
+            reboot.
 
             SIX METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
@@ -28,8 +28,8 @@ function New-HDTImageService {
                   Add-WindowsDriver -Path <imagePath> -Driver <driverPath>
                       -Recurse:<recurse>
 
-                  OFFLINE INJECTION INTO THE APPLIED OS, which is MDT's
-                  behaviour and DESIGN 7's: the driver is written into
+                  OFFLINE INJECTION INTO THE APPLIED OS, which is DESIGN 7's
+                  behaviour: the driver is written into
                   <imagePath>\Windows\System32\DriverStore\FileRepository and
                   staged, and WINDOWS binds it to a device on the first boot.
                   Nothing here installs a driver onto a running machine.
@@ -60,28 +60,27 @@ function New-HDTImageService {
             SetRecoveryImage CALLS THE APPLIED IMAGE'S OWN Reagentc.exe, BY FULL
             PATH, AND USES /setreimage. Two reasons, both checked on this
             machine rather than remembered. First, THE VERB THIS WAS FIRST
-            WRITTEN AGAINST
-            DOES NOT EXIST: reagentc on Windows 11 24H2 lists /info,
-            /setreimage, /enable, /disable, /boottore, /setbootshelllink and the
-            quick-machine-recovery verbs, and nothing else. The tool wins and
-            04-03 corrects the document. Second, THERE IS NO WinPE-Recovery
-            OPTIONAL COMPONENT: reagentc.exe is not in WinPE, and WinPE is the
-            only environment this method is ever called from, so a bare
-            'reagentc.exe' would be command-not-found. Microsoft's own offline
-            WinRE procedure runs the target image's copy, which exists as soon
-            as ApplyImage has finished and is the same 26100 build as the WinPE
-            hosting it. Building the path from $OsRoot is argument construction,
-            not a branch, so the adapter stays dumb.
+            WRITTEN AGAINST DOES NOT EXIST: reagentc on Windows 11 24H2 lists
+            /info, /setreimage, /enable, /disable, /boottore, /setbootshelllink
+            and the quick-machine-recovery verbs, and nothing else. The tool
+            wins and 04-03 corrects the document. Second, THERE IS NO
+            WinPE-Recovery OPTIONAL COMPONENT: reagentc.exe is not in WinPE, and
+            WinPE is the only environment this method is ever called from, so a
+            bare 'reagentc.exe' would be command-not-found. Microsoft's own
+            offline WinRE procedure runs the target image's copy, which exists
+            as soon as ApplyImage has finished and is the same 26100 build as
+            the WinPE hosting it. Building the path from $OsRoot is argument
+            construction, not a branch, so the adapter stays dumb.
 
-            THIS IS AN UNTESTED ADAPTER, and deliberately so:
-            four of its five methods write to a disk or reorder this machine's
-            firmware boot entries. Its contract row calls GetImageInfo and
-            nothing else; the rest is proven in tests/integration (04-04)
-            against a scratch VHDX. The price of not testing it is that it must
-            stay dumb. THE ONLY BRANCHES BELOW ARE AN EXISTENCE GUARD AND FIVE
-            EXIT-CODE CHECKS, each commented as such. Every decision about WHICH
-            index to apply or WHETHER a recovery partition exists lives in the
-            steps, which are tested against the fake. Do not add logic here.
+            THIS IS AN UNTESTED ADAPTER, and deliberately so: four of its five
+            methods write to a disk or reorder this machine's firmware boot
+            entries. Its contract row calls GetImageInfo and nothing else; the
+            rest is proven in tests/integration (04-04) against a scratch VHDX.
+            The price of not testing it is that it must stay dumb. THE ONLY
+            BRANCHES BELOW ARE AN EXISTENCE GUARD AND FIVE EXIT-CODE CHECKS,
+            each commented as such. Every decision about WHICH index to apply or
+            WHETHER a recovery partition exists lives in the steps, which are
+            tested against the fake. Do not add logic here.
 
             EVERY NATIVE FAILURE CARRIES THE TOOL'S OWN OUTPUT. "bcdboot failed"
             without bcdboot's own sentence is the log entry that wastes an hour

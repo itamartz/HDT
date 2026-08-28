@@ -5,20 +5,19 @@ function Get-HDTSelectionProfileBuiltIn {
             document.
 
         .DESCRIPTION
-            MDT ships Everything, All Drivers, All Packages, Nothing and Sample;
-            HDT keeps TWO. THEY RESOLVE BY NAME WITH NO DOCUMENT BEHIND THEM,
-            which is the point: a share nobody has authored a profile on still
-            has to give the Windows PE window's picker something legal to point
-            at, and a hand-made share with no Control\selection-profiles.yaml
-            still has to build a boot image.
+            TWO PROFILES RESOLVE BY NAME WITH NO DOCUMENT BEHIND THEM, which is
+            the point: a share nobody has authored a profile on still has to
+            give the Windows PE window's picker something legal to point at, and
+            a hand-made share with no Control\selection-profiles.yaml still has
+            to build a boot image. MDT ships five - Everything, All Drivers, All
+            Packages, Nothing and Sample - and these two are what survives.
 
             NOTHING IS NOT ONE OF THEM, AND THAT IS DELIBERATE. The picker's
             first row already reads "(none - WinPE uses the drivers Microsoft
             ships)", so a Nothing profile is a SECOND way to say one thing - and
             the two would disagree the first time somebody picked one expecting
-            the other. MDT needs its Nothing because a selection profile is a
-            mandatory field on several of its dialogs; here the empty answer is
-            an entry in the list, so it is not.
+            the other. Here the empty answer is an entry in the list rather
+            than a profile, so nothing has to be authored to say it.
 
             The packages profiles are absent for a plainer reason: HDT has no
             Packages folder. A profile may only include from

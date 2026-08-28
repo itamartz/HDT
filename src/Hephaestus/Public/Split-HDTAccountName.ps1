@@ -7,8 +7,9 @@ function Split-HDTAccountName {
         .DESCRIPTION
             ONE BOX ON THE SCREEN, TWO VARIABLES UNDERNEATH. The Computer
             Details page asked for the join account in two boxes because that is
-            how MDT's variables are shaped - DomainAdmin and DomainAdminDomain -
-            and a technician joining a domain does not think in two boxes. They
+            the shape of the two variables underneath - DomainAdmin and
+            DomainAdminDomain, names carried over from MDT - and a technician
+            joining a domain does not think in two boxes. They
             think CORP\svc-hdt-join, which is what every Windows credential
             prompt has ever asked them for.
 

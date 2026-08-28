@@ -23,8 +23,8 @@
             behaviour that matters most here. A condition naming a variable that
             does not exist evaluates to $false - it does not throw, and the token
             does not silently become the empty string. A condition that collapsed
-            to "" == "" is how MDT-era task sequences ran the wrong branch on a
-            typo. The token name is appended to -Unresolved so the loop can log
+            to "" == "" is how a task sequence ends up running the wrong branch on
+            a typo. The token name is appended to -Unresolved so the loop can log
             it, because invisible is the only thing worse than wrong.
 
             A MALFORMED CONDITION THROWS, but it should never reach here:

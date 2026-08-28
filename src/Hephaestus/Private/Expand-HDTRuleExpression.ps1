@@ -1,23 +1,25 @@
 function Expand-HDTRuleExpression {
     <#
         .SYNOPSIS
-            Evaluates MDT's #Function(...)# expressions in a value.
+            Evaluates the #Function(...)# expressions in a rules value.
 
         .DESCRIPTION
-            MDT'S #...#, WITH MDT'S FUNCTION NAMES. CustomSettings.ini takes a
-            VBScript expression between hashes:
+            A RULES VALUE MAY CALL A FUNCTION BETWEEN HASHES, and this replaces
+            the call with its result:
 
-                OSDComputerName=#Left("PC-" & oEnvironment.Item("SerialNumber"), 15)#
+                HDTComputerName: '#Left(PC-%HDTSerialNumber%, 15)#'
 
-            and every MDT deployment that builds a name from a serial number
-            uses it, because Windows Setup SILENTLY IGNORES a ComputerName over
+            Building a computer name from a serial number is the case it exists
+            for, because Windows Setup SILENTLY IGNORES a ComputerName over
             fifteen characters and names the machine itself. HDT refuses such a
             name loudly, which is better - but refusing without offering a way
             to shorten one left an administrator writing a PowerShell file to
-            take a substring.
+            take a substring. The hashes and the function names are
+            CustomSettings.ini's, so a rule carried over from an existing
+            deployment still reads the same.
 
-            A CLOSED SET OF FUNCTIONS, NOT AN EVALUATOR. MDT runs real VBScript
-            in there. A rules file is a document an administrator is HANDED - by
+            A CLOSED SET OF FUNCTIONS, NOT AN EVALUATOR. Nothing here runs a
+            language. A rules file is a document an administrator is HANDED - by
             a colleague, by a vendor, in a support ticket - and one that can run
             arbitrary code is one that can do anything the deployment account
             can. Real logic already has a home: setFrom names a script, and the

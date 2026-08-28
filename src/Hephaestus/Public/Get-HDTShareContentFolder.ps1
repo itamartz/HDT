@@ -7,8 +7,8 @@ function Get-HDTShareContentFolder {
         .DESCRIPTION
             WHAT THE PROFILE EDITOR'S TICK BOX TREE IS MADE OF. An administrator
             knows the folder they want by SEEING it, not by typing its path -
-            which is why MDT put a tree here and not a text box, and why this
-            exists at all.
+            which is why the editor draws a tree here and not a text box, and
+            why this exists at all.
 
             IT ROOTS ON THE FIVE CONTENT FOLDERS AND NOTHING ELSE.
             Get-HDTSelectionProfileContentFolder decides which; Boot\, Logs\,
@@ -23,12 +23,12 @@ function Get-HDTShareContentFolder {
             can mark it rather than lie by omission.
 
             IT IS DEPTH-BOUNDED AND SAYS WHERE IT STOPPED. A driver store is
-            tens of thousands of files; a tick box tree is not a file browser,
-            and MDT's own is lazy for the same reason. Four levels reaches
-            Drivers\WinPE\<vendor pack> and Drivers\<Make>\<Model>, which is
-            what "Total Control" actually looks like. A folder whose children
-            were cut carries Truncated, because a folder simply MISSING from a
-            tree reads as a folder that is not on the share.
+            tens of thousands of files, and a tick box tree is not a file
+            browser. Four levels reaches Drivers\WinPE\<vendor pack> and
+            Drivers\<Make>\<Model>, which is as deep as a driver store filed by
+            model ever goes. A folder whose children were cut carries Truncated,
+            because a folder simply MISSING from a tree reads as a folder that
+            is not on the share.
 
             IT READS THROUGH AN INJECTED IFileSystem - never Get-ChildItem - so
             the whole editor is provable under Pester with no share and no disk.

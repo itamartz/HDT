@@ -37,8 +37,8 @@ function New-HDTBootImageUnattend {
 
         .PARAMETER Path
             Where on the share to write it, relative to the root. Defaults to
-            Unattend-PE.xml, which is what MDT's boot image answer file is
-            called minus MDT's architecture suffix.
+            Unattend-PE.xml - MDT's boot image answer file name without its
+            architecture suffix.
 
         .PARAMETER Force
             Overwrite an answer file that is already there.

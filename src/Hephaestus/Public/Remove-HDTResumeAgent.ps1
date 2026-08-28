@@ -1,8 +1,8 @@
 ﻿function Remove-HDTResumeAgent {
     <#
         .SYNOPSIS
-            MDT's LTICleanup: keeps the logs, drops the agent, and leaves a
-            finished machine carrying nothing of the deployment that built it.
+            Keeps the logs, drops the staged agent, and leaves a finished
+            machine carrying nothing of the deployment that built it.
 
         .DESCRIPTION
             WHAT A DEPLOYED MACHINE WAS STILL HOLDING. Watched on 2026-08-21:
@@ -12,8 +12,9 @@
             in it, and its only record of how it had been built was inside that
             same folder.
 
-            MDT does this at the end of State Restore and so does the reference
-            implementation. It is the last thing a deployment owes the machine.
+            IT RUNS AT THE END OF STATE RESTORE, and it is the last thing a
+            deployment owes the machine. (MDT's LTICleanup runs there too, and
+            so does the reference implementation's.)
 
             THE LOGS MOVE FIRST, AND THE ORDER IS THE WHOLE COMMAND. They live
             under the folder being removed, so a version that deleted first
@@ -22,17 +23,16 @@
             copy throws.
 
             WHERE THEY GO IS THE CALLER'S ANSWER, and the payload's default is
-            %WINDIR%\Logs\HDT. That is a deliberate divergence from MDT, which
-            copies to %WINDIR%\TEMP\DeploymentLogs - a directory Windows itself
-            cleans out, which is a poor home for the only record of how a
-            machine was built. DESIGN 14 carries the reason.
+            %WINDIR%\Logs\HDT rather than %WINDIR%\TEMP\DeploymentLogs - a
+            directory Windows itself cleans out, which is a poor home for the
+            only record of how a machine was built. DESIGN 14 carries the
+            reason.
 
             IT DOES NOT DECIDE WHEN. On a FAILED deployment none of this should
             happen: that is precisely the machine somebody walks up to with
             questions, and every one of those questions is answered by the
-            things this removes. The caller owns that rule - MDT's
-            LTICleanup runs on success only - and this command runs when it is
-            called.
+            things this removes. The caller owns that rule - cleanup runs on
+            success only - and this command runs when it is called.
 
             AND IT REFUSES A PATH THAT IS NOT AN AGENT. CLAUDE.md's rule is that
             nothing passes a variable to a recursive delete without asserting

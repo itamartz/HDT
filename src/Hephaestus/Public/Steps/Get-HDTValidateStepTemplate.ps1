@@ -8,11 +8,11 @@
             type looks like on disk. See Get-HDTNoOpStepTemplate for the shape
             all of them share.
 
-            THE TWO FLOORS ARE MDT'S, and they are written out because a Validate
-            step with no checks in it passes, which is the one outcome an author
-            adding this step did not want. minDiskGB and minRamMB are the pair
-            LTIValidate has always asked, at values a Windows 11 target has to
-            clear anyway.
+            THE TWO FLOORS ARE WRITTEN OUT because a Validate step with no
+            checks in it passes, which is the one outcome an author adding this
+            step did not want. minDiskGB and minRamMB are the pair worth asking
+            first, at values a Windows 11 target has to clear anyway. (They are
+            the pair MDT's LTIValidate has always asked.)
 
             requireUefi IS NOT WRITTEN OUT. It would be a claim about the fleet
             rather than about this sequence, and a BIOS machine failing a check

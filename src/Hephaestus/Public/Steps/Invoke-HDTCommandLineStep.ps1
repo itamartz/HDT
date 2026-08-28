@@ -4,7 +4,8 @@
             Runs a native command and classifies its exit code.
 
         .DESCRIPTION
-            MDT's Run Command Line, rebuilt on an injected IProcessService.
+            Runs one native command out of a sequence, on an injected
+            IProcessService rather than on the machine directly.
 
               - name: Install the agent
                 type: CommandLine

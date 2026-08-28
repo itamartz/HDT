@@ -45,16 +45,15 @@
                 (signing and encryption "where the server supports
                 them").
 
-            IT MAPS TO A DRIVE LETTER, AND Root BECOMES THAT LETTER. MDT
-            connected the deployment share as a drive and ran everything from
-            it; HDT does the same, for a reason that is not tidiness. CMD.EXE
-            REFUSES A UNC WORKING DIRECTORY: started in one it prints "UNC paths
-            are not supported", moves itself to %SystemRoot%, and an application
-            whose install command names its own installer relatively - which is
-            what every vendor documents - then runs in C:\Windows and cannot
-            find it. The InstallApplications step runs each command through
-            %ComSpec% /c in the application's source folder, so that folder has
-            to be a path cmd.exe can stand in.
+            IT MAPS TO A DRIVE LETTER, AND Root BECOMES THAT LETTER, for a
+            reason that is not tidiness. CMD.EXE REFUSES A UNC WORKING
+            DIRECTORY: started in one it prints "UNC paths are not supported",
+            moves itself to %SystemRoot%, and an application whose install
+            command names its own installer relatively - which is what every
+            vendor documents - then runs in C:\Windows and cannot find it. The
+            InstallApplications step runs each command through %ComSpec% /c in
+            the application's source folder, so that folder has to be a path
+            cmd.exe can stand in.
 
             THE LETTER IS THE FIRST FREE ONE FROM Z DOWNWARD, the rule MDT used
             and PSD still uses. RemoteRoot keeps the UNC path throughout - it is

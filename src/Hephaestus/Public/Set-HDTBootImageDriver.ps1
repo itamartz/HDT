@@ -10,11 +10,11 @@
             run.
 
             THE VALUE IS A SELECTION PROFILE, NOT A PATH AND NOT A FILE. A
-            profile is a named set of share folders - MDT's, kept - and that is
-            what lets ONE boot image carry a Dell WinPE pack and an HP WinPE
-            pack together. A single folder name could never say that, which is
-            the whole reason profiles exist. Get-HDTSelectionProfile lists them,
-            including the built-ins every share has.
+            profile is a named set of share folders, and that is what lets ONE
+            boot image carry a Dell WinPE pack and an HP WinPE pack together. A
+            single folder name could never say that, which is the whole reason
+            profiles exist. Get-HDTSelectionProfile lists them, including the
+            built-ins every share has.
 
             A PLAIN FOLDER UNDER Drivers\ STILL WORKS. This key used to mean one,
             and a share written before profiles existed still says so.

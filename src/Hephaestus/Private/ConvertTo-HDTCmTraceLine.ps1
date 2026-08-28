@@ -4,11 +4,11 @@ function ConvertTo-HDTCmTraceLine {
             Renders one CMTrace line.
 
         .DESCRIPTION
-            The second of the two formats every Write-HDTLog call emits. MDT
-            administrators have CMTrace or OneTrace open already and know how to
-            read it, so emitting the same format means their existing workflow,
-            filtering and error highlighting work on day one - deliberately not a
-            new thing to learn.
+            The second of the two formats every Write-HDTLog call emits. A
+            deployment technician has CMTrace or OneTrace open already and knows
+            how to read it, so emitting the format those readers expect means
+            their existing workflow, filtering and error highlighting work on day
+            one - deliberately not a new thing to learn.
 
             The line, exactly:
 

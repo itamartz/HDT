@@ -82,7 +82,14 @@ BeforeAll {
 
         foreach ($one in $assigned) {
             if ($one.Extent.Text -match ('(?m)^\s*\[?''?{0}''?\]?\s*=' -f [regex]::Escape($Name))) { return $true }
-            if ($one.Left.Extent.Text -like ("*['{0}']*" -f $Name)) { return $true }
+            # IndexOf, NOT -like: '[' OPENS A CHARACTER CLASS in a wildcard, so
+            # "*['MirrorStatePath']*" asked for any string containing a quote or
+            # one of those letters - which '$loopArgument' does. The helper
+            # therefore answered TRUE for every name, including ones nowhere in
+            # the file, and every assertion built on it passed while proving
+            # nothing. Caught by a test written to fail that did not.
+            if ($one.Left.Extent.Text.IndexOf(("['{0}']" -f $Name),
+                    [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
         }
 
         return $false
@@ -331,6 +338,46 @@ Describe 'Start-HDTResume.ps1' {
 
         It 'passes -State to Invoke-HDTTaskSequence' {
             & $script:loopReceives 'State' | Should -BeTrue
+        }
+
+        # THE STATE DOCUMENT THE SHARE GETS HAS TO BE THIS LEG'S.
+        #
+        # The WinPE leg keeps its state IN the log directory, so the copy-back
+        # ships a document that agrees with the log beside it. This leg keeps
+        # its state at C:\HDT\state.json instead - which is right, because the
+        # boot reconcile and Remove-HDTResumeAgent both read it there - and
+        # wrote NOTHING back into the log directory. The copy left there by the
+        # WinPE leg was therefore frozen at the moment of the restart, and that
+        # is the copy the share receives.
+        #
+        # On LT-7FJ45S2, 2026-08-28: a deployment that finished Succeeded put a
+        # state.json on the share saying status Running, leg 1, step 11 Pending
+        # and autologon still armed - stamped eleven hours before the log file
+        # sitting next to it. Read on its own, it describes a machine somebody
+        # has to go and rescue.
+        It 'mirrors the state into the log directory, which is what the share gets' {
+            & $script:loopReceives 'MirrorStatePath' | Should -BeTrue
+        }
+
+        It 'builds that mirror from the log root rather than naming a second literal path' {
+            # The log root is a parameter and moves with -LogPath; a literal
+            # C:\HDT\Logs\state.json is right only until somebody passes one.
+            #
+            # Asserted against the assignment, not against the whole file: a
+            # -Match over $script:text prints the entire payload on failure.
+            $assignment = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $node.Left.Extent.Text -eq '$loopArgument'
+                    }, $true))
+
+            $assignment.Count | Should -Be 1
+
+            $line = @($assignment[0].Extent.Text -split "`n" |
+                    Where-Object { $_ -like '*MirrorStatePath*' }) -join ''
+
+            $line | Should -BeLike '*$logRoot*'
+            $line | Should -BeLike '*state.json*'
         }
 
         It 'rebuilds the log context from the state seq' {

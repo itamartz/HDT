@@ -4,18 +4,18 @@
             Gathers the machine facts through injected services.
 
         .DESCRIPTION
-            HDT's replacement for ZTIGather.wsf. It produces the gathered-facts
-            layer of the variable model - hardware,
+            Produces the gathered-facts layer of the variable model - hardware,
             firmware, chassis and network - as an ordered, case-insensitive
-            dictionary keyed by HDT variable name.
+            dictionary keyed by HDT variable name. Every rule that matches on a
+            machine matches on what this returns.
 
             It touches nothing itself. Every value arrives through one of three
-            injected services, which is why
-            the whole fact table can be proven under Pester against captured
-            fixtures with no machine attached, and why a BIOS machine, an ARM
-            machine and a machine with no TPM are all testable from a desk that
-            has none of them. There is deliberately no Get-CimInstance,
-            Get-ItemProperty or $env: reference anywhere in this file.
+            injected services, which is why the whole fact table can be proven
+            under Pester against captured fixtures with no machine attached, and
+            why a BIOS machine, an ARM machine and a machine with no TPM are all
+            testable from a desk that has none of them. There is deliberately
+            no Get-CimInstance, Get-ItemProperty or $env: reference anywhere in
+            this file.
 
             CIM classes are queried once each, in a fixed order, and everything
             is derived from those locals - a second query is a second round trip

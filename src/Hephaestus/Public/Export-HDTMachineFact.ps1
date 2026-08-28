@@ -56,7 +56,7 @@
             Export-HDTMachineFact -Fact $fact -Path 'X:\HDT\Logs\Gather\facts.json' -Timestamp $clock.GetUtcNow()
 
             Writes what the machine said about itself where a technician can read it
-            afterwards. MDT put this in the log; a file means it can be diffed
+            afterwards. A file rather than a log line means it can be diffed
             against the next run.
 
         .EXAMPLE

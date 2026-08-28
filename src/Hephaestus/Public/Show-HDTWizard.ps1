@@ -4,10 +4,9 @@
             Shows the technician wizard and returns what the technician chose.
 
         .DESCRIPTION
-            W1 of the WPF-first direction, and MDT's
-            LiteTouch wizard is what it grows into: the window a technician sees
-            when a machine boots the deployment image and nothing has been
-            decided for it in advance.
+            The window a technician sees when a machine boots the deployment
+            image and nothing has been decided for it in advance. W1 of the
+            WPF-first direction; MDT's equivalent was the LiteTouch wizard.
 
             THE WINDOW IS NOT IN THIS FUNCTION. An injected IWizardHost owns
             everything WPF - Add-Type, XamlReader, ShowDialog - and this function
@@ -26,16 +25,16 @@
             defensive: reading an empty answer as approval is how an unattended
             machine wipes a disk nobody meant to wipe.
 
-            THREE ANSWERS, AND ONLY THESE THREE:
+            FOUR ANSWERS, AND ONLY THESE FOUR:
 
               Next           the technician approved. The only one that deploys.
               Cancel         everything else, including silence.
-              CommandPrompt  MDT's "Exit to Command Prompt" - the escape hatch
-              Finish         MDT's Deployment Summary button, and ONLY that
+              CommandPrompt  the escape hatch, for a wrong network, a missing
+                             driver, or diskpart.
+              Finish         the deployment summary's own button, and ONLY that
                              window declares it. It approves nothing and starts
                              nothing: it says a technician has read a screen
                              about a machine that is already deployed.
-                             for a wrong network, a missing driver, or diskpart.
 
             OPENING THE PROMPT IS THE CALLER'S JOB, NOT THIS COMMAND'S. This
             reports what the technician asked for; the payload decides what a

@@ -5,18 +5,19 @@ function Get-HDTFeatureCatalog {
             grouped the way Server Manager groups them.
 
         .DESCRIPTION
-            MDT'S Install Roles and Features DIALOG IS A TICK LIST, and this is
+            THE CONSOLE'S Roles and Features PAGE IS A TICK LIST, and this is
             what fills it. Before it, the console offered a text box: a
             technician had to know that the IIS role is spelled 'Web-Server' and
             not 'IIS' or 'Web Server', type it correctly, and find out at the
             machine if they had not.
 
-            IT IS A STATIC TABLE, AND SO IS MDT'S. The step installs through
+            IT IS A STATIC TABLE, AND IT HAS TO BE. The step installs through
             Install-WindowsFeature, so the authoritative list is whatever
             Get-WindowsFeature returns ON THE TARGET - and the console is not
             running on the target, has no session to it, and is frequently
             running on a Windows client that has no ServerManager module at all.
-            MDT solved this by shipping a list per operating system; so does this.
+            So the catalogue ships as a list per operating system, which is the
+            answer MDT's own Install Roles and Features dialog reached.
 
             SO IT IS AN OFFER, NOT A CONTRACT, and the engine is still the
             authority. Invoke-HDTInstallRolesStep asks the target for its own

@@ -1,27 +1,27 @@
 ﻿function Get-HDTLogDestination {
     <#
         .SYNOPSIS
-            Where this run's logs are copied to - MDT's SLShare, or the deploy
-            root when nothing says otherwise.
+            Where this run's logs are copied to - the HDTSLShare a site names,
+            or the deploy root when nothing says otherwise.
 
         .DESCRIPTION
             THE COPY-BACK DESTINATION USED TO BE DERIVED AND NOTHING COULD
             CHANGE IT. Logs landed under <deployRoot>\Logs and nowhere else,
-            which is right for a lab and wrong for most of the sites MDT is used
-            in: the deployment share is frequently read-only to the account the
-            deployment runs as, is frequently a replica, and is frequently not
-            where a team keeps logs.
+            which is right for a lab and wrong for most sites: the deployment
+            share is frequently read-only to the account the deployment runs as,
+            is frequently a replica, and is frequently not where a team keeps
+            logs.
 
-            SO HDTSLShare, WITH MDT'S NAME AND MDT'S BEHAVIOUR. An administrator
-            arriving from Workbench searches for what they already know, which is
-            why this is not called HDTLogShare - the same reason the Skip
-            properties kept their names under HDT's prefix.
+            SO HDTSLShare, THE ONE SETTING THAT MOVES IT. The name is MDT's
+            SLShare carried over under HDT's prefix, because an administrator
+            searches for the name they already know - the same reason the Skip
+            properties kept theirs.
 
-            IT IS THE FOLDER, NOT A PARENT OF ONE. MDT writes <SLShare>\<computer>
-            and never <SLShare>\Logs\<computer>, and an engine that appended
-            'Logs' would put a site's deployment logs somewhere nobody named. The
-            per-computer folder underneath is Copy-HDTLog's business, exactly as
-            it is for the deploy root.
+            IT IS THE FOLDER, NOT A PARENT OF ONE. This run's logs go to
+            <SLShare>\<computer> and never <SLShare>\Logs\<computer>, and an
+            engine that appended 'Logs' would put a site's deployment logs
+            somewhere nobody named. The per-computer folder underneath is
+            Copy-HDTLog's business, exactly as it is for the deploy root.
 
             IT RESOLVES LIKE ANY OTHER VARIABLE, so a site sets it once in
             rules.yaml, or per model, or per subnet, and the provenance says

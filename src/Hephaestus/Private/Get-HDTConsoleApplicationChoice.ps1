@@ -5,9 +5,10 @@ function Get-HDTConsoleApplicationChoice {
             share offers.
 
         .DESCRIPTION
-            MDT'S Install Application PAGE, where an administrator PICKS what a
-            step installs rather than typing ids and finding out at the machine
-            whether they spelled them right.
+            What an InstallApplications step has selected, and every application
+            the share can offer it, so the console's page lets an administrator
+            PICK what a step installs rather than typing ids and finding out at
+            the machine whether they spelled them right.
 
             THE STEP TYPE THAT HAD NO PAGE. Until this existed an
             InstallApplications step fell through to the generic Properties tab,
@@ -18,14 +19,14 @@ function Get-HDTConsoleApplicationChoice {
             application's Depends On behind a picker
             (Get-HDTConsoleDependencyChoice), and this is the other half of it.
 
-            THERE ARE TWO ANSWERS, AND MDT ASKS WHICH. A step either installs
-            what the technician chose - MDT's "Install multiple applications",
-            reading a variable - or a fixed list the sequence names. The template
-            writes `selection: '%HDTApplications%'` for the first, on purpose,
-            because that is what a wizard answer or a rule fills. So this reports
-            WHICH of the two the document is, and a page that only offered ticks
-            would delete the indirection the sequence was built on the first time
-            anybody pressed Apply.
+            THERE ARE TWO ANSWERS, AND THE PAGE ASKS WHICH. A step either
+            installs what the technician chose, reading a variable - the mode
+            MDT calls "Install multiple applications" - or a fixed list the
+            sequence names. The template writes `selection: '%HDTApplications%'`
+            for the first, on purpose, because that is what a wizard answer or a
+            rule fills. So this reports WHICH of the two the document is, and a
+            page that only offered ticks would delete the indirection the
+            sequence was built on the first time anybody pressed Apply.
 
             A STEP THAT DECLARES NO SELECTION IS THE VARIABLE. That is not a
             guess: Invoke-HDTInstallApplicationsStep reads HDTApplications

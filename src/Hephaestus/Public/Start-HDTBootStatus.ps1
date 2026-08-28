@@ -10,9 +10,7 @@
             for the whole run. A BGInfo start command - the machine's serial,
             model and address painted onto the wallpaper, which is the only
             reason BGInfo is in a boot image at all - draws BEHIND it, so a
-            technician never sees any of it. MDT has no console to hide:
-            winpeshl.ini makes LiteTouch.wsf the shell, which is why the same
-            BGInfo is on screen there from the first second.
+            technician never sees any of it.
 
             Start-HDTDeployment hides the console for that reason, and this is
             what goes in its place: the payload's own account of itself, in a

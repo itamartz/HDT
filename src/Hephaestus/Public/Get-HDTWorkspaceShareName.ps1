@@ -5,22 +5,21 @@
             deploy root that follows from it.
 
         .DESCRIPTION
-            A DEPLOYMENT SHARE IS A SHARE. MDT's New Deployment Share wizard
-            asks for a folder AND a share name, creates the SMB share, and
-            Bootstrap.ini's DeployRoot is \\<server>\<share> derived from the
-            two. HDT asked for the UNC instead - a box somebody filled in by
-            hand, naming a share nothing had created.
+            A DEPLOYMENT SHARE IS A SHARE. A folder AND a share name are asked
+            for, and the deploy root \\<server>\<share> follows from the two,
+            rather than a UNC typed in whole - a box somebody filled in by
+            hand, naming a share nothing had created. (MDT's New Deployment
+            Share wizard asks the same two questions.)
 
             THE SERVER IS THE COMPUTER NAME, NOT AN IP ADDRESS, and this
             repository has the argument written down twice: a lab host's address
             is a DHCP lease that moves when somebody changes the Wi-Fi, and
             DeployRoot is baked into the boot image. A name survives what an
-            octet does not. MDT derives \\%servername%\Share$ for exactly this
-            reason.
+            octet does not.
 
-            THE DOLLAR IS NOT DECORATION. MDT's default share name ends in one,
-            which keeps it out of network browsing - and a deployment share
-            holds Control\share-credential.json, which is obfuscated rather than
+            THE DOLLAR IS NOT DECORATION. A share name that ends in one stays
+            out of network browsing - and a deployment share holds
+            Control\share-credential.json, which is obfuscated rather than
             encrypted. A name given without one gets one.
 
             IT DECIDES; IT DOES NOT PUBLISH. Creating the share is

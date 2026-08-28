@@ -4,10 +4,10 @@
             A DiskPartition step's table, as the editor's grid shows it.
 
         .DESCRIPTION
-            MDT'S Format and Partition Disk GRID, answered without a window.
-            The columns are the ones that dialog has - name, type, size, file
-            system, and the variable the drive letter is published into - and
-            each row carries the command its buttons would run.
+            The disk layout a sequence starts from, as data rather than a
+            dialog: an ordered list of partitions with name, type, size, file
+            system, and the variable the drive letter is published into, each
+            row carrying the command its buttons would run.
 
             A STEP THAT NAMES A LAYOUT HAS NO ROWS, and that is an answer rather
             than an error: the grid shows nothing and says which layout is in

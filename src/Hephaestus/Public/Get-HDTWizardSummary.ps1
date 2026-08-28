@@ -5,7 +5,7 @@
             and what to write in rules.yaml so nobody sees the wizard again.
 
         .DESCRIPTION
-            MDT'S SUMMARY CONFIRMS. THIS ONE ALSO TEACHES, and that is
+            IT CONFIRMS WHAT WAS CHOSEN, AND IT ALSO TEACHES, which is
             deliberate: DESIGN 11.2 says every page is individually skippable
             and that a page whose values are all supplied never appears, but
             nothing anywhere TOLD a technician the variable names. The skip

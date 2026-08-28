@@ -17,8 +17,8 @@
 
         .PARAMETER Name
             The step's name. Defaults to the name this type is offered under -
-            'Tattoo', which is what the step is called in MDT's editor and what
-            an MDT administrator will look for.
+            'Tattoo', which is what the step is called everywhere else it
+            appears, so it is the name an administrator will look for.
 
         .INPUTS
             None. This command does not accept pipeline input.

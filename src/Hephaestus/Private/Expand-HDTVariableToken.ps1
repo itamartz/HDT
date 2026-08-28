@@ -23,8 +23,8 @@
 
             HONEST ABOUT WHAT IT COULD NOT RESOLVE. A token naming nothing in the
             scope, or naming a $null, is left LITERALLY in the output and its name
-            is added to -Unresolved. MDT leaves such a token alone; emptying it
-            silently would turn an authoring mistake into a machine named 'PC-'.
+            is added to -Unresolved. Emptying it silently would turn an
+            authoring mistake into a machine named 'PC-'.
             -Unresolved is what makes it visible without making it fatal.
 
             The token grammar is %Name% where Name matches [A-Za-z_][A-Za-z0-9_]*,

@@ -18,8 +18,8 @@ function Import-HDTDriver {
             recognises a pack by, and the number the console puts on the row. It
             is a count, NOT a catalog: parsing each .inf for its hardware ids and
             building driver-index.json is M5, and PnP matching cannot happen
-            until it exists. What this gives you is the group-match path, which
-            is MDT's primary one - a folder, named by a profile, injected whole.
+            until it exists. What this gives you is the group-match path - a
+            folder, named by a profile, injected whole.
 
             A SOURCE WITH NO .inf IN IT IS ALMOST ALWAYS THE WRONG FOLDER -
             somebody picked the download rather than the extracted pack - so it

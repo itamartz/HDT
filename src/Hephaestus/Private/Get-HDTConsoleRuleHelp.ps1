@@ -6,11 +6,10 @@
 
         .DESCRIPTION
             A RULES FILE IS WRITTEN IN A VOCABULARY NOBODY HOLDS IN THEIR HEAD:
-            forty variable names, the MDT names they came from, and MDT's
-            #Left(...)# expressions. The window that edits rules.yaml offered
-            none of it, so the only way to find out what may be written was to
-            read DESIGN.md - on another machine, because this window is usually
-            open over a share.
+            forty variable names and #Left(...)# expressions. The window that
+            edits rules.yaml offered none of it, so the only way to find out
+            what may be written was to read DESIGN.md - on another machine,
+            because this window is usually open over a share.
 
             THE LIST IS DERIVED, NEVER TYPED. Get-HDTVariableMap already carries
             every variable, its MDT name, where it comes from and what it means.

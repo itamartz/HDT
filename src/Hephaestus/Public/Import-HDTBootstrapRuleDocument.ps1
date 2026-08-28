@@ -5,21 +5,21 @@
             there is one.
 
         .DESCRIPTION
-            MDT'S Bootstrap.ini IS NOT A SETTINGS FILE, IT IS A RULES FILE.
-            ZTIGather runs it in WinPE BEFORE the share is connected, with the
-            whole priority engine available:
+            THIS IS NOT A SETTINGS FILE, IT IS A RULES FILE. It travels inside
+            the boot image and is read in WinPE BEFORE the share is connected,
+            with the whole priority engine available:
 
-                [Settings]
-                Priority=DefaultGateway, Default
-                [DefaultGateway]
-                192.168.2.1=Site-A
-                [Site-A]
-                DeployRoot=\\SERVER-A\DeploymentShare$
+                schemaVersion: 1
+                rules:
+                  - name: Site A
+                    when: { HDTDefaultGateway: "192.168.2.1" }
+                    set:
+                      HDTDeployRoot: \\SERVER-A\DeploymentShare$
 
-            That is how one boot image serves many sites, and HDT could not do
-            it: bootstrap.json carries ONE deployRoot, baked in verbatim,
-            because rules.yaml lives ON the share and nothing in it can choose
-            the share.
+            That is how one boot image serves many sites. Without it,
+            bootstrap.json carries ONE deployRoot, baked in verbatim, because
+            rules.yaml lives ON the share and nothing in it can choose the
+            share. (MDT solves the same problem with Bootstrap.ini.)
 
             THE SAME GRAMMAR, A SMALLER VOCABULARY. This is a rules.yaml - the
             same when:, the same set:, the same first-match-wins - read by the
@@ -37,11 +37,11 @@
             setting HDTComputerName in this file would be deciding it from a
             document that cannot see the one that decides computer names.
 
-            NO CREDENTIALS, AND THAT IS A DELIBERATE DIVERGENCE FROM MDT.
-            Bootstrap.ini carries UserID and UserPassword in clear text, and
-            DESIGN 14 lists it as one of MDT's known exposures HDT narrows. The
-            account lives in Control\share-credential.json, written by
-            Set-HDTShareCredential and embedded protected at build time.
+            NO CREDENTIALS, AND THAT IS DELIBERATE. A user name and password in
+            clear text in a file every boot image carries is one of the known
+            exposures DESIGN 14 narrows. The account lives in
+            Control\share-credential.json, written by Set-HDTShareCredential
+            and embedded protected at build time.
 
             NO setFrom EITHER. setFrom names a script under Scripts\ ON THE
             SHARE, and there is no share yet. A rule that needs real logic here
@@ -63,7 +63,7 @@
             @($document.Rule).Count
 
             The rules that run before the share is reachable - which share to connect
-            to, and as whom. MDT's Bootstrap.ini, in the boot image itself.
+            to, and as whom, decided inside the boot image itself.
 
         .EXAMPLE
             @($document.Rule | ForEach-Object { $_.Name })

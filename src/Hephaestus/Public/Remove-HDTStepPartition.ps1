@@ -4,7 +4,8 @@
             Removes a partition from a DiskPartition step's table.
 
         .DESCRIPTION
-            MDT'S "Delete" ON THE Format and Partition Disk DIALOG.
+            Drops one volume from the layout a DiskPartition step declares,
+            leaving the rest of the table in the order it was already in.
 
             IT TAKES THE COMMENTS WITH IT. A note written above a partition is
             about that partition; leaving it behind would attach it to whichever

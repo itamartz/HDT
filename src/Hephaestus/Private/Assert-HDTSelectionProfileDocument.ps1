@@ -42,18 +42,18 @@ function Assert-HDTSelectionProfileDocument {
             purpose. Boot\, Logs\ and Captures\ are generated or written to
             during a deployment - a profile that included one would project this
             build's own output. Control\ holds this very document, and including
-            it would be circular. What is left is the five folders an
-            administrator actually authors content into, which is also the list
-            MDT's own profile tree shows.
+            it would be circular. What is left is the five folders content is
+            authored into: Applications\, OperatingSystems\, Drivers\,
+            TaskSequences\ and Scripts\.
 
             A RESERVED ID IS REFUSED RATHER THAN SHADOWED. An authored profile
             called 'all-drivers' either beats the built-in or loses to it, and
             both answers leave a share where the name on the Windows PE tab does
             not mean what it says.
 
-            AN EMPTY include IS LEGAL. It is what MDT's Nothing profile is, and a
-            profile being built up over an afternoon must not be a document the
-            engine refuses to load.
+            AN EMPTY include IS LEGAL. It is a profile that selects nothing,
+            which is a useful thing to name, and a profile being built up over
+            an afternoon must not be a document the engine refuses to load.
 
         .PARAMETER Document
             The parsed document, as returned by ConvertFrom-HDTYaml. $null is

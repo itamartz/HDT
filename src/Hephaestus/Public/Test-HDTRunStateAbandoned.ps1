@@ -20,10 +20,11 @@
                                               be read is not evidence that a run
                                               is alive
 
-            The stale case is the one that matters. MDT's teardown is a task
-            sequence step, so a failure before it leaves autologon armed forever;
-            HDT's reconcile plus this check is the second of three backstops, the
-            others being the finally-block teardown and AutoLogonCount.
+            The stale case is the one that matters. A teardown that is only a
+            sequence step leaves autologon armed forever when the run dies before
+            reaching it, so HDT's reconcile plus this check is the second of
+            three backstops, the others being the finally-block teardown and
+            AutoLogonCount.
 
             The time comes from the injected IClock, never from the wall clock,
             so a thirteen-hour-old deployment is provable in a unit test.

@@ -5,8 +5,8 @@ function Get-HDTConsoleCommandLine {
             command so the window assigns and branches on nothing.
 
         .DESCRIPTION
-            MDT'S Run Command Line DIALOG IS THAT STEP'S PROPERTIES PAGE, the
-            same bargain the disk, image, validate and application tabs already
+            THE RUN COMMAND LINE STEP GETS ITS OWN PROPERTIES PAGE, the same
+            bargain the disk, image, validate and application tabs already
             make. What it replaces was two rows on the generic sheet: 'Command',
             and 'successCodes - 2 entries, a table not a value'.
 
@@ -17,11 +17,11 @@ function Get-HDTConsoleCommandLine {
             codes were worse than absent: shown, and not editable.
 
             TWO FORMS, BECAUSE THE ENGINE HAS TWO. 'command' is a shell line run
-            through %ComSpec% /c, which is MDT's one box and what a new step
-            gets. 'file' plus 'arguments' is a direct exec, with no shell to
-            misread a quote. A document using the second was written that way on
-            purpose, so UsesFile tells the page to show those two boxes instead
-            of rewriting the step into a form nobody asked for.
+            through %ComSpec% /c, and it is what a new step gets. 'file' plus
+            'arguments' is a direct exec, with no shell to misread a quote. A
+            document using the second was written that way on purpose, so
+            UsesFile tells the page to show those two boxes instead of rewriting
+            the step into a form nobody asked for.
 
             THE CODES SHOW THE DEFAULT WHEN THE FILE IS SILENT, and say that
             they are doing it. Invoke-HDTCommandLineStep treats an absent
@@ -64,7 +64,7 @@ function Get-HDTConsoleCommandLine {
               UsesFile              the direct-exec form rather than the shell one
               CommandLine           the shell line, as written
               File, Arguments       the direct-exec pair, as written
-              WorkingDirectory      MDT's "Start in"
+              WorkingDirectory      the directory the command runs in
               SuccessCode           the codes that mean it worked, comma separated
               RebootCode            the codes that mean it wants a restart
               SuccessCodeDeclared   whether the file says so, or this is the default

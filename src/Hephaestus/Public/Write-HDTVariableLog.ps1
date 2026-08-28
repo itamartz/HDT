@@ -5,8 +5,8 @@
             records.
 
         .DESCRIPTION
-            The single biggest debugging pain in MDT is not knowing
-            why HDTComputerName ended up as it did". Export-HDTVariableProvenance
+            Not knowing why HDTComputerName ended up as it did is the single
+            biggest debugging pain a deployment has. Export-HDTVariableProvenance
             answers that from a file; this puts the same answer into the log
             STREAM, one var.resolve record per variable, which is what the report
             renderer and the console's monitoring view read.
@@ -14,9 +14,9 @@
             Records are emitted at Debug, because variable
             resolution there: "Debug adds every variable resolution with its
             provenance and every native command line executed in full - the two
-            things most often needed to explain a deployment that went wrong, and
-            the two things MDT makes hardest to get". A context at the default
-            Info level therefore drops them, which is intended.
+            things most often needed to explain a deployment that went wrong".
+            A context at the default Info level therefore drops them, which is
+            intended.
 
             Each record carries the whole provenance entry under data - name,
             value, source, rule, ruleIndex, file, rawValue, expanded, order - in

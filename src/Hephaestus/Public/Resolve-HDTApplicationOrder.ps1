@@ -29,11 +29,11 @@
             select the rest of the catalog. Selecting the same application twice,
             or two applications that share a dependency, installs each thing once.
 
-            A CYCLE IS AN AUTHORING ERROR AND IT NAMES EVERY MEMBER. MDT hangs on
-            one; the whole claim in DESIGN 8 is that HDT does not. Anything left
-            unemitted when no application has an unsatisfied dependency is, by
-            construction, exactly the applications in cycles - so they are listed
-            in the message rather than summarised as "a cycle was detected".
+            A CYCLE IS AN AUTHORING ERROR AND IT NAMES EVERY MEMBER. Anything
+            left unemitted when no application has an unsatisfied dependency is,
+            by construction, exactly the applications in cycles - so they are
+            listed in the message rather than summarised as "a cycle was
+            detected".
 
             A DEPENDENCY THAT IS NOT IN THE CATALOG names both ends. The usual
             cause is an application that was never imported, and being told only

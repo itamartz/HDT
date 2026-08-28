@@ -4,13 +4,13 @@ function Get-HDTDriverGroup {
             The driver groups a deployment share has.
 
         .DESCRIPTION
-            A DRIVER GROUP IS A FOLDER UNDER Drivers\ - MDT's selection profile,
-            by another name. Nothing could list them until this existed, so the
-            console's Windows PE window asked an administrator to TYPE the group
-            name into a box: a box you can spell wrong, after which
-            Update-HDTBootImage warns that there is nothing at that path and
-            builds an image with no drivers in it. That is a boot image which
-            cannot see the disk, produced by a typo, discovered on a bench.
+            A DRIVER GROUP IS A FOLDER UNDER Drivers\, and this lists them.
+            Nothing could until it existed, so the console's Windows PE window
+            asked an administrator to TYPE the group name into a box: a box you
+            can spell wrong, after which Update-HDTBootImage warns that there is
+            nothing at that path and builds an image with no drivers in it. That
+            is a boot image which cannot see the disk, produced by a typo,
+            discovered on a bench.
 
             IT LISTS FOLDERS, NOT FILES, and that distinction needs
             IFileSystem.GetDirectory rather than a filter over GetChildItem: a

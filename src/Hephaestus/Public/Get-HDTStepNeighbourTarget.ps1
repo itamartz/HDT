@@ -9,9 +9,8 @@
             of a group had a dark button and nowhere to go. Move-HDTStep refused
             the move because "before the group" and "the last step of the group
             above" are both plausible and it would not guess - which was the
-            wrong answer to a real ambiguity. MDT lets an administrator put a
-            step anywhere, and somebody looking at the tree knows which of the
-            two they meant.
+            wrong answer to a real ambiguity. A step may go anywhere in the
+            tree, and somebody looking at it knows which of the two they meant.
 
             THEY NOW MEAN WHAT THE TREE SHOWS. The row moves one place in the
             list a technician can SEE, crossing a group boundary wherever the

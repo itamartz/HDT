@@ -28,9 +28,8 @@
             wrong now rather than later, and it is the mistake somebody makes
             without noticing.
 
-            THE ID IS SUGGESTED FROM THE MEDIA. MDT's import wizard fills the
-            destination folder in from the source; an id is a folder name and
-            the media is already in one, so 'C:\media\WS2025\sources\install.wim'
+            THE ID IS SUGGESTED FROM THE MEDIA. An id is a folder name and the
+            media is already in one, so 'C:\media\WS2025\sources\install.wim'
             offers WS2025 rather than asking somebody to invent a name.
 
         .PARAMETER Workspace

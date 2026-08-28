@@ -5,12 +5,13 @@ function Get-HDTWizardSeed {
             technician types.
 
         .DESCRIPTION
-            MDT PREFILLS ITS PANES FROM CustomSettings.ini AND HDT DID NOT.
-            Every box came up holding whatever the MARKUP said:
-            HDTJoinWorkgroupBox carried Text="WORKGROUP" as a literal and
-            everything else came up empty, so a share whose rules.yaml had
-            already answered a question still showed a blank box asking it
-            again. Only the computer name was seeded, by its own command.
+            EVERY BOX A RULE CAN ANSWER COMES UP ANSWERED. Before this, a box
+            held whatever the MARKUP said: HDTJoinWorkgroupBox carried
+            Text="WORKGROUP" as a literal and everything else came up empty, so
+            a share whose rules.yaml had already answered a question still
+            showed a blank box asking it again. Only the computer name was
+            seeded, by its own command. (MDT prefills its panes from
+            CustomSettings.ini the same way.)
 
             THE REASON IT WAITED IS REAL, NOT AN OVERSIGHT, AND THE OTHER HALF
             OF THE FIX IS IN THE HARVEST. Every value the wizard collects

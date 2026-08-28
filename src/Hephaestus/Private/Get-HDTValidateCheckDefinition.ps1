@@ -5,11 +5,11 @@ function Get-HDTValidateCheckDefinition {
             screen.
 
         .DESCRIPTION
-            THE ONE PLACE A CHECK IS DECLARED. MDT's Validate dialog is a fixed
-            list of checkboxes compiled into Workbench; this is the same list as
-            DATA, so adding one is an entry here rather than a new row of XAML,
-            a new control name, a new handler and a new assertion that they all
-            match.
+            THE ONE PLACE A CHECK IS DECLARED, AND IT IS DATA. The fixed list
+            of checks a Validate step offers is this table, so adding one is an
+            entry here rather than a new row of XAML, a new control name, a new
+            handler and a new assertion that they all match. MDT compiles the
+            same list of checkboxes into Workbench.
 
             ADDING A CHECK IS TWO EDITS: a row here, and the step reading the key
             it names. The window discovers the rest - the Validate page binds an
@@ -21,8 +21,8 @@ function Get-HDTValidateCheckDefinition {
             which is the failure mode the console rule exists to prevent.
 
             KIND IS WHAT THE WINDOW DRAWS. 'Number' is a checkbox and a value
-            box - MDT's shape, where unticking means "do not check this" rather
-            than "check it against nothing". 'Switch' is a checkbox alone.
+            box, where unticking means "do not check this" rather than "check it
+            against nothing". 'Switch' is a checkbox alone.
             'List' is a comma-separated line, because a variable list is short
             and typing one is faster than any grid.
 

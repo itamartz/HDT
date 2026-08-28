@@ -5,11 +5,11 @@
             variable name.
 
         .DESCRIPTION
-            HDT requires that "every variable resolution records which
-            source set it", because "the single biggest debugging pain in MDT is
-            not knowing why HDTComputerName ended up as it did".
+            Every variable resolution records which source set it, and this is
+            what makes that record answerable rather than merely logged. Not
+            knowing why HDTComputerName ended up as it did is the single biggest
+            debugging pain a deployment has, and here it is one query.
 
-            This is what makes that answerable rather than merely logged.
             Provenance survives the Resolve-HDTVariable call and can be queried
             afterwards, one variable at a time, which is how the question is
             actually asked in the field.

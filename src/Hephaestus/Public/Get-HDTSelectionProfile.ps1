@@ -5,13 +5,12 @@ function Get-HDTSelectionProfile {
             folders a boot image, a driver step and standalone media point at.
 
         .DESCRIPTION
-            THIS IS MDT'S SELECTION PROFILE, KEPT. A driver group was one folder,
-            and one folder cannot describe a mixed floor: a share carrying a Dell
-            WinPE pack and an HP WinPE pack needs ONE boot image that sees both,
-            and 'drivers: <folder>' has no way to say so. MDT answered that with a
-            named set of include paths saved once in Control\SelectionProfiles.xml
-            and reused everywhere; this is the same idea in the format the rest of
-            HDT is authored in, at Control\selection-profiles.yaml.
+            A NAMED SET OF INCLUDE PATHS, SAVED ONCE AND REUSED EVERYWHERE. A
+            driver group was one folder, and one folder cannot describe a mixed
+            floor: a share carrying a Dell WinPE pack and an HP WinPE pack needs
+            ONE boot image that sees both, and 'drivers: <folder>' has no way to
+            say so. A profile says so, in the format the rest of HDT is authored
+            in, at Control\selection-profiles.yaml.
 
             IT SPANS THE SHARE, NOT JUST Drivers\, and that is not scope creep.
             DESIGN 13 calls standalone media a content PROJECTION of the share

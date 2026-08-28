@@ -21,13 +21,15 @@
             a diskNumber there is nothing to wipe, so the pair is inert until the
             author has made the destructive decision explicitly.
 
-            IT COMES IN TWO, AS MDT'S OWN SEQUENCE DOES. The Standard Client task
-            sequence carries "Format and Partition Disk (BIOS)" and "(UEFI)",
-            each conditioned on the firmware, because the two disks are laid out
-            differently and one sequence has to deploy to both kinds of machine.
-            Writing one step and leaving the author to add the condition is how
-            a sequence comes to lay a GPT disk out on a BIOS machine - which
-            fails after the image is applied rather than in the first minute.
+            IT COMES IN TWO, ONE PER FIRMWARE. A sequence has to deploy to
+            both kinds of machine and the two disks are laid out differently,
+            so this command emits a UEFI step and a BIOS step, each
+            conditioned on the firmware. Writing one step and leaving the
+            author to add the condition is how a sequence comes to lay a GPT
+            disk out on a BIOS machine - which fails after the image is
+            applied rather than in the first minute. (MDT's Standard Client
+            sequence pairs "Format and Partition Disk (BIOS)" with "(UEFI)"
+            the same way.)
 
             THE CONDITION IS THE ENGINE'S OWN VARIABLE. HDTIsUEFI is gathered
             before any step runs and is what Get-HDTConsoleConditionOption
@@ -36,7 +38,7 @@
 
         .PARAMETER Name
             The step's name. Defaults to the name this type is offered under,
-            with the firmware in brackets as MDT names them.
+            with the firmware in brackets.
 
         .PARAMETER Firmware
             UEFI or BIOS. Decides the layout and the condition, and nothing

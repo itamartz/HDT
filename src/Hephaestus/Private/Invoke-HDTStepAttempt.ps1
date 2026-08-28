@@ -44,10 +44,10 @@ function Invoke-HDTStepAttempt {
             given a minute did not do what the sequence asked.
 
             HDT DOES NOT PREEMPT A SYNCHRONOUS STEP. One that hangs in-process
-            hangs the sequence, exactly as MDT's does. Running steps in a child
-            runspace to make timeouts pre-emptive is a post-v1 idea, and
-            ForEach-Object -Parallel is not available to an engine that must run
-            under Windows PowerShell 5.1.
+            hangs the sequence. Running steps in a child runspace to make
+            timeouts pre-emptive is a post-v1 idea, and ForEach-Object -Parallel
+            is not available to an engine that must run under Windows PowerShell
+            5.1.
 
         .PARAMETER Step
             A flattened step from Import-HDTSequenceDocument. Its Retry and

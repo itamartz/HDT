@@ -4,13 +4,15 @@ function Get-HDTFinishAction {
             Decides what the machine does when the deployment is over.
 
         .DESCRIPTION
-            MDT's FinishAction, as a pure decision.
+            Turns what HDTFinishAction resolved to - restart, shut down, log off
+            or nothing - into the power operation the machine performs when the
+            deployment is over.
 
             A DEPLOYMENT USED TO END ON exit 0 AND STAY WHERE IT WAS. A machine
             that had just finished sat at a desktop, logged in as the local
             Administrator, until somebody walked over to it - which is the
             opposite of what a technician imaging a bench of twenty machines
-            wants, and precisely why MDT has this property.
+            wants.
 
             THE DECISION IS HERE AND THE ACTION IS NOT. Everything about which
             power operation a value means is settled in this function, against

@@ -9,8 +9,8 @@ function Expand-HDTStepPartition {
             BECOMES". The step carries no rows of its own, which is why the
             console's five partition buttons were dark on every sequence the
             standard client template produces - and that is every sequence
-            anybody makes. MDT's Format and Partition Disk grid is editable the
-            moment it opens. This is the command that makes HDT's editable too.
+            anybody makes. This command writes the named layout out as rows the
+            step owns, after which the table is editable the moment it opens.
 
             IT IS ONE DELIBERATE CONVERSION, NOT A SIDE EFFECT OF CLICKING EDIT.
             The console names it in the footer and says what it did, because
@@ -75,9 +75,9 @@ function Expand-HDTStepPartition {
                 -Partition 'Data' -Type Primary -Size 'remainder'
 
             The reason to expand at all: a data volume beside Windows, which is
-            the commonest thing anybody does with MDT's Format and Partition
-            Disk and which a named layout cannot express. Note that Windows must
-            stop claiming the remainder first - two rows cannot both have it.
+            the commonest thing anybody wants from a partition table and which a
+            named layout cannot express. Note that Windows must stop claiming
+            the remainder first - two rows cannot both have it.
     #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     [OutputType([string[]])]

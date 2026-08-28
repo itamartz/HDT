@@ -34,8 +34,7 @@
             THE PASSWORD IS NEVER A FIELD, and that is a rule rather than an
             omission. bootstrap.json can carry a credential and this command can
             see it; a prefilled PasswordBox would put the share password on a
-            screen in a room where somebody is deploying a machine. MDT never
-            prefills it either.
+            screen in a room where somebody is deploying a machine.
 
             BLANK DOMAIN MEANS LOCAL, so a domain that IS the server is shown as
             blank. Get-HDTWizardCredential composes the two back into

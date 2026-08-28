@@ -11,11 +11,11 @@ function Get-HDTDriverCoverage {
             cannot.
 
             IT ASKS THE SHARE, NOT A DATABASE. The group for a model is whatever
-            path a rule builds - 'Win11\%HDTMake%\%HDTModel%' is MDT's Total
-            Control method and the line New-HDTWorkspace seeds - so coverage is
-            decided by expanding that pattern per model and looking. There is no
-            second list of what the share is supposed to contain, because a
-            second list is a thing that goes stale against the first.
+            path a rule builds - 'Win11\%HDTMake%\%HDTModel%' is the line
+            New-HDTWorkspace seeds - so coverage is decided by expanding that
+            pattern per model and looking. There is no second list of what the
+            share is supposed to contain, because a second list is a thing that
+            goes stale against the first.
 
             A GROUP WITH NO .inf FILES IN IT IS NOT COVERAGE. An empty folder is
             the commonest way this goes wrong: somebody made the folder, the

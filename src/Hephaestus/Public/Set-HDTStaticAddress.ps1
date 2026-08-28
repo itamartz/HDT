@@ -4,7 +4,8 @@ function Set-HDTStaticAddress {
             Configures an adapter with a static IPv4 address, through WMI.
 
         .DESCRIPTION
-            W2's static IP pane, behind the glass, and
+            The address, mask, gateway and DNS list an adapter is put on when
+            DHCP is not the answer - W2's static IP pane, behind the glass, and
             MDT's "Configure with Static IP Address" rebuilt.
 
             WMI, NOT NetTCPIP, AND THAT IS NOT A STYLE CHOICE.

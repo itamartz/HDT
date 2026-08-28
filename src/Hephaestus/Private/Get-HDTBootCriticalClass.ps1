@@ -4,7 +4,7 @@ function Get-HDTBootCriticalClass {
             The driver classes a boot image actually needs.
 
         .DESCRIPTION
-            MDT'S "network and mass storage drivers only" TICK BOX, as a list.
+            The driver classes a boot image is filtered down to, as a list.
             WinPE needs exactly two things from a driver store: something that
             can see the disk, and something that can reach the deployment share.
             Everything else - audio, display, Bluetooth, the vendor's fingerprint

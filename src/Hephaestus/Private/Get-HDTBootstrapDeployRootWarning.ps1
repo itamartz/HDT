@@ -9,7 +9,8 @@ function Get-HDTBootstrapDeployRootWarning {
             workspace.yaml carries deployRoot; bootstrap-rules.yaml carries
             HDTDeployRoot per rule and OVERRIDES it, because it is read in WinPE
             before the share is reachable and may match on gateway, MAC or model.
-            That is MDT's Bootstrap.ini and it is the right design.
+            That is the job Bootstrap.ini has always done, and it is the right
+            design.
 
             IT COST AN AFTERNOON. The lab's DHCP lease moved, deployRoot was
             corrected to the new address, the boot image was rebuilt - and every

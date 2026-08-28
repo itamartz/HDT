@@ -4,9 +4,10 @@ function Add-HDTStepPartition {
             Adds a partition to a DiskPartition step's table.
 
         .DESCRIPTION
-            MDT'S "New" ON THE Format and Partition Disk DIALOG. The console may
-            not do anything the cmdlets cannot, so the grid's yellow star is
-            this command and the window is its face.
+            Adds one row to a DiskPartition step's partition table and returns
+            the document's lines with it spliced in. The console may not do
+            anything the cmdlets cannot, so its partition grid's new-row button
+            is this command and the window is its face.
 
             IT APPENDS, BECAUSE ORDER IS THE ON-DISK ORDER, and takes -First for
             the case that matters: an ESP added after Windows is a disk that

@@ -6,10 +6,9 @@
 
         .DESCRIPTION
             On phase end and on failure the log directory is copied
-            to <share>\Logs\<ComputerName>-<RunId>\. "Copy-back happens on failure
-            too - a deployment that dies is exactly when the logs matter, and
-            MDT's habit of stranding them on a wiped machine is a real operational
-            problem."
+            to <share>\Logs\<ComputerName>-<RunId>\. Copy-back happens on failure
+            too - a deployment that dies is exactly when the logs matter, and a
+            machine that is about to be wiped is not a place to leave them.
 
             IT NEVER THROWS. A share that has gone away is the normal case for a
             machine that failed early, and a copy-back that threw would mask the

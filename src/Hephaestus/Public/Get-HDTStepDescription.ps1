@@ -12,8 +12,8 @@
 
             to say something more informative than its name - "Apply
             Win11-24H2-Ent index 3 to the primary volume" rather than "Apply OS".
-            A type that declares none gets '<Type>: <name>', which is what MDT's
-            progress line shows and is never empty.
+            A type that declares none gets '<Type>: <name>', which is never
+            empty.
 
             An unknown type gets the same default, because a description is
             wanted precisely when reporting a step that could not be run.
@@ -33,8 +33,7 @@
             Get-HDTStepDescription -Step $step
 
             The one line the log and the progress display carry for this step. Never
-            empty: a step type that declares no description gets '<Type>: <name>',
-            which is what MDT's progress line shows.
+            empty: a step type that declares no description gets '<Type>: <name>'.
 
         .EXAMPLE
             $registry = @(Get-HDTStepType)

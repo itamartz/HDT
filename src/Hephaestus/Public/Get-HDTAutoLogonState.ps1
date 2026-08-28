@@ -49,9 +49,9 @@
             $state = Get-HDTAutoLogonState -Registry $registry -Lsa $lsa
             $state.RemainingLeg
 
-            How many more automatic logons are left. MDT's AutoLogonCount, and the
-            reason a deployment that dies does not leave a machine logging itself
-            in as Administrator for ever.
+            How many more automatic logons are left, and the reason a deployment
+            that dies does not leave a machine logging itself in as Administrator
+            for ever.
 
     #>
     [CmdletBinding()]

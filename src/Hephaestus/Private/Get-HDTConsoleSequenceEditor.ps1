@@ -5,12 +5,11 @@
             task sequence.
 
         .DESCRIPTION
-            THE EDITOR IS A SEPARATE WINDOW, WHICH IS DEPLOYMENT WORKBENCH'S
-            SHAPE. MDT lists task sequences in the tree and edits their steps in
-            a properties dialog opened from one - step tree on the left,
-            properties on the right, Add/Remove/Up/Down across the top.
-            This console is meant to be "deliberately close to Deployment
-            Workbench so muscle memory transfers".
+            THE EDITOR IS A SEPARATE WINDOW. The console's tree lists task
+            sequences; opening one from there gives it a window of its own -
+            step tree on the left, properties on the right, Add/Remove/Up/Down
+            across the top. That layout is MDT's Deployment Workbench, copied
+            deliberately so muscle memory transfers.
 
             IT IS ALSO WHERE WRITING BELONGS. The browser opens a live
             deployment share and promises to write nothing to it; an editing

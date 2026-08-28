@@ -6,8 +6,7 @@
 
         .DESCRIPTION
             DESIGN 8's detection, and the reason an HDT sequence can be re-run
-            over a machine without reinstalling everything on it - MDT has no
-            first-class detection, so its reruns do.
+            over a machine without reinstalling everything on it.
 
             It runs entirely against injected services, so every rule type is
             provable under Pester with no registry, no disk and no installed

@@ -5,8 +5,8 @@
             reboots they ask for.
 
         .DESCRIPTION
-            MDT's Install Applications, rebuilt on the catalog, the ordering and
-            the detection of 07-01.
+            Installs the applications a deployment selected, on the catalog,
+            the ordering and the detection of 07-01.
 
               - name: Install Applications
                 type: InstallApplications

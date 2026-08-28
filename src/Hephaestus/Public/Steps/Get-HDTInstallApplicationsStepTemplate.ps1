@@ -8,13 +8,14 @@
             type looks like on disk. See Get-HDTNoOpStepTemplate for the shape
             all of them share.
 
-            THE SELECTION ARRIVES AS THE VARIABLE, NOT AS AN EMPTY LIST. MDT's
-            Install Applications defaults to "Install multiple applications"
-            reading its list from a variable, and that is the form that works
+            THE SELECTION ARRIVES AS THE VARIABLE, NOT AS AN EMPTY LIST.
+            Reading the list from '%HDTApplications%' is the form that works
             with a wizard answer or a rule without the author editing the
-            sequence again. An author who wants a fixed list replaces the token
-            with one; an author who leaves it alone gets the behaviour they
-            almost certainly wanted.
+            sequence again. An author who wants a fixed list replaces the
+            token with one; an author who leaves it alone gets the behaviour
+            they almost certainly wanted. (MDT's Install Applications defaults
+            to "Install multiple applications", reading its list from a
+            variable the same way.)
 
             runIn: FullOS is written out because an application installer in
             WinPE is the unusual case, and a step that tried to run one there

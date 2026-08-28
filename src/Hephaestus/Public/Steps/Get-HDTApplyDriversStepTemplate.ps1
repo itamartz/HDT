@@ -4,20 +4,20 @@ function Get-HDTApplyDriversStepTemplate {
             The YAML an ApplyDrivers step starts life as.
 
         .DESCRIPTION
-            THE GROUP LINE IS THE ONE THAT TEACHES THE STEP. MDT's Total Control
-            method is a path with variables in it, and an administrator who has
-            never seen it will not guess that '%HDTMake%' resolves per machine -
-            so the default carries the pattern rather than a placeholder, and the
-            comment beside it says the store is theirs to shape. Nothing in HDT
-            requires a Make\Model tree; that is a convention, and a share can use
-            any folder names at any depth.
+            THE GROUP LINE IS THE ONE THAT TEACHES THE STEP. The group is a
+            path with variables in it, and an administrator who has never seen
+            one will not guess that '%HDTMake%' resolves per machine - so the
+            default carries the pattern rather than a placeholder, and the
+            comment beside it says the store is theirs to shape. Nothing in
+            HDT requires a Make\Model tree; that is a convention - MDT named it
+            Total Control - and a share can use any folder names at any depth.
 
             IT RUNS IN WinPE, AFTER THE IMAGE. Injection is offline into the
             applied volume, so a template that defaulted to FullOS would produce
             a step that cannot work and a technician who cannot see why.
 
         .PARAMETER Name
-            The step name. Defaults to MDT's own wording.
+            The step name. Defaults to 'Inject Drivers'.
 
         .INPUTS
             None. This command does not accept pipeline input.

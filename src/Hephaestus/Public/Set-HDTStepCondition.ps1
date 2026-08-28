@@ -5,19 +5,20 @@
             it away.
 
         .DESCRIPTION
-            THE FILTER MDT PUTS ON THE OPTIONS TAB. Workbench lists conditions
-            under the two checkboxes and a step with none runs every time; HDT
-            carries the same idea as one expression on the step's `condition`
-            key, evaluated by the engine before the step is invoked. This is
-            that control, as a command: every button maps to a
-            cmdlet invocation, and the console shows the invocation.
+            THE FILTER THAT DECIDES WHETHER A STEP RUNS. A step with no
+            condition runs every time; one that has a condition carries it as a
+            single expression on the step's `condition` key, evaluated by the
+            engine before the step is invoked. This is that control, as a
+            command: every button maps to a cmdlet invocation, and the console
+            shows the invocation.
 
-            ONE EXPRESSION, NOT A CLAUSE BUILDER. MDT's dialog composes an
-            if-statement tree out of variable tests, WMI queries and registry
-            reads, and stores it as XML nobody can read in a diff. HDT's
-            condition is a PowerShell expression over the rules' variables,
-            which is the same power in a form an administrator can also grep,
-            and which `rules.yaml` already gave them the vocabulary for.
+            ONE EXPRESSION, NOT A CLAUSE BUILDER. The condition is a PowerShell
+            expression over the rules' variables - the same power as an
+            if-statement tree of variable tests, WMI queries and registry reads,
+            in a form an administrator can also grep, and which `rules.yaml`
+            already gave them the vocabulary for. (MDT's Options tab composes
+            that tree in a dialog and stores it as XML nobody can read in a
+            diff.)
 
             CLEARING IT REMOVES THE LINE RATHER THAN EMPTYING IT. `condition:`
             with nothing after it is a key whose value is null, which reads at a

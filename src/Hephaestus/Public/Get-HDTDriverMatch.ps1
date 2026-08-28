@@ -6,8 +6,8 @@ function Get-HDTDriverMatch {
 
         .DESCRIPTION
             THE PnP FALLBACK, AND ONLY THE FALLBACK. Group match is the primary
-            path and stays MDT's: a rule builds HDTDriverGroup out of make and
-            model, ApplyDrivers injects that folder whole, and nothing here is
+            path: a rule builds HDTDriverGroup out of make and model,
+            ApplyDrivers injects that folder whole, and nothing here is
             consulted. This is what answers when no group matched - the
             unrecognised model that would otherwise deploy with whatever the
             applied image happened to have inbox.

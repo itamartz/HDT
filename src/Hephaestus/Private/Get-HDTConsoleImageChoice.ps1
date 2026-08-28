@@ -4,9 +4,9 @@
             An ApplyImage step's operating system, and the ones the share offers.
 
         .DESCRIPTION
-            MDT'S Install Operating System PAGE, where an administrator PICKS an
-            image out of the share rather than typing its id and finding out at
-            the machine whether they spelled it right.
+            THE OPERATING SYSTEM PAGE, where an administrator PICKS an image out
+            of the share rather than typing its id and finding out at the
+            machine whether they spelled it right.
 
             THE LIST IS THE SHARE'S OWN. Get-HDTConsoleWorkspace already reads
             OperatingSystems\<id>\os.yaml for the browser, so this window cannot

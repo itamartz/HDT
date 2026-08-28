@@ -17,9 +17,8 @@ function Test-HDTRuleMatch {
             keyed on it is simply not for that machine.
 
             A LIST MATCHES ON ANY ELEMENT. HDTDefaultGateway is a list on a
-            multi-NIC machine and MDT's DefaultGateway behaves the same way, so
-            `when: { HDTDefaultGateway: "10.20.30.1" }` fires on a machine whose
-            second adapter carries that gateway.
+            multi-NIC machine, so `when: { HDTDefaultGateway: "10.20.30.1" }`
+            fires on a machine whose second adapter carries that gateway.
 
             THE OPERATOR IS CHOSEN PER PATTERN. -like when the expanded pattern
             contains * or ?, -eq otherwise. Both are case-insensitive. Always

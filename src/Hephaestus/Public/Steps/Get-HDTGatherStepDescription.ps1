@@ -34,7 +34,7 @@
 
             The same line through the dispatcher, which is how the engine asks.
             It finds this function by name; a step type that declares none gets
-            '<Type>: <name>' instead, which is what MDT's progress line shows.
+            '<Type>: <name>' instead.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Step',
         Justification = 'The step contract requires -Step on every step command. A Gather step declares no properties - what to gather is not a choice - so the parameter is bound and unread, which is the contract being honoured rather than an oversight.')]

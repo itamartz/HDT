@@ -20,8 +20,8 @@
             THE .pfx IN THE IMAGE IS THE REAL EXPOSURE, not this file. A private
             key served over PXE is a private key handed to anything that can
             boot; the certificate should be issued for this purpose, scoped to
-            it, and revocable on its own. MDT's and ConfigMgr's equivalents have
-            the same property, and no amount of obfuscation changes it.
+            it, and revocable on its own. No amount of obfuscation on this file
+            changes that.
 
             IT IS NOT DPAPI, for the same reason the share credential is not:
             the value has to be readable inside WinPE on a machine that has

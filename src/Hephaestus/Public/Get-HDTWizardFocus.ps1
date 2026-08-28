@@ -20,10 +20,10 @@ function Get-HDTWizardFocus {
             decides nothing.
 
             THE ORDER IS collect's ORDER. A page already declares the controls
-            it fills, in the order it fills them - MDT's panes read top to
-            bottom and so do these - so the first thing declared is the first
-            thing asked. Nothing new to author, and nothing that can drift out
-            of step with the markup, because it IS the markup's own list.
+            it fills, in the order it fills them, so the first thing declared
+            is the first thing asked. Nothing new to author, and nothing that
+            can drift out of step with the markup, because it IS the markup's
+            own list.
 
             A LIST RATHER THAN ONE NAME, BECAUSE HALF A PAGE MAY BE DISABLED.
             Computer Details offers a domain OR a workgroup and disables

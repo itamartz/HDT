@@ -1,18 +1,23 @@
 ﻿function Get-HDTWizardCredential {
     <#
         .SYNOPSIS
-            Composes MDT's Bootstrap.ini credential quartet and proves it by
-            connecting.
+            Composes the Welcome screen's four credential fields into one
+            account, and proves it by connecting.
 
         .DESCRIPTION
-            W2 of the WPF-first direction. The four
-            fields MDT's Bootstrap.ini carries, and what HDT does with each:
+            W2 of the WPF-first direction. The four fields the Welcome screen
+            collects, and what HDT does with each:
 
               DeployRoot     the share, and therefore THE SERVER
               UserID         the account
               UserDomain     the domain - or, left blank, the SERVER, which is
                              how Windows names a local account
               UserPassword   never prefilled, never logged
+
+            THE NAMES ARE MDT'S, from Bootstrap.ini, and they are kept so a
+            technician migrating reads the same four words on the same screen.
+            HDT's own boot image document is bootstrap.json, and this command
+            reads no file at all - it takes what the screen collected.
 
             WHY UserDomain IS ITS OWN FIELD. HDT collapsed it into the username
             string until now ('LAP-AMMSO01\svc-hdt-deploy'), which is fine for a
@@ -50,13 +55,14 @@
             The share, \\server\share. The server is taken from it.
 
         .PARAMETER UserId
-            MDT's UserID.
+            The account, Bootstrap.ini's UserID.
 
         .PARAMETER UserDomain
-            MDT's UserDomain. Blank means the account is local to the server.
+            Bootstrap.ini's UserDomain. Blank means the account is local to the
+            server.
 
         .PARAMETER Password
-            MDT's UserPassword.
+            The account's password, Bootstrap.ini's UserPassword.
 
         .PARAMETER ContentProvider
             An IContentProvider to validate with. Built from the composed
@@ -75,7 +81,7 @@
             $answer = Get-HDTWizardCredential -DeployRoot '\\LAP-AMMSO01\HDTShare$' `
                 -UserId 'svc' -UserDomain '' -Password $secure
 
-            Composes MDT's Bootstrap.ini credential quartet and proves it by
+            Composes the four fields into one account and proves it by
             connecting. An empty domain means a local account on the server, so
             this composes LAP-AMMSO01\svc.
 

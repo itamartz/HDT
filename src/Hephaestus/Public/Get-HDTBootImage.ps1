@@ -6,10 +6,9 @@
 
         .DESCRIPTION
             A WORKSPACE DECLARES ONE BOOT IMAGE. bootImage is an object in
-            workspace.schema.json rather than an array, the way an MDT deployment
-            share has one LiteTouch image. So this command is not "the share's
-            boot images" - it is what is sitting in Boot\, which is a different
-            question and usually a longer answer.
+            workspace.schema.json rather than an array. So this command is not
+            "the share's boot images" - it is what is sitting in Boot\, which is
+            a different question and usually a longer answer.
 
             RENAMING THE IMAGE IS WHAT MAKES THE DIFFERENCE. Update-HDTBootImage
             writes <name>.wim, <name>.iso and <name>.manifest.json. Change the

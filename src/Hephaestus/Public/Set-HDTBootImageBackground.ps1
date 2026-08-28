@@ -4,12 +4,13 @@
             Names the image WinPE shows behind everything.
 
         .DESCRIPTION
-            MDT'S "custom background bitmap file", and HDT has one for a
-            narrower reason. DESIGN 11.1 solves the bare-prompt problem with the
-            progress window's own full-screen ground rather than with a
-            wallpaper - that is why the toolkit does not NEED one - but the boot
-            image still has a desktop behind that window, and an administrator
-            who wants it branded should not have to hand-edit YAML to get it.
+            NAMES THE WALLPAPER THE BOOT IMAGE CARRIES, and it exists for a
+            narrower reason than it looks. DESIGN 11.1 solves the bare-prompt
+            problem with the progress window's own full-screen ground rather
+            than with a wallpaper - that is why the toolkit does not NEED one -
+            but the boot image still has a desktop behind that window, and an
+            administrator who wants it branded should not have to hand-edit YAML
+            to get it.
 
             WinPE READS ONE FILE AND IT IS A JPEG. The background is
             \Windows\System32\winpe.jpg inside the image; the build copies

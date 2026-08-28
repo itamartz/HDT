@@ -12,11 +12,12 @@
             in a folder named after a computer that never finished being built,
             and the technician had a black screen.
 
-            MDT SHOWS A SUMMARY DIALOG NAMING THE STEP. This is the derivation
-            behind HDT's, and it is the same shape as Get-HDTDeploymentProgress
-            deliberately: DESIGN 11.1's one source of truth is the event stream,
-            so the failure screen reads the same records the progress screen
-            does rather than being handed a second version of the story.
+            SO THIS DERIVES THE SUMMARY THE FAILURE SCREEN SHOWS - the step that
+            failed, where it sat in the sequence, and the sentence it wrote. It
+            is the same shape as Get-HDTDeploymentProgress deliberately: DESIGN
+            11.1's one source of truth is the event stream, so the failure
+            screen reads the same records the progress screen does rather than
+            being handed a second version of the story.
 
             THE REASON IS NOT SUMMARISED. The most useful sentence a technician
             can be shown is the one the step wrote - "disk 0 carries existing

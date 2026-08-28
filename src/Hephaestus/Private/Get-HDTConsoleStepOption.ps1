@@ -5,12 +5,13 @@ function Get-HDTConsoleStepOption {
             checkboxes, and the filter that decides whether it runs.
 
         .DESCRIPTION
-            WORKBENCH'S SECOND TAB. MDT splits a step's dialog into Properties -
+            THE EDITOR'S SECOND TAB. A step's dialog splits into Properties -
             what it does - and Options - whether it does it: "Disable this
             step", "Continue on error", and the conditions beneath them. The
-            split is worth copying because the two halves are read at different
+            split is worth having because the two halves are read at different
             times: Properties when building a sequence, Options when working out
-            why a deployment did something surprising.
+            why a deployment did something surprising. MDT's own step dialog
+            splits the same way.
 
             EVERY ROW IS DECIDED HERE, which is the same rule
             Get-HDTConsoleStepNode follows and for the same reason: the window

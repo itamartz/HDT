@@ -34,9 +34,9 @@
             share is everything the install command line needs beside it - the
             an .msi and its .mst, the setup.exe and its payload directory.
 
-            THE ID IS SUGGESTED FROM THAT FOLDER, as MDT's wizard fills in a
-            destination from a source: an id is a folder name and the payload is
-            already in one.
+            THE ID IS SUGGESTED FROM THAT FOLDER: an id is a folder name and the
+            payload is already in one, so the source path answers the id box as
+            well.
 
         .PARAMETER Workspace
             The share's root.

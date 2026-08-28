@@ -5,20 +5,21 @@
 
         .DESCRIPTION
             DESIGN 11.2'S SKIP MODEL, MADE REAL. The keys existed and nothing
-            read them: HDTSkipWizard appeared only in the MDT name map and in
+            read them: HDTSkipWizard appeared only in the variable name map and
             error text, and HDTSkipTaskSequence, HDTSkipComputerName and
             HDTSkipSummary appeared nowhere in the engine at all. Only the
             Welcome screen was skippable, from bootstrap.json. An administrator
             could be told exactly what to set, set it, and watch the wizard
             appear anyway.
 
-            THE SKIP VARIABLE DECIDES, NOT THE PRESENCE OF A VALUE. That is
-            MDT's behaviour - OSDComputerName being set does not hide the page,
-            SkipComputerName does - and it matters because a prefilled page a
+            THE SKIP VARIABLE DECIDES, NOT THE PRESENCE OF A VALUE. Setting
+            HDTComputerName does not hide the Computer Details page;
+            HDTSkipComputerName does, and it matters because a prefilled page a
             technician CONFIRMS is a real workflow. A page that vanished as soon
             as a rule guessed a name would take that away, and a guessed name is
             precisely the one worth confirming: SPIKES S9.11's machine was named
-            by a rule nobody checked.
+            by a rule nobody checked. (MDT decides the same way, from
+            SkipComputerName.)
 
             A SKIPPED PAGE WHOSE VALUE IS MISSING IS AN ERROR, NOT A PROMPT.
             DESIGN 11.2, in those words. Showing it anyway produces a deployment

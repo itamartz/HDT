@@ -534,11 +534,29 @@ try {
         }
     }
 
+    # AND THE STATE DOCUMENT THE SHARE GETS HAS TO BE THIS LEG'S.
+    #
+    # This leg keeps its state at C:\HDT\state.json, which is right: the boot
+    # reconcile reads it there, and Remove-HDTResumeAgent clears it there. But
+    # the copy-back above ships the LOG DIRECTORY, and the WinPE leg kept its
+    # state inside that directory - so what reached the share was the copy
+    # frozen at the moment of the restart, while every write this leg made went
+    # somewhere the share never sees.
+    #
+    # A deployment that finished Succeeded therefore left a state.json on the
+    # share reading status Running, leg 1, the last step Pending and autologon
+    # still armed, stamped hours before the log beside it. Read on its own -
+    # which is how a state document is read - it describes a machine somebody
+    # has to go and rescue.
+    #
+    # MirrorPath writes the identical bytes to both, so the document in the log
+    # directory stays this leg's and the copy-back ships something true.
     $loopArgument = @{
-        Sequence  = $sequence
-        Context   = $context
-        State     = $state
-        StatePath = $StatePath
+        Sequence        = $sequence
+        Context         = $context
+        State           = $state
+        StatePath       = $StatePath
+        MirrorStatePath = [System.IO.Path]::Combine($logRoot, 'state.json')
     }
     if (-not [string]::IsNullOrWhiteSpace($logDestination)) {
         $loopArgument['LogDestination'] = $logDestination

@@ -5,11 +5,12 @@ function New-HDTWorkspaceShare {
             deploy root that reaches it.
 
         .DESCRIPTION
-            THE HALF MDT'S WIZARD DOES AND HDT'S DID NOT. New Deployment Share
-            asks for a folder and a share name, creates the share, and derives
-            DeployRoot from it. Until this existed the console asked for the UNC
+            IT TAKES A FOLDER AND A SHARE NAME, creates the share, and derives
+            DeployRoot from it - the half of making a deployment share that HDT
+            did not have. Until this existed the console asked for the UNC
             instead - a box somebody typed a path into, naming a share nothing
             had created, which is a boot image that fails at the Welcome screen.
+            (MDT's New Deployment Share wizard asks for the same two things.)
 
             IT CHANGES THE MACHINE, WHICH IS WHY IT IS NOT New-HDTWorkspace.
             Writing a folder of YAML and publishing an SMB share are different
@@ -24,8 +25,8 @@ function New-HDTWorkspaceShare {
             is the whole answer and a share name complaint on top of it is
             noise.
 
-            THE ACL MATTERS MORE HERE THAN IN MDT. Control\share-credential.json
-            is obfuscated rather than encrypted, so read access to this share is
+            THE ACL IS THE WHOLE BOUNDARY. Control\share-credential.json is
+            obfuscated rather than encrypted, so read access to this share is
             the deployment account. -Account grants read to one account and
             nothing else; without it the share is created with no grant at all
             and the administrator sets it, which is the safe default because it

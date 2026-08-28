@@ -4,9 +4,9 @@
             A Validate step's checks, as the editor's Validate page shows them.
 
         .DESCRIPTION
-            MDT'S Validate DIALOG, answered without a window: a fixed list of
-            checks, each ticked or not, each with the value it is checking
-            against.
+            The checks a Validate step can make, answered without a window: a
+            fixed list, each one ticked or not, each with the value it is
+            checking against.
 
             EVERY CHECK IS OFFERED, NOT ONLY THE DECLARED ONES. A page listing
             only what the document already says is a page you cannot add a check

@@ -7,9 +7,9 @@ function Step-HDTWizardPage {
         .DESCRIPTION
             THE NAVIGATOR FOR HDTWizardShell.xaml, and every branch the shell
             has lives here. The shell window opens ONCE and the page inside it
-            is swapped in place - MDT's LiteTouch behaviour, and the reason the
-            rail is a list rather than a TabControl: the order is the
-            deployment's order, and a page becomes reachable by being reached.
+            is swapped in place, which is also why the rail is a list rather
+            than a TabControl: the order is the deployment's order, and a page
+            becomes reachable by being reached.
 
             SO SOMETHING HAS TO DECIDE, ON EVERY CLICK, which page is now
             current, what the rail shows, whether Back is available, what the

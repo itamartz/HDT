@@ -10,12 +10,12 @@
 
             THE CONVENTION BELONGS TO rules.yaml AND NOT TO THIS COMMAND.
             Add-HDTRule's own examples are 'PC-%HDTSerialNumber%' and
-            'LT-%HDTSerialNumber%', which is how an MDT site has always named
-            machines - in the rules, per model, per site, per anything. A wizard
-            that invented a scheme of its own would be a second answer to a
-            question the engine already answers, and the two would disagree the
-            first time somebody edited one of them. So the resolved
-            HDTComputerName wins whenever there is one.
+            'LT-%HDTSerialNumber%', which is how a site names machines - in the
+            rules, per model, per site, per anything. A wizard that invented a
+            scheme of its own would be a second answer to a question the engine
+            already answers, and the two would disagree the first time somebody
+            edited one of them. So the resolved HDTComputerName wins whenever
+            there is one.
 
             THE FALLBACKS ARE FOR A SHARE THAT HAS NOT BEEN SET UP YET, in
             order, and each of them is a suggestion the technician can overtype:
@@ -23,8 +23,8 @@
               Serial   HDTSerialNumber, cut to fifteen characters. It is the
                        thing the rules would most likely have been built from,
                        and on a bench it is printed on the case.
-              Machine  the name this machine already answers to - MDT's
-                       behaviour when rebuilding a named machine - EXCEPT
+              Machine  the name this machine already answers to, which is what
+                       rebuilding a named machine should offer - EXCEPT
                        MINWINPC, which is what WinPE calls itself and means
                        nothing about the hardware.
               None     an empty box. Better than a name nobody chose.

@@ -33,7 +33,7 @@
 
             The same line through the dispatcher, which is how the engine asks.
             It finds this function by name; a step type that declares none gets
-            '<Type>: <name>' instead, which is what MDT's progress line shows.
+            '<Type>: <name>' instead.
     #>
     [CmdletBinding()]
     [OutputType([string])]

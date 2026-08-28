@@ -4,10 +4,9 @@ function Get-HDTSequenceTemplate {
             The task sequence templates a new sequence can be created from.
 
         .DESCRIPTION
-            MDT'S Templates\Client.xml, IN THIS TOOLKIT. Its New Task Sequence
-            wizard asks which template and copies that file into the new
-            sequence's Control folder; this is the same model, and deliberately
-            so - a template is a real sequence.yaml on disk.
+            A TEMPLATE IS A REAL sequence.yaml ON DISK. New-HDTTaskSequence asks
+            which template and copies that file into the new sequence's folder;
+            nothing is generated.
 
             THAT IT IS A FILE IS THE DESIGN, not an implementation detail. It can
             be opened, read, diffed and edited before it is ever used; a shop

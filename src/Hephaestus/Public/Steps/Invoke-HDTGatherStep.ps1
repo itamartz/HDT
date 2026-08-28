@@ -4,10 +4,10 @@
             Re-reads the machine's facts into the sequence's variables.
 
         .DESCRIPTION
-            MDT'S "Gather local only", which is the whole of its Initialization
-            group - and which it runs again in Preinstall and again in State
-            Restore, because the machine a sequence finishes on is not the
-            machine it started on.
+            Reads the machine's own facts - its hardware, its firmware, its
+            SecureBoot state - and writes them back into the sequence's
+            variables part way through a run, because the machine a sequence
+            finishes on is not the machine it started on.
 
             WHY IT IS A STEP AND NOT ONLY ENGINE START-UP. HDT gathers once
             before the sequence begins, and DESIGN 3.2.1 already says the facts

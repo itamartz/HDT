@@ -1,13 +1,12 @@
 ﻿function Get-HDTWizardSkip {
     <#
         .SYNOPSIS
-            Resolves MDT's Skip* properties for the Welcome screen, from the
-            boot image.
+            Which Welcome screen panes this boot image was built to skip, and
+            which it must still ask.
 
         .DESCRIPTION
-            W2 of the WPF-first direction (.planning/WPF-FIRST.md), and MDT's
-            Skip* mechanism under the HDT prefix so an MDT admin recognises it
-            instantly:
+            THE WELCOME SCREEN'S SKIP RULES, one boolean per pane, read from
+            the boot image before any share is reachable:
 
               HDTSkipWelcome     the Welcome screen entirely
               HDTSkipStaticIp    the network pane; DHCP is used
@@ -22,11 +21,18 @@
             cannot read until after the screen it was meant to skip has already
             been shown.
 
-            MDT HAS THE SAME SPLIT FOR THE SAME REASON. SkipBDDWelcome is in
-            Bootstrap.ini, which is inside the boot image; every other Skip*
-            property is in CustomSettings.ini, on the share. The later panes -
-            task sequence, computer name, summary - run after connecting and do
-            resolve through the ordinary rules engine.
+            MDT SPLIT THESE ACROSS TWO FILES, and that split is the reason this
+            command exists apart from the rules engine. SkipBDDWelcome lived in
+            Bootstrap.ini, inside the boot image, because it governs the screen
+            that comes before the share; every other Skip* lived in
+            CustomSettings.ini, on the share, and so could not be read until
+            that screen had already done its job. HDT puts all four in
+            bootstrap.json, and no pane is decided by a file the machine cannot
+            reach yet.
+
+            THE LATER PANES ARE NOT DECIDED HERE. Task sequence, computer name
+            and summary all run after the share is connected, so they resolve
+            through the ordinary rules engine like any other variable.
 
             THE DEFAULT IS SKIPPED, AND IT IS THE MOST IMPORTANT LINE HERE.
             WPF-FIRST: "THE UNATTENDED PATH IS THE DEFAULT, NOT THE EXCEPTION."
@@ -67,8 +73,8 @@
             $bootstrap = Get-HDTBootstrapConfiguration -Path 'X:\HDT\bootstrap.json'
             $skip = Get-HDTWizardSkip -Bootstrap $bootstrap
 
-            What the boot image was built to skip - MDT's SkipWizard family, decided
-            before the share is even reachable.
+            What the boot image was built to skip, decided before the share is
+            even reachable.
 
         .EXAMPLE
             if (-not $skip.Welcome) { @($skip.Pane) }

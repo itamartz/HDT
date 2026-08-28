@@ -8,12 +8,12 @@
             type looks like on disk. See Get-HDTNoOpStepTemplate for the shape
             all of them share.
 
-            THE COMMAND ARRIVES EMPTY AND THAT IS THE POINT. MDT's Run Command
-            Line arrives with an empty command box too: a template that guessed
-            'cmd.exe /c' would be a step that runs and does nothing, which is
-            worse than one that plainly is not finished. successCodes is written
-            out because 0 and 3010 is the pair almost every real step wants and
-            it is the one an author would otherwise have to look up.
+            THE COMMAND ARRIVES EMPTY AND THAT IS THE POINT. A template that
+            guessed 'cmd.exe /c' would be a step that runs and does nothing,
+            which is worse than one that plainly is not finished. successCodes
+            is written out because 0 and 3010 is the pair almost every real
+            step wants and it is the one an author would otherwise have to
+            look up.
 
         .PARAMETER Name
             The step's name. Defaults to the name this type is offered under.

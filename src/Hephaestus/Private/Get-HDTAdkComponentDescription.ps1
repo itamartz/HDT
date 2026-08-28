@@ -11,9 +11,9 @@ function Get-HDTAdkComponentDescription {
             `WinPE-Dot3Svc  1.3 MB` and told an administrator nothing at all
             about what ticking it would do.
 
-            SO HDT SHIPS A TABLE, WHICH IS WHAT MDT DOES. Deployment Workbench's
-            Features tab shows friendly text from a list inside MDT for exactly
-            this reason.
+            SO HDT SHIPS A TABLE. The line beside a component on the Features
+            tab comes from here and from nowhere else - which is the answer
+            MDT's Deployment Workbench reached for the same reason.
 
             THE TEXT IS MICROSOFT'S, CONDENSED TO A LINE. It comes from the
             WinPE Optional Components (OC) Reference, cut down to something that

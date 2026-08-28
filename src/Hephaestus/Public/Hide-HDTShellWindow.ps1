@@ -10,7 +10,7 @@ function Hide-HDTShellWindow {
             deployment. -WindowStyle Hidden on the PowerShell launch does not
             touch it: that hides the POWERSHELL host, not the shell that
             started it. The only way to move it is the Win32 ShowWindow API
-            against the console's own handle, which is what MDT and PSD do.
+            against the console's own handle, which is what this calls.
 
             THE CONSOLE IS RESTORED ON FAILURE, AND THAT IS NOT OPTIONAL. A
             hidden console plus a wizard that then throws leaves a technician

@@ -4,13 +4,14 @@
             Stamps the deployed machine with what built it.
 
         .DESCRIPTION
-            MDT'S ZTITatoo, AND IT EXISTS FOR MDT'S REASON. Six months after a
-            deployment somebody is standing in front of the machine asking which
-            task sequence made it, from which share, and when. The deployment log
-            answers all three - but it is on a share, in a folder named after a
-            computer that may since have been renamed, and the person asking is
-            looking at the machine rather than at the share. So the answer is
-            written onto the machine, once, at the end:
+            WRITES WHAT BUILT THE MACHINE ONTO THE MACHINE, at the end of the
+            deployment. Six months after a deployment somebody is standing in
+            front of the machine asking which task sequence made it, from which
+            share, and when. The deployment log answers all three - but it is on
+            a share, in a folder named after a computer that may since have been
+            renamed, and the person asking is looking at the machine rather than
+            at the share. So the answer is written onto the machine, once, at
+            the end:
 
               - name: Tattoo
                 type: Tattoo
@@ -23,11 +24,11 @@
             step precisely so that the last step can subtract HDTDeploymentStart
             from it.
 
-            HKLM:\SOFTWARE\Hephaestus\Deployment, AND NOT MDT'S KEY. MDT tattoos
-            HKLM\SOFTWARE\Microsoft\Deployment 4; writing there would make HDT
-            claim to be an MDT installation to every inventory query that reads
-            it, and rule 4 says HDT does not depend on MDT in either direction. A
-            machine that has been through both must be readable as both.
+            IT WRITES TO HKLM:\SOFTWARE\Hephaestus\Deployment, AND NOT TO
+            HKLM\SOFTWARE\Microsoft\Deployment 4, which is where MDT stamps its
+            own. Writing there would make HDT claim to be an MDT installation to
+            every inventory query that reads it, and a machine that has been
+            through both must be readable as both.
 
             A VALUE THAT NEVER RESOLVED IS WRITTEN EMPTY, NOT SKIPPED. A key
             missing TaskSequenceVersion reads as "the tattoo did not run"; a

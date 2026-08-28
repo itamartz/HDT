@@ -16,8 +16,8 @@ function New-HDTDriverFolder {
             a PATH, the build hands that path to Add-WindowsDriver, and DISM
             needs it to exist.
 
-            IT CREATES THE WHOLE PATH IN ONE CALL, because MDT's Make\Model is
-            two levels and a vendor's WinPE pack is usually two as well -
+            IT CREATES THE WHOLE PATH IN ONE CALL, because a Make\Model layout
+            is two levels and a vendor's WinPE pack is usually two as well -
             'Dell\Latitude 7450', 'WinPE\HP WinPE 11 x64'. Creating them one at a
             time would be two clicks for one idea.
 

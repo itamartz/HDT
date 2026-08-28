@@ -31,9 +31,9 @@
 
             DETECT IS OPTIONAL, AND THAT IS DESIGN 8, NOT AN OVERSIGHT. An
             app.yaml declaring no detection rule installs every time the step
-            reaches it - which is MDT's behaviour, and the right one for an
-            unconditional installer or a script wrapper whose installed state is
-            not observable. The engine never infers a rule for an app that
+            reaches it, which is the right behaviour for an unconditional
+            installer or a script wrapper whose installed state is not
+            observable. The engine never infers a rule for an app that
             declined to declare one: a guessed rule that reports an app installed
             when it is not silently skips work the sequence asked for, which is
             worse than installing twice.

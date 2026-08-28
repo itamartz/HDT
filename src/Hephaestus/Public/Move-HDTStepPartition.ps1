@@ -4,9 +4,9 @@
             Moves a partition one place up or down a step's table.
 
         .DESCRIPTION
-            THE UP AND DOWN ARROWS ON MDT'S Format and Partition Disk DIALOG,
-            and they are not decoration: the order of the table is the order on
-            the disk. An ESP below Windows is a disk that does not boot.
+            Moves a partition one place up or down its step's table, and that
+            order is not decoration: the order of the table is the order on the
+            disk. An ESP below Windows is a disk that does not boot.
 
             IT MOVES ONE PLACE, NOT TO A POSITION, which is what an arrow beside
             a list means and what composes - pressing it twice moves a row two

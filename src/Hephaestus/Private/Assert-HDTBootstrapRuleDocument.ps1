@@ -37,11 +37,11 @@
             HDTSkipWizard is the TECHNICIAN wizard, which runs at 10a with the
             share connected and rules.yaml readable - so rules.yaml is its home,
             exactly as SkipWizard lives in CustomSettings.ini rather than in
-            Bootstrap.ini. MDT's Bootstrap.ini carries SkipBDDWelcome, which is
-            the WELCOME screen, and HDT's equivalents - HDTSkipWelcome,
-            HDTSkipStaticIp, HDTSkipDeployRoot, HDTSkipCredential - come from
-            bootstrap.json through Get-HDTWizardSkip, because that screen runs
-            before there is anything to resolve a rule against.
+            Bootstrap.ini. The WELCOME screen has skips of its own -
+            HDTSkipWelcome, HDTSkipStaticIp, HDTSkipDeployRoot,
+            HDTSkipCredential - and they come from bootstrap.json through
+            Get-HDTWizardSkip, because that screen runs before there is
+            anything to resolve a rule against.
 
             THE ACCOUNT IS ON THE LIST BECAUSE THE SHARE IS. One boot image
             serving many sites needs an account per site as much as a share per

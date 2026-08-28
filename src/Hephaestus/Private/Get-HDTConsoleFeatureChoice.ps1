@@ -5,8 +5,8 @@
             in a command so the window assigns and branches on nothing.
 
         .DESCRIPTION
-            MDT'S Install Roles and Features DIALOG IS A TICK LIST, and this
-            fills it. What it replaces was a row on the generic sheet reading
+            THE INSTALL ROLES AND FEATURES PAGE IS A TICK LIST, and this fills
+            it. What it replaces was a row on the generic sheet reading
             '0 entries - a table, not a value', read-only: the one key the step
             refuses to run without was the one key the console could not set, so
             the step could not be made runnable from the UI at all.
@@ -14,8 +14,7 @@
             A COMMA LINE WOULD HAVE FIXED REACHABILITY AND NOT SHAPE. A
             technician would still have to know that the IIS role is spelled
             'Web-Server' rather than 'IIS', type it correctly, and find out at
-            the machine if they had not. CLAUDE.md asks for MDT's shape where
-            MDT and a fresh idea disagree, and MDT's shape here is a list of
+            the machine if they had not. The shape this page keeps is a list of
             names you tick.
 
             THE CATALOGUE IS AN OFFER; THE ENGINE IS THE AUTHORITY. The step
@@ -23,8 +22,7 @@
             own feature list first, refusing an unknown name before it installs
             anything. The console is not running on the target and frequently
             runs on a Windows client with no ServerManager module at all - so
-            Get-HDTFeatureCatalog ships a table, exactly as MDT ships one per
-            operating system.
+            Get-HDTFeatureCatalog ships a table, one per operating system.
 
             A NAME THE DOCUMENT HAS AND THE CATALOGUE DOES NOT IS STILL SHOWN,
             TICKED, and marked as unrecognised. That is the bargain the

@@ -77,9 +77,9 @@
             AutoLogonCount backstop stays the third line of defence rather than
             the first.
 
-            TEARDOWN RUNS FROM finally, NOT FROM A STEP. MDT's
-            cleanup is a task sequence step, so a failure before it leaves
-            autologon armed. Here every terminal outcome - success, failure, a
+            TEARDOWN RUNS FROM finally, NOT FROM A STEP. A cleanup that is
+            itself a step is one any earlier failure skips, leaving autologon
+            armed. Here every terminal outcome - success, failure, a
             thrown exception, even a failed checkpoint - runs the autologon
             checklist. The one outcome that does NOT tear down is RebootPending:
             the machine has to stay armed to come back.
@@ -100,10 +100,10 @@
             TIMEOUTS ARE NOT PRE-EMPTIVE. `timeoutMinutes` is passed to the step
             - only CommandLine can enforce it, through IProcessService - and
             measured by the loop afterwards. HDT does not preempt a synchronous
-            step: one that hangs in-process hangs the sequence, exactly as MDT's
-            does. Running steps in a child runspace is a post-v1 idea, and
-            ForEach-Object -Parallel is not available to an engine that must run
-            under Windows PowerShell 5.1.
+            step: one that hangs in-process hangs the sequence. Running steps in
+            a child runspace is a post-v1 idea, and ForEach-Object -Parallel is
+            not available to an engine that must run under Windows PowerShell
+            5.1.
 
         .PARAMETER Sequence
             An Import-HDTSequenceDocument result. Its Step list is already
@@ -901,10 +901,39 @@
                     $Context.Variable.Contains('HDTOSVolume') -and
                     -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTOSVolume'])) {
 
-                    $volumeLogRoot = '{0}\HDT\Logs' -f ([string] $Context.Variable['HDTOSVolume']).TrimEnd('\', '/')
+                    # 'W', 'W:' AND 'W:\' ARE ONE VOLUME, AND THE STEP PUBLISHES
+                    # THE FIRST OF THEM. Invoke-HDTDiskPartitionStep sets
+                    # HDTOSVolume to the bare letter, and a bare letter composed
+                    # straight into a path gives 'W\HDT\Logs' - which is
+                    # RELATIVE. It resolves against the current directory, on the
+                    # RAM disk, so the copy meant to outlive the restart died
+                    # with it. Seen on a real machine, whose log line read
+                    #   the log was copied to 'W\HDT\Logs\MININT-EF6QJGH-...'
+                    # Set-HDTLogPath and Copy-HDTResumeAgent normalise for this
+                    # reason; this was the one place that did not.
+                    $volume = ([string] $Context.Variable['HDTOSVolume']).Trim().TrimEnd('\', '/')
+                    if ($volume -notmatch ':$') {
+                        $volume = '{0}:' -f $volume.TrimEnd(':')
+                    }
+
+                    # Get-HDTLogPath owns where logs live on a volume, and this
+                    # branch runs in WinPE only.
+                    $volumeLogRoot = Get-HDTLogPath -Phase WinPE -TargetVolume $volume
+
+                    # NAMED FOR THE MACHINE BEING DEPLOYED. Copy-HDTLog defaults
+                    # to this process's own name, which in WinPE is MININT-xxxxxxx,
+                    # so the disk's copy and the share's copy - which is named
+                    # from %HDTComputerName% - carried two different names for
+                    # one deployment.
+                    $copyArgument = @{ Context = $log; Destination = $volumeLogRoot }
+                    if ($Context.Variable.Contains('HDTComputerName') -and
+                        -not [string]::IsNullOrWhiteSpace([string] $Context.Variable['HDTComputerName'])) {
+
+                        $copyArgument['ComputerName'] = [string] $Context.Variable['HDTComputerName']
+                    }
 
                     try {
-                        $onDisk = Copy-HDTLog -Context $log -Destination $volumeLogRoot
+                        $onDisk = Copy-HDTLog @copyArgument
 
                         Write-HDTLog -Context $log -Component 'Restart' `
                             -Message ("the log was copied to '{0}', which survives the restart" -f $onDisk) `

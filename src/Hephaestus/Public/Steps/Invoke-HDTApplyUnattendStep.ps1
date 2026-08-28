@@ -22,8 +22,7 @@
             THE PASSWORD HAS ONE SOURCE: the HDTAdminPassword variable, resolved
             through DESIGN 3.1's precedence like any other. DESIGN 4.5.2 settles
             it - "the administrator sets the password; HDT does not invent one" -
-            and the workspace-wide default is the fallback rule of rules.yaml,
-            which is MDT's [Default] section exactly.
+            and the workspace-wide default is the fallback rule of rules.yaml.
 
             NOTHING SUPPLYING IT FAILS THE STEP, and both alternatives are worse.
             Leaving the token unresolved deploys a machine whose local

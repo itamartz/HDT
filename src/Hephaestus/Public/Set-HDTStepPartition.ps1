@@ -4,10 +4,10 @@ function Set-HDTStepPartition {
             Rewrites one row of a DiskPartition step's table.
 
         .DESCRIPTION
-            MDT'S "Edit" ON THE Format and Partition Disk DIALOG - the last of
-            the five buttons on it, and the one that cannot be built out of the
-            others: Delete and Add again would move the row to the bottom of the
-            table, which is a change to the disk rather than to the volume.
+            REWRITES ONE VOLUME WHERE IT STANDS, and it is the one table edit
+            that cannot be built out of the others: Delete and Add again would
+            move the row to the bottom of the table, which is a change to the
+            disk rather than to the volume.
 
             IT WRITES THE WHOLE ROW, not the keys that were named. That is what
             the dialog does - every field is on screen and OK writes all of them

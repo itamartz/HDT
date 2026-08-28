@@ -8,9 +8,8 @@
             The variable engine: five sources in precedence order,
             first-match-wins rule evaluation, %Var% expansion, and
             setFrom: script rules - with a provenance record for every resolved
-            variable, which is the whole point ("the single biggest
-            debugging pain in MDT is not knowing why HDTComputerName ended up as
-            it did").
+            variable, which is the whole point ("the single biggest debugging
+            pain is not knowing why HDTComputerName ended up as it did").
 
             THE SOURCES, IN ORDER. Each is applied in turn and nothing overwrites
             a variable an earlier source already resolved:

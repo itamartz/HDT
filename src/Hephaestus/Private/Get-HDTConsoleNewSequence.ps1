@@ -5,10 +5,11 @@ function Get-HDTConsoleNewSequence {
             settings it writes.
 
         .DESCRIPTION
-            MDT'S New Task Sequence WIZARD, answered without a window. It asks
+            THE NEW TASK SEQUENCE WIZARD, answered without a window. It asks
             seven pages of questions and writes one file; what it asks is the
             interesting part, and it is decided here so the window can show rows
-            and run a command without deciding anything.
+            and run a command without deciding anything. (MDT's wizard of the
+            same name is where the seven pages come from.)
 
             THE LISTS ARE THE SHARE'S AND THE TOOLKIT'S OWN - the templates this
             module ships and the images this workspace holds, through the same

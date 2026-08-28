@@ -4,10 +4,11 @@
             Reads the per-machine variable override for a UUID, if one exists.
 
         .DESCRIPTION
-            Source 2 of five: Control\machines\<UUID>.yaml, "the MDT-database
-            equivalent, but file-based; a SQL or REST provider can be plugged in
-            later behind the same interface". This is that provider's file
-            implementation.
+            Source 2 of five: Control\machines\<UUID>.yaml, one document per
+            machine keyed by its UUID. It is a per-machine database that is
+            file-based - a SQL or REST provider can be plugged in later behind
+            the same interface - and this is that provider's file
+            implementation. (It is what an MDT database was for.)
 
             NO FILE IS THE NORMAL CASE. Most machines have no override, so an
             absent file returns $null rather than throwing, and an empty -Uuid
@@ -15,11 +16,10 @@
             asks before it necessarily knows the UUID.
 
             A file that EXISTS but is wrong is a different matter and fails fast,
-            naming the file. An override that silently does nothing
-            is precisely the MDT-database debugging problem HDT exists to end, so
-            an unknown key, a variable outside the HDT namespace or an attempt to
-            assign an engine-owned _HDT* variable are all refused rather than
-            ignored.
+            naming the file. An override that silently does nothing is the kind
+            of thing nobody can debug at a bench, so an unknown key, a variable
+            outside the HDT namespace or an attempt to assign an engine-owned
+            _HDT* variable are all refused rather than ignored.
 
             The file is read through the injected IFileSystem, never Get-Content,
             so the whole path is provable with no share and no disk (PROJECT

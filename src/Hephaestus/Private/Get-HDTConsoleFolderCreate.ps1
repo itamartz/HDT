@@ -19,10 +19,11 @@ function Get-HDTConsoleFolderCreate {
             afterwards, in a tree that then has to be edited to undo it.
 
             A FOLDER ORGANISES THE WINDOW AND NOTHING ELSE. Nothing moves on
-            disk, and a deployment does not know folders exist - which is what
-            the hint says, in the space its neighbours use, because an MDT admin
-            has every reason to assume the opposite. MDT's folders are real
-            directories under the share; these are a key in workspace.yaml.
+            disk, and a deployment does not know folders exist - a folder is a
+            key in workspace.yaml, not a directory. The hint says so, in the
+            space its neighbours use, because an administrator who met MDT's
+            folders as real directories under the share has every reason to
+            assume the opposite.
 
             WHITESPACE IS NOT A PARENT. The dialog trims what is typed, but a
             parent read off a row can still be blank, and 'Clients\ ' is not a

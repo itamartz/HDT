@@ -7,7 +7,7 @@ function New-HDTBootImageManifest {
             THE ANSWER TO BOOT IMAGE DRIFT: the build is deterministic
             and repeatable, and records a manifest of exactly what went in.
             Boot image drift - where nobody remembers what's in the WIM - is a
-            real MDT operational problem.
+            real operational problem on any deployment share.
 
             It is written to <workspace>\Boot\<name>.manifest.json LAST, after
             both artifacts exist, so a manifest that is there describes a build

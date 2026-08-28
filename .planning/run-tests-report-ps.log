@@ -1,0 +1,557 @@
+
+===== DriverFolderRename.Tests.ps1 (alone) =====
+[95m
+[95mStarting discovery in 1 files.[0m
+[95mDiscovery found 13 tests in 4.39s.[0m
+[95mRunning tests.[0m
+What if: Performing the operation "Rename to 'Dell WinPE', and rewrite every profile and disabled driver naming it (1 driver(s))" on target "C:\HDTLab\Share\Drivers\WinPE\Dell".
+[32m[+] C:\Users\Itamartz\Documents\GithubRepos\HDT\tests\unit\DriverFolderRename.Tests.ps1[0m[90m 27.04s (9.61s|13.22s)[0m
+[97mTests completed in 28.46s[0m
+[32mTests Passed: 13, [0m[90mFailed: 0, [0m[90mSkipped: 0, [0m[90mInconclusive: 0, [0m[37m[0m[90mNotRun: 0[0m
+RESULT DriverFolderRename.Tests.ps1 (alone): Passed=13 Failed=0 Skipped=0 Total=13
+
+===== Full tests/unit =====
+[95m
+[95mStarting discovery in 355 files.[0m
+[95mDiscovery found 7985 tests in 152.92s.[0m
+[95mRunning tests.[0m
+[32m[+] Add-HDTResolvedVariable.Tests.ps1[0m[90m 5.37s (3.99s|594ms)[0m
+What if: Performing the operation "Install the Windows ADK 10.1.26100.2454 and the Windows PE add-on" on target "C:\HDTPayload\ADK".
+[32m[+] AdkInstall.Tests.ps1[0m[90m 4.65s (1.43s|738ms)[0m
+[32m[+] Assert-HDTApplicationDocument.Tests.ps1[0m[90m 3.34s (2.28s|574ms)[0m
+[32m[+] Assert-HDTOperatingSystemDocument.Tests.ps1[0m[90m 3.49s (2.34s|891ms)[0m
+[32m[+] Assert-HDTRuleDocument.Tests.ps1[0m[90m 18.99s (17.69s|1.1s)[0m
+[32m[+] Assert-HDTSequenceDocument.Tests.ps1[0m[90m 6.04s (4.55s|1.05s)[0m
+[32m[+] Assert-HDTWizardDocument.Tests.ps1[0m[90m 4.38s (3.13s|1s)[0m
+[32m[+] Assert-HDTWorkspaceDocument.Tests.ps1[0m[90m 5.94s (4.35s|1.21s)[0m
+What if: Performing the operation "Trust this certificate authority in the boot image" on target "Certs\contoso-root.cer".
+[32m[+] BootImageCertificate.Tests.ps1[0m[90m 7.79s (6.58s|979ms)[0m
+[32m[+] BootImageDriverPath.Tests.ps1[0m[90m 2.39s (1.73s|500ms)[0m
+[32m[+] BootImageInventory.Tests.ps1[0m[90m 7.09s (5.78s|1.17s)[0m
+[32m[+] BootstrapDeployRootWarning.Tests.ps1[0m[90m 1.39s (873ms|417ms)[0m
+[32m[+] BootstrapRule.Tests.ps1[0m[90m 3.66s (2.6s|760ms)[0m
+[32m[+] BuildScript.Tests.ps1[0m[90m 5.14s (3.88s|921ms)[0m
+[32m[+] CiWorkflow.Tests.ps1[0m[90m 4.46s (1.94s|548ms)[0m
+What if: Performing the operation "Clear autologon" on target "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon".
+[32m[+] Clear-HDTAutoLogon.Tests.ps1[0m[90m 8.86s (7.68s|970ms)[0m
+[32m[+] ConsoleApplication.Tests.ps1[0m[90m 7.1s (5.39s|703ms)[0m
+[32m[+] ConsoleBootImage.Tests.ps1[0m[90m 4.56s (2.37s|1.13s)[0m
+[32m[+] ConsoleBootImageEdit.Tests.ps1[0m[90m 4.57s (3.25s|499ms)[0m
+[32m[+] ConsoleBootImageSaveCommand.Tests.ps1[0m[90m 4.19s (2.63s|506ms)[0m
+[32m[+] ConsoleBootImageView.Tests.ps1[0m[90m 9.31s (8.22s|368ms)[0m
+[32m[+] ConsoleBuildBusy.Tests.ps1[0m[90m 1.33s (851ms|303ms)[0m
+[32m[+] ConsoleBuildFailure.Tests.ps1[0m[90m 3.98s (1.93s|523ms)[0m
+[32m[+] ConsoleBuildLogPath.Tests.ps1[0m[90m 1.42s (982ms|347ms)[0m
+[32m[+] ConsoleBuildProgress.Tests.ps1[0m[90m 3.89s (2.4s|553ms)[0m
+[32m[+] ConsoleButtonPress.Tests.ps1[0m[90m 6.37s (5.06s|437ms)[0m
+[32m[+] ConsoleCategoryIcon.Tests.ps1[0m[90m 1.6s (489ms|363ms)[0m
+[32m[+] ConsoleCommandLine.Tests.ps1[0m[90m 4.49s (3.16s|515ms)[0m
+[32m[+] ConsoleComponentWrite.Tests.ps1[0m[90m 3.27s (2.12s|420ms)[0m
+[32m[+] ConsoleDependencyChoice.Tests.ps1[0m[90m 1.68s (350ms|496ms)[0m
+[32m[+] ConsoleDetectionForm.Tests.ps1[0m[90m 2.11s (649ms|609ms)[0m
+[32m[+] ConsoleDriverGrid.Tests.ps1[0m[90m 2.02s (1.41s|413ms)[0m
+[32m[+] ConsoleDriverSaveState.Tests.ps1[0m[90m 3.37s (2.2s|427ms)[0m
+[32m[+] ConsoleDriverView.Tests.ps1[0m[90m 5.95s (4.13s|651ms)[0m
+[32m[+] ConsoleEditorClose.Tests.ps1[0m[90m 1.56s (305ms|405ms)[0m
+[32m[+] ConsoleEditorRefresh.Tests.ps1[0m[90m 2.68s (1.16s|404ms)[0m
+[32m[+] ConsoleEditorRename.Tests.ps1[0m[90m 5.68s (4.68s|320ms)[0m
+[32m[+] ConsoleEditorState.Tests.ps1[0m[90m 7.28s (5.66s|777ms)[0m
+[32m[+] ConsoleEditorView.Tests.ps1[0m[90m 5.08s (3.91s|349ms)[0m
+[32m[+] ConsoleEditorWindow.Tests.ps1[0m[90m 11.8s (9.47s|1.28s)[0m
+[32m[+] ConsoleFeatureChoice.Tests.ps1[0m[90m 7.72s (6.19s|660ms)[0m
+[32m[+] ConsoleFolderAction.Tests.ps1[0m[90m 1.96s (404ms|545ms)[0m
+[32m[+] ConsoleFolderCreate.Tests.ps1[0m[90m 2.88s (1.65s|388ms)[0m
+[32m[+] ConsoleFolderMove.Tests.ps1[0m[90m 4.11s (2.17s|425ms)[0m
+[32m[+] ConsoleFolderNode.Tests.ps1[0m[90m 2.74s (1.48s|1.06s)[0m
+[32m[+] ConsoleGridReader.Tests.ps1[0m[90m 6.7s (5.65s|548ms)[0m
+[32m[+] ConsoleImageWrite.Tests.ps1[0m[90m 4.1s (2.54s|685ms)[0m
+[32m[+] ConsoleLineChange.Tests.ps1[0m[90m 4.24s (2.7s|581ms)[0m
+[32m[+] ConsoleLog.Tests.ps1[0m[90m 4.89s (3.28s|894ms)[0m
+[32m[+] ConsoleLogValue.Tests.ps1[0m[90m 1.84s (864ms|819ms)[0m
+[32m[+] ConsoleMonitor.Tests.ps1[0m[90m 2.77s (1.14s|755ms)[0m
+[32m[+] ConsoleMonitorHealth.Tests.ps1[0m[90m 2.29s (545ms|841ms)[0m
+[32m[+] ConsoleMonitorHeartbeat.Tests.ps1[0m[90m 1.58s (340ms|382ms)[0m
+[32m[+] ConsoleMonitorNode.Tests.ps1[0m[90m 4.77s (3.44s|521ms)[0m
+[32m[+] ConsoleMonitorRefresh.Tests.ps1[0m[90m 2.3s (934ms|332ms)[0m
+[32m[+] ConsoleMonitorReport.Tests.ps1[0m[90m 1.59s (257ms|431ms)[0m
+[32m[+] ConsoleNewWorkspaceMessage.Tests.ps1[0m[90m 3.67s (2.36s|423ms)[0m
+[32m[+] ConsoleOpenAction.Tests.ps1[0m[90m 3.54s (1.82s|1s)[0m
+[32m[+] ConsolePendingNode.Tests.ps1[0m[90m 2.63s (648ms|1.92s)[0m
+[32m[+] ConsoleProfileFolder.Tests.ps1[0m[90m 1.09s (709ms|306ms)[0m
+[32m[+] ConsoleRememberedShare.Tests.ps1[0m[90m 1.49s (254ms|247ms)[0m
+[32m[+] ConsoleRemoval.Tests.ps1[0m[90m 3.05s (1.76s|529ms)[0m
+[32m[+] ConsoleRoundTrip.Tests.ps1[0m[90m 9.92s (8.69s|422ms)[0m
+[32m[+] ConsoleRowCommit.Tests.ps1[0m[90m 2.52s (1.45s|364ms)[0m
+[32m[+] ConsoleRowDocument.Tests.ps1[0m[90m 3.07s (1.78s|381ms)[0m
+[32m[+] ConsoleRuleSetting.Tests.ps1[0m[90m 1.3s (310ms|299ms)[0m
+[32m[+] ConsoleSelectionProfile.Tests.ps1[0m[90m 2.44s (1.71s|457ms)[0m
+[32m[+] ConsoleSelectionProfileTick.Tests.ps1[0m[90m 1.12s (693ms|302ms)[0m
+[32m[+] ConsoleSelectionProfileView.Tests.ps1[0m[90m 3.94s (2.77s|479ms)[0m
+[32m[+] ConsoleSequenceEditor.Tests.ps1[0m[90m 8.12s (6.5s|672ms)[0m
+[32m[+] ConsoleSequenceSave.Tests.ps1[0m[90m 2.43s (1.35s|314ms)[0m
+[32m[+] ConsoleSetting.Tests.ps1[0m[90m 3.51s (2.06s|490ms)[0m
+[32m[+] ConsoleShareDetail.Tests.ps1[0m[90m 1.54s (539ms|293ms)[0m
+[32m[+] ConsoleStepAdd.Tests.ps1[0m[90m 1.96s (1.5s|281ms)[0m
+[32m[+] ConsoleStepBlock.Tests.ps1[0m[90m 2.2s (1.72s|283ms)[0m
+[32m[+] ConsoleStepCatalog.Tests.ps1[0m[90m 4.75s (3.47s|411ms)[0m
+[32m[+] ConsoleStepEdit.Tests.ps1[0m[90m 2.13s (724ms|339ms)[0m
+[32m[+] ConsoleStepFieldKind.Tests.ps1[0m[90m 4.03s (2.87s|390ms)[0m
+What if: Performing the operation "Set disabled to true" on target "Apply OS".
+What if: Performing the operation "Set the condition to $true" on target "Prepare Boot".
+[32m[+] ConsoleStepFlag.Tests.ps1[0m[90m 1.47s (924ms|371ms)[0m
+[32m[+] ConsoleStepMoveNeighbour.Tests.ps1[0m[90m 1.42s (1.04s|252ms)[0m
+[32m[+] ConsoleStepMoveTarget.Tests.ps1[0m[90m 1.64s (991ms|382ms)[0m
+[32m[+] ConsoleStepOccurrence.Tests.ps1[0m[90m 1.16s (649ms|257ms)[0m
+What if: Performing the operation "Set index to 9" on target "Apply OS".
+[32m[+] ConsoleStepProperty.Tests.ps1[0m[90m 2.81s (1.52s|462ms)[0m
+[32m[+] ConsoleTreeExpansion.Tests.ps1[0m[90m 1.64s (541ms|243ms)[0m
+[32m[+] ConsoleTreeMenu.Tests.ps1[0m[90m 1.01s (602ms|283ms)[0m
+[32m[+] ConsoleTreeMenuWiring.Tests.ps1[0m[90m 2.14s (1.04s|229ms)[0m
+[32m[+] ConsoleTreeNode.Tests.ps1[0m[90m 7.02s (5.09s|1.02s)[0m
+[32m[+] ConsoleValidation.Tests.ps1[0m[90m 1.85s (884ms|221ms)[0m
+[32m[+] ConsoleView.Tests.ps1[0m[90m 3.16s (2.19s|248ms)[0m
+[32m[+] ConsoleWindow.Tests.ps1[0m[90m 8.1s (5.98s|1.01s)[0m
+[32m[+] ConsoleWindowIcon.Tests.ps1[0m[90m 803ms (495ms|205ms)[0m
+[32m[+] ConsoleWorkspace.Tests.ps1[0m[90m 6.8s (5.18s|374ms)[0m
+[32m[+] ConvertFrom-HDTDismProgressLine.Tests.ps1[0m[90m 1.45s (1.01s|307ms)[0m
+[32m[+] ConvertFrom-HDTStepCondition.Tests.ps1[0m[90m 1.08s (653ms|281ms)[0m
+[32m[+] ConvertFrom-HDTThumbnailImage.Tests.ps1[0m[90m 1.02s (741ms|183ms)[0m
+[32m[+] ConvertFrom-HDTYaml.Tests.ps1[0m[90m 2.55s (2.19s|223ms)[0m
+[32m[+] ConvertTo-HDTCmTraceLine.Tests.ps1[0m[90m 1.09s (771ms|202ms)[0m
+[32m[+] ConvertTo-HDTComparableString.Tests.ps1[0m[90m 960ms (722ms|166ms)[0m
+[32m[+] ConvertTo-HDTDiskLayout.Tests.ps1[0m[90m 1.84s (1.12s|481ms)[0m
+[32m[+] ConvertTo-HDTHtmlText.Tests.ps1[0m[90m 775ms (487ms|180ms)[0m
+[32m[+] ConvertTo-HDTIcaclsRight.Tests.ps1[0m[90m 805ms (529ms|177ms)[0m
+[32m[+] ConvertTo-HDTReport.Tests.ps1[0m[90m 3.21s (2.38s|517ms)[0m
+[32m[+] Copy-HDTContentTree.Tests.ps1[0m[90m 1.14s (791ms|236ms)[0m
+[32m[+] Copy-HDTLog.Tests.ps1[0m[90m 2.21s (1.9s|214ms)[0m
+What if: Performing the operation "Stage the engine and the resume payload from 'X:\HDT'" on target "W:\HDT".
+[32m[+] Copy-HDTResumeAgent.Tests.ps1[0m[90m 2.09s (1.08s|745ms)[0m
+[32m[+] DiskServiceErrorAction.Tests.ps1[0m[90m 549ms (253ms|170ms)[0m
+What if: Performing the operation "Disable this driver" on target "WinPE\HP\net.inf".
+[32m[+] DriverCatalog.Tests.ps1[0m[90m 1.89s (1.31s|332ms)[0m
+[32m[+] DriverCoverage.Tests.ps1[0m[90m 879ms (570ms|197ms)[0m
+[32m[+] DriverDateFormat.Tests.ps1[0m[90m 873ms (556ms|195ms)[0m
+What if: Performing the operation "Rename to 'Dell WinPE', and rewrite every profile and disabled driver naming it (1 driver(s))" on target "C:\HDTLab\Share\Drivers\WinPE\Dell".
+[32m[+] DriverFolderRename.Tests.ps1[0m[90m 968ms (636ms|228ms)[0m
+What if: Performing the operation "Create this driver folder" on target "C:\HDTLab\Share\Drivers\WinPE".
+What if: Performing the operation "Remove this driver folder and the 1 driver(s) in it" on target "C:\HDTLab\Share\Drivers\WinPE".
+What if: Performing the operation "Create this driver folder" on target "C:\HDTLab\Share\Drivers\Dell".
+What if: Performing the operation "Copy 2 driver(s) from 'D:\packs\dell'" on target "C:\HDTLab\Share\Drivers\Dell".
+[32m[+] DriverImport.Tests.ps1[0m[90m 1.79s (1.22s|340ms)[0m
+[32m[+] DriverInf.Tests.ps1[0m[90m 1.2s (724ms|333ms)[0m
+[32m[+] DriverInjection.Tests.ps1[0m[90m 1.06s (667ms|258ms)[0m
+[32m[+] DriverMatch.Tests.ps1[0m[90m 1.11s (685ms|302ms)[0m
+[32m[+] DriverSource.Tests.ps1[0m[90m 1.05s (700ms|243ms)[0m
+[32m[+] Expand-HDTRuleExpression.Tests.ps1[0m[90m 1.21s (774ms|330ms)[0m
+[32m[+] Expand-HDTVariableToken.Tests.ps1[0m[90m 2.71s (2.12s|397ms)[0m
+What if: Performing the operation "Write machine facts" on target "X:\HDT\Logs\Gather\facts.json".
+[32m[+] Export-HDTMachineFact.Tests.ps1[0m[90m 2.32s (2.01s|194ms)[0m
+[32m[+] Export-HDTVariableProvenance.Tests.ps1[0m[90m 2.23s (1.96s|192ms)[0m
+[32m[+] FakeJournal.Tests.ps1[0m[90m 4.43s (2.65s|1.29s)[0m
+[32m[+] Format-HDTProgressLine.Tests.ps1[0m[90m 1.44s (313ms|365ms)[0m
+[32m[+] GatherAndResolve.EndToEnd.Tests.ps1[0m[90m 1.4s (928ms|325ms)[0m
+[32m[+] Get-HDTAdkComponent.Tests.ps1[0m[90m 3.81s (3.3s|353ms)[0m
+[32m[+] Get-HDTAdkComponentDescription.Tests.ps1[0m[90m 1.3s (899ms|278ms)[0m
+[32m[+] Get-HDTAdkPath.Tests.ps1[0m[90m 9.43s (8.58s|455ms)[0m
+[32m[+] Get-HDTApplication.Tests.ps1[0m[90m 2.23s (1.6s|450ms)[0m
+[32m[+] Get-HDTAutoLogonArtifact.Tests.ps1[0m[90m 987ms (679ms|221ms)[0m
+[32m[+] Get-HDTAutoLogonState.Tests.ps1[0m[90m 1.86s (1.51s|256ms)[0m
+WARNING: The WinPE component 'WinPE-FMAPI' has no en-us language pack in 'C:\Adk\WinPE_OCs'. The component will be applied without one.
+[32m[+] Get-HDTBootImageComponent.Tests.ps1[0m[90m 3.49s (2.92s|408ms)[0m
+WARNING: -NoPromptForKey has no effect on a BIOS boot: etfsboot.com carries the 'Press any key' prompt in its boot sector and Microsoft ships no no-prompt variant. This ISO will 
+prompt when booted on BIOS firmware.
+WARNING: -NoPromptForKey has no effect on a BIOS boot: etfsboot.com carries the 'Press any key' prompt in its boot sector and Microsoft ships no no-prompt variant. This ISO will 
+prompt when booted on BIOS firmware - on the BIOS leg only; the UEFI leg will not prompt.
+[32m[+] Get-HDTBootIsoArgument.Tests.ps1[0m[90m 1.51s (850ms|473ms)[0m
+[32m[+] Get-HDTBootstrapConfiguration.Tests.ps1[0m[90m 3.28s (2.29s|772ms)[0m
+[32m[+] Get-HDTBrandingName.Tests.ps1[0m[90m 1.01s (45ms|175ms)[0m
+[32m[+] Get-HDTCommandPromptPath.Tests.ps1[0m[90m 1.04s (483ms|462ms)[0m
+[32m[+] Get-HDTConsoleApplicationChoice.Tests.ps1[0m[90m 2.01s (503ms|352ms)[0m
+[32m[+] Get-HDTConsoleApplicationEdit.Tests.ps1[0m[90m 1.26s (721ms|360ms)[0m
+[32m[+] Get-HDTConsoleConditionOption.Tests.ps1[0m[90m 1.62s (289ms|289ms)[0m
+[32m[+] Get-HDTConsoleImageChoice.Tests.ps1[0m[90m 6.96s (4.94s|500ms)[0m
+[32m[+] Get-HDTConsoleMonitorRefresh.Tests.ps1[0m[90m 2.86s (1.29s|681ms)[0m
+[32m[+] Get-HDTConsoleNewSequence.Tests.ps1[0m[90m 1.84s (761ms|329ms)[0m
+[32m[+] Get-HDTConsolePartitionRow.Tests.ps1[0m[90m 3.66s (2.26s|560ms)[0m
+[32m[+] Get-HDTConsoleRuleHelp.Tests.ps1[0m[90m 1.41s (398ms|267ms)[0m
+[32m[+] Get-HDTConsoleValidateCheck.Tests.ps1[0m[90m 1.48s (352ms|242ms)[0m
+[32m[+] Get-HDTDeploymentFailure.Tests.ps1[0m[90m 1.72s (976ms|468ms)[0m
+[32m[+] Get-HDTDeploymentProgress.Tests.ps1[0m[90m 1.95s (641ms|413ms)[0m
+[32m[+] Get-HDTDiskLayout.Tests.ps1[0m[90m 2.59s (1.94s|456ms)[0m
+[32m[+] Get-HDTDriverGroup.Tests.ps1[0m[90m 944ms (679ms|177ms)[0m
+[32m[+] Get-HDTFailureClass.Tests.ps1[0m[90m 1.83s (1.14s|421ms)[0m
+[32m[+] Get-HDTFinishAction.Tests.ps1[0m[90m 1.1s (585ms|369ms)[0m
+[32m[+] Get-HDTHandlerCall.Tests.ps1[0m[90m 1.21s (937ms|181ms)[0m
+[32m[+] Get-HDTLogDestination.Tests.ps1[0m[90m 850ms (443ms|261ms)[0m
+[32m[+] Get-HDTLogPath.Tests.ps1[0m[90m 2.18s (1.86s|225ms)[0m
+[32m[+] Get-HDTLogRecord.Tests.ps1[0m[90m 1.36s (1.07s|187ms)[0m
+[32m[+] Get-HDTMachineFact.Tests.ps1[0m[90m 6.87s (5.87s|672ms)[0m
+[32m[+] Get-HDTMachineOverride.Tests.ps1[0m[90m 2.87s (2.49s|247ms)[0m
+[32m[+] Get-HDTMdtDependency.Tests.ps1[0m[90m 1.51s (1.05s|272ms)[0m
+[32m[+] Get-HDTModuleVersion.Tests.ps1[0m[90m 2.79s (2.49s|183ms)[0m
+[32m[+] Get-HDTNetworkConfiguration.Tests.ps1[0m[90m 2.02s (1.35s|476ms)[0m
+[32m[+] Get-HDTOperatingSystem.Tests.ps1[0m[90m 3.85s (3.14s|513ms)[0m
+[32m[+] Get-HDTPowerCommand.Tests.ps1[0m[90m 1.96s (1.33s|479ms)[0m
+[32m[+] Get-HDTPowerShellPath.Tests.ps1[0m[90m 927ms (561ms|265ms)[0m
+[32m[+] Get-HDTRunLogRecord.Tests.ps1[0m[90m 942ms (683ms|182ms)[0m
+[32m[+] Get-HDTScriptCompatibilityViolation.Tests.ps1[0m[90m 2.57s (1.79s|592ms)[0m
+[32m[+] Get-HDTShardFailureReason.Tests.ps1[0m[90m 1.12s (666ms|347ms)[0m
+[32m[+] Get-HDTSlowSuiteSkipViolation.Tests.ps1[0m[90m 1.65s (1.15s|342ms)[0m
+[32m[+] Get-HDTSourceFile.Tests.ps1[0m[90m 1.98s (1.18s|649ms)[0m
+[32m[+] Get-HDTSourceFunction.Tests.ps1[0m[90m 1.18s (804ms|239ms)[0m
+[32m[+] Get-HDTStartnetScript.Tests.ps1[0m[90m 1.74s (1.04s|429ms)[0m
+[32m[+] Get-HDTStepLogName.Tests.ps1[0m[90m 961ms (614ms|244ms)[0m
+[32m[+] Get-HDTStepProperty.Tests.ps1[0m[90m 1.39s (923ms|327ms)[0m
+[32m[+] Get-HDTStepTemplate.Tests.ps1[0m[90m 5.52s (4.96s|386ms)[0m
+[32m[+] Get-HDTStepType.Tests.ps1[0m[90m 3.99s (3.54s|309ms)[0m
+[32m[+] Get-HDTStringTable.Tests.ps1[0m[90m 5.74s (4.17s|393ms)[0m
+[32m[+] Get-HDTUsableAddress.Tests.ps1[0m[90m 2.23s (1.63s|398ms)[0m
+[32m[+] Get-HDTVariableMap.Tests.ps1[0m[90m 6.83s (5.95s|723ms)[0m
+[32m[+] Get-HDTVariableProvenance.Tests.ps1[0m[90m 8.3s (6.91s|1.28s)[0m
+[32m[+] Get-HDTWizardApplication.Tests.ps1[0m[90m 4.32s (3.69s|416ms)[0m
+[32m[+] Get-HDTWizardComputerName.Tests.ps1[0m[90m 1.41s (784ms|397ms)[0m
+[32m[+] Get-HDTWizardCredential.Tests.ps1[0m[90m 1.54s (923ms|370ms)[0m
+[32m[+] Get-HDTWizardField.Tests.ps1[0m[90m 1.63s (1.03s|401ms)[0m
+[32m[+] Get-HDTWizardFocus.Tests.ps1[0m[90m 873ms (505ms|252ms)[0m
+[32m[+] Get-HDTWizardHarvest.Tests.ps1[0m[90m 1.11s (708ms|287ms)[0m
+[32m[+] Get-HDTWizardPage.Tests.ps1[0m[90m 1.7s (938ms|527ms)[0m
+[32m[+] Get-HDTWizardSeed.Tests.ps1[0m[90m 1.29s (747ms|361ms)[0m
+[32m[+] Get-HDTWizardSelection.Tests.ps1[0m[90m 797ms (475ms|239ms)[0m
+[32m[+] Get-HDTWizardSequence.Tests.ps1[0m[90m 1.94s (1.46s|327ms)[0m
+[32m[+] Get-HDTWizardSkip.Tests.ps1[0m[90m 1.35s (752ms|437ms)[0m
+[32m[+] Get-HDTWizardSummary.Tests.ps1[0m[90m 1.71s (849ms|537ms)[0m
+[32m[+] Get-HDTWorkerCount.Tests.ps1[0m[90m 1.28s (683ms|402ms)[0m
+[32m[+] Get-HDTWorkspacePath.Tests.ps1[0m[90m 7.85s (7.35s|309ms)[0m
+[32m[+] HarnessSelfCheck.Tests.ps1[0m[90m 84.43s (81.45s|361ms)[0m
+[32m[+] HDTTestShard.Tests.ps1[0m[90m 19.81s (19.42s|278ms)[0m
+[32m[+] Imaging.EndToEnd.Tests.ps1[0m[90m 3.87s (3.22s|444ms)[0m
+What if: Performing the operation "Import application '7Zip-24.09'" on target "C:\HDTLab\does-not-exist\Share\Applications\7Zip-24.09\app.yaml".
+[32m[+] Import-HDTApplication.Tests.ps1[0m[90m 3.39s (2.51s|527ms)[0m
+What if: Performing the operation "Import boot image 'HDTPE_x64' (x64)" on target "C:\HDTLab\Share\Boot\HDTPE_x64.wim".
+[32m[+] Import-HDTBootImageToWds.Tests.ps1[0m[90m 1.69s (1.12s|361ms)[0m
+What if: Performing the operation "Import operating system 'Win11-LTSC-2024'" on target "C:\HDTLab\does-not-exist\Share\OperatingSystems\Win11-LTSC-2024\os.yaml".
+What if: Performing the operation "Import operating system 'Win11-LTSC-2024'" on target "C:\HDTLab\does-not-exist\Share\OperatingSystems\Win11-LTSC-2024\os.yaml".
+[32m[+] Import-HDTOperatingSystem.Tests.ps1[0m[90m 3.81s (3.22s|398ms)[0m
+[32m[+] Import-HDTRuleDocument.Tests.ps1[0m[90m 3.12s (2.77s|224ms)[0m
+[32m[+] Import-HDTRunState.Tests.ps1[0m[90m 3.32s (2.92s|265ms)[0m
+[32m[+] Import-HDTSequenceDocument.Tests.ps1[0m[90m 5.24s (4.52s|478ms)[0m
+[32m[+] Import-HDTWizardDocument.Tests.ps1[0m[90m 1.97s (1.53s|300ms)[0m
+[32m[+] Import-HDTWorkspaceDocument.Tests.ps1[0m[90m 1.8s (1.17s|382ms)[0m
+[32m[+] InstallCertificateStep.Tests.ps1[0m[90m 1.73s (671ms|260ms)[0m
+[32m[+] Invoke-HDTApplyDriversStep.Tests.ps1[0m[90m 3.32s (2.75s|326ms)[0m
+[32m[+] Invoke-HDTApplyImageStep.Tests.ps1[0m[90m 7.15s (6.18s|513ms)[0m
+[32m[+] Invoke-HDTApplyUnattendStep.Tests.ps1[0m[90m 3.83s (2.84s|670ms)[0m
+[32m[+] Invoke-HDTBootReconciliation.Tests.ps1[0m[90m 4.39s (3.75s|463ms)[0m
+[32m[+] Invoke-HDTCommandLineStep.Tests.ps1[0m[90m 2.2s (1.62s|328ms)[0m
+[32m[+] Invoke-HDTConfigureBootStep.Tests.ps1[0m[90m 2.45s (1.81s|376ms)[0m
+What if: Performing the operation "Clear and repartition" on target "disk 0 (Virtual HD, 64 GB)".
+What if: Performing the operation "Clear and repartition" on target "disk 0 (Virtual HD, 64 GB)".
+What if: Performing the operation "Clear and repartition" on target "disk 0 (Virtual HD, 64 GB)".
+[32m[+] Invoke-HDTDiskPartitionStep.Tests.ps1[0m[90m 5.88s (4.82s|592ms)[0m
+[32m[+] Invoke-HDTEnableBitLockerStep.Tests.ps1[0m[90m 2.31s (1.73s|381ms)[0m
+[32m[+] Invoke-HDTGatherStep.Tests.ps1[0m[90m 1.82s (1.5s|200ms)[0m
+[32m[+] Invoke-HDTInstallApplicationsStep.Tests.ps1[0m[90m 5.03s (4.36s|420ms)[0m
+[32m[+] Invoke-HDTInstallRolesStep.Tests.ps1[0m[90m 2.01s (1.4s|339ms)[0m
+[32m[+] Invoke-HDTNoOpStep.Tests.ps1[0m[90m 1.34s (970ms|206ms)[0m
+[32m[+] Invoke-HDTPowerShellStep.Tests.ps1[0m[90m 1.61s (1.19s|288ms)[0m
+[32m[+] Invoke-HDTRestartStep.Tests.ps1[0m[90m 1.19s (863ms|198ms)[0m
+[32m[+] Invoke-HDTSetVariableStep.Tests.ps1[0m[90m 1.6s (1.1s|287ms)[0m
+[32m[+] Invoke-HDTStep.Tests.ps1[0m[90m 12.96s (12.25s|445ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Disabled.Tests.ps1[0m[90m 1.64s (1.28s|260ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Failure.Tests.ps1[0m[90m 8.9s (8.31s|404ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Identity.Tests.ps1[0m[90m 2.25s (1.96s|205ms)[0m
+[32m[+] Invoke-HDTTaskSequence.LogRelocation.Tests.ps1[0m[90m 5.06s (4.51s|385ms)[0m
+What if: Performing the operation "Run 3 task sequence step(s)" on target "FLAT".
+[32m[+] Invoke-HDTTaskSequence.Ordering.Tests.ps1[0m[90m 18.14s (17.34s|542ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Reboot.Tests.ps1[0m[90m 11.52s (10.81s|482ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Reenter.Tests.ps1[0m[90m 3.69s (3.28s|251ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Resume.Tests.ps1[0m[90m 5.03s (4.47s|366ms)[0m
+[32m[+] Invoke-HDTTaskSequence.ResumeAgent.Tests.ps1[0m[90m 3.01s (2.48s|357ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Retry.Tests.ps1[0m[90m 7.18s (6.63s|345ms)[0m
+[32m[+] Invoke-HDTTaskSequence.Teardown.Tests.ps1[0m[90m 7.07s (6.5s|378ms)[0m
+[32m[+] Invoke-HDTTattooStep.Tests.ps1[0m[90m 2.06s (1.37s|432ms)[0m
+[32m[+] Invoke-HDTValidateStep.Tests.ps1[0m[90m 2.88s (2.09s|501ms)[0m
+[32m[+] Merge-HDTPesterSummary.Tests.ps1[0m[90m 1.27s (749ms|282ms)[0m
+[32m[+] Module.Loader.Tests.ps1[0m[90m 7.45s (6.42s|927ms)[0m
+[32m[+] Module.Manifest.Tests.ps1[0m[90m 1.68s (1.34s|219ms)[0m
+[32m[+] ModuleBundle.Tests.ps1[0m[90m 2.6s (2.1s|326ms)[0m
+What if: Performing the operation "Set ModuleVersion to 0.2.1 (file contents changed)" on target "C:\Users\Itamartz\AppData\Local\Temp\d11ce675-b1bb-48ff-ae5e-61c71da776f4\Hephaestus18\Hephaestus.psd1".
+[32m[+] ModuleVersion.Tests.ps1[0m[90m 3.53s (2.27s|972ms)[0m
+What if: Performing the operation "Clear this run off the Monitoring node" on target "C:\HDTLab\Share\Logs\_active\run-20260827-191455.json".
+[32m[+] MonitorRunRemoval.Tests.ps1[0m[90m 4.94s (3.23s|690ms)[0m
+[32m[+] NativeCommandStderr.Tests.ps1[0m[90m 29.5s (23.55s|5.84s)[0m
+[32m[+] New-HDTApplicationName.Tests.ps1[0m[90m 2.7s (1.93s|531ms)[0m
+[32m[+] New-HDTBadgeFile.Tests.ps1[0m[90m 1.89s (1.13s|579ms)[0m
+[32m[+] New-HDTBootImageManifest.Tests.ps1[0m[90m 1.73s (1.03s|427ms)[0m
+What if: Performing the operation "Build a UEFI boot ISO from C:\HDTLab\scratch\bootimage\work\media" on target "C:\HDTLab\scratch\bootimage\Share\Boot\HDTPE_x64.iso".
+[32m[+] New-HDTBootIso.Tests.ps1[0m[90m 8.3s (7.71s|377ms)[0m
+[32m[+] New-HDTBuildProgress.Tests.ps1[0m[90m 14.11s (13.8s|211ms)[0m
+[32m[+] New-HDTContentProvider.Tests.ps1[0m[90m 2.88s (2.54s|233ms)[0m
+[32m[+] New-HDTDiskLayoutPlan.Tests.ps1[0m[90m 3.76s (3.1s|463ms)[0m
+[32m[+] New-HDTErrorRecord.Tests.ps1[0m[90m 3.24s (2.81s|279ms)[0m
+[32m[+] New-HDTExecutionContext.Tests.ps1[0m[90m 4.43s (3.68s|629ms)[0m
+[32m[+] New-HDTFakeBootImageService.Tests.ps1[0m[90m 1.25s (555ms|424ms)[0m
+[32m[+] New-HDTFakeCimProvider.Tests.ps1[0m[90m 1.66s (1.04s|365ms)[0m
+[32m[+] New-HDTFakeClock.Tests.ps1[0m[90m 877ms (231ms|286ms)[0m
+[32m[+] New-HDTFakeContentProvider.Tests.ps1[0m[90m 1.19s (373ms|465ms)[0m
+[32m[+] New-HDTFakeDiskService.Tests.ps1[0m[90m 10.73s (1.86s|654ms)[0m
+[32m[+] New-HDTFakeEnvironmentProvider.Tests.ps1[0m[90m 459ms (130ms|194ms)[0m
+[32m[+] New-HDTFakeFileSystem.Tests.ps1[0m[90m 1.08s (447ms|401ms)[0m
+[32m[+] New-HDTFakeImageService.Tests.ps1[0m[90m 1.41s (575ms|430ms)[0m
+[32m[+] New-HDTFakeLsaService.Tests.ps1[0m[90m 668ms (206ms|234ms)[0m
+[32m[+] New-HDTFakePowerService.Tests.ps1[0m[90m 480ms (121ms|196ms)[0m
+[32m[+] New-HDTFakeProcessService.Tests.ps1[0m[90m 665ms (229ms|258ms)[0m
+[32m[+] New-HDTFakeRegistryService.Tests.ps1[0m[90m 1.28s (543ms|466ms)[0m
+[32m[+] New-HDTFakeScriptInvoker.Tests.ps1[0m[90m 817ms (328ms|345ms)[0m
+[32m[+] New-HDTFakeSmbService.Tests.ps1[0m[90m 945ms (374ms|384ms)[0m
+[32m[+] New-HDTFakeWdsService.Tests.ps1[0m[90m 920ms (301ms|419ms)[0m
+[32m[+] New-HDTLabScratchDisk.Tests.ps1[0m[90m 1.34s (809ms|300ms)[0m
+What if: Performing the operation "Create a Generation 2 VM on the 'HDT External' switch" on target "HDT-Smb-Probe".
+[32m[+] New-HDTLabVirtualMachine.Tests.ps1[0m[90m 3.82s (2.79s|579ms)[0m
+[32m[+] New-HDTLocalContentProvider.Tests.ps1[0m[90m 3.29s (2.62s|407ms)[0m
+[32m[+] New-HDTLogContext.Tests.ps1[0m[90m 2.96s (2.53s|283ms)[0m
+[32m[+] New-HDTPesterConfiguration.Tests.ps1[0m[90m 1.33s (834ms|311ms)[0m
+[32m[+] New-HDTPowerService.Tests.ps1[0m[90m 1.68s (926ms|301ms)[0m
+WARNING: The PXE payload is incomplete: 'Boot\x64\BCD' is declared required and its source 'C:\Kits\Assessment and Deployment Kit\Windows Preinstallation 
+Environment\amd64\Media\Boot\BCD' is not there. The payload was staged without it.
+WARNING: The PXE payload is incomplete: 'Boot\x64\BCD' is declared required and its source 'C:\Kits\Assessment and Deployment Kit\Windows Preinstallation 
+Environment\amd64\Media\Boot\BCD' is not there. The payload was staged without it.
+WARNING: The PXE payload is incomplete: 'Boot\x64\BCD' is declared required and its source 'C:\Kits\Assessment and Deployment Kit\Windows Preinstallation 
+Environment\amd64\Media\Boot\BCD' is not there. The payload was staged without it.
+What if: Performing the operation "Stage the HDTPE_x64 PXE payload (8 declared row(s))" on target "C:\HDTLab\pxe".
+[32m[+] New-HDTPxePayload.Tests.ps1[0m[90m 2.43s (1.65s|491ms)[0m
+[32m[+] New-HDTRunState.Tests.ps1[0m[90m 3.18s (2.68s|308ms)[0m
+[32m[+] New-HDTSequenceTestHarness.Tests.ps1[0m[90m 3.34s (2.69s|452ms)[0m
+[32m[+] New-HDTServiceCatalog.Tests.ps1[0m[90m 3.34s (2.88s|291ms)[0m
+[32m[+] New-HDTSmbContentProvider.Tests.ps1[0m[90m 6.77s (5.78s|592ms)[0m
+[32m[+] New-HDTStepResult.Tests.ps1[0m[90m 2.78s (2.32s|248ms)[0m
+What if: Performing the operation "Create deployment share 'HDT-LAB' - 12 folders, workspace.yaml and rules.yaml" on target "C:\HDTLab\does-not-exist\NewShare".
+What if: Performing the operation "Create deployment share 'HDT-LAB' - 12 folders, workspace.yaml and rules.yaml" on target "C:\HDTLab\does-not-exist\NewShare".
+What if: Performing the operation "Create deployment share 'HDT-LAB' - 12 folders, workspace.yaml and rules.yaml" on target "C:\HDTLab\does-not-exist\NewShare".
+[32m[+] New-HDTWorkspace.Tests.ps1[0m[90m 8.91s (7.26s|610ms)[0m
+[32m[+] OperatingSystemEdit.Tests.ps1[0m[90m 1.57s (1.22s|239ms)[0m
+[32m[+] PresentDevice.Tests.ps1[0m[90m 1.06s (734ms|203ms)[0m
+[32m[+] PublishWorkflow.Tests.ps1[0m[90m 4.93s (785ms|305ms)[0m
+What if: Performing the operation "Remove application '7Zip-24.09' and everything in its folder. It is installed by: DEMO-M4. It is required by: Contoso-Suite" on target "C:\ws\Applications\7Zip-24.09".
+What if: Performing the operation "Remove application '7Zip-24.09' and everything in its folder. It is installed by: DEMO-M4. It is required by: Contoso-Suite" on target "C:\ws\Applications\7Zip-24.09".
+[32m[+] Remove-HDTApplication.Tests.ps1[0m[90m 1.74s (1.03s|377ms)[0m
+What if: Performing the operation "Remove operating system 'Win11-LTSC-2024' and everything in its folder. It is named by: DEMO-M4" on target "C:\ws\OperatingSystems\Win11-LTSC-2024".
+[32m[+] Remove-HDTOperatingSystem.Tests.ps1[0m[90m 1.41s (791ms|302ms)[0m
+What if: Performing the operation "Keep the logs and remove the staged resume agent" on target "C:\HDT".
+[32m[+] Remove-HDTResumeAgent.Tests.ps1[0m[90m 1.26s (671ms|294ms)[0m
+What if: Performing the operation "Remove task sequence 'WIN11' and everything in its folder" on target "C:\ws\TaskSequences\WIN11".
+[32m[+] Remove-HDTTaskSequence.Tests.ps1[0m[90m 1.03s (649ms|264ms)[0m
+[32m[+] Resolve-HDTApplicationOrder.Tests.ps1[0m[90m 1.22s (695ms|317ms)[0m
+[32m[+] Resolve-HDTBundleLine.Tests.ps1[0m[90m 5.42s (5s|261ms)[0m
+[32m[+] Resolve-HDTDeployRoot.Tests.ps1[0m[90m 3.21s (2.64s|367ms)[0m
+[32m[+] Resolve-HDTDiskLayoutName.Tests.ps1[0m[90m 1.53s (713ms|636ms)[0m
+[32m[+] Resolve-HDTErrorMessage.Tests.ps1[0m[90m 960ms (597ms|214ms)[0m
+[32m[+] Resolve-HDTImageIndex.Tests.ps1[0m[90m 3.19s (2.5s|411ms)[0m
+[32m[+] Resolve-HDTVariable.Tests.ps1[0m[90m 4.73s (3.87s|543ms)[0m
+[32m[+] ResolveWizardSource.Tests.ps1[0m[90m 1.26s (506ms|563ms)[0m
+What if: Performing the operation "Add to the rules" on target "Spare".
+What if: Performing the operation "Add to the rules" on target "Spare".
+What if: Performing the operation "Change the rule" on target "Fallback".
+What if: Performing the operation "Change the rule" on target "Fallback".
+What if: Performing the operation "Remove from the rules" on target "Scripted name".
+What if: Performing the operation "Remove from the rules" on target "Scripted name".
+What if: Performing the operation "Write the rules" on target "C:\ws\rules.yaml".
+What if: Performing the operation "Write the rules" on target "C:\ws\rules.yaml".
+[32m[+] RuleEdit.Tests.ps1[0m[90m 7.62s (6.35s|853ms)[0m
+[32m[+] SampleApplication.Tests.ps1[0m[90m 1.16s (856ms|210ms)[0m
+What if: Performing the operation "Write run state" on target "X:\HDT\state.json".
+[32m[+] Save-HDTRunState.Tests.ps1[0m[90m 2.51s (2.21s|219ms)[0m
+[32m[+] Select-HDTTargetDisk.Tests.ps1[0m[90m 4.07s (3s|722ms)[0m
+[32m[+] SelectionProfile.Tests.ps1[0m[90m 2.27s (1.66s|294ms)[0m
+What if: Performing the operation "Remove this selection profile" on target "boot-critical".
+[32m[+] SelectionProfileEdit.Tests.ps1[0m[90m 2.17s (1.52s|371ms)[0m
+[32m[+] SequenceDisabledStep.Tests.ps1[0m[90m 1.04s (720ms|194ms)[0m
+[32m[+] SequenceFolder.Tests.ps1[0m[90m 1.25s (912ms|232ms)[0m
+What if: Performing the operation "Create task sequence 'WIN11' from the client template" on target "C:\ws\TaskSequences\WIN11\sequence.yaml".
+What if: Performing the operation "Write the WinPE answer file template" on target "C:\ws\Unattend-PE.xml".
+[32m[+] SequenceTemplate.Tests.ps1[0m[90m 10.49s (6.31s|617ms)[0m
+What if: Performing the operation "Set Name on application '7Zip-24.09'" on target "C:\HDTLab\does-not-exist\Share\Applications\7Zip-24.09\app.yaml".
+[32m[+] Set-HDTApplication.Tests.ps1[0m[90m 2.45s (1.69s|514ms)[0m
+What if: Performing the operation "Arm autologon for Administrator for 3 leg(s)" on target "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon".
+What if: Performing the operation "Arm autologon for Administrator for 3 leg(s)" on target "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon".
+[32m[+] Set-HDTAutoLogon.Tests.ps1[0m[90m 6.1s (5.21s|588ms)[0m
+[32m[+] Set-HDTLogPath.Tests.ps1[0m[90m 4.53s (3.91s|439ms)[0m
+[32m[+] Set-HDTSequenceVariable.Tests.ps1[0m[90m 1.81s (1.35s|283ms)[0m
+What if: Performing the operation "Write the deployment credential for 'CONTOSO\svc-hdt-deploy'" on target "C:\HDTLab\does-not-exist\Share\Control\share-credential.json".
+[32m[+] Set-HDTShareCredential.Tests.ps1[0m[90m 4.44s (3.91s|376ms)[0m
+What if: Performing the operation "set static address 192.168.2.50/255.255.255.0" on target "Microsoft Hyper-V Network Adapter (index 3)".
+[32m[+] Set-HDTStaticAddress.Tests.ps1[0m[90m 2.25s (1.6s|472ms)[0m
+What if: Performing the operation "Set the name to 'Not this'" on target "sequence.yaml".
+[32m[+] Set-HDTTaskSequenceProperty.Tests.ps1[0m[90m 2.38s (1.92s|323ms)[0m
+[32m[+] Set-HDTWindowText.Tests.ps1[0m[90m 1.05s (125ms|174ms)[0m
+[32m[+] Show-HDTDeploymentFailure.Tests.ps1[0m[90m 1.46s (1.03s|291ms)[0m
+[32m[+] Show-HDTWizard.Tests.ps1[0m[90m 2.53s (1.8s|532ms)[0m
+[32m[+] Show-HDTWizardShell.Tests.ps1[0m[90m 3.81s (3.02s|564ms)[0m
+[32m[+] ShowSequenceEditorInput.Tests.ps1[0m[90m 14.35s (14.01s|239ms)[0m
+[32m[+] Split-HDTAccountName.Tests.ps1[0m[90m 1.42s (949ms|353ms)[0m
+[32m[+] Split-HDTTestBucket.Tests.ps1[0m[90m 1.54s (921ms|323ms)[0m
+[32m[+] Start-HDTBootStatus.Tests.ps1[0m[90m 1.97s (1.17s|396ms)[0m
+[32m[+] Start-HDTCommandPrompt.Tests.ps1[0m[90m 1.17s (661ms|304ms)[0m
+[32m[+] Start-HDTConsole.Tests.ps1[0m[90m 1.17s (620ms|273ms)[0m
+[32m[+] Start-HDTProgressDisplay.Tests.ps1[0m[90m 1.69s (963ms|463ms)[0m
+[32m[+] Start-HDTWizardDeployment.Tests.ps1[0m[90m 1.11s (668ms|265ms)[0m
+[32m[+] StartHDTDeploymentPayload.Tests.ps1[0m[90m 12.43s (11.28s|692ms)[0m
+[32m[+] StartHDTLabDeploymentPayload.Tests.ps1[0m[90m 2.65s (2.1s|334ms)[0m
+[32m[+] StartHDTResumePayload.Tests.ps1[0m[90m 6.29s (4.93s|743ms)[0m
+[32m[+] Step-HDTWizardPage.Tests.ps1[0m[90m 1.68s (359ms|381ms)[0m
+What if: Performing the operation "Add partition 'Data'" on target "Format and Partition".
+What if: Performing the operation "Edit partition 'System'" on target "Format and Partition".
+[32m[+] StepPartitionEdit.Tests.ps1[0m[90m 3.06s (2.37s|319ms)[0m
+What if: Performing the operation "Write layout 'uefi-standard' out as this step's own partition table" on target "Format and Partition".
+[32m[+] StepPartitionExpand.Tests.ps1[0m[90m 1.5s (380ms|254ms)[0m
+[32m[+] StepPropertyDefinition.Tests.ps1[0m[90m 3.88s (2.36s|375ms)[0m
+[32m[+] StepPropertyList.Tests.ps1[0m[90m 5.33s (4.59s|515ms)[0m
+[32m[+] TaskSequence.EndToEnd.Tests.ps1[0m[90m 5.69s (4.73s|640ms)[0m
+[32m[+] Test-HDTApplicationDetection.Tests.ps1[0m[90m 1.55s (818ms|427ms)[0m
+[32m[+] Test-HDTComputerName.Tests.ps1[0m[90m 1.57s (800ms|545ms)[0m
+[32m[+] Test-HDTConsoleImportApplication.Tests.ps1[0m[90m 2.3s (223ms|316ms)[0m
+[32m[+] Test-HDTConsoleImportOperatingSystem.Tests.ps1[0m[90m 1.7s (201ms|236ms)[0m
+[32m[+] Test-HDTConsoleNewWorkspace.Tests.ps1[0m[90m 1.71s (268ms|369ms)[0m
+[32m[+] Test-HDTFunctionName.Tests.ps1[0m[90m 2.94s (2.38s|349ms)[0m
+[32m[+] Test-HDTModuleAvailable.Tests.ps1[0m[90m 1.44s (1.1s|241ms)[0m
+[32m[+] Test-HDTRuleMatch.Tests.ps1[0m[90m 1.43s (853ms|386ms)[0m
+[32m[+] Test-HDTRunStateAbandoned.Tests.ps1[0m[90m 2.6s (2.3s|203ms)[0m
+[32m[+] Test-HDTSchemaVersion.Tests.ps1[0m[90m 784ms (535ms|170ms)[0m
+[32m[+] Test-HDTSequenceNamesApplication.Tests.ps1[0m[90m 952ms (670ms|178ms)[0m
+[32m[+] Test-HDTShareAcl.Tests.ps1[0m[90m 5.26s (4.53s|440ms)[0m
+[32m[+] Test-HDTStepCondition.Tests.ps1[0m[90m 3.48s (2.71s|416ms)[0m
+[32m[+] Test-HDTStepRunInPhase.Tests.ps1[0m[90m 1.05s (720ms|181ms)[0m
+[32m[+] Test-HDTTaskSequence.Tests.ps1[0m[90m 3.65s (3.01s|418ms)[0m
+[32m[+] Test-HDTWizardAnswerChanged.Tests.ps1[0m[90m 974ms (604ms|235ms)[0m
+[32m[+] UnattendedDeploymentE2E.Tests.ps1[0m[90m 3.55s (2.89s|440ms)[0m
+WARNING: The WinPE component 'WinPE-FMAPI' has no en-us language pack in 'C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Windows Preinstallation 
+Environment\amd64\WinPE_OCs'. The component will be applied without one.
+WARNING: deployRoot '\\HDT-HOST\HdtShare' is a share and no credential is embedded, so this image will ASK THE TECHNICIAN for the deployment account when it boots - MDT's behaviour 
+when Bootstrap.ini carries no UserID. To make it run unattended instead, declare the account in workspace.yaml's credential block and write its secret with Set-HDTShareCredential.
+WARNING: The selection profile 'winpe-both' includes a folder that is not on the share, so its drivers were not injected: Drivers\WinPE\HP WinPE 11 x64. A boot image missing one 
+vendor's drivers looks like a working build until a machine cannot see its disk.
+WARNING: 'no-such-group' is declared as the boot image's drivers but it is neither a selection profile on this share nor a folder at 'C:\HDTLab\Share\Drivers\no-such-group', so no 
+drivers were injected. Create the profile, or import drivers into that folder, or clear the drivers: key.
+What if: Performing the operation "Build boot image HDTPE_x64 (9 component(s))" on target "C:\HDTLab\Share\Boot\HDTPE_x64.wim".
+WARNING: Share ACL (Critical): 'CONTOSO\svc-hdt-deploy' has FullControl on 'C:\HDTLab\Share'. FullControl carries ChangePermissions and TakeOwnership, so the account in the boot image
+ can rewrite the share's own security.
+WARNING: Share ACL (Warning): 'CONTOSO\svc-hdt-deploy' can write to 'C:\HDTLab\Share\Boot' (Modify). The deployment account is expected to be read-only everywhere except Logs\ and 
+Captures.
+[32m[+] Update-HDTBootImage.Tests.ps1[0m[90m 29.93s (28.69s|884ms)[0m
+[32m[+] Update-HDTProgressDisplay.Tests.ps1[0m[90m 1.55s (284ms|300ms)[0m
+[32m[+] Update-HDTRunStateStep.Tests.ps1[0m[90m 2.71s (2.29s|252ms)[0m
+What if: Performing the operation "Copy 'Tools\VNC' into the boot image" on target "\HDT\Tools\VNC".
+What if: Performing the operation "Copy 'Tools\VNC' into the boot image" on target "\HDT\Tools\VNC".
+What if: Performing the operation "Stop copying this into the boot image" on target "\HDT\Tools\BGInfo".
+What if: Performing the operation "Stop copying this into the boot image" on target "\HDT\Tools\BGInfo".
+What if: Performing the operation "Add to the boot image components" on target "WinPE-HTA".
+What if: Performing the operation "Add to the boot image components" on target "WinPE-HTA".
+What if: Performing the operation "Remove from the boot image components" on target "WinPE-SecureStartup".
+What if: Performing the operation "Remove from the boot image components" on target "WinPE-SecureStartup".
+What if: Performing the operation "Run in WinPE, after the commands already declared" on target "X:\HDT\one.exe".
+What if: Performing the operation "Run this one place up the list" on target "X:\three.exe".
+What if: Performing the operation "Run in WinPE, after the commands already declared" on target "X:\HDT\one.exe".
+What if: Performing the operation "Run this one place up the list" on target "X:\three.exe".
+What if: Performing the operation "Inject this driver group into the boot image" on target "boot-critical".
+What if: Performing the operation "Inject this driver group into the boot image" on target "boot-critical".
+What if: Performing the operation "Build the boot image with this WinPE answer file" on target "Control\Unattend-PE.xml".
+What if: Performing the operation "Build the boot image with this WinPE answer file" on target "Control\Unattend-PE.xml".
+What if: Performing the operation "Show this behind everything in WinPE" on target "Branding\winpe.jpg".
+What if: Performing the operation "Show this behind everything in WinPE" on target "Branding\winpe.jpg".
+What if: Performing the operation "Change the workspace settings" on target "LogLevel".
+What if: Performing the operation "Change the workspace settings" on target "LogLevel".
+What if: Performing the operation "Write the workspace document" on target "C:\ws\workspace.yaml".
+What if: Performing the operation "Write the workspace document" on target "C:\ws\workspace.yaml".
+[32m[+] WorkspaceEdit.Tests.ps1[0m[90m 23.3s (20.53s|1.84s)[0m
+[32m[+] WorkspaceFolder.Tests.ps1[0m[90m 1.74s (1.37s|266ms)[0m
+What if: Performing the operation "Move up among the TaskSequence folders" on target "Servers".
+[32m[+] WorkspaceFolderMove.Tests.ps1[0m[90m 1.14s (724ms|328ms)[0m
+What if: Performing the operation "Publish this folder over SMB" on target "C:\HDTLab\NoSuchWorkspace-Unit as \\LAP-AMMSO01\HDTShare$".
+What if: Performing the operation "Publish this folder over SMB" on target "C:\HDTLab\NoSuchWorkspace-Unit as \\LAP-AMMSO01\HDTShare$".
+[32m[+] WorkspaceShare.Tests.ps1[0m[90m 1.43s (929ms|369ms)[0m
+[32m[+] WorkspaceWizardTemplate.Tests.ps1[0m[90m 1.48s (1.14s|245ms)[0m
+[32m[+] Write-HDTLog.Tests.ps1[0m[90m 4.34s (3.41s|660ms)[0m
+[32m[+] Write-HDTStatus.Tests.ps1[0m[90m 4.99s (4.6s|296ms)[0m
+[32m[+] Write-HDTVariableLog.Tests.ps1[0m[90m 2.65s (2.32s|202ms)[0m
+[32m[+] WriteStatusFinalStep.Tests.ps1[0m[90m 1.28s (916ms|239ms)[0m
+[97mTests completed in 1300.57s[0m
+[32mTests Passed: 7972, [0m[90mFailed: 0, [0m[93mSkipped: 13, [0m[90mInconclusive: 0, [0m[37m[0m[90mNotRun: 0[0m
+RESULT Full tests/unit: Passed=7972 Failed=0 Skipped=13 Total=7985
+
+===== Full tests/contract =====
+[95m
+[95mStarting discovery in 39 files.[0m
+WARNING: AppSchema contract SKIPPED: Test-Json does not exist on PowerShell 5.1.26100.8655 (Desktop). The schema is validated on the pwsh 7 leg; Assert-HDTApplicationDocument is what 
+runs here.
+WARNING: IDiskService: the real adapter row is skipped. It runs only when the session is elevated (currently True) AND $env:HDT_ALLOW_DISK_TEST is '1' (currently ''). Even then it 
+only enumerates - the suite never clears, initialises, partitions or formats a physical disk.
+WARNING: IFeatureService: the real adapter row is skipped. Install-WindowsFeature ships in the ServerManager module, which exists only on a Windows Server SKU. The fake carries every 
+behavioural assertion.
+WARNING: ILsaService: the real adapter row is skipped. It runs only when the session is elevated (currently True) AND $env:HDT_ALLOW_LSA_TEST is '1' (currently ''). Even then it only 
+reads a name that does not exist - the suite never writes an LSA secret.
+WARNING: OsSchema contract SKIPPED: Test-Json does not exist on PowerShell 5.1.26100.8655 (Desktop). The schema is validated on the pwsh 7 leg; Assert-HDTOperatingSystemDocument is 
+what runs here.
+WARNING: RulesSchema contract SKIPPED: Test-Json does not exist on PowerShell 5.1.26100.8655 (Desktop). The schema is validated on the pwsh 7 leg; Assert-HDTRuleDocument is what runs 
+here.
+WARNING: SequenceSchema contract SKIPPED: Test-Json does not exist on PowerShell 5.1.26100.8655 (Desktop). The schema is validated on the pwsh 7 leg; Assert-HDTSequenceDocument is 
+what runs here.
+WARNING: StateSchema contract SKIPPED: Test-Json does not exist on PowerShell 5.1.26100.8655 (Desktop). The schema is validated on the pwsh 7 leg; Assert-HDTRunStateDocument is what 
+runs here.
+WARNING: WorkspaceSchema contract SKIPPED: Test-Json does not exist on PowerShell 5.1.26100.8655 (Desktop). The schema is validated on the pwsh 7 leg; Assert-HDTWorkspaceDocument is 
+what runs here.
+[95mDiscovery found 3001 tests in 36.26s.[0m
+[95mRunning tests.[0m
+[32m[+] AppSchema.Contract.Tests.ps1[0m[90m 789ms (5ms|350ms)[0m
+[93m[!] AppSchema.Contract.Tests.ps1[0m[90m 789ms (5ms|350ms)[0m
+[32m[+] BitLockerService.Contract.Tests.ps1[0m[90m 1.55s (1.14s|331ms)[0m
+[32m[+] BootImageService.Contract.Tests.ps1[0m[90m 3.2s (2.43s|280ms)[0m
+[32m[+] CimProvider.Contract.Tests.ps1[0m[90m 2.17s (1.81s|294ms)[0m
+[32m[+] ClockService.Contract.Tests.ps1[0m[90m 1.29s (935ms|297ms)[0m
+[32m[+] ConsoleSurface.Contract.Tests.ps1[0m[90m 36.79s (36.49s|203ms)[0m
+[32m[+] ContentProvider.Contract.Tests.ps1[0m[90m 2.33s (1.82s|446ms)[0m
+[32m[+] DiskService.Contract.Tests.ps1[0m[90m 1.74s (1.26s|346ms)[0m
+[32m[+] EnvironmentProvider.Contract.Tests.ps1[0m[90m 1.29s (949ms|287ms)[0m
+[32m[+] ExampleQuality.Contract.Tests.ps1[0m[90m 39.54s (39.29s|192ms)[0m
+[32m[+] FeatureService.Contract.Tests.ps1[0m[90m 1.69s (1.07s|366ms)[0m
+[32m[+] FileSystemService.Contract.Tests.ps1[0m[90m 4.75s (3.57s|959ms)[0m
+[32m[+] ImageService.Contract.Tests.ps1[0m[90m 24.69s (24.23s|367ms)[0m
+[32m[+] InjectedServiceDefault.Contract.Tests.ps1[0m[90m 5.04s (4.82s|172ms)[0m
+[32m[+] LogEventVocabulary.Contract.Tests.ps1[0m[90m 683ms (456ms|179ms)[0m
+[32m[+] LsaService.Contract.Tests.ps1[0m[90m 1.02s (572ms|368ms)[0m
+[32m[+] MonitorHealth.Contract.Tests.ps1[0m[90m 820ms (604ms|178ms)[0m
+[32m[+] Naming.Contract.Tests.ps1[0m[90m 111.67s (84.06s|187ms)[0m
+[32m[+] NoInteractivePrompt.Contract.Tests.ps1[0m[90m 98.21s (97.93s|229ms)[0m
+[32m[+] NoKeystroke.Contract.Tests.ps1[0m[90m 45.21s (44.77s|367ms)[0m
+[32m[+] NoMdtDependency.Contract.Tests.ps1[0m[90m 110.57s (102.29s|6.69s)[0m
+[32m[+] OsSchema.Contract.Tests.ps1[0m[90m 604ms (4ms|378ms)[0m
+[93m[!] OsSchema.Contract.Tests.ps1[0m[90m 604ms (4ms|378ms)[0m
+[32m[+] PowerService.Contract.Tests.ps1[0m[90m 1.71s (1.31s|337ms)[0m
+[32m[+] PowerShell51Compatibility.Contract.Tests.ps1[0m[90m 163.74s (155.25s|7.09s)[0m
+[32m[+] ProcessService.Contract.Tests.ps1[0m[90m 6.07s (5.58s|401ms)[0m
+[32m[+] ProtectedPath.Contract.Tests.ps1[0m[90m 111.85s (111.62s|178ms)[0m
+[32m[+] RegistryService.Contract.Tests.ps1[0m[90m 2.83s (2.1s|616ms)[0m
+[32m[+] RulesSchema.Contract.Tests.ps1[0m[90m 553ms (5ms|302ms)[0m
+[93m[!] RulesSchema.Contract.Tests.ps1[0m[90m 553ms (5ms|302ms)[0m
+[32m[+] ScriptInvoker.Contract.Tests.ps1[0m[90m 2.02s (1.54s|423ms)[0m
+[32m[+] SequenceSchema.Contract.Tests.ps1[0m[90m 665ms (5ms|405ms)[0m
+[93m[!] SequenceSchema.Contract.Tests.ps1[0m[90m 665ms (5ms|405ms)[0m
+[32m[+] SequenceTemplatePlan.Contract.Tests.ps1[0m[90m 898ms (655ms|206ms)[0m
+[32m[+] SlowSuiteSkip.Contract.Tests.ps1[0m[90m 2.83s (2.62s|168ms)[0m
+[32m[+] StateSchema.Contract.Tests.ps1[0m[90m 479ms (5ms|297ms)[0m
+[93m[!] StateSchema.Contract.Tests.ps1[0m[90m 479ms (5ms|297ms)[0m
+[32m[+] StepContract.Tests.ps1[0m[90m 47.08s (43.81s|2.49s)[0m
+[32m[+] StepTemplate.Contract.Tests.ps1[0m[90m 1.44s (1.15s|240ms)[0m
+[32m[+] StringTable.Contract.Tests.ps1[0m[90m 5.1s (3s|1.42s)[0m
+[32m[+] VariableNamespace.Contract.Tests.ps1[0m[90m 1.61s (1.28s|265ms)[0m
+[32m[+] WinPeUiStack.Contract.Tests.ps1[0m[90m 26.65s (25.79s|717ms)[0m
+[32m[+] WorkspaceSchema.Contract.Tests.ps1[0m[90m 746ms (7ms|412ms)[0m
+[93m[!] WorkspaceSchema.Contract.Tests.ps1[0m[90m 746ms (7ms|412ms)[0m
+[97mTests completed in 872.2s[0m
+[32mTests Passed: 2770, [0m[90mFailed: 0, [0m[93mSkipped: 231, [0m[90mInconclusive: 0, [0m[37m[0m[90mNotRun: 0[0m
+RESULT Full tests/contract: Passed=2770 Failed=0 Skipped=231 Total=3001
+
+===== SUMMARY =====
+DriverFolderRename alone: Passed=13 Failed=0 Skipped=0 Total=13
+tests/unit:               Passed=7972 Failed=0 Skipped=13 Total=7985
+tests/contract:           Passed=2770 Failed=0 Skipped=231 Total=3001

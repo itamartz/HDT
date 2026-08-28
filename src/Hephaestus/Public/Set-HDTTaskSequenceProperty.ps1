@@ -39,7 +39,8 @@
             The new name. An empty string is refused.
 
         .PARAMETER Version
-            MDT's TaskSequenceVersion. Text, not a number.
+            The sequence's version. Text, not a number - MDT's
+            TaskSequenceVersion.
 
         .PARAMETER Description
             The new description. An empty string removes the key.

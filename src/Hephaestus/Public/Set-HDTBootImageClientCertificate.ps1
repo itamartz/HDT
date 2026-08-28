@@ -27,8 +27,8 @@
             WHAT THE IMAGE COSTS YOU IS THE KEY ITSELF. A .pfx in a boot image
             served over PXE is a private key handed to anything that can boot;
             the certificate should be one issued for this purpose, scoped to it,
-            and revocable on its own. That is true of MDT's and ConfigMgr's
-            equivalents too, and none of them can make it untrue.
+            and revocable on its own. No amount of care in the build makes that
+            untrue.
 
             IT IS SHAPED LIKE Set-HDTBootImageUnattend - one value, -Clear to
             take it away, and the key removed rather than written empty.

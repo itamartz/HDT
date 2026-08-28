@@ -5,8 +5,8 @@
 
         .DESCRIPTION
             "The engine writes a small status.json heartbeat each step. The
-            console tails that directory. No web service, no SQL, no MDT
-            Monitoring dependency".
+            console tails that directory. No web service, no SQL, no monitoring
+            server to stand up".
 
             It OVERWRITES rather than appends, which makes it the one log-adjacent
             writer that uses WriteAllText: a heartbeat is the current state of a

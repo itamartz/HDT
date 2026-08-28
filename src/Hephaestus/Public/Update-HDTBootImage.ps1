@@ -5,11 +5,11 @@
             saying exactly what went into them.
 
         .DESCRIPTION
-            Like MDT's Update-MDTDeploymentShare, one build produces
-            two artifacts from the same source ... Both come from a single
-            mount/inject/commit cycle. They are never built separately, so the
-            ISO you debug with is byte-for-byte the WinPE you PXE boot - which is
-            the entire point of having it."
+            One build produces two artifacts from the same source ... Both come
+            from a single mount/inject/commit cycle. They are never built
+            separately, so the ISO you debug with is byte-for-byte the WinPE you
+            PXE boot - which is the entire point of having it. One command for
+            the whole share is the shape MDT's Update-MDTDeploymentShare set.
 
             SEVENTEEN STEPS, AND THEY ARE WRITTEN BELOW AS SEVENTEEN COMMENTED
             BLOCKS IN ORDER, so this file reads like the journal
@@ -94,10 +94,9 @@
             is which drivers actually went in.
 
         .PARAMETER SkipIso
-            Build the WIM and skip the ISO, matching MDT's
-            per-platform ISO checkbox - generating the ISO is the slow half, and
-            during iteration on a WDS lab you often do not need it. The manifest
-            is still written, with the ISO recorded as skipped.
+            Build the WIM and skip the ISO - generating the ISO is the slow
+            half, and during iteration on a WDS lab you often do not need it.
+            The manifest is still written, with the ISO recorded as skipped.
 
         .PARAMETER PromptForCredential
             Build an image with no embedded credential. The booted

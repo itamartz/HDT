@@ -10,10 +10,10 @@
             WHOLE POINT OF IT ("WDS import replacing rather than
             duplicating an existing image").
 
-            An MDT operator who has run Update-MDTDeploymentShare a dozen times
-            recognises the failure this prevents: a PXE boot menu with a column of
-            identically named images and no way to tell which one the fleet is
-            actually booting. So this command asks the server what it already has,
+            THE FAILURE IT PREVENTS is familiar to anyone who has re-imported a
+            boot image by hand: a PXE boot menu with a column of identically
+            named images and no way to tell which one the fleet is actually
+            booting. So this command asks the server what it already has,
             and when a row matches by name it REMOVES THAT ROW BEFORE IT IMPORTS -
             in that order, which is what the ordered journal in the unit suite
             asserts. An import before the remove would leave two images for a

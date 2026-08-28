@@ -4,10 +4,10 @@ function New-HDTTaskSequence {
             Creates a task sequence in a workspace from a template.
 
         .DESCRIPTION
-            MDT'S New Task Sequence WIZARD, as a command. Its wizard asks for an
-            id, a name and a template, then copies that template into the new
-            sequence's Control folder; this does the same into
-            TaskSequences\<Id>\sequence.yaml, which is where this engine looks.
+            Takes an id, a name and a template, and copies that template into
+            TaskSequences\<Id>\sequence.yaml, which is where this engine looks
+            for a sequence. (The same three answers MDT's New Task Sequence
+            wizard asks for, written to a document instead of a Control folder.)
 
             IT SPLICES THE TWO LINES IT HAS TO CHANGE and copies the rest
             verbatim. A parse and re-emit would hand back a correct document and
@@ -33,8 +33,7 @@ function New-HDTTaskSequence {
             What the sequence is called.
 
         .PARAMETER Template
-            Which template to create it from. Defaults to the client one, which
-            is what MDT leads with.
+            Which template to create it from. Defaults to the client one.
 
         .PARAMETER TemplatePath
             Where templates are read from. Defaults to the ones this module

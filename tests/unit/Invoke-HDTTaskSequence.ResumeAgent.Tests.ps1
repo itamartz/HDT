@@ -130,6 +130,60 @@ Describe 'Invoke-HDTTaskSequence' {
         }
     }
 
+    # THE PARTITION STEP PUBLISHES A BARE LETTER, AND THIS COPY IS THE ONE PLACE
+    # THAT FORGOT IT.
+    #
+    # Invoke-HDTDiskPartitionStep sets HDTOSVolume to 'W' - no colon - and every
+    # other consumer normalises: Copy-HDTResumeAgent, Set-HDTLogPath and
+    # Invoke-HDTConfigureBootStep all take 'W', 'W:' and 'W:\' as the same
+    # volume. The ceremony's log copy composed '{0}\HDT\Logs' from the raw
+    # value instead, so a real machine got the RELATIVE path 'W\HDT\Logs' and
+    # the copy that exists to survive the reboot landed back on the RAM disk it
+    # was escaping.
+    #
+    # IT SHIPPED GREEN because the Context above seeds 'W:', a spelling the
+    # engine never produces. Observed on LT-7FJ45S2, 2026-08-28:
+    #
+    #     the log was copied to 'W\HDT\Logs\MININT-EF6QJGH-run-20260828-151616'
+    #
+    # THE FOLDER IS NAMED FOR THE MACHINE BEING DEPLOYED. Copy-HDTLog defaults
+    # to this process's own name, which in WinPE is MININT-xxxxxxx - so the two
+    # legs of one deployment landed in two differently-named folders, the
+    # share's under %HDTComputerName% and the disk's under MININT, which is
+    # exactly the split this copy exists to close.
+    Context 'a WinPE leg whose partition step published a bare drive letter' {
+
+        BeforeAll {
+            $script:bareFileSystem = & $script:newFileSystem
+
+            $script:bareHarness = New-HDTSequenceTestHarness -Yaml $script:yaml -Phase 'WinPE' `
+                -FileSystem $script:bareFileSystem `
+                -Variable @{ HDTOSVolume = 'W'; HDTComputerName = 'PC-0001' }
+
+            [void] (Invoke-HDTTaskSequence -Sequence $script:bareHarness.Sequence `
+                    -Context $script:bareHarness.Context -State $script:bareHarness.State)
+        }
+
+        It 'puts the log on the volume rather than on a relative path' {
+            @($script:bareFileSystem.GetChildItem('W:\HDT\Logs')).Count |
+                Should -BeGreaterThan 0 -Because "'W' names the volume 'W:' names"
+        }
+
+        It 'copies nothing to a path with no drive on it' {
+            $relative = @($script:bareFileSystem.Operations |
+                    Where-Object { $_.Operation -eq 'CopyItem' -and
+                        ([string] $_.Arguments[1]) -like 'W\*' })
+
+            @($relative).Count | Should -Be 0 -Because 'a relative path resolves onto the RAM disk'
+        }
+
+        It 'names the folder for the machine being deployed, not for the MININT name WinPE booted with' {
+            $copied = Split-Path -Path @($script:bareFileSystem.GetChildItem('W:\HDT\Logs'))[0] -Leaf
+
+            $copied | Should -BeExactly ('PC-0001-{0}' -f $script:bareHarness.Context.RunId)
+        }
+    }
+
     Context 'a WinPE leg that has written no volume yet' {
 
         It 'stages nothing, and still reboots' {

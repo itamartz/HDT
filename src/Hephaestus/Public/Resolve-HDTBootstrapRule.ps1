@@ -5,17 +5,16 @@
             has connected to one.
 
         .DESCRIPTION
-            ONE BOOT IMAGE, MANY SHARES - MDT's Bootstrap.ini, and the thing HDT
-            could not do. The machine has already been gathered by the time this
-            runs: it knows its default gateway, its MAC, its model and its UUID,
-            and none of that needed a share. Those facts are what the rules match
-            on, exactly as MDT's Priority=DefaultGateway, MACAddress does.
+            ONE BOOT IMAGE, MANY SHARES. The machine has already been gathered
+            by the time this runs: it knows its default gateway, its MAC, its
+            model and its UUID, and none of that needed a share. Those facts are
+            what the rules match on, first match wins. Bootstrap.ini did this
+            job in MDT, keyed on Priority=DefaultGateway, MACAddress.
 
-            THE FALLBACK IS WHAT THE IMAGE WAS BUILT WITH, which is MDT's
-            [Default] DeployRoot. An image whose rules match nothing still
-            deploys, from the share it was built for; an image with no rules at
-            all behaves exactly as it did before this existed. Both of those
-            matter more than the feature does.
+            THE FALLBACK IS WHAT THE IMAGE WAS BUILT WITH. An image whose rules
+            match nothing still deploys, from the share it was built for; an
+            image with no rules at all behaves exactly as it did before this
+            existed. Both of those matter more than the feature does.
 
             IT RESOLVES, IT DOES NOT CONNECT. What comes back is a decision and
             its provenance - which rule chose it, or that none did. Reaching the
@@ -23,10 +22,10 @@
             caller's, and stay where they were.
 
             THE PROVENANCE IS THE POINT, as everywhere else in the variable
-            engine: "the single biggest debugging pain in MDT is not knowing why
-            HDTComputerName ended up as it did" applies twice over to a share,
-            because a machine that reached the wrong one fails in a way that
-            looks like a network fault.
+            engine: not knowing why HDTComputerName ended up as it did is the
+            single biggest debugging pain there is, and that applies twice over
+            to a share, because a machine that reached the wrong one fails in a
+            way that looks like a network fault.
 
         .PARAMETER RuleDocument
             What Import-HDTBootstrapRuleDocument returned, or $null when the

@@ -19,10 +19,10 @@ function Get-HDTSelectionProfileContentFolder {
               Modules\   is the engine payload. It is staged unconditionally;
                          choosing it is not a choice anybody has.
 
-            This is also the list MDT's own profile tree shows - Applications,
-            Operating Systems, Out-of-Box Drivers, Packages, Task Sequences -
-            with Scripts\ added because HDT stages user extension points from it
-            and standalone media has to be able to carry them.
+            Applications\, OperatingSystems\, Drivers\ and TaskSequences\ are
+            the share's authored content. Scripts\ comes last and is on the list
+            at all because HDT stages user extension points from it, and
+            standalone media has to be able to carry them.
 
             IT IS THE ORDER THE CONSOLE'S TREE DRAWS IN, so it is authored order
             rather than alphabetical: content an administrator picks most often

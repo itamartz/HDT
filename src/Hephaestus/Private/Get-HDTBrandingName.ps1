@@ -4,10 +4,11 @@ function Get-HDTBrandingName {
             The name that goes on the deployment banner.
 
         .DESCRIPTION
-            MDT's _SMSTSOrgName, and the reason it is not vanity: a technician
-            at a bench is often looking at two toolkits, and the banner is the
-            fastest way to know which one has this machine. HDT's banner said
-            'Hephaestus' on every machine ever built from it.
+            The organisation name a deployment paints on its banner, and the
+            reason it is not vanity: a technician at a bench is often looking at
+            two toolkits, and the banner is the fastest way to know which one
+            has this machine. HDT's banner said 'Hephaestus' on every machine
+            ever built from it. MDT carried the same value as _SMSTSOrgName.
 
             THE DECISION IS PURE AND THE WINDOW IS NOT. Show-HDTWizardShell is
             an adapter no Pester test can open a window against, so what the

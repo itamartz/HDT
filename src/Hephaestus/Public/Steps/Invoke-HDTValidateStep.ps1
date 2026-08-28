@@ -4,8 +4,8 @@
             Pre-flights a machine before anything destructive runs on it.
 
         .DESCRIPTION
-            MDT's Validate, rebuilt as a step that checks the machine against
-            what the sequence is about to do to it:
+            Checks the machine against what the sequence is about to do to it.
+            The checks are declared on the step:
 
               - name: Validate
                 type: Validate

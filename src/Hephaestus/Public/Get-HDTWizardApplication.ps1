@@ -36,11 +36,10 @@ function Get-HDTWizardApplication {
             reason: offer the value the engine will look up, which there is the
             folder and here is the document.
 
-            HDTMandatoryApplications IS NOT ON THIS PAGE. MDT does not list it
-            and neither does this: the step installs that list whatever the
-            technician picked, so a tick beside one would be a control that
-            changes nothing - and one they could clear, which is worse than
-            useless. The page carries a hint saying so instead.
+            HDTMandatoryApplications IS NOT ON THIS PAGE. The step installs that
+            list whatever the technician picked, so a tick beside one would be a
+            control that changes nothing - and one they could clear, which is
+            worse than useless. The page carries a hint saying so instead.
 
             AN ID NO ROW CAN CARRY IS NAMED. A rule selecting an application
             this share has never held is a mistake somebody has to be told

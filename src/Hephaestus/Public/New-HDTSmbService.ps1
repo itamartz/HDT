@@ -18,14 +18,14 @@
               GetConnection(serverName)                   Get-SmbConnection
               GetClientConfiguration()                    Get-SmbClientConfiguration
 
-            THE MAPPING TAKES A DRIVE LETTER, WHICH IS WHAT MDT DID. A share
-            connected without one can only be reached by its UNC path, and
-            cmd.exe REFUSES A UNC WORKING DIRECTORY - it prints "UNC paths are
-            not supported", moves itself to %SystemRoot%, and every application
-            whose install command names its own installer relatively then runs
-            in the wrong folder. The letter is chosen by the provider, which is
-            where "the first free one from Z downward" is unit tested; this
-            passes it to New-SmbMapping and nothing more.
+            THE MAPPING TAKES A DRIVE LETTER. A share connected without one can
+            only be reached by its UNC path, and cmd.exe REFUSES A UNC WORKING
+            DIRECTORY - it prints "UNC paths are not supported", moves itself to
+            %SystemRoot%, and every application whose install command names its
+            own installer relatively then runs in the wrong folder. The letter
+            is chosen by the provider, which is where "the first free one from Z
+            downward" is unit tested; this passes it to New-SmbMapping and
+            nothing more.
 
             THE LETTERS IN USE COME FROM [IO.DriveInfo], NOT Get-SmbMapping. The
             question is which letters are free, and a local disk, the WinPE RAM

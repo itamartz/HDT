@@ -7,8 +7,8 @@
             TWO NAMED LAYOUTS WAS THE WHOLE VOCABULARY. DESIGN 9.1 offers
             uefi-standard and bios-standard and a DiskPartition step names one -
             so a share that wants a data volume beside Windows, which is the
-            commonest thing an administrator does with MDT's Format and
-            Partition Disk, could not say it at all.
+            commonest thing anybody authoring a disk asks for, could not say it
+            at all.
 
             THIS IS THE HALF THAT DOES NO ARITHMETIC. It maps what somebody
             wrote - a name, a type, '260MB' or '60%', a filesystem - onto the

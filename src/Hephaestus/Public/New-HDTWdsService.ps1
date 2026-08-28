@@ -72,8 +72,9 @@
         .EXAMPLE
             @($wds.GetOperationName())
 
-            What was asked of it. WDS is a Microsoft product HDT uses, not part of MDT -
-            nothing here depends on a deprecated toolkit being installed.
+            What was asked of it. WDS is a Microsoft product HDT uses in its own
+            right - nothing here depends on a deprecated deployment toolkit
+            being installed.
 
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',

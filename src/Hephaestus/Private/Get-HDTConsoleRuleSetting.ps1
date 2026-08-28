@@ -5,11 +5,11 @@
             rules document.
 
         .DESCRIPTION
-            MDT PUT CustomSettings.ini ON THE DEPLOYMENT SHARE'S PROPERTIES, in a
-            tab called Rules, as text edited in place. HDT's equivalent is
-            rules.yaml and it goes in the same place - the window that is
-            Deployment Workbench's share Properties - because that is where an
-            administrator coming from MDT will look for it.
+            THE RULES TAB IS rules.yaml, AS TEXT EDITED IN PLACE, on the window
+            that is the deployment share's Properties. It goes there rather than
+            anywhere else because that is where an administrator coming from MDT
+            will look: CustomSettings.ini sat on a tab called Rules, on the
+            share's properties, edited the same way.
 
             TEXT, NOT A GRID, AND THAT IS THE HOMAGE. Add-HDTRule, Set-HDTRule
             and Remove-HDTRule exist, and a grid could be built on them. But
