@@ -12,9 +12,24 @@
 
             IT NEVER THROWS. A share that has gone away is the normal case for a
             machine that failed early, and a copy-back that threw would mask the
-            failure it was called to preserve evidence of. A failure is logged as
-            a Warning and the function returns nothing, so a caller in a finally
-            block can call it unguarded.
+            failure it was called to preserve evidence of. A failure is reported
+            on the result rather than raised, so a caller in a finally block can
+            call it unguarded.
+
+            AND IT NEVER THREW AND NEVER SAID SO EITHER, WHICH WAS THE DEFECT.
+            It used to answer a bare path string on success and NOTHING on
+            failure, writing a Warning through Write-HDTLog - into the log it
+            had just failed to send. So the one surface that knew the logs were
+            not reaching the share was the copy of the log that never arrived,
+            and every caller piped the answer to Out-Null because there was
+            nothing in it to read. A technician standing at the bench had no way
+            to tell.
+
+            SO ONE SHAPE, BOTH OUTCOMES: Path, Succeeded and Message, always all
+            three. A caller that has to test the TYPE before it can read the
+            answer is a caller that will read the wrong one, and Path is filled
+            on a failure too because where it was trying to put them is the
+            first thing anybody checks next.
 
             The directory structure under the log path is preserved, so
             Steps\003-ApplyImage.log arrives as Steps\003-ApplyImage.log rather
@@ -39,8 +54,9 @@
             has not resolved one yet.
 
         .OUTPUTS
-            System.String - the directory the logs were copied into, or nothing
-            when the copy failed.
+            System.Management.Automation.PSCustomObject with Path (the directory
+            the logs were copied into, or would have been), Succeeded and
+            Message (empty unless the copy failed).
 
         .EXAMPLE
             $clock = New-HDTClock
@@ -61,7 +77,7 @@
 
     #>
     [CmdletBinding()]
-    [OutputType([string])]
+    [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateNotNull()]
@@ -118,11 +134,25 @@
             }
         }
     } catch {
-        Write-HDTLog -Context $Context -Severity Warning -Component 'Logging' `
-            -Message ("Could not copy the deployment logs to '{0}': {1}" -f $Destination, $_.Exception.Message)
+        $reason = [string] $_.Exception.Message
 
-        return
+        # THE LOG STILL GETS THE LINE, because a run that later reaches a
+        # working share ships this file too and the sentence belongs in it. It
+        # is no longer the ONLY place it goes: the caller is told as well, and
+        # the caller has a screen.
+        Write-HDTLog -Context $Context -Severity Warning -Component 'Logging' `
+            -Message ("Could not copy the deployment logs to '{0}': {1}" -f $Destination, $reason)
+
+        return [pscustomobject] @{
+            Path      = $root
+            Succeeded = $false
+            Message   = $reason
+        }
     }
 
-    return $root
+    return [pscustomobject] @{
+        Path      = $root
+        Succeeded = $true
+        Message   = ''
+    }
 }

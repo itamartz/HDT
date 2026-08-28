@@ -935,9 +935,15 @@
                     try {
                         $onDisk = Copy-HDTLog @copyArgument
 
-                        Write-HDTLog -Context $log -Component 'Restart' `
-                            -Message ("the log was copied to '{0}', which survives the restart" -f $onDisk) `
-                            -Data ([ordered] @{ path = [string] $onDisk })
+                        if ($onDisk.Succeeded) {
+                            Write-HDTLog -Context $log -Component 'Restart' `
+                                -Message ("the log was copied to '{0}', which survives the restart" -f $onDisk.Path) `
+                                -Data ([ordered] @{ path = [string] $onDisk.Path })
+                        } else {
+                            Write-HDTLog -Context $log -Severity Warning -Component 'Restart' `
+                                -Message ("the log could not be copied to '{0}', so this leg's log lives only on the RAM disk and will not survive the restart: {1}" -f
+                                    $volumeLogRoot, $onDisk.Message)
+                        }
                     } catch {
                         Write-HDTLog -Context $log -Severity Warning -Component 'Restart' `
                             -Message ("the log could not be copied to '{0}', so this leg's log lives only on the RAM disk and will not survive the restart: {1}" -f
@@ -1162,7 +1168,18 @@
             }
 
             try {
-                Copy-HDTLog @copyArgument | Out-Null
+                # AND THE ANSWER IS READ. Copy-HDTLog reports a share it could
+                # not write to on its result rather than by throwing, so a
+                # caller that discarded it turned a failed copy-back into
+                # silence - which is the shape this whole guard exists to
+                # avoid.
+                $copied = Copy-HDTLog @copyArgument
+
+                if (-not $copied.Succeeded) {
+                    Write-HDTLog -Context $log -Severity Warning -Component 'Logging' `
+                        -Message ("The deployment logs could not be copied to '{0}': {1}" -f $LogDestination, $copied.Message) `
+                        -Data ([ordered] @{ path = [string] $copied.Path })
+                }
             } catch {
                 Write-HDTLog -Context $log -Severity Warning -Component 'Logging' `
                     -Message ("The deployment logs could not be copied to '{0}': {1}" -f $LogDestination, $_.Exception.Message)

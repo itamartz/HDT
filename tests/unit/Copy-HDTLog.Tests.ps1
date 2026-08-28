@@ -59,13 +59,20 @@ Describe 'Copy-HDTLog' {
     It 'copies into a directory named for the computer and the run id' {
         $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine
 
-        $result | Should -BeExactly $script:copyRoot
+        $result.Path | Should -BeExactly $script:copyRoot
     }
 
     It 'returns the directory it copied into' {
         $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine
 
-        $script:fs.TestPath($result) | Should -BeTrue
+        $script:fs.TestPath($result.Path) | Should -BeTrue
+    }
+
+    It 'says it succeeded' {
+        $result = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine
+
+        $result.Succeeded | Should -BeTrue
+        $result.Message | Should -BeNullOrEmpty
     }
 
     It 'copies every file under the log path' {
@@ -103,11 +110,60 @@ Describe 'Copy-HDTLog' {
         $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
             -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
 
-        $script:copyResult = 'unset'
+        $script:copyResult = $null
         { $script:copyResult = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine } |
             Should -Not -Throw
 
-        $script:copyResult | Should -BeNullOrEmpty
+        $script:copyResult | Should -Not -BeNullOrEmpty
+    }
+
+    # A FAILURE THAT ONLY THE LOG KNOWS ABOUT IS NOT REPORTED. This function is
+    # documented never to throw, and for five milestones that meant it returned
+    # NOTHING and wrote a Warning through Write-HDTLog - into the log it had
+    # just failed to send. The caller could not tell success from failure, so
+    # the tail said nothing and a technician standing at the bench had no way to
+    # know the logs were not reaching the share.
+
+    It 'answers a result the caller can test when the copy failed' {
+        $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+            -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
+
+        $result = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine
+
+        $result.Succeeded | Should -BeFalse
+    }
+
+    It 'names the reason on the result rather than only in the log' {
+        $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+            -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
+
+        $result = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine
+
+        $result.Message | Should -Not -BeNullOrEmpty
+        $result.Message | Should -Match 'The network path was not found'
+    }
+
+    It 'still says where it was trying to put them' {
+        # The destination is what a technician checks next, and a failed result
+        # that dropped it would send them back to the log to find out.
+        $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+            -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
+
+        $result = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine
+
+        $result.Path | Should -BeExactly '\\gone\Logs\PC-0001-r1'
+    }
+
+    It 'answers the same shape whether it worked or not' {
+        # ONE SHAPE, BOTH OUTCOMES. A caller that has to test the type before it
+        # can read the answer is a caller that will read the wrong one.
+        $good = Copy-HDTLog -Context $script:context -Destination '\\share\Logs' -ComputerName $script:machine
+
+        $context = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+            -FileSystem (& $script:newBroken $script:fs) -Clock $script:clock
+        $bad = Copy-HDTLog -Context $context -Destination '\\gone\Logs' -ComputerName $script:machine
+
+        @($good.PSObject.Properties.Name) | Should -Be @($bad.PSObject.Properties.Name)
     }
 
     It 'warns into the log when the destination is unreachable' {
