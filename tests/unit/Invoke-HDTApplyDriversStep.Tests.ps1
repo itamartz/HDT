@@ -161,6 +161,50 @@ Describe 'Invoke-HDTApplyDriversStep' {
             @(& $script:record 'driver.group')[0].data.group | Should -Be $script:groupPath
         }
 
+        # EVERY DELL REPORTS A MANUFACTURER ENDING IN A DOT - 'Dell Inc.' - AND
+        # WINDOWS CANNOT STORE A FOLDER NAMED THAT. Create 'Dell Inc.' and the
+        # file system silently gives you 'Dell Inc'. So the Total Control
+        # pattern the template ships, Win11\%HDTMake%\%HDTModel%, expands to a
+        # path whose middle segment cannot exist as typed.
+        #
+        # IT WORKS ANYWAY, and only because path normalisation strips the dot
+        # before anything looks: [IO.Path]::GetFullPath('...\Dell Inc.') is
+        # '...\Dell Inc'. The fake normalises through the same .NET call, so
+        # tests and production agree rather than diverging - which is the part
+        # worth pinning, because a future "tidy up path handling" that compared
+        # strings instead would break group match for every Dell in the fleet
+        # and pass every test that did not try the dot.
+        It 'finds the folder when the make ends in a dot, as every Dell''s does' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'Z:\Deploy\Drivers\Win11\Dell Inc\Latitude 5420\net.inf' = $script:matchingInf
+            }
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fs -Clock $script:clock `
+                -Image $script:image -Cim $script:cim
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fs -Clock $script:clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+            $live['HDTMake'] = 'Dell Inc.'
+            $live['HDTModel'] = 'Latitude 5420'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE `
+                -WorkspaceRoot $script:workspaceRoot -Variable $live -Service $catalog -Log $log
+
+            $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
+
+            # THE GROUP RESOLVED, so no fallback happened - which is the whole
+            # assertion: a Dell finds its own folder.
+            $result.Status | Should -Be 'Completed'
+            [bool] $result.Data['groupFound'] | Should -BeTrue
+
+            @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' }).Count |
+                Should -BeGreaterThan 0
+        }
+
         It 'never consults the PnP ranking when the group resolved' {
             $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
 

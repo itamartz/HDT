@@ -57,10 +57,25 @@ $script:HDTAgreementFixture = @($script:HDTValidFixture + $script:HDTInvalidFixt
 # does not validate is worse than no sample: it is a file administrators copy.
 $script:HDTSampleRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'samples/workspace/TaskSequences'
 
+# AND THE SHIPPED TEMPLATES, WHICH WERE HELD TO NOTHING. Every sequence an
+# administrator creates in the console starts as one of these - the New Task
+# Sequence wizard offers them and writes the chosen one into the share - so a
+# template that does not validate is a broken sequence in every new workspace,
+# not a broken sample somebody might copy.
+#
+# They were the least tested file in the repository and the most copied. Found
+# on 2026-08-28 while adding an ApplyDrivers step to client.yaml: the change was
+# green everywhere and nothing had checked the template against the schema at
+# all. Assert-HDTSequenceDocument reads it - that is the hand-written validator
+# and it runs on 5.1 - but the JSON Schema, which is the published contract, had
+# never seen it.
+$script:HDTTemplateRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'src/Hephaestus/Templates'
+
 $script:HDTSampleSequence = @(
     @{ Name = 'DEMO-M2'; FixturePath = (Join-Path -Path $script:HDTSampleRoot -ChildPath 'DEMO-M2/sequence.yaml') }
     @{ Name = 'STD-CLIENT'; FixturePath = (Join-Path -Path $script:HDTSampleRoot -ChildPath 'STD-CLIENT/sequence.yaml') }
-)
+) + @(@(Get-ChildItem -LiteralPath $script:HDTTemplateRoot -Filter '*.yaml' -File -ErrorAction SilentlyContinue) |
+        ForEach-Object { @{ Name = ('template {0}' -f $_.Name); FixturePath = $_.FullName } })
 
 Describe 'sequence.yaml schema contract' -Skip:$script:HDTSchemaSkip {
 

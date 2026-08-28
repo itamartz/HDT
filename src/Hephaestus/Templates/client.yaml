@@ -189,6 +189,32 @@ steps:
         type: ApplyUnattend
         template: unattend.xml
 
+      # MDT'S Inject Drivers, AND IT SHIPS IN THE TEMPLATE FOR MDT'S REASON:
+      # a client task sequence that does not inject drivers is one every
+      # administrator has to remember to fix, on every sequence, for ever.
+      #
+      # HERE, BETWEEN THE SETTINGS AND THE BOOT CONFIGURATION, because injection
+      # is OFFLINE into the volume the image was just applied to - it must come
+      # after Install Operating System and before the machine boots off it.
+      #
+      # THE GROUP IS A PATH WITH VARIABLES IN IT, which is MDT's Total Control
+      # method: 'Win11\Dell Inc.\Latitude 5420' resolves per machine from what
+      # Gather read off the hardware. Nothing requires this shape - the store
+      # under Drivers\ is yours, any names, any depth - but a template has to
+      # show one, and this is the one New-HDTWorkspace already seeds as a
+      # comment in rules.yaml.
+      #
+      # AND A SHARE WITH NO SUCH FOLDER STILL DEPLOYS. No group match means the
+      # step asks the machine what hardware it has and injects what matches;
+      # matching nothing is a completed step with a warning, not a failed
+      # deployment, because a machine with inbox drivers still boots. So this
+      # line is safe in a template that ships to shares holding no drivers at
+      # all - which is every new one.
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: 'Win11\%HDTMake%\%HDTModel%'
+        mode: all
+
       # bcdboot, the recovery image, and then the FIRMWARE BOOT ORDER. Without
       # the last part the machine restarts into the installation media and the
       # deployment appears to loop.
