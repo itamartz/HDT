@@ -105,11 +105,14 @@ Describe 'ConvertTo-HDTDiskLayout' {
         }
 
         It 'marks the remainder row and nothing else' {
+            # TakesRemainder, NOT UseMaximumSize. This assertion used to read
+            # UseMaximumSize and passed while the layout it described could not
+            # be built - see 'the two flags' below.
             $data = @($script:row | Where-Object { $_.Label -eq 'Data' })[0]
             $system = @($script:row | Where-Object { $_.Label -eq 'System' })[0]
 
-            $data.UseMaximumSize | Should -BeTrue
-            $system.UseMaximumSize | Should -BeFalse
+            $data.TakesRemainder | Should -BeTrue
+            $system.TakesRemainder | Should -BeFalse
         }
 
         It 'refuses two rows claiming the remainder' {
@@ -415,6 +418,102 @@ Describe 'ConvertTo-HDTDiskLayout, the drive letters' {
             )
 
             { ConvertTo-HDTDiskLayout -Partition $authored -Style GPT } | Should -Throw -ExpectedMessage '*X*'
+        }
+    }
+}
+
+# The two flags, which were one flag.
+#
+# THE SHIPPED CLIENT TEMPLATE STILL COULD NOT PARTITION A DISK after the drive
+# letters were fixed. On the same Latitude, one step further in:
+#
+#   1. System   272629760 bytes    FAT32 S: as System
+#   2. Windows  510745993216 bytes NTFS  W: as Windows
+#   3. Recovery 1073741824 bytes   NTFS  R: as Recovery
+#   disk 0 failed while creating the Recovery partition:
+#   NewPartition ... "Not enough available capacity"
+#
+# The planner had already worked the sizes out correctly - Windows' 510 GB is
+# the disk minus System, minus Recovery, minus GPT overhead. What went wrong is
+# how Windows was CREATED. This function set
+#
+#   UseMaximumSize = $useMaximum
+#   TakesRemainder = $useMaximum
+#
+# from one value, and its own comment three lines above says they are two
+# questions. New-Partition -UseMaximumSize takes everything left on the disk,
+# so Windows swallowed the space Recovery was supposed to get and Recovery was
+# created into nothing.
+#
+# BOTH NAMED LAYOUTS PUT UseMaximumSize ON THE LAST ROW - uefi-standard on
+# Recovery, bios-standard on Windows - so the trailing alignment slack lands in
+# a partition instead of being left unallocated. That is the invariant, and the
+# authored path is now held to it.
+Describe 'ConvertTo-HDTDiskLayout, the two flags' {
+
+    Context 'an authored table with a partition after the remainder' {
+
+        BeforeAll {
+            # The shipped client template's shape: the remainder is in the
+            # MIDDLE, with Recovery after it.
+            $script:middle = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+                [pscustomobject] @{ name = 'System'; type = 'EFI'; size = '260MB'; filesystem = 'FAT32' }
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS' }
+                [pscustomobject] @{ name = 'Recovery'; type = 'Recovery'; size = '1GB'; filesystem = 'NTFS' }
+            )
+        }
+
+        It 'does not create the remainder partition with UseMaximumSize' {
+            # THE REGRESSION. -UseMaximumSize here consumes the whole disk and
+            # every partition after it fails to be created at all.
+            $windows = @($script:middle.Partition | Where-Object { $_.Label -eq 'Windows' })[0]
+
+            $windows.UseMaximumSize | Should -BeFalse
+            $windows.TakesRemainder | Should -BeTrue -Because 'it is still the row that takes what nothing else claimed'
+        }
+
+        It 'puts UseMaximumSize on the last row, where the slack lands' {
+            $recovery = @($script:middle.Partition | Where-Object { $_.Label -eq 'Recovery' })[0]
+
+            $recovery.UseMaximumSize | Should -BeTrue
+        }
+
+        It 'gives UseMaximumSize to exactly one row' {
+            @($script:middle.Partition | Where-Object { $_.UseMaximumSize }).Count | Should -Be 1
+        }
+    }
+
+    Context 'an authored table whose last row IS the remainder' {
+
+        BeforeAll {
+            $script:trailing = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+                [pscustomobject] @{ name = 'System'; type = 'EFI'; size = '260MB'; filesystem = 'FAT32' }
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = 'remainder'; filesystem = 'NTFS' }
+            )
+        }
+
+        It 'carries both flags on it' {
+            # Nothing follows it, so taking the maximum and taking the
+            # remainder are the same instruction here.
+            $windows = @($script:trailing.Partition | Where-Object { $_.Label -eq 'Windows' })[0]
+
+            $windows.UseMaximumSize | Should -BeTrue
+            $windows.TakesRemainder | Should -BeTrue
+        }
+    }
+
+    Context 'an authored table with no remainder row at all' {
+
+        It 'still lets the last row absorb the slack' {
+            # Otherwise the tail of the disk is left unallocated, which is what
+            # UseMaximumSize exists to prevent in both named layouts.
+            $sized = ConvertTo-HDTDiskLayout -Style GPT -Partition @(
+                [pscustomobject] @{ name = 'System'; type = 'EFI'; size = '260MB'; filesystem = 'FAT32' }
+                [pscustomobject] @{ name = 'Windows'; type = 'Primary'; size = '100GB'; filesystem = 'NTFS' }
+            )
+
+            @($sized.Partition | Where-Object { $_.UseMaximumSize }).Count | Should -Be 1
+            $sized.Partition[-1].UseMaximumSize | Should -BeTrue
         }
     }
 }

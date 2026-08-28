@@ -254,14 +254,30 @@
                 Role              = $label
                 SizeByte          = $sizeByte
 
-                # TWO FLAGS, BECAUSE THEY ARE TWO QUESTIONS. UseMaximumSize is
-                # where leftover slack LANDS when the partition is created -
-                # uefi-standard puts it on Recovery. TakesRemainder is which row
-                # gets the space nothing else claimed, which in the named
-                # layouts is Windows and here is whichever row said 'remainder'.
-                # Collapsing them would give an authored layout Recovery's flag
-                # and Windows' meaning.
-                UseMaximumSize    = $useMaximum
+                # TWO FLAGS, BECAUSE THEY ARE TWO QUESTIONS - and they were
+                # answered with one value, which is a disk that cannot be built.
+                #
+                # UseMaximumSize is where leftover slack LANDS when the
+                # partition is CREATED. New-Partition -UseMaximumSize takes
+                # everything left on the disk, so it belongs on the LAST row and
+                # nowhere else - which is what both named layouts do:
+                # uefi-standard puts it on Recovery, bios-standard on Windows.
+                #
+                # TakesRemainder is which row gets the space nothing else
+                # claimed, in the ARITHMETIC. In the named layouts that is
+                # Windows; here it is whichever row said 'remainder'.
+                #
+                # Setting both from $useMaximum gave the remainder row
+                # -UseMaximumSize, so on the shipped client template Windows
+                # swallowed the whole disk and Recovery - authored after it -
+                # was created into nothing:
+                #
+                #   disk 0 failed while creating the Recovery partition:
+                #   NewPartition ... "Not enough available capacity"
+                #
+                # The planner had the sizes right all along. Only the flag that
+                # decides how the partition is CREATED was wrong.
+                UseMaximumSize    = ($index -eq @($Partition).Count)
                 TakesRemainder    = $useMaximum
                 PercentOfRemainder = $percent
                 FileSystem        = $fileSystem

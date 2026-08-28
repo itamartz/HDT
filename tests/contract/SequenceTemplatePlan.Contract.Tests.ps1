@@ -138,6 +138,40 @@ Describe 'Shipped sequence template plan contract' {
         ($broken -join ' | ') | Should -BeNullOrEmpty
     }
 
+    It 'creates only the last partition with UseMaximumSize, in every shipped template' {
+        # THE SECOND WAY THE SHIPPED TEMPLATE COULD NOT PARTITION A DISK.
+        # New-Partition -UseMaximumSize takes everything left, so a row carrying
+        # it with anything authored after it starves every one of them:
+        #
+        #   disk 0 failed while creating the Recovery partition:
+        #   NewPartition ... "Not enough available capacity"
+        #
+        # Both named layouts put the flag on the last row - uefi-standard on
+        # Recovery, bios-standard on Windows - so the trailing alignment slack
+        # lands in a partition instead of unallocated at the end of the disk.
+        $broken = New-Object -TypeName System.Collections.ArrayList
+
+        foreach ($current in $script:diskStep) {
+            $answer = & $script:planOf -Step $current.Step
+            if ($null -eq $answer) { continue }
+
+            $row = @($answer.Layout.Partition)
+            $greedy = @(0..($row.Count - 1) | Where-Object { $row[$_].UseMaximumSize })
+
+            if ($greedy.Count -ne 1) {
+                [void] $broken.Add(('{0} / {1}: {2} rows take the maximum' -f $current.Template, $current.Name, $greedy.Count))
+                continue
+            }
+
+            if ($greedy[0] -ne ($row.Count - 1)) {
+                [void] $broken.Add(('{0} / {1}: {2} takes the maximum with {3} partition(s) after it' -f
+                        $current.Template, $current.Name, $row[$greedy[0]].Label, ($row.Count - 1 - $greedy[0])))
+            }
+        }
+
+        ($broken -join ' | ') | Should -BeNullOrEmpty
+    }
+
     It 'hands out no letter twice, in every shipped template' {
         # Two rows on one letter is one volume formatted twice, and the second
         # format destroys what the first one held.
