@@ -31,6 +31,25 @@ function Test-HDTAdminPassword {
             domain's policy decides what is strong enough, and a second opinion
             in WinPE would refuse passwords the domain accepts.
 
+            AND NO CHARACTER RULE, WHICH IS A DECISION RATHER THAN AN OMISSION.
+            The password ends up in an XML answer file, so & < > " and ' have to
+            survive the trip - and for a while they did not, because the only
+            thing protecting the document was the ALPHABET of a command that
+            minted passwords. New-HDTDeploymentPassword excluded those five
+            characters and the per cent sign on purpose. That command is gone,
+            deleted when DESIGN 4.5.2 settled that HDT does not invent
+            passwords, and its guarantee went with it while the substitution
+            stayed unescaped: 'Pa&ss' produced an answer file Windows Setup
+            could not parse, on a machine with the OS already on the disk.
+
+            The fix belongs at substitution, and that is where it is -
+            Invoke-HDTApplyUnattendStep escapes every value it puts into the
+            document. Refusing the password here instead would protect one
+            value out of ten and turn a legal Windows password into a refusal a
+            technician cannot argue with, at a bench, holding a password their
+            domain requires. Escaping costs nothing and covers the organisation
+            name in the same line.
+
         .PARAMETER Password
             What was typed in the password box.
 

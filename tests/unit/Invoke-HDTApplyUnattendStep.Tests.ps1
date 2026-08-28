@@ -320,6 +320,189 @@ Describe 'Invoke-HDTApplyUnattendStep' {
         }
     }
 
+    Context 'characters a technician can type' {
+
+        # AN ANSWER FILE IS XML, AND A PASSWORD IS NOT.
+        #
+        # Substitution used to drop the resolved value into the document with no
+        # escaping at all, and that was safe for exactly as long as every
+        # password was MINTED. New-HDTDeploymentPassword's alphabet excluded
+        # < > & " ' and per cent signs on purpose, so a minted secret went in
+        # without escaping - and the comment recording that guarantee was
+        # deleted along with the command itself.
+        #
+        # NOTHING MINTS ONE ANY MORE. DESIGN 4.5.2 settled it: "the
+        # administrator sets the password; HDT does not invent one." So every
+        # password in this document is now a string a human typed into the
+        # wizard or wrote into rules.yaml, over which HDT has no alphabet at
+        # all - and 'Pa&ss' produced an answer file Windows Setup could not
+        # parse, twice over, because the secret appears under UserAccounts AND
+        # inside AutoLogon.
+        #
+        # THE FIX IS AT SUBSTITUTION, NOT IN A PASSWORD RULE. Escaping protects
+        # every value the document ever carries - an organisation named
+        # 'Smith & Sons' as much as a password - and cannot be forgotten by
+        # whoever adds the next token. Refusing legal Windows passwords at a
+        # bench would be the worse trade.
+
+        BeforeEach {
+            $script:hostileSecret = 'a&b<c>d"e' + "'" + 'f'
+
+            $script:readUnattendValue = {
+                param([string] $XPath)
+
+                $written = $script:fileSystem.ReadAllText($script:pantherPath)
+
+                $doc = New-Object -TypeName System.Xml.XmlDocument
+                $doc.LoadXml($written)
+
+                $ns = New-Object -TypeName System.Xml.XmlNamespaceManager -ArgumentList $doc.NameTable
+                $ns.AddNamespace('u', 'urn:schemas-microsoft-com:unattend')
+
+                return @(@($doc.SelectNodes($XPath, $ns)) | ForEach-Object { $_.InnerText })
+            }
+        }
+
+        It 'stages a document that still parses when the password carries XML metacharacters' {
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = $script:hostileSecret }) $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $script:step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            { [xml] $script:fileSystem.ReadAllText($script:pantherPath) } | Should -Not -Throw
+        }
+
+        It 'round-trips those characters to exactly what was typed, in both places Setup reads' {
+            # PARSING IS NOT ENOUGH. A document that parses because the value was
+            # mangled deploys a machine whose password nobody can type.
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = $script:hostileSecret }) $script:state
+
+            Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
+
+            $account = @(& $script:readUnattendValue '//u:UserAccounts/u:AdministratorPassword/u:Value')
+            $autoLogon = @(& $script:readUnattendValue '//u:AutoLogon/u:Password/u:Value')
+
+            @($account).Count | Should -Be 1
+            @($autoLogon).Count | Should -Be 1
+            $account[0] | Should -BeExactly $script:hostileSecret
+            $autoLogon[0] | Should -BeExactly $script:hostileSecret
+        }
+
+        It 'escapes a value once and not twice' {
+            # AN AMPERSAND MUST REACH THE DISK AS ONE ENTITY. Escaping the
+            # already-escaped text would write the entity for the entity, and
+            # hand Windows a five-character password nobody typed.
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = 'a&b' }) $script:state
+
+            Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
+
+            $written = $script:fileSystem.ReadAllText($script:pantherPath)
+
+            $written | Should -BeLike '*a&amp;b*'
+            $written | Should -Not -BeLike '*a&amp;amp;b*'
+        }
+
+        It 'leaves a per cent sign in a password as the character that was typed' {
+            # THE TOKEN GRAMMAR IS PER CENT SIGNS, and a password is allowed to
+            # contain them. Without handling, 'Pa%%w0rd' collapses to one per
+            # cent sign, and a password naming a variable expands into somebody
+            # else's value - or, naming its own, raises a cycle error halfway
+            # through a deployment.
+            $secret = 'Pa%%w0rd%HDTComputerName%'
+
+            $context = & $script:newContextFor ([ordered] @{ HDTAdminPassword = $secret }) $script:state
+
+            Invoke-HDTApplyUnattendStep -Step $script:step -Context $context | Out-Null
+
+            $account = @(& $script:readUnattendValue '//u:UserAccounts/u:AdministratorPassword/u:Value')
+
+            $account[0] | Should -BeExactly $secret
+        }
+
+        It 'escapes every substituted value, not only the password' {
+            # THE REASON THE FIX IS AT SUBSTITUTION. A token added tomorrow is
+            # covered without anybody remembering to cover it.
+            $script:fileSystem.SeedFile('Z:\Deploy\TaskSequences\DEMO-M3\org.xml',
+                '<unattend><RegisteredOrganization>%HDTOrgName%</RegisteredOrganization></unattend>')
+
+            $step = & $script:newStep ([ordered] @{ template = 'org.xml' })
+            $context = & $script:newContextFor ([ordered] @{ HDTOrgName = 'Smith & Sons <Holdings>' }) $script:state
+
+            Invoke-HDTApplyUnattendStep -Step $step -Context $context | Out-Null
+
+            $written = $script:fileSystem.ReadAllText($script:pantherPath)
+
+            { [xml] $written } | Should -Not -Throw
+            ([xml] $written).unattend.RegisteredOrganization | Should -BeExactly 'Smith & Sons <Holdings>'
+        }
+    }
+
+    Context 'the answer file this module actually ships' {
+
+        # THE TEMPLATE New-HDTWorkspace SEEDS, not a fixture standing in for it.
+        # Every other case in this file runs against the SPIKES S7 capture,
+        # which is the right reference for BEHAVIOUR and the wrong one for
+        # catching an element somebody added to the shipped file afterwards -
+        # which is exactly what happened on 2026-08-28.
+
+        BeforeEach {
+            $script:shippedTemplate = Get-Content -Raw -LiteralPath (
+                Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Templates/unattend.xml')
+
+            $script:fileSystem.SeedFile('Z:\Deploy\TaskSequences\DEMO-M3\shipped.xml', $script:shippedTemplate)
+        }
+
+        It 'parses as XML for a full set of wizard answers' {
+            $answer = [ordered] @{
+                HDTComputerName   = 'HDT-M3-01'
+                HDTFullName       = 'Smith & Sons'
+                HDTOrgName        = 'Smith & Sons <Holdings>'
+                HDTProductKey     = ''
+                HDTTimeZone       = 'GMT Standard Time'
+                HDTKeyboardLocale = '0409:00000409'
+                HDTSystemLocale   = 'en-US'
+                HDTUILanguage     = 'en-US'
+                HDTUserLocale     = 'en-US'
+                HDTAdminPassword  = 'a&b<c>d"e' + "'" + 'f'
+            }
+
+            $step = & $script:newStep ([ordered] @{ template = 'shipped.xml' })
+            $context = & $script:newContextFor $answer $script:state
+
+            $result = Invoke-HDTApplyUnattendStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            { [xml] $script:fileSystem.ReadAllText($script:pantherPath) } | Should -Not -Throw
+        }
+
+        It 'leaves no unexpanded token behind for a full set of wizard answers' {
+            # A LEFTOVER TOKEN IS A MACHINE NAMED AFTER ONE. The ProductKey
+            # element is REMOVED rather than left empty when no key is supplied,
+            # so an absent key is not a leftover.
+            $answer = [ordered] @{
+                HDTComputerName   = 'HDT-M3-01'
+                HDTFullName       = 'Fabrikam'
+                HDTOrgName        = 'Fabrikam'
+                HDTProductKey     = ''
+                HDTTimeZone       = 'GMT Standard Time'
+                HDTKeyboardLocale = '0409:00000409'
+                HDTSystemLocale   = 'en-US'
+                HDTUILanguage     = 'en-US'
+                HDTUserLocale     = 'en-US'
+                HDTAdminPassword  = 'Passw0rd-fixture!'
+            }
+
+            $step = & $script:newStep ([ordered] @{ template = 'shipped.xml' })
+            $context = & $script:newContextFor $answer $script:state
+
+            Invoke-HDTApplyUnattendStep -Step $step -Context $context | Out-Null
+
+            $written = $script:fileSystem.ReadAllText($script:pantherPath)
+
+            @([regex]::Matches($written, '%[A-Za-z_][A-Za-z0-9_]*%')) | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'the product key' {
 
         # THE ELEMENT CANNOT BE LEFT EMPTY AND CANNOT BE LEFT LITERAL. Windows

@@ -127,4 +127,50 @@ Describe 'Test-HDTAdminPassword' {
             }
         }
     }
+
+    Context 'characters, and why none of them are refused' {
+
+        # A PIN ON A DECISION, not a new behaviour. Nothing in this command
+        # changed to make these pass; the test exists so that the next person
+        # tempted to solve an XML problem with a password rule fails here and
+        # reads why.
+        #
+        # The password reaches an XML answer file, and for a while nothing
+        # escaped it on the way. What protected the document was the ALPHABET of
+        # New-HDTDeploymentPassword, which excluded & < > " ' and the per cent
+        # sign on purpose. That command was deleted when DESIGN 4.5.2 settled
+        # that HDT does not invent passwords, and the guarantee went with it -
+        # so 'Pa&ss' produced an answer file Windows Setup refused, on a machine
+        # with the operating system already applied to its disk.
+        #
+        # THE FIX IS IN Invoke-HDTApplyUnattendStep, which escapes every value it
+        # substitutes. Refusing characters here would cover one value out of ten
+        # and would refuse a password the domain requires, to a technician
+        # standing at a bench with no way to argue.
+
+        It 'accepts a password made of the characters XML cares about' {
+            $secret = 'a&b<c>d"e' + "'" + 'f'
+
+            $answer = Test-HDTAdminPassword -Password $secret -Confirmation $secret
+
+            $answer.IsValid | Should -BeTrue
+            $answer.Reason | Should -BeNullOrEmpty
+        }
+
+        It 'accepts a password carrying per cent signs' {
+            # The answer file's token grammar is per cent signs. That is the
+            # staging step's problem to solve, not a reason to refuse a
+            # password.
+            $secret = 'Pa%%w0rd%HDTComputerName%'
+
+            (Test-HDTAdminPassword -Password $secret -Confirmation $secret).IsValid | Should -BeTrue
+        }
+
+        It 'still refuses that same password when the confirmation differs' {
+            # The one rule this command has does not weaken for an awkward value.
+            $secret = 'a&b<c>d"e' + "'" + 'f'
+
+            (Test-HDTAdminPassword -Password $secret -Confirmation 'a&b').IsValid | Should -BeFalse
+        }
+    }
 }

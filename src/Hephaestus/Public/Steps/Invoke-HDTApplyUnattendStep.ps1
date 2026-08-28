@@ -287,8 +287,87 @@
             $scope['HDTAdminPassword'] = $secret
         }
 
+        # -- AN ANSWER FILE IS XML, AND A VARIABLE IS NOT --------------------
+        #
+        # EVERY value is escaped, HERE, in ONE place, immediately before it is
+        # substituted. Not the password specially: every value, because the
+        # alternative is a rule the next person to add a token has to know
+        # about, and this document already lost that bet once.
+        #
+        # THE GUARANTEE THAT USED TO MAKE THIS SAFE IS GONE. There was a
+        # New-HDTDeploymentPassword whose alphabet excluded < > & " ' and the
+        # per cent sign ON PURPOSE, so a minted password went into the document
+        # without escaping. DESIGN 4.5.2 settled the policy the other way - "the
+        # administrator sets the password; HDT does not invent one" - and the
+        # command was deleted, taking its alphabet with it while the unescaped
+        # substitution stayed. Every password here is now a string a human typed
+        # into the wizard or wrote into rules.yaml, and 'Pa&ss' is a legal
+        # Windows password that produces an answer file Setup cannot parse -
+        # twice over, because the secret appears under UserAccounts AND inside
+        # AutoLogon.
+        #
+        # THE TEMPLATE ITSELF IS NEVER ESCAPED, only the values going into it.
+        # Escaping the document would turn its own markup into text.
+        #
+        # ESCAPING IS NOT APPLIED TWICE. Each raw value is escaped exactly once
+        # on its way into the scope, and Expand-HDTVariableToken reads the
+        # already-escaped text when it recurses - so a value holding a token
+        # composes correctly and an ampersand reaches disk as one entity. A
+        # value with nothing special in it comes back unchanged, which is what
+        # "do not double-escape something already safe" amounts to here: these
+        # are TEXT values, not markup, so an author who pre-escaped one was
+        # working around this bug and their value was already wrong.
+        $escaped = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($key in @($scope.Keys)) {
+            $raw = $scope[$key]
+
+            # A $null MUST STAY $null. Expand-HDTVariableToken leaves a token
+            # naming one literal and reports it as unresolved, and that is the
+            # behaviour 02-03 asked for; an empty string here would silently
+            # deploy a machine named 'PC-'.
+            if ($null -eq $raw) {
+                $escaped[[string] $key] = $null
+                continue
+            }
+
+            # THE SHAPES Expand-HDTVariableToken RENDERS, rendered the same way.
+            # A list joins on commas there, so it has to join on commas here or
+            # the two disagree about what a multi-valued variable is.
+            if (($raw -is [System.Collections.IList]) -and -not ($raw -is [string])) {
+                $rendered = @(@($raw) | ForEach-Object { ConvertTo-HDTComparableString -Value $_ }) -join ','
+            } else {
+                $rendered = ConvertTo-HDTComparableString -Value $raw
+            }
+
+            $escaped[[string] $key] = [System.Security.SecurityElement]::Escape($rendered)
+        }
+
+        # -- and the per cent sign, which XML escaping does not touch ---------
+        #
+        # THE TOKEN GRAMMAR IS PER CENT SIGNS, and a password is allowed to
+        # contain them. Expansion RECURSES into a substituted value - that is
+        # what makes 'PC-%HDTSitePrefix%' work - so a password containing
+        # '%HDTComputerName%' would expand into the machine's name, and one
+        # containing its own token name would raise a cycle error halfway
+        # through a deployment. 'Pa%%w0rd' would quietly become 'Pa%w0rd', and
+        # the machine would take a password nobody typed.
+        #
+        # DOUBLING THE PER CENT SIGNS MAKES THE VALUE LITERAL, because '%%' is
+        # exactly how that grammar spells one per cent sign.
+        #
+        # ONLY THE PASSWORD, AND DELIBERATELY SO. Every other variable is
+        # documented as recursively expandable and administrators rely on it -
+        # 'PC-%HDTSerialNumber%' is the seeded example. A password is a literal
+        # secret and was never meant to name anything.
+        foreach ($literal in @('HDTAdminPassword')) {
+            if ($escaped.Contains($literal) -and $null -ne $escaped[$literal]) {
+                $escaped[$literal] = ([string] $escaped[$literal]).Replace('%', '%%')
+            }
+        }
+
         $unresolved = New-Object -TypeName System.Collections.ArrayList
-        $document = Expand-HDTVariableToken -Value $text -Scope $scope -Unresolved $unresolved -Path $templatePath
+        $document = Expand-HDTVariableToken -Value $text -Scope $escaped -Unresolved $unresolved -Path $templatePath
 
         if (@($unresolved).Count -gt 0) {
             Write-HDTLog -Context $Context.Log -Severity Warning -Component 'ApplyUnattend' `
