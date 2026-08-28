@@ -327,6 +327,56 @@ class HDTFakeFileSystem {
         $sourcePath = $this.Normalize($Source)
         $destinationPath = $this.Normalize($Destination)
 
+        # A DIRECTORY IS A THING THAT CAN BE MOVED, and this fake did not know
+        # it. The real adapter is Move-Item, which moves a folder and everything
+        # under it without comment; this threw FileNotFoundException naming the
+        # folder as a missing FILE - so Rename-HDTDriverFolder passed every
+        # refusal test and failed every test that actually moved something.
+        #
+        # THE FAKE WAS WRONG, NOT THE CALLER. A double that cannot do what the
+        # real one does is a double that makes correct code look broken, which
+        # is worse than one that is merely incomplete: it sends somebody looking
+        # for a defect in the command.
+        $prefix = $sourcePath.TrimEnd('\') + '\'
+
+        $under = @(@($this.File.Keys) | Where-Object {
+                ([string] $_).StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+            })
+
+        $isDirectory = ($under.Count -gt 0 -or $this.Directory.ContainsKey($sourcePath))
+
+        if ($isDirectory) {
+            $newPrefix = $destinationPath.TrimEnd('\') + '\'
+
+            foreach ($one in $under) {
+                $tail = ([string] $one).Substring($prefix.Length)
+                $this.AddFile(($newPrefix + $tail), $this.File[$one])
+                [void] $this.File.Remove($one)
+            }
+
+            # THE EMPTY FOLDERS TOO. A driver folder holding only subfolders is
+            # still a folder somebody renamed, and leaving the old keys behind
+            # would make TestPath answer true for a folder that has moved.
+            foreach ($one in @(@($this.Directory.Keys) | Where-Object {
+                        [string] $_ -eq $sourcePath -or
+                        ([string] $_).StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
+                    })) {
+
+                $tail = ''
+                if (([string] $one).Length -gt $sourcePath.Length) {
+                    $tail = ([string] $one).Substring($prefix.Length)
+                }
+
+                $moved = $destinationPath
+                if (-not [string]::IsNullOrEmpty($tail)) { $moved = $newPrefix + $tail }
+
+                $this.Directory[$moved] = $true
+                [void] $this.Directory.Remove($one)
+            }
+
+            return
+        }
+
         if (-not $this.File.ContainsKey($sourcePath)) {
             throw [System.IO.FileNotFoundException]::new("Could not find file '$sourcePath'.", $sourcePath)
         }

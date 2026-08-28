@@ -59,6 +59,7 @@
         'Get-HDTShareContentFolder',
         'New-HDTDriverFolder',
         'Remove-HDTDriverFolder',
+        'Rename-HDTDriverFolder',
         'Import-HDTDriver',
         'Get-HDTDriver',
         'Get-HDTConsoleLogPath',

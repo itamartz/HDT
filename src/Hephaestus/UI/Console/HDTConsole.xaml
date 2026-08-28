@@ -389,6 +389,15 @@
                              parent they meant. -->
                         <MenuItem x:Name="HDTNewDriverFolderMenuItem" />
                         <MenuItem x:Name="HDTImportDriverMenuItem" />
+
+                        <!-- RENAME SITS BESIDE DELETE, not beside New: they are
+                             the two things you do to a folder that already
+                             exists, and Workbench groups them the same way.
+                             Without it an administrator fixing a typo leaves
+                             the console for Explorer - where the rename moves
+                             the directory and silently orphans every selection
+                             profile and disabled driver that named it. -->
+                        <MenuItem x:Name="HDTRenameDriverFolderMenuItem" />
                         <MenuItem x:Name="HDTRemoveDriverFolderMenuItem" />
 
                         <!-- WORKBENCH'S Monitoring NODE, AND THE THING IT

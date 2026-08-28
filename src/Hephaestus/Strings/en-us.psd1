@@ -68,6 +68,9 @@
         'HDTSelectionProfileMenuItem.NewHeader' = 'New Selection Profile'
         'HDTNewDriverFolderMenuItem.Header' = 'New Folder'
         'HDTImportDriverMenuItem.Header' = 'Import Drivers'
+        # MDT's Workbench calls it Rename and so does this. The ellipsis is the
+        # Windows convention for "this asks you something first", which it does.
+        'HDTRenameDriverFolderMenuItem.Header' = 'Rename Driver Folder...'
         'HDTRemoveDriverFolderMenuItem.Header' = 'Delete Driver Folder'
         # CLEAR, NOT DELETE. Nothing on the share reads a heartbeat, so this is
         # the one item on this menu that costs a record rather than a component.

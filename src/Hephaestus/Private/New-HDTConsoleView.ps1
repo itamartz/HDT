@@ -691,7 +691,19 @@
             $wasOpen = [string[]] @(& $call 'Get-HDTConsoleExpandedPath' `
                     -Node ([object[]] @($tree.ItemsSource)))
 
-            $rebuiltNode = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($rebuiltShare)))
+            # -Collapsed, LIKE THE FIRST BUILD, and this was missing.
+            #
+            # Show-HDTConsole builds the opening tree folded; this rebuild did
+            # not, so every fresh row arrived EXPANDED - and
+            # Set-HDTConsoleExpandedPath below only ever sets IsExpanded true,
+            # never false. It had nothing to close. So the restore re-opened
+            # what was open, the default left everything else open too, and
+            # saving a new folder unfolded the entire tree around whoever had
+            # just carefully folded it.
+            #
+            # Folded first, then reopen exactly what was open, is the only order
+            # that ends with the tree the administrator was looking at.
+            $rebuiltNode = @(& $call 'Get-HDTConsoleTreeNode' -Workspace ([object[]] @($rebuiltShare)) -Collapsed)
 
             $rebuiltRoot = [object[]] @($rebuiltNode | Where-Object { $_.Depth -eq 0 })
 
@@ -1053,6 +1065,7 @@
         $selectionProfileItem = $window.FindName('HDTSelectionProfileMenuItem')
         $newDriverFolderItem = $window.FindName('HDTNewDriverFolderMenuItem')
         $importDriverItem = $window.FindName('HDTImportDriverMenuItem')
+        $renameDriverFolderItem = $window.FindName('HDTRenameDriverFolderMenuItem')
         $removeDriverFolderItem = $window.FindName('HDTRemoveDriverFolderMenuItem')
         $removeMonitorRunItem = $window.FindName('HDTRemoveMonitorRunMenuItem')
 
@@ -1296,6 +1309,7 @@
 
                 $newDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
                 $importDriverItem.Visibility = [System.Windows.Visibility]::Collapsed
+                $renameDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
                 $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Collapsed
                 $removeMonitorRunItem.Visibility = [System.Windows.Visibility]::Collapsed
 
@@ -1319,6 +1333,10 @@
                 # the store itself, so an item offered there would be one
                 # that only ever answers no.
                 if ([string] $chosen.Kind -eq 'DriverFolder') {
+                    # RENAME IS OFFERED WHEREVER DELETE IS, and for the same
+                    # reason it is refused on the store: renaming Drivers\ is
+                    # not a folder rename, it is renaming the store.
+                    $renameDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
                     $removeDriverFolderItem.Visibility = [System.Windows.Visibility]::Visible
                 }
 
@@ -1981,6 +1999,68 @@
         # carries ConfirmImpact High, which at a console nobody is looking
         # at is a window that appears to hang. The answer is passed as
         # -Confirm:$false - one decision, made where it was offered.
+        # RENAME, WHICH THE CONSOLE COULD NOT DO. It could make a driver folder
+        # and delete one, and an administrator fixing a typo had to leave for
+        # Explorer - where the rename moves the directory and silently orphans
+        # every selection profile and disabled driver that named it.
+        #
+        # NO WINDOW OF ITS OWN: $askForFolder is the prompt New Folder already
+        # uses, and this needs the same one string.
+        $renameDriverFolderItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.Subject
+                if ([string]::IsNullOrWhiteSpace($where)) {
+                    $command.Text = 'that row does not name a share, so there is no folder to rename.'
+                    return
+                }
+
+                # The row names itself from the share's root - 'Drivers\WinPE\Dell'
+                # - and Rename-HDTDriverFolder counts from inside the store.
+                $which = [string] $chosen.Name
+                if ($which -match '^(?i)Drivers\\') { $which = $which.Substring(('Drivers\').Length) }
+
+                # SEEDED WITH THE CURRENT LEAF, because a rename is usually an
+                # edit of the name that is there rather than a new one typed
+                # from nothing.
+                $leaf = [string] (Split-Path -Path $which -Leaf)
+
+                # FOUR ARGUMENTS, NOT THREE: the prompt is
+                # ($Title, $Prompt, $Choice, $Initial) and passing the name
+                # third binds it to $Choice - a [string[]] of options - so the
+                # box would offer the current name as a dropdown item instead of
+                # seeding the field with it. It would have looked almost right.
+                $answer = & $askForFolder 'Rename Driver Folder' 'New name' @() $leaf
+                if ($null -eq $answer) { return }
+                if ([string]::IsNullOrWhiteSpace($answer)) { return }
+
+                try {
+                    $renamed = & $call 'Rename-HDTDriverFolder' @{
+                        Root = $where; Path = $which; NewName = $answer; Confirm = $false
+                    }
+                } catch {
+                    $command.Text = '# {0}' -f [string] $_.Exception.Message
+                    return
+                }
+
+                & $rebuildTree
+
+                $command.Text = "Rename-HDTDriverFolder -Root '{0}' -Path '{1}' -NewName '{2}'" -f
+                    $where, $which, $answer
+
+                # WHAT ELSE IT TOUCHED, SAID OUT LOUD. A rename that quietly
+                # rewrote a selection profile is a rename somebody will not
+                # think to check when a boot image later injects the wrong set.
+                if ([bool] $renamed.ProfileUpdated -or [bool] $renamed.StateUpdated) {
+                    $command.Text = '{0}   # also updated: {1}' -f $command.Text,
+                        ((@(
+                            $(if ([bool] $renamed.ProfileUpdated) { 'selection profiles' })
+                            $(if ([bool] $renamed.StateUpdated) { 'disabled drivers' })
+                        ) | Where-Object { $_ }) -join ', ')
+                }
+            }.GetNewClosure())
+
         $removeDriverFolderItem.Add_Click({
                 $chosen = $tree.SelectedItem
                 if ($null -eq $chosen) { return }
