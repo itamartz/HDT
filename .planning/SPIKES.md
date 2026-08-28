@@ -1937,3 +1937,55 @@ that needs the network.
 
 `HDT-PnP-Spike`, its VHDX under `C:\HDTLab\vms\`, and the probe file were all
 removed; they were created by this spike. `CM01` and `DC01` were never touched.
+
+---
+
+## S20 — the ADK's WinPE bootloader is on the Secure Boot revocation list ⚠
+
+**Rufus refuses to write the ISO quietly.** Writing
+`C:\HDTLab\Share\Boot\HDTPE_wiz_x64.iso` to a USB stick raises:
+
+> **Revoked UEFI bootloader detected** — Rufus detected that the ISO you have
+> selected contains a UEFI bootloader that has been revoked and that will
+> produce a "Security Violation" screen, when Secure Boot is enabled on a fully
+> up to date UEFI system.
+
+**This is not a defect in the image and not a bad build.** It is what the ADK
+ships. The boot file HDT copies into its media is the ADK's own:
+
+```
+…\Windows Preinstallation Environment\amd64\Media\EFI\Boot\bootx64.efi
+10.0.26100.1085 (WinBuild.160101.0800), dated 2024-11-16
+```
+
+Microsoft revoked older `bootmgfw.efi`/`bootx64.efi` builds through the Secure
+Boot DBX after **CVE-2023-24932 (BlackLotus)**, and has continued adding to that
+list since. The ADK's copy is older than the current list, so **every** WinPE
+stick built from this ADK — MDT's, HDT's, or a hand-made one — hits it.
+
+**What it costs, exactly:**
+
+| Secure Boot on the target | Result |
+|---|---|
+| **Enabled** | the machine shows "Security Violation" and will not boot the stick |
+| **Disabled** | boots normally; nothing else about the deployment is affected |
+
+Nothing HDT does is sensitive to Secure Boot. Driver injection, the wizard, the
+engine and the share are all indifferent to it — this is purely whether the
+firmware will start the media.
+
+**For the lab: turn Secure Boot off on the test machine** (Dell: F2 at
+power-on → Boot Configuration). That is the right answer for proving a
+deployment and the wrong answer for a fleet.
+
+**For production media this needs solving properly**, and it is not yet done:
+the `bootmgr.efi` and `bootx64.efi` in the media have to be replaced with
+current ones from a fully patched Windows, and the boot image rebuilt around
+them. Recorded on the roadmap rather than fixed here, because it is a media
+concern rather than a driver one and it deserves its own verification —
+including confirming which replacement source the ADK's own guidance now
+sanctions.
+
+**Do not read the warning as "the ISO is untrustworthy".** Rufus phrases it as a
+possible malware indicator because it cannot know where an image came from. This
+one was built on this machine, from the installed ADK, minutes earlier.
