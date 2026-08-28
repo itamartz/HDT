@@ -77,6 +77,61 @@ Describe 'Dynamic logging to the share' {
         }
     }
 
+    Context 'set after the context was built' {
+
+        # THE ANSWER ARRIVES AFTER THE CONTEXT DOES. The payload builds its log
+        # context in the first seconds of a run - before the share is reachable
+        # and long before rules.yaml has resolved HDTSLShareDynamicLogging - so
+        # the destination has to be settable on the context that already exists.
+        # Rebuilding it would throw away the sequence counter and every record
+        # written so far.
+
+        It 'starts mirroring from the moment it is set' {
+            $made = & $script:newContext
+
+            Write-HDTLog -Context $made.Context -Message 'before the share was known'
+            $made.Context.SetDynamicPath($script:share)
+            Write-HDTLog -Context $made.Context -Message 'after the share was known'
+
+            $mirrored = [string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:share))
+
+            $mirrored | Should -Match 'after the share was known'
+            $mirrored | Should -Not -Match 'before the share was known' -Because 'a mirror cannot carry what was written before it existed'
+        }
+
+        It 'keeps the local log whole across the change' {
+            # THE MACHINE'S OWN LOG IS THE ONE THAT MATTERS, and it must carry
+            # both halves whatever the share does.
+            $made = & $script:newContext
+
+            Write-HDTLog -Context $made.Context -Message 'before the share was known'
+            $made.Context.SetDynamicPath($script:share)
+            Write-HDTLog -Context $made.Context -Message 'after the share was known'
+
+            $local = [string] $made.FileSystem.ReadAllText('X:\HDT\Logs\HDT.log')
+
+            $local | Should -Match 'before the share was known'
+            $local | Should -Match 'after the share was known'
+        }
+
+        It 'turns the mirror off again when given nothing' {
+            $made = & $script:newContext $script:share
+            $made.Context.SetDynamicPath('')
+
+            $made.Context.DynamicPath | Should -BeNullOrEmpty
+            $made.Context.DynamicJsonlPath | Should -BeNullOrEmpty
+        }
+
+        It 'recomputes the step log against the new root' {
+            $made = & $script:newContext
+            $made.Context.SetStep(3, 'Format and Partition Disk (UEFI)', 'DiskPartition', 'X:\HDT\Logs\Steps\003-Format.log')
+            $made.Context.SetDynamicPath($script:share)
+
+            [string] $made.Context.DynamicStepLogPath |
+                Should -BeExactly ('{0}\Steps\003-Format.log' -f $script:share)
+        }
+    }
+
     Context 'what it writes' {
 
         It 'appends the jsonl record to the share as well as locally' {

@@ -73,6 +73,7 @@
             The window opens and the prompt comes straight back.
 
         .EXAMPLE
+            Start-HDTConsole 'C:\HDTLab\Share' '\\host\HdtShare'
 
             Two shares, one window.
 

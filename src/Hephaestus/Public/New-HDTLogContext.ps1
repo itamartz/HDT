@@ -225,6 +225,54 @@
         DynamicJsonlPath     = $dynamicJsonl
         DynamicMasterLogPath = $dynamicMaster
         DynamicStepLogPath   = $null
+
+        # ON THE CONTEXT BECAUSE A ScriptMethod CANNOT SEE THIS FUNCTION'S
+        # LOCALS. Add-Member does not capture the enclosing scope, so
+        # SetDynamicPath referencing the $BaseName PARAMETER threw "the variable
+        # $BaseName cannot be retrieved because it has not been set" the moment
+        # it was called - under StrictMode, which is what turns that into a
+        # throw rather than an empty file name. Every other use of $BaseName is
+        # evaluated here, at construction, which is why nothing else noticed.
+        BaseName             = $BaseName
+    }
+
+    # SET AFTER THE FACT, BECAUSE THE ANSWER ARRIVES AFTER THE CONTEXT DOES.
+    # The log context is built in the first seconds of a run - before the share
+    # is reachable, before rules.yaml has been read and long before
+    # HDTSLShareDynamicLogging has resolved. Rebuilding the context then would
+    # throw away the sequence counter and every record already written, so the
+    # destination is set on the context that already exists.
+    #
+    # AN EMPTY PATH TURNS THE MIRROR OFF AGAIN, which is what a share that
+    # stopped being reachable would want if anything ever asked for it.
+    $context | Add-Member -MemberType ScriptMethod -Name SetDynamicPath -Value {
+        param([string] $Path)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) {
+            $this.DynamicPath = ''
+            $this.DynamicJsonlPath = ''
+            $this.DynamicMasterLogPath = ''
+            $this.DynamicStepLogPath = $null
+            return
+        }
+
+        $trimmed = $Path.TrimEnd('\', '/')
+
+        # $this.BaseName, NOT $BaseName. See the property's own note: a
+        # ScriptMethod cannot see the constructing function's parameters.
+        $this.DynamicPath = $trimmed
+        $this.DynamicJsonlPath = '{0}\{1}.jsonl' -f $trimmed, $this.BaseName
+        $this.DynamicMasterLogPath = '{0}\{1}.log' -f $trimmed, $this.BaseName
+
+        # THE STEP LOG FOLLOWS THE STEP, and a step may already be running when
+        # this is set - SetStep is what recomputes it, so it is recomputed here
+        # from whatever step is current rather than left pointing nowhere.
+        $this.DynamicStepLogPath = $null
+
+        if (-not [string]::IsNullOrWhiteSpace([string] $this.StepLogPath)) {
+            $leaf = ([string] $this.StepLogPath).Substring($this.LogPath.Length).TrimStart('\', '/')
+            $this.DynamicStepLogPath = '{0}\{1}' -f $trimmed, $leaf
+        }
     }
 
     $context | Add-Member -MemberType ScriptMethod -Name SetStep -Value {

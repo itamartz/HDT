@@ -240,6 +240,7 @@
         'Start-HDTProgressDisplay',
         'Start-HDTWizardDeployment',
         'Copy-HDTDriverPackage',
+        'Get-HDTMachineEnding',
         'Test-HDTAdminPassword',
         'Test-HDTApplicationDetection',
         'Test-HDTComputerName',

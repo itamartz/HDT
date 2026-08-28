@@ -980,6 +980,50 @@ try {
 
     $resolved = Resolve-HDTVariable @resolveArgument
 
+    # -- 10a2. the log starts appearing on the share, from here on ------------
+    #
+    # MDT'S SLShareDynamicLogging. HDTSLShare says where the logs are COPIED
+    # when a run ends; this says where they are WRITTEN while it runs, so a
+    # deployment can be watched in CMTrace instead of waited for.
+    #
+    # AS EARLY AS THE ANSWER EXISTS, which is here. The log context was built in
+    # the first seconds of the run, long before rules.yaml had been read - and
+    # the end-of-run copy is guarded on a destination resolved a further four
+    # hundred lines down, so a run that died in the wizard copied nothing and
+    # left its reason on a RAM disk. That is the run this exists for, and it
+    # happens before the wizard.
+    #
+    # THE MACHINE KEEPS ITS OWN LOG REGARDLESS. This is a second write, never a
+    # redirect: Write-HDTLog appends locally first and unguarded, then mirrors
+    # inside a try/catch per file. A share that goes away costs the mirror and
+    # nothing else.
+    #
+    # A COMPUTER NAME IN THE PATH IS THE ONE RULES RESOLVED. If the technician
+    # renames the machine on the wizard's Computer Details page, the folder
+    # keeps the name it had when logging started - which is the name in the
+    # records it holds, so the two agree.
+    $dynamicLogPath = ''
+    if ($resolved.Variable.Contains('HDTSLShareDynamicLogging')) {
+        $dynamicLogPath = [string] $resolved.Variable['HDTSLShareDynamicLogging']
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($dynamicLogPath)) {
+        try {
+            $dynamicLogPath = [string] (Expand-HDTVariableToken -Value $dynamicLogPath -Scope $resolved.Variable)
+
+            $fileSystem.CreateDirectory($dynamicLogPath)
+            $log.SetDynamicPath($dynamicLogPath)
+
+            & $say ("logging live to '{0}' as well as this machine" -f $dynamicLogPath)
+        } catch {
+            # NEVER FATAL. A share that cannot be written to is a reason to stop
+            # mirroring, not a reason to stop deploying - and the local log,
+            # which is the one that matters, is untouched either way.
+            & $say ("the live log destination '{0}' could not be prepared, so logs stay on this machine until the run ends: {1}" -f
+                $dynamicLogPath, [string] $_.Exception.Message) 'Warning'
+        }
+    }
+
     # -- 10b. THE ENGINE'S OWN DEFAULTS, BEFORE ANYTHING READS THEM -----------
     #
     # unattend.xml asks for four locales and a time zone as TOKENS rather than
@@ -1732,37 +1776,31 @@ Write-Information ("HDT run {0} ended {1} in {2}s; {3}" -f
     $runId, $result['status'], $result['elapsedSecond'], $result['endedWith'])
 
 # HOW THIS MACHINE ENDS, IN EVERY PATH INCLUDING THE ONES WHERE IT FAILED BEFORE
-# IT STARTED. RebootPending means the deployment wants the machine back; anything
-# else means it is finished with it - UNLESS somebody asked for a command
-# prompt, in which case the machine is theirs and this script is finished with
-# it rather than the other way round.
-# A FAILED RUN IS LEFT WHERE IT FAILED, AND THAT IS THE WHOLE POINT OF FAILING
-# VISIBLY. This used to shut down - defensibly, because a failed run has usually
-# not applied an image and a REBOOT would boot the media and start the same
-# deployment again, unwatched. But the answer to "do not loop" is not "power
-# off": it is "stop". A machine sitting in WinPE loops nothing, keeps X: and the
-# console and the error on screen, and can be walked up to. One that powered
-# itself off took the only copy of the reason with it - and this payload's log
-# lives on a share it may never have reached.
+# IT STARTED. The decision itself lives in Get-HDTMachineEnding, where it can be
+# checked without a machine; the verb it is carried out with is $ending above.
 #
-# The same reasoning is already written down twenty lines above, for a share
-# that could not be found: "a machine sitting at a screen can be walked up to,
-# and one that powered off at 3am tells nobody anything." This is that rule
-# applied to every failure rather than one of them.
-#
-# ONLY A TECHNICIAN ENDS A FAILED MACHINE. Restart on the failure screen still
-# reboots, Open CMD still leaves them at a prompt, and a run that SUCCEEDED is
-# untouched by this - it reboots into what it built, or honours HDTFinishAction.
-$endMachine = -not [bool] $result['leftAtCommandPrompt']
-
-if ($endMachine -and [string] $result['status'] -eq 'Failed' -and [string] $ending -eq 'shutdown') {
-    $endMachine = $false
-    $result['endedWith'] = 'nothing - left in WinPE so the failure can be read'
-
-    Write-Information ('HDT left this machine in WinPE: {0}' -f $result['message'])
+# A FAILED RUN IS LEFT WHERE IT FAILED. "Do not loop" is answered by "stop", not
+# by "power off": a machine sitting in WinPE keeps X:, the console and the error
+# on screen and can be walked up to, while one that powered itself off took the
+# only copy of the reason with it - and this payload's log lives on a share it
+# may never have reached. Only a person ends a failed machine, from the failure
+# screen; a command prompt means the machine is theirs and not this script's.
+$failureScreenAction = ''
+if ($result.Contains('failureScreen')) {
+    $failureScreenAction = [string] $result['failureScreen']
 }
 
-if ($endMachine) {
+$machineEnding = Get-HDTMachineEnding -Status ([string] $result['status']) `
+    -FailureScreenAction $failureScreenAction `
+    -LeftAtCommandPrompt:([bool] $result['leftAtCommandPrompt'])
+
+if (-not $machineEnding.EndMachine) {
+    $result['endedWith'] = [string] $machineEnding.Reason
+
+    Write-Information ('HDT is not ending this machine: {0}' -f $machineEnding.Reason)
+}
+
+if ($machineEnding.EndMachine) {
     Start-Sleep -Seconds 5
 
     & "$env:SystemRoot\System32\wpeutil.exe" $ending
