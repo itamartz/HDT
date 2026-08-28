@@ -1,4 +1,4 @@
-# ApplyDrivers: MDT's Inject Drivers step, group match first and PnP behind it.
+﻿# ApplyDrivers: MDT's Inject Drivers step, group match first and PnP behind it.
 #
 # THE DECISION HAS TO BE IN THE LOG. Not the outcome - the decision. Which group
 # was resolved, whether it was there, whether that is why it fell back, how many
@@ -251,6 +251,31 @@ Describe 'Invoke-HDTApplyDriversStep' {
             # a device this machine has not got.
             $call.Count | Should -Be 1
             $call[0].Arguments[1] | Should -Match 'net-realtek\.inf$'
+        }
+
+        # WHAT DISM SAYS CAME BACK IS CUMULATIVE, AND THE COUNT BELIEVED IT.
+        #
+        # Add-WindowsDriver answers with the drivers in the IMAGE, not only the
+        # one just added, so every call after the first re-reported packages
+        # already injected. The step logged one driver.injected record per
+        # returned row and counted them: on LT-7FJ45S2, 2026-08-28, 53 matched
+        # packages were reported as 'injected 82 driver(s)' against 54 published
+        # names in the store. A technician reconciling the log against the
+        # machine finds numbers that cannot both be true.
+        It 'counts a package DISM reports a second time only once' {
+            $script:fileSystem.SeedFile(('{0}\net-realtek-too.inf' -f $script:groupPath), $script:matchingInf)
+
+            $context = & $script:newContext $null
+            $step = & $script:newStep @{ group = 'Win11\Acme\Nonesuch' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
+
+            # Two packages match, and the fake answers both with oem12.inf - which
+            # is what DISM did on the machine.
+            @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' }).Count | Should -Be 2
+
+            [int] $result.Data['injected'] | Should -Be 1
+            @(& $script:record 'driver.injected').Count | Should -Be 1
         }
     }
 

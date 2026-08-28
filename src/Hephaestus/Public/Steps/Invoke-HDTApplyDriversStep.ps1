@@ -1,20 +1,20 @@
-function Invoke-HDTApplyDriversStep {
+﻿function Invoke-HDTApplyDriversStep {
     <#
         .SYNOPSIS
             Injects drivers into the applied operating system.
 
         .DESCRIPTION
-            MDT'S INJECT DRIVERS STEP. Group match is the primary path and the
-            PnP ranking is the fallback, which is the order MDT chose and the
-            order DESIGN 7 keeps.
+            Injects drivers into an operating system already applied to disk.
+            Group match is the primary path and the PnP ranking is the fallback,
+            which is the order DESIGN 7 keeps.
 
             THE GROUP IS A PATH AN ADMINISTRATOR WROTE, NOT A SHAPE HDT IMPOSES.
-            A rule sets HDTDriverGroup - 'Win11\%HDTMake%\%HDTModel%' is MDT's
-            Total Control method and the one New-HDTWorkspace seeds as a comment
-            - and this expands it against the live variables. Any depth, any
-            folder names. Nothing here discovers, requires or creates a
-            Make\Model tree; the store under Drivers\ is whatever the
-            administrator built.
+            A rule sets HDTDriverGroup - 'Win11\%HDTMake%\%HDTModel%' is the
+            Total Control layout, and the one New-HDTWorkspace seeds as a
+            comment - and this expands it against the live variables. Any
+            depth, any folder names. Nothing here discovers, requires or
+            creates a Make\Model tree; the store under Drivers\ is whatever
+            the administrator built.
 
             WHEN THE GROUP RESOLVES, THE FOLDER GOES IN WHOLE and the ranking is
             never consulted. That is the point of Total Control: somebody has
@@ -28,8 +28,8 @@ function Invoke-HDTApplyDriversStep {
             storage driver means a computer that cannot see its network or its
             disk.
 
-            INJECTION IS OFFLINE, INTO THE APPLIED VOLUME, which is MDT's
-            behaviour: Add-WindowsDriver against W:\ writes the driver into
+            INJECTION IS OFFLINE, INTO THE APPLIED VOLUME: Add-WindowsDriver
+            against W:\ writes the driver into
             W:\Windows\System32\DriverStore\FileRepository and stages it, and
             WINDOWS binds it to a device on the first boot. Nothing here
             installs a driver onto a running machine, so this step must run
@@ -43,12 +43,11 @@ function Invoke-HDTApplyDriversStep {
             and what DISM said came back, which is the name the driver has on
             the machine afterwards. A deployment whose network card does not
             work is diagnosed from this log or it is diagnosed by rebuilding the
-            whole deployment. MDT learned that in ZTIDrivers.log; the step log
-            is HDT's version of the same file.
+            whole deployment.
 
             NOTHING MATCHING IS NOT A FAILED DEPLOYMENT. A machine with inbox
-            drivers still boots, and MDT continues here too. It completes with a
-            count of zero and says so loudly.
+            drivers still boots, so the step completes with a count of zero and
+            says so loudly.
 
         .PARAMETER Step
             The step, with its type-specific properties: group, profile, mode
@@ -215,12 +214,34 @@ function Invoke-HDTApplyDriversStep {
     $injected = New-Object -TypeName System.Collections.ArrayList
     $matchedCount = 0
 
+    # The published names already reported, so a cumulative answer from DISM is
+    # counted once. Ordinal-ignore-case because oem12.inf is a filename.
+    $seen = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList (
+        [System.StringComparer]::OrdinalIgnoreCase)
+
+    # RESOLVED HERE, WHERE THIS FUNCTION IS. Invoke-HDTApplyImageStep resolves
+    # its own the same way and says why: a CommandInfo invoked with & does not
+    # care whose scope it is called from, and a private command looked up from
+    # inside a closure later can fail to resolve while every other assertion
+    # still passes.
+    $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
+
     $inject = {
         param([string] $Path, [bool] $Recurse)
 
         $added = @($imageService.AddDriver($applyPath, $Path, $Recurse))
 
         foreach ($row in $added) {
+            # ADD-WINDOWSDRIVER ANSWERS WITH THE IMAGE, NOT WITH THE CALL.
+            # Every call returns the drivers now in the store, so the second
+            # injection re-reports the first, the third re-reports both, and the
+            # step's own count runs away from the machine: 53 matched packages
+            # were logged as 'injected 82 driver(s)' on a real deployment whose
+            # store held 54 published names. A published name is reported once,
+            # the first time it appears, and the count is the number of them.
+            if ($seen.Contains([string] $row.Inf)) { continue }
+            [void] $seen.Add([string] $row.Inf)
+
             [void] $injected.Add($row)
 
             # WHAT DISM SAID CAME BACK, not what was asked of it. Add-WindowsDriver
@@ -320,6 +341,32 @@ function Invoke-HDTApplyDriversStep {
             $match = @(Get-HDTDriverMatch -Device $device -Driver $candidate)
             $matchedCount = $match.Count
 
+            # WHAT THE TECHNICIAN SEES WHILE THIS RUNS, and until now that was
+            # nothing. On a Latitude 5490 this loop injected 82 drivers in 670
+            # seconds - eleven minutes of a progress window showing the same
+            # frame, because the elapsed time on it is derived from the FIRST
+            # and LAST record in the log and nothing told the display to re-read
+            # while the step was working. Somebody sitting in front of it had no
+            # way to tell a working machine from a hung one.
+            #
+            # THE RECORDS WERE ALREADY THERE. Every driver already writes
+            # driver.match and driver.injected as it happens; they simply landed
+            # in the JSONL with nobody looking. This adds the step.progress the
+            # window already knows how to draw, and the nudge that makes it
+            # look - exactly what Invoke-HDTApplyImageStep does from its DISM
+            # callback.
+            #
+            # EVERY DRIVER, NOT EVERY FIFTH. ApplyImage throttles because DISM
+            # reports a hundred times in a few minutes; this reports 82 times in
+            # eleven, and a bar that moves once a driver is the whole point.
+            # NOT $injected: THAT NAME IS ALREADY AN ArrayList declared above,
+            # which the $inject closure appends every injected package to and
+            # which the step's own result counts at the end. Reusing it as a
+            # counter turned it into an [int] the first time round the loop, so
+            # the closure's .Add() threw and the step reported Failed - six
+            # tests, all of them right.
+            $progressAt = 0
+
             foreach ($one in $match) {
                 Write-HDTLog -Context $Context.Log -Event 'driver.match' -Component 'ApplyDrivers' `
                     -Message ("{0} matches {1} at rank {2}" -f [string] $one.Driver.InfName, [string] $one.MatchedId, [int] $one.Rank) `
@@ -335,6 +382,29 @@ function Invoke-HDTApplyDriversStep {
                     })
 
                 & $inject ([string] $one.Driver.FullPath) $false
+
+                $progressAt++
+
+                $percent = 100
+                if ($matchedCount -gt 0) {
+                    $percent = [int] [System.Math]::Floor(($progressAt / $matchedCount) * 100)
+                }
+
+                Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyDrivers' `
+                    -Message ('injecting driver {0} of {1}: {2}' -f $progressAt, $matchedCount, [string] $one.Driver.InfName) `
+                    -Data ([ordered] @{
+                        infName = [string] $one.Driver.InfName
+                        target  = $applyPath
+                        done    = $progressAt
+                        total   = $matchedCount
+                        percent = $percent
+                    })
+
+                # AND THEN TELL THE WINDOW TO LOOK. Update-HDTProgressDisplay
+                # re-reads the log and hands the host a new snapshot; without
+                # this the record above is written and never drawn, which is the
+                # state this step has always been in.
+                & $updateDisplay -Context $Context
             }
         }
     } catch {

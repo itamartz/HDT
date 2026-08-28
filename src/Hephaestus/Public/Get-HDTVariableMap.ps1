@@ -348,7 +348,15 @@
             Description = 'What the machine does when the deployment ends: REBOOT, SHUTDOWN, LOGOFF or NONE. Unset means NONE, which is what every deployment did before this existed. A value nobody meant does nothing and warns rather than acting on the nearest guess.'
         }
         @{ HDTName = 'HDTSLShare'; MdtName = 'SLShare'; Origin = 'rule'
-            Description = 'Where the deployment copies its logs. Empty means <deployRoot>\Logs, which is what every deployment did before this existed.'
+            Description = 'Where the deployment copies its logs WHEN THE RUN ENDS. Empty means <deployRoot>\Logs, which is what every deployment did before this existed.'
+        }
+
+        # THE OTHER HALF, AND THEY ARE NOT THE SAME THING. SLShare copies when a
+        # run ends; this writes while it runs - which is the only one a run that
+        # DIED ever gets to use, because the copy is guarded on a destination
+        # resolved after the wizard.
+        @{ HDTName = 'HDTSLShareDynamicLogging'; MdtName = 'SLShareDynamicLogging'; Origin = 'rule'
+            Description = 'Where the deployment writes its logs WHILE IT RUNS, so they can be watched in CMTrace rather than waited for. Empty means the logs stay on the machine until the run ends. A share that goes away is never allowed to end a deployment.'
         }
 
         # -- engine variables (DESIGN 4.4.1) - never writable -----------------

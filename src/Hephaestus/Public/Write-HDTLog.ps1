@@ -236,4 +236,44 @@
     if (-not [string]::IsNullOrWhiteSpace([string] $Context.StepLogPath)) {
         $Context.FileSystem.AppendAllText([string] $Context.StepLogPath, ($line + "`n"))
     }
+
+    # -- and the same three, on the share, as they happen ---------------------
+    #
+    # MDT'S SLShareDynamicLogging. The writes above are the ones that matter and
+    # they have already happened; these are a second copy under a UNC so a
+    # deployment can be watched in CMTrace rather than waited for.
+    #
+    # IT IS WHAT SURVIVES A RUN THAT DIES. The end-of-run copy is guarded on a
+    # log destination resolved AFTER the wizard, so a wizard that threw took
+    # HDT.log down with the RAM disk and left nothing to read - on a real
+    # Latitude, on the one run somebody needed the log for.
+    #
+    # EVERY APPEND IS GUARDED, SEPARATELY. A share that has gone away is the
+    # case this is most useful in, and a deployment that ended because its
+    # LOGGING failed would be the logging causing the outage it was installed to
+    # explain. Write-HDTStatus mirrors its heartbeat under exactly this rule.
+    #
+    # NOT ONE try ROUND ALL THREE: the jsonl failing must not cost the CMTrace
+    # line, which is the one a technician actually reads.
+    if ([string]::IsNullOrWhiteSpace([string] $Context.DynamicPath)) { return }
+
+    $mirror = @(
+        @{ Path = [string] $Context.DynamicJsonlPath; Text = ($json + "`n") }
+        @{ Path = [string] $Context.DynamicMasterLogPath; Text = ($line + "`n") }
+        @{ Path = [string] $Context.DynamicStepLogPath; Text = ($line + "`n") }
+    )
+
+    foreach ($current in $mirror) {
+        if ([string]::IsNullOrWhiteSpace($current.Path)) { continue }
+
+        try {
+            $Context.FileSystem.AppendAllText($current.Path, $current.Text)
+        } catch {
+            # Write-Verbose, NOT Write-Warning. A share that has gone will fail
+            # on every line for the rest of the deployment, and a warning per
+            # line would bury the run's own output in its logging's complaints.
+            Write-Verbose ("the log could not be mirrored to '{0}': {1}" -f
+                $current.Path, $_.Exception.Message)
+        }
+    }
 }

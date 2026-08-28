@@ -132,6 +132,17 @@
         [AllowEmptyString()]
         [string] $User = '',
 
+        # WHERE THE SAME LINES GO WHILE THE RUN IS STILL GOING, as opposed to
+        # where they are copied when it ends. MDT's SLShareDynamicLogging: a
+        # UNC under the share, so a deployment can be watched in CMTrace rather
+        # than waited for - and so a run that dies has already written its
+        # reason somewhere that outlives the RAM disk.
+        #
+        # EMPTY MEANS ONE COPY, which is what every deployment did before this.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $DynamicPath = '',
+
         # WHAT THE PAIR OF FILES IS CALLED. 'HDT' gives HDT.jsonl and HDT.log,
         # which is every deployment and the reason this defaults rather than
         # asks. The console writes Console.log beside them in the share's Logs
@@ -148,6 +159,18 @@
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
     $trimmed = $LogPath.TrimEnd('\', '/')
+
+    # EMPTY IS THE DEFAULT AND WRITES ONE COPY, so every deployment built before
+    # this existed behaves exactly as it did.
+    $trimmedDynamic = ''
+    $dynamicJsonl = ''
+    $dynamicMaster = ''
+
+    if (-not [string]::IsNullOrWhiteSpace($DynamicPath)) {
+        $trimmedDynamic = $DynamicPath.TrimEnd('\', '/')
+        $dynamicJsonl = '{0}\{1}.jsonl' -f $trimmedDynamic, $BaseName
+        $dynamicMaster = '{0}\{1}.log' -f $trimmedDynamic, $BaseName
+    }
 
     $context = [pscustomobject] @{
         RunId         = $RunId
@@ -180,6 +203,28 @@
         User          = $User
         JsonlPath     = ('{0}\{1}.jsonl' -f $trimmed, $BaseName)
         MasterLogPath = ('{0}\{1}.log' -f $trimmed, $BaseName)
+
+        # -- and the same lines, on the share, as they happen ------------------
+        #
+        # MDT'S SLShareDynamicLogging. HDTSLShare says where the logs go when a
+        # run ENDS; this says where they go WHILE it runs, so a deployment can
+        # be watched in CMTrace instead of waited for.
+        #
+        # WHICH IS THE HALF THAT SURVIVES A RUN THAT DIES. The end-of-run copy
+        # is guarded on a log destination that is resolved AFTER the wizard, so
+        # a wizard that threw took HDT.log and HDT.jsonl down with the RAM disk
+        # and left nothing to read - which is exactly what happened on a
+        # Latitude, and exactly the run somebody needed the log for.
+        #
+        # THE LOCAL COPY IS STILL THE ONE THAT MATTERS. This is a second write,
+        # never a redirect: WinPE keeps its own log whatever the share does.
+        # Write-HDTLog guards every mirrored append, because a share that has
+        # gone away is the case this is most useful in and must never be the
+        # thing that ends a deployment.
+        DynamicPath          = $trimmedDynamic
+        DynamicJsonlPath     = $dynamicJsonl
+        DynamicMasterLogPath = $dynamicMaster
+        DynamicStepLogPath   = $null
     }
 
     $context | Add-Member -MemberType ScriptMethod -Name SetStep -Value {
@@ -189,6 +234,20 @@
         $this.StepName = $Name
         $this.StepType = $Type
         $this.StepLogPath = $StepLogPath
+
+        # THE STEP LOG IS MIRRORED UNDER THE SAME LEAF, so Steps\003-Format.log
+        # on the machine is Steps\003-Format.log on the share. Rebuilt here
+        # rather than at write time because the step path is what changes, and
+        # a mirror worked out per LINE would be worked out thousands of times
+        # for an answer that only moves once a step.
+        $this.DynamicStepLogPath = $null
+
+        if (-not [string]::IsNullOrWhiteSpace($this.DynamicPath) -and
+            -not [string]::IsNullOrWhiteSpace($StepLogPath)) {
+
+            $leaf = $StepLogPath.Substring($this.LogPath.Length).TrimStart('\', '/')
+            $this.DynamicStepLogPath = '{0}\{1}' -f $this.DynamicPath, $leaf
+        }
     }
 
     $context | Add-Member -MemberType ScriptMethod -Name ClearStep -Value {
