@@ -45,9 +45,24 @@ function Test-HDTAdminPassword {
             PSCustomObject with IsValid, Severity and Reason.
 
         .EXAMPLE
-            Test-HDTAdminPassword -Password $box.Password -Confirmation $confirmBox.Password
+            Test-HDTAdminPassword -Password 'Pa$$w0rd!' -Confirmation 'Pa$$w0rd!'
 
-            Judges the pair, for the wizard's Next button.
+            IsValid  : True
+            Severity : Information
+            Reason   :
+
+            A matching pair. The wizard opens its Next button on IsValid.
+
+        .EXAMPLE
+            Test-HDTAdminPassword -Password 'Pa$$w0rd!' -Confirmation 'Pa$$w0rd'
+
+            IsValid  : False
+            Severity : Error
+            Reason   : the two passwords do not match. Type the same password in both boxes.
+
+            A typo in the second box, which is the case the confirmation box
+            exists to catch. The Reason never quotes either value - it is
+            painted on screen and written to the log.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

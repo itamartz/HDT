@@ -242,14 +242,21 @@
         @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword'; Origin = 'authored'
             Description = 'Local administrator password for the deployed machine; never written to a log.'
         }
-        @{ HDTName = 'HDTEnableBitLocker'; MdtName = 'BDEInstall'; Origin = 'authored'
-            Description = 'Whether the deployed machine is encrypted. False, or unset, and the EnableBitLocker step does not run.'
+        # THE THREE ARE THREE MDT NAMES, NOT ONE. BDEInstall was written here
+        # twice - for whether to encrypt and for what unlocks it - and the
+        # namespace contract caught it: one MDT name maps to exactly one HDT
+        # name, or the table cannot be read backwards.
+        #
+        # BDEInstallSuppress IS INVERTED, and the description says so rather
+        # than leaving somebody to discover it. MDT suppresses; HDT enables.
+        @{ HDTName = 'HDTEnableBitLocker'; MdtName = 'BDEInstallSuppress'; Origin = 'authored'
+            Description = 'Whether the deployed machine is encrypted. False, or unset, and the EnableBitLocker step does not run. MDT''s variable is the inverse: BDEInstallSuppress=YES skips it.'
         }
         @{ HDTName = 'HDTBitLockerProtector'; MdtName = 'BDEInstall'; Origin = 'authored'
             Description = 'What unlocks the drive at boot: tpm, tpmPin or tpmStartupKey.'
         }
-        @{ HDTName = 'HDTBitLockerEscrow'; MdtName = 'BDEKeyLocation'; Origin = 'authored'
-            Description = 'Where the recovery key is escrowed: ad, entra or none. Without one, a machine that loses its TPM cannot be unlocked.'
+        @{ HDTName = 'HDTBitLockerEscrow'; MdtName = 'BDERecoveryKey'; Origin = 'authored'
+            Description = 'Where the recovery key is escrowed: ad, entra or none. Without one, a machine that loses its TPM cannot be unlocked by anyone.'
         }
         @{ HDTName = 'HDTApplications'; MdtName = 'Applications'; Origin = 'authored'
             Description = 'Applications to install, by catalog identifier.'

@@ -85,6 +85,31 @@ pages:
         variable: HDTTimeZone
         property: SelectedValue
 
+  # Which applications this machine gets, ticked from the catalog published on
+  # the share. Everything but the page already existed: the engine has read the
+  # catalog and logged "applications page: N published on the share" on every
+  # deployment since the catalog did, with nowhere to show it.
+  #
+  # select: many IS WHY THIS PAGE COULD NOT SHIP BEFORE. Every other collect
+  # entry reads ONE property off ONE control; a column of tick boxes is neither,
+  # so the page would have had its answer silently dropped. The host reads the
+  # rows it handed over - Id and IsSelected - and joins the ticked ids the way
+  # InstallApplications splits them apart again.
+  #
+  # THE CONTROL NAME IS NOT A CHOICE. Get-HDTWizardApplication defaults its
+  # -Control to HDTApplicationList and the payload takes that default, so the
+  # host fills this name and no other.
+  - id: Applications
+    title: Applications
+    heading: Choose applications
+    subheading: What gets installed after Windows, from the catalog on this share.
+    reference: Applications.xaml
+    skip: HDTSkipApplications
+    collect:
+      - control: HDTApplicationList
+        variable: HDTApplications
+        select: many
+
   # Whether this machine is encrypted, and with what. The EnableBitLocker step
   # in client.yaml resolves the two choices and runs at all only when
   # HDTEnableBitLocker is true, so an unticked box leaves a deployment doing

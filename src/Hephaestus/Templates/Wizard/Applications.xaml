@@ -1,0 +1,105 @@
+<!--
+    WHICH APPLICATIONS THIS MACHINE GETS, ticked from the catalog published on
+    the share. (MDT administrators know this screen as the Applications pane.)
+
+    EVERYTHING BUT THIS PAGE ALREADY EXISTED. Get-HDTWizardApplication reads
+    the catalog and answers with a row per application; Get-HDTWizardSelection
+    joins the ticked ones; the host knows how to fill this list and how to
+    collect from it; InstallApplications splits HDTApplications apart again.
+    A real deployment printed
+
+        applications page: 2 published on the share, 0 already selected
+
+    on every run, and had nowhere to show it. This is the page.
+
+    THE NAME IS NOT A CHOICE. Get-HDTWizardApplication defaults its -Control to
+    HDTApplicationList and the payload takes that default, so the host fills
+    THIS name and no other. A different one here is a list that stays empty
+    with nothing said about it.
+
+    ItemsSource, NOT ROWS IN THIS FILE. The host hands over the objects and the
+    ticks land on them - which is why the CheckBox binds TwoWay to IsSelected
+    and why nothing walks the visual tree to find out what was chosen. A page
+    that listed applications itself would offer whatever it happened to say,
+    which on a real share is the wrong list.
+
+    ONE TICK BOX PER ROW, AND THE ROW IS NOT SELECTABLE. A ListBox whose items
+    also respond to selection gives two ways to mean 'yes' that disagree: the
+    highlighted row and the ticked box. Only the tick is collected, so only the
+    tick is offered.
+
+    xmlns AND xmlns:x ARE BOTH DECLARED. A page fragment is loaded standalone by
+    XamlReader, so it carries no namespace by inheritance - and one using
+    x:Name without xmlns:x throws "'x' is an undeclared prefix" at load, which
+    on a bench looks like a wizard that failed to open.
+
+    DynamicResource, NOT StaticResource, FOR THE SAME REASON Summary.xaml says
+    so. New-HDTWizardHost parses this file ON ITS OWN and only then puts the
+    result inside the shell, so at parse time there is no dictionary above it
+    to look in. This page was written with StaticResource and threw
+
+        'Provide value on System.Windows.StaticResourceExtension' threw an
+        exception. Line number '44'
+
+    before it was ever attached - which in WinPE is a wizard that will not open
+    at all. DynamicResource is resolved once the page is in the tree, which is
+    also why these colours follow a retheme and a literal would not.
+-->
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <ListBox Grid.Row="0" x:Name="HDTApplicationList"
+             Background="{DynamicResource HDTFieldBrush}"
+             BorderBrush="{DynamicResource HDTBorderBrush}"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             HorizontalContentAlignment="Stretch">
+
+        <!--
+            THE ROW IS THE APPLICATION'S OWN Text - "7-Zip 23.01 (Igor Pavlov)",
+            composed by Get-HDTWizardApplication so the name, version and
+            publisher are decided in one place rather than by a binding here.
+        -->
+        <ListBox.ItemTemplate>
+            <DataTemplate>
+                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                          Content="{Binding Text}"
+                          Foreground="{DynamicResource HDTTextBrush}"
+                          FontSize="{DynamicResource HDTLabelSize}"
+                          Margin="4,6" />
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+
+        <!--
+            THE ROW CONTAINER MUST NOT PAINT A SELECTION. Without this a
+            highlighted row and a ticked box are two different answers on one
+            screen, and only one of them is collected.
+        -->
+        <ListBox.ItemContainerStyle>
+            <Style TargetType="ListBoxItem">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <ContentPresenter />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ListBox.ItemContainerStyle>
+    </ListBox>
+
+    <!--
+        ONE LINE, AND IT IS THE ONE A TECHNICIAN NEEDS. A share with an empty
+        catalog shows an empty box, and this says why rather than leaving the
+        page looking broken. Everything else - how a catalog is published, what
+        a dependency does - is in the console and in the step's own help.
+    -->
+    <TextBlock Grid.Row="1" Foreground="{DynamicResource HDTHintBrush}"
+               FontSize="{DynamicResource HDTHintSize}" TextWrapping="Wrap" Margin="0,10,0,0"
+               Text="Applications published on the share. An empty list means none are published yet." />
+</Grid>
