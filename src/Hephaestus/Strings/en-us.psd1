@@ -30,6 +30,21 @@
         'HDTNextButton.Content' = 'Next'
         'HDTOpenCmdButton.Content' = 'Open CMD'
         'HDTSaveButton.Content' = 'Save'
+
+        # THE PASSWORD EYE, AND IT IS THE ONE PAIR OF KEYS THAT NAMES NO
+        # CONTROL. There are three eyes now - the Welcome screen, the domain
+        # join password, and both boxes of the administrator password page -
+        # and they all say the same two words, so a key per toggle would be the
+        # same sentence written three times and drifting on the fourth.
+        #
+        # THE HOST READS THESE RATHER THAN Set-HDTWindowText APPLYING THEM,
+        # because a toggle swaps between them while the window is open and
+        # neither is a property the control keeps. New-HDTWizardHost puts the
+        # Show caption on every eye it wires and swaps to Hide on Checked; a
+        # page wanting different wording overrides it by naming its own toggle,
+        # <name>.ToolTip and <name>.HideToolTip, in its own block.
+        'HDTPasswordReveal.ShowToolTip' = 'Show the password'
+        'HDTPasswordReveal.HideToolTip' = 'Hide the password'
     }
 
     # The main window: Show-HDTConsole. MDT's Deployment Workbench - a tree of
@@ -460,12 +475,10 @@
         'HDTUserDomainHint.Text' = 'Leave blank if the account is local to the server.'
         'HDTWelcomePasswordLabel.Text' = 'Password'
 
-        # TWO STATES OF ONE TOOLTIP. The toggle swaps between them while the
-        # window is open, so the second cannot be applied to a property - the
-        # host reads it from here by name. It is the only key in this file that
-        # names a state rather than a property the control has.
-        'HDTPasswordRevealToggle.ToolTip' = 'Show the password'
-        'HDTPasswordRevealToggle.HideToolTip' = 'Hide the password'
+        # THE EYE'S TWO CAPTIONS USED TO BE HERE, keyed to this window's
+        # toggle by name. They are in Common now: three eyes ship, they say the
+        # same two words, and a key per toggle is that sentence written once
+        # per control and drifting on the one somebody forgets.
     }
 
     # The one-pane wizard: HDTWizard.xaml. Its heading and body are written over

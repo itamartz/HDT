@@ -226,10 +226,22 @@
                     it - against samples\workspace, so it stayed green while
                     every share New-HDTWorkspace created got the unfixed page.
                     Height 34 matches the box's, from the same fix.
+
+                    THE STYLE IS LOCAL, AND IT DOES NOT COST THE TEMPLATE.
+                    A local Style REPLACES the implicit one, so this used to be
+                    written as bare attributes to keep the theme's ToggleButton
+                    template - the one that stops WPF painting light-on-light
+                    chrome over the glyph on hover. HDTRevealEye is BasedOn that
+                    same implicit style INSIDE HDTTheme.xaml, where a
+                    StaticResource resolves, so the page asks for it with a
+                    DynamicResource and gets the template, the checked trigger
+                    and the drawn eye together. The brushes went with it: they
+                    were spelled here in literal hex and were the one eye a
+                    retheme could not reach.
                 -->
-                <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle" Content="&#x1F441;"
+                <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle"
+                              Style="{DynamicResource HDTRevealEye}"
                               Width="36" Height="34" Margin="8,0,0,0"
-                              Background="#FF3A3A3C" Foreground="White" BorderThickness="0"
                               ToolTip="Show the password"
                               IsEnabled="{Binding IsChecked, ElementName=HDTJoinDomainRadio}" />
             </Grid>

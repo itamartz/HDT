@@ -104,13 +104,17 @@
         # page's collect declarations.
         Value  = @{}
 
-        # WHAT WAS PUT IN EACH BOX BEFORE THE TECHNICIAN SAW IT, keyed by
-        # control name. Get-HDTWizardSeed fills the boxes from the resolved
-        # rules - MDT's behaviour - and every value the wizard collects re-enters
-        # the engine as the WIZARD source, the highest precedence in DESIGN 3.1.
-        # Without this, a seeded box nobody touched would be collected as though
-        # somebody had typed it, and the report would say a name was typed at
-        # the bench when a rule on the share produced it.
+        # WHAT A RESOLVED SOURCE PUT IN EACH BOX BEFORE THE TECHNICIAN SAW IT,
+        # keyed by control name. Get-HDTWizardSeed fills the boxes from the
+        # resolved rules - MDT's behaviour - and every value the wizard collects
+        # re-enters the engine as the WIZARD source, the highest precedence in
+        # DESIGN 3.1. Without this, a seeded box nobody touched would be
+        # collected as though somebody had typed it, and the report would say a
+        # name was typed at the bench when a rule on the share produced it.
+        #
+        # A RESOLVED SOURCE, AND NOT WHATEVER WENT IN THE BOX. A field declares
+        # Seed = $true to claim one; Apply below believes nothing that does not.
+        # See the comment there for the deployment that bought the distinction.
         #
         # ORDINAL-INSENSITIVE ON THE KEY because a control name is a name; the
         # VALUES are compared case-sensitively, by Test-HDTWizardAnswerChanged.
@@ -182,12 +186,36 @@
 
             $control.$property = [string] $current.Text
 
-            # REMEMBERED, NOT JUST WRITTEN. See $service.Seed above: the harvest
-            # compares against this so a rule shown back is not collected as a
-            # typed answer. Recorded for EVERY field, not only seeds - the task
-            # sequence picker and the computer name box prefill too, and a
-            # technician who accepts what a rule chose did not type it either.
-            $this.Seed[[string] $current.Name] = [string] $current.Text
+            # REMEMBERED ONLY IF THE FIELD SAYS IT IS A SEED, and that condition
+            # is the whole fix. See $service.Seed above: the harvest drops an
+            # answer equal to its seed, because a rule shown back to a technician
+            # is not something they typed. This recorded EVERY field instead -
+            # and a field is not always a rule being shown back. The task
+            # sequence picker opened on its first row and the computer name box
+            # offers a name built out of the serial; both are values the WIZARD
+            # invented, with no provenance worth protecting, and recording them
+            # made accepting them indistinguishable from answering nothing. A
+            # real machine failed before its first step over the first of those.
+            #
+            # NOT-A-SEED IS THE DEFAULT, AND THE DIRECTION IS DELIBERATE. A field
+            # that says nothing about itself is treated as the wizard's own
+            # suggestion, so a producer written tomorrow has to CLAIM a resolved
+            # source to be believed. That fails safe: a value collected
+            # redundantly deploys the same machine and records Wizard in the
+            # provenance, while a value silently dropped is a failed deployment.
+            #
+            # AND A LATER FIELD CLEARS AN EARLIER SEED. Fields are applied in
+            # order and the last write is what the technician sees, so the seed
+            # has to describe the last write or it would be compared against a
+            # value that is no longer in the box.
+            $isSeed = $false
+            if ($null -ne $current.PSObject.Properties['Seed']) { $isSeed = [bool] $current.Seed }
+
+            if ($isSeed) {
+                $this.Seed[[string] $current.Name] = [string] $current.Text
+            } else {
+                [void] $this.Seed.Remove([string] $current.Name)
+            }
         }
 
         # WHICH PANES EXIST WAS ALSO DECIDED SOMEWHERE ELSE. Get-HDTWizardSkip
@@ -214,41 +242,99 @@
         #
         # BOTH DIRECTIONS, because a password typed while revealed has to
         # survive being hidden again just as much as the other way round.
-        $revealToggle = $Root.FindName('HDTPasswordRevealToggle')
-        $passwordBox = $Root.FindName('HDTPasswordBox')
-        $revealBox = $Root.FindName('HDTPasswordRevealBox')
+        #
+        # EVERY PAIR ON THE PAGE, NOT ONE. This block used to name the three
+        # controls literally, so a page could carry exactly ONE revealable
+        # password - which is why the administrator password page, which has
+        # two boxes, carried no eye at all. Get-HDTWizardRevealPair decides
+        # which trios a page has and is unit tested against a loaded tree; what
+        # is left here is a loop, which is what the adapter exemption is for.
+        $revealPair = @(Get-HDTWizardRevealPair -Root $Root)
 
-        if ($null -ne $revealToggle -and $null -ne $passwordBox -and $null -ne $revealBox) {
+        if ($revealPair.Count -gt 0) {
+
+            # NO -Page, DELIBERATELY. The eye is on the Welcome window and on
+            # two wizard pages, and this used to read the Welcome block by name
+            # to find a caption that belongs to none of them in particular. The
+            # merged table carries Common, which is where the two shared
+            # captions live.
+            $string = Get-HDTStringTable
+        }
+
+        foreach ($current in $revealPair) {
+
+            # ONE SET OF VARIABLES PER ITERATION, AND THAT IS THE WHOLE TRICK.
+            # GetNewClosure captures the values these names hold NOW, so each
+            # handler gets its own pair; handlers written against the loop
+            # variable itself would every one of them reveal the last pair.
+            $toggle = $current.Toggle
+            $passwordBox = $current.Password
+            $revealBox = $current.Reveal
 
             # THE TWO WORDS THE TOGGLE SWAPS BETWEEN. It is the one caption on
             # these windows that changes while the window is open, so the table
             # cannot simply be applied to it once - it is read here and the
-            # handlers below close over it. The table has already been applied
-            # to the window by then, so the toggle's own tooltip is the shipped
-            # 'Show the password' and the other one is looked up beside it.
-            $revealShow = [string] $revealToggle.ToolTip
+            # handlers below close over it.
+            #
+            # KEYED OFF THE TOGGLE'S OWN NAME, FALLING BACK TO THE SHARED PAIR.
+            # A per-toggle key was the same defect as the per-toggle FindName
+            # above it: every eye added afterwards would have had a blank
+            # tooltip until somebody remembered. A page that wants different
+            # wording still gets it by naming its own toggle in the table.
+            $revealShow = [string] $toggle.ToolTip
             $revealHide = ''
 
-            $string = Get-HDTStringTable -Page 'Welcome'
-            if ($string.ContainsKey('HDTPasswordRevealToggle.ToolTip')) {
-                $revealShow = [string] $string['HDTPasswordRevealToggle.ToolTip']
+            if ($string.ContainsKey('HDTPasswordReveal.ShowToolTip')) {
+                $revealShow = [string] $string['HDTPasswordReveal.ShowToolTip']
             }
-            if ($string.ContainsKey('HDTPasswordRevealToggle.HideToolTip')) {
-                $revealHide = [string] $string['HDTPasswordRevealToggle.HideToolTip']
+            if ($string.ContainsKey('HDTPasswordReveal.HideToolTip')) {
+                $revealHide = [string] $string['HDTPasswordReveal.HideToolTip']
             }
 
-            $revealToggle.Add_Checked({
+            $showKey = '{0}.ToolTip' -f $toggle.Name
+            $hideKey = '{0}.HideToolTip' -f $toggle.Name
+
+            if ($string.ContainsKey($showKey)) { $revealShow = [string] $string[$showKey] }
+            if ($string.ContainsKey($hideKey)) { $revealHide = [string] $string[$hideKey] }
+
+            # THE SHIPPED CAPTION, PUT ON THE CONTROL RATHER THAN LEFT TO
+            # Set-HDTWindowText. The Welcome window's eye carries no ToolTip in
+            # its markup at all, and the table used to paint it by control name
+            # - which meant the same sentence lived in the table twice, once
+            # per eye, and would live there once more for every eye added.
+            $toggle.ToolTip = $revealShow
+
+            $toggle.Add_Checked({
                     $revealBox.Text = $passwordBox.Password
                     $passwordBox.Visibility = [System.Windows.Visibility]::Collapsed
                     $revealBox.Visibility = [System.Windows.Visibility]::Visible
-                    $revealToggle.ToolTip = $revealHide
+                    $toggle.ToolTip = $revealHide
                 }.GetNewClosure())
 
-            $revealToggle.Add_Unchecked({
+            $toggle.Add_Unchecked({
                     $passwordBox.Password = $revealBox.Text
                     $revealBox.Visibility = [System.Windows.Visibility]::Collapsed
                     $passwordBox.Visibility = [System.Windows.Visibility]::Visible
-                    $revealToggle.ToolTip = $revealShow
+                    $toggle.ToolTip = $revealShow
+                }.GetNewClosure())
+
+            # THE PASSWORD BOX IS ALWAYS THE TRUTH, AND IT WAS NOT.
+            # $harvest reads the control the page's collect declaration names -
+            # HDTPasswordBox.Password, HDTAdminPasswordBox.Password - and the
+            # validator subscribes to PasswordChanged on the same control.
+            # Neither knows the reveal box exists. Without this line a password
+            # typed with the eye OPEN reached neither: the PasswordBox still
+            # held whatever was there before the reveal, so a technician
+            # watching themselves type a password pressed Next and shipped a
+            # different one, silently, onto the local Administrator account.
+            #
+            # IT DOES NOT LOOP. Checked writes Reveal.Text from Password, which
+            # raises TextChanged, which writes Password back - and a PasswordBox
+            # raises PasswordChanged, not TextChanged, so the round trip ends
+            # there. Setting .Password is also what makes the validator fire
+            # while the eye is open, which is the other half of the same defect.
+            $revealBox.Add_TextChanged({
+                    $passwordBox.Password = $revealBox.Text
                 }.GetNewClosure())
         }
     }
@@ -581,6 +667,19 @@
                 if ($null -eq $Control) { return '' }
                 if ($Control -is [System.Windows.Controls.PasswordBox]) { return [string] $Control.Password }
 
+                # A LIST ANSWERS WITH WHICHEVER ROW IS LIT, AND IT HAS NO .Text
+                # AT ALL. Reading one under Set-StrictMode is an exception, not
+                # an empty string, so the task sequence page would have died on
+                # load rather than failed to validate - the same shape as the
+                # PasswordBox line above it, found the same way.
+                #
+                # SelectedValue AND NOT SelectedItem, because that is what the
+                # page collects: SelectedValuePath="Id" makes it the sequence
+                # id, which is the thing being judged.
+                if ($Control -is [System.Windows.Controls.Primitives.Selector]) {
+                    return [string] $Control.SelectedValue
+                }
+
                 return [string] $Control.Text
             }
 
@@ -596,24 +695,43 @@
                 $confirmed = $pageRoot.FindName($confirmName)
             }
 
+            # THE TWO CONTROLS THE VERDICT IS PAINTED ON, TAKEN AS LOCALS OF
+            # THIS SCOPE FIRST - AND EVERY VALIDATE RULE THIS ENGINE HAS WAS
+            # DECORATIVE UNTIL THEY WERE. $judge below is a closure created
+            # INSIDE $render, which is itself a closure, and GetNewClosure
+            # copies the variables of the scope it is created in - $render's -
+            # and NOT the ones $render closed over from the method around it. So
+            # $messageText and $nextButton arrived at $judge as $null, both
+            # writes were skipped by their own null guards, and the verdict went
+            # nowhere: an empty computer name, two administrator passwords that
+            # did not match and a task sequence nobody had chosen all left Next
+            # open and the message line blank.
+            #
+            # FOUND BY PHOTOGRAPHING THE PAGE, not by a test. Every unit test
+            # passes: they assert the validator SHOW-HDTWIZARDSHELL resolves,
+            # which is right, and this window is the only place the two halves
+            # ever meet.
+            $judgeMessage = $messageText
+            $judgeNext = $nextButton
+
             $judge = {
                 $judgement = & $validator (& $readControl $watched) (& $readControl $confirmed)
 
-                if ($null -ne $messageText) {
+                if ($null -ne $judgeMessage) {
                     # THE SEVERITY GOES IN Tag AND THE MARKUP PAINTS IT. A
                     # warning is not a refusal and must not be the same red;
                     # deciding that here would put the palette back in the
                     # engine, which is the thing the rail template exists to
                     # avoid.
-                    $messageText.Tag = [string] $judgement.Severity
-                    $messageText.Text = [string] $judgement.Reason
+                    $judgeMessage.Tag = [string] $judgement.Severity
+                    $judgeMessage.Text = [string] $judgement.Reason
                 }
 
                 # NEXT IS THE GATE, AND ONLY A REFUSAL CLOSES IT. IsValid is
                 # false only for a real refusal - a name DNS cannot carry is
                 # still a legal computer name, and blocking it here would stop a
                 # deployment over something Windows itself permits.
-                if ($null -ne $nextButton) { $nextButton.IsEnabled = [bool] $judgement.IsValid }
+                if ($null -ne $judgeNext) { $judgeNext.IsEnabled = [bool] $judgement.IsValid }
             }.GetNewClosure()
 
             # A PasswordBox RAISES PasswordChanged, NOT TextChanged, and asking
@@ -634,6 +752,18 @@
 
                 if ($Control -is [System.Windows.Controls.PasswordBox]) {
                     $Control.Add_PasswordChanged($judge)
+                    return
+                }
+
+                # A ListBox RAISES SelectionChanged AND HAS NO Add_TextChanged
+                # EITHER, so this is the same trap one control type further on.
+                # It is what gates the task sequence page: nothing is
+                # preselected any more, so Next opens only when a row is lit -
+                # and it has to reopen the moment one is, or the technician is
+                # left looking at a choice they have already made under a button
+                # that still refuses them.
+                if ($Control -is [System.Windows.Controls.Primitives.Selector]) {
+                    $Control.Add_SelectionChanged($judge)
                     return
                 }
 

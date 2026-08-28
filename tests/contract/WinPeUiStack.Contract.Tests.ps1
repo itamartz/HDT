@@ -712,4 +712,357 @@ Describe 'the WinPE UI stack' {
             }
         }
     }
+
+    Context 'a password box a technician cannot check is a password box they retype' {
+
+        # WRITTEN AGAINST THE SET, BECAUSE THE ONE THAT NAMED A CONTROL PASSED
+        # FOR THAT CONTROL AND FAILED NOBODY AFTER IT. The rule above asserts
+        # that HDTPasswordRevealToggle exists and is disabled with its half of
+        # the Computer Details page - and it stayed green for the whole time
+        # the administrator password page shipped with no eye at all, because
+        # it was never a rule about eyes. It was a rule about one eye.
+        #
+        # THIS IS THE RULE: a wizard page carrying a PasswordBox carries the
+        # trio New-HDTWizardHost wires, derived from the box's own name -
+        # HDTAdminPasswordBox wants HDTAdminPasswordRevealBox and
+        # HDTAdminPasswordRevealToggle beside it. Get-HDTWizardRevealPair reads
+        # exactly that convention, so a page that breaks it gets no eye and
+        # nothing else notices.
+        #
+        # AND THE OTHER DIRECTION: a toggle whose partners are missing is
+        # skipped by the host deliberately, so it would sit on the page doing
+        # nothing at all - which looks like a broken control rather than an
+        # unfinished one.
+        #
+        # BOTH TREES, AND THE TEMPLATE IS THE ONE THAT SHIPS. Same reason as
+        # the Context above: New-HDTWorkspace copies Templates\Wizard onto
+        # every new share, and a rule pointed only at the sample is a rule
+        # about the copy nobody deploys.
+        #
+        # AND THE WINDOWS, WHICH THIS RULE USED TO EXCLUDE. It scanned wizard
+        # PAGES only, on the reasoning that src\Hephaestus\UI holds windows
+        # rather than pages and HDTWizardCredential is a re-prompt on a failed
+        # connection. That was the wrong cut. A window is shown by
+        # Show-HDTWizard, which hands it to New-HDTWizardHost.Show, which calls
+        # Apply, which loops Get-HDTWizardRevealPair - the SAME wiring a page
+        # gets, off the SAME naming convention - so a window is covered by the
+        # host and was not covered by the rule. HDTWelcome.xaml happened to
+        # carry a trio; HDTWizardCredential.xaml did not, and nothing failed.
+        #
+        # A CREDENTIAL RE-PROMPT IS THE STRONGEST CASE FOR AN EYE THERE IS: the
+        # only reason that window is on screen is that something typed was
+        # rejected, so hiding what was typed is the one thing that cannot help.
+        #
+        # THE CONSOLE IS IN THE SWEEP TOO, AND CARRIES NO PasswordBox TODAY.
+        # HDTNewSequence deliberately uses a plain TextBox because the value is
+        # stored readable in the sequence, so it is not a password box and this
+        # rule never sees it. The day a console window declares a real one, the
+        # author answers the question rather than inheriting an exemption by
+        # living in a subfolder - either an eye, or a named entry in
+        # $script:eyeExempt saying why not.
+
+        BeforeAll {
+            $script:eyePage = @()
+
+            # A GLOB, NOT A FILE LIST. A written-down list is a second place to
+            # remember, and the file it would have missed is the one this rule
+            # was widened to catch. UI\ is walked RECURSIVELY so UI\Console\
+            # arrives without being named.
+            foreach ($root in @(
+                    @{ Relative = 'src/Hephaestus/Templates/Wizard'; Recurse = $false }
+                    @{ Relative = 'samples/workspace/Scripts/UI'; Recurse = $false }
+                    @{ Relative = 'src/Hephaestus/UI'; Recurse = $true }
+                )) {
+                $folder = Join-Path -Path $script:repoRoot -ChildPath $root.Relative
+                if (-not (Test-Path -LiteralPath $folder)) { continue }
+
+                foreach ($file in @(Get-ChildItem -LiteralPath $folder -Filter '*.xaml' -File -Recurse:([bool] $root.Recurse))) {
+
+                    # COMMENTS STRIPPED FIRST. Both pages explain the trio by
+                    # name in their header, and a rule that read those would
+                    # pass on the prose describing the control rather than on
+                    # the control.
+                    $code = [regex]::Replace(
+                        [System.IO.File]::ReadAllText($file.FullName), '(?s)<!--.*?-->', '')
+
+                    # HDTTheme.xaml IS NOT CAUGHT BY THIS AND MUST NOT BE. It
+                    # carries `<Style TargetType="PasswordBox">`, which is a
+                    # style for the control and not a declaration of one - the
+                    # pattern wants a literal element, so the dictionary drops
+                    # out here rather than needing a name in the exempt table.
+                    if ($code -notmatch '<PasswordBox[\s/>]') { continue }
+
+                    $script:eyePage += [pscustomobject] @{
+                        Relative = ($file.FullName.Substring($script:repoRoot.Length + 1) -replace '\\', '/')
+                        Code     = $code
+                        Declared = @([regex]::Matches($code, '<PasswordBox[\s/>]')).Count
+                        Base     = @([regex]::Matches($code, '<PasswordBox\b[^>]*x:Name="([A-Za-z0-9_]+)Box"') |
+                                ForEach-Object { [string] $_.Groups[1].Value })
+                        Toggle   = @([regex]::Matches($code, '<ToggleButton\b[^>]*x:Name="([A-Za-z0-9_]+)RevealToggle"') |
+                                ForEach-Object { [string] $_.Groups[1].Value })
+                    }
+                }
+            }
+
+            # ALLOWED BY NAME, WITH THE REASON, RATHER THAN BY WEAKENING THE
+            # RULE. A box that genuinely should not be revealable - one nobody
+            # types into, or one on a screen where a reveal would be a leak
+            # rather than a check - goes here as 'relative/path.xaml: BaseName'
+            # with the sentence that justifies it. Widening a pattern or
+            # dropping a folder to excuse one box excuses every box after it;
+            # this excuses exactly one and says so out loud.
+            #
+            # IT IS EMPTY, AND THAT IS THE CURRENT ANSWER. Every PasswordBox
+            # that ships carries the trio. The staleness guard below is what
+            # stops an entry outliving the box it was written for.
+            $script:eyeExempt = @{}
+        }
+
+        It 'found the pages, so the rules below are not vacuous' {
+            # SEVEN BOXES ACROSS THREE TREES: the domain join password on both
+            # copies of Computer Details, two on the shipped administrator
+            # password page, the BitLocker PIN, and the share password on the
+            # Welcome and credential windows.
+            @(@($script:eyePage) | ForEach-Object { $_.Base }).Count |
+                Should -BeGreaterThan 2 -Because 'a rule that found no password box passes for everything'
+        }
+
+        It 'reaches the windows and not only the pages' {
+            # THE WIDENING, ASSERTED. Without this, a glob that quietly stopped
+            # walking src\Hephaestus\UI would leave every window unchecked and
+            # the three rules below would still be green - which is precisely
+            # the state this Context was in before.
+            $window = @(@($script:eyePage) |
+                    Where-Object { $_.Relative -like 'src/Hephaestus/UI/*' } |
+                    ForEach-Object { $_.Relative })
+
+            @($window).Count | Should -BeGreaterThan 1 -Because (
+                'HDTWelcome.xaml and HDTWizardCredential.xaml both declare a PasswordBox, and a sweep that sees neither is a sweep of the pages only')
+        }
+
+        It 'exempts no box that has stopped existing' {
+            # AN EXEMPTION OUTLIVING ITS BOX IS A HOLE NOBODY CAN SEE. The
+            # entry keeps passing, the box it named is gone, and the next box
+            # to take that name inherits the excuse.
+            $declared = @(@($script:eyePage) |
+                    ForEach-Object { $page = $_; @($page.Base) | ForEach-Object { '{0}: {1}' -f $page.Relative, $_ } })
+
+            $stale = @(@($script:eyeExempt.Keys) | Where-Object { $declared -notcontains $_ })
+
+            ($stale -join ' | ') | Should -BeNullOrEmpty -Because (
+                'every entry in $script:eyeExempt must name a PasswordBox that is still declared')
+        }
+
+        It 'names every password box so the convention can be read off it' {
+            # A BOX NAMED ANYTHING ELSE IS A BOX THIS RULE CANNOT SEE, which is
+            # how a set-wide assertion goes quietly vacuous one page at a time.
+            $broken = @(@($script:eyePage) |
+                    Where-Object { $_.Base.Count -ne $_.Declared } |
+                    ForEach-Object { $_.Relative })
+
+            ($broken -join ' | ') | Should -BeNullOrEmpty -Because (
+                'every PasswordBox on a wizard page must carry x:Name ending in Box')
+        }
+
+        It 'gives every password box a reveal box and an eye' {
+            $broken = New-Object -TypeName System.Collections.ArrayList
+
+            foreach ($page in @($script:eyePage)) {
+                foreach ($base in @($page.Base)) {
+
+                    if ($script:eyeExempt.ContainsKey(('{0}: {1}' -f $page.Relative, $base))) { continue }
+
+                    foreach ($partner in @(
+                            @{ Element = 'TextBox'; Name = ('{0}RevealBox' -f $base) }
+                            @{ Element = 'ToggleButton'; Name = ('{0}RevealToggle' -f $base) }
+                        )) {
+
+                        $pattern = '<{0}\b[^>]*x:Name="{1}"' -f $partner.Element, [regex]::Escape($partner.Name)
+                        if ($page.Code -match $pattern) { continue }
+
+                        [void] $broken.Add(('{0}: {1} has no {2}' -f $page.Relative, $base, $partner.Name))
+                    }
+                }
+            }
+
+            ($broken -join ' | ') | Should -BeNullOrEmpty -Because (
+                'a password box shows dots, and without an eye the only way to check a typo is to type it twice')
+        }
+
+        It 'gives every eye the two boxes it swaps between' {
+            $broken = New-Object -TypeName System.Collections.ArrayList
+
+            foreach ($page in @($script:eyePage)) {
+                foreach ($base in @($page.Toggle)) {
+
+                    if ($page.Base -contains $base -and
+                        $page.Code -match ('<TextBox\b[^>]*x:Name="{0}RevealBox"' -f [regex]::Escape($base))) {
+                        continue
+                    }
+
+                    [void] $broken.Add(('{0}: {1}RevealToggle has no pair to swap' -f $page.Relative, $base))
+                }
+            }
+
+            ($broken -join ' | ') | Should -BeNullOrEmpty -Because (
+                'the host skips a toggle whose partners are missing, so it would sit on the page doing nothing')
+        }
+    }
+
+    Context 'no shipped screen asks WinPE for a font it may not carry' {
+
+        # THE REVEAL EYE SHIPPED TWICE, ONE OF THEM AS AN EMOJI. The windows
+        # drew it - a Path and an Ellipse, no font involved - while three wizard
+        # pages set Content to the character U+1F441. Either form alone is
+        # defensible; having both is the defect, and the pages had picked the
+        # weaker one for two separate reasons.
+        #
+        # THE FONT. An astral-plane glyph needs a font that carries it, and
+        # U+1F441 means Segoe UI Emoji. WinPE is a minimal image and guarantees
+        # no such thing; a glyph with nothing behind it renders as tofu, on the
+        # one screen nobody can attach a debugger to. HDTTheme.xaml's
+        # HDTRevealEye is the vector that replaced it, and the comment there
+        # carries both reasons for the next person who reaches for a character.
+        #
+        # THE STRING TABLE CANNOT SEE IT EITHER. StringTable.Contract.Tests.ps1
+        # decodes a caption before deciding whether it is prose, and .NET's
+        # WebUtility.HtmlDecode LEAVES ENTITIES ABOVE THE BMP UNDECODED - so the
+        # eye's nine-character entity survives the decode intact and the `x` in
+        # its hex reads as an untranslated English letter. Measured, not
+        # reasoned about: HtmlDecode returns it unchanged, len 9, and
+        # -match '[A-Za-z]' is True. The wizard pages escape that check today
+        # only because the ledger scans windows and not pages, which is an
+        # accident of scope rather than a defence.
+        #
+        # SO THE RULE IS GENERAL, NOT ABOUT THE EYE. Any character entity above
+        # U+FFFF, and any raw astral-plane character, in any markup that ships
+        # into the image or onto a share. That catches the NEXT emoji somebody
+        # reaches for - a padlock, a tick, a warning triangle - rather than the
+        # one already found. Everything in the BMP is left alone: an arrow, a
+        # bullet, a non-breaking space all decode, all render from the fonts
+        # WinPE does carry, and none of them are what this is about.
+        #
+        # THE SAME GLOB AS THE EYE RULE ABOVE, AND FOR THE SAME REASON. A
+        # written-down file list is a second place to remember; the UI folder is
+        # walked RECURSIVELY so the console's windows arrive without being named.
+        #
+        # COMMENTS ARE STRIPPED FIRST. HDTTheme.xaml, this rule's own subject,
+        # spells the entity out in prose so the next person knows exactly which
+        # character is meant - and a scan that read comments would convict the
+        # file that documented the rule.
+
+        BeforeAll {
+
+            # THE DETECTION, ONCE, SO THE SELF-TEST BELOW EXERCISES THE SAME
+            # CODE THE SWEEP DOES. A rule proved by a second implementation of
+            # its own pattern proves the second implementation.
+            $script:findAstral = {
+                param([string] $Text)
+
+                $found = New-Object -TypeName System.Collections.ArrayList
+
+                foreach ($match in @([regex]::Matches($Text, '&#(?:[Xx]([0-9A-Fa-f]+)|([0-9]+));'))) {
+
+                    if ($match.Groups[1].Success) {
+                        $point = [Convert]::ToInt32($match.Groups[1].Value, 16)
+                    } else {
+                        $point = [Convert]::ToInt32($match.Groups[2].Value, 10)
+                    }
+
+                    if ($point -gt 0xFFFF) { [void] $found.Add([string] $match.Value) }
+                }
+
+                # A RAW CHARACTER IS THE SAME DEFECT WITHOUT THE ENTITY. .NET
+                # holds one as a surrogate pair, so a high surrogate is exactly
+                # "this file contains a character above the BMP".
+                foreach ($char in $Text.ToCharArray()) {
+                    if ([char]::IsHighSurrogate($char)) { [void] $found.Add('a raw astral character') }
+                }
+
+                return @($found)
+            }
+
+            $script:glyphFile = @()
+
+            foreach ($root in @(
+                    @{ Relative = 'src/Hephaestus/Templates/Wizard'; Recurse = $false }
+                    @{ Relative = 'samples/workspace/Scripts/UI'; Recurse = $false }
+                    @{ Relative = 'src/Hephaestus/UI'; Recurse = $true }
+                )) {
+                $folder = Join-Path -Path $script:repoRoot -ChildPath $root.Relative
+                if (-not (Test-Path -LiteralPath $folder)) { continue }
+
+                foreach ($file in @(Get-ChildItem -LiteralPath $folder -Filter '*.xaml' -File -Recurse:([bool] $root.Recurse))) {
+
+                    $code = [regex]::Replace(
+                        [System.IO.File]::ReadAllText($file.FullName), '(?s)<!--.*?-->', '')
+
+                    $script:glyphFile += [pscustomobject] @{
+                        Relative = ($file.FullName.Substring($script:repoRoot.Length + 1) -replace '\\', '/')
+                        Astral   = @(& $script:findAstral $code)
+                    }
+                }
+            }
+
+            # ALLOWED BY NAME, WITH THE REASON, RATHER THAN BY WEAKENING THE
+            # RULE. A glyph that genuinely has no vector and genuinely renders
+            # in WinPE goes here as 'relative/path.xaml' with the sentence that
+            # justifies it - and it will still have to answer the string table.
+            # Widening the pattern or dropping a folder to excuse one glyph
+            # excuses every glyph after it.
+            #
+            # IT IS EMPTY, AND THAT IS THE CURRENT ANSWER. The eye was the only
+            # one, and it is drawn now.
+            $script:glyphExempt = @{}
+        }
+
+        It 'read the markup of all three trees, so the rule below is not vacuous' {
+            foreach ($tree in @('src/Hephaestus/Templates/Wizard/', 'samples/workspace/Scripts/UI/', 'src/Hephaestus/UI/')) {
+                @(@($script:glyphFile) | Where-Object { $_.Relative -like ($tree + '*') }).Count |
+                    Should -BeGreaterThan 0 -Because ('a sweep that never opened {0} passes for everything in it' -f $tree)
+            }
+
+            @($script:glyphFile).Count | Should -BeGreaterThan 8 -Because 'the wizard alone ships more markup than this'
+        }
+
+        It 'would convict an emoji if one were there' {
+            # THE ANTI-VACUITY THAT MATTERS. The assertion below is a
+            # Should -BeNullOrEmpty over a list, which is the shape that passes
+            # the day the detection quietly stops detecting. This runs the SAME
+            # scriptblock over the exact markup that was removed from three
+            # pages, and over the raw character somebody would paste instead.
+            $eyeHex = '<ToggleButton Content="&#' + 'x1F441;" />'
+            $eyeDecimal = '<ToggleButton Content="&#' + '128065;" />'
+
+            @(& $script:findAstral $eyeHex).Count |
+                Should -Be 1 -Because 'the hex entity for the eye is what shipped, and is what this must catch'
+
+            @(& $script:findAstral $eyeDecimal).Count |
+                Should -Be 1 -Because 'the same character written in decimal is the same defect'
+
+            @(& $script:findAstral ('<ToggleButton Content="{0}" />' -f [char]::ConvertFromUtf32(0x1F441))).Count |
+                Should -Be 1 -Because 'pasting the character instead of writing the entity is the same font dependency'
+
+            @(& $script:findAstral '<TextBlock Text="&#x2192; next &#8212; done" />').Count |
+                Should -Be 0 -Because 'an arrow and an em dash are in the BMP, decode normally, and are not what this rule is about'
+        }
+
+        It 'exempts no file that has stopped existing' {
+            $present = @(@($script:glyphFile) | ForEach-Object { $_.Relative })
+            $stale = @(@($script:glyphExempt.Keys) | Where-Object { $present -notcontains $_ })
+
+            ($stale -join ' | ') | Should -BeNullOrEmpty -Because (
+                'an exemption outliving its file is a hole the next file to take that name inherits')
+        }
+
+        It 'writes no character above the BMP in any markup that ships' {
+            $offender = @(@($script:glyphFile) |
+                    Where-Object { $_.Astral.Count -gt 0 -and -not $script:glyphExempt.ContainsKey($_.Relative) } |
+                    ForEach-Object { '{0}: {1}' -f $_.Relative, ($_.Astral -join ', ') })
+
+            ($offender -join ' | ') | Should -BeNullOrEmpty -Because (
+                'an astral glyph needs a font WinPE does not guarantee and renders as tofu, and HtmlDecode leaves its ' +
+                'entity undecoded so the string table reads the hex as prose - draw it, the way HDTRevealEye does')
+        }
+    }
 }

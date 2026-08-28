@@ -225,21 +225,30 @@
                     domain half in the tab order, which put it between the two
                     radio buttons where nothing else was.
 
-                    AN ATTRIBUTE, NOT A <Style> LIKE ITS NEIGHBOURS, AND THAT IS
-                    NOT INCONSISTENCY FOR ITS OWN SAKE. A local Style REPLACES
-                    the implicit one, and this control's implicit style is the
-                    theme's ToggleButton template - the one that stops WPF
-                    painting light-on-light chrome over the glyph on hover.
-                    Recovering it would need BasedOn with a StaticResource, and
-                    a share page is parsed DETACHED, where StaticResource throws
-                    (see WinPeUiStack.Contract.Tests). Binding IsEnabled
-                    directly keeps the template and says the same thing: a
-                    RadioButton's IsChecked is bool?, and null reads as false,
+                    A STYLE AFTER ALL, AND THE BasedOn IS NOT ON THIS PAGE.
+                    This said an attribute rather than a <Style> was deliberate,
+                    because a local Style REPLACES the implicit one - here the
+                    theme's ToggleButton template, which stops WPF painting
+                    light-on-light chrome over the glyph on hover - and
+                    recovering it would need BasedOn with a StaticResource,
+                    which throws on a share page parsed DETACHED.
+                    HDTRevealEye answers that: the BasedOn lives INSIDE
+                    HDTTheme.xaml, where the implicit style is in the same
+                    document and a StaticResource resolves. The page asks for
+                    the finished style with a DynamicResource and gets the
+                    template, the checked trigger and the drawn eye together.
+
+                    IsEnabled STAYS AN ATTRIBUTE and still says the same thing:
+                    a RadioButton's IsChecked is bool?, and null reads as false,
                     which is exactly "not joining a domain".
+
+                    THE BRUSHES WENT WITH THE GLYPH. They were spelled here in
+                    literal hex, which made this the one eye a retheme could not
+                    reach; they come from HDTTheme.xaml now like every other.
                 -->
-                <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle" Content="&#x1F441;"
+                <ToggleButton Grid.Column="1" x:Name="HDTPasswordRevealToggle"
+                              Style="{DynamicResource HDTRevealEye}"
                               Width="36" Height="34" Margin="8,0,0,0"
-                              Background="#FF3A3A3C" Foreground="White" BorderThickness="0"
                               ToolTip="Show the password"
                               IsEnabled="{Binding IsChecked, ElementName=HDTJoinDomainRadio}" />
             </Grid>

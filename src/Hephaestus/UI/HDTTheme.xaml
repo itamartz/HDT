@@ -392,6 +392,67 @@
     </Style>
 
     <!--
+        THE EYE ITSELF, AND IT IS DRAWN RATHER THAN TYPED.
+
+        ONE CONTROL, ONE IMPLEMENTATION. Five toggles carry this glyph - the
+        domain-join password on Computer Details, both boxes on Administrator
+        Password, the BitLocker PIN, and the share password on the Welcome and
+        credential windows - and it had been written two different ways: a Path
+        and an Ellipse on the windows, the character U+1F441 on the pages. Two
+        implementations of one control is one that drifts, and the newer pages
+        had picked the weaker one.
+
+        WHY DRAWN, AND BOTH REASONS ARE LOAD-BEARING.
+
+        THE FONT. U+1F441 NEEDS Segoe UI Emoji. WinPE is a minimal image and
+        guarantees no such font; a glyph with no font behind it renders as
+        tofu - an empty box where the reveal control should be - on the one
+        screen nobody can attach a debugger to. A Path and an Ellipse need no
+        font at all.
+
+        THE CONTRACT. StringTable.Contract.Tests.ps1 decodes a caption before
+        judging whether it is prose, and .NET's WebUtility.HtmlDecode LEAVES
+        ENTITIES ABOVE THE BMP UNDECODED - so `&#x1F441;` survives the decode
+        intact and the `x` in its hex convicts it as untranslated English. The
+        pages escape that today only because the ledger scans windows and not
+        pages, which is an accident of scope rather than a defence.
+
+        SO IT MUST NOT BE "SIMPLIFIED" BACK TO A CHARACTER.
+        WinPeUiStack.Contract.Tests.ps1 refuses an above-BMP entity anywhere in
+        the shipped markup, over the whole set, so the next emoji is caught
+        before it boots.
+
+        A ContentTemplate, NOT A REPLACEMENT Template. The ToggleButton style
+        above already carries the surface and the checked and hover triggers
+        that stop WPF painting light-on-light chrome over the glyph; BasedOn
+        keeps every one of them and this adds only the drawing. A DataTemplate
+        is INSTANTIATED PER CONTROL, which is the whole reason the geometry can
+        live here at all - a single Path in a dictionary has one parent and
+        would appear on exactly one of the five toggles.
+
+        IT SETS NO SIZE. The pages use 36x34 and the credential window 36x28,
+        each matching the boxes beside it, so the eye is 22x16 inside whatever
+        the caller gives it and the caller keeps its own layout.
+    -->
+    <Style x:Key="HDTRevealEye" TargetType="ToggleButton" BasedOn="{StaticResource {x:Type ToggleButton}}">
+        <Setter Property="Content" Value="" />
+        <Setter Property="ContentTemplate">
+            <Setter.Value>
+                <DataTemplate>
+                    <Grid Width="22" Height="16">
+                        <Path Data="M 1,8 C 5,2.5 17,2.5 21,8 C 17,13.5 5,13.5 1,8 Z"
+                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                              StrokeThickness="1.3" />
+                        <Ellipse Width="6" Height="6"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" />
+                    </Grid>
+                </DataTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
         THE PROGRESS BAR. Flat, accent-coloured, no animation: WinPE renders in
         software on a VM console, and the default template's shimmer costs
         frames that a technician reads as the deployment being stuck.
