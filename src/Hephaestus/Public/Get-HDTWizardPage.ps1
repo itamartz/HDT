@@ -21,13 +21,20 @@
             by a rule nobody checked. (MDT decides the same way, from
             SkipComputerName.)
 
-            A SKIPPED PAGE WHOSE VALUE IS MISSING IS AN ERROR, NOT A PROMPT.
-            DESIGN 11.2, in those words. Showing it anyway produces a deployment
-            nobody can reproduce, and inventing a value produces a machine
-            nobody named. The refusal names both the variable that should have
-            been set and the rule that skipped the page, because an
+            A SKIPPED PAGE WHOSE REQUIRED VALUE IS MISSING IS AN ERROR, NOT A
+            PROMPT. DESIGN 11.2, in those words. Showing it anyway produces a
+            deployment nobody can reproduce, and inventing a value produces a
+            machine nobody named. The refusal names both the variable that
+            should have been set and the rule that skipped the page, because an
             administrator who set one and forgot the other cannot tell which
             from a message that names neither.
+
+            AND THE DOCUMENT SAYS WHICH ARE REQUIRED - not this command. A
+            secret is exempt, an optional half of a two-halved page is exempt,
+            and a select: many collect is exempt because for a list
+            present-but-empty is an answer. MDT is stricter about nothing here:
+            SetPropertyDefault fills in the scalars a skipped pane would have
+            set, and TaskSequenceID is the one it leaves fatal.
 
             HDTSkipWizard IS THE BLUNT ONE and is checked the same way, which is
             why it is also the commonest way to get the refusal above: it skips
@@ -167,6 +174,33 @@
             $isOptional = $false
             if ($null -ne $declaration.PSObject.Properties['Optional']) { $isOptional = [bool] $declaration.Optional }
             if ($isOptional) { continue }
+
+            # AND A LIST IS NEVER DEMANDED, BECAUSE PRESENT-BUT-EMPTY IS AN
+            # ANSWER. A select: many collect is a column of tick boxes, and
+            # "none of them" is a decision somebody made. The check below cannot
+            # tell that decision from a missing value - [string] @() is '' - so
+            # HDTApplications: [], the correct and explicit "install nothing",
+            # failed it exactly as nothing at all did. There was no value an
+            # administrator could write that got past it, which makes the
+            # refusal one nobody can satisfy rather than one somebody can fix.
+            # A second real zero-touch deployment died on it, five seconds in,
+            # before it had partitioned anything.
+            #
+            # MDT DEMANDS NO LIST EITHER, and that settles what to do instead of
+            # inventing a rule here. DeployWiz_Definition_ENU.xml's Applications
+            # pane carries UCase(Property("SkipApplications"))<>"YES" and no
+            # companion test that a value exists; ZTIApplications.wsf logs
+            # "Application List is empty, exiting ZTIApplications.wsf" and
+            # returns Success on a count of zero; and LiteTouch.wsf's "clean up
+            # properties if the wizard was skipped" block, which defaults the
+            # scalars a skipped pane would have set, names Applications nowhere.
+            # A skipped page is a page not shown - not a page that must have
+            # been answered somewhere else.
+            $isList = $false
+            if ($null -ne $declaration.PSObject.Properties['Select']) {
+                $isList = ([string] $declaration.Select).Trim().ToLowerInvariant() -eq 'many'
+            }
+            if ($isList) { continue }
 
             $name = [string] $declaration.Variable
 

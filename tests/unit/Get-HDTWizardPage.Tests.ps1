@@ -284,3 +284,254 @@ Describe 'Get-HDTWizardPage' {
         }
     }
 }
+
+# A LIST-VALUED COLLECT IS NOT A SCALAR, AND THE SKIP CHECK COULD NOT TELL.
+#
+# A real zero-touch deployment died five seconds in, before it had partitioned
+# anything:
+#
+#   HDTConfigurationError: the wizard page 'Applications' is skipped by
+#   HDTSkipWizard, but nothing supplies HDTApplications.
+#
+# THE REFUSAL COULD NOT BE SATISFIED. The check asked
+# -not [string]::IsNullOrWhiteSpace([string] $resolved[$name]), and [string] @()
+# is '' - so HDTApplications: [], the correct and explicit "install nothing",
+# failed it exactly as a missing value did. There was no value an administrator
+# could write into rules.yaml that got past it.
+#
+# AND MDT DEMANDS NO LIST, which settles what to do instead.
+# DeployWiz_Definition_ENU.xml's Applications pane carries the condition
+# UCase(Property("SkipApplications"))<>"YES" and no companion test that a value
+# exists; ZTIApplications.wsf logs "Application List is empty, exiting
+# ZTIApplications.wsf" and returns Success on a count of zero; PSD's
+# PSDApplications.ps1 guards the same way. LiteTouch.wsf's "clean up properties
+# if the wizard was skipped" block defaults the scalars - JoinWorkgroup,
+# ComputerBackupLocation, UserDataLocation, TimeZoneName and the rest - and
+# names Applications nowhere.
+#
+# So: one required scalar, and no list is ever required.
+
+Describe 'Get-HDTWizardPage and a list-valued collect' {
+
+    BeforeAll {
+        # The Applications page as it ships: one control, one variable, and
+        # select: many - a column of tick boxes rather than a property.
+        function New-HDTApplicationsPage {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+                Justification = 'Builds in-memory test data; it changes no state.')]
+            [CmdletBinding()]
+            param()
+
+            return @(
+                [pscustomobject] @{
+                    Id      = 'Applications'
+                    Title   = 'Applications'
+                    Skip    = 'HDTSkipApplications'
+                    Collect = @(
+                        [pscustomobject] @{
+                            Control  = 'HDTApplicationList'
+                            Variable = 'HDTApplications'
+                            Select   = 'many'
+                        })
+                })
+        }
+    }
+
+    Context 'the deployment that died before partitioning' {
+
+        It 'does not refuse a skipped Applications page that supplies no HDTApplications' {
+            { Get-HDTWizardPage -Page (New-HDTApplicationsPage) -Variable @{ HDTSkipWizard = $true } } |
+                Should -Not -Throw
+        }
+
+        It 'records the page as skipped rather than asking it' {
+            $result = Get-HDTWizardPage -Page (New-HDTApplicationsPage) -Variable @{ HDTSkipWizard = $true }
+
+            @($result.Page) | Should -BeNullOrEmpty
+            [string] @($result.Skipped)[0].Id | Should -BeExactly 'Applications'
+        }
+
+        It 'does not refuse under the page''s own skip variable either' {
+            { Get-HDTWizardPage -Page (New-HDTApplicationsPage) -Variable @{ HDTSkipApplications = $true } } |
+                Should -Not -Throw
+        }
+    }
+
+    Context 'the answer an administrator could not write' {
+
+        It 'accepts an empty list as the explicit install nothing' {
+            # [string] @() is '', so this failed the old check exactly as a
+            # missing value did. It is the one answer that says "I have decided,
+            # and the decision is none".
+            { Get-HDTWizardPage -Page (New-HDTApplicationsPage) `
+                    -Variable @{ HDTSkipWizard = $true; HDTApplications = @() } } | Should -Not -Throw
+        }
+
+        It 'accepts a list with applications in it' {
+            { Get-HDTWizardPage -Page (New-HDTApplicationsPage) `
+                    -Variable @{ HDTSkipWizard = $true; HDTApplications = @('APP-0001', 'APP-0002') } } |
+                Should -Not -Throw
+        }
+
+        It 'accepts the joined string the host actually harvests' {
+            { Get-HDTWizardPage -Page (New-HDTApplicationsPage) `
+                    -Variable @{ HDTSkipWizard = $true; HDTApplications = 'APP-0001, APP-0002' } } |
+                Should -Not -Throw
+        }
+    }
+
+    Context 'a list and a scalar are not the same kind of answer' {
+
+        It 'demands a scalar collect and does not demand a list collect on the same page' {
+            # The two declarations are identical but for select, which is the
+            # whole point: the difference is the document's, not the engine's
+            # guess about what a variable name means.
+            $scalar = @(
+                [pscustomobject] @{
+                    Id      = 'Proof'
+                    Title   = 'Proof'
+                    Skip    = 'HDTSkipProof'
+                    Collect = @([pscustomobject] @{ Control = 'HDTProofBox'; Variable = 'HDTProof' })
+                })
+
+            $list = @(
+                [pscustomobject] @{
+                    Id      = 'Proof'
+                    Title   = 'Proof'
+                    Skip    = 'HDTSkipProof'
+                    Collect = @([pscustomobject] @{ Control = 'HDTProofBox'; Variable = 'HDTProof'; Select = 'many' })
+                })
+
+            { Get-HDTWizardPage -Page $scalar -Variable @{ HDTSkipProof = $true } } |
+                Should -Throw -ExpectedMessage '*HDTProof*'
+
+            { Get-HDTWizardPage -Page $list -Variable @{ HDTSkipProof = $true } } | Should -Not -Throw
+        }
+
+        It 'reads select of one as the scalar it is' {
+            # Absent means one; written out it must still mean one, or a page
+            # that says what every other page assumes would behave differently.
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'Proof'
+                    Title   = 'Proof'
+                    Skip    = 'HDTSkipProof'
+                    Collect = @([pscustomobject] @{ Control = 'HDTProofBox'; Variable = 'HDTProof'; Select = 'one' })
+                })
+
+            { Get-HDTWizardPage -Page $page -Variable @{ HDTSkipProof = $true } } |
+                Should -Throw -ExpectedMessage '*HDTProof*'
+        }
+    }
+
+    Context 'the one scalar MDT genuinely refuses without' {
+
+        It 'still refuses a skipped TaskSequence page that supplies no HDTTaskSequenceID' {
+            # LiteTouch.wsf dies on the missing Control\TS.XML for the sequence
+            # named, and SetPropertyDefault has nothing to say about it. There
+            # is no deployment to run without one.
+            $page = @(
+                [pscustomobject] @{
+                    Id      = 'TaskSequence'
+                    Title   = 'Task sequence'
+                    Skip    = 'HDTSkipTaskSequence'
+                    Collect = @([pscustomobject] @{ Control = 'HDTTaskSequenceList'; Variable = 'HDTTaskSequenceID' })
+                })
+
+            { Get-HDTWizardPage -Page $page -Variable @{ HDTSkipTaskSequence = $true } } |
+                Should -Throw -ExpectedMessage '*HDTTaskSequenceID*'
+        }
+    }
+}
+
+# THE SET, NOT THE PAGE THAT BROKE.
+#
+# CLAUDE.md rule 8: a test that names the thing just added passes for it and
+# fails nobody after it. This walks every page the shipped wizard.yaml declares,
+# through the engine's own reader, and asserts the refusal fires for exactly the
+# variables the DOCUMENT marks required - not for a list written here. The next
+# page added is covered the day it is added.
+
+Describe 'The shipped wizard.yaml, skipped a page at a time' {
+
+    BeforeAll {
+        $script:setRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        Import-Module -Name (Join-Path -Path $script:setRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
+        Import-Module -Name (Join-Path -Path $script:setRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+
+        # The real templates, seeded onto a share the real way and read back by
+        # the real reader - so the Optional, IsSecret and Select the check reads
+        # are the ones Import-HDTWizardDocument actually produces, not a shape
+        # invented in this file.
+        $fs = New-HDTFakeFileSystem
+        $null = New-HDTWorkspace -Path 'Z:\WizardSet' -Id 'WIZSET' -Name 'Wizard set' -FileSystem $fs -Confirm:$false
+
+        $script:shippedPage = @((Import-HDTWizardDocument -Provider (New-HDTLocalContentProvider -Root 'Z:\WizardSet' -FileSystem $fs)).Page)
+
+        # WHAT THE DOCUMENT CALLS REQUIRED, read off the document. A secret is
+        # never written into rules.yaml; an optional half of a two-halved page
+        # is whichever half the machine is not getting; and a list is an answer
+        # when it is empty, so it is never demanded.
+        $script:requiredOf = {
+            param($Page)
+
+            return @(@($Page.Collect) | Where-Object {
+                    $null -ne $_ -and
+                    -not [bool] $_.IsSecret -and
+                    -not [bool] $_.Optional -and
+                    ([string] $_.Select).Trim().ToLowerInvariant() -ne 'many'
+                } | ForEach-Object { [string] $_.Variable })
+        }
+    }
+
+    It 'reads back every page it ships' {
+        @($script:shippedPage).Count | Should -BeGreaterThan 0
+    }
+
+    It 'refuses only for what the document marks required, skipping <Id>' -ForEach @(
+        # -ForEach is bound before BeforeAll runs, so the cases are read here,
+        # off the same file the reader reads.
+        @(& {
+                $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+                Import-Module -Name powershell-yaml -ErrorAction Stop
+                $text = [System.IO.File]::ReadAllText([IO.Path]::Combine($root, 'src', 'Hephaestus', 'Templates', 'Wizard', 'wizard.yaml'))
+
+                @((ConvertFrom-Yaml -Yaml $text -Ordered)['pages']) | ForEach-Object {
+                    $skip = ''
+                    if ($_.Contains('skip')) { $skip = [string] $_['skip'] }
+                    @{ Id = [string] $_['id']; Skip = $skip }
+                }
+            })
+    ) {
+        $current = @($script:shippedPage | Where-Object { [string] $_.Id -eq $Id })[0]
+        $current | Should -Not -BeNullOrEmpty
+
+        $required = @(& $script:requiredOf $current)
+
+        $record = $null
+        try {
+            $null = Get-HDTWizardPage -Page $script:shippedPage -Variable @{ $Skip = $true }
+        } catch {
+            $record = $PSItem
+        }
+
+        if (@($required).Count -eq 0) {
+            $record | Should -BeNullOrEmpty -Because ('{0} marks nothing required, so skipping it with nothing set is an unattended deployment rather than a fault' -f $Id)
+        } else {
+            $record | Should -Not -BeNullOrEmpty -Because ('{0} requires {1}' -f $Id, ($required -join ', '))
+            $record.Exception.Message | Should -BeLike ('*{0}*' -f $required[0])
+        }
+    }
+
+    It 'requires HDTTaskSequenceID and HDTComputerName across the whole document, and nothing else' {
+        # MDT's rule, stated once against the set: one genuinely fatal missing
+        # scalar. HDT keeps a second - HDTComputerName - because unlike MDT it
+        # will not let Windows invent a machine's identity, and New-HDTWorkspace
+        # seeds a Fallback rule that answers it on every share this module
+        # creates. Anything else appearing here is a page that cannot be run
+        # unattended, and that is the thing to notice.
+        $required = @($script:shippedPage | ForEach-Object { & $script:requiredOf $_ })
+
+        (@($required | Sort-Object) -join ',') | Should -BeExactly 'HDTComputerName,HDTTaskSequenceID'
+    }
+}

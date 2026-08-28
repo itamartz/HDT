@@ -52,8 +52,21 @@ pages:
       - control: HDTMachineObjectOuBox
         variable: HDTMachineObjectOU
         optional: true
+      # OPTIONAL BECAUSE MDT DEFAULTS IT. LiteTouch.wsf's "clean up properties
+      # if the wizard was skipped" block calls SetPropertyDefault
+      # "JoinWorkgroup", "WorkGroup" - its own comment says "when skipping
+      # wizard pages, it is possible that some required properties are not
+      # set". New-HDTWorkspace seeds the same answer into rules.yaml's Fallback
+      # rule, so a share this module creates already has one; a share that does
+      # not is a machine that joins nothing, which is what MDT does too.
+      #
+      # THE NAME IS NOT. HDTComputerName above stays required, because HDT will
+      # not let Windows invent a machine's identity (DESIGN 4.5.2) the way MDT
+      # does with an empty OSDComputerName - and the seeded Fallback rule
+      # answers it, so the refusal is one an administrator can satisfy.
       - control: HDTJoinWorkgroupBox
         variable: HDTJoinWorkgroup
+        optional: true
 
       # The account domain box is read BEFORE the account box, so the split
       # below can see what it held and decide whether to keep it.
@@ -82,19 +95,31 @@ pages:
     subheading: What the deployed machine speaks, types and reads the clock in.
     reference: LocaleTime.xaml
     skip: HDTSkipLocaleSelection
+
+    # ALL FOUR OPTIONAL, BECAUSE MDT DEFAULTS THEM AND HDT SEEDS THEM.
+    # LiteTouch.wsf defaults TimeZoneName to Pacific Standard Time when the
+    # wizard is skipped, and CustomSettings.ini shipped KeyboardLocale,
+    # UILanguage and UserLocale already written out; New-HDTWorkspace seeds the
+    # same three into rules.yaml's "Language and region" rule, and the engine
+    # falls back to US English when nothing answers. A locale nobody chose is a
+    # keyboard somebody changes later - not a deployment that must not start.
     collect:
       - control: HDTUILanguageBox
         variable: HDTUILanguage
         property: SelectedValue
+        optional: true
       - control: HDTUserLocaleBox
         variable: HDTUserLocale
         property: SelectedValue
+        optional: true
       - control: HDTKeyboardLocaleBox
         variable: HDTKeyboardLocale
         property: SelectedValue
+        optional: true
       - control: HDTTimeZoneNameBox
         variable: HDTTimeZone
         property: SelectedValue
+        optional: true
 
   # Which applications this machine gets, ticked from the catalog published on
   # the share. Everything but the page already existed: the engine has read the
@@ -135,16 +160,27 @@ pages:
     subheading: Whether the disk is encrypted, how it unlocks, and where the recovery key goes.
     reference: BitLocker.xaml
     skip: HDTSkipBitLocker
+
+    # OPTIONAL, ALL THREE, BECAUSE AN UNTICKED BOX IS AN ANSWER. The
+    # EnableBitLocker step runs at all only when HDTEnableBitLocker is true, so
+    # a machine skipped past this page with nothing set does exactly what every
+    # deployment did before this page existed - which is the behaviour a site
+    # that has never encrypted anything is entitled to. MDT has no BitLocker
+    # entry in LiteTouch.wsf's skip-cleanup block for the same reason: nothing
+    # to default when the feature is off.
     collect:
       - control: HDTBitLockerEnableBox
         variable: HDTEnableBitLocker
         property: IsChecked
+        optional: true
       - control: HDTBitLockerProtectorBox
         variable: HDTBitLockerProtector
         property: SelectedValue
+        optional: true
       - control: HDTBitLockerEscrowBox
         variable: HDTBitLockerEscrow
         property: SelectedValue
+        optional: true
 
       # BLANK UNLESS THE PROTECTOR NEEDS THEM, and the step is what refuses:
       # "protector: tpmPin needs a pin, and this step declares none." This page
