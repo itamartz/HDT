@@ -1199,8 +1199,30 @@ try {
 
     if (-not [string]::IsNullOrWhiteSpace($dynamicLogPath)) {
         try {
-            $dynamicLogPath = [string] (Expand-HDTVariableToken -Value $dynamicLogPath -Scope $resolved.Variable)
-
+            # NOTHING EXPANDS THE PATH HERE, AND NOTHING MAY. It arrives
+            # finished: Add-HDTResolvedVariable expands as it STORES, so
+            # $resolved.Variable holds '\\host\HDTShare\Logs\LT-7FJ45S2' and
+            # never the '%HDTComputerName%' the rule was written with.
+            #
+            # THIS FILE IS A SCRIPT, NOT PART OF THE MODULE. It reaches the
+            # engine through Import-Module Hephaestus, which imports the
+            # MANIFEST - so the only names that exist here are the ones in
+            # FunctionsToExport. b08bb91 called Expand-HDTVariableToken on this
+            # line; it is a PRIVATE helper, it does not exist in a payload's
+            # session, and the call threw CommandNotFoundException on every run.
+            #
+            # THE CATCH BELOW ATE IT. A share that cannot be written to must
+            # never end a deployment, so the catch downgrades anything thrown in
+            # here to a Warning and carries on - which is right, and which meant
+            # live logging was dead for a day with nothing to show for it but
+            # one line in LAUNCHER.log on the share it had failed to write to.
+            # CreateDirectory was never reached, the folder never appeared, and
+            # every run looked normal.
+            #
+            # A second expansion of an already-expanded string bought nothing
+            # even in the world where the name resolved. tests/contract/
+            # PayloadExportedCommand.Contract.Tests.ps1 now refuses the whole
+            # class of it across every file in Payload\.
             $fileSystem.CreateDirectory($dynamicLogPath)
             $log.SetDynamicPath($dynamicLogPath)
 
