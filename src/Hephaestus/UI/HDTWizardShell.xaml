@@ -53,8 +53,14 @@
             <ColumnDefinition Width="230" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
+        <!--
+            THREE ROWS: THE PAGE, WHAT IS WRONG WITH IT, THEN THE BUTTONS.
+            The middle one is new and it is a row rather than a column for a
+            measured reason - see the message band below.
+        -->
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="76" />
         </Grid.RowDefinitions>
 
@@ -64,7 +70,7 @@
             backdrop that must never compete with the selected row painted on
             top of it in that accent.
         -->
-        <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Background="#FF083B5C" x:Name="HDTDragBanner">
+        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0" Background="#FF083B5C" x:Name="HDTDragBanner">
             <DockPanel LastChildFill="True">
 
                 <!--
@@ -208,57 +214,86 @@
                 <ContentControl x:Name="HDTPageHost" IsTabStop="False" /></ScrollViewer>
         </Grid>
 
-        <!-- ============ the buttons ============ -->
-        <Border Grid.Row="1" Grid.Column="1" Background="#FF252526">
+        <!-- ============ what is wrong with the page ============ -->
+        <!--
+            A ROW OF ITS OWN, AND THE TWO FIXES BEFORE THIS ONE ARE WHY.
+
+            IT STARTED IN THE BUTTONS' CELL, pinned left with MaxWidth="300" so
+            it could not run under them - and a refusal long enough to be useful
+            was CLIPPED SIDEWAYS. The cap came off and the message was given the
+            `*` column beside the buttons instead. That did not fix the clip; it
+            TURNED IT NINETY DEGREES. Measured on the shipped window: Open CMD
+            120 + Back 110 + Cancel 110 + Deploy 130 and their margins leave the
+            message column 64.6px wide, so 'the two passwords do not match. Type
+            the same password in both boxes.' wraps to 167.6px inside a 76px
+            row - a narrow orange ribbon with its first and last lines cut off.
+
+            SO NEITHER DIMENSION IS CAPPED NOW. The message competes with
+            nothing: it gets the whole strip the buttons stand on - 900 less the
+            230 rail less its own margins, 598px - and its row is Auto, so a
+            sentence longer than the reserve makes the band taller instead of
+            losing a line. That is the difference from MaxWidth="300": that was
+            a cap, this is a row.
+
+            MinHeight IS THE ROOM ALWAYS THERE, AND IT IS WHY NOTHING JUMPS.
+            58px holds two 18.6px lines with the margins below, which is what
+            every refusal a shipped page can produce needs - so the band is the
+            same height empty as it is full, the buttons never move, and the
+            page above never resizes as a technician types. A layout that jumps
+            while you fill it in is worse than one that clips.
+
+            IT IS PAINTED IN THE FOOTER'S OWN GREY so the strip and the buttons
+            read as one bar rather than as a slab that appeared under the page.
+
+            tests/unit/WizardShellMessage.Tests.ps1 measures all of this against
+            the SET - every refusal harvested from Show-HDTWizardShell's rule
+            table and the validators it names - so the next rule with a longer
+            sentence fails there rather than on a bench.
+        -->
+        <Border Grid.Row="1" Grid.Column="1" Background="#FF252526" MinHeight="58">
             <!--
-                TWO COLUMNS, NOT TWO THINGS IN ONE CELL. The message and the
-                buttons used to share a single cell, the message pinned left
-                with MaxWidth="300" to keep it off them - so a refusal long
-                enough to be useful was CLIPPED, and the technician could see
-                that something was wrong but not what. A message nobody can
-                finish reading is the same as no message.
+                A WARNING IS NOT A REFUSAL, AND MUST NOT LOOK LIKE ONE.
+                HDT_01 is a legal computer name that DNS cannot carry: the
+                wizard lets it through and says so, and painting that in the
+                same red as a refusal would make a technician go looking for
+                what they had done wrong.
 
-                The message now takes the width the buttons do not, and wraps
-                inside it.
+                THE SEVERITY ARRIVES IN Tag, and the colour is decided here.
+                Test-HDTComputerName returns 'None', 'Warning' or 'Error';
+                the host sets Tag and paints nothing, which is the same
+                split as the rail - the engine states what a thing IS and
+                the markup decides what that looks like.
+
+                NO LOCAL Foreground. A local value beats a Style trigger, so
+                the attribute that used to be here would have won over both
+                triggers and made the warning red anyway.
+
+                TOP, NOT CENTRE. A two-line message centred in a band sized for
+                two lines is the same thing; a three-line one centred in a band
+                that grew for it is a message drifting away from the control it
+                is about. It grows downwards, towards the buttons it is
+                explaining.
             -->
+            <TextBlock x:Name="HDTMessageText" Text="" VerticalAlignment="Top"
+                       FontSize="14" TextWrapping="Wrap" Margin="36,12,36,8">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Foreground" Value="#FFF48771" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Warning">
+                                <Setter Property="Foreground" Value="#FFE2C08D" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Border>
+
+        <!-- ============ the buttons ============ -->
+        <Border Grid.Row="2" Grid.Column="1" Background="#FF252526">
             <Grid Margin="36,0,36,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
 
-                <!--
-                    A WARNING IS NOT A REFUSAL, AND MUST NOT LOOK LIKE ONE.
-                    HDT_01 is a legal computer name that DNS cannot carry: the
-                    wizard lets it through and says so, and painting that in the
-                    same red as a refusal would make a technician go looking for
-                    what they had done wrong.
-
-                    THE SEVERITY ARRIVES IN Tag, and the colour is decided here.
-                    Test-HDTComputerName returns 'None', 'Warning' or 'Error';
-                    the host sets Tag and paints nothing, which is the same
-                    split as the rail - the engine states what a thing IS and
-                    the markup decides what that looks like.
-
-                    NO LOCAL Foreground. A local value beats a Style trigger, so
-                    the attribute that used to be here would have won over both
-                    triggers and made the warning red anyway.
-                -->
-                <TextBlock Grid.Column="0" x:Name="HDTMessageText" Text="" HorizontalAlignment="Left"
-                           VerticalAlignment="Center" FontSize="14" TextWrapping="Wrap" Margin="0,0,24,0">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="#FFF48771" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="Warning">
-                                    <Setter Property="Foreground" Value="#FFE2C08D" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <!--
                         OPEN CMD IS NOT A WAY OUT, it is the diagnostic door -
                         and it stays on every page because the page a technician
