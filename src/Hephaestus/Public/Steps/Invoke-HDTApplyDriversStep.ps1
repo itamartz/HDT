@@ -1,10 +1,11 @@
-﻿function Invoke-HDTApplyDriversStep {
+function Invoke-HDTApplyDriversStep {
     <#
         .SYNOPSIS
-            Injects drivers into the applied operating system.
+            Stages drivers onto the applied operating system.
 
         .DESCRIPTION
-            Injects drivers into an operating system already applied to disk.
+            Copies matched driver packages onto an operating system already
+            applied to disk, for Windows to install at first boot.
             Group match is the primary path and the PnP ranking is the fallback,
             which is the order DESIGN 7 keeps.
 
@@ -28,12 +29,21 @@
             storage driver means a computer that cannot see its network or its
             disk.
 
-            INJECTION IS OFFLINE, INTO THE APPLIED VOLUME: Add-WindowsDriver
-            against W:\ writes the driver into
-            W:\Windows\System32\DriverStore\FileRepository and stages it, and
-            WINDOWS binds it to a device on the first boot. Nothing here
-            installs a driver onto a running machine, so this step must run
-            AFTER ApplyImage and BEFORE the first reboot.
+            THE PACKAGES ARE COPIED TO THE MACHINE, NOT INJECTED INTO IT. Each
+            matched folder is copied to <OSVolume>\Drivers and the answer file's
+            DriverPaths points Windows at it, so PnP installs what it needs on
+            the first boot - which is what MDT's ZTIDrivers has always done.
+
+            IT USED TO CALL Add-WindowsDriver ONCE PER DRIVER, and every one of
+            those opens the offline image, adds one package and COMMITS it. On a
+            Latitude 5490 that was 82 drivers in 649 seconds, a median of nine
+            seconds each, almost all of it the servicing session rather than the
+            driver - eleven minutes a technician watched as the same dismount
+            running over and over. A file copy of the same packages is seconds.
+
+            The step still runs AFTER ApplyImage and BEFORE the first reboot:
+            the volume has to exist to copy onto, and the answer file has to be
+            staged before Windows reads it.
 
             EVERY DECISION GOES IN THE LOG, AND THAT IS A REQUIREMENT RATHER
             THAN A COURTESY. The group that was resolved and whether it existed;
@@ -142,7 +152,11 @@
     }
 
     try {
-        $imageService = $Context.Service.GetRequired('Image', 'ApplyDrivers')
+        # NO IMAGE SERVICE ANY MORE. This step copied through DISM until the
+        # per-driver commit cost eleven minutes on a real machine; it now copies
+        # files, so the only service it needs is the file system. Asking for one
+        # it does not use would refuse a deployment for the want of something
+        # nothing here touches.
         $fileSystem = $Context.Service.GetRequired('FileSystem', 'ApplyDrivers')
     } catch {
         return (& $fail ([string] $_.Exception.Message) '')
@@ -226,45 +240,48 @@
     # still passes.
     $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
 
-    $inject = {
-        param([string] $Path, [bool] $Recurse)
+    # WHERE THE DRIVERS LAND ON THE MACHINE. MDT's ZTIDrivers puts them under
+    # the OS volume and points the answer file's DriverPaths at the folder;
+    # Windows installs them from there at first boot, from the machine's own
+    # disk. <OSVolume>\Drivers is the path MDT has always used.
+    $stageRoot = '{0}Drivers' -f $applyPath
 
-        $added = @($imageService.AddDriver($applyPath, $Path, $Recurse))
+    # ONE PACKAGE, COPIED. It used to be one Add-WindowsDriver per driver, and
+    # every one of those opens the offline image, adds a package and COMMITS
+    # it: 82 drivers took 649 seconds on a Latitude 5490, a median of nine
+    # seconds each, nearly all of it the servicing session rather than the
+    # driver. That commit is what a technician watched as "the dismount running
+    # over and over" for eleven minutes.
+    $stage = {
+        param([string] $Source, [string] $Relative)
 
-        foreach ($row in $added) {
-            # ADD-WINDOWSDRIVER ANSWERS WITH THE IMAGE, NOT WITH THE CALL.
-            # Every call returns the drivers now in the store, so the second
-            # injection re-reports the first, the third re-reports both, and the
-            # step's own count runs away from the machine: 53 matched packages
-            # were logged as 'injected 82 driver(s)' on a real deployment whose
-            # store held 54 published names. A published name is reported once,
-            # the first time it appears, and the count is the number of them.
-            if ($seen.Contains([string] $row.Inf)) { continue }
-            [void] $seen.Add([string] $row.Inf)
+        if ($seen.Contains($Source)) { return }
+        [void] $seen.Add($Source)
 
-            [void] $injected.Add($row)
-
-            # WHAT DISM SAID CAME BACK, not what was asked of it. Add-WindowsDriver
-            # answers with the published name - oem12.inf - and that is the name
-            # the driver has in the machine's store afterwards. A log carrying
-            # only the request cannot be reconciled against the machine later.
-            Write-HDTLog -Context $Context.Log -Event 'driver.injected' -Component 'ApplyDrivers' `
-                -Message ('injected {0} ({1} {2})' -f [string] $row.Inf, [string] $row.Provider, [string] $row.Version) `
-                -Data ([ordered] @{
-                    inf      = [string] $row.Inf
-                    provider = [string] $row.Provider
-                    version  = [string] $row.Version
-                    date     = [string] $row.Date
-                    source   = [string] $Path
-                })
+        $target = $stageRoot
+        if (-not [string]::IsNullOrWhiteSpace($Relative)) {
+            $target = [System.IO.Path]::Combine($stageRoot, $Relative.TrimStart('\', '/'))
         }
+
+        $copied = Copy-HDTDriverPackage -Source $Source -Destination $target -FileSystem $fileSystem
+
+        [void] $injected.Add($copied)
+
+        Write-HDTLog -Context $Context.Log -Event 'driver.staged' -Component 'ApplyDrivers' `
+            -Message ('staged {0} ({1} file(s)) to {2}' -f (Split-Path -Path $Source -Leaf), [int] $copied.FileCount, $target) `
+            -Data ([ordered] @{
+                source    = [string] $Source
+                target    = [string] $target
+                fileCount = [int] $copied.FileCount
+            })
     }
 
     try {
         if ($groupFound -and $mode -eq 'all') {
-            # THE WHOLE FOLDER, RECURSED - one DISM call, which is what MDT does
-            # and what a vendor pack of a hundred and forty .inf files wants.
-            & $inject $groupPath $true
+            # THE WHOLE FOLDER, COPIED - which is what MDT does with a vendor
+            # pack of a hundred and forty .inf files, and what the answer file's
+            # DriverPaths then points Windows at.
+            & $stage $groupPath $group
         } else {
             if (-not $groupFound) {
                 $why = 'no group was named'
@@ -381,7 +398,13 @@
                         class      = [string] $one.Driver.Class
                     })
 
-                & $inject ([string] $one.Driver.FullPath) $false
+                # THE PACKAGE, NOT THE .inf. Driver.FullPath is the .inf file
+                # itself; a driver is that file plus the .sys, .cat and .dll
+                # beside and below it, and copying the .inf alone stages
+                # something Windows cannot install. Driver.Folder is the
+                # share-relative directory, which is also the shape the
+                # destination takes under <OSVolume>\Drivers.
+                & $stage (Split-Path -Path ([string] $one.Driver.FullPath) -Parent) ([string] $one.Driver.Folder)
 
                 $progressAt++
 
@@ -391,7 +414,7 @@
                 }
 
                 Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyDrivers' `
-                    -Message ('injecting driver {0} of {1}: {2}' -f $progressAt, $matchedCount, [string] $one.Driver.InfName) `
+                    -Message ('staging driver {0} of {1}: {2}' -f $progressAt, $matchedCount, [string] $one.Driver.InfName) `
                     -Data ([ordered] @{
                         infName = [string] $one.Driver.InfName
                         target  = $applyPath
@@ -408,7 +431,7 @@
             }
         }
     } catch {
-        return (& $fail ("injecting drivers into {0} failed: {1}" -f $applyPath, [string] $_.Exception.Message) '')
+        return (& $fail ("staging drivers to {0} failed: {1}" -f $stageRoot, [string] $_.Exception.Message) '')
     }
 
     $durationMillisecond = [long] (($clock.GetUtcNow()) - $startedUtc).TotalMilliseconds
@@ -427,15 +450,15 @@
         # LOUD, AND STILL COMPLETED. The deployment continues on inbox drivers,
         # which is MDT's behaviour - but a technician reading the log has to see
         # that this machine got nothing.
-        $message = 'no drivers were injected into {0}. The deployment continues on the drivers inbox in the applied image.' -f $applyPath
+        $message = 'no drivers were staged to {0}. The deployment continues on the drivers inbox in the applied image.' -f $stageRoot
 
-        Write-HDTLog -Context $Context.Log -Event 'driver.injected' -Component 'ApplyDrivers' `
+        Write-HDTLog -Context $Context.Log -Event 'driver.staged' -Component 'ApplyDrivers' `
             -Severity Warning -Message $message -Data $data
 
         return (New-HDTStepResult -Status Completed -Message $message -Data $data)
     }
 
-    $message = 'injected {0} driver(s) into {1} in {2} ms.' -f $injected.Count, $applyPath, $durationMillisecond
+    $message = 'staged {0} driver package(s) to {1} in {2} ms.' -f $injected.Count, $stageRoot, $durationMillisecond
 
     Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component 'ApplyDrivers' -Message $message -Data $data
 

@@ -1,38 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<!--
-  THE ANSWER FILE A NEW TASK SEQUENCE GETS, and MDT's Unattend_x64.xml in the
-  same role: its New Task Sequence wizard copies a template answer file into the
-  new sequence's folder, because a sequence whose Apply Windows Settings step
-  names a file nobody supplied is a sequence that fails at the machine.
-
-  IT IS THE SPIKES S7 DOCUMENT, TOKENISED. This is what was actually deployed to
-  a Windows 11 Enterprise LTSC VM in SPIKES.md S7 - captured from the machine, not
-  written from memory. S7 observed, on the machine it built:
-
-    ComputerName applied from the specialize pass
-    OOBE fully skipped
-    the built-in Administrator enabled
-    AutoLogon armed, with the password stored as an LSA SECRET and
-      DefaultPassword absent from the registry
-
-  THE TOKENS ARE NAMED HERE WITHOUT THEIR PER CENT SIGNS, on purpose: expansion
-  runs over the WHOLE document, comments included, so a comment written with the
-  token in it would put the machine's local Administrator password into a
-  comment in the deployed answer file. The 'mints one password for a run'
-  assertion counts occurrences, and it is what caught exactly that.
-
-  HDTAdminPassword APPEARS TWICE BELOW - once under UserAccounts and once inside
-  AutoLogon - because Setup reads them separately.
-
-  HDTFullName AND HDTOrgName ARE WHAT THE WIZARD ASKS FOR on MDT's OS Settings
-  page. A sequence that sets neither leaves the tokens unexpanded, which Windows
-  accepts as literal text in those two fields - so the wizard writing them is
-  what makes them meaningful, and leaving them out of the wizard is not a
-  failure, only a machine registered to nobody in particular.
-
-  New-HDTDeploymentPassword's alphabet excludes < > & " ' and %, on purpose, so
-  a minted password substitutes into this document without escaping.
--->
+<?xml version="1.0" encoding="utf-8"?>
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
   <settings pass="specialize">
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
@@ -41,35 +7,18 @@
       <ComputerName>%HDTComputerName%</ComputerName>
       <RegisteredOwner>%HDTFullName%</RegisteredOwner>
       <RegisteredOrganization>%HDTOrgName%</RegisteredOrganization>
-
-      <!--
-        AND THE ELEMENT THAT DISAPPEARS WHEN NOBODY SETS IT. MDT's ProductKey.
-        Windows reads this in the specialize pass, and an EMPTY element fails
-        the pass - so a token nobody supplied cannot simply be left here.
-        ApplyUnattend removes the whole element when HDTProductKey resolves to
-        nothing, which is exactly how this template behaved before the line
-        existed and how a KMS or LTSC build has to keep behaving.
-
-        A TEMPLATE MAY ALSO HARD-CODE A KEY HERE and never mention the
-        variable. That is left alone: only the element still holding the
-        unresolved token is removed.
-      -->
       <ProductKey>%HDTProductKey%</ProductKey>
-
-      <!--
-        WITHOUT THIS, THE LOCALE DECIDES, AND en-US MEANS PACIFIC. Microsoft's
-        rule is that an unspecified TimeZone is derived from the installed
-        language and region: this document sets UserLocale en-US below, which
-        gives every machine Pacific Standard Time. MDT has TimeZoneName in
-        CustomSettings.ini for exactly this reason.
-
-        THE VALUE COMES FROM THE BOOT IMAGE unless a rule says otherwise.
-        Start-HDTDeployment seeds HDTTimeZone from the time zone the Windows PE
-        window chose, so one answer covers WinPE's clock and the deployed
-        machine's; rules.yaml overrides it per machine through the ordinary
-        precedence.
-      -->
       <TimeZone>%HDTTimeZone%</TimeZone>
+    </component>
+
+    <component name="Microsoft-Windows-PnpCustomizationsNonWinPE" processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+      <DriverPaths>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
+          <Path>C:\Drivers</Path>
+        </PathAndCredentials>
+      </DriverPaths>
     </component>
   </settings>
 
@@ -77,21 +26,6 @@
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64"
                publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
-      <!--
-        LANGUAGE AND REGION, AND NOT en-US BECAUSE NOBODY DECIDED IT. These four
-        were literals here, so every machine this template deployed came up with
-        a US keyboard, a US system locale and a US display language whatever the
-        site was - changeable only by hand-editing the XML of every task
-        sequence.
-
-        THEY ARE VARIABLES, WHICH IS THE ANSWER MDT GAVE: UILanguage, UserLocale
-        and KeyboardLocale are CustomSettings.ini entries there, so one rule sets
-        them for a site, a model or a subnet. InputLocale IS MDT's
-        KeyboardLocale - the same setting under two names, so HDT keeps one.
-
-        Start-HDTDeployment seeds all four when nothing else resolved them, so a
-        share that never mentions them deploys exactly as it did before.
-      -->
       <InputLocale>%HDTKeyboardLocale%</InputLocale>
       <SystemLocale>%HDTSystemLocale%</SystemLocale>
       <UILanguage>%HDTUILanguage%</UILanguage>
@@ -103,12 +37,16 @@
                xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
       <OOBE>
         <HideEULAPage>true</HideEULAPage>
+        <HideLocalAccountScreen>true</HideLocalAccountScreen>
         <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
         <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <NetworkLocation>Work</NetworkLocation>
         <ProtectYourPC>3</ProtectYourPC>
+        <UnattendEnableRetailDemo>false</UnattendEnableRetailDemo>
       </OOBE>
+
+      <EnableFirstLogonAnimation>false</EnableFirstLogonAnimation>
 
       <UserAccounts>
         <AdministratorPassword>
@@ -117,9 +55,6 @@
         </AdministratorPassword>
       </UserAccounts>
 
-      <!-- DESIGN 4.5.1: the oobeSystem AutoLogon block is what arms the FIRST
-           logon of the deployed machine. Every leg after that is armed by
-           Set-HDTAutoLogon against the machine's own registry and LSA store. -->
       <AutoLogon>
         <Enabled>true</Enabled>
         <LogonCount>999</LogonCount>
@@ -130,29 +65,16 @@
         </Password>
       </AutoLogon>
 
-      <!--
-        AND WHAT THE FIRST LOGON RUNS. The AutoLogon block above logs the
-        machine in; on its own that is a machine that logs itself in and sits
-        at a desktop, which is exactly what every deployment did before this
-        line existed - the whole State Restore group silently skipped while
-        the run reported success.
-
-        THIS IS MDT'S HOOK, NOT A NEW IDEA. LiteTouch continues through a
-        FirstLogonCommands entry running LTIBootstrap.vbs, for the reason it
-        matters here too: the answer file is the only thing that survives the
-        transition from WinPE to a Windows that did not exist yet. A registry
-        key written in WinPE is written on a RAM disk.
-
-        C:\HDT, NOT THE LETTER WinPE USED. Copy-HDTResumeAgent staged this
-        folder onto the OS volume, which had whatever letter the partition step
-        published; the machine reading this line has booted, and that volume is
-        C:. Later legs are launched by the RunOnce entry Set-HDTAutoLogon
-        writes, whose command line is this same one - one spelling of "start
-        the engine", asserted by tests/unit/SequenceTemplate.Tests.ps1.
-      -->
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
+          <CommandLine>reg add "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v StartShownOnUpgrade /t REG_DWORD /d 1 /f</CommandLine>
+          <Description>Hephaestus - show Start on upgrade</Description>
+          <RequiresUserInput>false</RequiresUserInput>
+        </SynchronousCommand>
+
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
           <CommandLine>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\HDT\Start-HDTResume.ps1</CommandLine>
           <Description>Hephaestus - resume the task sequence</Description>
           <RequiresUserInput>false</RequiresUserInput>

@@ -239,6 +239,7 @@
         'Start-HDTBootStatus',
         'Start-HDTProgressDisplay',
         'Start-HDTWizardDeployment',
+        'Copy-HDTDriverPackage',
         'Test-HDTAdminPassword',
         'Test-HDTApplicationDetection',
         'Test-HDTComputerName',

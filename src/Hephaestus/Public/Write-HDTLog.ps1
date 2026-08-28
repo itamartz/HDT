@@ -1,4 +1,4 @@
-﻿function Write-HDTLog {
+function Write-HDTLog {
     <#
         .SYNOPSIS
             Writes one log entry in both formats, from one call.
@@ -119,9 +119,16 @@
             # folder was resolved and whether it was there, driver.fallback says
             # a PnP match happened and why, driver.enumerate how many devices
             # the machine reported, driver.match the id and rank behind each
-            # choice, and driver.injected what DISM said came back. MDT put all
-            # of this in ZTIDrivers.log; these are the records that let
-            # Copy-HDTLog split the same file back out.
+            # choice, and driver.staged where the package was copied and how
+            # many files went with it. MDT put all of this in ZTIDrivers.log;
+            # these are the records that let Copy-HDTLog split the same file
+            # back out.
+            #
+            # driver.injected WAS ONE OF THESE and is not any more: the step
+            # copies packages to the machine rather than calling DISM per
+            # driver, so nothing can emit it. A name the engine will not accept
+            # and the design does not document is one nobody can log by
+            # accident.
             # THE CONSOLE'S OWN THREE, added because it had no log at all and a
             # reported crash could only be answered by reading source. They are
             # separate names so a session can be filtered down to what was
@@ -134,8 +141,8 @@
             'driver.enumerate',
             'driver.fallback',
             'driver.group',
-            'driver.injected',
             'driver.match',
+            'driver.staged',
             'message',
             'native.exec',
             'phase.change',

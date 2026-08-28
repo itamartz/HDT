@@ -140,18 +140,33 @@ Describe 'Invoke-HDTApplyDriversStep' {
 
     Context 'group match, which is the primary path' {
 
-        It 'injects the group folder whole' {
+        It 'stages the group folder whole' {
+            # COPIED, NOT INJECTED. The step called Add-WindowsDriver per driver
+            # until a Latitude spent 649 seconds on 82 of them - nine seconds
+            # each, nearly all of it the offline image being opened and
+            # committed once per package. It now copies to <OSVolume>\Drivers
+            # and the answer file's DriverPaths points Windows at the result,
+            # which is what MDT's ZTIDrivers does.
             $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
 
             $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
 
             $result.Status | Should -Be 'Completed'
 
-            $call = @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
-            $call.Count | Should -Be 1
-            $call[0].Arguments[0] | Should -Be 'W:\'
-            $call[0].Arguments[1] | Should -Be $script:groupPath
-            $call[0].Arguments[2] | Should -BeTrue
+            $script:fileSystem.TestPath('W:\Drivers\Win11\Dell inc\Dell Pro 3 16 P316265\net-realtek.inf') |
+                Should -BeTrue -Because 'the package lands under the OS volume for PnP to find at first boot'
+        }
+
+        It 'calls no image service at all' {
+            # THE DISM DEPENDENCY IS GONE, and this is what says so. A step that
+            # still opened the offline image would still cost nine seconds a
+            # driver whatever the log claimed.
+            $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+
+            $null = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' }).Count |
+                Should -Be 0
         }
 
         It 'expands the make and model a rule put in the group path' {
@@ -205,8 +220,13 @@ Describe 'Invoke-HDTApplyDriversStep' {
             $result.Status | Should -Be 'Completed'
             [bool] $result.Data['groupFound'] | Should -BeTrue
 
-            @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' }).Count |
-                Should -BeGreaterThan 0
+            # THIS TEST'S OWN FAKE, not the outer one. It seeds its own store for
+            # the Dell-with-a-dot fixture, so asserting against $script:fileSystem
+            # asks a file system that never saw this deployment about a path from
+            # a different test - which is false for a reason that has nothing to
+            # do with the dot this test exists for.
+            $fs.TestPath('W:\Drivers\Win11\Dell Inc\Latitude 5420\net.inf') |
+                Should -BeTrue -Because 'a Dell whose make ends in a dot still finds its own folder and stages it'
         }
 
         It 'never consults the PnP ranking when the group resolved' {
@@ -240,29 +260,32 @@ Describe 'Invoke-HDTApplyDriversStep' {
             $group.data.group | Should -Match 'Nonesuch'
         }
 
-        It 'injects only the drivers that matched' {
+        It 'stages only the packages that matched' {
             $step = & $script:newStep @{ group = 'Win11\Acme\Nonesuch' }
 
-            $null = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
-
-            $call = @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' })
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
 
             # net-realtek.inf matched the captured Realtek; net-other.inf claims
-            # a device this machine has not got.
-            $call.Count | Should -Be 1
-            $call[0].Arguments[1] | Should -Match 'net-realtek\.inf$'
+            # a device this machine has not got. Both live in the SAME folder,
+            # so the package is copied once and carries both - which is what a
+            # driver folder is, and why the count is packages rather than infs.
+            [int] $result.Data['injected'] | Should -Be 1
+
+            $script:fileSystem.TestPath('W:\Drivers\Win11\Dell inc\Dell Pro 3 16 P316265\net-realtek.inf') | Should -BeTrue
+            $script:fileSystem.TestPath('W:\Drivers\Win11\Acme\Elsewhere\net-elsewhere.inf') |
+                Should -BeFalse -Because 'nothing in that folder matched this machine'
         }
 
-        # WHAT DISM SAYS CAME BACK IS CUMULATIVE, AND THE COUNT BELIEVED IT.
+        # TWO MATCHES IN ONE FOLDER ARE ONE COPY, and the count says packages.
         #
-        # Add-WindowsDriver answers with the drivers in the IMAGE, not only the
-        # one just added, so every call after the first re-reported packages
-        # already injected. The step logged one driver.injected record per
-        # returned row and counted them: on LT-7FJ45S2, 2026-08-28, 53 matched
-        # packages were reported as 'injected 82 driver(s)' against 54 published
-        # names in the store. A technician reconciling the log against the
-        # machine finds numbers that cannot both be true.
-        It 'counts a package DISM reports a second time only once' {
+        # This assertion used to be about DISM: Add-WindowsDriver answers with
+        # the drivers in the IMAGE rather than the one just added, so every call
+        # after the first re-reported what was already in, and on LT-7FJ45S2 on
+        # 2026-08-28 that turned 53 matched packages into 'injected 82
+        # driver(s)'. Copying has the same hazard from the other end - two .inf
+        # files in one folder are one package - so the dedupe moved rather than
+        # disappeared, and this is what holds it.
+        It 'copies a folder holding two matches only once' {
             $script:fileSystem.SeedFile(('{0}\net-realtek-too.inf' -f $script:groupPath), $script:matchingInf)
 
             $context = & $script:newContext $null
@@ -270,12 +293,8 @@ Describe 'Invoke-HDTApplyDriversStep' {
 
             $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
 
-            # Two packages match, and the fake answers both with oem12.inf - which
-            # is what DISM did on the machine.
-            @($script:image.Operations | Where-Object { $_.Operation -eq 'AddDriver' }).Count | Should -Be 2
-
             [int] $result.Data['injected'] | Should -Be 1
-            @(& $script:record 'driver.injected').Count | Should -Be 1
+            @(& $script:record 'driver.staged').Count | Should -Be 1
         }
     }
 
@@ -340,16 +359,22 @@ Describe 'Invoke-HDTApplyDriversStep' {
             $match[0].data.deviceName | Should -Be 'Realtek PCIe GbE Family Controller'
         }
 
-        It 'records what DISM reported back, not merely what was asked of it' {
-            # The step asked for one .inf; Add-WindowsDriver answers with the
-            # published name it got - oem12.inf - and that is the name on the
-            # machine afterwards. A log carrying only the request cannot be
-            # matched against the installed driver store later.
+        It 'records where the package landed and how much of it went' {
+            # WHERE, NOT JUST WHETHER. This used to assert the published name
+            # DISM answered with - oem12.inf - which was the right question when
+            # the step injected. Now the machine has a folder, and the two facts
+            # a technician needs from the log are where it is and whether
+            # anything actually arrived in it: a package logged as staged with
+            # zero files is one Windows will never install.
             $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
 
             $null = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
 
-            @(& $script:record 'driver.injected')[0].data.inf | Should -Be 'oem12.inf'
+            $staged = @(& $script:record 'driver.staged')
+
+            $staged.Count | Should -BeGreaterThan 0
+            [string] $staged[0].data.target | Should -Match 'W:\\Drivers'
+            [int] $staged[0].data.fileCount | Should -BeGreaterThan 0
         }
     }
 

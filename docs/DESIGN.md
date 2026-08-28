@@ -1,4 +1,4 @@
-﻿# Hephaestus Deployment Toolkit — Design
+# Hephaestus Deployment Toolkit — Design
 
 **Status:** Draft v0.1 — design only, no implementation yet.
 **Date:** 2026-08-12
@@ -650,7 +650,7 @@ drifts. Count the rows.
 | `driver.fallback` | group match did not apply, with the reason PnP matching was used instead |
 | `driver.enumerate` | how many devices the machine reported hardware ids for |
 | `driver.match` | a driver was chosen, with the id it matched, the rank, and the device |
-| `driver.injected` | a driver was injected, as DISM named it back |
+| `driver.staged` | a driver package was copied to the machine, with how many files |
 | `console.session` | the admin console opened or closed, with its version |
 | `console.action` | the console invoked a command, with its name, parameter names and duration |
 | `console.error` | a console action threw, with the exception type and stack |
@@ -1401,18 +1401,39 @@ unrecognized model still gets a usable machine.
   on the file's own last-write time, so unlike an index it cannot disagree with
   the disk.
 - **Group match (primary).** `ApplyDrivers` with a `group` resolves to a folder
-  and injects it wholesale via `Add-WindowsDriver -Path W:\ -Recurse`.
+  and stages it wholesale to `<OSVolume>\Drivers`.
 - **PnP match (fallback).** If no group matches, the engine enumerates present
-  hardware IDs from WinPE, looks each up in the index, and injects only matching
-  packages — ranked by hardware-ID specificity, then version, then date.
+  hardware IDs from WinPE, ranks the store against them — by hardware-ID
+  specificity, then version, then date — and stages only the matching packages.
 - **Boot-critical drivers** (storage/network) are tracked separately and are the
   only ones eligible for boot image injection.
 - **Reporting.** `Get-HDTDriverCoverage` answers "which models in this fleet
   have no driver group?" before a deployment fails at 3 a.m.
 
-Injection is offline (`DISM /Image:`) against the applied OS volume, matching
-MDT's behavior. Online injection during the full-OS phase is available for
-post-apply fixes.
+**Drivers are copied onto the machine, not injected into it.** `ApplyDrivers`
+copies each matched package to `<OSVolume>\Drivers`, and the answer file
+declares that folder in `Microsoft-Windows-PnpCustomizationsNonWinPE`'s
+`DriverPaths` so Windows installs what it needs during `specialize`. This is
+MDT's model: `ZTIDrivers` stages to the OS volume and lets PnP choose.
+
+This replaced offline `Add-WindowsDriver` injection, and the reason is measured
+rather than aesthetic. Every `Add-WindowsDriver` call opens the offline image,
+adds one package and **commits** it, so a per-driver loop pays that round trip
+once per driver: on a Latitude 5490 on 2026-08-28, 82 drivers took 649 seconds —
+a median of **9.0 s each**, almost none of it the driver. A technician watching
+the progress window saw eleven minutes of the same dismount repeating. Copying
+the same packages is seconds.
+
+The paragraph this replaces claimed offline injection was "matching MDT's
+behavior". That was wrong, and it is what justified the design: MDT copies.
+
+It is also the destination a driver **WIM** would be expanded to, which is where
+the driver store is going — so the source can change later without moving the
+step, and per-driver injection is the shape that would not have survived it.
+
+Boot images are the exception and stay injected: WinPE must carry its NIC and
+storage drivers *inside* the WIM, because it has to see the disk and reach the
+share before any folder on either exists.
 
 ---
 
