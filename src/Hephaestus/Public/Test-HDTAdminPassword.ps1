@@ -13,8 +13,7 @@ function Test-HDTAdminPassword {
             It takes two values because a password box shows dots, so the only
             way to know what was typed is to type it twice. The confirmation
             box is what catches a typo that would otherwise surface as a
-            machine nobody can log into. (MDT administrators know this screen
-            as the Administrator Password pane.)
+            machine nobody can log into.
 
             The complaints come in the order a page is filled in: a missing
             password first, then a mismatch. An empty page opening with "the
@@ -74,8 +73,14 @@ function Test-HDTAdminPassword {
     # A PASSWORD OF SPACES IS A PASSWORD NOBODY CAN TYPE TWICE ON PURPOSE, and
     # Windows would accept it - leaving a machine on the network whose local
     # administrator password is four spaces.
+    # ONE LINE, BECAUSE THE RAIL GIVES IT ONE. The message sits in a narrow
+    # column beside the buttons; the first version of this sentence explained
+    # that Windows would accept a blank password and leave the machine on the
+    # network without one, and it rendered as four cramped lines under the
+    # Cancel button. That reasoning is in the help above, where the next person
+    # to change this will read it and a technician at a bench will not.
     if ([string]::IsNullOrWhiteSpace($Password)) {
-        $answer['Reason'] = 'an administrator password is required. Windows would accept a blank one and leave this machine on the network with no password on its local Administrator.'
+        $answer['Reason'] = 'an administrator password is required.'
         return [pscustomobject] $answer
     }
 

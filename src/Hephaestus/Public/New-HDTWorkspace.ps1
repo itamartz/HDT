@@ -379,7 +379,13 @@
         $FileSystem.CreateDirectory($wizardTarget)
 
         foreach ($current in @(Get-ChildItem -LiteralPath $wizardTemplate -File)) {
-            $target = Join-Path -Path $wizardTarget -ChildPath $current.Name
+
+            # [IO.Path]::Combine, NOT Join-Path. Join-Path resolves the drive
+            # and throws DriveNotFound on one that is not mounted, so this line
+            # could not run against a fake file system at all - which is the
+            # only way the seeding is testable, and the reason the rest of this
+            # module combines paths this way (Get-HDTWorkspacePath).
+            $target = [System.IO.Path]::Combine($wizardTarget, $current.Name)
 
             if ($FileSystem.TestPath($target)) { continue }
 

@@ -74,6 +74,44 @@ preference.
 7. `Set-StrictMode -Version Latest` and `$ErrorActionPreference = 'Stop'` in
    engine code.
 
+8. **One place of truth, and the create command copies it.**
+   Every wizard page — new or existing — lives in
+   `src/Hephaestus/Templates/Wizard/`, and `New-HDTWorkspace` seeds a share by
+   copying **the whole directory**, never a list written down somewhere. A page
+   authored straight onto a share, or a copy loop naming files one by one, is
+   a second source of truth and the two will disagree. The same holds for every
+   other seeded tree: the templates are the product, the share is a copy of
+   them.
+
+   Corollary, and it has already cost a rebuild: **an existing share keeps its
+   own copy and is never written over** — deliberately, because those files are
+   somebody's edits (DESIGN 11.2). So a page added today does not reach a share
+   created yesterday, and no boot image will carry it there. Adding a page means
+   saying so, and updating the shares that matter by splicing their `wizard.yaml`
+   rather than replacing it.
+
+   **And a thing is not added until every surface that must know about it does.**
+   Adding a page, a step type, a rule, a layout means finding every place that
+   has to learn about it — and proving it with a test written against the
+   **set**, not against the one you just added. A test that names your new
+   thing passes for it and fails nobody after it.
+
+   The surfaces, each one of which has silently shipped a half-feature here:
+
+   | Surface | What it looked like |
+   |---|---|
+   | The **shipped template** | `client.yaml` authored partitions with no drive letter and could not partition a disk. Templates were parsed and schema-checked; nothing ever *planned* one. |
+   | **The other path to the same behaviour** | A named disk layout carried S/W/R, the authored path carried none — and every VM run used the named one, so 10,000 green tests missed it. |
+   | **A share somebody already has** | `New-HDTWorkspace` seeds `Scripts\UI` from `Templates\Wizard` and never overwrites, by design. So an existing share silently lacks any page added afterwards, and the boot image alone will not fix it. |
+   | The **document validator** | `Assert-HDT*Document` refuses unknown keys, so a new key is invisible — and a new rule name is *rejected* — until it is listed there. |
+   | The **module manifest** | A public command missing from `FunctionsToExport` does not exist. |
+   | The **fakes** | The fake `MoveItem` moved files and not directories while the real adapter's `Move-Item` did both. The fake was wrong, not the caller. |
+
+   And it has to be **provable against a fake**, which means `[IO.Path]::Combine`
+   and never `Join-Path` on a path that may not be mounted — `Join-Path`
+   resolves the drive and throws `DriveNotFound`, so the line cannot be tested
+   at all (see `Get-HDTWorkspacePath`).
+
 ## Architecture in one paragraph
 
 A **workspace** (deployment share) is a directory tree of YAML plus content.
