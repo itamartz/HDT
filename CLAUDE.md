@@ -175,12 +175,7 @@ locations above.
 VMs reach the host through the **`HDT External`** switch. Everything that needs
 a network uses that.
 
-**It moved on 2026-08-28.** It used to be `192.168.2.0/24`; it is
-`192.168.1.0/24` now, gateway `192.168.1.1`. A rule keyed on a `192.168.2.1`
-gateway therefore matches nothing, which is exactly how zero-touch stopped
-firing and the wizard ran instead. Old commits, old plans in `.planning/` and
-old fixtures still carry the `.2` — that is staleness, not a correction, so
-don't change this back to match them.
+`192.168.1.0/24` now, gateway `192.168.1.1`.
 
 **In this lab, the host's own address is local wiring, not a fact about HDT** —
 a static `Manual` address on `HDT External` today, a DHCP lease that moved on
@@ -221,11 +216,7 @@ This host runs the user's **live lab**. Damaging it is worse than failing a test
 
 - **Touch no VM this repository did not create.** The rule is the `HDT-*`
   prefix, not a list of names: act only on VMs matching it, and leave every
-  other VM on the host exactly as you found it. A named exclusion list rots —
-  **`CM01` and `DC01` were retired on 2026-08-29** and this file spent months
-  protecting two machines that had stopped existing, which is worse than
-  useless: it reads as coverage while covering nothing. Do not add their names
-  back from an old commit, and do not replace them with today's names either.
+  other VM on the host exactly as you found it.
 - HDT test VMs: named `HDT-*`, **Generation 2**, files in `C:\HDTLab\vms\`,
   under 12 GB combined, and on **one of exactly two switches**:
   - **`HDT External`** — the normal one. The VM gets DHCP from the real LAN on
