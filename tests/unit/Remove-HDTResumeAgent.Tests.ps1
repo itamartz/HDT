@@ -1,4 +1,4 @@
-﻿# MDT's LTICleanup, AND THE THREE THINGS A FINISHED MACHINE SHOULD NOT STILL BE
+# MDT's LTICleanup, AND THE THREE THINGS A FINISHED MACHINE SHOULD NOT STILL BE
 # CARRYING.
 #
 # Watched on a deployed machine: the deployment succeeded, the Deployment Summary
@@ -221,6 +221,32 @@ Describe 'Remove-HDTResumeAgent' {
 
             $argument = [string] @($proc.Operations | Where-Object { $_.Operation -eq 'StartInteractive' })[0].Arguments[1]
             $argument | Should -BeLike '*-ParentProcessId 1234*'
+        }
+
+        It 'passes the staged driver folder on, so 4 GB does not stay behind' {
+            # THE DELETER CANNOT WORK IT OUT ITSELF and must not try. It runs
+            # detached and elevated with -Recurse -Force; a path it GUESSED is
+            # the one thing that could erase the machine it just built. So the
+            # caller names it and the deleter's own guard checks the name.
+            $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
+
+            [void] (Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
+                    -DriverPath 'C:\Drivers' -FinishAction 'Restart' -DelaySecond 30 `
+                    -FileSystem $fs -Process $proc -ProcessId 1234 -Confirm:$false)
+
+            $argument = [string] @($proc.Operations | Where-Object { $_.Operation -eq 'StartInteractive' })[0].Arguments[1]
+            $argument | Should -BeLike "*-DriverPath 'C:\Drivers'*"
+        }
+
+        It 'names no driver folder when there is none to remove' {
+            $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
+
+            [void] (& $script:sweep $fs $proc)
+
+            $argument = [string] @($proc.Operations | Where-Object { $_.Operation -eq 'StartInteractive' })[0].Arguments[1]
+            $argument | Should -Not -BeLike '*-DriverPath*'
         }
 
         It 'passes the finish action on, because the parent will be dead' {

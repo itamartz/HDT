@@ -482,3 +482,66 @@ rules:
         [string] $log.DynamicMasterLogPath | Should -BeNullOrEmpty
     }
 }
+
+Describe 'SLShareDynamicLogging covers both legs' {
+
+    # MDT MIRRORS THE WHOLE DEPLOYMENT, NOT HALF OF IT.
+    #
+    # SLShareDynamicLogging in MDT is set once and every script in every phase
+    # writes through it. Here only the WinPE payload ever called SetDynamicPath,
+    # so \Logs\<ComputerName> on the share held 253 WinPE records and not one
+    # from the full OS - and everything after the engine's run.end, which is the
+    # summary, the finish action and the WHOLE CLEANUP BLOCK, was written only to
+    # C:\HDT\Logs on the machine.
+    #
+    # THAT IS THE FOLDER THE CLEANUP DELETES. So the one operation whose failure
+    # matters most - the sweep that removes the share credential - logged into
+    # the directory it was about to remove, and nothing reached the share. A
+    # cleanup that died on a deployed Latitude was invisible from the share and
+    # had to be read off the machine over WinRM.
+    #
+    # AGAINST THE SET, so a third leg cannot ship half-mirrored either.
+
+    BeforeAll {
+        $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+
+        $script:legPayload = @(
+            'Start-HDTDeployment.ps1'
+            'Start-HDTResume.ps1'
+        )
+    }
+
+    It 'every deployment leg tells its log context where the share is' {
+        $missing = @()
+
+        foreach ($leaf in $script:legPayload) {
+            $path = [System.IO.Path]::Combine($script:repoRoot, 'src', 'Hephaestus', 'Payload', $leaf)
+
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+                $missing += ('{0} (not found)' -f $leaf)
+                continue
+            }
+
+            $token = $null
+            $parseError = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref] $token, [ref] $parseError)
+
+            # The comment-free stream, so the prose above a missing call cannot
+            # pass for the call.
+            $codeOnly = (@($token |
+                        Where-Object { $_.Kind -ne 'Comment' } |
+                        ForEach-Object { [string] $_.Text }) -join ' ')
+
+            $callsSet = ($codeOnly -match 'SetDynamicPath')
+            $readsRule = ($codeOnly -match 'HDTSLShareDynamicLogging')
+
+            if (-not ($callsSet -and $readsRule)) {
+                $missing += ('{0} (SetDynamicPath={1}, HDTSLShareDynamicLogging={2})' -f $leaf, $callsSet, $readsRule)
+            }
+
+            [void] $ast
+        }
+
+        ($missing -join '; ') | Should -BeExactly ''
+    }
+}

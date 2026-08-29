@@ -1,4 +1,4 @@
-﻿function Remove-HDTResumeAgent {
+function Remove-HDTResumeAgent {
     <#
         .SYNOPSIS
             Keeps the logs, destroys the share credential, and hands the staged
@@ -87,6 +87,11 @@
             Where the logs and the state document are kept before the folder
             goes.
 
+    .PARAMETER DriverPath
+            The staged driver folder to remove with the agent - <os volume>\Drivers,
+            4.2 GB of it on a real Latitude. Named by the caller because the
+            deleter runs detached and elevated and must never guess a path.
+
         .PARAMETER FinishAction
             What the machine does once the folder is gone - Restart, Stop,
             Logoff or None - passed straight to the detached deleter, which is
@@ -144,6 +149,11 @@
         [Parameter()]
         [AllowEmptyString()]
         [string] $FinishAction = 'None',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string] $DriverPath,
 
         [Parameter()]
         [ValidateRange(0, [int]::MaxValue)]
@@ -250,6 +260,7 @@
     # -- and the tree goes to something that can delete it --------------------
 
     $handoff = Start-HDTAgentRemoval -Path $root -FinishAction $FinishAction -DelaySecond $DelaySecond `
+        -DriverPath $DriverPath `
         -ProcessId $ProcessId -FileSystem $FileSystem -Process $Process -Environment $Environment
 
     $result['RemovalStarted'] = [bool] $handoff.Started

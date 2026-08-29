@@ -1,4 +1,4 @@
-﻿# src/Hephaestus/Payload/Remove-HDTAgentTree.ps1 - the detached deleter.
+# src/Hephaestus/Payload/Remove-HDTAgentTree.ps1 - the detached deleter.
 #
 # WHY THERE IS A SECOND PROCESS AT ALL. C:\HDT cannot be deleted from inside the
 # leg that is running out of it. Start-HDTResume.ps1 prepends C:\HDT\Modules to
@@ -270,5 +270,108 @@ Describe 'the command line a deployed machine really runs' {
 
         [int] $run.ExitCode | Should -Be 0 -Because 'a non-zero exit here is the deleter failing to bind its own arguments'
         Test-Path -LiteralPath $root | Should -BeFalse
+    }
+
+    Context 'the staged driver folder, which PSD removes and this did not' {
+
+        # 4.2 GB LEFT ON EVERY MACHINE. ApplyDrivers stages driver packages to
+        # <os volume>\Drivers so the answer file's DriverPaths can inject them
+        # offline; on a real Latitude that folder was 1,452 files and 4.2 GB, and
+        # it was still there after the deployment finished. It has no purpose
+        # once Windows has installed from it.
+        #
+        # PSD REMOVES IT IN THE SAME BREATH AS MININT. PSDFinal.ps1:53-62 walks
+        # the fixed volumes removing "MININT","Drivers" - HDT's MININT is C:\HDT,
+        # and this script already removes that, so the driver folder belongs on
+        # the same pass and for the same reason: the machine is finished with it.
+        #
+        # IT GOES AFTER THE AGENT AND BEFORE THE FINISH ACTION, so a restart
+        # cannot happen with half a driver store deleted.
+
+        BeforeAll {
+            # IN A BeforeAll, NOT THE Context BODY. A Context body runs during
+            # DISCOVERY, where $TestDrive does not exist yet and the assignment
+            # does not survive to the run phase - the helper comes back null and
+            # every It fails on '&' rather than on the thing it tests.
+            $script:newDriverFolder = {
+                param([string] $Leaf)
+
+                $path = Join-Path -Path $TestDrive -ChildPath $Leaf
+                [void] (New-Item -Path $path -ItemType Directory -Force)
+                Set-Content -LiteralPath (Join-Path -Path $path -ChildPath 'net.inf') -Value '; a driver' -Encoding UTF8
+
+                return $path
+            }
+        }
+
+        It 'removes it after the agent tree and before the finish action' {
+            $root = & $script:newTree
+            $drivers = & $script:newDriverFolder 'Drivers'
+            $probe = & $script:newProbe $false
+
+            & $script:deleterPath -Path $root -DriverPath $drivers -ParentProcessId 4242 `
+                -FinishAction 'Restart' -DelaySecond 5 `
+                -StopParent $probe.StopParent -RemoveTree $probe.RemoveTree -Finish $probe.Finish -Confirm:$false
+
+            @($probe.Log) | Should -Be @(
+                'StopParent(4242)'
+                ('RemoveTree({0})' -f $root)
+                ('RemoveTree({0})' -f $drivers)
+                'Finish(Restart,5)'
+            )
+        }
+
+        It 'does nothing extra when no driver folder is named' {
+            $root = & $script:newTree
+            $probe = & $script:newProbe $false
+
+            & $script:deleterPath -Path $root -ParentProcessId 4242 -FinishAction 'Restart' -DelaySecond 5 `
+                -StopParent $probe.StopParent -RemoveTree $probe.RemoveTree -Finish $probe.Finish -Confirm:$false
+
+            @($probe.Log) | Should -Be @(
+                'StopParent(4242)'
+                ('RemoveTree({0})' -f $root)
+                'Finish(Restart,5)'
+            )
+        }
+
+        It 'refuses a folder that is not called Drivers' {
+            # THE GUARD IS THE POINT. This runs detached, elevated, with
+            # -Recurse -Force and nobody reading its output, so the one thing it
+            # must never do is take a path somebody got wrong. A caller that
+            # passed the OS volume, or C:\Windows, gets nothing removed.
+            $root = & $script:newTree
+            $notDrivers = & $script:newDriverFolder 'NotDrivers'
+            $probe = & $script:newProbe $false
+
+            & $script:deleterPath -Path $root -DriverPath $notDrivers -ParentProcessId 4242 `
+                -FinishAction 'Restart' -DelaySecond 5 `
+                -StopParent $probe.StopParent -RemoveTree $probe.RemoveTree -Finish $probe.Finish -Confirm:$false
+
+            @($probe.Log) | Should -Not -Contain ('RemoveTree({0})' -f $notDrivers)
+            Test-Path -LiteralPath $notDrivers | Should -BeTrue
+        }
+
+        It 'still finishes when the driver folder will not go' {
+            # Same rule the agent tree runs under: nobody is reading this
+            # process's output, so a throw here would silently cost the machine
+            # its restart as well as its cleanup.
+            $root = & $script:newTree
+            $drivers = & $script:newDriverFolder 'Drivers'
+
+            $log = [System.Collections.ArrayList]::new()
+            $remove = {
+                param($Path)
+                [void] $log.Add(('RemoveTree({0})' -f $Path))
+                if ($Path -like '*Drivers') { throw [System.IO.IOException]::new('the file is in use by another process') }
+            }.GetNewClosure()
+
+            & $script:deleterPath -Path $root -DriverPath $drivers -ParentProcessId 0 -FinishAction 'Restart' -DelaySecond 5 `
+                -StopParent { param($ProcessId) } -RemoveTree $remove `
+                -Finish { param($Action, $DelaySecond) [void] $log.Add(('Finish({0},{1})' -f $Action, $DelaySecond)) }.GetNewClosure() `
+                -Confirm:$false
+
+            @($log) | Should -Contain 'Finish(Restart,5)'
+        }
     }
 }

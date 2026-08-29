@@ -1,4 +1,4 @@
-﻿<#
+<#
     .SYNOPSIS
         Stops the leg that is running out of C:\HDT, removes the folder, and
         performs the finish action the technician asked for.
@@ -50,6 +50,11 @@
     .PARAMETER Path
         The staged agent folder to remove. C:\HDT on a deployed machine.
 
+    .PARAMETER DriverPath
+            The staged driver folder to remove as well - <os volume>\Drivers.
+            Empty means there is nothing to remove. Refused unless it is rooted,
+            exists, and its last segment is exactly 'Drivers'.
+
     .PARAMETER ParentProcessId
         The process holding the tree open - the leg that started this one. Zero
         means there is none to stop.
@@ -85,6 +90,11 @@ param(
     [AllowEmptyString()]
     [AllowNull()]
     [string] $Path,
+
+    [Parameter()]
+    [AllowEmptyString()]
+    [AllowNull()]
+    [string] $DriverPath,
 
     [Parameter()]
     [int] $ParentProcessId = 0,
@@ -214,7 +224,52 @@ function Assert-HDTAgentTreeTarget {
     return $stripped
 }
 
+function Assert-HDTAgentDriverTarget {
+    <#
+        .SYNOPSIS
+            Answers whether a path is a staged driver folder this may remove.
+
+        .DESCRIPTION
+            THE SAME JOB Assert-HDTAgentTreeTarget DOES, FOR THE OTHER FOLDER.
+            This script runs detached and elevated, with -Recurse -Force and
+            nobody reading its output, so the one thing it must never do is take
+            a path a caller got wrong. A DriverPath that arrived as the OS volume
+            or C:\Windows would erase the machine it just built.
+
+            THREE QUESTIONS, ALL OF THEM CHEAP. It has to be rooted, it has to
+            exist, and its last segment has to be exactly 'Drivers' - which is
+            the folder ApplyDrivers stages into and the one PSDFinal.ps1 removes.
+            An empty path is not an error: it means the caller had nothing to
+            remove, which is every deployment that staged no drivers.
+
+        .PARAMETER Target
+            The candidate path.
+
+        .OUTPUTS
+            System.String. The path when it may be removed, '' when it may not.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string] $Target
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Target)) { return '' }
+
+    $trimmed = $Target.Trim().TrimEnd('\', '/')
+
+    if (-not [System.IO.Path]::IsPathRooted($trimmed)) { return '' }
+    if ([System.IO.Path]::GetFileName($trimmed) -ne 'Drivers') { return '' }
+    if (-not (Test-Path -LiteralPath $trimmed -PathType Container)) { return '' }
+
+    return $trimmed
+}
+
 $target = Assert-HDTAgentTreeTarget -Target $Path
+$driverTarget = Assert-HDTAgentDriverTarget -Target $DriverPath
 
 if (-not $PSCmdlet.ShouldProcess($target, 'Stop the deployment leg and remove the staged resume agent')) {
     return
@@ -243,6 +298,27 @@ try {
     & $RemoveTree $target
 } catch {
     Write-Information ("'{0}' could not be removed: {1}" -f $target, $_.Exception.Message)
+}
+
+# -- and the staged drivers, which the machine is finished with ---------------
+#
+# 4.2 GB ON A REAL LATITUDE, 1,452 files, still there after the deployment
+# finished. ApplyDrivers stages packages to <os volume>\Drivers so the answer
+# file's DriverPaths can inject them offline; once Windows has installed from
+# them the folder is dead weight on a machine somebody is about to be handed.
+#
+# PSD REMOVES IT BESIDE MININT (PSDFinal.ps1:53-62). HDT's MININT is the folder
+# removed just above, so this is the same pass.
+#
+# SEPARATELY GUARDED AND SEPARATELY CAUGHT. A driver folder that will not go is
+# a smaller problem than a machine that never restarts, and it must not cost the
+# finish action any more than the agent tree may.
+if (-not [string]::IsNullOrWhiteSpace($driverTarget)) {
+    try {
+        & $RemoveTree $driverTarget
+    } catch {
+        Write-Information ("'{0}' could not be removed: {1}" -f $driverTarget, $_.Exception.Message)
+    }
 }
 
 # -- what the machine does now -----------------------------------------------

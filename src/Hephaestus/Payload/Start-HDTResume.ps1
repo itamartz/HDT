@@ -467,6 +467,47 @@ try {
         $variable[[string] $name] = $state.variable[$name]
     }
 
+    # -- and the share sees this leg too, as it happens -----------------------
+    #
+    # MDT'S SLShareDynamicLogging COVERS THE WHOLE DEPLOYMENT. It was set here
+    # for WinPE only, so \Logs\<ComputerName> on the share held the WinPE leg
+    # and stopped at the restart - and everything this leg writes AFTER the
+    # engine finishes (the summary, the finish action, the entire cleanup block)
+    # went only to C:\HDT\Logs.
+    #
+    # WHICH IS THE FOLDER THE CLEANUP DELETES, so the sweep that removes the
+    # share credential logged into the directory it was about to remove. When it
+    # died on a real Latitude there was nothing on the share to say so and the
+    # reason had to be read off the machine over WinRM.
+    #
+    # THE VALUE ARRIVES EXPANDED, exactly as it does in the WinPE payload:
+    # Add-HDTResolvedVariable expands as it STORES, and this bag is rehydrated
+    # from state.json, so it already holds '\\host\HDTShare\Logs\LT-7FJ45S2'
+    # and never the '%HDTComputerName%' the rule was written with. Nothing here
+    # may expand it again - Expand-HDTVariableToken is a PRIVATE helper and does
+    # not exist in a payload's session (b08bb91 learned that the hard way).
+    $dynamicLogPath = ''
+    if ($variable.Contains('HDTSLShareDynamicLogging')) {
+        $dynamicLogPath = [string] $variable['HDTSLShareDynamicLogging']
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($dynamicLogPath)) {
+        try {
+            $fileSystem.CreateDirectory($dynamicLogPath)
+            $log.SetDynamicPath($dynamicLogPath)
+
+            Write-HDTLog -Context $log -Component 'Resume' `
+                -Message ("logging live to '{0}' as well as this machine" -f $dynamicLogPath)
+        } catch {
+            # NEVER FATAL, the same rule the WinPE leg runs under. A share that
+            # cannot be written to is a reason to stop mirroring, not a reason to
+            # stop a deployment that has already installed the operating system.
+            Write-HDTLog -Context $log -Severity Warning -Component 'Resume' `
+                -Message ("the live log destination '{0}' could not be prepared, so logs stay on this machine until the run ends: {1}" -f
+                    $dynamicLogPath, [string] $_.Exception.Message)
+        }
+    }
+
     # -- the progress window, before the loop starts --------------------------
     #
     # THIS LEG DREW NOTHING UNTIL NOW, AND A DEPLOYED MACHINE IS HOW THAT WAS
@@ -838,9 +879,25 @@ if ($cleanupWanted) {
         $finalLogs = '{0}\Logs\HDT' -f $env:SystemRoot
     }
 
+    # THE DRIVER FOLDER GOES WITH IT. ApplyDrivers staged packages to
+    # <os volume>\Drivers so the answer file's DriverPaths could inject them
+    # offline; by the time this runs Windows has installed from them and the
+    # folder is 4.2 GB of dead weight on a machine somebody is about to be
+    # handed. PSD removes it beside MININT (PSDFinal.ps1:53-62).
+    #
+    # NAMED HERE, NOT WORKED OUT IN THE DELETER, which runs detached and
+    # elevated with -Recurse -Force: a path that process guessed is the one
+    # thing that could erase the machine it just built. It still checks the
+    # name it is given.
+    #
+    # THE SYSTEM DRIVE, because this leg is the full OS - the W: the WinPE leg
+    # staged into is C: from here.
+    $driverFolder = [System.IO.Path]::Combine($env:SystemDrive + '\', 'Drivers')
+
     try {
         $swept = Remove-HDTResumeAgent -Path ([System.IO.Path]::GetDirectoryName($StatePath)) `
-            -LogDestination $finalLogs -FinishAction $finishAction -DelaySecond $finishDelay -Confirm:$false
+            -LogDestination $finalLogs -DriverPath $driverFolder `
+            -FinishAction $finishAction -DelaySecond $finishDelay -Confirm:$false
 
         $removalStarted = [bool] $swept.RemovalStarted
 

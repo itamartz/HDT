@@ -864,6 +864,16 @@ Describe 'Start-HDTResume.ps1 and the cleanup at the end of a deployment' {
             @($call.CommandElements | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-FinishAction'
         }
 
+        It 'names the staged driver folder so the deleter takes it too' {
+            # 4.2 GB, 1,452 files, still on a real Latitude after the deployment
+            # finished. PSDFinal.ps1:53-62 removes MININT and Drivers together;
+            # HDT's MININT is C:\HDT and this is the other half.
+            $call = @(& $script:commandNamed 'Remove-HDTResumeAgent')[0]
+
+            $call | Should -Not -BeNullOrEmpty
+            @($call.CommandElements | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-DriverPath'
+        }
+
         It 'works the finish action out before it hands it over' {
             $finish = @(& $script:commandNamed 'Get-HDTFinishAction')[0]
             $sweep = @(& $script:commandNamed 'Remove-HDTResumeAgent')[0]

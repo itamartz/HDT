@@ -1,4 +1,4 @@
-﻿function Start-HDTAgentRemoval {
+function Start-HDTAgentRemoval {
     <#
         .SYNOPSIS
             Copies the deleter out of the doomed folder and starts it detached.
@@ -76,6 +76,13 @@
         [Parameter()]
         [AllowEmptyString()]
         [string] $FinishAction = 'None',
+
+        # The staged driver folder, named by the caller and never worked out
+        # here. Empty means there is nothing to remove.
+        [Parameter()]
+        [AllowEmptyString()]
+        [AllowNull()]
+        [string] $DriverPath,
 
         [Parameter()]
         [ValidateRange(0, [int]::MaxValue)]
@@ -167,8 +174,17 @@
 
     # -WindowStyle Hidden, BECAUSE THE LAST THING A TECHNICIAN SEES SHOULD BE
     # THE DEPLOYMENT SUMMARY. PSD shows this window only in debug.
-    $argument = ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "& {0} -Path {1} -ParentProcessId {2} -FinishAction {3} -DelaySecond {4} -Confirm:$false"' -f
-        (& $quoted $staged), (& $quoted $root), $ProcessId, (& $quoted $FinishAction), $DelaySecond)
+    # OMITTED WHEN THERE IS NOTHING TO REMOVE, rather than passed empty. An
+    # empty -DriverPath would still bind, and the deleter's guard would still
+    # refuse it, but a command line that names a folder it is not going to touch
+    # is one more thing to explain to whoever reads it in a log.
+    $driverArgument = ''
+    if (-not [string]::IsNullOrWhiteSpace($DriverPath)) {
+        $driverArgument = ' -DriverPath {0}' -f (& $quoted $DriverPath)
+    }
+
+    $argument = ('-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "& {0} -Path {1}{5} -ParentProcessId {2} -FinishAction {3} -DelaySecond {4} -Confirm:$false"' -f
+        (& $quoted $staged), (& $quoted $root), $ProcessId, (& $quoted $FinishAction), $DelaySecond, $driverArgument)
 
     $answer['Shell'] = $shell
     $answer['Argument'] = $argument
