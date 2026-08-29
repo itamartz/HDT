@@ -156,23 +156,34 @@ Describe 'Invoke-HDTGatherStep' {
     # A real run logged "HDTAssetTag: ASSET-7FJ45S2 -> " with nothing after the
     # arrow, and nothing on the page said whether the new value was empty,
     # whether the rendering had failed, or which side of the arrow was which.
-    It 'says (empty) rather than leaving a side of the arrow blank' {
+    It 'never leaves a value or a previous value blank in a change line' {
+        # THE ARROW IS GONE AND THE DEFECT IT GUARDED IS NOT. A real run logged
+        # "HDTAssetTag: ASSET-7FJ45S2 -> " with nothing after the arrow, and the
+        # one line describing the one thing that changed was unreadable: nothing
+        # said whether the new value was empty, whether the rendering had failed,
+        # or which side was which.
+        #
+        # The change line now reads "HDTMake = 'LENOVO' (Gather), was 'Dell'" -
+        # the one grammar every var.resolve writer shares - so the assertion
+        # moves with it. An empty side is still said as (empty), and on a FIRST
+        # gather, where there is nothing before, the ", was" clause is omitted
+        # entirely rather than printed empty.
         $context = & $script:newContext $null $script:cim
         $step = & $script:newStep $null
 
         [void] (Invoke-HDTGatherStep -Step $step -Context $context)
 
-        # The first gather has nothing before it, so every changed line has an
-        # empty left-hand side - which is exactly the shape that was unreadable.
-        $line = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' |
-                Where-Object { $_.message -like '* -> *' })
+        $line = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event var.resolve)
 
         @($line).Count | Should -BeGreaterThan 0
 
-        $blank = @($line | Where-Object { $_.message -like '*: -> *' -or $_.message -like '* -> ' })
+        $blank = @($line | Where-Object { $_.message -like "* = '' *" -or $_.message -like "*, was ''*" })
 
         (@($blank | ForEach-Object { $_.message }) -join ' | ') | Should -BeExactly ''
-        @($line | Where-Object { $_.message -like '*(empty) -> *' }).Count | Should -BeGreaterThan 0
+
+        # AND THE FIRST GATHER SAYS NOTHING ABOUT A PREVIOUS VALUE, because
+        # there was none - ", was '(empty)'" on twenty lines is a column of noise.
+        @($line | Where-Object { $_.message -like '*, was *' }) | Should -BeNullOrEmpty
     }
 
     It 'leaves variables it did not gather alone' {
@@ -252,15 +263,27 @@ Describe 'Invoke-HDTGatherStep' {
         It 'says in the log that it kept the resolved value, rather than doing it silently' {
             # A STEP THAT QUIETLY DECLINES TO DO SOMETHING is as hard to diagnose
             # as one that quietly does the wrong thing.
+            #
+            # IT IS var.unresolved AND NOT var.resolve. "I kept what was already
+            # there" is the refusal of a resolution, not one - and filed beside
+            # the records that say "this variable took this value" it gave
+            # ConvertTo-HDTReport, which renders data.name/value/source as a row
+            # of the report's Variables table, a row with none of the three.
             $context = & $script:newContext ([ordered] @{ HDTAssetTag = 'ASSET-7FJ45S2' }) $script:blankTagCim
             $step = & $script:newStep $null
 
             [void] (Invoke-HDTGatherStep -Step $step -Context $context)
 
-            $record = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event var.resolve)
+            $record = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event var.unresolved)
 
-            @($record | Where-Object { $_.message -match 'HDTAssetTag' -and $_.message -match 'kept' }) |
-                Should -Not -BeNullOrEmpty
+            $said = @($record | Where-Object { $_.message -match 'HDTAssetTag' -and $_.message -match 'kept' })
+            $said | Should -Not -BeNullOrEmpty
+
+            # AND IT CARRIES THE NAME IN data, not only in the prose. This record
+            # was written with no -Data at all, so the one consumer that filters
+            # the event could tell something had happened and not to what.
+            [string] $said[0].data.name | Should -BeExactly 'HDTAssetTag'
+            $said[0].data.kept | Should -BeTrue
         }
 
         It 'still sets a fact the machine could not determine when nothing had a value' {
@@ -286,10 +309,16 @@ Describe 'Invoke-HDTGatherStep' {
 
             [void] (Invoke-HDTGatherStep -Step $step -Context $context)
 
-            $record = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event var.resolve)
+            $record = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event var.unresolved)
 
             $said = @($record | Where-Object { $_.message -match 'HDTAssetTag' -and $_.message -match 'SMBIOSAssetTag' })
             $said | Should -Not -BeNullOrEmpty
+
+            # THE REASON IN data AS WELL AS IN THE MESSAGE. It was in the prose
+            # only, so a consumer could see that a fact was missing and had to
+            # parse English to learn why.
+            [string] $said[0].data.reason | Should -Not -BeNullOrEmpty
+            $said[0].data.determined | Should -BeFalse
         }
     }
 

@@ -180,7 +180,7 @@ Describe 'a multi-valued variable on a surface a person reads' {
             [void] (Invoke-HDTGatherStep -Step $script:step -Context $script:context)
 
             $line = @(Get-HDTRunLogRecord -Context $script:stepLog |
-                    Where-Object { $_.Event -eq 'var.resolve' -and $_.Message -like 'HDTIPAddress:*' })
+                    Where-Object { $_.Event -eq 'var.resolve' -and $_.Message -like 'HDTIPAddress = *' })
 
             $line.Count | Should -Be 1
             $line[0].Message | Should -BeLike ('*{0}*' -f @($script:fact['HDTIPAddress'])[0])
@@ -201,13 +201,17 @@ Describe 'a multi-valued variable on a surface a person reads' {
             # look like a regression and would have to be re-edited every time a
             # fact was added.
             #
-            # The arrow is what makes a record a change line, so that is what is
-            # counted.
+            # THE ARROW USED TO BE WHAT MADE A RECORD A CHANGE LINE, and it is
+            # gone: the change line now shares the one grammar every var.resolve
+            # writer uses, "HDTMake = 'LENOVO' (Gather), was 'Dell'". What makes
+            # a record a change line is now the EVENT - the step's two
+            # non-resolutions moved to var.unresolved - so var.resolve out of
+            # this step is exactly the set of facts that moved.
             [void] (Invoke-HDTGatherStep -Step $script:step -Context $script:context)
 
             $changeLine = {
                 return @(Get-HDTRunLogRecord -Context $script:stepLog |
-                        Where-Object { $_.Event -eq 'var.resolve' -and $_.Message -like '* -> *' })
+                        Where-Object { $_.Event -eq 'var.resolve' })
             }
 
             $before = @(& $changeLine).Count
@@ -227,7 +231,7 @@ Describe 'a multi-valued variable on a surface a person reads' {
 
             $undetermined = {
                 return @(Get-HDTRunLogRecord -Context $script:stepLog |
-                        Where-Object { $_.Event -eq 'var.resolve' -and $_.Message -like '*could not be determined*' })
+                        Where-Object { $_.Event -eq 'var.unresolved' -and $_.Message -like '*could not be determined*' })
             }
 
             $first = @(& $undetermined).Count
@@ -238,12 +242,18 @@ Describe 'a multi-valued variable on a surface a person reads' {
                 'each gather reports its own outcome, so a fact that stayed unreadable is named again')
         }
 
-        It 'writes every var.resolve record in a shape a reader can parse' {
+        It 'writes every var.resolve record in the grammar the other writers use' {
             # ASSERTED OVER THE SET, so a record added later cannot arrive in a
-            # shape nothing else uses. Three commands already write this event -
+            # shape nothing else uses. Three commands write this event -
             # Write-HDTVariableLog, Invoke-HDTSetVariableStep and this step - and
-            # a fourth format is how a consumer filtering on the name starts
-            # getting lines it cannot read.
+            # for a long time they wrote it in two grammars, this step's being
+            # the odd one: "HDTModel: old -> new, from CIM.Win32_..." against the
+            # others' "HDTModel = 'x' (Rule)". A consumer filtering on the name
+            # then had to parse both, which is the whole reason DESIGN 4.4.2
+            # calls event a controlled vocabulary.
+            #
+            # tests/unit/VariableLogVocabulary asserts this same grammar across
+            # ALL THREE emitters at once; this holds the step to it on its own.
             [void] (Invoke-HDTGatherStep -Step $script:step -Context $script:context)
 
             $record = @(Get-HDTRunLogRecord -Context $script:stepLog |
@@ -253,8 +263,8 @@ Describe 'a multi-valued variable on a surface a person reads' {
 
             foreach ($one in $record) {
                 $one.Message | Should -Not -BeNullOrEmpty
-                $one.Message | Should -Match '^HDT[A-Za-z0-9_]+:' -Because (
-                    'every record this step writes names the fact it is about first')
+                $one.Message | Should -Match "^HDT[A-Za-z0-9_]+ = '.*' \([A-Za-z]+\)(,.*)?$" -Because (
+                    'every var.resolve record names the variable, its value and its source, in that order')
                 $one.Message | Should -Not -Match "`n" -Because (
                     'a multi-line message is unreadable in CMTrace and cannot be filtered')
             }
@@ -266,7 +276,7 @@ Describe 'a multi-valued variable on a surface a person reads' {
             [void] (Invoke-HDTGatherStep -Step $script:step -Context $script:context)
 
             $named = @(Get-HDTRunLogRecord -Context $script:stepLog |
-                    Where-Object { $_.Event -eq 'var.resolve' -and $_.Message -like '*could not be determined*' } |
+                    Where-Object { $_.Event -eq 'var.unresolved' -and $_.Message -like '*could not be determined*' } |
                     ForEach-Object { ([string] $_.Message -split ':')[0] })
 
             foreach ($name in $named) {

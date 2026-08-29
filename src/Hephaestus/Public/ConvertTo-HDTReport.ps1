@@ -392,6 +392,19 @@
             $outcome = [string] $data['status']
         }
 
+        # var.resolve ONLY, AND var.unresolved DELIBERATELY NOT. This table
+        # answers "what did each variable take, and from where", which is what
+        # var.resolve now means and only that. Until 2026-08-29 the same name
+        # also carried a %Var% nothing supplied, a fact the machine could not
+        # determine, and a value the gather declined to overwrite - none of which
+        # carried data.name, data.value or data.source, so each drew a row here
+        # with all three cells EMPTY, in the artefact most likely to be emailed
+        # out of the organisation that built the machine.
+        #
+        # Those records are var.unresolved now and still appear in the Log
+        # section below, with their reason, which is where a "why is this empty"
+        # question is actually answered. Adding them back to this table would
+        # reintroduce the blank cells, because there is by definition no value.
         if ($eventName -eq 'var.resolve') {
             [void] $variableRecord.Add($item)
 

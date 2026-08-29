@@ -34,6 +34,12 @@
             resolution: an authored mid-sequence assignment is a decision
             somebody made, not a derivation.
 
+            IT SHARES ONE GRAMMAR WITH THE OTHER var.resolve WRITERS - "Name =
+            'value' (Source)" - because a consumer asking where a variable's
+            value came from should filter one event name and read data.source,
+            not parse three prose formats. What it could NOT resolve goes under
+            var.unresolved instead; see the warning below.
+
             IT REFUSES an _HDT* name, which is engine-owned and read-only,
 and a name outside ^HDT[A-Za-z0-9_]*$ - both as
             terminating configuration errors, because a sequence that assigns the
@@ -167,8 +173,14 @@ and a name outside ^HDT[A-Za-z0-9_]*$ - both as
         Write-HDTLog -Context $Context.Log -Event 'var.resolve' -Component 'SetVariable' `
             -Message ("{0} = '{1}' (Step)" -f $name, (ConvertTo-HDTVariableText -Value $logged)) -Data $data
 
+        # var.unresolved, BECAUSE IT SAYS THE OPPOSITE OF THE RECORD ABOVE IT.
+        # The line above is "this variable took this value"; this one is "and
+        # part of it is a token nothing supplied". Both were var.resolve, which
+        # made the name mean two things in one command - and gave
+        # ConvertTo-HDTReport, whose Variables table reads name/value/source out
+        # of data, a row with none of the three.
         if (@($unresolved).Count -gt 0) {
-            Write-HDTLog -Context $Context.Log -Severity Warning -Event 'var.resolve' -Component 'SetVariable' `
+            Write-HDTLog -Context $Context.Log -Severity Warning -Event 'var.unresolved' -Component 'SetVariable' `
                 -Message ("{0} variable token(s) were never supplied and are left unexpanded: {1}." -f
                     @($unresolved).Count, (@($unresolved) -join ', ')) `
                 -Data ([ordered] @{ name = $name; source = 'Step'; step = [string] $Step.Name; unresolved = [string[]] @($unresolved) })

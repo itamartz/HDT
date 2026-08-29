@@ -36,6 +36,11 @@
             non-Debug verbosity: this is the one part of provenance an
             administrator needs without turning on Debug first.
 
+            AND IT IS var.unresolved, NOT var.resolve. A resolution says the
+            variable took a value; this says it did not, which is the opposite
+            claim in the opposite grammar. Sharing one name made the vocabulary
+            unfilterable and put a blank row in the report's Variables table.
+
         .PARAMETER Context
             A New-HDTLogContext result.
 
@@ -126,9 +131,15 @@
                 (ConvertTo-HDTVariableText -Value $value), $record.Source) -Data $data
     }
 
+    # var.unresolved, NOT var.resolve, AND THE DISTINCTION IS THE POINT OF BOTH
+    # NAMES. Every record above says "this variable took this value"; this one
+    # says the opposite - a token nothing supplied, left literal. Under the same
+    # name it was a second grammar for a consumer filtering on var.resolve to
+    # trip over, and ConvertTo-HDTReport duly rendered it as a row of the
+    # Variables table with no name, no value and no source in it.
     $unresolved = @($Resolution.Unresolved)
     if ($unresolved.Count -gt 0) {
-        Write-HDTLog -Context $Context -Severity Warning -Event 'var.resolve' -Component 'Variable' `
+        Write-HDTLog -Context $Context -Severity Warning -Event 'var.unresolved' -Component 'Variable' `
             -Message ("{0} variable token(s) were never supplied and are left unexpanded: {1}." -f
                 $unresolved.Count, ($unresolved -join ', ')) `
             -Data ([ordered] @{ unresolved = $unresolved })

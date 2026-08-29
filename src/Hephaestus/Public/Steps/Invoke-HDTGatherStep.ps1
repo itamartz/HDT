@@ -92,8 +92,12 @@ function Invoke-HDTGatherStep {
 
             How many facts the gather added to the sequence's variables.
     #>
-    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'Step',
-        Justification = 'The step contract requires -Step on every step command. A Gather step declares no properties - what to gather is not a choice - so the parameter is bound and unread, which is the contract being honoured rather than an oversight.')]
+    # THE SUPPRESSION IS GONE BECAUSE THE PARAMETER IS READ NOW. It said the step
+    # was bound and unread - true while a Gather step declared no properties and
+    # nothing here needed its name. The var.resolve and var.unresolved records
+    # below carry data.step, which is what ConvertTo-HDTReport falls back to for
+    # the Rule column when no rule set the value, and for a gathered fact none
+    # did: the answer to "what put this here" is the step.
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
@@ -108,6 +112,15 @@ function Invoke-HDTGatherStep {
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
+
+    # READ DEFENSIVELY, BECAUSE THE CONTRACT DOES NOT PROMISE A NAME. Every step
+    # Import-HDTSequenceDocument flattens has one, but a hand-written fake need
+    # not, and under Set-StrictMode an absent property THROWS rather than reading
+    # empty - which would turn a missing label into a failed gather.
+    $stepName = ''
+    if ($null -ne $Step -and $null -ne $Step.PSObject.Properties['Name']) {
+        $stepName = [string] $Step.Name
+    }
 
     # THREE PORTS, BECAUSE THE FACTS COME FROM THREE PLACES. CIM for the
     # hardware, the registry for SecureBoot, and the environment for the
@@ -226,7 +239,15 @@ function Invoke-HDTGatherStep {
         # HDTIsUEFI to True against a gather that cannot tell is a genuine
         # disagreement, the renderings differ, and the rule wins.
         if ((-not $determined) -and $hadValue -and $beforeText -ne $afterText) {
-            [void] $kept.Add(('{0}: kept the resolved value; the machine could not determine it ({1})' -f $name, $why))
+            # THE VALUE IS CARRIED, NOT ONLY THE SENTENCE. These were logged as
+            # bare text with no -Data at all, which is why every one of them
+            # rendered as an empty row in ConvertTo-HDTReport's Variables table:
+            # it reads name, value and source out of data and there was no data.
+            [void] $kept.Add([pscustomobject] @{
+                    Name   = [string] $name
+                    Reason = [string] $why
+                    Value  = $before
+                })
             continue
         }
 
@@ -276,28 +297,85 @@ function Invoke-HDTGatherStep {
             if ([string]::IsNullOrEmpty($beforeShown)) { $beforeShown = '(empty)' }
             if ([string]::IsNullOrEmpty($afterShown)) { $afterShown = '(empty)' }
 
-            # AND WHO CHANGED IT. "HDTMake: Dell -> LENOVO" names the two values
-            # and leaves the reader to guess what moved them; naming the source
-            # is the difference between editing rules.yaml and hunting a CIM
+            # AND WHO CHANGED IT. "HDTMake = 'LENOVO' (Gather)" names the value
+            # and leaves the reader to guess what moved it; naming the origin is
+            # the difference between editing rules.yaml and hunting a CIM
             # property. The gather is what changed it, so the useful half is
             # WHICH source of the gather's own the new value came from.
-            $by = ''
+            $origin = ''
             if ($provenance.Contains($name)) {
-                $by = ', from {0}.{1}' -f $provenance[$name].Source, $provenance[$name].Property
+                $origin = '{0}.{1}' -f $provenance[$name].Source, $provenance[$name].Property
             }
 
-            [void] $changed.Add(('{0}: {1} -> {2}{3}' -f $name, $beforeShown, $afterShown, $by))
+            [void] $changed.Add([pscustomobject] @{
+                    Name     = [string] $name
+                    Value    = $fact[$name]
+                    Text     = $afterShown
+                    Previous = $beforeShown
+                    HadValue = $hadValue
+                    Origin   = [string] $origin
+                })
         }
     }
 
-    foreach ($line in $changed) {
-        Write-HDTLog -Context $Context.Log -Message $line -Severity Debug -Event var.resolve -Component 'Gather'
+    # -- WHAT MOVED, IN THE GRAMMAR EVERY var.resolve WRITER USES -------------
+    #
+    # THIS LINE USED TO BE ITS OWN LANGUAGE. It read "HDTModel: old -> new, from
+    # CIM.Win32_ComputerSystem.Model" while Write-HDTVariableLog wrote "HDTModel
+    # = 'x' (Rule)" and Invoke-HDTSetVariableStep wrote "HDTModel = 'x' (Step)" -
+    # one event name, three commands, two grammars. DESIGN 4.4.2 calls event "a
+    # controlled vocabulary, so the report renderer and the console filter on a
+    # known set rather than regexing prose", and a name that means several things
+    # cannot be filtered on at all.
+    #
+    # SO THE LEAD IS IDENTICAL AND THE EXTRA GOES AFTER IT, comma separated, on
+    # ONE LINE: "HDTMake = 'LENOVO' (Gather), was 'Dell', from
+    # Win32_ComputerSystem.Manufacturer". Nothing is lost - the previous value is
+    # what the arrow used to carry - and a reader or a regex keys on the same
+    # prefix whichever command wrote the record.
+    #
+    # "was" IS OMITTED WHEN THERE WAS NOTHING TO LOSE. On the first gather every
+    # fact arrives over an empty variable, and ", was '(empty)'" on twenty lines
+    # is a column of noise saying nothing.
+    #
+    # AND IT CARRIES data NOW. It carried none at all, so ConvertTo-HDTReport -
+    # the only consumer in src/ that filters this event, rendering
+    # Name/Value/Source/Rule out of data - drew one BLANK ROW per changed fact in
+    # the Variables table of the report somebody sends on.
+    foreach ($entry in $changed) {
+        $message = "{0} = '{1}' (Gather)" -f $entry.Name, $entry.Text
+        if ($entry.HadValue) { $message = "{0}, was '{1}'" -f $message, $entry.Previous }
+        if (-not [string]::IsNullOrEmpty($entry.Origin)) { $message = '{0}, from {1}' -f $message, $entry.Origin }
+
+        Write-HDTLog -Context $Context.Log -Message $message -Severity Debug -Event var.resolve -Component 'Gather' `
+            -Data ([ordered] @{
+                name     = [string] $entry.Name
+                value    = (Protect-HDTSecretValue -Name ([string] $entry.Name) -Value $entry.Value)
+                source   = 'Gather'
+                step     = $stepName
+                origin   = [string] $entry.Origin
+                previous = [string] $entry.Previous
+            })
     }
 
-    # WHAT IT DECLINED TO OVERWRITE. A step that quietly does nothing is as hard
-    # to diagnose as one that quietly does the wrong thing.
-    foreach ($line in $kept) {
-        Write-HDTLog -Context $Context.Log -Message $line -Severity Debug -Event var.resolve -Component 'Gather'
+    # WHAT IT DECLINED TO OVERWRITE, UNDER var.unresolved. A step that quietly
+    # does nothing is as hard to diagnose as one that quietly does the wrong
+    # thing - but "I kept what was already there" is not a resolution, it is the
+    # refusal of one, and filing it beside the records that say "this variable
+    # took this value" is what made the name mean three things.
+    foreach ($entry in $kept) {
+        Write-HDTLog -Context $Context.Log -Severity Debug -Event var.unresolved -Component 'Gather' `
+            -Message ('{0}: kept the resolved value; the machine could not determine it ({1})' -f
+                $entry.Name, $entry.Reason) `
+            -Data ([ordered] @{
+                name       = [string] $entry.Name
+                value      = (Protect-HDTSecretValue -Name ([string] $entry.Name) -Value $entry.Value)
+                source     = 'Gather'
+                step       = $stepName
+                reason     = [string] $entry.Reason
+                determined = $false
+                kept       = $true
+            })
     }
 
     # -- where every fact came from, and what it cost ---------------------
@@ -315,13 +393,14 @@ function Invoke-HDTGatherStep {
     }
 
     # NOT var.resolve, AND THE DISTINCTION IS NOT PEDANTRY. A var.resolve record
-    # means "this variable took this value", and three commands already write
-    # them in three shapes - Write-HDTVariableLog as "HDTModel = 'x' (Rule)" at
-    # Debug, Invoke-HDTSetVariableStep at Info, and the change line below as
-    # "HDTModel: old -> new". A per-source TIMING line is not a variable
-    # resolution in any shape; filed under the same name it would be a fourth
-    # format for a consumer filtering on that event to trip over, and it made a
-    # second gather emit twelve records where the log's own test expected none.
+    # means "this variable took this value", written in one grammar by all three
+    # of its writers - Write-HDTVariableLog at Debug, Invoke-HDTSetVariableStep
+    # at Info, and this step's change line above. A per-source TIMING line is not
+    # a variable resolution in any shape, and it names no variable at all; filed
+    # under that name it would be another format for a consumer filtering on the
+    # event to trip over, and it made a second gather emit twelve records where
+    # the log's own test expected none. It is not var.unresolved either: nothing
+    # here failed to resolve, this is how long the queries took.
     #
     # NAMES AND TIMINGS ONLY, NEVER VALUES, so there is nothing here to redact -
     # the one line in this step that carries a value is the change line, and it
@@ -351,16 +430,25 @@ function Invoke-HDTGatherStep {
     # HDT.log, which SLShare copies to the share. Whether a name is a secret is
     # Protect-HDTSecretValue's decision, never this step's; a second opinion here
     # is exactly how the log and Gather\provenance.json came to disagree before.
+    # AND IT IS var.unresolved. "Could not be determined" is the exact negation
+    # of "took this value", and it was the third meaning crammed under
+    # var.resolve. THE REASON GOES IN data AS WELL AS IN THE MESSAGE: it was in
+    # the prose only, so the one consumer that filters this event could tell
+    # something was wrong and not what.
     foreach ($entry in $undetermined) {
         $shown = ConvertTo-HDTVariableText -Value (Protect-HDTSecretValue -Name $entry.Name -Value $entry.Value)
         if ([string]::IsNullOrEmpty($shown)) { $shown = '(empty)' }
 
-        Write-HDTLog -Context $Context.Log -Severity Debug -Event var.resolve -Component 'Gather' `
+        Write-HDTLog -Context $Context.Log -Severity Debug -Event var.unresolved -Component 'Gather' `
             -Message ('{0}: could not be determined ({1}); left as {2}' -f $entry.Name, $entry.Reason, $shown) `
             -Data ([ordered] @{
                 name       = [string] $entry.Name
+                value      = (Protect-HDTSecretValue -Name ([string] $entry.Name) -Value $entry.Value)
                 source     = [string] $entry.Source
+                step       = $stepName
+                reason     = [string] $entry.Reason
                 determined = $false
+                kept       = $false
             })
     }
 

@@ -15,39 +15,26 @@ BeforeAll {
     $script:jsonlPath = 'X:\HDT\Logs\HDT.jsonl'
     $script:masterPath = 'X:\HDT\Logs\HDT.log'
 
-    # The twenty-two names of DESIGN 4.4.2's controlled vocabulary: the eleven
-    # the design lists, plus reboot.teardown (DESIGN 4.5.3's failsafe, emitted by
-    # 03-03), message (what a custom step's bare Write-HDTLog produces, DESIGN
-    # 4.4.4) and step.progress (a step long enough to report on itself - an
-    # apply, which prints a percentage for nine minutes), plus the five driver.*
-    # events ApplyDrivers writes its DECISION to rather than just its outcome,
-    # plus the three console.* ones - the console wrote no log at all until
-    # 2026-08-27, so a reported crash could only be answered by reading source.
-    # Every addition is written back into DESIGN 4.4.2.
-    $script:eventVocabulary = @(
-        'console.action'
-        'console.error'
-        'console.session'
-        'driver.enumerate'
-        'driver.fallback'
-        'driver.group'
-        'driver.match'
-        'driver.staged'
-        'message'
-        'native.exec'
-        'phase.change'
-        'reboot.arm'
-        'reboot.resume'
-        'reboot.teardown'
-        'run.end'
-        'run.start'
-        'step.complete'
-        'step.fail'
-        'step.progress'
-        'step.skip'
-        'step.start'
-        'var.resolve'
-    )
+    # THE VOCABULARY IS NOT RESTATED HERE, AND THAT IS THE POINT.
+    #
+    # This file used to carry its own sorted copy of every event name plus a
+    # hardcoded count, and tests/contract/LogEventVocabulary.Contract carried a
+    # second count, and DESIGN 4.4.2 carries the table both are checked against.
+    # One fact, four producers - which is the exact shape of the defect this
+    # week's work exists to remove: run.end's tally drifted because one number
+    # had two producers, and var.resolve meant three things because one name had
+    # three emitters.
+    #
+    # IT HAD ALREADY DRIFTED. The list said "the twenty-two names" while the
+    # ValidateSet held twenty-three, and the round-trip test below enumerated
+    # FIFTEEN of them - the five driver.* and three console.* names had never
+    # once been proved to reach a record, because each was added by a test that
+    # named the thing it added and failed nobody after it.
+    #
+    # So the SET now comes from the engine and the assertions are driven off it,
+    # and the one place that pins that set to DESIGN 4.4.2 - in both directions,
+    # with the exact count - is the contract test. DESIGN says the same of
+    # itself: "The count is deliberately not written here ... Count the rows."
 }
 
 Describe 'Write-HDTLog' {
@@ -198,27 +185,51 @@ Describe 'Write-HDTLog' {
             $record.FullyQualifiedErrorId | Should -BeLike 'ParameterArgumentValidationError*'
         }
 
-        It 'accepts the event <_>' -ForEach @(
-            'message', 'native.exec', 'phase.change', 'reboot.arm', 'reboot.resume',
-            'reboot.teardown', 'run.end', 'run.start', 'step.complete', 'step.fail',
-            'step.progress', 'step.skip', 'step.start', 'var.resolve'
-        ) {
-            Write-HDTLog -Context $script:context -Message 'x' -Event $_
+        It 'accepts every event its own ValidateSet declares' {
+            # ASSERTED OVER THE SET, WHICH IS WHY IT IS A LOOP AND NOT -ForEach.
+            # A -ForEach needs its cases at DISCOVERY time, and the module is
+            # imported in BeforeAll - so the cases were a list typed out by hand,
+            # and it had fallen eight names behind the engine without anything
+            # going red. Reading the ValidateSet here means a name added tomorrow
+            # is round-tripped on the day it lands.
+            $accepted = @((Get-Command -Name Write-HDTLog).Parameters['Event'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] } |
+                    ForEach-Object { $_.ValidValues })
 
-            $record = ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:jsonlPath))
-            $record.event | Should -BeExactly $_
+            $accepted.Count | Should -BeGreaterThan 0 -Because 'a set read as empty would pass this over nothing'
+
+            foreach ($name in $accepted) {
+                $script:fs = New-HDTFakeFileSystem -Journal $script:journal
+                $script:context = New-HDTLogContext -RunId '8f3c1a90-0000-4000-8000-000000000001' `
+                    -Phase WinPE -LogPath 'X:\HDT\Logs' -FileSystem $script:fs -Clock $script:clock -ThreadId 4820
+
+                Write-HDTLog -Context $script:context -Message 'x' -Event $name
+
+                $record = ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:jsonlPath))
+                $record.event | Should -BeExactly $name -Because ('{0} is accepted but did not reach the record' -f $name)
+            }
         }
 
-        It 'validates exactly twenty-two events and no more' {
-            # This is what ties the engine to DESIGN 4.4.2's controlled vocabulary
-            # rather than to a comment. It goes red when somebody adds a twentieth
-            # event without touching the design.
+        It 'declares exactly one ValidateSet for the event vocabulary' {
+            # THE COUNT IS NOT ASSERTED HERE ANY MORE, DELIBERATELY.
+            #
+            # It was, and so was the same count in
+            # tests/contract/LogEventVocabulary.Contract - one number, two
+            # producers, and adding var.unresolved on 2026-08-29 reddened both
+            # while only one got updated. That is the defect this week's work is
+            # about, reproduced in the tests that police it.
+            #
+            # The contract test is the right home for it: it is the only place
+            # that also reads DESIGN 4.4.2's table, so the number and the
+            # document that defines it are checked together and cannot drift
+            # apart. What is left here is what belongs to Write-HDTLog itself -
+            # that there is exactly one such attribute to read, which is the
+            # assumption both files' derivations rest on.
             $attribute = @((Get-Command -Name Write-HDTLog).Parameters['Event'].Attributes |
                     Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })
 
             $attribute.Count | Should -Be 1
-            @($attribute[0].ValidValues).Count | Should -Be 22
-            @($attribute[0].ValidValues | Sort-Object) | Should -Be $script:eventVocabulary
+            @($attribute[0].ValidValues).Count | Should -BeGreaterThan 0
         }
 
         It 'writes durationMs when given' {

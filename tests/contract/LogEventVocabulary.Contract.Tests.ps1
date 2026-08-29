@@ -36,7 +36,7 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         $script:documented.Count | Should -BeGreaterThan 0 -Because 'DESIGN 4.4.2 has to list the vocabulary somewhere this test can read'
     }
 
-    It 'has twenty-two names in the engine' {
+    It 'has twenty-three names in the engine' {
         # Fourteen until 2026-08-27, when ApplyDrivers added five driver.* events
         # and the console - which until that day wrote no log at all - added
         # three console.* ones. The number is asserted rather than derived on
@@ -44,7 +44,34 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         # documented in DESIGN 4.4.2 in the same change, instead of something
         # that lands in a ValidateSet and is discovered later by a report
         # renderer that does not know the name.
-        $script:accepted.Count | Should -Be 22
+        #
+        # THE TWENTY-THIRD IS var.unresolved, ADDED 2026-08-29, AND THE TRIPWIRE
+        # DID ITS JOB. var.resolve had three writers in two grammars at two
+        # severities, and it also carried three things that are not resolutions:
+        # a %Var% nothing supplied, a fact the machine could not determine, and a
+        # resolved value the gather declined to overwrite. Those assert the
+        # OPPOSITE of a resolution, and ConvertTo-HDTReport - the only consumer
+        # in src/ that filters this event, rendering data.name/value/source as a
+        # row of the report's Variables table - drew a blank row for every one of
+        # them.
+        #
+        # ONE NAME WAS ADDED AND NOT THREE. A rule resolution, a SetVariable step
+        # and a gathered fact all claim "this variable took this value", so they
+        # keep var.resolve, one grammar and data.source as the discriminator -
+        # otherwise every consumer asking where a value came from would have to
+        # filter three names, and a fourth writer would make it four.
+        #
+        # THIS IS NOW THE ONLY PLACE THE COUNT IS ASSERTED, and that too was a
+        # finding of the same change. tests/unit/Write-HDTLog.Tests.ps1 asserted
+        # it as well, against its own hand-kept copy of the name list - one fact,
+        # several producers, exactly the shape being fixed - and adding
+        # var.unresolved reddened both while only one was updated. Its list had
+        # already drifted: it said twenty-two and enumerated fifteen.
+        #
+        # The number belongs HERE because this is the only file that also reads
+        # DESIGN 4.4.2's table, so the count and the document that defines it are
+        # checked in one place and cannot disagree.
+        $script:accepted.Count | Should -Be 23
     }
 
     It 'documents every name the engine accepts' {

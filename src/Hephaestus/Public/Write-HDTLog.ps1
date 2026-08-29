@@ -161,7 +161,22 @@ function Write-HDTLog {
             'step.progress',
             'step.skip',
             'step.start',
-            'var.resolve')]
+            # TWO NAMES, BECAUSE ONE OF THEM MEANT THREE THINGS. var.resolve is
+            # "this variable TOOK this value, and here is where from" - true of a
+            # rule resolution, a SetVariable step and a gathered fact alike, with
+            # data.source as the discriminator, which is why they share one name
+            # rather than having three: a consumer asking "where did
+            # HDTComputerName come from" filters ONE name and reads one field.
+            #
+            # var.unresolved is the opposite claim - the variable did NOT take a
+            # value. A %Var% nothing supplied, a fact the machine could not
+            # determine, a resolved value KEPT because the gather's answer was a
+            # non-answer. Filed under var.resolve, as all of these were, they put
+            # rows with no name, no value and no source into
+            # ConvertTo-HDTReport's Variables table, which reads exactly those
+            # three fields out of data.
+            'var.resolve',
+            'var.unresolved')]
         [string] $Event = 'message',
 
         [Parameter()]

@@ -715,7 +715,8 @@ drifts. Count the rows.
 | `step.fail` | a step failed, or the loop itself did |
 | `step.skip` | a step was skipped, with the reason |
 | `step.progress` | a long step said how far through itself it is, as a percentage |
-| `var.resolve` | a variable was resolved or set, with its source |
+| `var.resolve` | a variable **took** a value, with its source: a rule resolution, a `SetVariable` step, or a gathered fact — one grammar, `Name = 'value' (Source)`, and `data.source` tells them apart |
+| `var.unresolved` | a variable did **not**: a `%Var%` nothing supplied, a fact the machine could not determine, or a resolved value kept because the gather's answer was a non-answer |
 | `native.exec` | an external command line was run |
 | `reboot.arm` | autologon was armed before a restart (§4.5) |
 | `reboot.resume` | the boot reconcile resumed a run |
@@ -739,6 +740,34 @@ records the command name, its **parameter names and never their values**, and
 how long it took: the console is where the local administrator password is set,
 and a log that helpfully recorded every argument would be the one place that
 password came to rest in plain text.
+
+**Why variables get two names and not one, and not four.** `var.resolve` had
+three writers — `Write-HDTVariableLog`, `Invoke-HDTSetVariableStep` and
+`Invoke-HDTGatherStep` — in two grammars and at two severities, and it also
+carried three things that are not resolutions at all: a `%Var%` nothing
+supplied, a fact the machine could not determine, and a resolved value the
+gather declined to overwrite. A name that means several things cannot be
+filtered on, which is the whole purpose of a controlled vocabulary.
+
+The split is **by claim, not by writer**. A rule resolution, a step assignment
+and a gathered fact all assert the same thing — *this variable took this value* —
+so they keep one name, one grammar, and `data.source` (`Rule`, `Step`, `Gather`,
+or one of §3.1's five prioritised sources) as the discriminator: "where did
+`HDTComputerName` come from" is then one filter and one field, not three names a
+consumer has to know about. Giving each writer its own name would grow the
+vocabulary with every writer added and make the common question harder to ask.
+
+The non-resolutions assert the *opposite*, so they get `var.unresolved`. That is
+not pedantry: `ConvertTo-HDTReport` is the only consumer in `src/` that filters
+this event and it renders `data.name`, `data.value` and `data.source` as a row of
+the report's Variables table — so every one of those records, most of which
+carried no `data` at all, drew a blank row in the report somebody sends on.
+
+Severity is *not* part of the split and is deliberate on each writer: a rule
+resolution is Debug (§4.4.2's "Debug adds every variable resolution with its
+provenance"), a `SetVariable` step is **Info** because an authored mid-sequence
+assignment is a decision somebody made rather than a derivation, and an
+unexpanded `%Var%` is **Warning** so it survives a run that is not in Debug.
 
 **Why drivers get five names of their own.** Every other step reports what it
 did; `ApplyDrivers` has to report what it *decided*, because the two most common
