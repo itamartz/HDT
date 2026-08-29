@@ -171,11 +171,9 @@ locations above.
 
 ## ⚠ Networking: 192.168.1.0/24, and nothing else without asking
 
-**The lab network is `192.168.1.0/24`.** DHCP comes from the real LAN and test
-VMs reach the host through the **`HDT External`** switch. Everything that needs
-a network uses that.
-
-`192.168.1.0/24` now, gateway `192.168.1.1`.
+**The lab network is `192.168.1.0/24`, gateway `192.168.1.1`.** DHCP comes from
+the real LAN and test VMs reach the host through the **`HDT External`** switch.
+Everything that needs a network uses that.
 
 **In this lab, the host's own address is local wiring, not a fact about HDT** —
 a static `Manual` address on `HDT External` today, a DHCP lease that moved on
@@ -257,19 +255,23 @@ ADK releases.
 
 **A machine to run the suite on that is not this laptop.** Windows 11 Enterprise
 LTSC, workgroup, 4 cores / 4 GB, ~84 GB free, and the session opens elevated.
-Reached over WinRM; this host's `TrustedHosts` is already `*`, so nothing needs
-configuring to connect.
 
-```powershell
-$l = Get-Content .secrets/ms-a2-win11.txt
-$cred = New-Object PSCredential($l[1].Trim(), (ConvertTo-SecureString $l[2].Trim() -AsPlainText -Force))
-$s = New-PSSession -ComputerName $l[0].Trim() -Credential $cred -Authentication Negotiate
-```
+**It is a guest on the MS-A2 Hyper-V host, not a machine on this LAN**, so
+reaching it is two hops: a WinRM session to MS-A2 over the tailnet, then
+**PowerShell Direct** to the VM from inside that session. PowerShell Direct is
+VMBus, so the guest needs no network and this host needs no `TrustedHosts`
+entry. `.planning/PROJECT.md`, "Remote lab and CI host", has the nesting
+pattern.
+
+Both credentials are in `.secrets\ms-a2-win11.txt` — two blocks of three lines
+either side of a blank one. The **second block is the host**, and it is the hop
+that connects; the first block is the VM's own login, for the inner
+`Invoke-Command -VMName`. Do not connect to the address on the first line: a
+direct session to the VM is the old arrangement and does not answer.
 
 **`.secrets\` is gitignored and stays that way.** Read the file, never repeat
-what is in it — not into a doc, a test, a fixture or a commit message. The
-address on its first line is a DHCP lease like every other address in this lab:
-read it, don't memorise it.
+what is in it — not into a doc, a test, a fixture or a commit message. Every
+address in it is a lease: read it, don't memorise it.
 
 Installed and verified: PowerShell **5.1 only** (no `pwsh` — which matches the
 gate), Pester **5.9.1**, PSScriptAnalyzer 1.25.0, git 2.55, `powershell-yaml`
@@ -291,12 +293,12 @@ the dependency gate doing its job rather than a surprise to debug.
 Pester there is 5.9.1 and 5.7.1 here. Both satisfy `build.ps1`'s pin, so a
 result that differs between the two is the version's fault before the code's.
 
-It answers on WinRM only while it is powered on — a refused connection is a VM
-that is off, not a broken setup. Retry before diagnosing.
+It answers only while both it and MS-A2 are running — a refused connection is
+something powered off, not a broken setup. Retry before diagnosing.
 
 ### Looking at a window on it
 
-**A WinRM session has no desktop** — `[Environment]::UserInteractive` is `$false`
+**A remote session has no desktop** — `[Environment]::UserInteractive` is `$false`
 there — so `ShowDialog` has no window station to draw on and `PrintWindow`, the
 capture this repository uses on the laptop, returns nothing. That is not a
 reason to leave the console unchecked on the machine the suite actually runs on.
