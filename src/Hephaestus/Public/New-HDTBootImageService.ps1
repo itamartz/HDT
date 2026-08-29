@@ -407,6 +407,23 @@ and the difference is how "the build applied
         $scratchKey = 'HDTBootImageTimeZone'
         $scratchPath = 'HKLM\{0}' -f $scratchKey
 
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        #
+        # ONE LINE COVERS BOTH reg CALLS. The unload in the finally block below
+        # shares this method's scope, and it is the one that most needs this: the
+        # hive it is unloading has just been written to, and reg.exe is chatty on
+        # stderr about a busy hive while still exiting 0. Left as Stop, the first
+        # such line would replace the real failure that brought us into the
+        # finally - and would do it from inside the cleanup, which is the worst
+        # place in this file to lose a message.
+        $ErrorActionPreference = 'Continue'
+
         $loadOutput = @(& "$env:SystemRoot\System32\reg.exe" load $scratchPath $hivePath 2>&1)
 
         # EXIT-CODE CHECK, not a decision.

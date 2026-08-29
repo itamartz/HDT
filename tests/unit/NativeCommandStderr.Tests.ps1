@@ -88,9 +88,10 @@ Describe 'a native command whose stderr is captured' {
     }
 
     It 'found the redirections it is about' {
-        # And a floor here too: the five known ones are dism, oscdimg, bcdboot,
-        # reagentc and bcdedit. Fewer means the parse found nothing and the file
-        # is decoration.
+        # And a floor here too. The tools are dism, oscdimg, reg, takeown,
+        # icacls, bcdboot, reagentc and bcdedit, across three adapters and the
+        # generated bundle. Fewer than the original five means the parse found
+        # nothing and the file is decoration.
         @($script:merge).Count | Should -BeGreaterOrEqual 5
     }
 
@@ -103,6 +104,13 @@ Describe 'a native command whose stderr is captured' {
         @{ File = 'New-HDTImageService.ps1'; Line = 'bcdboot.exe' }
         @{ File = 'New-HDTImageService.ps1'; Line = 'reagentc' }
         @{ File = 'New-HDTImageService.ps1'; Line = 'bcdedit.exe' }
+
+        # SetTimeZoneDaylight's two, added with the WinPE daylight-bias fix and
+        # shipped without the line. They are the reason the row below reports
+        # every offender rather than the first: it named one of these two, the
+        # one in the generated bundle, and stopped.
+        @{ File = 'New-HDTBootImageService.ps1'; Line = 'reg.exe" load' }
+        @{ File = 'New-HDTBootImageService.ps1'; Line = 'reg.exe" unload' }
     ) {
         $wantedFile = $File
         $wantedTool = $Line
@@ -121,11 +129,22 @@ Describe 'a native command whose stderr is captured' {
     }
 
     It 'sets it in every such scope, including ones nobody has added yet' {
-        # The rows above name the five that exist. This one is the rule.
-        foreach ($item in $script:merge) {
-            [string] $item.Scope.Extent.Text |
-                Should -Match "\`$ErrorActionPreference\s*=\s*'Continue'" -Because (
-                "{0}:{1} captures a native command's stderr and must not be killed by it" -f $item.File, $item.Line)
-        }
+        # The rows above name the ones that exist. This one is the rule.
+        #
+        # IT COLLECTS BEFORE IT ASSERTS, AND THAT IS THE POINT OF THE SHAPE. A
+        # `Should` inside the loop throws on the first offender, so the failure
+        # named one site and said nothing about the rest - which is how
+        # SetTimeZoneDaylight's SECOND redirection stayed invisible behind its
+        # first. Every offending site has to appear in one message, or fixing
+        # the one that is named just moves the failure along by a line.
+        $offender = @($script:merge | Where-Object {
+                [string] $_.Scope.Extent.Text -notmatch "\`$ErrorActionPreference\s*=\s*'Continue'"
+            } | ForEach-Object { '{0}:{1}' -f $_.File, $_.Line })
+
+        # The list goes in -Because, not into the compared value: Pester
+        # truncates a string difference at about a hundred characters, which
+        # with four offenders showed two of them and an ellipsis.
+        @($offender).Count | Should -Be 0 -Because (
+            'each of these captures a native command stderr and must not be killed by it: {0}' -f ($offender -join ', '))
     }
 }
