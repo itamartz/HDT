@@ -348,6 +348,7 @@
                 'Show-HDTDeploymentFailure'
                 'Start-HDTCommandPrompt'
                 'Hide-HDTShellWindow'
+                'Set-HDTWindowForeground'
             )
         }
         @{

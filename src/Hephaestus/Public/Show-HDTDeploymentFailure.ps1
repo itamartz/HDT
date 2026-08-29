@@ -123,8 +123,21 @@
     $shown = $false
 
     try {
+        # -Foreground, AND THIS IS THE ONE SCREEN THAT ASKS FOR IT. In the
+        # full-OS leg this window is drawn on a real desktop, under an
+        # autologon, and a deployed machine showed the Windows taskbar and the
+        # Start menu sitting over it - over the only account the person standing
+        # at the machine gets of what it just did.
+        #
+        # NOT Topmost, WHICH IS THE SAME DECISION FROM THE OTHER SIDE. This
+        # window's Open CMD button hands the machine to a command prompt, and a
+        # topmost window outranks the prompt it just launched - HDTFailure.xaml
+        # lost its Topmost attribute over exactly that, and
+        # tests/contract/WinPeWindowReach.Contract.Tests.ps1 keeps it off.
+        # Forcing the foreground once, as the window appears, leaves nothing
+        # raised: the prompt takes the front the moment it opens.
         $result = Show-HDTWizard -XamlPath $XamlPath -Title $Title -Field $field -Pane $pane `
-            -WizardHost $WizardHost -FileSystem $FileSystem
+            -WizardHost $WizardHost -FileSystem $FileSystem -Foreground
 
         $answer = [string] $result.Action
         $shown = $true

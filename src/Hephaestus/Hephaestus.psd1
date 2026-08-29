@@ -145,6 +145,7 @@
         'Get-HDTWorkspacePath',
         'Get-HDTVariableProvenance',
         'Hide-HDTShellWindow',
+        'Set-HDTWindowForeground',
         'Import-HDTApplication',
         'Remove-HDTApplication',
         'Import-HDTBootImageToWds',

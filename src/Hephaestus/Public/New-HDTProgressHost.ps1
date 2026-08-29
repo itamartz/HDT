@@ -72,6 +72,12 @@
             Progress     = $null
             ComputerName = ''
             Closing      = $false
+
+            # THE WINDOW'S HWND, once it has one. A WPF Window is not a window
+            # handle: it gets one only when it is sourced, which is why this is
+            # filled in on ContentRendered and starts as zero. The timer below
+            # reads it to keep the board at the front of the topmost band.
+            Hwnd         = [System.IntPtr]::Zero
         })
 
     $service = [pscustomobject] @{
@@ -100,6 +106,12 @@
         # deployment seconds it does not owe - so F8 below starts a file, and
         # Get-HDTCommandPromptPath decided which file on the engine's side.
         $runspace.SessionStateProxy.SetVariable('HDTCommandPromptPath', $CommandPromptPath)
+
+        # THE SOURCE, FOR THE SAME REASON THE PATH IS A PATH. This runspace has
+        # no module in it, so it cannot call Set-HDTWindowForeground; it gets the
+        # C# handed across and compiles it there. One source of truth rather than
+        # the same P/Invoke block written out twice and drifting.
+        $runspace.SessionStateProxy.SetVariable('HDTForegroundSource', (Get-HDTWindowForegroundSource))
 
         $shell = [powershell]::Create()
         $shell.Runspace = $runspace
@@ -134,6 +146,26 @@
                             $timer.Stop()
                             $window.Close()
                             return
+                        }
+
+                        # BACK TO THE FRONT OF THE TOPMOST BAND, EVERY TICK, and
+                        # BEFORE the early return below - a board with nothing
+                        # to report yet is still a board that must be visible.
+                        #
+                        # Topmost="True" in the markup only puts this window IN
+                        # the topmost band; anything created topmost after it
+                        # lands above. This is the user's own mechanism from
+                        # Show-UpgradeNotice.ps1, and their comment is the
+                        # justification: doing it this often means a window that
+                        # opened above us is in front for one tick and no more.
+                        # SWP_NOACTIVATE, so it takes no focus - and it is Raise
+                        # and never Force, because Force types.
+                        try {
+                            if ($HDTShared['Hwnd'] -ne [System.IntPtr]::Zero) {
+                                [HDT.NativeForeground]::Raise($HDTShared['Hwnd'])
+                            }
+                        } catch {
+                            $HDTShared['ForegroundError'] = [string] $_.Exception.Message
                         }
 
                         $progress = $HDTShared['Progress']
@@ -209,6 +241,65 @@
                             # rather than thrown away, because an empty catch is
                             # how a key that never worked stays a mystery.
                             $HDTShared['CommandPromptError'] = [string] $_.Exception.Message
+                        }
+                    })
+
+                # AND THE BOARD COMES TO THE FRONT AS IT APPEARS.
+                #
+                # THIS WINDOW OUTLIVES WinPE. In WinPE there is no shell to
+                # compete with - cmd.exe is it - but the full-OS leg draws this
+                # board on a real DESKTOP, under an autologon, and a deployed
+                # machine showed the taskbar and the Start menu opening straight
+                # over it. HDTProgress.xaml is Topmost, which handles the
+                # passive case; it does NOT handle a Start menu that is already
+                # open, because the taskbar is topmost too and the two are peers.
+                # This is the other half.
+                #
+                # ONCE, ON ContentRendered, NEVER ON THE TIMER ABOVE. F8 on this
+                # window opens a command prompt, and a board that re-raised
+                # itself every tick would sit on top of it - the exact defect
+                # HDTFailure.xaml lost its Topmost attribute over.
+                #
+                # SWALLOWED, LIKE F8 ABOVE. This runs on the UI thread of a
+                # window the engine cannot see; an exception here would take the
+                # progress display down mid-deployment over a z-order.
+                $window.Add_ContentRendered({
+                        try {
+                            if (-not ([System.Management.Automation.PSTypeName]'HDT.NativeForeground').Type) {
+                                Add-Type -TypeDefinition $HDTForegroundSource
+                            }
+
+                            $HDTShared['Hwnd'] = [System.Windows.Interop.WindowInteropHelper]::new($window).Handle
+
+                            if ($HDTShared['Hwnd'] -ne [System.IntPtr]::Zero) {
+                                # Both halves, in order: get to the front, then
+                                # to the front OF the topmost band.
+                                [HDT.NativeForeground]::Force($HDTShared['Hwnd'], $true)
+                                [HDT.NativeForeground]::Raise($HDTShared['Hwnd'])
+                            }
+                        } catch {
+                            # GRACEFUL, NEVER FATAL. A boot image whose Add-Type
+                            # cannot compile still gets the window - Topmost in
+                            # the markup alone - and a board slightly in the
+                            # wrong place beats no board at all.
+                            $HDTShared['Hwnd'] = [System.IntPtr]::Zero
+                            $HDTShared['ForegroundError'] = [string] $_.Exception.Message
+                        }
+                    })
+
+                # AND IT GOES BACK TO THE FRONT WHEN SOMETHING TAKES IT, which
+                # is the other half of the user's own mechanism
+                # (Show-UpgradeNotice.ps1). SWP_NOACTIVATE, so this steals no
+                # focus and no keystrokes - it only re-orders. Note it does NOT
+                # call Force: that one types, and a board typing an Escape every
+                # time the technician clicked elsewhere would be unusable.
+                $window.Add_Deactivated({
+                        try {
+                            if ($HDTShared['Hwnd'] -ne [System.IntPtr]::Zero) {
+                                [HDT.NativeForeground]::Raise($HDTShared['Hwnd'])
+                            }
+                        } catch {
+                            $HDTShared['ForegroundError'] = [string] $_.Exception.Message
                         }
                     })
 

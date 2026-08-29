@@ -341,7 +341,7 @@
 
     $service | Add-Member -MemberType ScriptMethod -Name Show -Value {
         param([string] $Xaml, [string] $ThemeXaml, [string] $Title, [object[]] $Field, [object[]] $Pane,
-            [scriptblock] $CommandPrompt, [object[]] $Collect, [hashtable] $String)
+            [scriptblock] $CommandPrompt, [object[]] $Collect, [hashtable] $String, [bool] $Foreground)
 
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
@@ -466,6 +466,51 @@
 
                     $_.Handled = $true
                     & $CommandPrompt
+                }.GetNewClosure())
+        }
+
+        # AND IT COMES TO THE FRONT AS IT APPEARS - BUT ONLY WHEN ASKED.
+        #
+        # ASKED, AND NOT ALWAYS, BECAUSE THIS RAISE TYPES. Forcing the
+        # foreground injects a real Escape and a real Alt (see
+        # Get-HDTWindowForegroundSource: without the Alt the request is silently
+        # ignored, and without the Escape an already-open Start menu stays open
+        # over the window). Those keystrokes go to whatever has focus at that
+        # instant, and this same host draws the WinPE wizard - the screens a
+        # technician TYPES a computer name and a credential into. A page that
+        # has nothing to be behind does not need raising and should not be
+        # sending keys, so the caller decides: Show-HDTDeploymentFailure asks
+        # for it, the wizard does not.
+        #
+        # The Deployment Summary is
+        # drawn in the FULL OS, on a desktop, under an autologon - and a
+        # deployed machine showed the taskbar and the Start menu sitting over
+        # it. Topmost is not the fix and is forbidden here: this window's Open
+        # CMD button hands the machine to a command prompt, and a topmost window
+        # outranks the prompt it just launched
+        # (tests/contract/WinPeWindowReach.Contract.Tests.ps1, and the header of
+        # HDTFailure.xaml). Forcing the foreground has neither problem - nothing
+        # stays raised, so the prompt this window opens takes the front the
+        # moment it appears.
+        #
+        # ContentRendered, NOT Loaded: the handle exists only once the window
+        # has been sourced, and Set-HDTWindowForeground reports false rather
+        # than acting on a zero. ONCE, never on a timer.
+        #
+        # -DismissStartMenu because an ALREADY OPEN Start menu is the reported
+        # symptom, and nothing but an Escape closes one.
+        #
+        # SWALLOWED. A window that could not be raised is a window slightly in
+        # the wrong place; an exception here would be no window at all, on the
+        # screen that exists to tell a technician what happened.
+        if ($Foreground) {
+            $window.Add_ContentRendered({
+                    try {
+                        $hwnd = [System.Windows.Interop.WindowInteropHelper]::new($window).Handle
+                        [void] (Set-HDTWindowForeground -Handle $hwnd -DismissStartMenu)
+                    } catch {
+                        Write-Verbose ("the window could not be brought to the front: {0}" -f [string] $_.Exception.Message)
+                    }
                 }.GetNewClosure())
         }
 

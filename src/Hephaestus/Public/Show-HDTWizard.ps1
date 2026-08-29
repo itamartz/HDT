@@ -154,7 +154,15 @@
         [Parameter()]
         [AllowNull()]
         [AllowEmptyCollection()]
-        [object[]] $Collect = @()
+        [object[]] $Collect = @(),
+
+        # BRING IT TO THE FRONT AS IT APPEARS, for a window drawn in the FULL OS
+        # where a taskbar and a Start menu can sit over it. Off by default and
+        # deliberately so: the raise injects an Escape and an Alt (see
+        # Get-HDTWindowForegroundSource), and the WinPE wizard is a screen a
+        # technician types into with nothing to be behind anyway.
+        [Parameter()]
+        [switch] $Foreground
     )
 
     Set-StrictMode -Version Latest
@@ -244,7 +252,8 @@
         @($Pane | Where-Object { $null -ne $_ }),
         $CommandPrompt,
         @($Collect | Where-Object { $null -ne $_ }),
-        $string)
+        $string,
+        [bool] $Foreground)
 
     # THE ALLOW-LIST, AND IT IS THE WHOLE SAFETY PROPERTY. See the header:
     # anything that is not one of these exactly is a Cancel.
