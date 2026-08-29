@@ -478,6 +478,28 @@ try {
 
     $bootstrap = Get-HDTBootstrapConfiguration -Path $BootstrapPath -FileSystem $fileSystem
 
+    # -- 5a. AND THE LEVEL THE SHARE ASKED FOR ------------------------------
+    #
+    # DESIGN 4.4.5 makes LogLevel a setting in workspace.yaml, Update-HDTBootImage
+    # writes it into bootstrap.json, and Get-HDTBootstrapConfiguration has parsed
+    # it since the file existed - and NOTHING HAS EVER READ IT. The context above
+    # is built at Debug and stayed there, so a share that said logLevel: Info got
+    # Debug anyway and the setting meant nothing on either leg.
+    #
+    # SET HERE RATHER THAN AT CONSTRUCTION, because the context is deliberately
+    # built before the first thing that can fail (step 4's comment) and the
+    # bootstrap document is one of the things that can. Debug is the right floor
+    # for those few records: the window this cannot cover is the window where the
+    # log is all there is.
+    #
+    # AND IT IS THIS VALUE THAT REACHES THE SECOND LEG. Invoke-HDTTaskSequence
+    # copies $log.Level into state.json at every checkpoint, which is what
+    # Start-HDTResume.ps1 reads back - the share is not reachable at the moment
+    # the resumed leg needs an answer.
+    $log.Level = [string] $bootstrap.LogLevel
+
+    $result['logLevel'] = [string] $log.Level
+
     $result['provider'] = [string] $bootstrap.Provider
     $result['deployRoot'] = [string] $bootstrap.DeployRoot
 
@@ -1769,8 +1791,11 @@ try {
         -Environment $environment -Disk $diskService -Image $imageService -Content $content `
         -Progress $display.DisplayHost
 
+    # -LogLevel IS WHAT THE SECOND LEG WILL LOG AT. The share is not reachable
+    # when Start-HDTResume.ps1 builds its context, so the level travels in the
+    # document rather than being looked up again.
     $state = New-HDTRunState -SequenceId $sequence.Id -RunId $runId -Phase WinPE `
-        -Clock $clock -Variable $variable -Step $sequence.Step
+        -Clock $clock -Variable $variable -Step $sequence.Step -LogLevel ([string] $log.Level)
 
     $context = New-HDTExecutionContext -RunId $runId -Phase WinPE -WorkspaceRoot $workspaceRoot `
         -Variable $variable -Service $catalog -Log $log -State $state

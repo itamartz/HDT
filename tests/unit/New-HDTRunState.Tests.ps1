@@ -56,6 +56,42 @@ Describe 'New-HDTRunState' {
         $script:state.seq | Should -Be 0
     }
 
+    # BESIDE seq, AND FOR THE SAME REASON. seq is in the document so the log's
+    # numbering survives the reboot; logLevel is there so its VERBOSITY does.
+    # DESIGN 4.4.5 puts LogLevel on the share, and Start-HDTResume.ps1 builds
+    # its log context before the share is reachable - so the document is the
+    # only thing that can answer. Without it a share set to Debug got a WinPE
+    # leg at Debug and a full-OS leg at Info, which is the leg the applications
+    # install on.
+    It 'defaults the level to Info, which is what a context given none logs at' {
+        $script:state.logLevel | Should -BeExactly 'Info'
+
+        $default = @((Get-Command -Name 'New-HDTLogContext').Parameters['Level'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })[0].ValidValues
+
+        $script:state.logLevel | Should -BeIn $default -Because 'a document and a context must mean the same thing by a level'
+    }
+
+    It 'records the level it was given' {
+        $state = New-HDTRunState -SequenceId 'STD-CLIENT' -RunId '8f3c1a90' -Phase WinPE `
+            -Clock $script:clock -Step $script:step -LogLevel 'Debug'
+
+        $state.logLevel | Should -BeExactly 'Debug'
+    }
+
+    # ASSERTED AGAINST THE SET New-HDTLogContext VALIDATES, not against a list
+    # restated here: a level added to the log context and not to the state
+    # document would be a level a run could start at and not resume at.
+    It 'accepts exactly the levels a log context does' {
+        $contextLevel = @(@((Get-Command -Name 'New-HDTLogContext').Parameters['Level'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })[0].ValidValues)
+
+        $stateLevel = @(@((Get-Command -Name 'New-HDTRunState').Parameters['LogLevel'].Attributes |
+                    Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })[0].ValidValues)
+
+        @($stateLevel | Sort-Object) | Should -Be @($contextLevel | Sort-Object)
+    }
+
     It 'stamps startedUtc from the injected clock' {
         $script:state.startedUtc | Should -BeExactly '2026-08-13T00:11:02.4810000Z'
     }

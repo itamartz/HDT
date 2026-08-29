@@ -19,6 +19,18 @@ Describe 'Import-HDTRunState' {
     BeforeEach {
         $script:running = Get-Content -LiteralPath (Join-Path -Path $script:fixtureRoot -ChildPath 'valid-running.json') -Raw
         $script:fs = New-HDTFakeFileSystem -File @{ 'X:\HDT\state.json' = $script:running }
+
+        # The fixture predates logLevel deliberately - it is the "written by an
+        # older engine" case - so a test that needs the key adds it here rather
+        # than the fixture gaining one and stopping being that case.
+        $script:withLevel = {
+            param([string] $Level)
+
+            $document = ConvertFrom-Json -InputObject $script:running
+            $document | Add-Member -MemberType NoteProperty -Name 'logLevel' -Value $Level
+
+            return (ConvertTo-Json -InputObject $document -Depth 8)
+        }
     }
 
     It 'reads through the injected filesystem' {
@@ -50,6 +62,39 @@ Describe 'Import-HDTRunState' {
         $state = Import-HDTRunState -Path 'X:\HDT\state.json' -FileSystem $script:fs
 
         $state.seq | Should -Be 417
+    }
+
+    # THE LEVEL IS PART OF WHAT A RESUME IS MADE OF, exactly as seq is.
+    # Start-HDTResume.ps1 builds its log context from this document, before the
+    # share is reachable - so a document with no answer here is a leg that logs
+    # at Info whatever the share asked for. Measured on run-20260829-211758:
+    # 54 Debug records in WinPE, none in the full OS.
+    It 'returns the level the run started at' {
+        $state = Import-HDTRunState -Path 'X:\HDT\state.json' `
+            -FileSystem (New-HDTFakeFileSystem -File @{ 'X:\HDT\state.json' = (& $script:withLevel 'Debug') })
+
+        $state.logLevel | Should -BeExactly 'Debug'
+    }
+
+    # THE TWO VALIDATORS MUST AGREE, and schemas/state.schema.json makes
+    # logLevel an enum. A level nothing can log at is a document written by
+    # something that did not understand the field, and reading it would silence
+    # or flood a deployment on the strength of a typo.
+    It 'throws for a level nothing logs at' {
+        { Import-HDTRunState -Path 'X:\HDT\state.json' `
+                -FileSystem (New-HDTFakeFileSystem -File @{ 'X:\HDT\state.json' = (& $script:withLevel 'Chatty') }) } |
+            Should -Throw -ExpectedMessage '*Chatty*'
+    }
+
+    # A DOCUMENT WITHOUT THE KEY IS A RUN IN FLIGHT, not a bad document: the
+    # engine that wrote it predates the key, and refusing it would strand a
+    # machine mid-deployment over a log setting. Answered here, once, so no
+    # caller has to ask whether the property exists - which under
+    # Set-StrictMode -Version Latest is not a null but a throw.
+    It 'gives a document written before logLevel existed the default level' {
+        $state = Import-HDTRunState -Path 'X:\HDT\state.json' -FileSystem $script:fs
+
+        $state.logLevel | Should -BeExactly 'Info'
     }
 
     It 'rehydrates variable as an ordered dictionary' {

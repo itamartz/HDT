@@ -402,6 +402,33 @@ Describe 'Start-HDTResume.ps1' {
             }
         }
 
+        # THE LEVEL SURVIVES THE REBOOT, EXACTLY AS seq DOES, and this is
+        # asserted over the SET of contexts for the same reason: neither call
+        # here passed -Level at all, so both took New-HDTLogContext's Info
+        # default and a run started at Debug went silent the moment it rebooted.
+        # Measured on run-20260829-211758: (WinPE, Debug) 54, (FullOS, Debug) 0.
+        # A third context added later inherits this assertion.
+        It 'gives every log context the level the run started at' {
+            $context = @(& $script:commandNamed 'New-HDTLogContext')
+
+            $context.Count | Should -Be 2
+
+            foreach ($call in $context) {
+                @($call.CommandElements | ForEach-Object { $_.Extent.Text }) |
+                    Should -Contain '-Level' -Because 'a leg that cannot read the run''s level logs at Info whatever the share asked for'
+            }
+        }
+
+        # THE STATE DOCUMENT, NOT THE SHARE. This leg has not opened the share
+        # when it needs an answer - it may never open it - so the level travels
+        # in the file that already spans the reboot. It is also the deliberate
+        # precedence: a run started at Debug stays at Debug even if
+        # workspace.yaml has been edited since, because one deployment's log is
+        # one document and must read at one verbosity end to end.
+        It 'takes the run log''s level from the state document' {
+            $script:text | Should -BeLike '*$state.logLevel*'
+        }
+
         It 'continues the run log from the boot log rather than from the state' {
             # The boot log has already consumed a number by the time the run log
             # is built, so seeding the run log from $state.seq would reissue it.

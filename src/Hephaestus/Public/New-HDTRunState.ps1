@@ -19,6 +19,8 @@ This builds it, in memory. It has NO -FileSystem
               leg            1-based, incremented on every resume
               seq            the last JSONL seq written - how the
                              monotonic counter survives a reboot
+              logLevel       the verbosity the run started at - how the
+                             LEVEL survives the same reboot
               startedUtc     formatted string
               updatedUtc     formatted string
               stepIndex      the 1-based index of the NEXT step to run
@@ -62,6 +64,15 @@ This builds it, in memory. It has NO -FileSystem
             writes dictionaries, and a state document must not care which -
             and GroupPath is read in preference to Group, because GroupPath is
             what the flattener actually emits.
+
+        .PARAMETER LogLevel
+            The verbosity the run started at, so the resumed leg can log at the
+            same one. DESIGN 4.4.5 makes LogLevel a property of the SHARE, and
+            the share is not reachable at the moment the resumed leg builds its
+            log context - the state document is, and it is already the thing
+            that spans the reboot. Defaults to Info, which is New-HDTLogContext's
+            own default: a document that names no level and a context that was
+            given none must mean the same thing.
 
         .PARAMETER PauseOnError
             The LTISuspend equivalent: on failure, drop to a PowerShell
@@ -116,6 +127,13 @@ This builds it, in memory. It has NO -FileSystem
         [Parameter()]
         [AllowNull()]
         [object[]] $Step,
+
+        # The same set New-HDTLogContext validates, and the same default. Stated
+        # rather than inherited because a state document is read by an engine
+        # that may be newer than the one that wrote it.
+        [Parameter()]
+        [ValidateSet('Error', 'Warning', 'Info', 'Debug')]
+        [string] $LogLevel = 'Info',
 
         [Parameter()]
         [switch] $PauseOnError
@@ -207,6 +225,13 @@ This builds it, in memory. It has NO -FileSystem
             phase              = $Phase
             leg                = 1
             seq                = [long] 0
+
+            # BESIDE seq, AND FOR THE SAME REASON. seq is here so the log's
+            # NUMBERING survives the reboot; this is here so its VERBOSITY does.
+            # Without it a share that set logLevel: Debug got a WinPE leg at
+            # Debug and a full-OS leg at Info - which is the leg the
+            # applications install on.
+            logLevel           = $LogLevel
             startedUtc         = $stamp
             updatedUtc         = $stamp
             stepIndex          = 1

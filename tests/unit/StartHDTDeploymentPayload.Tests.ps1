@@ -483,6 +483,28 @@ Describe 'Start-HDTDeployment.ps1' {
             @(& $script:commandNamed 'Get-HDTBootstrapConfiguration').Count | Should -Be 1
         }
 
+        # DESIGN 4.4.5 PUTS LogLevel IN workspace.yaml, Update-HDTBootImage writes
+        # it into bootstrap.json and Get-HDTBootstrapConfiguration has parsed it
+        # since the file existed - AND NOTHING READ IT. The context was built at
+        # a hard-coded Debug and stayed there, so logLevel: Info was ignored on
+        # this leg, and the value that should have travelled into state.json for
+        # the resumed leg was a constant rather than the share's answer.
+        It 'logs at the level the share asked for' {
+            $script:text | Should -BeLike '*$log.Level = *$bootstrap.LogLevel*'
+        }
+
+        # The floor for the handful of records written before the bootstrap
+        # document has been read - which is the window where the log is all
+        # there is, and the one thing that cannot be raised after the fact.
+        It 'builds that context at Debug first, because the read itself can fail' {
+            $context = @(& $script:commandNamed 'New-HDTLogContext')
+
+            $context.Count | Should -Be 1
+
+            @($context[0].CommandElements | ForEach-Object { $_.Extent.Text }) |
+                Should -Contain '-Level'
+        }
+
         It 'gathers facts exactly once' {
             @(& $script:commandNamed 'Get-HDTMachineFact').Count | Should -Be 1
         }

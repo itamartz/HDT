@@ -62,6 +62,15 @@
       "type": "integer",
       "minimum": 0
     },
+    "logLevel": {
+      "description": "DESIGN 4.4.5's verbosity, as the run started at it. This is how the LEVEL survives a reboot, exactly as seq is how the numbering does: the resumed leg builds its log context before the share is reachable, so the level cannot be re-read from workspace.yaml there. Optional, and absent means Info, because a document written by an engine that predates the key is still a document a resume must be able to read.",
+      "enum": [
+        "Error",
+        "Warning",
+        "Info",
+        "Debug"
+      ]
+    },
     "startedUtc": {
       "description": "ISO 8601 round-trip format, as a STRING. A raw datetime serialises as \\/Date(...)\\/ under Windows PowerShell 5.1, which is the engine that writes this file in WinPE.",
       "type": "string",

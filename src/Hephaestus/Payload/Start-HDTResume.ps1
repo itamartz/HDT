@@ -190,20 +190,53 @@ $fileSystem.CreateDirectory($logRoot)
 # READ-ONLY AND BEST-EFFORT, so it is not the reconcile happening early: nothing
 # is decided or acted on here. A missing or corrupt document is the case the
 # reconcile is about to disarm, and a restarted counter is the least of it.
+#
+# THE LEVEL COMES OUT OF THE SAME READ, AND IT IS NOT A CONVENIENCE. DESIGN
+# 4.4.5 makes LogLevel a setting on the SHARE, and this leg has not opened the
+# share yet - it is opened a hundred lines below, and may not open at all. So a
+# level re-read from workspace.yaml here is a level that is not available.
+# Measured on run-20260829-211758: the WinPE leg wrote 54 Debug records and this
+# leg wrote none, because both contexts here took New-HDTLogContext's Info
+# default. The full-OS leg is the one the applications install on.
+#
+# THE RUN'S LEVEL WINS OVER THE SHARE'S, DELIBERATELY. If workspace.yaml has
+# been edited to Info since this run started at Debug, this leg still logs at
+# Debug: one deployment's log is one document and must be readable end to end at
+# a single verbosity, and an administrator who raised the level to diagnose a
+# machine expects it raised for the reboot that machine is about to do. The
+# share's value is what STARTS a run, not what a run in flight answers to.
 $bootSeq = [long] 0
+$bootLevel = 'Info'
 try {
     if ($fileSystem.TestPath($StatePath)) {
-        $bootSeq = [long] (ConvertFrom-Json -InputObject $fileSystem.ReadAllText($StatePath)).seq
+        $onDisk = ConvertFrom-Json -InputObject $fileSystem.ReadAllText($StatePath)
+        $bootSeq = [long] $onDisk.seq
+
+        # Asked before it is read: a state document written before logLevel
+        # existed has no such property, and under Set-StrictMode -Version Latest
+        # reading one is a terminating error rather than a null.
+        #
+        # AND CHECKED AGAINST THE SET, because New-HDTLogContext validates -Level
+        # and this read runs BEFORE the reconcile - the one thing that must
+        # happen on this boot. A document with a nonsense level is the corrupt
+        # case the reconcile is about to disarm, and it must not take the
+        # reconcile down on its way there.
+        if ($null -ne $onDisk.PSObject.Properties['logLevel'] -and
+            @('Error', 'Warning', 'Info', 'Debug') -contains [string] $onDisk.logLevel) {
+
+            $bootLevel = [string] $onDisk.logLevel
+        }
     }
 } catch {
     $bootSeq = [long] 0
+    $bootLevel = 'Info'
 }
 
 # A bootstrap log context, so the reconcile's own decision is recorded even when
 # it turns out there is no run to resume. Its run id is replaced below by the one
 # from the state document when there is one.
 $bootLog = New-HDTLogContext -RunId 'boot' -Phase FullOS -LogPath $logRoot `
-    -FileSystem $fileSystem -Clock $clock -Seq $bootSeq
+    -FileSystem $fileSystem -Clock $clock -Seq $bootSeq -Level $bootLevel
 
 # BEFORE ANYTHING ELSE (DESIGN 4.5.2).
 $decision = Invoke-HDTBootReconciliation -StatePath $StatePath -FileSystem $fileSystem `
@@ -452,8 +485,14 @@ try {
     # the last one. Not $state.seq: the boot context above has already consumed a
     # number for the reboot.resume record, and seeding from the state here would
     # reissue it.
+    #
+    # AND THE LEVEL COMES FROM THE STATE, NOT FROM THIS PROCESS. Import-HDTRunState
+    # gives every document it returns a logLevel, so this reads it rather than
+    # asking whether it is there - the reconcile above handed back an imported
+    # document.
     $log = New-HDTLogContext -RunId ([string] $state.runId) -Phase FullOS -LogPath $logRoot `
-        -FileSystem $fileSystem -Clock $clock -Seq ([long] $bootLog.Seq)
+        -FileSystem $fileSystem -Clock $clock -Seq ([long] $bootLog.Seq) `
+        -Level ([string] $state.logLevel)
 
     # AND THE TAIL WRITES THROUGH THE RUN'S CONTEXT FROM HERE ON, so a summary
     # or a cleanup line lands in the run's log rather than the boot log.

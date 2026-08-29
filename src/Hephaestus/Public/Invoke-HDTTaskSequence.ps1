@@ -304,7 +304,8 @@
     $state = $State
     if ($null -eq $state) {
         $state = New-HDTRunState -SequenceId ([string] $Sequence.Id) -RunId ([string] $Context.RunId) `
-            -Phase ([string] $Context.Phase) -Clock $clock -Variable $Context.Variable -Step $stepList
+            -Phase ([string] $Context.Phase) -Clock $clock -Variable $Context.Variable -Step $stepList `
+            -LogLevel ([string] $log.Level)
     }
 
     $Context.State = $state
@@ -332,6 +333,25 @@
         }
 
         $state.seq = [long] $log.Seq
+
+        # AND THE LEVEL GOES WITH IT, for the reason the line above exists: the
+        # next leg builds its log context from this document, before the share
+        # is reachable and before anything could re-read workspace.yaml. A leg
+        # that could not find the level defaulted to Info, so a run started at
+        # Debug went silent at the reboot - and the full-OS leg is where the
+        # applications install.
+        #
+        # THE STATE PASSED IN IS COVERED TOO, WHICH IS WHY IT IS HERE RATHER
+        # THAN ONLY AT New-HDTRunState ABOVE: Start-HDTDeployment.ps1 builds the
+        # document itself and hands it over, so a level set only at construction
+        # would be right in a test and wrong on every real deployment. Older
+        # documents grow the property rather than throwing on the assignment -
+        # a PSCustomObject does not add one when assigned to.
+        if (@($state.PSObject.Properties | ForEach-Object { $_.Name }) -notcontains 'logLevel') {
+            $state | Add-Member -MemberType NoteProperty -Name 'logLevel' -Value ([string] $log.Level)
+        } else {
+            $state.logLevel = [string] $log.Level
+        }
 
         Save-HDTRunState -State $state @saveArgument
     }

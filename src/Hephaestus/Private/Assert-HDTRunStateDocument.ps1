@@ -28,6 +28,10 @@ function Assert-HDTRunStateDocument {
               stamps    startedUtc and updatedUtc present, and STRINGS - a raw
                         datetime here would mean somebody serialised one, which
                         renders as \/Date(...)\/ under 5.1
+              logLevel  OPTIONAL, and one of Error/Warning/Info/Debug when it is
+                        there. Optional because a document written before the
+                        key existed is a run in flight, and refusing it would
+                        strand a machine mid-deployment over a log setting
               variable  present and an object
               step      present and a list; every step has an integer index >= 1,
                         a non-empty name and type, a status in the set, an
@@ -185,6 +189,22 @@ function Assert-HDTRunStateDocument {
         if (-not (& $isInteger $value) -or ([long] $value -lt $minimum[$name])) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                         -Message ("{0} must be an integer of at least {1}, but it is '{2}'." -f $name, $minimum[$name], $value)))
+        }
+    }
+
+    # -- logLevel -------------------------------------------------------------
+    #
+    # PRESENT-OR-ABSENT, NOT REQUIRED, and schemas/state.schema.json says the
+    # same: the two validators must agree on every document, and a document
+    # written before this key existed belongs to a run that is still going.
+    # Import-HDTRunState is what turns the absence into Info, so nothing
+    # downstream has to ask twice.
+    if (& $hasProperty $Document 'logLevel') {
+        $allowedLevel = @('Error', 'Warning', 'Info', 'Debug')
+
+        if ($allowedLevel -notcontains [string] $Document.logLevel) {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                        -Message ("logLevel is '{0}', which is not one of {1}." -f $Document.logLevel, ($allowedLevel -join ', '))))
         }
     }
 

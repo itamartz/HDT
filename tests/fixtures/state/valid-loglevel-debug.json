@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "runId": "8f3c1a90-0000-4000-8000-000000000001",
+  "sequenceId": "STD-CLIENT",
+  "status": "Running",
+  "phase": "WinPE",
+  "leg": 2,
+  "seq": 417,
+  "logLevel": "Debug",
+  "startedUtc": "2026-08-13T00:00:00.0000000Z",
+  "updatedUtc": "2026-08-13T00:11:02.4810000Z",
+  "stepIndex": 2,
+  "pauseOnError": false,
+  "variable": {
+    "HDTTaskSequenceID": "STD-CLIENT",
+    "HDTComputerName": "PC-FIXTURE-0001",
+    "HDTDriverGroup": "Latitude 7450"
+  },
+  "step": [
+    {
+      "index": 1,
+      "name": "Validate",
+      "type": "Validate",
+      "group": [
+        "Preinstall"
+      ],
+      "status": "Completed",
+      "attempt": 1,
+      "resumable": false,
+      "startedUtc": "2026-08-13T00:00:01.0000000Z",
+      "endedUtc": "2026-08-13T00:00:02.2000000Z",
+      "durationMs": 1200,
+      "exitCode": 0,
+      "message": null
+    },
+    {
+      "index": 2,
+      "name": "Restart",
+      "type": "Restart",
+      "group": [
+        "Preinstall"
+      ],
+      "status": "Running",
+      "attempt": 1,
+      "resumable": true,
+      "startedUtc": "2026-08-13T00:11:00.0000000Z",
+      "endedUtc": null,
+      "durationMs": null,
+      "exitCode": null,
+      "message": "Reboot pending"
+    },
+    {
+      "index": 3,
+      "name": "Apply OS",
+      "type": "ApplyImage",
+      "group": [
+        "Install"
+      ],
+      "status": "Pending",
+      "attempt": 0,
+      "resumable": false,
+      "startedUtc": null,
+      "endedUtc": null,
+      "durationMs": null,
+      "exitCode": null,
+      "message": null
+    }
+  ],
+  "autoLogon": {
+    "armed": true,
+    "userName": "Administrator",
+    "domainName": "PC-FIXTURE-0001",
+    "countSet": 2,
+    "secretName": "DefaultPassword",
+    "runOnceName": "HDTResume"
+  },
+  "deploymentPassword": "FIXTURE-ONLY-NOT-A-REAL-SECRET"
+}

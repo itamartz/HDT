@@ -142,13 +142,30 @@ BeforeAll {
 
         # The boot log continues the JSONL numbering rather than restarting it:
         # the reconcile's own reboot.resume record is part of the same stream.
+        #
+        # AND IT TAKES THE LEVEL FROM THE DOCUMENT TOO, which is the whole
+        # reason this block reads the file twice over rather than being handed
+        # two numbers. THIS HARNESS USED TO PASS -Level Debug ON EVERY LEG, so
+        # the benchmark proved the resumed leg logged at Debug while the payload
+        # it stands in for passed no -Level at all and defaulted to Info: on
+        # run-20260829-211758 the WinPE leg wrote 54 Debug records and the
+        # full-OS leg wrote none. A harness that supplies what production does
+        # not is not a fake of production.
         $bootSeq = [long] 0
+        $bootLevel = 'Info'
         if ($script:fs.TestPath($StatePath)) {
-            $bootSeq = [long] (ConvertFrom-Json -InputObject $script:fs.ReadAllText($StatePath)).seq
+            $onDisk = ConvertFrom-Json -InputObject $script:fs.ReadAllText($StatePath)
+            $bootSeq = [long] $onDisk.seq
+
+            if ($null -ne $onDisk.PSObject.Properties['logLevel'] -and
+                -not [string]::IsNullOrWhiteSpace([string] $onDisk.logLevel)) {
+
+                $bootLevel = [string] $onDisk.logLevel
+            }
         }
 
         $bootLog = New-HDTLogContext -RunId 'boot' -Phase 'FullOS' -LogPath $LogPath `
-            -FileSystem $script:fs -Clock $script:clock -Level Debug -Seq $bootSeq -ThreadId 1
+            -FileSystem $script:fs -Clock $script:clock -Level $bootLevel -Seq $bootSeq -ThreadId 1
 
         $decision = Invoke-HDTBootReconciliation -StatePath $StatePath -FileSystem $script:fs `
             -Registry $script:registry -Lsa $script:lsa -Clock $script:clock -LogContext $bootLog
@@ -162,8 +179,12 @@ BeforeAll {
             $live[[string] $name] = $state.variable[$name]
         }
 
+        # THE RUN'S LEVEL, NOT THIS PROCESS'S. Import-HDTRunState gives every
+        # imported document a logLevel, so this reads it rather than asking
+        # whether it is there.
         $log = New-HDTLogContext -RunId ([string] $state.runId) -Phase 'FullOS' -LogPath $LogPath `
-            -FileSystem $script:fs -Clock $script:clock -Level Debug -Seq ([long] $bootLog.Seq) -ThreadId 1
+            -FileSystem $script:fs -Clock $script:clock -Level ([string] $state.logLevel) `
+            -Seq ([long] $bootLog.Seq) -ThreadId 1
 
         $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase 'FullOS' `
             -WorkspaceRoot $script:workspaceRoot -Variable $live -Service $script:catalog -Log $log -State $state
@@ -499,6 +520,42 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
             $seq = @($script:record | ForEach-Object { [long] $_.seq })
 
             @($seq | Select-Object -Unique).Count | Should -Be $seq.Count
+        }
+
+        # THE LEVEL THE RUN STARTED AT SURVIVES THE REBOOT.
+        #
+        # Measured on run-20260829-211758: (WinPE, Debug) 54, (FullOS, Debug) 0.
+        # The level was read from the boot image's bootstrap.json and lived in
+        # the WinPE process; nothing wrote it into state.json and nothing was
+        # staged with the resume agent, so a share that said logLevel: Debug got
+        # a deaf second leg - the leg the application installs, and every
+        # diagnostic record they emit, actually run on.
+        #
+        # ASSERTED PER LEG, NOT OVER THE FILE. A count over the whole JSONL
+        # passes on leg 1's records alone, which is exactly what the defect
+        # looked like.
+        # NAMED ON native.exec BECAUSE THAT IS THE RECORD THE DEFECT COST. The
+        # command line a step actually ran is written at Debug, the installer in
+        # this sequence runs on leg 2, and an application install is a full-OS
+        # step by definition - so the leg that could not log at Debug was the
+        # only leg that had anything to say at Debug.
+        It 'logs at the run''s level on the resumed leg, not just the one that started it' {
+            $debug = @($script:record |
+                    Where-Object { [string] $_.phase -eq 'FullOS' -and [string] $_.level -eq 'Debug' })
+
+            $debug.Count | Should -BeGreaterThan 0 -Because 'the run started at Debug and the reboot must not lower it'
+
+            @($debug | Where-Object { [string] $_.event -eq 'native.exec' }).Count |
+                Should -BeGreaterThan 0 -Because 'the command line a full-OS step ran is a Debug record'
+        }
+
+        It 'carries the level into the resumed legs'' own contexts' {
+            $script:leg2.Log.Level | Should -BeExactly 'Debug'
+            $script:leg3.Log.Level | Should -BeExactly 'Debug'
+        }
+
+        It 'records the level in the state document, which is what spans the reboot' {
+            $script:finalState.logLevel | Should -BeExactly 'Debug'
         }
 
         It 'logs run.start once per leg and run.end once per leg' {

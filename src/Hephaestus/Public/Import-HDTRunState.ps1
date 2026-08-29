@@ -105,6 +105,22 @@
     $document.leg = [int] $document.leg
     $document.seq = [long] $document.seq
 
+    # THE ABSENCE IS ANSWERED HERE, ONCE, so no caller has to ask whether the
+    # key is there. logLevel is optional in both validators - a document written
+    # by an engine that predates it belongs to a run that is still going, and
+    # refusing it would strand a machine mid-deployment over a log setting - so
+    # this is the one place that turns "the document said nothing" into Info,
+    # which is New-HDTLogContext's own default.
+    #
+    # Add-Member, NOT ASSIGNMENT: a PSCustomObject does not grow a property when
+    # one is assigned to it, so $document.logLevel = 'Info' throws on exactly the
+    # documents this exists for.
+    if (@($document.PSObject.Properties | ForEach-Object { $_.Name }) -notcontains 'logLevel') {
+        $document | Add-Member -MemberType NoteProperty -Name 'logLevel' -Value 'Info'
+    } elseif ([string]::IsNullOrWhiteSpace([string] $document.logLevel)) {
+        $document.logLevel = 'Info'
+    }
+
     # ConvertFrom-Json under pwsh 7 rehydrates an ISO 8601 string into a
     # [datetime]; under Windows PowerShell 5.1 it leaves the string alone. The
     # engine writes state.json under 5.1 in WinPE and reads it under whichever
