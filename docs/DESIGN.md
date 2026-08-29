@@ -517,10 +517,41 @@ tries to assign one is a validation error, not a silent override. The full set:
 | WinPE, after the target volume is formatted | `<target>\HDT\Logs` (mirrored, so the WinPE→OS transition keeps history) |
 | Full OS | `C:\HDT\Logs` |
 | On phase end and on failure | copied to `<share>\Logs\<ComputerName>-<RunId>\` |
+| While the run happens | mirrored line by line to `<HDTSLShareDynamicLogging>\<RunId>\` |
 
 Copy-back happens **on failure too** — a deployment that dies is exactly when
 the logs matter, and MDT's habit of stranding them on a wiped machine is a real
 operational problem.
+
+**The live mirror rolls per run, and the run folder is what makes it one file
+across the reboot.** `HDTSLShareDynamicLogging` is MDT's `SLShareDynamicLogging`
+and resolves to a folder per *machine* — the shipped rule is
+`\\<host>\<share>\Logs\%HDTComputerName%`. Every mirrored line is an append and
+nothing rolls or truncates, so a single `HDT.log` there accumulated every
+deployment that machine had ever had: the real one in this lab held 206 CRLF and
+253 bare LF, a pre-CRLF-fix run and a post-fix one in one file, and CMTrace
+could parse neither half cleanly.
+
+So `New-HDTLogContext`'s `SetDynamicPath` composes a folder named for the run
+underneath whatever the rule resolved, giving
+`Logs\LT-7FJ45S2\run-20260829-151848\HDT.log`. **Roll, never truncate** —
+truncating destroys the previous run's evidence at exactly the moment somebody
+re-runs *because* the last one failed — and never size-based, because capping
+splits one deployment across two files and a deployment is the unit anybody
+reads.
+
+**It is keyed on the run id, which is the one thing that survives the restart.**
+`Start-HDTDeployment` mints it, `state.json` carries it over, and
+`Start-HDTResume` builds its own log context with `$state.runId` — so both legs
+compose the identical path and append to one file. Keyed on anything the reboot
+changes — the phase, the log root, the clock — it would produce two half-logs
+and look like it worked. Neither payload composes the folder; they hand the
+resolved rule value to `SetDynamicPath` and prepare `$log.DynamicPath`, so there
+is one place that knows the shape and no second one to keep in step.
+
+Rolling turns one unbounded file into one small folder per re-image, and nothing
+prunes them. That is deliberate: a deletion policy that ran on a share is a
+deletion policy that can lose the log somebody was about to read.
 
 **The relocation is a mirror, the loop owns it, and it never fails a run.**
 `Set-HDTLogPath` copies everything already written — `HDT.log`, `HDT.jsonl`,

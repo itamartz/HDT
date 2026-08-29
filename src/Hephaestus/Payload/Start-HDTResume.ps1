@@ -493,12 +493,30 @@ try {
 
     if (-not [string]::IsNullOrWhiteSpace($dynamicLogPath)) {
         try {
-            $fileSystem.CreateDirectory($dynamicLogPath)
+            # THE SAME TWO LINES THE WinPE LEG RUNS, IN THE SAME ORDER, AND
+            # THAT IS THE POINT. SetDynamicPath puts a folder named for the RUN
+            # under whatever the rule resolved, composed from the context's
+            # RunId - and this leg's context was built above with
+            # $state.runId, the id leg 1 minted and state.json carried across
+            # the restart. So both legs compose the identical path and append to
+            # ONE file, which is what a run that spans a reboot has to produce.
+            # Two half-logs would be a worse answer than the unbounded file this
+            # replaced.
+            #
+            # NEITHER LEG KNOWS THE SHAPE. If this file composed the folder
+            # itself it would have to be kept in step with the WinPE payload by
+            # somebody remembering to, which is the class of defect that put
+            # 253 WinPE records and no full-OS ones on the share.
             $log.SetDynamicPath($dynamicLogPath)
+            $fileSystem.CreateDirectory($log.DynamicPath)
 
             Write-HDTLog -Context $log -Component 'Resume' `
-                -Message ("logging live to '{0}' as well as this machine" -f $dynamicLogPath)
+                -Message ("logging live to '{0}' as well as this machine" -f $log.DynamicPath)
         } catch {
+            # Armed before the probe ran, so a share that cannot be reached
+            # turns it back off - see the WinPE payload's note.
+            $log.SetDynamicPath('')
+
             # NEVER FATAL, the same rule the WinPE leg runs under. A share that
             # cannot be written to is a reason to stop mirroring, not a reason to
             # stop a deployment that has already installed the operating system.

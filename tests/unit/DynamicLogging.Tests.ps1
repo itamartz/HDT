@@ -47,7 +47,18 @@ BeforeAll {
         }
     }
 
+    # WHAT THE RULE RESOLVES TO, which is a folder per MACHINE - and what is
+    # HANDED to SetDynamicPath.
     $script:share = '\\192.0.2.108\HDTShare\Logs\LT-7FJ45S2'
+
+    # AND WHERE THE LINES ACTUALLY LAND, which is a folder per RUN inside it.
+    # The two were the same string until one file per machine was found to be
+    # holding every deployment that machine had ever had, mixing a pre-CRLF-fix
+    # run into a post-fix one so CMTrace could parse neither.
+    # DynamicLogRunFolder.Tests.ps1 is the suite that owns that rule; this one
+    # asserts through it so a mirror that stopped rolling fails there and not
+    # in fifteen unrelated places here.
+    $script:runFolder = '{0}\run-20260828-090000' -f $script:share
 }
 
 Describe 'Dynamic logging to the share' {
@@ -57,8 +68,8 @@ Describe 'Dynamic logging to the share' {
         It 'carries a mirrored jsonl and master log when a dynamic path is given' {
             $made = & $script:newContext $script:share
 
-            $made.Context.DynamicJsonlPath | Should -BeExactly ('{0}\HDT.jsonl' -f $script:share)
-            $made.Context.DynamicMasterLogPath | Should -BeExactly ('{0}\HDT.log' -f $script:share)
+            $made.Context.DynamicJsonlPath | Should -BeExactly ('{0}\HDT.jsonl' -f $script:runFolder)
+            $made.Context.DynamicMasterLogPath | Should -BeExactly ('{0}\HDT.log' -f $script:runFolder)
         }
 
         It 'carries nothing when no dynamic path is given' {
@@ -73,7 +84,7 @@ Describe 'Dynamic logging to the share' {
         It 'tolerates a trailing separator the way the local path does' {
             $made = & $script:newContext ($script:share + '\')
 
-            $made.Context.DynamicJsonlPath | Should -BeExactly ('{0}\HDT.jsonl' -f $script:share)
+            $made.Context.DynamicJsonlPath | Should -BeExactly ('{0}\HDT.jsonl' -f $script:runFolder)
         }
     }
 
@@ -93,7 +104,7 @@ Describe 'Dynamic logging to the share' {
             $made.Context.SetDynamicPath($script:share)
             Write-HDTLog -Context $made.Context -Message 'after the share was known'
 
-            $mirrored = [string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:share))
+            $mirrored = [string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:runFolder))
 
             $mirrored | Should -Match 'after the share was known'
             $mirrored | Should -Not -Match 'before the share was known' -Because 'a mirror cannot carry what was written before it existed'
@@ -128,7 +139,7 @@ Describe 'Dynamic logging to the share' {
             $made.Context.SetDynamicPath($script:share)
 
             [string] $made.Context.DynamicStepLogPath |
-                Should -BeExactly ('{0}\Steps\003-Format.log' -f $script:share)
+                Should -BeExactly ('{0}\Steps\003-Format.log' -f $script:runFolder)
         }
     }
 
@@ -140,7 +151,7 @@ Describe 'Dynamic logging to the share' {
             Write-HDTLog -Context $made.Context -Message 'partitioning disk 0' -Event 'step.start'
 
             [string] $made.FileSystem.ReadAllText('X:\HDT\Logs\HDT.jsonl') | Should -Match 'partitioning disk 0'
-            [string] $made.FileSystem.ReadAllText(('{0}\HDT.jsonl' -f $script:share)) | Should -Match 'partitioning disk 0'
+            [string] $made.FileSystem.ReadAllText(('{0}\HDT.jsonl' -f $script:runFolder)) | Should -Match 'partitioning disk 0'
         }
 
         It 'appends the CMTrace line to the share as well as locally' {
@@ -148,7 +159,7 @@ Describe 'Dynamic logging to the share' {
 
             Write-HDTLog -Context $made.Context -Message 'partitioning disk 0'
 
-            [string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:share)) | Should -Match 'partitioning disk 0'
+            [string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:runFolder)) | Should -Match 'partitioning disk 0'
         }
 
         It 'writes the same line to both, not a different one' {
@@ -159,7 +170,7 @@ Describe 'Dynamic logging to the share' {
             Write-HDTLog -Context $made.Context -Message 'applying image'
 
             [string] $made.FileSystem.ReadAllText('X:\HDT\Logs\HDT.log') |
-                Should -BeExactly ([string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:share)))
+                Should -BeExactly ([string] $made.FileSystem.ReadAllText(('{0}\HDT.log' -f $script:runFolder)))
         }
 
         It 'mirrors the step log too' {
@@ -168,7 +179,7 @@ Describe 'Dynamic logging to the share' {
 
             Write-HDTLog -Context $made.Context -Message 'disk 0 will be cleared'
 
-            [string] $made.FileSystem.ReadAllText(('{0}\Steps\003-Format.log' -f $script:share)) |
+            [string] $made.FileSystem.ReadAllText(('{0}\Steps\003-Format.log' -f $script:runFolder)) |
                 Should -Match 'disk 0 will be cleared'
         }
 
@@ -209,8 +220,8 @@ Describe 'Dynamic logging to the share' {
             # reboots, somebody unplugs it - and none of those is a reason to
             # end a deployment that is otherwise working.
             $made = & $script:newContext $script:share
-            $made.FileSystem.SeedWriteFailure((('{0}\HDT.log' -f $script:share)), 'The network path was not found.')
-            $made.FileSystem.SeedWriteFailure((('{0}\HDT.jsonl' -f $script:share)), 'The network path was not found.')
+            $made.FileSystem.SeedWriteFailure((('{0}\HDT.log' -f $script:runFolder)), 'The network path was not found.')
+            $made.FileSystem.SeedWriteFailure((('{0}\HDT.jsonl' -f $script:runFolder)), 'The network path was not found.')
 
             { Write-HDTLog -Context $made.Context -Message 'applying image' } | Should -Not -Throw
         }
@@ -219,8 +230,8 @@ Describe 'Dynamic logging to the share' {
             # AND THIS IS THE HALF THAT MATTERS. The mirror failing must not
             # cost the copy that would otherwise have been taken at the end.
             $made = & $script:newContext $script:share
-            $made.FileSystem.SeedWriteFailure((('{0}\HDT.log' -f $script:share)), 'The network path was not found.')
-            $made.FileSystem.SeedWriteFailure((('{0}\HDT.jsonl' -f $script:share)), 'The network path was not found.')
+            $made.FileSystem.SeedWriteFailure((('{0}\HDT.log' -f $script:runFolder)), 'The network path was not found.')
+            $made.FileSystem.SeedWriteFailure((('{0}\HDT.jsonl' -f $script:runFolder)), 'The network path was not found.')
 
             Write-HDTLog -Context $made.Context -Message 'applying image'
 
@@ -330,7 +341,15 @@ rules:
 '@
             })
 
+        # WHAT THE RULE RESOLVES TO - the value the payload reads out of
+        # $resolved.Variable and hands on, unchanged.
         $script:expectedPath = '\\192.0.2.108\HDTShare\Logs\LT-7FJ45S2'
+
+        # AND THE FOLDER THE PAYLOAD PREPARES AND MIRRORS INTO, one per run
+        # inside it. The payload composes neither; SetDynamicPath does, from the
+        # context's run id, which is what makes the full-OS leg after the reboot
+        # land in this same folder without a second copy of the shape.
+        $script:expectedRunFolder = '{0}\run-20260828-090000' -f $script:expectedPath
 
         $script:newLogContext = {
             param([object] $FileSystem)
@@ -417,7 +436,7 @@ rules:
         # the journal before the block runs and the name alone proves nothing.
         $run = & $script:runBlock
 
-        & $script:directoryArgument $run.FileSystem | Should -Contain $script:expectedPath
+        & $script:directoryArgument $run.FileSystem | Should -Contain $script:expectedRunFolder
 
         # AND THE VARIABLE THE STATEMENTS LEFT BEHIND, because a property no
         # test reads is how the scope defect above stayed invisible: run them in
@@ -429,8 +448,8 @@ rules:
     It 'turns the mirror on for the log context' {
         $run = & $script:runBlock
 
-        [string] $run.Log.DynamicMasterLogPath | Should -BeExactly ('{0}\HDT.log' -f $script:expectedPath)
-        [string] $run.Log.DynamicJsonlPath | Should -BeExactly ('{0}\HDT.jsonl' -f $script:expectedPath)
+        [string] $run.Log.DynamicMasterLogPath | Should -BeExactly ('{0}\HDT.log' -f $script:expectedRunFolder)
+        [string] $run.Log.DynamicJsonlPath | Should -BeExactly ('{0}\HDT.jsonl' -f $script:expectedRunFolder)
     }
 
     It 'says so without a warning' {

@@ -1,4 +1,4 @@
-﻿function New-HDTLogContext {
+function New-HDTLogContext {
     <#
         .SYNOPSIS
             Builds the log context every Write-HDTLog call is written through.
@@ -19,7 +19,7 @@
 
             Properties: RunId, Phase, LogPath, FileSystem, Clock, Level, Seq,
             StepIndex, StepName, StepType, StepLogPath, Component, ThreadId,
-            JsonlPath, MasterLogPath.
+            ClockNotice, JsonlPath, MasterLogPath.
 
             Methods:
 
@@ -160,18 +160,6 @@
 
     $trimmed = $LogPath.TrimEnd('\', '/')
 
-    # EMPTY IS THE DEFAULT AND WRITES ONE COPY, so every deployment built before
-    # this existed behaves exactly as it did.
-    $trimmedDynamic = ''
-    $dynamicJsonl = ''
-    $dynamicMaster = ''
-
-    if (-not [string]::IsNullOrWhiteSpace($DynamicPath)) {
-        $trimmedDynamic = $DynamicPath.TrimEnd('\', '/')
-        $dynamicJsonl = '{0}\{1}.jsonl' -f $trimmedDynamic, $BaseName
-        $dynamicMaster = '{0}\{1}.log' -f $trimmedDynamic, $BaseName
-    }
-
     $context = [pscustomobject] @{
         RunId         = $RunId
         Phase         = $Phase
@@ -201,6 +189,17 @@
         # answer anybody wanted. The console sets it, because its log is on the
         # share and more than one administrator writes to it.
         User          = $User
+
+        # WHICH LOG FILES HAVE BEEN TOLD ABOUT THE CLOCK, keyed by path. WinPE's
+        # clock is unsynchronised for the whole of the WinPE leg, so the caveat
+        # Write-HDTLog used to suffix to every CMTrace message fired on 93
+        # records out of 93 on a real machine - a column of noise rather than a
+        # marker. It is announced once per file instead, and this is what
+        # remembers that, and what makes a second announcement possible if the
+        # answer ever changes. Keyed by PATH because the share mirror is
+        # resolved after the wizard and starts mid-run: it needs its own notice,
+        # not the local log's.
+        ClockNotice   = @{}
         JsonlPath     = ('{0}\{1}.jsonl' -f $trimmed, $BaseName)
         MasterLogPath = ('{0}\{1}.log' -f $trimmed, $BaseName)
 
@@ -221,9 +220,13 @@
         # Write-HDTLog guards every mirrored append, because a share that has
         # gone away is the case this is most useful in and must never be the
         # thing that ends a deployment.
-        DynamicPath          = $trimmedDynamic
-        DynamicJsonlPath     = $dynamicJsonl
-        DynamicMasterLogPath = $dynamicMaster
+        # EMPTY IS THE DEFAULT AND WRITES ONE COPY, so every deployment built
+        # before this existed behaves exactly as it did. -DynamicPath is applied
+        # below, THROUGH SetDynamicPath, so the parameter and the method are one
+        # composition rather than two that agree until somebody edits one.
+        DynamicPath          = ''
+        DynamicJsonlPath     = ''
+        DynamicMasterLogPath = ''
         DynamicStepLogPath   = $null
 
         # ON THE CONTEXT BECAUSE A ScriptMethod CANNOT SEE THIS FUNCTION'S
@@ -257,6 +260,45 @@
         }
 
         $trimmed = $Path.TrimEnd('\', '/')
+
+        # -- ONE FOLDER PER RUN, UNDER WHATEVER THE RULE RESOLVED --------------
+        #
+        # HDTSLShareDynamicLogging resolves to a per-MACHINE folder - the
+        # shipped rule is Logs\%HDTComputerName% - and every mirrored line went
+        # through AppendAllText with nothing ever rolling it. So ONE file
+        # accumulated every deployment that machine had ever had. The real one
+        # on this lab's share held 206 CRLF and 253 bare LF, because it carried
+        # a run from before the CRLF fix beside a run from after it, and CMTrace
+        # cannot parse the LF-only stretch at all.
+        #
+        # ROLL, NEVER TRUNCATE. Truncating destroys the previous run's evidence
+        # at exactly the moment somebody re-runs BECAUSE the last one failed.
+        # Nor size-based: CCM's .lo_ capping splits one deployment across two
+        # files, and a deployment is the unit anybody reads.
+        #
+        # KEYED ON THE RUN ID, WHICH IS WHAT SURVIVES THE REBOOT. WinPE and the
+        # full OS are two processes, two log roots and two contexts, and they
+        # are ONE run: leg 1 mints the id, state.json carries it across the
+        # restart, and Start-HDTResume builds its context with it. Composing
+        # here, from $this.RunId, is what makes both legs land in one file
+        # without either payload knowing the shape. Key it on anything the
+        # reboot changes - the phase, the log root, the clock - and the fix
+        # produces two half-logs and looks like it worked.
+        #
+        # THE MACHINE FOLDER IS THE ADMINISTRATOR'S AND IS LEFT ALONE. It is
+        # what their rule resolved to; the run folder goes INSIDE it, which
+        # matches Copy-HDTLog naming its end-of-run folders for the run too. The
+        # machine name is not repeated in the leaf because it is already the
+        # parent here, where in Copy-HDTLog's <computer>-<runId> it is not.
+        #
+        # IDEMPOTENT, BECAUSE THE PAYLOAD HANDS THE ANSWER BACK. It creates the
+        # directory it was given - $log.DynamicPath, the composed one - and a
+        # second call with that would otherwise go two runs deep.
+        $lastSegment = $trimmed.Substring($trimmed.LastIndexOfAny([char[]] @('\', '/')) + 1)
+
+        if ($lastSegment -ne [string] $this.RunId) {
+            $trimmed = '{0}\{1}' -f $trimmed, $this.RunId
+        }
 
         # $this.BaseName, NOT $BaseName. See the property's own note: a
         # ScriptMethod cannot see the constructing function's parameters.
@@ -309,6 +351,18 @@
         $this.Seq = $this.Seq + 1
 
         return $this.Seq
+    }
+
+    # -DynamicPath, THROUGH THE METHOD, so there is exactly one place that knows
+    # what a mirror path looks like. The parameter used to compose its own -
+    # trimmed, then BaseName appended - which is a second source of truth that
+    # agrees with SetDynamicPath right up until one of them learns something the
+    # other has not. It learned the run folder; the parameter would not have.
+    #
+    # STILL NO I/O. SetDynamicPath is string work on the context, which is what
+    # lets this be built in WinPE before a disk or a share exists.
+    if (-not [string]::IsNullOrWhiteSpace($DynamicPath)) {
+        $context.SetDynamicPath($DynamicPath)
     }
 
     return $context

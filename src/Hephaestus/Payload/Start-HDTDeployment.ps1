@@ -1192,6 +1192,18 @@ try {
     # renames the machine on the wizard's Computer Details page, the folder
     # keeps the name it had when logging started - which is the name in the
     # records it holds, so the two agree.
+    #
+    # AND A FOLDER PER RUN INSIDE THAT ONE, WHICH SetDynamicPath ADDS. The rule
+    # resolves to a folder per MACHINE, and nothing ever rolled the file inside
+    # it, so one HDT.log accumulated every deployment that machine had ever had
+    # - the real one on this lab's share held a pre-CRLF-fix run beside a
+    # post-fix one and CMTrace could parse neither. The run folder is composed
+    # from the log context's run id, which state.json carries across the reboot,
+    # so the full-OS leg appends to the SAME file rather than starting a second
+    # half-log. Nothing here composes it: a payload that knew the shape would be
+    # a second source of truth the resume leg had to be kept in step with by
+    # hand. What this block prepares - and probes for reachability - is
+    # therefore $log.DynamicPath, the composed answer, not the raw rule value.
     $dynamicLogPath = ''
     if ($resolved.Variable.Contains('HDTSLShareDynamicLogging')) {
         $dynamicLogPath = [string] $resolved.Variable['HDTSLShareDynamicLogging']
@@ -1223,11 +1235,15 @@ try {
             # even in the world where the name resolved. tests/contract/
             # PayloadExportedCommand.Contract.Tests.ps1 now refuses the whole
             # class of it across every file in Payload\.
-            $fileSystem.CreateDirectory($dynamicLogPath)
+            # Armed first, then the composed folder is prepared. See the run
+            # folder note above.
             $log.SetDynamicPath($dynamicLogPath)
+            $fileSystem.CreateDirectory($log.DynamicPath)
 
-            & $say ("logging live to '{0}' as well as this machine" -f $dynamicLogPath)
+            & $say ("logging live to '{0}' as well as this machine" -f $log.DynamicPath)
         } catch {
+            $log.SetDynamicPath('')
+
             # NEVER FATAL. A share that cannot be written to is a reason to stop
             # mirroring, not a reason to stop deploying - and the local log,
             # which is the one that matters, is untouched either way.
