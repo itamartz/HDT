@@ -1609,6 +1609,44 @@ Describe 'Update-HDTBootImage' {
                 Should -Contain '-LogPath'
         }
 
+        It 'defaults its scratch path to somewhere that is not one lab''s machine' {
+            # THIS SHIPPED. The default was 'C:\HDTLab\scratch\bootimage' - the
+            # author's own lab - so every administrator who installed Hephaestus
+            # from the Gallery and ran a build got a gigabyte-scale scratch tree
+            # created at a path that means nothing on their machine.
+            #
+            # DESIGN 5.2 constrains it and names no default: no space, not inside
+            # the workspace, not inside the repository. ProgramData satisfies all
+            # three and is machine-scoped, like the elevated build that uses it.
+            #
+            # AST, because the default is the thing under test.
+            $path = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Public/Update-HDTBootImage.ps1'
+            $token = $null
+            $parseError = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref] $token, [ref] $parseError)
+
+            @($parseError).Count | Should -Be 0
+
+            $parameter = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.ParameterAst] -and
+                        $node.Name.VariablePath.UserPath -eq 'ScratchPath'
+                    }, $true))
+
+            $parameter.Count | Should -Be 1
+
+            $default = [string] $parameter[0].DefaultValue.Extent.Text
+
+            $default | Should -Not -BeLike '*HDTLab*'
+
+            # THE RESOLVED PATH, NOT THE EXPRESSION. DESIGN 5.2 forbids a SPACE
+            # in the scratch path (oscdimg's -bootdata cannot carry a quoted
+            # one), and it is the path that must be clean - the expression that
+            # builds it has spaces in it by construction.
+            [System.IO.Path]::Combine($env:ProgramData, 'Hephaestus', 'bootimage') |
+                Should -Not -Match '\s'
+        }
+
         It 'reports a duration' {
             $context = New-HDTBootImageTestContext
             $result = Invoke-HDTBootImageTestBuild -Context $context

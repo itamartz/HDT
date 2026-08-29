@@ -235,7 +235,16 @@ function Update-HDTBootImage {
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
-        [string] $ScratchPath = 'C:\HDTLab\scratch\bootimage',
+        # NOT ONE LAB'S MACHINE. This defaulted to 'C:\HDTLab\scratch\bootimage'
+        # - the author's own path - and shipped that way, so an administrator
+        # who installed from the Gallery and ran a build got a gigabyte-scale
+        # scratch tree at a location that means nothing on their computer.
+        #
+        # DESIGN 5.2 constrains the path and names no default: no space, not
+        # inside the workspace, not inside the repository. ProgramData satisfies
+        # all three, has no space on any default install, and is machine-scoped
+        # like the elevated build that writes to it.
+        [string] $ScratchPath = [System.IO.Path]::Combine($env:ProgramData, 'Hephaestus', 'bootimage'),
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
