@@ -55,7 +55,17 @@ function ConvertTo-HDTHtmlText {
         return ''
     }
 
-    $text = [string] $Value
+    # A LIST IS COMMA DELIMITED BEFORE IT IS ESCAPED, because a [string] cast
+    # SPACE-joins one ($OFS) and the report would then disagree with the log
+    # line and the %Var% substitution about what a multi-valued variable is.
+    # Here rather than at the one call site that has an array today, so the next
+    # array-valued fact cannot regress the report by being added. Scalars are
+    # untouched: a timestamp keeps rendering exactly as it did.
+    if (($Value -is [System.Collections.IList]) -and -not ($Value -is [string])) {
+        $text = ConvertTo-HDTVariableText -Value $Value
+    } else {
+        $text = [string] $Value
+    }
 
     # & FIRST. See the description.
     $text = $text.Replace('&', '&amp;')

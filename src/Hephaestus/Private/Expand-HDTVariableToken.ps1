@@ -156,11 +156,11 @@
             continue
         }
 
-        if (($raw -is [System.Collections.IList]) -and -not ($raw -is [string])) {
-            $text = @(@($raw) | ForEach-Object { ConvertTo-HDTComparableString -Value $_ }) -join ','
-        } else {
-            $text = ConvertTo-HDTComparableString -Value $raw
-        }
+        # ONE RENDERING, HELD IN ONE PLACE. A list comma-joins, which is MDT's
+        # shape for a multi-valued adapter fact; the log line, the report cell
+        # and the unattend substitution all read the same command, so what a
+        # technician sees is what a %Var% expands to.
+        $text = ConvertTo-HDTVariableText -Value $raw
 
         [void] $builder.Append((Expand-HDTVariableToken -Value $text -Scope $Scope `
                     -Unresolved $Unresolved -Chain (@($chainName) + $name) -Path $Path -Nested))

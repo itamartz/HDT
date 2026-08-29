@@ -291,6 +291,23 @@ verified in SPIKES.md S1), so `HDTMacAddress`, `HDTIPAddress` and
 `HDTDefaultGateway` are gathered via CIM and configured via `netsh`. This is the
 same reason `PSDGather.ps1` uses WMI.
 
+**Those three are the multi-valued facts, and they stay lists.** A machine has
+as many addresses as it has adapters, and `Test-HDTRuleMatch` matches a list on
+**any element** — which is what lets `when: { HDTDefaultGateway: "10.20.30.1" }`
+fire on a machine whose second adapter carries that gateway. **As text they are
+comma-delimited**, everywhere and by one command
+(`ConvertTo-HDTVariableText`): the `%Var%` substitution, the `var.resolve` log
+line, the HTML report cell and the unattend value all read the same rendering,
+so what a technician sees is what a rule matched. This is MDT's own shape for a
+gathered adapter fact — `ZTIGather.xml` declares `OSDAdapter0IPAddressList`,
+`OSDAdapter0Gateways` and `OSDAdapter0DNSServerList` as `type="string"`,
+described "Comma delimited list", and reserves `type="list"` — the shape that
+surfaces as `Applications001`, `Applications002` — for authored inputs such as
+`Applications` and `DriverPaths`. **HDT therefore has no numbered
+`HDTIPAddress001`**, and a value must never reach a person as `System.Object[]`;
+the provenance export keeps the real JSON array, because that one is read by a
+machine.
+
 ### 3.3 rules.yaml
 
 ```yaml
