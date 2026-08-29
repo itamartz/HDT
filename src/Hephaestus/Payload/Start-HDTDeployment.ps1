@@ -1616,6 +1616,36 @@ try {
     # by Contains. It is the same rule, not a second one: see $seedEngineDefault.
     & $seedEngineDefault $variable
 
+    # -- WHAT THE MACHINE SAID ABOUT ITSELF, WRITTEN WHERE IT CAN BE DIFFED ---
+    #
+    # DESIGN 4.4 names three files under Gather\, and for eight milestones this
+    # lab produced two of them. Export-HDTMachineFact was written, exported,
+    # helped, unit tested and later taught to redact secrets - and it had NO
+    # CALLER, so facts.json never existed on any run. That is the same defect
+    # Export-HDTVariableProvenance had immediately below, found the same way: by
+    # looking in the folder rather than at the tests.
+    #
+    # A FILE, NOT JUST THE VARIABLES. The twenty facts are already in the
+    # variable bag and therefore in provenance.json, but mixed in with every
+    # rule, wizard answer and sequence default around them. facts.json is what
+    # the MACHINE said, on its own, so two runs of two machines diff to the
+    # hardware difference and nothing else.
+    #
+    # $fact IS THE LAST POLL OF THE NETWORK LOOP, which is the fact set the
+    # rules were resolved against - not a second, later reading that could
+    # disagree with the resolution this run actually used.
+    #
+    # AND IT MAY NOT END A DEPLOYMENT, for the reason the two writes below may
+    # not: this is evidence ABOUT the run, not part of it. A full disk or a
+    # read-only log share costs the explanation, never the machine.
+    try {
+        [void] (Export-HDTMachineFact -Fact $fact `
+                -Path ([System.IO.Path]::Combine($logDirectory, 'Gather', 'facts.json')) `
+                -FileSystem $fileSystem -Timestamp ([System.DateTime]::UtcNow))
+    } catch {
+        & $say ("Gather\facts.json could not be written: {0}" -f $_.Exception.Message)
+    }
+
     # -- WHERE EVERY VARIABLE CAME FROM, SAID ONCE, BEFORE ANYTHING RUNS -------
     #
     # DESIGN 3.1's whole promise is that the engine can explain every value it

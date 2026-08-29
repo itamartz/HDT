@@ -1081,3 +1081,131 @@ Describe 'Start-HDTDeployment.ps1 and a leg that died before the loop' {
         @(& $script:commandNamed 'Get-HDTRunLogRecord').Count | Should -BeGreaterOrEqual 1
     }
 }
+
+# THE SET OF FILES A RUN LEAVES IN Gather\, ASSERTED AS A SET.
+#
+# DESIGN 4.4 names three: facts.json, provenance.json, devices.json. Two of them
+# were written on every run this lab has done and the third never existed -
+# Export-HDTMachineFact was written, exported, helped, unit tested and, later,
+# taught to redact secrets, and NOTHING EVER CALLED IT. A real run on
+# 2026-08-29 left a Gather\ folder holding provenance.json and devices.json and
+# nothing else, which is the same defect Export-HDTVariableProvenance had before
+# it and the reason the Describe above this one exists.
+#
+# ASSERTED OVER THE SET, IN BOTH DIRECTIONS, WHICH IS THE POINT (CLAUDE.md rule
+# 8). A test naming facts.json would pass for facts.json and fail for nobody
+# after it - exactly how the first two came to disagree with the third. So the
+# expected set is READ OUT OF DESIGN 4.4 at run time and the written set is
+# READ OUT OF THE PAYLOAD's own syntax tree, and they must be equal:
+#
+#   - a fourth file added to the payload fails here until DESIGN names it,
+#   - a fourth file added to DESIGN fails here until the payload writes it.
+#
+# Neither side is a list written down in this file, so neither can drift.
+Describe 'Start-HDTDeployment.ps1 and the set of files it leaves in Gather\' {
+
+    BeforeAll {
+        # -- WHAT DESIGN 4.4 NAMES UNDER Gather\ ---------------------------
+        #
+        # The log-layout block is indented two spaces for a folder and four for
+        # the files in it, so the folder's children are the four-space lines
+        # following it up to the next folder.
+        $designPath = Join-Path -Path $script:repoRoot -ChildPath 'docs/DESIGN.md'
+
+        $script:designGatherFile = @()
+        $inBlock = $false
+        foreach ($line in @(Get-Content -LiteralPath $designPath)) {
+            if ($line -match '^\s{2}Gather\\s*$') { $inBlock = $true; continue }
+            if (-not $inBlock) { continue }
+            if ($line -match '^\s{4}(\S+\.json)\b') { $script:designGatherFile += [string] $Matches[1]; continue }
+            break
+        }
+
+        $script:designGatherFile = @($script:designGatherFile | Sort-Object)
+
+        # -- AND WHAT THE PAYLOAD ACTUALLY WRITES THERE ---------------------
+        #
+        # Every [IO.Path]::Combine(...) whose parts include the literal
+        # 'Gather'. Combine rather than Join-Path is the house rule for a path
+        # whose drive may not be mounted, so this finds all of them.
+        $script:payloadGatherFile = @()
+
+        $combine = @($script:ast.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                    [string] $node.Member.Extent.Text -eq 'Combine'
+                }, $true))
+
+        foreach ($call in $combine) {
+            if ($null -eq $call.Arguments) { continue }
+
+            $part = @($call.Arguments |
+                Where-Object { $_ -is [System.Management.Automation.Language.StringConstantExpressionAst] } |
+                ForEach-Object { [string] $_.Value })
+
+            if ($part -notcontains 'Gather') { continue }
+
+            $script:payloadGatherFile += @($part | Where-Object { $_ -like '*.json' })
+        }
+
+        $script:payloadGatherFile = @($script:payloadGatherFile | Select-Object -Unique | Sort-Object)
+    }
+
+    # NON-VACUITY. A parse that found nothing on either side would make the
+    # equality below pass over two empty sets, which is the failure mode a
+    # set assertion cannot afford.
+    It 'read a non-empty set of files out of DESIGN 4.4' {
+        @($script:designGatherFile).Count | Should -BeGreaterThan 2
+    }
+
+    It 'read a non-empty set of files out of the payload' {
+        @($script:payloadGatherFile).Count | Should -BeGreaterThan 2
+    }
+
+    It 'writes every file DESIGN 4.4 names under Gather' {
+        $missing = @($script:designGatherFile | Where-Object { $script:payloadGatherFile -notcontains $PSItem })
+
+        ($missing -join ', ') | Should -BeExactly '' -Because 'DESIGN 4.4 names it and a run must leave it behind'
+    }
+
+    It 'writes nothing under Gather that DESIGN 4.4 does not name' {
+        $extra = @($script:payloadGatherFile | Where-Object { $script:designGatherFile -notcontains $PSItem })
+
+        ($extra -join ', ') | Should -BeExactly '' -Because 'a file a run leaves behind belongs in the log layout'
+    }
+
+    # EACH THROUGH ITS OWN EXPORTER, and all of them before the engine starts.
+    # A run that dies on step two must already have said what the machine is and
+    # what it resolved; evidence written at the end is evidence the interesting
+    # runs never reach.
+    It 'calls <_> through the injected filesystem, before the sequence is handed to the engine' -ForEach @(
+        'Export-HDTMachineFact', 'Export-HDTVariableProvenance', 'Export-HDTDeviceInventory') {
+
+        $export = @(& $script:commandNamed $PSItem)
+        $run = @(& $script:commandNamed 'Invoke-HDTTaskSequence')
+
+        $export.Count | Should -BeGreaterOrEqual 1
+        $run.Count | Should -BeGreaterOrEqual 1
+
+        @($export[0].CommandElements | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-FileSystem'
+        $export[0].Extent.StartOffset | Should -BeLessThan $run[0].Extent.StartOffset
+    }
+
+    # AND NONE OF THEM MAY END A DEPLOYMENT. This is evidence ABOUT the run, not
+    # part of it: a full disk or a read-only log share must cost the
+    # explanation, never the machine.
+    It 'lets <_> not end the deployment' -ForEach @(
+        'Export-HDTMachineFact', 'Export-HDTVariableProvenance', 'Export-HDTDeviceInventory') {
+
+        $export = @(& $script:commandNamed $PSItem)[0]
+
+        $guarded = $false
+        $parent = $export.Parent
+        while ($null -ne $parent) {
+            if ($parent -is [System.Management.Automation.Language.TryStatementAst]) { $guarded = $true; break }
+            $parent = $parent.Parent
+        }
+
+        $guarded | Should -BeTrue
+    }
+}

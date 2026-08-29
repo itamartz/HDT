@@ -241,3 +241,109 @@ Describe 'And it still answers the questions it exists to answer' {
         [string] $script:artefact[$PSItem] | Should -BeLike ('*{0}*' -f $script:plainValue)
     }
 }
+
+# AND THE SET OF ARTEFACTS ABOVE MUST KEEP UP WITH THE ENGINE (CLAUDE.md rule 8).
+#
+# Everything above is driven through its real writer BY THIS FILE, which means a
+# writer this file has never heard of leaks freely while every assertion here
+# stays green. That is not hypothetical: Export-HDTMachineFact was taught to
+# redact, listed above as artefact 7, and had NO CALLER AT ALL - so the file it
+# writes did not exist on any real run, and an audit of a real run's Gather
+# folder could not scan what was not there.
+#
+# THE RULE, WITH NO LIST IN IT: every file the WinPE entry point writes into the
+# Gather folder, whose writer asks Protect-HDTSecretValue about its values, must
+# be one of the artefacts above. Both halves are read at run time - the files
+# from the payload's syntax tree, the asking from the writer's own syntax tree -
+# so a fourth redacting writer added tomorrow fails here today.
+#
+# A WRITER THAT ASKS NOTHING IS OUT OF SCOPE, and exactly one is:
+# Export-HDTDeviceInventory serialises hardware ids read from Win32_PnPEntity,
+# and no variable, secret or otherwise, ever reaches it. Nothing here says so by
+# name; it is simply not selected, and the day it starts redacting it is.
+Describe 'Every redacting writer of the Gather folder is driven by this file' {
+
+    BeforeAll {
+        $payloadPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Payload/Start-HDTDeployment.ps1'
+
+        $parseError = $null
+        $token = $null
+        $payloadAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            $payloadPath, [ref] $token, [ref] $parseError)
+
+        # Every [IO.Path]::Combine(...) naming the Gather folder, paired with the
+        # command whose argument it is.
+        $script:gatherWriter = [ordered] @{}
+
+        $combine = @($payloadAst.FindAll({
+                    param($node)
+                    $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                    [string] $node.Member.Extent.Text -eq 'Combine'
+                }, $true))
+
+        foreach ($call in $combine) {
+            if ($null -eq $call.Arguments) { continue }
+
+            $part = @($call.Arguments |
+                Where-Object { $_ -is [System.Management.Automation.Language.StringConstantExpressionAst] } |
+                ForEach-Object { [string] $_.Value })
+
+            if ($part -notcontains 'Gather') { continue }
+
+            $file = @($part | Where-Object { $_ -like '*.json' })
+            if ($file.Count -ne 1) { continue }
+
+            # Walk out to the command this path is an argument of.
+            $command = $null
+            $parent = $call.Parent
+            while ($null -ne $parent) {
+                if ($parent -is [System.Management.Automation.Language.CommandAst]) {
+                    $command = [string] $parent.GetCommandName()
+                    break
+                }
+                $parent = $parent.Parent
+            }
+
+            if (-not [string]::IsNullOrEmpty($command)) { $script:gatherWriter[$file[0]] = $command }
+        }
+
+        # Which of those writers asks the one place that knows.
+        $script:redactingGatherFile = @()
+        foreach ($file in @($script:gatherWriter.Keys)) {
+            $sourcePath = Join-Path -Path $script:repoRoot `
+                -ChildPath ('src/Hephaestus/Public/{0}.ps1' -f $script:gatherWriter[$file])
+
+            if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) { continue }
+
+            $writerError = $null
+            $writerToken = $null
+            $writerAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                $sourcePath, [ref] $writerToken, [ref] $writerError)
+
+            $asks = @($writerAst.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.GetCommandName() -eq 'Protect-HDTSecretValue'
+                    }, $true))
+
+            if ($asks.Count -gt 0) { $script:redactingGatherFile += [string] $file }
+        }
+    }
+
+    # NON-VACUITY. A parse that found no writers would make the assertion below
+    # pass over an empty set.
+    It 'found the writers the entry point uses for the Gather folder' {
+        @($script:gatherWriter.Keys).Count | Should -BeGreaterThan 2
+    }
+
+    It 'found at least one of them redacting' {
+        @($script:redactingGatherFile).Count | Should -BeGreaterThan 0
+    }
+
+    It 'drives every one of them through its real writer above' {
+        $unscanned = @($script:redactingGatherFile | Where-Object { $script:artefactName -notcontains $PSItem })
+
+        ($unscanned -join ', ') | Should -BeExactly '' `
+            -Because 'a run leaves it behind and this file must prove it carries no secret'
+    }
+}
