@@ -65,6 +65,10 @@
         .PARAMETER Dirty
             There are edits that have not been saved.
 
+        .PARAMETER NoTree
+            The caller binds neither Node nor Root, so the rows are not built.
+            Both come back empty and everything else is unchanged.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -72,7 +76,8 @@
             System.Management.Automation.PSCustomObject:
 
               Status, Message, StatusText  whether the text still reads, and what to say
-              Node, Root                   the tree, flat and as roots
+              Node, Root                   the tree, flat and as roots - both
+                                           empty under -NoTree
               Selected                     the row SelectedName and
                                            SelectedOccurrence name, or nothing
               Option                       Get-HDTConsoleStepOption for it, or nothing
@@ -139,7 +144,27 @@
         # wants.
         [Parameter()]
         [AllowNull()]
-        [object] $Document
+        [object] $Document,
+
+        # THE CALLER SAYING IT WILL BIND NEITHER Node NOR Root, so the rows are
+        # not built at all - the same bargain Get-HDTDriver -NoHardwareId makes
+        # with the grid it fills.
+        #
+        # IT IS THE SELECTION PATH THIS EXISTS FOR, and the header above already
+        # said so: reflect must never touch the tree, because assigning
+        # ItemsSource from inside a selection change pulls the rows out from
+        # under the handler still choosing one. It said it and then called
+        # Get-HDTConsoleStepNode anyway - 164ms of a 365ms click on a 17-row
+        # sequence, building rows that were discarded on the next line, and
+        # linearly worse on a real client sequence.
+        #
+        # NOTHING ELSE CHANGES. Every button, every option, the Variables tab
+        # and the status line are worked out from the DOCUMENT rather than from
+        # the rows, which is what makes this a saving rather than a trade.
+        # Selected goes with the tree, because it IS a row: it is the object the
+        # window marks IsSelected, and there is nothing to mark.
+        [Parameter()]
+        [switch] $NoTree
     )
 
     Set-StrictMode -Version Latest
@@ -189,13 +214,23 @@
     # Get-HDTConsoleStepNode reads a workspace's task sequence row rather than a
     # document, so the document is presented as one. Nothing is invented: every
     # field below is either the document's own or the path it was read from.
+    #
+    # AND THE VARIABLE BLOCK COMES WITH IT, which it did not - so the Variables
+    # tab was empty on every sequence that had one. This projection is built
+    # BEFORE the block below reads $sequence.Variable, and dropping the key here
+    # meant the read a few lines down found nothing, every time, silently: an
+    # empty grid looks exactly like a sequence that declares no variables.
+    $carried = $null
+    if ($null -ne $sequence.PSObject.Properties['Variable']) { $carried = $sequence.Variable }
+
     $sequence = [pscustomobject] @{
-        Id     = [string] $sequence.Id
-        Name   = [string] $sequence.Name
-        Path   = [string] $Path
-        Status = 'Ok'
-        Step   = @($sequence.Step)
-        Group  = @($sequence.Group)
+        Id       = [string] $sequence.Id
+        Name     = [string] $sequence.Name
+        Path     = [string] $Path
+        Status   = 'Ok'
+        Step     = @($sequence.Step)
+        Group    = @($sequence.Group)
+        Variable = $carried
     }
 
     # -- the Variables tab ---------------------------------------------------
@@ -237,7 +272,15 @@
         DeployRoot = [string] $sequence.Id
     }
 
-    $built = Get-HDTConsoleStepNode -Sequence $sequence -Header $header
+    # THE SAME SHAPE EITHER WAY, so a caller that turns -NoTree on does not have
+    # to start checking for a different set of properties - which is the bargain
+    # Get-HDTConsoleStepNode itself makes with a sequence that will not parse.
+    $built = [pscustomobject] @{
+        Node     = [pscustomobject[]] @()
+        TopLevel = [pscustomobject[]] @()
+    }
+
+    if (-not $NoTree) { $built = Get-HDTConsoleStepNode -Sequence $sequence -Header $header }
 
     # -- the selected row, and what it makes possible ----------------------
 

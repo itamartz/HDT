@@ -319,6 +319,28 @@
             # THE LAST STATE, so a handler can echo the command format the
             # view model owns rather than composing a second copy of it.
             State     = $null
+
+            # THE LINES, PARSED, AND THE LINES THAT PARSE DESCRIBES.
+            #
+            # $reflect runs at the end of every selection change and used to
+            # parse $book.Line every time - 125ms of a 365ms click, re-reading
+            # text that had not moved since the last click. Keeping the parse
+            # beside a copy of the lines it came from turns that into one parse
+            # per EDIT.
+            #
+            # THE LINES ARE THE INVALIDATION SIGNAL, and that is the whole
+            # argument for this being safe. It is not a flag somebody has to
+            # remember to clear on the add path, the remove path, the move
+            # path, the rename path, the undo path and the reload path - it is
+            # Test-HDTConsoleLineChange over the text, which every one of those
+            # changes by definition. A cache keyed on an event you can forget to
+            # raise is the one that goes stale; this one cannot be forgotten.
+            #
+            # A COPY, NOT THE SAME ARRAY. Every splice assigns a new array to
+            # $book.Line, so holding the reference would compare a document
+            # against itself and never invalidate at all.
+            Document     = $null
+            DocumentLine = $null
         }
 
         $tree.ItemsSource = $Node
@@ -353,20 +375,37 @@
             $book.AppCatalog = @()
         }
 
-        $reflect = {
-            # ONE PARSE, HANDED TO ALL FOUR. Each of these view models used to
-            # turn the same lines back into a document - about 70ms apiece, on
-            # the UI thread, after every edit. Parsing once here is the rest of
-            # the fix that started with the catalogue.
-            #
-            # A DOCUMENT THAT WILL NOT PARSE IS $null, and each of them then
-            # falls back to reading the lines itself and reports the failure the
-            # way it always did - Get-HDTConsoleEditorState's Error status is
-            # what puts the message on the title bar.
-            $parsed = $null
+        # ONE PARSE, HANDED TO ALL FOUR - AND KEPT UNTIL THE LINES MOVE.
+        #
+        # Each of these view models used to turn the same lines back into a
+        # document - about 70ms apiece, on the UI thread, after every edit -
+        # which parsing once per refresh fixed. What was left was one parse per
+        # CLICK: $reflect runs at the end of every selection change, and walking
+        # a sequence and reading it re-read text nobody had touched.
+        #
+        # SO THE KEPT PARSE IS COMPARED AGAINST THE LINES IT CAME FROM. See
+        # $book.Document: the text is the invalidation signal, so every path
+        # that edits - splice, undo, add, remove, move, rename, reload - is
+        # covered by definition rather than by being remembered here.
+        #
+        # A DOCUMENT THAT WILL NOT PARSE IS $null, and is not kept: each view
+        # model then falls back to reading the lines itself and reports the
+        # failure the way it always did - Get-HDTConsoleEditorState's Error
+        # status is what puts the message on the title bar. Re-parsing broken
+        # text on every click costs nothing anybody will notice, because the
+        # window in that state has one thing left to do.
+        $parseDocument = {
+            if ($null -ne $book.Document -and
+                -not (& $call 'Test-HDTConsoleLineChange' `
+                        -Before $book.DocumentLine -After ([string[]] @($book.Line)))) {
+
+                return $book.Document
+            }
+
+            $read = $null
 
             try {
-                $parsed = & (Get-Module -Name 'Hephaestus') {
+                $read = & (Get-Module -Name 'Hephaestus') {
                     param($Body, $Where)
 
                     Import-HDTSequenceDocument -Path $Where -FileSystem (
@@ -374,8 +413,17 @@
                             -Text (($Body) -join [System.Environment]::NewLine))
                 } $book.Line $Path
             } catch {
-                $parsed = $null
+                $read = $null
             }
+
+            $book.Document = $read
+            $book.DocumentLine = [string[]] @($book.Line)
+
+            return $read
+        }.GetNewClosure()
+
+        $reflect = {
+            $parsed = & $parseDocument
 
             # THE OCCURRENCE TRAVELS HERE TOO, AND THIS IS THE PATH THAT
             # MATTERS. $reflect runs on every selection change; $rebuild only
@@ -395,6 +443,12 @@
                 Document           = $parsed
                 HasClipboard       = ($null -ne $book.Clipboard)
                 Dirty              = [bool] $book.Dirty
+
+                # AND NO ROWS, BECAUSE THIS NEVER BINDS THEM. Reflect must not
+                # touch the tree - see the note above - and it read neither Node
+                # nor Root, yet the command built them anyway: 164ms of a 365ms
+                # click on a 17-row sequence, thrown away on the next line.
+                NoTree             = $true
             }
 
             $book.State = $state
@@ -691,14 +745,45 @@
         # reads back - and the selection is restored by name, because the row
         # object that was selected no longer exists.
         $rebuild = {
-            $state = & $call 'Get-HDTConsoleEditorState' -Line $book.Line -Path $Path `
-                -SelectedName $book.Selected -SelectedOccurrence $book.SelectedOccurrence
+            # THE SAME PARSE $reflect IS ABOUT TO USE, taken once. This asked
+            # for no document at all, so an edit parsed here, built the tree,
+            # and then reflected - which parsed a second time and built the tree
+            # a third. The lines have not moved between these two lines, so
+            # $parseDocument hands the same object to both and the edit costs
+            # one parse and one tree.
+            #
+            # AND IT IS THE FRESH ONE. The splice that got here changed
+            # $book.Line, so the kept parse is already invalid and this is what
+            # re-reads it - which is why the pane shows what was just typed
+            # rather than what was there before.
+            $parsed = & $parseDocument
+
+            # NAMED APART FROM $reflect's $state ON PURPOSE. Two call sites
+            # of one command in one file, both writing to $state, cannot be
+            # told apart by anything reading the source - and one of them now
+            # passes -NoTree while the other binds Root, which is exactly the
+            # difference that must stay legible.
+            # tests/contract/ConsoleEditorState.Contract.Tests.ps1.
+            $treeState = & $call 'Get-HDTConsoleEditorState' @{
+                Line               = $book.Line
+                Path               = $Path
+                SelectedName       = $book.Selected
+                SelectedOccurrence = $book.SelectedOccurrence
+                Document           = $parsed
+
+                # NO -NoTree HERE. This is the one thing that assigns
+                # ItemsSource, so it is the one caller that binds Root.
+                #
+                # AND NO HasClipboard OR Dirty, exactly as before: this reads
+                # Root and publishes State, and $reflect runs on the next line
+                # and recomputes every button from both.
+            }
 
             # PUBLISHED, BECAUSE THE TOOLBAR ACTS ON IT. Up and Down no longer
             # swap siblings - they move the row to where MoveUpTarget and
             # MoveDownTarget say, and those are computed here rather than in a
             # click handler.
-            $book.State = $state
+            $book.State = $treeState
 
             # THE CMDLET THE ACTION JUST ECHOED HAS TO SURVIVE THIS.
             #
@@ -713,7 +798,7 @@
             $echo = [string] $command.Text
 
             $book.Quiet = $true
-            $tree.ItemsSource = $state.Root
+            $tree.ItemsSource = $treeState.Root
             $book.Quiet = $false
 
             $command.Text = $echo
