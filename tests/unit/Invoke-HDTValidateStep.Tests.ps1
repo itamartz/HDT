@@ -445,3 +445,373 @@ Describe 'the TPM check' {
         (Invoke-HDTValidateStep -Step $step -Context $context).Status | Should -BeExactly 'Failed'
     }
 }
+
+Describe 'the pre-flight log' {
+
+    # THE PASS PATH USED TO BE ONE LINE. A real run's 002-Validate.log said
+    # "this machine passed the pre-flight; disk 0 is the deployment target." and
+    # nothing else - so a reader could not tell whether eight checks ran or one,
+    # and a check weakened tomorrow would leave the log looking identical. A
+    # validation step's content IS its checks; "passed" without them is
+    # unfalsifiable.
+    #
+    # THE ASYMMETRY WAS THE TELL. The FAILURE path already enumerated every
+    # failed check with its threshold, so the only way to learn what HDT checks
+    # was to fail it - an administrator qualifying a new hardware model had to
+    # break a machine to read the rules. These tests hold the pass path to the
+    # failure path's standard.
+    #
+    # AND THE DISK DECISION IS A CHOICE, NOT A FACT. "disk 0 is the deployment
+    # target" on a machine with an NVMe, an SD reader and the USB stick it
+    # booted from means three disks were excluded. Rule 6 says HDT must not
+    # guess which disk to wipe; the log has to show that it did not.
+
+    BeforeEach {
+        $script:fileSystem = New-HDTFakeFileSystem
+        $script:clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 29, 19, 1, 5, [System.DateTimeKind]::Utc))
+        $script:image = New-HDTFakeImageService
+
+        $script:logContextFor = {
+            param([object] $DiskService, [System.Collections.IDictionary] $Variable)
+
+            $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
+                -Disk $DiskService -Image $script:image
+
+            $log = New-HDTLogContext -RunId 'run-0003' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTMemory'] = 32627
+            $live['HDTIsUEFI'] = $true
+            $live['HDTTPMVersion'] = '2.0'
+            if ($null -ne $Variable) {
+                foreach ($key in @($Variable.Keys)) { $live[[string] $key] = $Variable[$key] }
+            }
+
+            return (New-HDTExecutionContext -RunId 'run-0003' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                    -Variable $live -Service $catalog -Log $log)
+        }
+
+        $script:everyCheck = [ordered] @{
+            minRamMB        = 2048
+            minDiskGB       = 60
+            requireUefi     = $true
+            minTpmVersion   = '2.0'
+            requireVariable = @('HDTComputerName')
+        }
+
+        $script:soleDisk = New-HDTFakeDiskService -Disk @($script:targetDisk)
+        $script:context = & $script:logContextFor $script:soleDisk ([ordered] @{ HDTComputerName = 'LT-7FJ45S2' })
+
+        $script:infoLine = {
+            @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Severity 'Info' |
+                    Where-Object { [string] $_.component -eq 'Validate' } | ForEach-Object { [string] $_.message })
+        }
+
+        $script:debugLine = {
+            @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Severity 'Debug' |
+                    Where-Object { [string] $_.component -eq 'Validate' } | ForEach-Object { [string] $_.message })
+        }
+
+        $script:warningLine = {
+            @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Severity 'Warning' |
+                    Where-Object { [string] $_.component -eq 'Validate' } | ForEach-Object { [string] $_.message })
+        }
+    }
+
+    Context 'the Info summary' {
+
+        It 'says how many checks ran and how many warned' {
+            Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
+
+            $line = @(& $script:infoLine)
+
+            @($line | Where-Object { $_ -match '^pre-flight passed: \d+ checks?, \d+ warnings?\.$' }).Count |
+                Should -Be 1 -Because 'a technician reads the verdict and the warning count at a glance'
+        }
+
+        It 'gives the reason the disk was selected, not just the number' {
+            # "disk 0 is the deployment target" is a CHOICE reported without its
+            # reason. On a laptop with an NVMe, an SD reader and a USB stick,
+            # picking disk 0 means excluding two others.
+            Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
+
+            $selected = @(& $script:infoLine | Where-Object { $_ -like 'disk 0 is the deployment target*' })
+
+            $selected.Count | Should -Be 1
+            $selected[0] | Should -BeLike '*the only disk*'
+        }
+
+        It 'keeps the summary to two lines' {
+            Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
+
+            @(& $script:infoLine).Count | Should -Be 2 -Because 'Info is a glance; the enumeration belongs at Debug'
+        }
+
+        It 'carries both lines in the step result message' {
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context
+
+            $result.Message | Should -BeLike '*pre-flight passed*'
+            $result.Message | Should -BeLike '*deployment target*'
+        }
+
+        It 'names the disk the sequence named, and says the sequence named it' {
+            $twin = New-HDTFakeDiskService -Disk @(
+                $script:targetDisk,
+                @{ Number = 1; FriendlyName = 'Virtual HD'; SizeBytes = 68719476736; BusType = 'SAS'; PartitionStyle = 'RAW' })
+
+            $context = & $script:logContextFor $twin $null
+            $step = & $script:newStep ([ordered] @{ minDiskGB = 60; diskNumber = 1 })
+
+            Invoke-HDTValidateStep -Step $step -Context $context | Out-Null
+
+            @(& $script:infoLine | Where-Object { $_ -like 'disk 1 is the deployment target*named by the sequence*' }).Count |
+                Should -Be 1
+        }
+    }
+
+    Context 'the Debug enumeration' {
+
+        It 'enumerates every check with its observed value and its threshold' {
+            # THE THRESHOLD IS THE PART THAT IS CURRENTLY UNKNOWABLE. MDT logs
+            # "Disk Size : ..." and "Min Size : ..." as adjacent lines; this is
+            # the same information, one line per check.
+            Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
+
+            $line = @(& $script:debugLine)
+
+            @($line | Where-Object { $_ -like 'memory*32627 MB*2048 MB*pass' }).Count | Should -Be 1
+            @($line | Where-Object { $_ -like 'firmware*UEFI*pass' }).Count | Should -Be 1
+            @($line | Where-Object { $_ -like 'TPM*2.0*pass' }).Count | Should -Be 1
+        }
+
+        It 'says a check was not asked for rather than leaving it out' {
+            # A check absent from the log and a check that passed look the same.
+            # "skipped" is what tells an administrator the check EXISTS.
+            Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 2048 })) -Context $script:context | Out-Null
+
+            @(& $script:debugLine | Where-Object { $_ -like 'TPM*skipped' }).Count | Should -Be 1
+            @(& $script:debugLine | Where-Object { $_ -like 'firmware*skipped' }).Count | Should -Be 1
+        }
+
+        It 'lists every disk it considered, not only the one it chose' {
+            $twin = New-HDTFakeDiskService -Disk @($script:targetDisk, $script:contentDisk)
+            $context = & $script:logContextFor $twin $null
+
+            Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
+
+            $line = @(& $script:debugLine)
+
+            @($line | Where-Object { $_ -like 'disk 0 *' }).Count | Should -Be 1
+            @($line | Where-Object { $_ -like 'disk 1 *' }).Count | Should -Be 1
+        }
+
+        It 'gives the reason each rejected disk was rejected' {
+            # RULE 6 EVIDENCE. Disk selection going wrong is how the wrong thing
+            # gets erased, so the log must show what was excluded and why.
+            $twin = New-HDTFakeDiskService -Disk @($script:targetDisk, $script:contentDisk)
+            $context = & $script:logContextFor $twin $null
+
+            Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
+
+            $rejected = @(& $script:debugLine | Where-Object { $_ -like 'disk 1 *excluded*' })
+
+            $rejected.Count | Should -Be 1
+            $rejected[0] | Should -BeLike '*under the minimum*'
+        }
+
+        It 'reports the boot disk as excluded and says which rule excluded it' {
+            $host0 = New-HDTFakeDiskService -Disk @(
+                @{ Number = 0; FriendlyName = 'Host disk'; SizeBytes = 512110190592; BusType = 'NVMe'
+                    PartitionStyle = 'GPT'; IsBoot = $true; IsSystem = $true
+                },
+                @{ Number = 1; FriendlyName = 'Virtual HD'; SizeBytes = 68719476736
+                    BusType = 'SAS'; PartitionStyle = 'RAW'
+                })
+
+            $context = & $script:logContextFor $host0 $null
+
+            Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
+
+            @(& $script:debugLine | Where-Object { $_ -like 'disk 0 *excluded*booted from*' }).Count | Should -Be 1
+        }
+
+        It 'enumerates the checks on the failure path too' {
+            # SYMMETRY. A reader who has seen one path should recognise the other.
+            $step = & $script:newStep ([ordered] @{ minRamMB = 65536; minDiskGB = 60 })
+
+            Invoke-HDTValidateStep -Step $step -Context $script:context | Out-Null
+
+            # The verdict carries its reason on the failure path, so the line
+            # does not end at the word - which is the whole difference from a
+            # pass, and why -like needs the trailing wildcard here.
+            @(& $script:debugLine | Where-Object { $_ -like 'memory*65536 MB*fail: *' }).Count | Should -Be 1
+        }
+    }
+
+    Context 'warnings' {
+
+        # THE STEP WAS PASS/FAIL BINARY. A finding that should not stop a
+        # deployment but is worth recording had nowhere to go, so it went
+        # nowhere. MDT's convention is copied: a warning states the assumption
+        # it is proceeding on.
+
+        It 'reports no warning on a machine with none' {
+            Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context | Out-Null
+
+            @(& $script:warningLine).Count | Should -Be 0
+            @(& $script:infoLine | Where-Object { $_ -like '*0 warnings*' }).Count | Should -Be 1
+        }
+
+        It 'warns when the selected disk has less headroom than Setup itself needs' {
+            # MDT'S OWN NUMBER: ZTIValidate needs the image plus 150 MB for
+            # WinPE and logs plus 3 GB for Setup. A disk that clears the minimum
+            # by less than that clears it on paper only.
+            $tight = New-HDTFakeDiskService -Disk @(
+                @{ Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 65498251264
+                    BusType = 'SAS'; PartitionStyle = 'RAW'
+                })
+
+            $context = & $script:logContextFor $tight $null
+
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed' -Because 'a warning does not stop a deployment'
+            @(& $script:warningLine | Where-Object { $_ -like '*headroom*' }).Count | Should -Be 1
+        }
+
+        It 'counts the warning on the Info summary line' {
+            $tight = New-HDTFakeDiskService -Disk @(
+                @{ Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 65498251264
+                    BusType = 'SAS'; PartitionStyle = 'RAW'
+                })
+
+            $context = & $script:logContextFor $tight $null
+
+            Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context | Out-Null
+
+            @(& $script:infoLine | Where-Object { $_ -like '*1 warning.*' }).Count |
+                Should -Be 1 -Because 'the count must be visible without opening Debug'
+        }
+
+        It 'warns when naming a disk overrode a rule that would have excluded it' {
+            # Select-HDTTargetDisk already warns here and the step threw the
+            # warning away with -WarningAction SilentlyContinue. Overriding rule
+            # 6 or 7 by naming a disk is the definition of worth recording.
+            $stick = New-HDTFakeDiskService -Disk @(
+                $script:targetDisk,
+                @{ Number = 1; FriendlyName = 'Ultra Fit'; SizeBytes = 68719476736
+                    BusType = 'USB'; PartitionStyle = 'RAW'
+                })
+
+            $context = & $script:logContextFor $stick $null
+            $step = & $script:newStep ([ordered] @{ minDiskGB = 60; diskNumber = 1 })
+
+            $result = Invoke-HDTValidateStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            @(& $script:warningLine | Where-Object { $_ -like '*USB*named it*' }).Count | Should -Be 1
+        }
+
+        It 'carries every warning in the result data' {
+            $tight = New-HDTFakeDiskService -Disk @(
+                @{ Number = 0; FriendlyName = 'Virtual HD'; SizeBytes = 65498251264
+                    BusType = 'SAS'; PartitionStyle = 'RAW'
+                })
+
+            $context = & $script:logContextFor $tight $null
+
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minDiskGB = 60 })) -Context $context
+
+            [int] $result.Data['warningCount'] | Should -Be 1
+            @($result.Data['warning']).Count | Should -Be 1
+        }
+    }
+
+    Context 'the data payload' {
+
+        # THE SUMMARY WINDOW AND ANY REPORT MUST NOT RE-PARSE PROSE. The
+        # structured rows are the same information the Debug lines render.
+
+        It 'carries a check row for every check a Validate step can make' {
+            # THE SET, NOT THE ONES TOUCHED TODAY. Get-HDTValidateCheckDefinition
+            # is the one place a check is declared; a seventh added there fails
+            # this until the step reports it.
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context
+
+            $reported = @($result.Data['check'] | ForEach-Object { [string] $_['key'] })
+
+            InModuleScope Hephaestus -Parameters @{ Reported = $reported } {
+                param($Reported)
+
+                foreach ($definition in @(Get-HDTValidateCheckDefinition)) {
+                    $Reported | Should -Contain ([string] $definition.Key) -Because (
+                        'the log must report the {0} check, declared or not' -f $definition.Key)
+                }
+            }
+        }
+
+        It 'carries every check even when the step declares nothing' {
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep $null) -Context $script:context
+
+            $reported = @($result.Data['check'] | ForEach-Object { [string] $_['key'] })
+
+            InModuleScope Hephaestus -Parameters @{ Reported = $reported } {
+                param($Reported)
+
+                foreach ($definition in @(Get-HDTValidateCheckDefinition)) {
+                    $Reported | Should -Contain ([string] $definition.Key)
+                }
+            }
+        }
+
+        It 'gives every row the same six fields' {
+            $result = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context
+
+            foreach ($row in @($result.Data['check'])) {
+                @($row.Keys) | Should -Be @('check', 'key', 'observed', 'threshold', 'result', 'reason')
+            }
+        }
+
+        It 'carries only results from the closed set' {
+            # A result outside the set is a rendering the summary window cannot
+            # colour and a report cannot count.
+            $twin = New-HDTFakeDiskService -Disk @($script:targetDisk, $script:contentDisk)
+            $context = & $script:logContextFor $twin ([ordered] @{ HDTComputerName = 'LT-7FJ45S2' })
+
+            $passed = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $context
+            $failed = Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 65536 })) -Context $context
+
+            $closed = InModuleScope Hephaestus { Get-HDTValidateCheckResultName }
+
+            foreach ($row in @($passed.Data['check']) + @($failed.Data['check'])) {
+                [string] $row['result'] | Should -BeIn $closed
+            }
+        }
+
+        It 'names the closed set of results exactly' {
+            # A sixth result added without listing it here would be reported and
+            # never rendered.
+            InModuleScope Hephaestus {
+                Get-HDTValidateCheckResultName | Should -Be @('pass', 'fail', 'warn', 'skipped', 'excluded')
+            }
+        }
+
+        It 'keeps diskNumber and failedCheck exactly as they were' {
+            $passed = Invoke-HDTValidateStep -Step (& $script:newStep $script:everyCheck) -Context $script:context
+            $passed.Data['diskNumber'] | Should -Be 0
+
+            $failed = Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 65536 })) -Context $script:context
+            @($failed.Data['failedCheck']).Count | Should -Be 1
+        }
+
+        It 'carries the check rows on the failure path too' {
+            $failed = Invoke-HDTValidateStep -Step (& $script:newStep ([ordered] @{ minRamMB = 65536 })) -Context $script:context
+
+            $memory = @($failed.Data['check'] | Where-Object { [string] $_['key'] -eq 'minRamMB' })
+
+            $memory.Count | Should -Be 1
+            [string] $memory[0]['result'] | Should -BeExactly 'fail'
+        }
+    }
+}

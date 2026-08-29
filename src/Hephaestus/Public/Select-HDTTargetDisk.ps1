@@ -143,115 +143,26 @@
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $partitionRow = @()
-    if ($null -ne $Partition) { $partitionRow = @($Partition) }
-
-    $volumeRow = @()
-    if ($null -ne $Volume) { $volumeRow = @($Volume) }
-
-    # 'z:' and 'Z' are the same letter. Everything is compared as one uppercase
-    # character so a test is not a test of which form the author happened to type.
-    $protected = @()
-    if ($null -ne $ProtectDriveLetter) {
-        foreach ($entry in $ProtectDriveLetter) {
-            $text = ([string] $entry).Trim().TrimEnd(':')
-            if ($text.Length -gt 0) { $protected += $text.Substring(0, 1).ToUpperInvariant() }
-        }
-    }
-
     # -- one pass, a reason per disk ------------------------------------------
-
-    $assessment = New-Object -TypeName System.Collections.ArrayList
-
-    foreach ($current in @($Disk)) {
-        $number = [int] $current.Number
-
-        $letter = @()
-        foreach ($row in $partitionRow) {
-            if ([int] $row.DiskNumber -ne $number) { continue }
-
-            $text = ([string] $row.DriveLetter).Trim().TrimEnd(':')
-            if ($text.Length -gt 0) { $letter += $text.Substring(0, 1).ToUpperInvariant() }
-        }
-
-        $data = @()
-        foreach ($row in $volumeRow) {
-            $text = ([string] $row.DriveLetter).Trim().TrimEnd(':')
-            if ($text.Length -eq 0) { continue }
-
-            $normalised = $text.Substring(0, 1).ToUpperInvariant()
-            if ($letter -notcontains $normalised) { continue }
-            if ([string]::IsNullOrWhiteSpace([string] $row.FileSystem)) { continue }
-
-            $data += ('{0} ({1})' -f $normalised, [string] $row.FileSystem)
-        }
-
-        $reason = New-Object -TypeName System.Collections.ArrayList
-
-        # 1 - the disk this machine is running from. Never overridable.
-        if ($current.IsSystem -or $current.IsBoot) {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $true
-                    Text     = ('disk {0} is the disk this machine booted from' -f $number)
-                })
-        }
-
-        # 2 - the disk the deployment is reading from. Never overridable.
-        $held = @($letter | Where-Object { $protected -contains $_ })
-        if ($held.Count -gt 0) {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $true
-                    Text     = ('disk {0} holds drive letter {1}, which this deployment is reading from or writing to' -f $number, ($held -join ', '))
-                })
-        }
-
-        # 3 - a disk that cannot be written.
-        if ($current.IsReadOnly) {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $true
-                    Text     = ('disk {0} is read-only' -f $number)
-                })
-        }
-
-        # 4 - IDiskService has no way to bring a disk online, and pretending
-        #     otherwise fails later and less clearly.
-        if ($current.IsOffline) {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $true
-                    Text     = ('disk {0} is offline, and HDT cannot bring a disk online' -f $number)
-                })
-        }
-
-        # 5 - existing data. Declared away by the sequence, not by the number.
-        if ((([string] $current.PartitionStyle) -ne 'RAW') -and ($data.Count -gt 0) -and -not $AllowExistingData) {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $true
-                    Text     = ('disk {0} carries existing data on volume {1}, and the step did not declare that it may be replaced' -f $number, ($data -join ', '))
-                })
-        }
-
-        # 6 - the stick the technician booted from, "in range" (DESIGN 9.1).
-        if ((([string] $current.BusType).Trim()) -eq 'USB') {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $false
-                    Text     = ('disk {0} is a USB disk' -f $number)
-                })
-        }
-
-        # 7 - too small to hold Windows.
-        if ([long] $current.SizeBytes -lt $MinimumSizeByte) {
-            [void] $reason.Add([pscustomobject] @{
-                    Absolute = $false
-                    Text     = ('disk {0} is {1} bytes, under the minimum of {2} bytes' -f $number, [long] $current.SizeBytes, $MinimumSizeByte)
-                })
-        }
-
-        [void] $assessment.Add([pscustomobject] @{
-                Number = $number
-                Row    = $current
-                Reason = [object[]] @($reason)
-            })
+    #
+    # THE SEVEN RULES LIVE IN Get-HDTTargetDiskAssessment, and they live there
+    # because the Validate step LOGS them. A pre-flight that passed still has to
+    # print the table a refusal would have printed - "disk 0 is the deployment
+    # target" is a choice that excluded every other disk on the machine, and
+    # rule 6 says HDT must show that it did not guess. Recomputing those reasons
+    # in the step would have been a second source of truth for the most
+    # destructive decision HDT makes.
+    $assessmentArgument = @{
+        Disk            = $Disk
+        Partition       = $Partition
+        Volume          = $Volume
+        MinimumSizeByte = $MinimumSizeByte
     }
+
+    if ($null -ne $ProtectDriveLetter) { $assessmentArgument['ProtectDriveLetter'] = $ProtectDriveLetter }
+    if ($AllowExistingData) { $assessmentArgument['AllowExistingData'] = $true }
+
+    $assessment = @(Get-HDTTargetDiskAssessment @assessmentArgument)
 
     $presentNumber = [int[]] @($assessment | ForEach-Object { $_.Number })
 
