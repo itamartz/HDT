@@ -37,9 +37,18 @@
             which is not an error - it is the answer to "is this variable
             mapped?".
 
+            IsSecret is the one place HDT records which variables carry a
+            credential. It was added because Gather\provenance.json wrote the
+            local administrator password in clear on every machine HDT deployed:
+            the wizard summary already rendered that variable as "(set, not
+            shown)" and the console log already redacted it, so the fact was
+            known three times over and not in a form a fourth writer could ask.
+            A writer that renders a value consults this column rather than
+            matching the name against a word list of its own.
+
         .OUTPUTS
             System.Management.Automation.PSCustomObject with HDTName, MdtName,
-            Writable, Origin and Description.
+            Writable, Origin, IsSecret and Description.
 
         .EXAMPLE
             Get-HDTVariableMap | Format-Table -AutoSize
@@ -211,7 +220,7 @@
         @{ HDTName = 'HDTDomainAdminDomain'; MdtName = 'DomainAdminDomain'; Origin = 'authored'
             Description = 'Domain the joining account belongs to, when it is not the domain being joined. The wizard splits CORP\svc-hdt-join into this and HDTDomainAdmin.'
         }
-        @{ HDTName = 'HDTDomainAdminPassword'; MdtName = 'DomainAdminPassword'; Origin = 'authored'
+        @{ HDTName = 'HDTDomainAdminPassword'; MdtName = 'DomainAdminPassword'; Origin = 'authored'; Secret = $true
             Description = 'Password for HDTDomainAdmin; never written to a log.'
         }
         @{ HDTName = 'HDTMachineObjectOU'; MdtName = 'MachineObjectOU'; Origin = 'authored'
@@ -236,10 +245,10 @@
         # already answers that - a rule outranks a sequence default (DESIGN
         # 3.1) - so a second name would be a second way to say the same thing,
         # and the pair is exactly where an MDT admin loses an afternoon.
-        @{ HDTName = 'HDTProductKey'; MdtName = 'ProductKey'; Origin = 'authored'
+        @{ HDTName = 'HDTProductKey'; MdtName = 'ProductKey'; Origin = 'authored'; Secret = $true
             Description = "Windows product key written into the answer file's specialize pass. Unset removes the element rather than writing an empty one, which is what a KMS or LTSC build needs and what an empty element would fail the pass over."
         }
-        @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword'; Origin = 'authored'
+        @{ HDTName = 'HDTAdminPassword'; MdtName = 'AdminPassword'; Origin = 'authored'; Secret = $true
             Description = 'Local administrator password for the deployed machine; never written to a log.'
         }
         # THE THREE ARE THREE MDT NAMES, NOT ONE. BDEInstall was written here
@@ -255,7 +264,7 @@
         @{ HDTName = 'HDTBitLockerProtector'; MdtName = 'BDEInstall'; Origin = 'authored'
             Description = 'What unlocks the drive at boot: tpm, tpmPin or tpmStartupKey.'
         }
-        @{ HDTName = 'HDTBitLockerPin'; MdtName = 'BDEPin'; Origin = 'authored'
+        @{ HDTName = 'HDTBitLockerPin'; MdtName = 'BDEPin'; Origin = 'authored'; Secret = $true
             Description = 'The startup PIN, for the tpmPin protector only. Authored as readable text like HDTAdminPassword: a value WinPE must use with nobody present cannot be protected by a key that ships in the same boot image.'
         }
         @{ HDTName = 'HDTBitLockerStartupKey'; MdtName = 'BDEKeyLocation'; Origin = 'authored'
@@ -381,7 +390,7 @@
         @{ HDTName = 'HDTUserDomain'; MdtName = 'UserDomain'; Origin = 'bootstrap'
             Description = 'The account''s domain, or empty for one local to the file server.'
         }
-        @{ HDTName = 'HDTUserPassword'; MdtName = 'UserPassword'; Origin = 'bootstrap'
+        @{ HDTName = 'HDTUserPassword'; MdtName = 'UserPassword'; Origin = 'bootstrap'; Secret = $true
             Description = 'The account''s password. Clear text in bootstrap-rules.yaml, exactly as MDT''s Bootstrap.ini kept it: the file travels inside the boot image, and anybody holding the image already holds the credential baked into it.'
         }
         @{ HDTName = 'HDTDeployRoot'; MdtName = 'DeployRoot'; Origin = 'bootstrap'
@@ -411,11 +420,19 @@
             }
         }
 
+        # ABSENT MEANS NOT SECRET, which is what all but a handful of rows
+        # say. Spelling Secret = $false on 120 entries would bury the five that
+        # matter, and a row that forgot the key would then be indistinguishable
+        # from one that meant it.
+        $secret = $false
+        if ($entry.ContainsKey('Secret')) { $secret = [bool] $entry['Secret'] }
+
         [pscustomobject] @{
             HDTName     = $entry.HDTName
             MdtName     = $entry.MdtName
             Writable    = (-not $entry.HDTName.StartsWith('_'))
             Origin      = $entry.Origin
+            IsSecret    = $secret
             Description = $entry.Description
         }
     }

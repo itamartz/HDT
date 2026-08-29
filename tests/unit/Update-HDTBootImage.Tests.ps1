@@ -1,4 +1,4 @@
-# Update-HDTBootImage against fakes: no ADK, no DISM, no elevation, nothing
+﻿# Update-HDTBootImage against fakes: no ADK, no DISM, no elevation, nothing
 # mounted, nothing burned - and every decision the build makes asserted.
 #
 # The real build takes fifteen to twenty-five minutes and needs an elevated
@@ -40,6 +40,13 @@ BeforeAll {
 
     $script:enginePath = 'C:\Modules\Hephaestus'
     $script:yamlPath = 'C:\Modules\powershell-yaml'
+
+    # EVERY PAYLOAD SCRIPT THE MODULE REALLY SHIPS, read off the directory
+    # rather than listed here. The fixture seeds these and the staging assertion
+    # checks these, so neither can fall behind src\Hephaestus\Payload\ - which
+    # is exactly what happened when Remove-HDTAgentTree.ps1 was added.
+    $script:payloadLeaf = @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Payload') -Filter '*.ps1' -File |
+            Sort-Object -Property Name | ForEach-Object { $_.Name })
 
     $script:secret = 'Sup3rSecret-Deploy-Password!'
     $script:protected = InModuleScope Hephaestus -Parameters @{ Secret = $script:secret } {
@@ -112,13 +119,24 @@ bootImage:
         $seed[($script:enginePath + '\Public\Get-HDTAdkPath.ps1')] = '# public'
         $seed[($script:enginePath + '\Hephaestus.bundle.ps1')] = '# every function, concatenated'
         $seed[($script:enginePath + '\Private\ConvertFrom-HDTYaml.ps1')] = '# private'
-        $seed[($script:enginePath + '\Payload\Start-HDTDeployment.ps1')] = '# the entry point'
-        $seed[($script:enginePath + '\Payload\Start-HDTResume.ps1')] = '# the resume leg'
-        # STAGED INTO EVERY IMAGE, like the resume leg, whether or not this one
-        # carries certificates: startnet.cmd names it only when there are some,
-        # and an image missing the script the day somebody adds one would fail
-        # in the one place there is no operator.
-        $seed[($script:enginePath + '\Payload\Import-HDTBootCertificate.ps1')] = '# the certificate import'
+        # SEEDED FROM THE REAL Payload\ DIRECTORY, NOT FROM A LIST WRITTEN HERE.
+        # Three of them were named by hand, and a fourth - Remove-HDTAgentTree.ps1,
+        # the script that deletes C:\HDT once a deployment has finished - made
+        # every test in this file fail the day it was added, because the command
+        # requires it and the fixture had never heard of it.
+        #
+        # A LIST IN A FIXTURE IS A SECOND SOURCE OF TRUTH (CLAUDE.md rule 8).
+        # Reading the directory means the fixture cannot fall behind the module,
+        # and the assertion below reads the same directory - so "every payload
+        # script reaches the image" is checked over the SET.
+        foreach ($payload in @($script:payloadLeaf)) {
+            $seed[($script:enginePath + '\Payload\' + $payload)] = ('# {0}' -f $payload)
+        }
+
+        # STAGED INTO EVERY IMAGE, whether or not this one carries certificates:
+        # startnet.cmd names Import-HDTBootCertificate.ps1 only when there are
+        # some, and an image missing the script the day somebody adds one would
+        # fail in the one place there is no operator.
 
         # UI\ is staged to X:\HDT\UI\ like Payload\, and for the same reason:
         # the window has to be findable at a fixed path inside the image.
@@ -397,14 +415,41 @@ Describe 'Update-HDTBootImage' {
             $package | Should -Not -Contain 'WinPE-WDS-Tools.cab'
         }
 
-        It 'stages the engine module, powershell-yaml and both payload scripts' {
+        It 'stages the engine module and powershell-yaml' {
             foreach ($path in @(
                     ($script:mountPath + '\HDT\Modules\Hephaestus\Hephaestus.psd1'),
-                    ($script:mountPath + '\HDT\Modules\powershell-yaml\net47\YamlDotNet.dll'),
-                    ($script:mountPath + '\HDT\Start-HDTDeployment.ps1'),
-                    ($script:mountPath + '\HDT\Start-HDTResume.ps1'))) {
+                    ($script:mountPath + '\HDT\Modules\powershell-yaml\net47\YamlDotNet.dll'))) {
 
                 $script:contentContext.FileSystem.TestPath($path) | Should -BeTrue -Because "$path must be in the image"
+            }
+        }
+
+        # OVER THE SET, NOT OVER THE TWO SOMEBODY REMEMBERED (CLAUDE.md rule 8).
+        # This test used to name Start-HDTDeployment.ps1 and Start-HDTResume.ps1
+        # and would have passed for ever while Remove-HDTAgentTree.ps1 - the
+        # script that removes C:\HDT when a deployment finishes - never reached
+        # a single boot image. A payload that is not in the image is a payload
+        # Copy-HDTResumeAgent cannot put on the target either, so it fails on
+        # iron and nowhere else.
+        #
+        # THE SET IS THE ONE THE COMMAND ITSELF DECLARES, read off its source.
+        # Not every file in Payload\ belongs in a boot image - the InstallCertificate
+        # step writes Import-HDTOsCertificate.ps1 into the deployed OS instead -
+        # so the rule is "everything this command REQUIRES, it also STAGES".
+        # Adding a fifth required payload and forgetting to copy it fails here.
+        It 'stages every payload script it requires, so none can be left behind' {
+            $source = Get-Content -LiteralPath (Join-Path -Path $script:repoRoot `
+                    -ChildPath 'src/Hephaestus/Public/Update-HDTBootImage.ps1') -Raw
+
+            $required = @([regex]::Matches($source,
+                    "Combine\(\`$EngineModulePath,\s*'Payload',\s*'([^']+)'\)") |
+                    ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
+
+            @($required).Count | Should -BeGreaterThan 0 -Because 'a set assertion over nothing proves nothing'
+
+            foreach ($leaf in $required) {
+                $script:contentContext.FileSystem.TestPath($script:mountPath + '\HDT\' + $leaf) |
+                    Should -BeTrue -Because "$leaf is required by Update-HDTBootImage and must be staged to \HDT"
             }
         }
 

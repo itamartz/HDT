@@ -482,7 +482,13 @@
     $resumePayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Start-HDTResume.ps1')
     $certificatePayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Import-HDTBootCertificate.ps1')
 
-    foreach ($required in @($EngineModulePath, $deploymentPayload, $resumePayload, $certificatePayload)) {
+    # THE DELETER TRAVELS WITH THE RESUME AGENT, for the same reason and by the
+    # same route: it is staged from the boot image onto the target's C:\HDT, and
+    # it is what removes that folder once the deployment is finished. An image
+    # without it deploys machines that keep the engine and the share credential.
+    $removalPayload = [System.IO.Path]::Combine($EngineModulePath, 'Payload', 'Remove-HDTAgentTree.ps1')
+
+    foreach ($required in @($EngineModulePath, $deploymentPayload, $resumePayload, $certificatePayload, $removalPayload)) {
         if (-not $FileSystem.TestPath($required)) {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -ErrorId 'HDTDependencyError' -Category ObjectNotFound `
                         -TargetObject $required `
@@ -1045,6 +1051,19 @@
         [void] $payloadRow.Add([pscustomobject] @{
                 Destination = '\HDT\Start-HDTResume.ps1'
                 Source      = $resumePayload
+                FileCount   = 1
+                SizeBytes   = [long] 0
+            })
+
+        # AND THE DELETER BESIDE IT, staged FROM the boot image TO the target
+        # exactly as the resume agent is. It is the script that removes C:\HDT
+        # once the deployment has finished, and it has to live inside the folder
+        # it deletes so Copy-HDTResumeAgent can carry it across - it is copied
+        # out to %TEMP% at the moment it is needed.
+        $FileSystem.CopyItem($removalPayload, [System.IO.Path]::Combine($hdtRoot, 'Remove-HDTAgentTree.ps1'))
+        [void] $payloadRow.Add([pscustomobject] @{
+                Destination = '\HDT\Remove-HDTAgentTree.ps1'
+                Source      = $removalPayload
                 FileCount   = 1
                 SizeBytes   = [long] 0
             })

@@ -684,97 +684,35 @@ if (-not $skipSummary) {
     }
 }
 
-# -- MDT's LTICleanup, and only on a deployment that worked -------------------
-#
-# WHAT A FINISHED MACHINE WAS STILL CARRYING. Watched on a deployed VM: the
-# Deployment Summary said the run succeeded, and the machine still held the
-# deployment share on a mapped drive, still had C:\HDT with the engine and the
-# share credential's bootstrap document in it, and its only account of how it had
-# been built was inside that same folder.
-#
-# ON SUCCESS ONLY, WHICH IS MDT'S RULE AND THE ONE THAT MATTERS. A failed
-# deployment is exactly the machine somebody walks up to with questions, and
-# every one of those questions is answered by the things this removes.
-#
-# AND NOT WHEN A TECHNICIAN ASKED FOR A PROMPT. Open CMD means they are going to
-# go and look; deleting the engine and the logs out from under them would be the
-# same defect the WinPE leg already learned - a prompt granted and then made
-# useless five seconds later.
-#
-# NOTHING HERE MAY BECOME THE OUTCOME. A share that will not unmap and a folder
-# that will not delete are both smaller problems than a green run recorded as a
-# failure, so each is caught and logged on its own.
-$cleanupWanted = ($null -ne $run -and $run.Status -eq 'Succeeded' -and $summaryAction -ne 'CommandPrompt')
-
-if ($cleanupWanted) {
-
-    # THE MAPPED DRIVE IS THE PROVIDER'S, AND THIS LEG NEVER DISCONNECTED. The
-    # WinPE payload has always done it in its tail; this one simply exited, so a
-    # deployed machine kept the share mapped for the life of the session.
-    if ($null -ne $content) {
-        try {
-            $content.Disconnect()
-
-            Write-HDTLog -Context $failLog -Component 'Cleanup' `
-                -Message 'the deployment share was disconnected'
-        } catch {
-            Write-HDTLog -Context $failLog -Severity Warning -Component 'Cleanup' `
-                -Message ("the deployment share could not be disconnected: {0}" -f $_.Exception.Message)
-        }
-    }
-
-    # AND THE AGENT GOES, LOGS FIRST. Remove-HDTResumeAgent refuses a path that
-    # does not carry Start-HDTResume.ps1, so a bug in the parameter above cannot
-    # become a recursive delete of somewhere else.
-    #
-    # IT DELETES THE FOLDER THIS SCRIPT IS RUNNING FROM, which works because
-    # PowerShell does not hold a script file open - and if it ever stops
-    # working, the catch is what keeps a successful deployment successful.
-    $finalLogs = $FinalLogPath
-    if ([string]::IsNullOrWhiteSpace($finalLogs)) {
-        $finalLogs = '{0}\Logs\HDT' -f $env:SystemRoot
-    }
-
-    try {
-        $swept = Remove-HDTResumeAgent -Path ([System.IO.Path]::GetDirectoryName($StatePath)) `
-            -LogDestination $finalLogs -Confirm:$false
-
-        Write-HDTLog -Context $failLog -Component 'Cleanup' `
-            -Message ("the resume agent was removed: {0} log file(s) kept at '{1}'" -f
-                $swept.LogFileCount, $swept.LogDestination) `
-            -Data ([ordered] @{ path = [string] $swept.Path; removed = [bool] $swept.Removed })
-    } catch {
-        Write-HDTLog -Context $failLog -Severity Warning -Component 'Cleanup' `
-            -Message ("the resume agent could not be removed: {0}. The deployment is unaffected." -f $_.Exception.Message)
-    }
-}
-
-# -- and now the console may come back ---------------------------------------
+# -- the console comes back before anything else does -------------------------
 #
 # AFTER THE SUMMARY, NEVER BEFORE. It was before, and the console landed over
 # the Deployment Summary on a machine that had just deployed correctly.
 #
-# BEFORE THE FINISH ACTION, THOUGH. What follows may restart or power the
-# machine off, and a console restored after that is a console nobody sees; a
-# technician left at a prompt, or a machine whose finish action is NONE, gets
-# their window back.
+# AND BEFORE THE CLEANUP, WHICH IS THE PART THAT NOW RESTARTS THE MACHINE. What
+# follows may power the machine off; a console restored after that is a console
+# nobody sees. A technician left at a prompt, or a machine whose finish action
+# is NONE, gets their window back.
 if ($shellHidden) { [void] (Hide-HDTShellWindow -Restore) }
 
-# -- what the machine does now it is finished --------------------------------
+# -- what the machine WILL do when it is finished -----------------------------
 #
 # MDT's FinishAction. THIS LEG USED TO END ON exit 0 AND LEAVE THE MACHINE WHERE
 # IT WAS - sitting at a desktop, logged in as the local Administrator, until
 # somebody walked over to it. That is the opposite of what a technician imaging
 # a bench of twenty machines wants, and it is why MDT has the property.
 #
-# AFTER THE SUMMARY, NEVER BEFORE. A machine that powers off while its Finished
-# screen is being drawn has shown the person standing in front of it nothing,
-# which would undo the screen above rather than complete it.
+# IT IS DECIDED HERE AND PERFORMED LATER, AND THE SPLIT IS NEW. C:\HDT is
+# removed by a DETACHED process that has to kill this one first - this leg holds
+# YamlDotNet.dll open out of the folder it is deleting - so a restart issued
+# from here would power the machine down with C:\HDT still on it. The decision
+# is therefore made now, handed to the deleter, and carried out here only if
+# there is no deleter to carry it.
 #
-# THE PAYLOAD DECIDES NOTHING. Get-HDTFinishAction is what knows that REBOOT is
-# a restart, that RESTART means the same, that LOGOFF does nothing in WinPE and
-# that a value nobody meant does nothing at all - it is pure and unit tested,
-# and this file is neither.
+# THE PAYLOAD DECIDES NOTHING ABOUT WHAT THE VALUE MEANS. Get-HDTFinishAction is
+# what knows that REBOOT is a restart, that RESTART means the same, that LOGOFF
+# does nothing in WinPE and that a value nobody meant does nothing at all - it
+# is pure and unit tested, and this file is neither.
 $finishValue = ''
 if ($null -ne $variable -and $variable.Contains('HDTFinishAction')) {
     $finishValue = [string] $variable['HDTFinishAction']
@@ -806,10 +744,12 @@ if ($summaryAction -eq 'CommandPrompt') {
 }
 
 # THE FINISH ACTION IS NOT ALLOWED TO BECOME THE OUTCOME, the same rule the
-# summary screen above runs under. A deployment that succeeded and then failed
-# to reboot still succeeded; a machine left powered on is a far smaller problem
-# than a green run recorded as a failure, and the exit code below is what the
-# state file, the monitor and the technician all read.
+# summary screen above runs under. A deployment that succeeded and then could
+# not work out how to reboot still succeeded, and the exit code below is what
+# the state file, the monitor and the technician all read.
+$finishAction = 'None'
+$finishDelay = 0
+
 try {
     $finish = Get-HDTFinishAction -Value $finishValue -Environment FullOS
 
@@ -817,18 +757,116 @@ try {
         Write-HDTLog -Context $log -Severity Warning -Component 'Finish' -Message ([string] $finish.Reason)
     }
 
-    if ($finish.Action -ne 'None') {
-        Write-HDTLog -Context $log -Component 'Finish' -Message ([string] $finish.Reason) `
-            -Data ([ordered] @{ action = [string] $finish.Action; delaySecond = [int] $finish.DelaySecond })
+    $finishAction = [string] $finish.Action
+    $finishDelay = [int] $finish.DelaySecond
 
-        switch ($finish.Action) {
-            'Restart' { $power.Restart([int] $finish.DelaySecond) }
-            'Stop' { $power.Stop([int] $finish.DelaySecond) }
-            'Logoff' { $power.Logoff([int] $finish.DelaySecond) }
-        }
+    if ($finishAction -ne 'None') {
+        Write-HDTLog -Context $log -Component 'Finish' -Message ([string] $finish.Reason) `
+            -Data ([ordered] @{ action = $finishAction; delaySecond = $finishDelay })
     }
 } catch {
-    Write-Information ("the finish action could not be performed: {0}" -f $_.Exception.Message)
+    Write-Information ("the finish action could not be worked out: {0}" -f $_.Exception.Message)
+}
+
+# -- MDT's LTICleanup, and only on a deployment that worked -------------------
+#
+# WHAT A FINISHED MACHINE WAS STILL CARRYING. Watched on a deployed VM: the
+# Deployment Summary said the run succeeded, and the machine still held the
+# deployment share on a mapped drive, still had C:\HDT with the engine and the
+# share credential's bootstrap document in it, and its only account of how it had
+# been built was inside that same folder.
+#
+# ON SUCCESS ONLY, WHICH IS MDT'S RULE AND THE ONE THAT MATTERS. A failed
+# deployment is exactly the machine somebody walks up to with questions, and
+# every one of those questions is answered by the things this removes.
+#
+# AND NOT WHEN A TECHNICIAN ASKED FOR A PROMPT. Open CMD means they are going to
+# go and look; deleting the engine and the logs out from under them would be the
+# same defect the WinPE leg already learned - a prompt granted and then made
+# useless five seconds later.
+#
+# NOTHING HERE MAY BECOME THE OUTCOME. A share that will not unmap and a folder
+# that will not delete are both smaller problems than a green run recorded as a
+# failure, so each is caught and logged on its own.
+$cleanupWanted = ($null -ne $run -and $run.Status -eq 'Succeeded' -and $summaryAction -ne 'CommandPrompt')
+
+# WHETHER SOMETHING ELSE NOW OWNS THE POWER STATE. It is set only when the
+# detached deleter actually started; every other path leaves it false and the
+# machine is restarted from here, exactly as it always was.
+$removalStarted = $false
+
+if ($cleanupWanted) {
+
+    # THE MAPPED DRIVE IS THE PROVIDER'S, AND THIS LEG NEVER DISCONNECTED. The
+    # WinPE payload has always done it in its tail; this one simply exited, so a
+    # deployed machine kept the share mapped for the life of the session.
+    if ($null -ne $content) {
+        try {
+            $content.Disconnect()
+
+            Write-HDTLog -Context $failLog -Component 'Cleanup' `
+                -Message 'the deployment share was disconnected'
+        } catch {
+            Write-HDTLog -Context $failLog -Severity Warning -Component 'Cleanup' `
+                -Message ("the deployment share could not be disconnected: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    # AND THE AGENT GOES, LOGS FIRST. Remove-HDTResumeAgent refuses a path that
+    # does not carry Start-HDTResume.ps1, so a bug in the parameter above cannot
+    # become a recursive delete of somewhere else.
+    #
+    # IT CANNOT DELETE THE FOLDER THIS SCRIPT IS RUNNING FROM, and that is why
+    # the finish action is handed over with it. powershell-yaml has
+    # YamlDotNet.dll loaded out of C:\HDT\Modules and 5.1 cannot unload an
+    # assembly, so the tree goes to a detached process that kills this one first
+    # - which means this process is not alive afterwards to restart the machine.
+    $finalLogs = $FinalLogPath
+    if ([string]::IsNullOrWhiteSpace($finalLogs)) {
+        $finalLogs = '{0}\Logs\HDT' -f $env:SystemRoot
+    }
+
+    try {
+        $swept = Remove-HDTResumeAgent -Path ([System.IO.Path]::GetDirectoryName($StatePath)) `
+            -LogDestination $finalLogs -FinishAction $finishAction -DelaySecond $finishDelay -Confirm:$false
+
+        $removalStarted = [bool] $swept.RemovalStarted
+
+        Write-HDTLog -Context $failLog -Component 'Cleanup' `
+            -Message ("the resume agent was swept: {0} log file(s) kept at '{1}', {2} secret(s) destroyed, removal started {3}" -f
+                $swept.LogFileCount, $swept.LogDestination, @($swept.SecretRemoved).Count, $swept.RemovalStarted) `
+            -Data ([ordered] @{
+                    path           = [string] $swept.Path
+                    removalStarted = [bool] $swept.RemovalStarted
+                    message        = [string] $swept.Message
+                })
+    } catch {
+        Write-HDTLog -Context $failLog -Severity Warning -Component 'Cleanup' `
+            -Message ("the resume agent could not be removed: {0}. The deployment is unaffected." -f $_.Exception.Message)
+    }
+}
+
+# -- and what the machine does now it is finished -----------------------------
+#
+# ONLY WHEN NOBODY ELSE IS GOING TO. The detached deleter performs the finish
+# action itself once C:\HDT is gone - and even if the delete failed - because it
+# has to stop this process before it can delete anything. Two things issuing a
+# restart is a machine that goes down while the tree is half removed.
+#
+# A MACHINE LEFT POWERED ON IS A SMALLER PROBLEM THAN A GREEN RUN RECORDED AS A
+# FAILURE, which is why this is caught and the exit code below is untouched.
+if (-not $removalStarted) {
+    try {
+        if ($finishAction -ne 'None') {
+            switch ($finishAction) {
+                'Restart' { $power.Restart($finishDelay) }
+                'Stop' { $power.Stop($finishDelay) }
+                'Logoff' { $power.Logoff($finishDelay) }
+            }
+        }
+    } catch {
+        Write-Information ("the finish action could not be performed: {0}" -f $_.Exception.Message)
+    }
 }
 
 # A LEG THAT NEVER PRODUCED A RUN FAILED. $run is null when the guard above

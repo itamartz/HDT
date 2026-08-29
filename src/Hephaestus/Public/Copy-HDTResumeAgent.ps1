@@ -201,7 +201,11 @@
     # bootstrap.json is optional: an image built for the Local provider has no
     # share to reach, and a full-OS leg of steps that need no content is a
     # legitimate deployment.
-    foreach ($leaf in @('Start-HDTResume.ps1', 'bootstrap.json')) {
+    # Remove-HDTAgentTree.ps1 IS STAGED INSIDE THE FOLDER IT DELETES, and that
+    # is deliberate rather than careless: it is copied out to %TEMP% and started
+    # detached at the moment the cleanup runs, so it has to have travelled onto
+    # the machine first. PSD stages PSDFinal.ps1 into MININT the same way.
+    foreach ($leaf in @('Start-HDTResume.ps1', 'Remove-HDTAgentTree.ps1', 'bootstrap.json')) {
         $from = [System.IO.Path]::Combine($Source, $leaf)
 
         if (-not $FileSystem.TestPath($from)) { continue }

@@ -22,18 +22,33 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
-    # A staged agent, the way Copy-HDTResumeAgent leaves one.
+    # A STAGED AGENT, THE WAY Copy-HDTResumeAgent LEAVES ONE - AND THE WAY A
+    # REAL ONE WAS FOUND ON A DEPLOYED MACHINE. C:\HDT\Logs holds exactly one
+    # entry and it is a DIRECTORY: the run folder. There is no loose file in it
+    # at all, which is the shape the first version of this command could not
+    # copy and did not survive.
     $script:newAgent = {
         $fs = New-HDTFakeFileSystem
         $fs.SeedFile('C:\HDT\Start-HDTResume.ps1', '# the agent')
-        $fs.SeedFile('C:\HDT\bootstrap.json', '{}')
-        $fs.SeedFile('C:\HDT\state.json', '{}')
+        $fs.SeedFile('C:\HDT\Remove-HDTAgentTree.ps1', '# the deleter')
+        $fs.SeedFile('C:\HDT\bootstrap.json', '{"credential":{"protected":"AAAA"}}')
+        $fs.SeedFile('C:\HDT\state.json', '{"status":"Succeeded"}')
         $fs.SeedFile('C:\HDT\Modules\Hephaestus\Hephaestus.psd1', '@{}')
         $fs.SeedFile('C:\HDT\UI\HDTProgress.xaml', '<Window />')
-        $fs.SeedFile('C:\HDT\Logs\LAUNCHER.log', 'the account of this deployment')
-        $fs.SeedFile('C:\HDT\Logs\run-20260821-233000.jsonl', '{"event":"run.end"}')
+        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\HDT.log', 'the account of this deployment')
+        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\HDT.jsonl', '{"event":"run.end"}')
+        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\status.json', '{"phase":"FullOS"}')
+        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\Steps\01-Format.log', 'formatted')
+        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\Gather\provenance.json', '{"variable":[]}')
 
         return $fs
+    }
+
+    $script:sweep = {
+        param([object] $FileSystem, [object] $Process)
+
+        return (Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
+                -FileSystem $FileSystem -Process $Process -ProcessId 1234 -Confirm:$false)
     }
 }
 
@@ -46,82 +61,197 @@ Describe 'Remove-HDTResumeAgent' {
                 Should -Not -BeNullOrEmpty
         }
 
-        It 'supports ShouldProcess, because it deletes a directory tree' {
+        It 'supports ShouldProcess, because it destroys a credential and starts a delete' {
             (Get-Command -Name 'Remove-HDTResumeAgent').Parameters.Keys | Should -Contain 'WhatIf'
         }
 
-        It 'takes an injected file system' {
-            (Get-Command -Name 'Remove-HDTResumeAgent').Parameters.Keys | Should -Contain 'FileSystem'
+        It 'takes injected services' -ForEach @('FileSystem', 'Process') {
+            (Get-Command -Name 'Remove-HDTResumeAgent').Parameters.Keys | Should -Contain $PSItem
         }
     }
 
-    Context 'the logs go somewhere that outlives the folder' {
+    # THE DEFECT THAT KEPT EVERY DEPLOYED MACHINE'S C:\HDT. Watched on a
+    # deployed VM: the cleanup block threw on its very first statement and the
+    # catch reported "the resume agent could not be removed", so the engine, the
+    # bootstrap credential and the logs all stayed exactly where they were.
+    #
+    # THE CAUSE WAS ONE MISMATCHED PAIR. IFileSystem.GetChildItem is
+    # Directory.GetFileSystemEntries, which returns DIRECTORIES as well as
+    # files, and IFileSystem.CopyItem is [System.IO.File]::Copy, which throws
+    # when handed one. C:\HDT\Logs holds exactly one entry - the run folder - so
+    # the first iteration threw every time, on every machine.
+    Context 'a log tree that is a folder of folders, which is every real one' {
 
-        It 'copies them to the log destination before removing anything' {
+        It 'keeps a log tree whose only entry is a directory' {
             $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
 
-            [void] (Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                    -FileSystem $fs -Confirm:$false)
+            { & $script:sweep $fs $proc } | Should -Not -Throw
 
-            $fs.TestPath('C:\Windows\Logs\HDT\LAUNCHER.log') | Should -BeTrue
-            $fs.TestPath('C:\Windows\Logs\HDT\run-20260821-233000.jsonl') | Should -BeTrue
+            $fs.TestPath('C:\Windows\Logs\HDT\run-20260828-233000\HDT.log') | Should -BeTrue
         }
 
-        It 'reports what it kept' {
+        It 'keeps every file at every depth, not just the top one' -ForEach @(
+            'C:\Windows\Logs\HDT\run-20260828-233000\HDT.log'
+            'C:\Windows\Logs\HDT\run-20260828-233000\HDT.jsonl'
+            'C:\Windows\Logs\HDT\run-20260828-233000\status.json'
+            'C:\Windows\Logs\HDT\run-20260828-233000\Steps\01-Format.log'
+            'C:\Windows\Logs\HDT\run-20260828-233000\Gather\provenance.json'
+        ) {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath($PSItem) | Should -BeTrue
+        }
+
+        It 'counts every file it kept, not every entry it looked at' {
             $fs = & $script:newAgent
 
-            $answer = Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                -FileSystem $fs -Confirm:$false
+            $answer = & $script:sweep $fs (New-HDTFakeProcessService)
 
-            [int] $answer.LogFileCount | Should -Be 2
+            # Five under Logs\, plus the run state document beside the agent.
+            [int] $answer.LogFileCount | Should -Be 6
+        }
+    }
+
+    # WHERE THE STATE FILE GOES, AND WHY IT GOES ANYWHERE AT ALL. It is the
+    # engine's own account of which step the run reached and what it decided,
+    # and it lives beside the agent rather than under Logs\ - so a cleanup that
+    # swept only Logs\ deleted the one document that says where a deployment got
+    # to.
+    Context 'and the state document travels with them' {
+
+        It 'lands under the final log destination' {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath('C:\Windows\Logs\HDT\state.json') | Should -BeTrue
+            $fs.ReadAllText('C:\Windows\Logs\HDT\state.json') | Should -BeLike '*Succeeded*'
+        }
+
+        It 'reports where it put them' {
+            $fs = & $script:newAgent
+            $answer = & $script:sweep $fs (New-HDTFakeProcessService)
+
             [string] $answer.LogDestination | Should -Be 'C:\Windows\Logs\HDT'
         }
+    }
 
-        It 'still removes the folder when there were no logs to keep' {
-            $fs = New-HDTFakeFileSystem
-            $fs.SeedFile('C:\HDT\Start-HDTResume.ps1', '# the agent')
+    # THE SECURITY HALF, AND IT IS NOT A TIDY-UP. bootstrap.json carries the
+    # deployment share's account and its password, AES-encrypted under a key
+    # that is a MODULE CONSTANT - not user-bound, not machine-bound - so
+    # anybody holding the file holds the credential. It was left on the disk of
+    # every machine HDT has ever deployed.
+    #
+    # IN PROCESS, AND BEFORE THE HANDOFF. The tree itself cannot be deleted from
+    # inside this process - powershell-yaml has YamlDotNet.dll loaded out of it
+    # and 5.1 cannot unload an assembly - so the tree goes to a detached
+    # deleter. That deleter is a process that might not start. The credential is
+    # not allowed to depend on it.
+    Context 'the credential goes first, and from inside this process' {
 
-            $answer = Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                -FileSystem $fs -Confirm:$false
+        It 'deletes the bootstrap document' {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
 
-            [int] $answer.LogFileCount | Should -Be 0
-            [bool] $answer.Removed | Should -BeTrue
+            $fs.TestPath('C:\HDT\bootstrap.json') | Should -BeFalse
+        }
+
+        It 'deletes the state document it has just kept a copy of' {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath('C:\HDT\state.json') | Should -BeFalse
+        }
+
+        It 'deletes the credential even when the detached deleter never starts' {
+            # THE WHOLE POINT OF DOING IT HERE. A shell that will not launch, a
+            # missing deleter script, an antivirus that blocks the process -
+            # none of them may leave the share credential on the disk.
+            $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
+            $proc.FailInteractive = $true
+
+            $answer = & $script:sweep $fs $proc
+
+            [bool] $answer.RemovalStarted | Should -BeFalse
+            $fs.TestPath('C:\HDT\bootstrap.json') | Should -BeFalse
+        }
+
+        It 'destroys the credential before it asks anything to start' {
+            $journal = [System.Collections.ArrayList]::new()
+
+            $fs = & $script:newAgent
+            $fs.Journal = $journal
+            $proc = New-HDTFakeProcessService
+            $proc.Journal = $journal
+
+            [void] (& $script:sweep $fs $proc)
+
+            $delete = @($journal | Where-Object {
+                    $_.Operation -eq 'RemoveItem' -and
+                    ([string] $_.Arguments[0]) -like '*bootstrap.json'
+                })[0]
+
+            $start = @($journal | Where-Object { $_.Operation -eq 'StartInteractive' })[0]
+
+            $delete | Should -Not -BeNullOrEmpty
+            $start | Should -Not -BeNullOrEmpty
+            [int] $delete.Sequence | Should -BeLessThan ([int] $start.Sequence)
         }
     }
 
-    Context 'and then the folder goes' {
+    Context 'and then the tree is handed to something that can actually delete it' {
 
-        It 'removes the agent folder' {
+        It 'starts the detached deleter' {
             $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
 
-            [void] (Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                    -FileSystem $fs -Confirm:$false)
+            $answer = & $script:sweep $fs $proc
 
-            $fs.TestPath('C:\HDT') | Should -BeFalse
+            [bool] $answer.RemovalStarted | Should -BeTrue
+            @($proc.GetOperationName()) | Should -Contain 'StartInteractive'
         }
 
-        It 'says it removed it' {
+        It 'tells the deleter which process is holding the tree open' {
             $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
 
-            $answer = Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                -FileSystem $fs -Confirm:$false
+            [void] (& $script:sweep $fs $proc)
 
-            [bool] $answer.Removed | Should -BeTrue
-            [string] $answer.Path | Should -Be 'C:\HDT'
+            $argument = [string] @($proc.Operations | Where-Object { $_.Operation -eq 'StartInteractive' })[0].Arguments[1]
+            $argument | Should -BeLike '*-ParentProcessId 1234*'
+        }
+
+        It 'passes the finish action on, because the parent will be dead' {
+            $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
+
+            [void] (Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
+                    -FinishAction 'Restart' -DelaySecond 30 `
+                    -FileSystem $fs -Process $proc -ProcessId 1234 -Confirm:$false)
+
+            $argument = [string] @($proc.Operations | Where-Object { $_.Operation -eq 'StartInteractive' })[0].Arguments[1]
+            # QUOTED, because the whole thing is one -Command string and a
+            # path in it may legally contain a space or an apostrophe.
+            $argument | Should -BeLike "*-FinishAction 'Restart'*"
+            $argument | Should -BeLike '*-DelaySecond 30*'
         }
 
         It 'does nothing at all under -WhatIf' {
             $fs = & $script:newAgent
+            $proc = New-HDTFakeProcessService
 
             [void] (Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                    -FileSystem $fs -WhatIf)
+                    -FileSystem $fs -Process $proc -WhatIf)
 
-            $fs.TestPath('C:\HDT') | Should -BeTrue
-            $fs.TestPath('C:\Windows\Logs\HDT\LAUNCHER.log') | Should -BeFalse
+            $fs.TestPath('C:\HDT\bootstrap.json') | Should -BeTrue
+            $fs.TestPath('C:\Windows\Logs\HDT\run-20260828-233000\HDT.log') | Should -BeFalse
+            @($proc.GetOperationName()) | Should -Not -Contain 'StartInteractive'
         }
     }
 
-    Context 'what it refuses to delete' {
+    Context 'what it refuses to touch' {
 
         # CLAUDE.md: never pass a variable to a recursive delete without
         # asserting first that it is the thing you meant. This command is handed
@@ -140,7 +270,7 @@ Describe 'Remove-HDTResumeAgent' {
             $fs.SeedFile(('{0}\something-that-matters.txt' -f $PSItem), 'not yours to delete')
 
             { Remove-HDTResumeAgent -Path $PSItem -LogDestination 'C:\Windows\Logs\HDT' `
-                    -FileSystem $fs -Confirm:$false } | Should -Throw
+                    -FileSystem $fs -Process (New-HDTFakeProcessService) -Confirm:$false } | Should -Throw
 
             $fs.TestPath(('{0}\something-that-matters.txt' -f $PSItem)) | Should -BeTrue
             $fs.TestPath('C:\HDT\Start-HDTResume.ps1') | Should -BeTrue
@@ -152,7 +282,7 @@ Describe 'Remove-HDTResumeAgent' {
             $fs.SeedFile('C:\HDT\notes.txt', 'mine')
 
             { Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                    -FileSystem $fs -Confirm:$false } | Should -Throw
+                    -FileSystem $fs -Process (New-HDTFakeProcessService) -Confirm:$false } | Should -Throw
 
             $fs.TestPath('C:\HDT\notes.txt') | Should -BeTrue
         }
@@ -161,10 +291,9 @@ Describe 'Remove-HDTResumeAgent' {
             # A second Finish press, or a leg that already cleaned up.
             $fs = New-HDTFakeFileSystem
 
-            $answer = Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination 'C:\Windows\Logs\HDT' `
-                -FileSystem $fs -Confirm:$false
+            $answer = & $script:sweep $fs (New-HDTFakeProcessService)
 
-            [bool] $answer.Removed | Should -BeFalse
+            [bool] $answer.RemovalStarted | Should -BeFalse
         }
     }
 }

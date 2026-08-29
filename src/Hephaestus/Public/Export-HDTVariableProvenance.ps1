@@ -28,6 +28,13 @@
             Entries are in resolution order, so the file reads as a transcript of
             what the engine did.
 
+            A SECRET'S VALUE IS NOT IN IT. Every variable Get-HDTVariableMap
+            marks IsSecret is written with its name, its source and its rule
+            intact and its value replaced by "(set, not shown)" - the same words
+            the wizard summary uses. This file was found on a deployed machine
+            carrying the local administrator password in clear, and SLShare
+            copies it to the deployment share.
+
         .PARAMETER Resolution
             A Resolve-HDTVariable result.
 
@@ -87,17 +94,49 @@
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
+    # THE SECRETS, FROM THE ONE PLACE THAT KNOWS WHICH THEY ARE. Read on a
+    # deployed machine's C:\HDT\Logs\<run>\Gather\provenance.json:
+    # HDTAdminPassword and its actual value, side by side. SLShare then copies
+    # that file to the deployment share, where every machine being deployed can
+    # read it.
+    #
+    # Get-HDTVariableMap RATHER THAN A WORD LIST HERE. Three writers already
+    # needed to know which variables are secret and each answered it its own
+    # way; a fourth private list is a fourth thing to forget to update, and this
+    # file is the one that gets it wrong silently.
+    $secret = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($mapped in @(Get-HDTVariableMap)) {
+        if ($mapped.IsSecret) { $secret[[string] $mapped.HDTName] = $true }
+    }
+
     $entry = New-Object -TypeName System.Collections.ArrayList
 
     foreach ($record in @(Get-HDTVariableProvenance -Resolution $Resolution)) {
+        $value = $record.Value
+        $rawValue = $record.RawValue
+
+        # THE NAME AND THE PROVENANCE STAY; ONLY THE VALUE GOES. "Which source
+        # set the administrator password" is exactly the question this file
+        # exists to answer, and dropping the entry would answer it with silence.
+        #
+        # AND SO DOES THE FACT THAT IT WAS SET. A redaction and an empty string
+        # read identically in JSON and mean opposite things - the second is a
+        # deployment that had no password and was going to fail - so the same
+        # words the wizard summary uses are written instead of a blank.
+        if ($secret.ContainsKey([string] $record.Name)) {
+            if (-not [string]::IsNullOrEmpty([string] $value)) { $value = '(set, not shown)' }
+            if (-not [string]::IsNullOrEmpty([string] $rawValue)) { $rawValue = '(set, not shown)' }
+        }
+
         [void] $entry.Add([pscustomobject] ([ordered] @{
                     name      = $record.Name
-                    value     = $record.Value
+                    value     = $value
                     source    = $record.Source
                     rule      = $record.Rule
                     ruleIndex = $record.RuleIndex
                     file      = $record.File
-                    rawValue  = $record.RawValue
+                    rawValue  = $rawValue
                     expanded  = $record.Expanded
                     order     = $record.Order
                 }))

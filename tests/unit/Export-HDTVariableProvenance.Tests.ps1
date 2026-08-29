@@ -128,3 +128,118 @@ Describe 'Export-HDTVariableProvenance' {
         $help.Synopsis | Should -Not -Match 'Export-HDTVariableProvenance \['
     }
 }
+
+# THE LOCAL ADMINISTRATOR PASSWORD WAS IN THIS FILE, IN CLEAR.
+#
+# Found on a deployed machine at C:\HDT\Logs\<run>\Gather\provenance.json:
+# HDTAdminPassword with its actual value beside it. Everything else in HDT
+# already knew that variable was secret - the wizard summary renders it as
+# "(set, not shown)", the console log redacts it, the unattend step scrubs it -
+# and this one writer did not ask.
+#
+# THE FIX IS AT THE WRITER, NOT AT THE MOVER. Keeping the file out of the logs
+# would have hidden the same defect somewhere else: the value should never have
+# been written down at all, and the file is copied to a share by SLShare and
+# read by whoever is diagnosing a deployment.
+#
+# AND IT IS DRIVEN OFF THE SET, NOT OFF ONE NAME (CLAUDE.md rule 8). A test that
+# grepped for HDTAdminPassword would pass for that variable and fail for nobody
+# after it. Get-HDTVariableMap is where HDT records which variables are secret;
+# every one of them is asserted here, so a secret added to the map tomorrow is
+# covered by this file today.
+Describe 'Export-HDTVariableProvenance and the values it must not write down' {
+
+    BeforeAll {
+        $script:secretName = @(Get-HDTVariableMap | Where-Object { $_.IsSecret } | ForEach-Object { [string] $_.HDTName })
+
+        # A DISTINCT, FINDABLE VALUE PER VARIABLE. A shared literal could be
+        # matched by the wrong entry and would make one leak look like none.
+        $script:secretValue = @{}
+        $index = 0
+        foreach ($name in $script:secretName) {
+            $index++
+            $script:secretValue[$name] = ('SECRET-VALUE-{0:d2}-{1}' -f $index, [guid]::NewGuid().ToString('N').Substring(0, 8))
+        }
+
+        $script:secretResolution = Resolve-HDTVariable -CommandLine $script:secretValue -Fact @{}
+    }
+
+    It 'knows of at least one secret to redact' {
+        # Non-vacuity: an IsSecret column nothing sets would make every
+        # assertion below pass over an empty set.
+        @($script:secretName).Count | Should -BeGreaterThan 0
+    }
+
+    It 'writes no secret value into the document' {
+        $fileSystem = New-HDTFakeFileSystem
+
+        Export-HDTVariableProvenance -Resolution $script:secretResolution -Path $script:exportPath -FileSystem $fileSystem
+
+        $text = [string] $fileSystem.ReadAllText($script:exportPath)
+
+        foreach ($name in $script:secretName) {
+            $text | Should -Not -BeLike ('*{0}*' -f $script:secretValue[$name]) -Because ("{0} is marked secret" -f $name)
+        }
+    }
+
+    It 'writes no secret value into rawValue either, which is where the unexpanded one lives' {
+        $fileSystem = New-HDTFakeFileSystem
+
+        Export-HDTVariableProvenance -Resolution $script:secretResolution -Path $script:exportPath -FileSystem $fileSystem
+
+        $document = [string] $fileSystem.ReadAllText($script:exportPath) | ConvertFrom-Json
+
+        foreach ($entry in @($document.variable | Where-Object { $script:secretName -contains [string] $_.name })) {
+            [string] $entry.rawValue | Should -Not -Be $script:secretValue[[string] $entry.name]
+        }
+    }
+
+    # THE POINT OF THE FILE IS WHICH SOURCE SET WHAT. Dropping the entry would
+    # answer "where did the administrator password come from?" with silence,
+    # which is the question somebody has when a machine will not accept it.
+    It 'keeps the variable, its source and its order - it redacts only the value' {
+        $fileSystem = New-HDTFakeFileSystem
+
+        Export-HDTVariableProvenance -Resolution $script:secretResolution -Path $script:exportPath -FileSystem $fileSystem
+
+        $document = [string] $fileSystem.ReadAllText($script:exportPath) | ConvertFrom-Json
+
+        foreach ($name in $script:secretName) {
+            $entry = @($document.variable | Where-Object { [string] $_.name -eq $name })[0]
+
+            $entry | Should -Not -BeNullOrEmpty -Because ("{0} must still appear" -f $name)
+            [string] $entry.source | Should -BeExactly 'CommandLine'
+            [int] $entry.order | Should -BeGreaterThan 0
+        }
+    }
+
+    It 'says the value was set rather than leaving it blank' {
+        # A blank and a redaction read identically, and they mean opposite
+        # things: one is a password nobody supplied, which is a deployment that
+        # was going to fail.
+        $fileSystem = New-HDTFakeFileSystem
+
+        Export-HDTVariableProvenance -Resolution $script:secretResolution -Path $script:exportPath -FileSystem $fileSystem
+
+        $document = [string] $fileSystem.ReadAllText($script:exportPath) | ConvertFrom-Json
+
+        foreach ($name in $script:secretName) {
+            $entry = @($document.variable | Where-Object { [string] $_.name -eq $name })[0]
+            [string] $entry.value | Should -Not -BeNullOrEmpty -Because ("{0} was set and the file should say so" -f $name)
+        }
+    }
+
+    It 'leaves every other variable exactly as it resolved' {
+        $fileSystem = New-HDTFakeFileSystem
+
+        $resolution = Resolve-HDTVariable -CommandLine @{ HDTComputerName = 'PC-0001'; HDTOrgName = 'Contoso' } -Fact @{}
+        Export-HDTVariableProvenance -Resolution $resolution -Path $script:exportPath -FileSystem $fileSystem
+
+        $document = [string] $fileSystem.ReadAllText($script:exportPath) | ConvertFrom-Json
+
+        [string] @($document.variable | Where-Object { [string] $_.name -eq 'HDTComputerName' })[0].value |
+            Should -BeExactly 'PC-0001'
+        [string] @($document.variable | Where-Object { [string] $_.name -eq 'HDTOrgName' })[0].value |
+            Should -BeExactly 'Contoso'
+    }
+}

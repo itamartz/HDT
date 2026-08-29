@@ -1,4 +1,4 @@
-# Get-HDTVariableMap is DESIGN 3.2's MDT-to-HDT translation table as data rather
+﻿# Get-HDTVariableMap is DESIGN 3.2's MDT-to-HDT translation table as data rather
 # than as prose: "Get-HDTVariableMap prints this table at runtime, and a contract
 # test asserts every documented MDT name has exactly one HDT counterpart, so the
 # mapping cannot silently drift."
@@ -200,5 +200,39 @@ Describe "the wizard's own settings" {
         # the boot image; the control is to treat the workspace and the media as
         # credentials.
         (Get-HDTVariableMap -Name 'HDTAdminPassword').Description | Should -BeLike '*log*'
+    }
+
+    # WHICH VARIABLES ARE SECRET IS DATA HERE, IN ONE PLACE, because three
+    # separate writers already needed the answer and each invented its own.
+    # The wizard summary renders "(set, not shown)", the console log matches a
+    # word list, and Gather\provenance.json wrote the local administrator
+    # password in clear on every machine HDT deployed until this column existed.
+    It 'says of every variable whether it is a secret' {
+        $property = @((Get-HDTVariableMap)[0].PSObject.Properties.Name)
+
+        $property | Should -Contain 'IsSecret'
+    }
+
+    It 'marks at least one variable secret' {
+        @(Get-HDTVariableMap | Where-Object { $_.IsSecret }).Count | Should -BeGreaterThan 0
+    }
+
+    # ASSERTED OVER THE SET, NOT OVER A LIST WRITTEN TWICE. A variable whose
+    # NAME says it carries a password or a PIN and which is not marked secret is
+    # the next provenance.json leak, so the shape of the name is what is
+    # checked - which fails for the variable somebody adds tomorrow.
+    It 'marks every variable whose name says it carries one' {
+        $missed = @(Get-HDTVariableMap |
+                Where-Object { $_.HDTName -match '(?i)password|pin$' -and -not $_.IsSecret })
+
+        ($missed | ForEach-Object { $_.HDTName }) -join ', ' | Should -BeExactly ''
+    }
+
+    It 'does not mark a variable secret that plainly is not' -ForEach @(
+        'HDTComputerName', 'HDTOrgName', 'HDTFullName', 'HDTJoinDomain') {
+
+        # A column nothing distinguishes redacts the whole file and answers
+        # nothing, which is the other way to get this wrong.
+        (Get-HDTVariableMap -Name $PSItem).IsSecret | Should -BeFalse
     }
 }

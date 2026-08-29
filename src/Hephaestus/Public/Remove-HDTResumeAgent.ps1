@@ -1,8 +1,8 @@
 ﻿function Remove-HDTResumeAgent {
     <#
         .SYNOPSIS
-            Keeps the logs, drops the staged agent, and leaves a finished
-            machine carrying nothing of the deployment that built it.
+            Keeps the logs, destroys the share credential, and hands the staged
+            agent to something that can actually delete it.
 
         .DESCRIPTION
             WHAT A DEPLOYED MACHINE WAS STILL HOLDING. Watched on 2026-08-21:
@@ -22,11 +22,44 @@
             than a machine with a stale folder on it. Nothing is removed if the
             copy throws.
 
+            AND THEY ARE A TREE, WHICH IS WHAT THE FIRST VERSION GOT WRONG.
+            C:\HDT\Logs holds exactly one entry on a real machine and it is a
+            DIRECTORY - the run folder, with Steps\ and Gather\ under it.
+            IFileSystem.GetChildItem is Directory.GetFileSystemEntries, which
+            returns directories, and IFileSystem.CopyItem is File.Copy, which
+            throws when handed one. The pair threw on the first iteration of
+            every deployment ever cleaned up, the caller's catch reported "the
+            resume agent could not be removed", and the whole folder survived
+            with the credential in it. Copy-HDTContentTree is what recurses.
+
             WHERE THEY GO IS THE CALLER'S ANSWER, and the payload's default is
             %WINDIR%\Logs\HDT rather than %WINDIR%\TEMP\DeploymentLogs - a
             directory Windows itself cleans out, which is a poor home for the
             only record of how a machine was built. DESIGN 14 carries the
-            reason.
+            reason. state.json goes with them: it lives beside the agent rather
+            than under Logs\, and it is the engine's own account of which step
+            the run reached.
+
+            THEN THE CREDENTIAL, IN THIS PROCESS, BEFORE ANYTHING IS HANDED
+            OVER. bootstrap.json carries the deployment share's account and its
+            password, AES-encrypted under a key that is a MODULE CONSTANT -
+            neither user- nor machine-bound (see Unprotect-HDTShareSecret), so
+            anybody holding the file holds the credential. Nothing locks that
+            file, so it is deleted here rather than left to the detached step
+            below: a process that fails to start must not be the difference
+            between a destroyed credential and a recoverable one.
+
+            AND THE TREE ITSELF GOES TO A SECOND PROCESS, because it cannot go
+            to this one. This leg runs FROM the folder: Start-HDTResume.ps1
+            prepends C:\HDT\Modules to PSModulePath and powershell-yaml
+            LoadFile()s YamlDotNet.dll out of it, which Windows PowerShell 5.1
+            cannot unload for the life of a process. A recursive delete from
+            here throws part way and leaves a half-deleted tree. So
+            Remove-HDTAgentTree.ps1 is copied OUT of the doomed folder into
+            %TEMP% and started detached with this process's id; it stops this
+            process, removes the tree, and performs the finish action - which
+            has to move with it, because by then there is nobody left to restart
+            the machine. PSD does exactly this, and MDT before it; see NOTICE.md.
 
             IT DOES NOT DECIDE WHEN. On a FAILED deployment none of this should
             happen: that is precisely the machine somebody walks up to with
@@ -40,7 +73,8 @@
             this into a machine with no C:\Windows, so the path has to CONTAIN A
             STAGED AGENT - Start-HDTResume.ps1, the file Copy-HDTResumeAgent
             puts there - before anything is removed. A folder merely named HDT is
-            somebody else's.
+            somebody else's. The detached deleter asserts the same thing again
+            on its own command line, because it is the one that does the delete.
 
             THE MAPPED DRIVE IS NOT THIS COMMAND'S. The content provider owns it
             and Disconnect is what drops it; a second answer to "who unmaps the
@@ -50,20 +84,43 @@
             The staged agent folder. C:\HDT on a deployed machine.
 
         .PARAMETER LogDestination
-            Where the logs are kept before the folder goes.
+            Where the logs and the state document are kept before the folder
+            goes.
+
+        .PARAMETER FinishAction
+            What the machine does once the folder is gone - Restart, Stop,
+            Logoff or None - passed straight to the detached deleter, which is
+            the only thing still running by then. Get-HDTFinishAction resolves
+            MDT's REBOOT / SHUTDOWN / LOGOFF spellings to these.
+
+        .PARAMETER DelaySecond
+            How long the finish action waits before acting.
+
+        .PARAMETER ProcessId
+            The process the deleter must stop before it can remove the tree.
+            Defaults to this one, which is the leg holding the folder open.
 
         .PARAMETER FileSystem
             An IFileSystem. Defaults to the real adapter.
+
+        .PARAMETER Process
+            An IProcessService, which is what starts the detached deleter.
+            Defaults to the real adapter.
+
+        .PARAMETER Environment
+            An IEnvironmentProvider, read for TEMP - the one directory the
+            deleter can live in that is not the one being deleted.
 
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with Path, Removed,
-            LogDestination and LogFileCount.
+            System.Management.Automation.PSCustomObject with Path,
+            LogDestination, LogFileCount, SecretRemoved, RemovalStarted and
+            RemovalProcessId.
 
         .EXAMPLE
-            Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination "$env:WinDir\Logs\HDT"
+            Remove-HDTResumeAgent -Path 'C:\HDT' -LogDestination "$env:WinDir\Logs\HDT" -FinishAction 'Restart'
 
             What Start-HDTResume.ps1 calls once the technician has pressed
             Finish on a deployment that worked.
@@ -85,22 +142,47 @@
         [string] $LogDestination,
 
         [Parameter()]
+        [AllowEmptyString()]
+        [string] $FinishAction = 'None',
+
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $DelaySecond = 0,
+
+        [Parameter()]
+        [ValidateRange(0, [int]::MaxValue)]
+        [int] $ProcessId = $PID,
+
+        [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Process,
+
+        [Parameter()]
+        [AllowNull()]
+        [object] $Environment
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
+    if ($null -eq $Process) { $Process = New-HDTProcessService }
+    if ($null -eq $Environment) { $Environment = New-HDTEnvironmentProvider }
 
     $root = $Path.TrimEnd('\', '/')
 
     $result = [ordered] @{
-        Path           = $root
-        Removed        = $false
-        LogDestination = $LogDestination.TrimEnd('\', '/')
-        LogFileCount   = 0
+        Path             = $root
+        LogDestination   = $LogDestination.TrimEnd('\', '/')
+        LogFileCount     = 0
+        SecretRemoved    = [string[]] @()
+        RemovalStarted   = $false
+        RemovalProcessId = 0
+        Message          = ''
     }
 
     # NOTHING THERE IS NOT AN ERROR. A second Finish press, or a leg that has
@@ -118,31 +200,61 @@
             $root, 'Start-HDTResume.ps1')
     }
 
-    if (-not $PSCmdlet.ShouldProcess($root, 'Keep the logs and remove the staged resume agent')) {
+    if (-not $PSCmdlet.ShouldProcess($root, 'Keep the logs, destroy the share credential and remove the staged resume agent')) {
         return [pscustomobject] $result
     }
 
     # -- the logs, before anything is removed ---------------------------------
 
+    $destination = $result['LogDestination']
     $logRoot = '{0}\Logs' -f $root
 
     if ($FileSystem.TestPath($logRoot)) {
-        $destination = $result['LogDestination']
+        # A TREE, NOT A LIST OF FILES - see the description. Copy-HDTContentTree
+        # creates the destination and recurses, and it tells a directory from a
+        # file the one way IFileSystem allows.
+        $result['LogFileCount'] += [int] (Copy-HDTContentTree -Source $logRoot `
+                -Destination $destination -FileSystem $FileSystem)
+    } else {
         $FileSystem.CreateDirectory($destination)
-
-        foreach ($file in @($FileSystem.GetChildItem($logRoot))) {
-            $leaf = [System.IO.Path]::GetFileName([string] $file)
-
-            $FileSystem.CopyItem([string] $file, ('{0}\{1}' -f $destination, $leaf))
-            $result['LogFileCount']++
-        }
     }
 
-    # -- and now the folder ---------------------------------------------------
+    # THE STATE DOCUMENT LIVES BESIDE THE AGENT, NOT UNDER Logs\, because the
+    # boot reconcile reads it there. It is the only account of which step the
+    # run reached, so a sweep that took Logs\ alone threw it away.
+    $state = '{0}\state.json' -f $root
 
-    # Recursive, and the assertion above is what makes that safe to write.
-    $FileSystem.RemoveItem($root, $true)
-    $result['Removed'] = $true
+    if ($FileSystem.TestPath($state)) {
+        $FileSystem.CopyItem($state, ('{0}\state.json' -f $destination))
+        $result['LogFileCount']++
+    }
+
+    # -- the credential, in this process --------------------------------------
+    #
+    # NOTHING HOLDS THESE OPEN, so they go now rather than depending on a
+    # detached process that may never start. This is the security guarantee and
+    # it is not allowed to have a moving part in it.
+    $destroyed = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($leaf in @('bootstrap.json', 'state.json')) {
+        $secret = '{0}\{1}' -f $root, $leaf
+
+        if (-not $FileSystem.TestPath($secret)) { continue }
+
+        $FileSystem.RemoveItem($secret, $false)
+        [void] $destroyed.Add([string] $secret)
+    }
+
+    $result['SecretRemoved'] = [string[]] @($destroyed)
+
+    # -- and the tree goes to something that can delete it --------------------
+
+    $handoff = Start-HDTAgentRemoval -Path $root -FinishAction $FinishAction -DelaySecond $DelaySecond `
+        -ProcessId $ProcessId -FileSystem $FileSystem -Process $Process -Environment $Environment
+
+    $result['RemovalStarted'] = [bool] $handoff.Started
+    $result['RemovalProcessId'] = [int] $handoff.ProcessId
+    $result['Message'] = [string] $handoff.Message
 
     return [pscustomobject] $result
 }

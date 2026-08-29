@@ -802,3 +802,84 @@ Describe 'Start-HDTResume.ps1 and a leg that dies before the first step' {
         }
     }
 }
+
+# WHAT HAPPENS WHEN THE TECHNICIAN PRESSES Finish, AND WHEN IT DOES NOT HAPPEN.
+#
+# MDT's LTICleanup runs at the end of state restore and only there. HDT's
+# equivalent moves C:\HDT\Logs and C:\HDT\state.json to %WINDIR%\Logs\HDT,
+# destroys the share credential in this process, and hands C:\HDT to a detached
+# deleter - because this process has YamlDotNet.dll loaded out of that very
+# folder and 5.1 cannot unload an assembly.
+#
+# ON SUCCESS ONLY, WHICH IS THE RULE THAT MATTERS MOST HERE. A failed machine is
+# the one somebody walks up to with questions, and every one of those questions
+# is answered by the engine, the logs and the state file this would remove.
+Describe 'Start-HDTResume.ps1 and the cleanup at the end of a deployment' {
+
+    Context 'when it runs at all' {
+
+        It 'runs only for a run that succeeded' {
+            # ASSERTED ON THE ASSIGNMENT, NOT ON THE TOKEN STREAM. $codeOnly
+            # joins tokens with a space, so $run.Status reads as '$run . Status'
+            # there; and $script:text would match the prose above the code.
+            $assignment = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+                        $node.Left.Extent.Text -eq '$cleanupWanted'
+                    }, $true))
+
+            $assignment.Count | Should -Be 1
+            $assignment[0].Right.Extent.Text | Should -BeLike "*Status -eq 'Succeeded'*"
+        }
+
+        It 'does not run when the technician asked for a command prompt' {
+            # A prompt granted and then made useless five seconds later is the
+            # defect the WinPE leg already learned.
+            $script:codeOnly | Should -BeLike "*`$summaryAction -ne 'CommandPrompt'*"
+        }
+
+        It 'guards the whole cleanup, so it can never become the outcome' {
+            # A share that will not unmap and a folder that will not delete are
+            # both smaller problems than a green run recorded as a failure.
+            $script:text | Should -Match '(?s)Remove-HDTResumeAgent.*?\}\s*catch'
+        }
+    }
+
+    Context 'what it hands the cleanup' {
+
+        It 'keeps the logs under the Windows log directory rather than TEMP' {
+            # MDT uses %WINDIR%\TEMP\DeploymentLogs, which Windows itself
+            # cleans out. DESIGN 14 carries the divergence.
+            $script:codeOnly | Should -BeLike "*`$env:SystemRoot*"
+            $script:codeOnly | Should -BeLike '*Logs\HDT*'
+        }
+
+        It 'passes the finish action to the cleanup' {
+            # THE PARENT WILL BE DEAD BEFORE THE TREE IS GONE. A restart issued
+            # here would power the machine off with C:\HDT still on it, so the
+            # deleter owns the finish action and has to be told what it is.
+            $call = @(& $script:commandNamed 'Remove-HDTResumeAgent')[0]
+
+            $call | Should -Not -BeNullOrEmpty
+            @($call.CommandElements | ForEach-Object { [string] $_.Extent.Text }) | Should -Contain '-FinishAction'
+        }
+
+        It 'works the finish action out before it hands it over' {
+            $finish = @(& $script:commandNamed 'Get-HDTFinishAction')[0]
+            $sweep = @(& $script:commandNamed 'Remove-HDTResumeAgent')[0]
+
+            $finish | Should -Not -BeNullOrEmpty
+            $sweep | Should -Not -BeNullOrEmpty
+            [int] $finish.Extent.StartOffset | Should -BeLessThan ([int] $sweep.Extent.StartOffset)
+        }
+    }
+
+    Context 'and the power state, which only one of them may produce' {
+
+        It 'does not restart the machine itself once the deleter has been given the job' {
+            # Two things issuing a restart is a machine that goes down while
+            # C:\HDT is half deleted.
+            $script:codeOnly | Should -BeLike '*RemovalStarted*'
+        }
+    }
+}
