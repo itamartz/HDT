@@ -711,6 +711,23 @@ explicitly labelled one.
 `type` maps `1`=Info, `2`=Warning, `3`=Error, giving CMTrace its colour coding
 for free.
 
+**The two files do not share a line terminator, and the difference is load
+bearing.** `HDT.log` and every per-step log are written **CRLF**; `HDT.jsonl` is
+written **LF**.
+
+CMTrace is a line-oriented Win32 parser that breaks entries on CRLF. Handed
+LF-only text it never separates one entry from the next, the per-entry
+`<![LOG[...]LOG]!>` match fails, and it falls back to dumping raw text with
+**Component, Date/Time and Thread blank** — every attribute correct in the bytes,
+and the reader never reaching them. This is the same rule section 11 states for
+the other Windows-format file the build writes, where `startnet.cmd` is "written
+ASCII with CRLF and no BOM": a file a Windows tool parses gets the terminator
+that tool splits on.
+
+JSON Lines defines its separator as a bare line feed, so the `.jsonl` files
+keep it. "Fix the newlines" applied to both would break the reader that works
+in order to repair the one that does not.
+
 #### 4.4.3 Per-step logs, like MDT's ZTI\*.log
 
 Beyond the master log, **each step gets its own file**: `<step-name>.log` in

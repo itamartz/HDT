@@ -331,20 +331,20 @@ Describe 'Write-HDTLog' {
             Write-HDTLog -Context $script:context -Message 'x'
 
             # TrimEnd: the writer leaves the line terminator on the file.
-            $script:fs.ReadAllText($script:masterPath).TrimEnd("`n") | Should -BeLike '*file="Engine">'
+            $script:fs.ReadAllText($script:masterPath).TrimEnd("`r`n") | Should -BeLike '*file="Engine">'
         }
 
         It 'defaults the file to the step type when a step is running' {
             $script:context.SetStep(3, 'Apply OS', 'ApplyImage', $null)
             Write-HDTLog -Context $script:context -Message 'x'
 
-            $script:fs.ReadAllText($script:masterPath).TrimEnd("`n") | Should -BeLike '*file="ApplyImage">'
+            $script:fs.ReadAllText($script:masterPath).TrimEnd("`r`n") | Should -BeLike '*file="ApplyImage">'
         }
 
         It 'writes the source it was given as the file' {
             Write-HDTLog -Context $script:context -Message 'x' -Source 'Update-VendorBios.ps1'
 
-            $script:fs.ReadAllText($script:masterPath).TrimEnd("`n") | Should -BeLike '*file="Update-VendorBios.ps1">'
+            $script:fs.ReadAllText($script:masterPath).TrimEnd("`r`n") | Should -BeLike '*file="Update-VendorBios.ps1">'
         }
     }
 
@@ -383,6 +383,94 @@ Describe 'Write-HDTLog' {
 
             $script:context.StepLogPath | Should -BeExactly 'X:\HDT\Logs\Steps\003-ApplyImage.log'
             $script:fs.Operations[2].Arguments[0] | Should -BeExactly 'X:\HDT\Logs\Steps\003-ApplyImage.log'
+        }
+    }
+
+    Context 'line endings' {
+
+        # CMTRACE IS CRLF, AND THE FIELDS WERE NEVER THE PART THAT BROKE.
+        #
+        # CMTrace's parser is line oriented and breaks entries on CRLF. Handed a
+        # file of bare line feeds it never separates one entry from the next, the
+        # <![LOG[...]LOG]!> match fails, and it falls back to dumping raw text
+        # with the Component, Date/Time and Thread columns EMPTY. Every attribute
+        # is present in the bytes and the reader never reaches them.
+        #
+        # WHICH IS EXACTLY HOW IT SHIPPED. The assertions above split on "`n",
+        # which matches LF and CRLF alike, so they proved the component was
+        # written and could not see that the file was unreadable. On the lab
+        # share all sixteen HDT.log files carried CR=0 - a technician opening any
+        # of them saw a blank Component column and correctly reported it missing.
+        #
+        # THE JSONL STAYS LF, and this is not a detail to sweep up with a blanket
+        # replace: JSON Lines defines its separator as \n, so the two formats
+        # genuinely differ and "fix the newlines" would break the reader that
+        # works to repair the one that does not.
+
+        It 'ends every CMTrace destination with CRLF' {
+            # AGAINST THE SET, not against the master log alone. There are four
+            # CMTrace destinations - local master, local step, and the two
+            # SLShareDynamicLogging mirrors - and fixing only the one somebody
+            # noticed would leave a technician watching the share live, which is
+            # the case the mirror exists for, still reading blank columns.
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-20260813-001102' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -FileSystem $fs -Clock $clock -ThreadId 4820 `
+                -DynamicPath '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2'
+            $context.SetStep(3, 'Apply OS', 'ApplyImage', 'X:\HDT\Logs\Steps\003-ApplyImage.log')
+
+            Write-HDTLog -Context $context -Message 'Applied index 1'
+
+            $cmtrace = @(
+                [string] $context.MasterLogPath
+                [string] $context.StepLogPath
+                [string] $context.DynamicMasterLogPath
+                [string] $context.DynamicStepLogPath
+            )
+
+            $cmtrace.Count | Should -Be 4
+
+            foreach ($path in $cmtrace) {
+                $path | Should -Not -BeNullOrEmpty
+                $fs.ReadAllText($path).EndsWith("`r`n") |
+                    Should -BeTrue -Because ('{0} is read by CMTrace' -f $path)
+            }
+        }
+
+        It 'keeps every JSONL destination on a bare line feed' {
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-20260813-001102' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -FileSystem $fs -Clock $clock -ThreadId 4820 `
+                -DynamicPath '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2'
+
+            Write-HDTLog -Context $context -Message 'Applied index 1'
+
+            foreach ($path in @([string] $context.JsonlPath, [string] $context.DynamicJsonlPath)) {
+                $path | Should -Not -BeNullOrEmpty
+                $text = $fs.ReadAllText($path)
+                $text.EndsWith("`n") | Should -BeTrue -Because ('{0} is JSON Lines' -f $path)
+                $text.Contains("`r") | Should -BeFalse -Because ('{0} is JSON Lines, whose separator is a line feed' -f $path)
+            }
+        }
+
+        It 'writes one CMTrace entry per call, counted the way CMTrace counts them' {
+            # SPLIT ON CRLF, so this fails for a file of bare line feeds instead
+            # of passing the way the "`n" splits above do.
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-20260813-001102' -Phase WinPE `
+                -LogPath 'X:\HDT\Logs' -FileSystem $fs -Clock $clock -ThreadId 4820
+
+            Write-HDTLog -Context $context -Message 'first'
+            Write-HDTLog -Context $context -Message 'second'
+
+            $entry = @($fs.ReadAllText([string] $context.MasterLogPath) -split "`r`n" | Where-Object { $_ })
+
+            $entry.Count | Should -Be 2
+            $entry[0].StartsWith('<![LOG[first]LOG]!>') | Should -BeTrue
+            $entry[1].StartsWith('<![LOG[second]LOG]!>') | Should -BeTrue
         }
     }
 
@@ -488,6 +576,130 @@ Describe 'Write-HDTLog' {
 
             foreach ($forbidden in @('Set-Content', 'Add-Content', 'Out-File', 'Tee-Object', 'Get-Date', 'Write-Host')) {
                 $text | Should -Not -BeLike ('*{0}*' -f $forbidden) -Because "$forbidden must never appear in the log writer"
+            }
+        }
+    }
+
+    # -- LINE TERMINATORS -----------------------------------------------------
+    #
+    # THE SUITE ABOVE COULD NOT SEE THIS. Every assertion in this file splits on
+    # "`n", which matches LF and CRLF identically, so it proved the component,
+    # thread and file fields were written while the artifact they were written
+    # into was unreadable. Measured on the lab share: HDT.log, 25,587 bytes, CR
+    # 0, LF 133, CRLF 0.
+    #
+    # CMTRACE BREAKS ENTRIES ON CRLF. It is a line-oriented Win32 parser; handed
+    # LF-only text it never splits the entries, the per-entry
+    # <![LOG[...]LOG]!> match fails, and it falls back to dumping raw text with
+    # Component, Date/Time and Thread blank. The attributes were correct in the
+    # bytes the whole time - the reader simply never reached them. DESIGN 11
+    # already states the same rule for the other Windows-format file the build
+    # writes: startnet.cmd is "written ASCII with CRLF and no BOM".
+    #
+    # JSON LINES IS DEFINED AS LF and must not change with it.
+    Context 'line terminators' {
+
+        BeforeEach {
+            # EVERY PATH THE COMMAND CAN APPEND TO, from one call: the local
+            # jsonl, master and step logs, and the three mirrored under the
+            # share. The tests below are driven off the SET of appends this
+            # produces, so a seventh path added later cannot default to the
+            # wrong ending without failing here.
+            $script:everyPath = New-HDTLogContext -RunId 'r1' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:fs -Clock $script:clock -ThreadId 4820 `
+                -DynamicPath '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2'
+            $script:everyPath.SetStep(3, 'Apply OS', 'ApplyImage', 'X:\HDT\Logs\Steps\003-ApplyImage.log')
+
+            Write-HDTLog -Context $script:everyPath -Message 'Applied index 1'
+
+            $script:appended = @($script:fs.Operations |
+                    Where-Object { $_.Operation -eq 'AppendAllText' } |
+                    ForEach-Object {
+                        [pscustomobject] @{
+                            Path    = [string] $_.Arguments[0]
+                            Content = [string] $_.Arguments[1]
+                        }
+                    })
+        }
+
+        It 'appends to every local and mirrored path from one call' {
+            # If this number moves, the two classifications below have a new
+            # member to account for and the assertions that follow will say so.
+            $script:appended.Count | Should -Be 6
+        }
+
+        It 'writes only CMTrace entries or JSON Lines records, nothing else' {
+            # The classification the rest of this Context rests on, asserted
+            # rather than assumed: shape decides the terminator, not a list of
+            # property names somebody has to remember to extend.
+            foreach ($write in $script:appended) {
+                $shape = 'neither'
+                if ($write.Content.StartsWith('<![LOG[')) { $shape = 'cmtrace' }
+                if ($write.Content.StartsWith('{')) { $shape = 'jsonl' }
+
+                $shape | Should -Not -BeExactly 'neither' -Because ('{0} is neither format' -f $write.Path)
+            }
+        }
+
+        It 'terminates every CMTrace entry with a carriage return and line feed' {
+            $cmtrace = @($script:appended | Where-Object { $_.Content.StartsWith('<![LOG[') })
+
+            $cmtrace.Count | Should -Be 4
+            foreach ($write in $cmtrace) {
+                $write.Content.EndsWith("`r`n") | Should -BeTrue -Because ('CMTrace cannot split {0} on a bare LF' -f $write.Path)
+            }
+        }
+
+        It 'leaves no bare line feed anywhere in a CMTrace entry' {
+            # EndsWith alone would pass on "...`n`r`n". Counting proves every LF
+            # in the text is the second half of a CRLF.
+            $cmtrace = @($script:appended | Where-Object { $_.Content.StartsWith('<![LOG[') })
+
+            foreach ($write in $cmtrace) {
+                $lf = @([regex]::Matches($write.Content, "`n")).Count
+                $crlf = @([regex]::Matches($write.Content, "`r`n")).Count
+
+                $lf | Should -Be $crlf -Because ('{0} carries an LF that is not part of a CRLF' -f $write.Path)
+                $crlf | Should -Be 1
+            }
+        }
+
+        It 'terminates every JSON Lines record with a bare line feed' {
+            $jsonl = @($script:appended | Where-Object { $_.Content.StartsWith('{') })
+
+            $jsonl.Count | Should -Be 2
+            foreach ($write in $jsonl) {
+                $write.Content.EndsWith("`n") | Should -BeTrue
+                $write.Content.EndsWith("`r`n") | Should -BeFalse -Because ('JSON Lines is defined as LF; {0} must not gain a CR' -f $write.Path)
+                @([regex]::Matches($write.Content, "`r")).Count | Should -Be 0
+            }
+        }
+
+        It 'ends the CMTrace files on disk with a carriage return and line feed' {
+            # The artifact, not the string: three calls, and the file the
+            # technician opens must carry three CRLF-terminated entries.
+            Write-HDTLog -Context $script:everyPath -Message 'two'
+            Write-HDTLog -Context $script:everyPath -Message 'three'
+
+            foreach ($path in @($script:masterPath, 'X:\HDT\Logs\Steps\003-ApplyImage.log',
+                    '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2\HDT.log',
+                    '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2\Steps\003-ApplyImage.log')) {
+                $text = $script:fs.ReadAllText($path)
+
+                @([regex]::Matches($text, "`r`n")).Count | Should -Be 3 -Because ('{0} needs one CRLF per entry' -f $path)
+                @([regex]::Matches($text, "`n")).Count | Should -Be 3 -Because ('{0} must carry no bare LF' -f $path)
+            }
+        }
+
+        It 'ends the JSON Lines files on disk with a bare line feed' {
+            Write-HDTLog -Context $script:everyPath -Message 'two'
+            Write-HDTLog -Context $script:everyPath -Message 'three'
+
+            foreach ($path in @($script:jsonlPath, '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2\HDT.jsonl')) {
+                $text = $script:fs.ReadAllText($path)
+
+                @([regex]::Matches($text, "`n")).Count | Should -Be 3
+                @([regex]::Matches($text, "`r")).Count | Should -Be 0 -Because ('{0} is JSON Lines, which is LF' -f $path)
             }
         }
     }

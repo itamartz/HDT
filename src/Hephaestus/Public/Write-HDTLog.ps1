@@ -237,11 +237,30 @@ function Write-HDTLog {
         -Severity $Severity -Timestamp $timestamp -ThreadId ([int] $Context.ThreadId) -File $sourceName `
         -UserContext $userContext
 
+    # TWO FORMATS, TWO SEPARATORS, AND THEY ARE NOT INTERCHANGEABLE.
+    #
+    # CMTrace's parser is line oriented and breaks entries on CRLF. Given bare
+    # line feeds it never separates one entry from the next, its
+    # <![LOG[...]LOG]!> match fails, and it shows raw text with the Component,
+    # Date/Time and Thread columns EMPTY - every attribute present in the bytes
+    # and the reader never reaching them. That is what shipped: sixteen HDT.log
+    # files on the lab share, CR=0 in all of them, and a technician correctly
+    # reporting that the component was missing from a file that contained it.
+    #
+    # The tests could not see it because they split on "`n", which matches both.
+    #
+    # THE JSONL KEEPS THE LINE FEED. JSON Lines defines its separator as \n, so
+    # "fix the newlines" applied to all four writes would break the reader that
+    # works in order to repair the one that does not.
+    #
+    # THIS IS THE RULE THE BUILD ALREADY FOLLOWS, not a new one: DESIGN 11 says
+    # startnet.cmd is "written ASCII with CRLF and no BOM" for the same reason -
+    # a file a Windows tool parses gets the terminator that tool splits on.
     $Context.FileSystem.AppendAllText($Context.JsonlPath, ($json + "`n"))
-    $Context.FileSystem.AppendAllText($Context.MasterLogPath, ($line + "`n"))
+    $Context.FileSystem.AppendAllText($Context.MasterLogPath, ($line + "`r`n"))
 
     if (-not [string]::IsNullOrWhiteSpace([string] $Context.StepLogPath)) {
-        $Context.FileSystem.AppendAllText([string] $Context.StepLogPath, ($line + "`n"))
+        $Context.FileSystem.AppendAllText([string] $Context.StepLogPath, ($line + "`r`n"))
     }
 
     # -- and the same three, on the share, as they happen ---------------------
@@ -266,8 +285,8 @@ function Write-HDTLog {
 
     $mirror = @(
         @{ Path = [string] $Context.DynamicJsonlPath; Text = ($json + "`n") }
-        @{ Path = [string] $Context.DynamicMasterLogPath; Text = ($line + "`n") }
-        @{ Path = [string] $Context.DynamicStepLogPath; Text = ($line + "`n") }
+        @{ Path = [string] $Context.DynamicMasterLogPath; Text = ($line + "`r`n") }
+        @{ Path = [string] $Context.DynamicStepLogPath; Text = ($line + "`r`n") }
     )
 
     foreach ($current in $mirror) {
