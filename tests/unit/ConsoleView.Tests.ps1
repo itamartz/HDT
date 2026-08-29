@@ -100,8 +100,12 @@ Describe 'New-HDTConsoleView' {
             $script:window.GetType().Name | Should -BeExactly 'Window'
         }
 
-        It 'wears the title it was given' {
-            $script:window.Title | Should -BeExactly 'Hephaestus'
+        It 'wears the title it was given, with the engine version after it' {
+            # The version is composed on rather than replacing the name -
+            # Get-HDTConsoleTitle, and tests/unit/ConsoleTitleVersion.Tests.ps1
+            # is where that is decided. Asserted against Get-HDTModuleVersion
+            # rather than a number, so a version bump does not fail this.
+            $script:window.Title | Should -BeExactly ('Hephaestus {0}' -f (Get-HDTModuleVersion))
         }
 
         It 'wears the anvil rather than the shell that started it' {

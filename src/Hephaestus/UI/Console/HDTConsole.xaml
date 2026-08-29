@@ -1,7 +1,7 @@
 ﻿<Window
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="Hephaestus Deployment Toolkit"
+    x:Name="HDTConsoleWindow"
     Height="900" Width="1800"
     MinHeight="520" MinWidth="900"
     WindowStartupLocation="Manual"
@@ -10,6 +10,19 @@
     <!--
         C1 of the WPF-first direction: the admin console, showing what is on a
         deployment share.
+
+        THE WINDOW HAS A NAME AND NO Title, WHICH IS THE SAME RULE EVERY LABEL
+        HERE FOLLOWS. Text arrives at load time from Strings\en-us.psd1, found
+        by control name - and a window is a control like any other, so its title
+        is 'HDTConsoleWindow.Title' in the Console block rather than a literal
+        sitting up in the attributes where no translator would find it and no
+        contract test would notice it drifting.
+
+        WHAT THE TABLE WRITES IS ONLY HALF THE TITLE. Get-HDTConsoleTitle adds
+        the engine version to it after the table has been applied, because the
+        number is the build's output and not a sentence anybody translates. A
+        stale boot image once cost a morning that a glance at a title bar would
+        have ended.
 
         NO x:Class AND NO CODE-BEHIND, exactly as HDTWizard.xaml. The console
         runs on a desktop where a compiler exists, so this one is a choice rather

@@ -51,6 +51,11 @@
     # what the share holds on the left, the selected row's fields on the right.
     Console = @{
 
+        # THE TITLE BAR, AND ONLY THE WORDS OF IT. Get-HDTConsoleTitle appends
+        # the engine version to this at load time; the number is a build's
+        # output, so it has no business in a file a translator edits.
+        'HDTConsoleWindow.Title' = 'Hephaestus Deployment Toolkit'
+
         'HDTShareText.Text' = 'Deployment share'
         'HDTConsoleDeployRootLabel.Text' = 'Deploy root'
         'HDTConsoleOpenedFromLabel.Text' = 'Opened from'

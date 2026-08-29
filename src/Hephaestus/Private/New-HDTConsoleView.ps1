@@ -137,7 +137,17 @@
         # put the placeholder back.
         [void] (Set-HDTWindowText -Root $window -String (Get-HDTStringTable -Page 'Console'))
 
-        $window.Title = $Title
+        # THE ENGINE VERSION GOES IN THE TITLE BAR, and this is the only place
+        # on the screen that says which engine is answering. A stale boot image
+        # carrying an older engine than the share is a confusing failure that
+        # used to take a shell and a command to diagnose; the number is now
+        # readable from a photograph of the window.
+        #
+        # THE WORDS CAME FROM THE TABLE A MOMENT AGO ('HDTConsoleWindow.Title');
+        # the number cannot, because a build writes it. Get-HDTConsoleTitle is
+        # the join, and it reads Get-HDTModuleVersion rather than any literal,
+        # so a title disagreeing with the manifest is impossible.
+        $window.Title = Get-HDTConsoleTitle -Text $Title
 
         # The size the console was last left at, over the markup's first-run
         # numbers, and the corner of the desktop it opens in.
