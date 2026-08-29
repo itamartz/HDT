@@ -1,4 +1,4 @@
-# THE COMMAND THAT PUTS A DEPLOYMENT SCREEN IN FRONT OF THE SHELL.
+﻿# THE COMMAND THAT PUTS A DEPLOYMENT SCREEN IN FRONT OF THE SHELL.
 #
 # WHAT IT IS FOR. In the full-OS leg the machine is logged in as the local
 # Administrator with a real desktop behind it, and a deployed machine showed the
@@ -263,19 +263,25 @@ Describe 'the windows that ask to be raised' {
         $row.Code | Should -Match 'WindowInteropHelper'
     }
 
-    It 'forces the foreground once and never on a timer: <Name>' -ForEach @(
-        @{ Name = 'New-HDTWizardHost.ps1' }, @{ Name = 'New-HDTProgressHost.ps1' }
+    It 'forces the foreground on an event and never on a timer: <Name>' -ForEach @(
+        @{ Name = 'New-HDTWizardHost.ps1'; Limit = 2 }, @{ Name = 'New-HDTProgressHost.ps1'; Limit = 1 }
     ) {
-        # FORCE TYPES, SO FORCE HAPPENS ONCE. It injects an Escape and an Alt,
-        # and those go to whatever has focus - a board doing that four times a
-        # second is a machine nobody can use, and it would fight the command
-        # prompt F8 opens. Staying in front is Raise's job, and Raise sends
-        # nothing.
+        # FORCE TYPES, SO FORCE IS WIRED TO EVENTS AND NEVER TO A CLOCK. It
+        # injects an Escape and an Alt, and those go to whatever has focus - a
+        # board doing that four times a second is a machine nobody can use, and
+        # it would fight the command prompt F8 opens.
+        #
+        # TWO IS THE SUMMARY SCREEN'S NUMBER, NOT A RELAXATION. ContentRendered
+        # puts it in front when it appears; Deactivated puts it back when the
+        # Start menu takes the foreground away, which is the one competitor
+        # nothing in the topmost band can outrank. Both are activation changes
+        # the technician caused. The progress board keeps one, because staying
+        # in front is Raise's job there and Raise sends nothing.
         $row = @($script:hostFile | Where-Object { $_.Name -eq $Name })[0]
 
-        $force = [regex]::Matches($row.Code, 'Set-HDTWindowForeground|HDT\.NativeForeground\]::Force')
-        @($force).Count | Should -BeLessOrEqual 1 -Because (
-            'one force per window, wired to the window appearing')
+        $call = [regex]::Matches($row.Code, 'Set-HDTWindowForeground|HDT\.NativeForeground\]::Force')
+        @($call).Count | Should -BeLessOrEqual $Limit -Because (
+            'every force is wired to a window event, not to a tick')
 
         $row.Code | Should -Match 'Add_ContentRendered'
     }
@@ -331,6 +337,113 @@ Describe 'the windows that ask to be raised' {
             $row = @($script:hostFile | Where-Object { $_.Name -eq 'New-HDTProgressHost.ps1' })[0]
 
             $row.Code | Should -Match '(?s)Add-Type -TypeDefinition \$HDTForegroundSource.*?\}\s*catch'
+        }
+    }
+
+    Context 'the window that gets the foreground taken away' {
+
+        # THE START MENU IS NOT IN THE TOPMOST BAND - IT IS ABOVE IT. A deployed
+        # machine photographed after a successful run had the Start menu drawn
+        # straight over the Deployment Summary: the heading, the log path and
+        # the Open CMD button all occluded. Re-asserting HWND_TOPMOST cannot
+        # reach it, because the flyout is an ApplicationFrameWindow / XAML host
+        # surface that sits over the whole band.
+        #
+        # MDT'S ANSWER IS TO REMOVE THE COMPETITOR - LiteTouch runs from HKLM
+        # RunOnce with AsyncRunOnce=0 so Explorer draws no shell at all until
+        # the leg finishes. HDT DELIBERATELY DID NOT TAKE THAT ROUTE: it also
+        # removes the taskbar, which nobody complained about, and a restore that
+        # fails leaves a machine with no shell - far worse than a summary behind
+        # a flyout.
+        #
+        # WHAT IS LEFT IS TIMING. Force already dismisses an open Start menu
+        # with an Escape; it just ran once, at show time, so a Start menu opened
+        # a second later won. Deactivated is exactly the moment it is needed.
+
+        BeforeAll {
+            $script:summaryAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Public/New-HDTWizardHost.ps1'),
+                [ref] $null, [ref] $null)
+
+            $script:summaryHandler = {
+                param([string] $HandlerName)
+
+                @($script:summaryAst.FindAll({
+                            param($node)
+                            $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                            $node.Member -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                            $node.Member.Value -eq $HandlerName
+                        }, $true))
+            }
+        }
+
+        It 'wires every raised window to losing the foreground' {
+            # OVER THE SET. The rule is not "the summary screen got a handler";
+            # it is that a full-OS deployment screen which fights for the front
+            # answers the moment it loses it. Both hosts draw one, so both are
+            # judged - and the next window somebody raises is judged too.
+            foreach ($row in $script:hostFile) {
+                $row.Code | Should -Match 'Add_Deactivated' -Because (
+                    '{0} raises a window, so it must answer when something takes the front' -f $row.Name)
+            }
+        }
+
+        It 'dismisses the Start menu when it takes the front' {
+            $handler = & $script:summaryHandler 'Add_Deactivated'
+
+            @($handler).Count | Should -BeGreaterOrEqual 1
+            @($handler | Where-Object { $_.Extent.Text -match 'DismissStartMenu' }).Count |
+                Should -BeGreaterOrEqual 1 -Because 'nothing but an Escape closes an open Start menu'
+        }
+
+        It 'ignores a deactivation while a force is already in flight' {
+            # RE-ENTRANCY, AND IT IS NOT THEORETICAL. Force taps Alt, and an Alt
+            # is an activation change in its own right - so the handler that
+            # sends it can be the reason it is called again. A flag checked
+            # before the force and cleared in a finally is what stops the window
+            # ping-ponging with the shell.
+            $handler = & $script:summaryHandler 'Add_Deactivated'
+            $text = ($handler | ForEach-Object { $_.Extent.Text }) -join "`n"
+
+            $text | Should -Match 'Busy'
+            $text | Should -Match '(?s)Busy.*?finally'
+        }
+
+        It 'stops re-forcing once the technician has opened a prompt' {
+            # THE EXEMPTION, AND IT IS A BLOCKER WITHOUT IT. F8 on this window
+            # opens a command prompt and LEAVES THE WINDOW UP - so a summary
+            # that forced itself back on every deactivation would yank the
+            # foreground off the prompt it had just launched, one keystroke into
+            # whatever the technician was typing. The prompt wins from then on.
+            $handler = & $script:summaryHandler 'Add_Deactivated'
+            $text = ($handler | ForEach-Object { $_.Extent.Text }) -join "`n"
+
+            $text | Should -Match 'Suppressed'
+
+            $key = & $script:summaryHandler 'Add_PreviewKeyDown'
+            @($key | Where-Object { $_.Extent.Text -match 'Suppressed' }).Count |
+                Should -BeGreaterOrEqual 1 -Because 'F8 is what opens the prompt that must keep the front'
+        }
+
+        It 'lets go for good once a button has been answered' {
+            # Open CMD closes the window, and a closing window still raises
+            # Deactivated. Answering anything sets the same flag, so the summary
+            # never fights for a front it is about to give up.
+            $click = & $script:summaryHandler 'Add_Click'
+
+            @($click | Where-Object { $_.Extent.Text -match 'Suppressed' }).Count |
+                Should -BeGreaterOrEqual 1
+        }
+
+        It 'still never re-asserts topmost' {
+            # UNCHANGED, AND CHECKED HERE BECAUSE THIS IS THE CHANGE THAT WOULD
+            # HAVE BEEN TEMPTED. Deactivated + Force is not Deactivated + Raise:
+            # Force lets go the instant anything else is activated, which is
+            # what keeps the Open CMD prompt usable.
+            $row = @($script:hostFile | Where-Object { $_.Name -eq 'New-HDTWizardHost.ps1' })[0]
+
+            $row.Code | Should -Not -Match 'Raise'
+            $row.Code | Should -Not -Match 'Add_Tick'
         }
     }
 }

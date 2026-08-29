@@ -395,6 +395,18 @@
         # execution IS its test, and this is what that test found.
         $wizardHost = $this
 
+        # THE FOREGROUND'S OWN STATE, AND WHY A WINDOW NEEDS ANY.
+        #
+        # A HASHTABLE FOR THE SAME REASON $trip IS ONE in ShowShell:
+        # GetNewClosure snapshots values, so a closed-over [bool] would be
+        # frozen at $false in every handler forever. The handlers share the
+        # reference and mutate through it.
+        #
+        #   Busy        a force is in flight on this thread; see Add_Deactivated
+        #   Suppressed  the technician has taken the front on purpose, and keeps it
+        #   LastUtc     when the last force ran, for the cooldown
+        $foreground = @{ Busy = $false; Suppressed = $false; LastUtc = [datetime]::MinValue }
+
         $this.Apply($window, $Field, $Pane)
 
         # DRAG BY THE BANNER. WindowStyle=None removes the title bar - which is
@@ -439,6 +451,14 @@
             $button.Add_Click({
                     $wizardHost.Answer = $answer
 
+                    # AND IT STOPS FIGHTING FOR THE FRONT. Every button here
+                    # closes the window, and a closing window still raises
+                    # Deactivated - so without this the summary would force
+                    # itself back over the command prompt Open CMD had just
+                    # launched, on its way out. Set for every answer, because
+                    # a window that has been answered has no front to defend.
+                    $foreground['Suppressed'] = $true
+
                     # READ BEFORE IT CLOSES, and read for EVERY answer rather
                     # than only for Next: a technician who typed the right share
                     # and then pressed Open CMD has still told us the right
@@ -465,6 +485,18 @@
                     if ($_.Key -ne [System.Windows.Input.Key]::F8) { return }
 
                     $_.Handled = $true
+
+                    # THE PROMPT WINS FROM HERE ON, AND WITHOUT THIS LINE THE
+                    # WINDOW WOULD NOT LET IT. F8 opens a command prompt and
+                    # LEAVES THIS WINDOW UP - the deployment summary stays on
+                    # screen behind it by design. The Deactivated handler below
+                    # exists to take the front back from the Start menu, and it
+                    # cannot tell that flyout apart from the prompt a technician
+                    # deliberately opened. So the technician says so here: from
+                    # this keypress on nothing re-forces, and the summary is an
+                    # ordinary window they can click back to.
+                    $foreground['Suppressed'] = $true
+
                     & $CommandPrompt
                 }.GetNewClosure())
         }
@@ -508,8 +540,88 @@
                     try {
                         $hwnd = [System.Windows.Interop.WindowInteropHelper]::new($window).Handle
                         [void] (Set-HDTWindowForeground -Handle $hwnd -DismissStartMenu)
+                        $foreground['LastUtc'] = [datetime]::UtcNow
                     } catch {
                         Write-Verbose ("the window could not be brought to the front: {0}" -f [string] $_.Exception.Message)
+                    }
+                }.GetNewClosure())
+
+            # AND AGAIN WHENEVER SOMETHING TAKES THE FRONT AWAY.
+            #
+            # ONCE WAS NOT ENOUGH, AND A PHOTOGRAPH OF A DEPLOYED MACHINE IS WHY.
+            # After a successful run the Windows Start menu was drawn straight
+            # over this window - heading, log path and Open CMD button all
+            # occluded. The taskbar was not the problem and never had been.
+            #
+            # HWND_TOPMOST CANNOT REACH IT. The Start menu is an
+            # ApplicationFrameWindow / XAML host surface that sits ABOVE the
+            # topmost band, so re-asserting topmost - the mechanism the progress
+            # board uses - loses to it by construction. The only thing that
+            # closes one is the Escape that Force already taps.
+            #
+            # SO THE FIX IS PURELY WHEN. ContentRendered above forces once, as
+            # the window appears; a Start menu opened one second later won,
+            # because nothing ran again. Deactivated IS that moment: the flyout
+            # taking the foreground is exactly what raises it.
+            #
+            # WHAT MDT DOES INSTEAD, AND WHY HDT DOES NOT. LiteTouch removes the
+            # competitor rather than out-ordering it - it re-registers itself
+            # under HKLM RunOnce with AsyncRunOnce=0, so Explorer draws NO SHELL
+            # AT ALL until the leg finishes, and LTICleanup puts it back. That
+            # wins outright, and it was declined deliberately: it also takes the
+            # taskbar, which nobody complained about, and a restore that fails
+            # leaves a machine with no shell - a far worse outcome than a summary
+            # behind a flyout.
+            #
+            # DEACTIVATED + Force, NOT DEACTIVATED + Raise. Raise is what the
+            # progress board gets, and it would be wrong here: this window's Open
+            # CMD button and its F8 hand the machine to a command prompt, and a
+            # topmost summary outranks the prompt it just launched - the defect
+            # HDTFailure.xaml lost its Topmost attribute over. Force leaves
+            # nothing raised, so the prompt keeps the front the moment it appears.
+            #
+            # THREE GUARDS, AND EACH ONE IS A LOOP THAT WOULD OTHERWISE HAPPEN.
+            #
+            #   Suppressed  the technician opened a prompt or answered a button.
+            #               F8 leaves this window UP, so without this the summary
+            #               would snatch the foreground back off the prompt it
+            #               was asked to open. That is a blocker, not a polish
+            #               item, and it is why the flag exists at all.
+            #   Busy        Force injects an Alt, and an Alt is itself an
+            #               activation change - so the handler that sends one can
+            #               be the reason it is entered again. Cleared in a
+            #               finally, because a flag left set by a throw would
+            #               disable the fix silently for the rest of the run.
+            #   LastUtc     the cooldown, and the Busy flag alone does not cover
+            #               this: a ping-pong between the shell and this window
+            #               happens across SEPARATE message-pump turns, where
+            #               nothing is in flight. Three quarters of a second is
+            #               far below a person reopening a Start menu on purpose
+            #               and far above anything two windows can fight over.
+            #
+            # SWALLOWED, LIKE THE FORCE ABOVE. A window that could not be raised
+            # is slightly in the wrong place; an exception on this thread would
+            # be no summary at all, on the screen that exists to say what
+            # happened.
+            $window.Add_Deactivated({
+                    try {
+                        if ($foreground['Suppressed']) { return }
+                        if ($foreground['Busy']) { return }
+
+                        $now = [datetime]::UtcNow
+                        if (($now - $foreground['LastUtc']).TotalMilliseconds -lt 750) { return }
+
+                        $foreground['Busy'] = $true
+
+                        try {
+                            $foreground['LastUtc'] = $now
+                            $hwnd = [System.Windows.Interop.WindowInteropHelper]::new($window).Handle
+                            [void] (Set-HDTWindowForeground -Handle $hwnd -DismissStartMenu)
+                        } finally {
+                            $foreground['Busy'] = $false
+                        }
+                    } catch {
+                        Write-Verbose ("the window could not be brought back to the front: {0}" -f [string] $_.Exception.Message)
                     }
                 }.GetNewClosure())
         }
