@@ -657,11 +657,32 @@
                         Reason       = $null
                     }))
 
-            if ([string] $attempt.Status -eq 'Completed') {
+            # ON $recordedStatus, NOT ON THE ATTEMPT'S OWN STATUS, so the log
+            # says what the checkpoint says. A Restart step returns
+            # RebootRequested and is recorded Completed - correctly, because
+            # stepIndex has to advance past it - and this used to emit nothing
+            # for it at all. Get-HDTDeploymentProgress counts step.complete and
+            # step.skip by index, so the one step every rebooting deployment
+            # has was never counted: on LT-7FJ45S2, run-20260829-190105 - eleven
+            # steps, nine Completed and two Skipped in state.json, ended
+            # Succeeded - the progress screen finished reading "10 of 11, 90%".
+            #
+            # A REENTERING STEP IS RECORDED Pending AND STILL SAYS NOTHING, which
+            # is the point of that branch: it has not finished, the next leg runs
+            # it again, and a completion record for it would be a lie the bar
+            # could not take back.
+            if ($recordedStatus -eq 'Completed') {
                 Write-HDTLog -Context $log -Event 'step.complete' `
                     -Message ("step {0} '{1}' completed" -f $index, $stepName) `
                     -DurationMs ([long] $attempt.DurationMs) `
                     -Data ([ordered] @{ index = $index; attempt = [int] $attempt.Attempt; exitCode = [int] $attempt.ExitCode })
+            }
+
+            # THE RELOCATION KEEPS THE TRIGGER IT HAD - a step whose own attempt
+            # reported Completed. A step that asked for a reboot is about to have
+            # the log carried forward by the reboot path instead, and moving it
+            # here would move the log out from under the arming that follows.
+            if ([string] $attempt.Status -eq 'Completed') {
 
                 # DESIGN 4.4.1's RELOCATION, and DESIGN 4.3's state mirror, at
                 # the one point that sees every step finish. It runs AFTER the
@@ -1115,9 +1136,29 @@
             }
         }
 
-        $completedCount = @($outcome | Where-Object { $_.Status -eq 'Completed' }).Count
-        $failedCount = @($outcome | Where-Object { $_.Status -eq 'Failed' }).Count
-        $skippedCount = @($outcome | Where-Object { $_.Status -eq 'Skipped' }).Count
+        # TALLIED FROM THE CHECKPOINT, NOT FROM THIS PROCESS'S OWN LIST.
+        #
+        # THE COUNTERS ARE PER-PROCESS AND A DEPLOYMENT SPANS PROCESSES;
+        # state.json IS THE ONLY THING THAT SPANS THEM. $outcome holds what THIS
+        # leg's loop touched, and a leg that resumes after a reboot starts at
+        # state.stepIndex - so everything the earlier legs did is simply not in
+        # it. Measured on LT-7FJ45S2, run-20260829-190105: state.json recorded
+        # nine Completed and two Skipped, and run.end told the technician
+        # "1 completed, 0 failed, 0 skipped", because the full-OS leg executed
+        # exactly one step. A single-leg run tallied correctly, which is why it
+        # went unnoticed for as long as it did.
+        #
+        # AND THE TWO LISTS DISAGREED WITHIN A SINGLE LEG TOO. $outcome carries
+        # the attempt's raw status, so the step that asks for the reboot is
+        # 'RebootRequested' there and Completed in the state - counted by
+        # neither bucket, which cost leg one a step of its own as well.
+        #
+        # There is no fast path kept alongside this: two sources of the same
+        # number is exactly how it drifted. $outcome remains the RETURN value,
+        # which is this call's own result and correctly per-process.
+        $completedCount = @(@($state.step) | Where-Object { [string] $_.status -eq 'Completed' }).Count
+        $failedCount = @(@($state.step) | Where-Object { [string] $_.status -eq 'Failed' }).Count
+        $skippedCount = @(@($state.step) | Where-Object { [string] $_.status -eq 'Skipped' }).Count
 
         Write-HDTLog -Context $log -Event 'run.end' `
             -Message ("Run {0} ended {1}: {2} completed, {3} failed, {4} skipped" -f

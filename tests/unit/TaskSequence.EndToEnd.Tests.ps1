@@ -291,6 +291,16 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
 
                 # -- leg 2, in the full OS: the installer, then the second Restart
                 'ProcessService.Start'          # cmd.exe /c echo HDT demo installer
+
+                # THE PASSWORD COMES BACK OUT OF THE LSA, and this read is the
+                # whole visible cost of not writing it into state.json. Leg 1
+                # held HDTAdminPassword in its own variable bag; leg 2
+                # rehydrated its bag from the checkpoint, where the value is now
+                # "(set, not shown)" - so it reads the autologon secret leg 1
+                # stored, which is admin-only and the same value by
+                # construction. It appears only on a RESUMED leg: leg 1 above
+                # arms without it.
+                'LsaService.GetSecret'          # DefaultPassword, to arm the next leg with a real password
                 'RegistryService.SetValue'      # AutoAdminLogon
                 'RegistryService.SetValue'      # DefaultUserName
                 'RegistryService.SetValue'      # DefaultDomainName
@@ -494,6 +504,107 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
         It 'logs run.start once per leg and run.end once per leg' {
             @($script:record | Where-Object { $_.event -eq 'run.start' }).Count | Should -Be 3
             @($script:record | Where-Object { $_.event -eq 'run.end' }).Count | Should -Be 3
+        }
+
+        # THE TALLY IN run.end IS THE WHOLE DEPLOYMENT'S, NOT THE PROCESS'S.
+        #
+        # The engine counted the steps its own loop had touched. A leg that
+        # resumes after a reboot iterates from state.stepIndex, so it touches
+        # only what is left - and reported that as the run. Measured on
+        # LT-7FJ45S2, run-20260829-190105: state.json held nine Completed and
+        # two Skipped, and the run.end a technician reads said "1 completed,
+        # 0 failed, 0 skipped". A single-leg run tallied correctly, which is
+        # why it went unnoticed.
+        #
+        # AGAINST THE SET, NOT AGAINST THIS SEQUENCE'S THREE STATUSES. The
+        # status vocabulary is Update-HDTRunStateStep's ValidateSet; this reads
+        # it rather than restating it, so a status added later fails here until
+        # somebody decides whether run.end reports it.
+        It 'tallies the whole run in run.end, not just the leg that wrote it' {
+            $statusSet = @(@((Get-Command -Name 'Update-HDTRunStateStep').Parameters['Status'].Attributes |
+                        Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] })[0].ValidValues)
+
+            # The three run.end reports, and the two a FINISHED step cannot hold.
+            $reported = @('Completed', 'Failed', 'Skipped')
+            $unfinished = @('Pending', 'Running')
+
+            $because = 'a status the engine can record is either one run.end counts or one no finished step holds'
+            @($statusSet | Sort-Object) | Should -Be @(@($reported) + @($unfinished) | Sort-Object) -Because $because
+
+            $field = @{ Completed = 'completed'; Failed = 'failed'; Skipped = 'skipped' }
+
+            $end = @($script:record | Where-Object { $_.event -eq 'run.end' })
+            $last = $end[$end.Count - 1]
+
+            foreach ($status in $reported) {
+                $expected = @($script:finalState.step |
+                        Where-Object { [string] $_.status -eq $status }).Count
+
+                $why = "run.end must count every {0} step of the deployment, not of one leg" -f $status
+                [int] $last.data.($field[$status]) | Should -Be $expected -Because $why
+            }
+
+            # Every step of the sequence is in one bucket or the other, so the
+            # three counts plus the unfinished ones account for all thirteen.
+            $left = @($script:finalState.step | Where-Object { $unfinished -contains [string] $_.status }).Count
+            ([int] $last.data.completed + [int] $last.data.failed + [int] $last.data.skipped + $left) |
+                Should -Be @($script:finalState.step).Count
+        }
+
+        It 'never lets the run.end tally go backwards across the legs' {
+            # The defect's signature: leg 3 reported FEWER completed steps than
+            # leg 1, because its counters started at zero with its process.
+            @($script:record | Where-Object { $_.event -eq 'run.end' } |
+                    ForEach-Object { [int] $_.data.completed }) | Should -Be @(4, 7, 9)
+        }
+
+        # WHAT THE CHECKPOINT SAYS A STEP DID, THE LOG SAYS TOO.
+        #
+        # The two disagreed about the one step every deployment that reboots
+        # has. A Restart step returns RebootRequested; the state records it
+        # Completed - correctly, so stepIndex advances past it - and the log
+        # emitted reboot.arm and no step.complete, because the record was
+        # written only for a step whose ATTEMPT said Completed.
+        #
+        # Get-HDTDeploymentProgress counts step.complete and step.skip by index,
+        # so the Restart step was never counted: on LT-7FJ45S2,
+        # run-20260829-190105 - eleven steps, nine completed, two skipped,
+        # Succeeded - the progress screen finished the deployment reading
+        # "10 of 11, 90%".
+        #
+        # ASSERTED OVER THE SET of steps the state carries, so a step type added
+        # later that finishes in some new way is covered by this too.
+        It 'logs a completion record for every step the state records finished' {
+            $engine = @($script:record | Where-Object { $_.component -eq 'Engine' })
+
+            $completedIndex = @($engine |
+                    Where-Object { $_.event -eq 'step.complete' } |
+                    ForEach-Object { [int] $_.stepIndex } | Sort-Object -Unique)
+
+            $skippedIndex = @($engine |
+                    Where-Object { $_.event -eq 'step.skip' } |
+                    ForEach-Object { [int] $_.stepIndex } | Sort-Object -Unique)
+
+            $expectedCompleted = @($script:finalState.step |
+                    Where-Object { [string] $_.status -eq 'Completed' } |
+                    ForEach-Object { [int] $_.index } | Sort-Object)
+
+            $expectedSkipped = @($script:finalState.step |
+                    Where-Object { [string] $_.status -eq 'Skipped' } |
+                    ForEach-Object { [int] $_.index } | Sort-Object)
+
+            $completedIndex | Should -Be $expectedCompleted -Because 'the two reboot steps are Completed in the state and must say so in the log'
+            $skippedIndex | Should -Be $expectedSkipped
+        }
+
+        It 'lets the progress screen reach 100% on a deployment that rebooted' {
+            $progress = InModuleScope -ModuleName 'Hephaestus' -Parameters @{ Row = $script:record } -ScriptBlock {
+                Get-HDTDeploymentProgress -Record $Row
+            }
+
+            $progress.Status | Should -BeExactly 'Succeeded'
+            $progress.CompletedCount | Should -Be 12   # 9 Completed + 3 Skipped; only Optional Task failed
+            $progress.PercentComplete | Should -Be 92  # 12 of 13, and the one that is missing genuinely failed
         }
 
         It 'logs two reboot.arm records and two reboot.resume records' {
