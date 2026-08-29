@@ -372,6 +372,115 @@
         return ('{0}: {1}' -f $type, ($part -join ', '))
     }
 
+    # -- what the installer itself said ---------------------------------------
+    #
+    # IT WAS BEING CAPTURED AND THROWN AWAY. IProcessService.Start has returned
+    # StandardOutput and StandardError since it was written - the contract file
+    # asserts both properties on both implementations - and this step read
+    # ExitCode and dropped the rest. An installer that fails with 1603 prints
+    # the reason on its way out, and the log recorded the number alone.
+    #
+    # NO ADAPTER CHANGE, AND THAT IS WORTH SAYING OUT LOUD. New-HDTProcessService
+    # already drains both pipes asynchronously BEFORE it starts waiting -
+    # ReadToEndAsync, precisely so a child that fills the 4 KB pipe buffer
+    # cannot deadlock the wait - so reading the output here costs the 500 ms
+    # poll nothing and the heartbeat loop is untouched.
+    #
+    # MDT'S SHAPE, WITH ONE DELIBERATE DEVIATION IN THE LEVEL.
+    # StandardConsoleProcessing (ZTIUtility.vbs 2255-2299) writes one entry per
+    # line, "  Console > " for stdout at LogTypeInfo and "  Console # " for
+    # stderr at LogTypeError - two markers rather than one merged stream, so a
+    # reader can tell which pipe a line came out of. HDT keeps the markers and
+    # the one-record-per-line shape, and moves the level, for two reasons:
+    #
+    #   stdout at Info     a chatty installer that SUCCEEDED would cost a
+    #                      technician a screen of scrollback and the share an
+    #                      SMB round trip per line, for output nobody wanted
+    #   stderr at Error    an installer that writes a benign note to stderr and
+    #                      exits 0 would put Error records on a green run, and
+    #                      HDT's failure window is derived from exactly those
+    #
+    # So the level follows the EXIT CODE instead: Debug when the code was
+    # accepted, Warning (stdout) and Error (stderr) when it was not. A failing
+    # install explains itself at the default level; a succeeding one stays
+    # quiet.
+    #
+    # AND MDT'S APPLICATION STEP DOES NOT CAPTURE OUTPUT AT ALL, which is the
+    # one place this goes further than MDT rather than following it.
+    # ZTIApplications calls RunWithHeartbeat, which passes a NULL hook, which
+    # takes the branch of RunCommandLog that skips console processing entirely -
+    # so an MDT log records an application's exit code and nothing else either.
+    # The vocabulary is MDT's; capturing an application's output is not.
+
+    # HOW MANY LINES REACH THE LOG, and it is a TAIL: the reason an installer
+    # gave up is the last thing it says, not the first. Forty on a success is a
+    # courtesy; two hundred on a failure is evidence, and it is only ever paid
+    # for by the run that has already gone wrong.
+    $consoleLineLimit = 40
+    $consoleLineLimitOnFailure = 200
+
+    # AND HOW LONG ONE LINE MAY BE. An installer that draws a progress bar with
+    # carriage returns emits a single line megabytes long. Splitting on a bare
+    # CR as well as a newline turns that into many - the tail then keeps the
+    # finished state, which is the only part worth reading - and this bounds
+    # whatever is still oversized after that.
+    $consoleLineLength = 1000
+
+    $splitConsole = {
+        param([string] $Text)
+
+        if ([string]::IsNullOrEmpty($Text)) { return @() }
+
+        return @(@($Text -split "`r`n|`n|`r") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    $writeConsole = {
+        param([string] $Id, [string[]] $Line, [string] $Marker, [string] $Stream, [string] $Severity, [int] $Limit)
+
+        $count = @($Line).Count
+        if ($count -eq 0) { return }
+
+        $shown = @($Line)
+
+        if ($count -gt $Limit) {
+            $shown = @($Line[($count - $Limit)..($count - 1)])
+
+            # NEVER SILENTLY. A truncation nobody is told about reads as an
+            # installer that stopped talking, which is a different fault
+            # entirely - so the count that was dropped is named before the
+            # lines that survived.
+            Write-HDTLog -Context $Context.Log -Severity $Severity -Event 'native.exec' `
+                -Component 'InstallApplications' `
+                -Message ("'{0}' {1} was {2} line(s); the first {3} are not shown, the last {4} follow." -f
+                    $Id, $Stream, $count, ($count - $Limit), $Limit) `
+                -Data ([ordered] @{
+                    application = $Id
+                    stream      = $Stream
+                    lines       = $count
+                    dropped     = ($count - $Limit)
+                })
+        }
+
+        foreach ($text in $shown) {
+            # THE SAME REDACTOR THE COMMAND LINE GOES THROUGH, and deliberately
+            # not a second one. An installer routinely echoes its own arguments
+            # back - TightVNC's VALUE_OF_PASSWORD reaches the log by that route
+            # one line after the command line it was redacted out of - and two
+            # redactors would have drifted apart by the next vendor.
+            $one = & $redact ([string] $text)
+
+            if ($one.Length -gt $consoleLineLength) {
+                $one = '{0} ...({1} more character(s))' -f $one.Substring(0, $consoleLineLength),
+                ($one.Length - $consoleLineLength)
+            }
+
+            Write-HDTLog -Context $Context.Log -Severity $Severity -Event 'native.exec' `
+                -Component 'InstallApplications' `
+                -Message ('  console {0} {1}' -f $Marker, $one) `
+                -Data ([ordered] @{ application = $Id; stream = $Stream })
+        }
+    }
+
     # -- the list -------------------------------------------------------------
 
     # WHERE THIS STEP IS IN ITS OWN LIST, WHICH IS THE ONLY MEASURE IT HAS.
@@ -536,22 +645,33 @@
         & $report $position ($position - 1) $id (
             'installing {0} of {1}: {2}' -f $position, $total, [string] $application.Name)
 
-        # MDT'S TWO LINES, IN MDT'S ORDER AND WITH MDT'S WORDING.
-        # ZTIApplications.wsf writes "Change directory: <dir>" and then
-        # "Run Command: <cmd>", and an admin who has read one MDT log has read
-        # this one. DESIGN 4.4.5 puts both at Debug, because an install command
-        # routinely carries a licence key or a service account.
+        # MDT'S TWO LINES, IN MDT'S ORDER, WITH MDT'S WORDING AND NOW AT MDT'S
+        # LEVEL. ZTIApplications.wsf writes "Change directory: <dir>" (line 412)
+        # and then "Run Command: <cmd>" (line 441), both with LogTypeInfo, so an
+        # admin reading a DEFAULT MDT log sees the command that ran. An admin
+        # who has read one MDT log has read this one.
+        #
+        # THESE WERE AT DEBUG, AND THAT WAS THE DEFECT. The command line is the
+        # single line that makes a failure reproducible by hand, and an admin
+        # must not have to re-run a whole deployment at a raised level to get
+        # it back - by which time the machine that failed has been rebuilt.
+        # DESIGN 4.4.5 keeps command lines at Debug because they carry licence
+        # keys; the redactor above is what answers that, and it answers it
+        # without costing the line. Everything else this step learned - which
+        # detection rule was evaluated, which configured code matched - stays at
+        # Debug, because that is what a support case turns on a week later and
+        # not what a technician standing at the machine is reading.
         #
         # SourcePath IS BOTH, and that is why one value appears under a name
         # about directories: it is the folder the content provider resolved for
         # this application - the mapped drive in a network deployment, the media
         # on standalone media - and it is the working directory cmd.exe is given
         # so the vendor's own relative 'msiexec /i setup.msi' resolves.
-        Write-HDTLog -Context $Context.Log -Severity Debug -Event 'native.exec' -Component 'InstallApplications' `
+        Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component 'InstallApplications' `
             -Message ("'{0}' change directory: {1}" -f $id, [string] $application.SourcePath) `
             -Data ([ordered] @{ application = $id; workingDirectory = [string] $application.SourcePath })
 
-        Write-HDTLog -Context $Context.Log -Severity Debug -Event 'native.exec' -Component 'InstallApplications' `
+        Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component 'InstallApplications' `
             -Message ("'{0}' run command: {1} {2}" -f $id, $comSpec, (& $redact $argument)) `
             -Data ([ordered] @{ application = $id; commandLine = (& $redact ('{0} {1}' -f $comSpec, $argument)) })
 
@@ -603,6 +723,42 @@
             $matched = 'a reboot code'
         } elseif (@($application.SuccessCodes) -contains $exitCode) {
             $matched = 'a success code'
+        }
+
+        # WHETHER THIS INSTALL IS ABOUT TO BE ACCEPTED, worked out once and read
+        # twice: it is what decides how loudly the installer's own output is
+        # logged, and $matched is already the only place that judgement lives. A
+        # timeout is never acceptance - the process was killed mid-install, and
+        # whatever it managed to print before that is the most useful thing in
+        # the log.
+        $accepted = ($matched -ne 'no configured code') -and (-not [bool] $result.TimedOut)
+
+        $standardOutputLine = & $splitConsole ([string] $result.StandardOutput)
+        $standardErrorLine = & $splitConsole ([string] $result.StandardError)
+
+        if (@($standardOutputLine).Count -gt 0 -or @($standardErrorLine).Count -gt 0) {
+            # AT INFO, BECAUSE A CAPTURE NOBODY IS TOLD ABOUT IS INVISIBLE. On a
+            # successful install the lines themselves stay at Debug, so this one
+            # line is the only thing that tells a technician there is something
+            # to raise the level for. It costs the common case nothing: a silent
+            # MSI prints nothing at all and this never fires.
+            Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component 'InstallApplications' `
+                -Message ("'{0}' wrote {1} line(s) to stdout and {2} to stderr." -f
+                    $id, @($standardOutputLine).Count, @($standardErrorLine).Count) `
+                -Data ([ordered] @{
+                    application = $id
+                    stdoutLines = @($standardOutputLine).Count
+                    stderrLines = @($standardErrorLine).Count
+                })
+        }
+
+        # MDT'S ORDER: the console lines, and then the return code.
+        if ($accepted) {
+            & $writeConsole $id ([string[]] @($standardOutputLine)) '>' 'stdout' 'Debug' $consoleLineLimit
+            & $writeConsole $id ([string[]] @($standardErrorLine)) '#' 'stderr' 'Debug' $consoleLineLimit
+        } else {
+            & $writeConsole $id ([string[]] @($standardOutputLine)) '>' 'stdout' 'Warning' $consoleLineLimitOnFailure
+            & $writeConsole $id ([string[]] @($standardErrorLine)) '#' 'stderr' 'Error' $consoleLineLimitOnFailure
         }
 
         Write-HDTLog -Context $Context.Log -Severity Debug -Event 'native.exec' -Component 'InstallApplications' `

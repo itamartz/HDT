@@ -873,6 +873,27 @@ adds every variable resolution with its provenance and every native command
 line executed in full — the two things most often needed to explain a
 deployment that went wrong, and the two things MDT makes hardest to get.
 
+**One exception, and it is MDT's.** `InstallApplications` writes its
+`change directory:` and `run command:` pair at **`Info`**, redacted.
+`ZTIApplications.wsf` writes both with `LogTypeInfo` (lines 412 and 441), so an
+admin reading a *default* MDT log sees the command that ran; the command line is
+the one line that makes a failure reproducible by hand, and requiring a whole
+deployment to be re-run at a raised level to recover it is a cost paid after the
+machine has already been rebuilt. The secret in it is answered by redaction — a
+switch or MSI property whose name reads as a credential keeps its name and loses
+its value — rather than by hiding the line. Everything else the step learns
+(which detection rule was evaluated and what it found, which configured exit
+code matched) stays at `Debug`.
+
+The same step **captures the installer's own stdout and stderr** and writes them
+one record per line, in MDT's `StandardConsoleProcessing` shape: `  console > `
+for stdout, `  console # ` for stderr. The *level* follows the exit code rather
+than the stream — `Debug` when the code was accepted, `Warning`/`Error` when it
+was not — so a failing install explains itself at the default level while a
+chatty install that succeeded costs the share nothing. It is a tail, capped at
+40 lines per stream on success and 200 on a failure, and a truncation always
+names how many lines were dropped.
+
 #### 4.4.6 Live monitoring
 
 The engine writes a small `status.json` heartbeat to `<share>\Logs\_active\<RunId>.json`

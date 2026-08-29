@@ -67,6 +67,36 @@ id: Contoso-Licensed
 name: Contoso thing with a licence key
 install: licensed.exe /passive /PASSWORD=hunter2 VALUE_OF_PASSWORD=hunter2 /qn
 '@
+
+        # AN INSTALLER THAT TALKS. A silent MSI prints nothing, which is why
+        # throwing its output away looked harmless for so long; a setup.exe
+        # wrapper prints the reason it gave up, and that is the one HDT was
+        # discarding.
+        (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Chatty\app.yaml')   = @'
+schemaVersion: 1
+id: Contoso-Chatty
+name: Contoso thing that talks
+install: chatty.exe /S
+'@
+
+        # AN INSTALLER THAT ECHOES ITS OWN ARGUMENTS BACK, which is how a
+        # credential reaches the log by a route the command-line redaction never
+        # sees.
+        (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Echo\app.yaml')     = @'
+schemaVersion: 1
+id: Contoso-Echo
+name: Contoso thing that echoes its arguments
+install: echo.exe /S
+'@
+
+        # AN INSTALLER WITH A PROGRESS BAR. Three hundred lines of it, which is
+        # what the cap exists for.
+        (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Loud\app.yaml')     = @'
+schemaVersion: 1
+id: Contoso-Loud
+name: Contoso thing that never stops talking
+install: loud.exe /S
+'@
     }
 
     $script:newStep = {
@@ -142,8 +172,31 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
             'cmd.exe /c suite.msi /qn'    = @{ ExitCode = 0 }
             'cmd.exe /c baseline.cmd'     = @{ ExitCode = 0 }
             'cmd.exe /c reboot.msi /qn'   = @{ ExitCode = 3010 }
-            'cmd.exe /c broken.msi /qn'   = @{ ExitCode = 1603 }
             'cmd.exe /c licensed.exe /passive /PASSWORD=hunter2 VALUE_OF_PASSWORD=hunter2 /qn' = @{ ExitCode = 0 }
+
+            # THE ACROBAT-1603 CASE, WHICH IS THE WHOLE POINT. The installer
+            # says why on its way out and HDT recorded only the number.
+            'cmd.exe /c broken.msi /qn'   = @{
+                ExitCode       = 1603
+                StandardOutput = "starting setup`r`nfatal error 1603: another installation is in progress"
+                StandardError  = 'MSI (s) returned 1603'
+            }
+
+            'cmd.exe /c chatty.exe /S'    = @{
+                ExitCode       = 0
+                StandardOutput = "unpacking`r`ninstalling`r`ndone"
+                StandardError  = 'a note on stderr'
+            }
+
+            'cmd.exe /c echo.exe /S'      = @{
+                ExitCode       = 0
+                StandardOutput = 'running: echo.exe /S VALUE_OF_PASSWORD=hunter2'
+            }
+
+            'cmd.exe /c loud.exe /S'      = @{
+                ExitCode       = 0
+                StandardOutput = ((1..300 | ForEach-Object { 'progress line {0}' -f $_ }) -join "`r`n")
+            }
         }
     }
 
@@ -558,13 +611,19 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
         # them all would answer the complaint by making the step louder rather
         # than more useful.
 
-        It 'records the source it is installing from' {
+        It 'records the source it is installing from at Info, the way MDT does' {
             # THE SINGLE MOST VALUABLE MISSING LINE. On a real deployment this
             # is the UNC the content provider resolved, and it is also the
             # working directory cmd.exe is given - the two are the same value
             # here, and both are what an admin needs to go and look at the
-            # media by hand. MDT logs it as 'Change directory:'.
-            $context = & $script:newContext $script:process $null $null 'Debug'
+            # media by hand.
+            #
+            # INFO, AND THAT IS A REVERSAL OF WHAT THIS FILE ASSERTED FIRST.
+            # ZTIApplications.wsf line 412 writes "Change directory: " with
+            # LogTypeInfo, so an admin reading a DEFAULT MDT log sees it. HDT is
+            # a homage to MDT; where a fresh idea and MDT disagree about what a
+            # technician sees, MDT wins.
+            $context = & $script:newContext $script:process
             $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
 
             $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
@@ -573,12 +632,17 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
                     Where-Object { [string] $_.message -like '*change directory*' })
 
             $record.Count | Should -BeGreaterThan 0
-            [string] $record[0].level | Should -BeExactly 'Debug'
+            [string] $record[0].level | Should -BeExactly 'Info'
             [string] $record[0].message | Should -BeLike '*C:\Deploy\Applications\Corp-Baseline*'
         }
 
-        It 'records the command line in a form an admin can paste into a prompt' {
-            $context = & $script:newContext $script:process $null $null 'Debug'
+        It 'records the command line at Info, in a form an admin can paste into a prompt' {
+            # THE ONE LINE THAT MAKES A FAILURE REPRODUCIBLE BY HAND, and an
+            # admin must not have to re-run a deployment at a raised level to
+            # get it. ZTIApplications.wsf line 441: "Run Command: " at
+            # LogTypeInfo. The context this runs in is the DEFAULT Info one on
+            # purpose - a Debug context would pass whatever the severity was.
+            $context = & $script:newContext $script:process
             $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
 
             $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
@@ -587,7 +651,7 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
                     Where-Object { [string] $_.message -like '*run command*' })
 
             $record.Count | Should -BeGreaterThan 0
-            [string] $record[0].level | Should -BeExactly 'Debug'
+            [string] $record[0].level | Should -BeExactly 'Info'
             [string] $record[0].message | Should -BeLike '*cmd.exe /c baseline.cmd*'
         }
 
@@ -757,10 +821,16 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
         }
 
         It 'keeps the forensics off the Info log' {
-            # THE COMPLAINT WAS THAT THE STEP READS AS INFO-ONLY, not that it
-            # should be louder. A technician watching the screen gets the plan,
-            # a line per application and a total; everything added here is
-            # Debug, and an Info log must look exactly as it did.
+            # THE INFO SECTION STAYS PROPORTIONATE. A technician watching the
+            # screen gets the plan, MDT's two lines per application, and a
+            # total; the forensics - which rule was evaluated, which configured
+            # code matched - are what a support case turns on a week later and
+            # nobody watches, so they stay at Debug.
+            #
+            # WHAT IS NOT ON THIS LIST ANY MORE is 'run command' and 'change
+            # directory'. They were here, and MDT writes both at LogTypeInfo:
+            # the command line is the one line that makes a failure
+            # reproducible by hand.
             $context = & $script:newContext $script:process
             $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
 
@@ -768,8 +838,6 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
 
             $text = [string] $script:fileSystem.File['C:\HDT\Logs\HDT.jsonl']
 
-            $text | Should -Not -BeLike '*run command*'
-            $text | Should -Not -BeLike '*change directory*'
             $text | Should -Not -BeLike '*detection*'
             $text | Should -Not -BeLike '*successCodes*'
         }
@@ -788,6 +856,160 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
 
             $record.Count | Should -Be 1
             [string] $record[0].message | Should -BeExactly 'install plan, in order: Contoso-Agent, Contoso-Suite'
+        }
+    }
+
+    Context 'what the installer itself said' {
+
+        # THE OUTPUT WAS BEING CAPTURED AND THROWN AWAY. IProcessService.Start
+        # has returned StandardOutput and StandardError since it was written -
+        # the contract asserts both properties on both implementations - and
+        # this step read ExitCode and dropped the rest. So an installer that
+        # failed with 1603 AND PRINTED THE REASON left a log with the number and
+        # nothing else.
+        #
+        # MDT'S SHAPE. StandardConsoleProcessing (ZTIUtility.vbs 2255-2299)
+        # writes one entry per line, "  Console > " for stdout and
+        # "  Console # " for stderr - separate markers, not a merged stream, so
+        # a reader can tell which pipe a line came out of.
+
+        It 'writes the output the installer printed into the log' {
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Chatty') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*console >*' })
+
+            @($record).Count | Should -Be 3
+            [string] $record[0].message | Should -BeLike '*unpacking*'
+            [string] $record[2].message | Should -BeLike '*done*'
+        }
+
+        It 'marks a stderr line apart from a stdout line, the way MDT does' {
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Chatty') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*console #*' })
+
+            @($record).Count | Should -Be 1
+            [string] $record[0].message | Should -BeLike '*a note on stderr*'
+        }
+
+        It 'keeps the output of a successful install off the Info log' {
+            # OUTPUT ON SUCCESS IS NOISE, and this log is written to the share
+            # over SMB and read in CMTrace. A chatty installer that succeeded
+            # must not cost a technician a screen of scrollback.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Chatty') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $text = [string] $script:fileSystem.File['C:\HDT\Logs\HDT.jsonl']
+
+            $text | Should -Not -BeLike '*unpacking*'
+            $text | Should -Not -BeLike '*a note on stderr*'
+        }
+
+        It 'names how much the installer wrote even when it keeps the lines back' {
+            # OTHERWISE THE CAPTURE IS INVISIBLE. A technician who cannot see
+            # that output exists has no reason to go and raise the level for it.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Chatty') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*line(s) to stdout*' })
+
+            @($record).Count | Should -Be 1
+            [string] $record[0].level | Should -BeExactly 'Info'
+            [string] $record[0].message | Should -BeLike '*3 line(s) to stdout*'
+            [string] $record[0].message | Should -BeLike '*1 to stderr*'
+        }
+
+        It 'says nothing at all when the installer printed nothing' {
+            # A SILENT MSI IS THE COMMON CASE. A step that wrote 'console
+            # output: 0 lines' after every application would be paying for the
+            # feature on every deployment that does not need it.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $text = [string] $script:fileSystem.File['C:\HDT\Logs\HDT.jsonl']
+
+            $text | Should -Not -BeLike '*console >*'
+            $text | Should -Not -BeLike '*line(s) to stdout*'
+        }
+
+        It 'raises the output of a failed install so it is readable at Info' {
+            # THE WHOLE REASON THIS EXISTS. Acrobat returns 1603 and prints why;
+            # an admin must not have to re-run the deployment at a raised level
+            # to read it. The context here is the DEFAULT Info one.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Broken') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $out = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*console >*' })
+            $err = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*console #*' })
+
+            @($out).Count | Should -Be 2
+            [string] $out[1].level | Should -BeExactly 'Warning'
+            [string] $out[1].message | Should -BeLike '*another installation is in progress*'
+
+            @($err).Count | Should -Be 1
+            [string] $err[0].level | Should -BeExactly 'Error'
+            [string] $err[0].message | Should -BeLike '*MSI (s) returned 1603*'
+        }
+
+        It 'redacts a credential the installer echoed back' {
+            # AN INSTALLER CAN PRINT ITS OWN ARGUMENTS, so redacting the command
+            # line and not the output would leak the same secret one line later.
+            # It goes through the SAME redactor - a second one would drift.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Echo') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $text = [string] $script:fileSystem.File['C:\HDT\Logs\HDT.jsonl']
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*console >*' })
+
+            $text | Should -Not -BeLike '*hunter2*'
+            @($record).Count | Should -Be 1
+            [string] $record[0].message | Should -BeLike '*VALUE_OF_PASSWORD=*redacted*'
+        }
+
+        It 'caps a chatty installer and says how many lines it dropped' {
+            # NEVER SILENTLY. A truncation nobody is told about reads as an
+            # installer that stopped talking, which is a different fault
+            # entirely.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Loud') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $line = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*console >*' })
+            $marker = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*not shown*' })
+
+            @($line).Count | Should -Be 40
+            @($marker).Count | Should -Be 1
+            [string] $marker[0].message | Should -BeLike '*300 line(s)*'
+            [string] $marker[0].message | Should -BeLike '*first 260*'
+
+            # THE TAIL IS WHAT IS KEPT, because the reason an installer gave up
+            # is the last thing it says, not the first.
+            [string] $line[39].message | Should -BeLike '*progress line 300*'
         }
     }
 
