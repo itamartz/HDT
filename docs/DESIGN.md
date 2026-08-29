@@ -802,12 +802,38 @@ explicitly labelled one.
 **CMTrace line format**, for the same entry:
 
 ```
-<![LOG[Applied index 1 to W:\ in 95s]LOG]!><time="00:11:02.481+000" date="08-13-2026"
+<![LOG[Applied index 1 to W:\ in 95s]LOG]!><time="03:11:02.481-180" date="08-13-2026"
   component="ApplyImage" context="" type="1" thread="4820" file="Invoke-HDTApplyImage.ps1:142">
 ```
 
 `type` maps `1`=Info, `2`=Warning, `3`=Error, giving CMTrace its colour coding
 for free.
+
+**The CMTrace line carries local wall-clock time; the JSONL carries UTC.** The
+same record above is `2026-08-13T00:11:02.481Z` in `HDT.jsonl` and `03:11:02` in
+`HDT.log`, because the two files have different readers. The `.jsonl` is
+machine-read and UTC is unambiguous; the `.log` is read by a technician who is
+correlating the deployment against Event Viewer, against `setupact.log`, or
+against a user saying "it broke around half nine". A log rendered in UTC is a
+log that lines up with nothing on the technician's desk, and it shipped that way
+once: a Dell run wrote `time="20:43:07.612+000"` while the wall clock said
+`22:43`.
+
+**The offset field is `ActiveTimeBias` — the minutes to add to local to reach
+UTC — not an ISO offset.** Its sign is therefore inverted relative to `+03:00`:
+a machine three hours east of Greenwich writes `-180`, and Pacific daylight time
+writes `+420`. This is Microsoft's own convention on both sides of the family.
+MDT's `ZTIUtility.vbs` builds the line from `Now()` — local — and appends a
+literal `+000` rather than computing the field; its `OSDEndTime.vbs` reads
+`ActiveTimeBias` when it wants UTC. The ConfigMgr client fills the field in
+properly, and a capture of 49,096 client lines from a UTC+3 machine carries
+`-180` on every one of them.
+
+A machine whose zone is unset — which is every WinPE boot, until something sets
+it — reports UTC, so the bias renders `+000` and the line is byte-for-byte the
+one MDT ships. The renderer is correct for whatever offset the machine reports
+and deliberately does not second-guess it; a WinPE zone that is wrong is a
+separate defect, and correcting it in two places would compound.
 
 **The two files do not share a line terminator, and the difference is load
 bearing.** `HDT.log` and every per-step log are written **CRLF**; `HDT.jsonl` is
