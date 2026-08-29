@@ -1,4 +1,4 @@
-﻿# Update-HDTBootImage against fakes: no ADK, no DISM, no elevation, nothing
+# Update-HDTBootImage against fakes: no ADK, no DISM, no elevation, nothing
 # mounted, nothing burned - and every decision the build makes asserted.
 #
 # The real build takes fifteen to twenty-five minutes and needs an elevated
@@ -1369,10 +1369,19 @@ Describe 'Update-HDTBootImage' {
             $record.FullyQualifiedErrorId | Should -BeLike 'HDTDependencyError*'
         }
 
-        It 'writes nothing when it refuses' {
+        It 'writes no boot image when it refuses' {
             # 04-02's discipline: a command that refuses has performed no
             # operation at all, so a failed build cannot leave half a boot image
             # anywhere.
+            #
+            # THE BUILD LOG IS NOT AN ARTEFACT OF THE BUILD, and is excluded
+            # deliberately rather than by accident. The refusal is the single
+            # most useful thing this command ever writes down - "the scratch
+            # path contains a space" is a support question somebody asks days
+            # later - and a rule that forbade recording it would keep the
+            # discipline by throwing away the reason. What the invariant is
+            # actually about is half a boot image: a WIM copied, a directory
+            # made, a mount left behind. None of those may happen, and none do.
             $context = New-HDTBootImageTestContext
 
             try {
@@ -1380,9 +1389,14 @@ Describe 'Update-HDTBootImage' {
             } catch { $null = $_ }
 
             @($context.Boot.Operations).Count | Should -Be 0
-            @($context.Journal | Where-Object { $_.Service -eq 'FileSystem' -and
-                    @('WriteAllText', 'CopyItem', 'RemoveItem', 'CreateDirectory') -contains $_.Operation }).Count |
-                Should -Be 0
+
+            $artefact = @($context.Journal | Where-Object {
+                    $_.Service -eq 'FileSystem' -and
+                    @('WriteAllText', 'CopyItem', 'RemoveItem', 'CreateDirectory') -contains $_.Operation -and
+                    ([string] $_.Arguments[0]) -notlike '*.build.log'
+                })
+
+            @($artefact).Count | Should -Be 0
         }
 
         It 'discards the mount when a package fails' {
@@ -1561,6 +1575,38 @@ Describe 'Update-HDTBootImage' {
 
             $parameter.Count | Should -Be 1
             [string] $parameter[0].DefaultValue.Extent.Text | Should -BeLike '*HDTModuleRoot*'
+        }
+
+        It 'gives its own progress sink a build log to write' {
+            # A COMMAND-LINE BUILD KEPT NO RECORD AT ALL. The default sink
+            # records nothing, and the console only wrote Boot\<image>.build.log
+            # when somebody clicked Open Log - so a build that failed while
+            # nobody watched left nothing behind, which is the build whose log
+            # is worth having.
+            #
+            # AST, like the EngineModulePath test above and for the same reason:
+            # the behaviour is a DEFAULT, and a test that ran the command would
+            # be asserting against the default it is trying to pin.
+            #
+            # Only the sink this command builds for itself. A caller that passes
+            # -Progress - which is the console - owns its own logging and is
+            # deliberately untouched.
+            $path = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Public/Update-HDTBootImage.ps1'
+            $token = $null
+            $parseError = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref] $token, [ref] $parseError)
+
+            @($parseError).Count | Should -Be 0
+
+            $call = @($ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        [string] $node.GetCommandName() -eq 'New-HDTBuildProgress'
+                    }, $true))
+
+            $call.Count | Should -Be 1
+            @($call[0].CommandElements | ForEach-Object { [string] $_.Extent.Text }) |
+                Should -Contain '-LogPath'
         }
 
         It 'reports a duration' {

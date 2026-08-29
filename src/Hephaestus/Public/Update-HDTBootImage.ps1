@@ -1,4 +1,4 @@
-﻿function Update-HDTBootImage {
+function Update-HDTBootImage {
     <#
         .SYNOPSIS
             Builds the HDT boot image: one mount, two artifacts, and a manifest
@@ -290,7 +290,31 @@
     if ($null -eq $Registry) { $Registry = New-HDTRegistryService }
     if ($null -eq $BootImageService) { $BootImageService = New-HDTBootImageService }
     if ($null -eq $Clock) { $Clock = New-HDTClock }
-    if ($null -eq $Progress) { $Progress = New-HDTBuildProgress }
+    # THE BUILD LOG, AND ONLY WHEN THIS COMMAND OWNS THE SINK. A caller that
+    # passed -Progress is the console, which renders these into a window and
+    # writes its own file; giving it a second writer would put two things on one
+    # path. A bare command line has neither, and had nothing to read afterwards.
+    #
+    # THE NAME IS READ AHEAD OF STEP 1 rather than after it, because the log has
+    # to exist for the failure that happens BEFORE the document is understood.
+    # Get-HDTConsoleBuildLogPath falls back to bootimage.build.log for exactly
+    # that case, so an unreadable workspace still leaves a log saying so.
+    $buildLogName = ''
+    try {
+        $buildLogName = [string] (Import-HDTWorkspaceDocument -Path (
+                [System.IO.Path]::Combine($WorkspaceRoot, 'workspace.yaml')) -FileSystem $FileSystem).BootImage.Name
+    } catch {
+        Write-Verbose ("the boot image name could not be read for the build log: {0}" -f $_.Exception.Message)
+    }
+
+    $buildLogPath = ''
+    try {
+        $buildLogPath = [string] (Get-HDTConsoleBuildLogPath -WorkspaceRoot $WorkspaceRoot -Name $buildLogName)
+    } catch {
+        Write-Verbose ("the build log path could not be worked out: {0}" -f $_.Exception.Message)
+    }
+
+    if ($null -eq $Progress) { $Progress = New-HDTBuildProgress -LogPath $buildLogPath -FileSystem $FileSystem }
 
     # ONE NUMBER, IN ONE PLACE. The step count is what a progress bar divides
     # by, and a total that disagreed with the number of reports would show a bar
