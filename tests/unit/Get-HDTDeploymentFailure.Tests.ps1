@@ -401,15 +401,114 @@ Describe 'Get-HDTDeploymentFailure and which buttons the summary offers' {
         & $script:visibilityOf $result 'HDTCancelButton' | Should -BeTrue
     }
 
-    It 'leaves Open CMD alone either way, because it is useful on both' {
-        foreach ($status in @('Succeeded', 'Failed')) {
-            $result = Get-HDTDeploymentFailure -Record @(
-                [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
-                [pscustomobject] @{ event = 'run.end'; data = @{ status = $status } }
-            )
+    It 'hides Open CMD when the run succeeded' {
+        $result = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+            [pscustomobject] @{ event = 'run.end'; data = @{ status = 'Succeeded' } }
+        )
 
-            & $script:visibilityOf $result 'HDTOpenCmdButton' | Should -BeNullOrEmpty -Because (
-                'a pane entry for it would be a decision nobody asked for ({0})' -f $status)
-        }
+        # THE ROW HAS TO BE THERE FIRST. $null is falsey, so a bare -BeFalse
+        # passes just as happily for a control the list forgot as for one it
+        # collapsed - which is the state this change was made to leave.
+        @($result.Pane | Where-Object { [string] $_.Name -eq 'HDTOpenCmdButton' }).Count |
+            Should -Be 1 -Because 'a control nobody names is visible by default'
+
+        & $script:visibilityOf $result 'HDTOpenCmdButton' | Should -BeFalse -Because (
+            'a machine that finished has nothing left to look inside, and the summary offers Finish alone')
+    }
+
+    It 'offers Open CMD when the run failed' {
+        $result = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+            [pscustomobject] @{ event = 'step.fail'; data = @{ name = 'Validate' }; message = 'disk 0 carries existing data' }
+            [pscustomobject] @{ event = 'run.end'; data = @{ status = 'Failed' } }
+        )
+
+        & $script:visibilityOf $result 'HDTOpenCmdButton' | Should -BeTrue -Because (
+            'the failure screen is where somebody needs to look inside the machine')
+    }
+}
+
+Describe 'the summary decides every control the window can show' {
+
+    # THE ASSERTION AGAINST THE SET, AND THE ONE THAT WOULD HAVE ANSWERED THIS
+    # WITHOUT READING A COMMENT. A control the markup declares and the Pane list
+    # never names is visible on BOTH outcomes by default - which is how Open CMD
+    # came to sit under a green headline offering a technician a way to look
+    # inside a machine that had nothing wrong with it. Naming the always-visible
+    # controls here makes that a decision somebody wrote down rather than the
+    # absence of one, and a control added to HDTFailure.xaml later cannot join
+    # them by saying nothing.
+
+    BeforeAll {
+        # THE CONTROLS THAT ARE THE SAME ON BOTH OUTCOMES, each because the
+        # thing it shows is true either way: the banner you drag the window by,
+        # which step it reached, the reason box's own text, and where the log
+        # and the run id are. Every one of them is filled by the Field list.
+        $script:alwaysVisible = @(
+            'HDTDragBanner'
+            'HDTFailureSequenceText'
+            'HDTFailureStepLabel'
+            'HDTFailureStepText'
+            'HDTFailureMessageText'
+            'HDTFailureLogLabel'
+            'HDTFailureLogText'
+            'HDTFailureRunText'
+        )
+
+        $script:failureXaml = [IO.Path]::Combine($script:repoRoot, 'src', 'Hephaestus', 'UI', 'HDTFailure.xaml')
+
+        $script:declaredName = @([regex]::Matches(
+                (Get-Content -LiteralPath $script:failureXaml -Raw), 'x:Name="(?<name>[^"]+)"') |
+                ForEach-Object { $_.Groups['name'].Value } | Sort-Object -Unique)
+
+        $script:summary = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+            [pscustomobject] @{ event = 'run.end'; data = @{ status = 'Failed' } }
+        )
+
+        $script:paneName = @($script:summary.Pane | ForEach-Object { [string] $_.Name } | Sort-Object -Unique)
+    }
+
+    It 'reads names out of the markup at all' {
+        @($script:declaredName).Count | Should -BeGreaterThan 0 -Because (
+            'every assertion below is vacuous against an empty markup scan')
+    }
+
+    It 'decides the visibility of every control the markup declares that is not deliberately always visible' {
+        $undecided = @($script:declaredName |
+                Where-Object { $script:paneName -notcontains $_ -and $script:alwaysVisible -notcontains $_ })
+
+        @($undecided).Count | Should -Be 0 -Because (
+            'a control nothing names is visible on both outcomes by default, which is a decision nobody made. Found: {0}' -f
+                ($undecided -join ', '))
+    }
+
+    It 'names no control the markup does not declare' {
+        $missing = @($script:paneName | Where-Object { $script:declaredName -notcontains $_ })
+
+        @($missing).Count | Should -Be 0 -Because (
+            'FindName returns null rather than throwing, so a pane entry for a control no window declares silently does nothing. Found: {0}' -f
+                ($missing -join ', '))
+    }
+
+    It 'lists no always-visible control the markup no longer declares' {
+        $stale = @($script:alwaysVisible | Where-Object { $script:declaredName -notcontains $_ })
+
+        @($stale).Count | Should -Be 0 -Because (
+            'an allow-list entry for a control that has gone excuses the next control to take its name. Found: {0}' -f
+                ($stale -join ', '))
+    }
+
+    It 'gives every control the same decision on a run that succeeded' {
+        $succeeded = Get-HDTDeploymentFailure -Record @(
+            [pscustomobject] @{ event = 'run.start'; data = @{ sequenceId = 'DEMO-05'; stepCount = 2 } }
+            [pscustomobject] @{ event = 'run.end'; data = @{ status = 'Succeeded' } }
+        )
+
+        $name = @($succeeded.Pane | ForEach-Object { [string] $_.Name } | Sort-Object -Unique)
+
+        ($name -join ',') | Should -BeExactly ($script:paneName -join ',') -Because (
+            'one outcome deciding a control the other leaves to default is how the two screens drift apart')
     }
 }

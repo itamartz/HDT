@@ -2085,13 +2085,19 @@ on volume C (NTFS), D (NTFS), and the step did not declare that it may be
 replaced" *contains the fix*, and shortening it to "disk error" would send a
 technician to the log to read the rest.
 
-**Three buttons, and the machine obeys whichever was pressed:**
+**Three buttons on a FAILURE, and the machine obeys whichever was pressed:**
 
 | Button | What the machine does |
 |---|---|
 | **Open CMD** | opens a prompt and **stays running** — the technician is going to look |
 | **Restart** | `wpeutil reboot`, to try again from the top |
 | **Shut down** | `wpeutil shutdown`, they are finished with this machine |
+
+**A SUCCESS gets one, and it is Finish** — MDT's Deployment Summary. All three
+above are collapsed, Open CMD included: a machine that finished has nothing left
+to diagnose, and a prompt offered under a green headline invites a technician to
+go looking for a problem that is not there. F8 still opens one on both screens,
+because a key nobody can see is not clutter.
 
 **It appears only when a display was opened.** A run with no window is a run
 nobody is standing at, and an unattended deployment must not wait for a keypress

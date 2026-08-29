@@ -192,10 +192,19 @@
                 <!--
                     THE SAME THREE NAMES THE WIZARD USES, so the host that
                     already knows how to read a window can read this one:
-                    HDTOpenCmdButton, HDTNextButton, HDTCancelButton. Open CMD
-                    is first because it is the reason this screen exists - the
-                    technician is standing in front of a machine they can still
-                    look inside.
+                    HDTOpenCmdButton, HDTNextButton, HDTCancelButton.
+
+                    OPEN CMD IS FIRST ON A FAILURE because that is the reason
+                    the failure screen exists - the technician is standing in
+                    front of a machine they can still look inside.
+
+                    AND IT IS COLLAPSED ON A SUCCESS, by the same Pane list
+                    that collapses Restart and Shut down: a machine that
+                    finished has nothing left to diagnose, and the summary
+                    offers Finish alone. The '*' column beside it absorbs the
+                    space, so Finish stays in the corner either way. F8 still
+                    opens a prompt on both - a key nobody can see is not
+                    clutter.
                 -->
                 <Grid Margin="0,28,0,0">
                     <Grid.ColumnDefinitions>

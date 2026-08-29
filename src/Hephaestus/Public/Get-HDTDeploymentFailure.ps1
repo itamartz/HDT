@@ -255,9 +255,15 @@
     # FAILED machine is a different question - Restart to try again, Shut down
     # to walk away - and keeps the pair it had.
     #
-    # Open CMD IS ON BOTH AND IS NOT NAMED HERE. A pane entry for a control that
-    # is always visible is a decision nobody asked for, and one more thing to
-    # keep in step.
+    # AND Open CMD GOES WITH THE FAILURE TOO. A machine that finished has
+    # nothing left to diagnose: the summary offers Finish, one button, and a
+    # prompt beside it is an invitation to go looking for a problem that is not
+    # there. The failure screen keeps it, because that IS the screen where
+    # somebody has to look inside the machine.
+    #
+    # F8 STILL OPENS ONE ON BOTH, and deliberately. The button is discoverable
+    # clutter on a green screen; the key is not on the screen at all, and taking
+    # it away from a technician who knows it exists buys nothing.
     $result['Pane'] = @(
         [pscustomobject] @{ Name = 'HDTFailureTitleText'; Visible = (-not $succeeded) }
         [pscustomobject] @{ Name = 'HDTFailureSuccessText'; Visible = $succeeded }
@@ -266,6 +272,7 @@
         [pscustomobject] @{ Name = 'HDTFinishButton'; Visible = $succeeded }
         [pscustomobject] @{ Name = 'HDTNextButton'; Visible = (-not $succeeded) }
         [pscustomobject] @{ Name = 'HDTCancelButton'; Visible = (-not $succeeded) }
+        [pscustomobject] @{ Name = 'HDTOpenCmdButton'; Visible = (-not $succeeded) }
     )
 
     $result['Field'] = @(
