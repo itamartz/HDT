@@ -1,0 +1,26 @@
+; Captured from e1d.inf in the Dell Latitude 5420 network pack on the lab share
+; (99KJH_A00-00\...\Dell-I219-12.19.2.50), trimmed to the sections a driver
+; catalog reads. Its pair is e1d68x64-excerpt.inf, off the Latitude 5490 pack:
+; TWO DIFFERENTLY NAMED .inf FILES CLAIM THE SAME PCI\VEN_8086&DEV_15FB, which
+; is what "claimed by 2 staged .inf" has to be able to say. Windows picks
+; between them by rank, signature, date and version; HDT does not, and the log
+; must not pretend otherwise.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = Net
+ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}
+Provider    = %Intel%
+CatalogFile = e1d.cat
+PnpLockdown = 1
+DriverVer = 11/03/2022,12.19.2.50
+
+[Manufacturer]
+%Intel%     = Intel, NTamd64.10.0, NTamd64.10.0.1,  NTamd64.10.0...18362, NTamd64.10.0.1..18362
+
+[Intel.NTamd64.10.0.1]
+%E15FBNC.DeviceDesc%            = E15FB.10.0.1,       PCI\VEN_8086&DEV_15FB
+
+[Strings]
+Intel       = "Intel"
+E15FBNC.DeviceDesc = "Intel(R) Ethernet Connection (13) I219-LM"

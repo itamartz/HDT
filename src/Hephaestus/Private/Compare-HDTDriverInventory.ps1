@@ -53,6 +53,23 @@ function Compare-HDTDriverInventory {
             put a false alarm in front of a technician, which is the failure this
             whole report exists to avoid.
 
+            AND THE NARROWING IS THE WARNING'S ALONE. DeviceClaim carries EVERY
+            device with the .inf files that claim it and a count, unfiltered,
+            because those are two different decisions and running them together
+            cost the log the answer to the obvious question. The warning names
+            five devices because a warning naming 118 trains an administrator to
+            ignore it; the LISTING is what somebody reads when they already know
+            which device did not come up, and a listing that had been narrowed
+            to five leaves the other hundred invisible - "105 device(s) reported
+            hardware ids" and then four lines about four of them.
+
+            IT IS MDT'S SHAPE. ZTIDrivers.wsf walks every PnP device and writes
+            either "Found Device <id> with 3rd party drivers! Count = N" or
+            "Skipping Device <id> No 3rd party drivers found." - one line per
+            device, whichever way the answer went. MDT's own per-ID variant of
+            the skip line is commented out in that file, which is the volume
+            lesson already learned: per DEVICE is readable, per ID is not.
+
             THE RANKING IS Get-HDTDriverMatch'S, NOT A SECOND COPY OF IT. Which
             id matched, at what rank, off HardwareID or CompatibleID - that logic
             already exists and is already tested, and a second implementation
@@ -75,7 +92,8 @@ function Compare-HDTDriverInventory {
         .OUTPUTS
             System.Management.Automation.PSCustomObject with DeviceCount,
             DriverCount, RelevantCount, RelevantDriver, CriticalClass,
-            CriticalDeviceCount and UnmatchedCriticalDevice.
+            CriticalBus, CriticalDeviceCount, UnmatchedCriticalDevice and
+            DeviceClaim.
 
         .EXAMPLE
             $device = Get-HDTPresentDevice
@@ -148,12 +166,19 @@ function Compare-HDTDriverInventory {
     # THE OTHER DIRECTION, which Get-HDTDriverMatch does not answer: it returns
     # the drivers that matched, so a device nothing matched is simply absent from
     # its result and cannot be named from it.
-
-    $claimed = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList (
+    #
+    # A MAP RATHER THAN A SET, AND THE DIFFERENCE IS THE WHOLE OF DeviceClaim.
+    # A HashSet answers "does anything claim this id", which is all the warning
+    # ever needed. It cannot answer "WHAT claims it", so a per-device line saying
+    # "claimed by 2 staged .inf (e1d.inf, E1D68x64.inf)" could not be written
+    # from it - and the data was already in hand and thrown away.
+    $claimed = New-Object -TypeName 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[string]]' -ArgumentList (
         [System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($current in $Driver) {
         if ($null -eq $current) { continue }
+
+        $infName = [string] (& $read $current 'InfName')
 
         foreach ($id in @(& $read $current 'HardwareId')) {
             if ($null -eq $id) { continue }
@@ -161,7 +186,16 @@ function Compare-HDTDriverInventory {
             $key = ([string] $id).Trim()
             if ([string]::IsNullOrEmpty($key)) { continue }
 
-            [void] $claimed.Add($key)
+            if (-not $claimed.ContainsKey($key)) {
+                $claimed[$key] = New-Object -TypeName 'System.Collections.Generic.List[string]'
+            }
+
+            # ONE .inf CLAIMING ONE ID TWICE IS ONE CLAIM. A real .inf lists the
+            # same id under several decorated sections - e1d.inf carries
+            # PCI\VEN_8086&DEV_15FB four times, once per Windows build - and a
+            # count that believed it would report "claimed by 4 staged .inf"
+            # naming one file.
+            if (-not $claimed[$key].Contains($infName)) { [void] $claimed[$key].Add($infName) }
         }
     }
 
@@ -200,11 +234,65 @@ function Compare-HDTDriverInventory {
 
     $critical = 0
     $unmatched = New-Object -TypeName System.Collections.ArrayList
+    $perDevice = New-Object -TypeName System.Collections.ArrayList
 
+    # ONE PASS, TWO ANSWERS, AND THEY MUST COME FROM THE SAME PASS. The warning
+    # is narrow on purpose and the listing is not - but if the listing were
+    # computed somewhere else it would be a second opinion about the same claim
+    # map, and the day the two disagreed a technician would be looking at a
+    # device the summary says is covered and the listing says is not.
     foreach ($current in $Device) {
         if ($null -eq $current) { continue }
 
         $class = [string] (& $read $current 'Class')
+
+        $hardware = @()
+        $value = & $read $current 'HardwareID'
+        if ($null -ne $value) { $hardware = @($value) }
+
+        $compatible = @()
+        $value = & $read $current 'CompatibleID'
+        if ($null -ne $value) { $compatible = @($value) }
+
+        # EVERY ID THE DEVICE PUBLISHES, HardwareID AND CompatibleID ALIKE,
+        # which is what MDT counts: ZTIDrivers walks every childnode of the
+        # device node, and a generic PCI\CC_0108 claim is still a driver that
+        # would install. Order is kept - Windows publishes most specific first -
+        # so the .inf files come out in the order of the ids that earned them.
+        $claiming = New-Object -TypeName 'System.Collections.Generic.List[string]'
+
+        foreach ($id in (@($hardware) + @($compatible))) {
+            if ($null -eq $id) { continue }
+
+            $key = ([string] $id).Trim()
+            if (-not $claimed.ContainsKey($key)) { continue }
+
+            foreach ($infName in $claimed[$key]) {
+                # ONE .inf CLAIMING TWO OF ONE DEVICE'S IDS IS ONE CLAIM.
+                # iaStorVD.inf claims a device's VEN+DEV and its CC_ fallback
+                # both; counting it twice would say "claimed by 2 staged .inf"
+                # and then name one file.
+                if (-not $claiming.Contains($infName)) { [void] $claiming.Add($infName) }
+            }
+        }
+
+        # THE DEVICE ID, NOT THE HARDWARE ID, IS WHAT TELLS TWO INSTANCES APART.
+        # The Latitude 5420 reports PCI\VEN_8086&DEV_09AB TWICE - two functions
+        # of one Intel VMD controller, identical name, identical hardware ids,
+        # differing only in the instance path (...\3&11583659&0&B8 against
+        # ...&0&E8). A row carrying only the hardware id renders those two as
+        # one line printed twice, which reads as a de-duplication bug and is not
+        # one. It is REAL HARDWARE, twice.
+        [void] $perDevice.Add([pscustomobject] @{
+                Name         = [string] (& $read $current 'Name')
+                Class        = $class
+                DeviceId     = [string] (& $read $current 'DeviceId')
+                HardwareId   = [string[]] @($hardware)
+                ClaimingInf  = [string[]] @($claiming)
+                ClaimCount   = [int] $claiming.Count
+            })
+
+        # -- and from here down, the WARNING's narrower question --------------
 
         # NOT CLASSED IS NOT CRITICAL - see the description. Absent, not guessed.
         if ([string]::IsNullOrWhiteSpace($class)) { continue }
@@ -227,26 +315,7 @@ function Compare-HDTDriverInventory {
 
         $critical++
 
-        $hardware = @()
-        $value = & $read $current 'HardwareID'
-        if ($null -ne $value) { $hardware = @($value) }
-
-        $compatible = @()
-        $value = & $read $current 'CompatibleID'
-        if ($null -ne $value) { $compatible = @($value) }
-
-        $covered = $false
-
-        foreach ($id in (@($hardware) + @($compatible))) {
-            if ($null -eq $id) { continue }
-
-            if ($claimed.Contains(([string] $id).Trim())) {
-                $covered = $true
-                break
-            }
-        }
-
-        if ($covered) { continue }
+        if ($claiming.Count -gt 0) { continue }
 
         [void] $unmatched.Add([pscustomobject] @{
                 Name       = [string] (& $read $current 'Name')
@@ -269,5 +338,6 @@ function Compare-HDTDriverInventory {
         CriticalBus             = $criticalBus
         CriticalDeviceCount     = [int] $critical
         UnmatchedCriticalDevice = [pscustomobject[]] @($unmatched)
+        DeviceClaim             = [pscustomobject[]] @($perDevice)
     }
 }

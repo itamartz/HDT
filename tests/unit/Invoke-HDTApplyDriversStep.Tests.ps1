@@ -578,6 +578,130 @@ Describe 'Invoke-HDTApplyDriversStep' {
             $warned[0].message | Should -Match 'may still serve'
         }
 
+        # MDT'S SHAPE, AND THE QUESTION THE LOG COULD NOT ANSWER. ZTIDrivers.wsf
+        # walks EVERY PnP device and writes either "Found Device <id> with 3rd
+        # party drivers! Count = N" or "Skipping Device <id> No 3rd party drivers
+        # found." HDT logged only the INF-to-device direction, so a device no
+        # staged .inf claimed appeared nowhere: a live Dell run said "105
+        # device(s) reported hardware ids" and then printed four of them.
+        #
+        # THE WARNING STAYS NARROW. It names five devices on purpose. This is the
+        # other decision, and running them together is what hid the hundred.
+        It 'writes one record per device, not one per device that matched' {
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $claim = @(& $script:record 'driver.match' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['claimCount'] })
+
+            $claim.Count | Should -Be 32
+        }
+
+        It 'names the .inf that claims a device and how many claim it' {
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $claim = @(& $script:record 'driver.match' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['claimCount'] -and
+                        [int] $_.data.claimCount -gt 0 })
+
+            $claim.Count | Should -Be 1
+            $claim[0].message | Should -Match 'claimed by 1 staged \.inf'
+            $claim[0].message | Should -Match 'net-realtek\.inf'
+            @($claim[0].data.claimingInf) | Should -Contain 'net-realtek.inf'
+        }
+
+        It 'names the device nothing staged claims, which is the whole point' {
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $claim = @(& $script:record 'driver.match' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['claimCount'] -and
+                        [int] $_.data.claimCount -eq 0 })
+
+            $claim.Count | Should -Be 31
+            $claim[0].message | Should -Match 'no staged \.inf claims it'
+        }
+
+        It 'keeps them at Debug, where a hundred lines belong' {
+            # 105 records on a real Dell. An Info run drops every one of them and
+            # a share that wants them sets logLevel: Debug - DESIGN 4.4's
+            # decision, and the reason this can be per-device at all.
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $claim = @(& $script:record 'driver.match' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['claimCount'] })
+
+            @($claim | Where-Object { $_.level -ne 'Debug' }) | Should -HaveCount 0
+        }
+
+        It 'carries the instance path, so two functions of one controller are two records' {
+            # THE LIVE LOG PRINTED 'Intel RST VMD Managed Controller 09AB' TWICE,
+            # identically, and it looked like a de-duplication bug. It is not:
+            # the Latitude 5420 has two functions of the VMD controller with the
+            # same name and the same hardware ids, differing only in the instance
+            # path. The record has to carry the thing that differs.
+            $latitudeText = [System.IO.File]::ReadAllText(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests\fixtures\cim\Win32_PnPEntity-latitude-5420.json'))
+            $latitude = ConvertFrom-Json -InputObject $latitudeText
+
+            $script:cim = New-HDTFakeCimProvider -Instance @{ Win32_PnPEntity = [object[]] @($latitude) }
+            $context = & $script:newContext $null
+
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $context
+
+            $vmd = @(& $script:record 'driver.match' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['claimCount'] -and
+                        [string] $_.data.deviceId -like '*DEV_09AB*' })
+
+            $vmd.Count | Should -Be 2
+            @($vmd | ForEach-Object { [string] $_.data.deviceId } | Sort-Object -Unique) | Should -HaveCount 2
+            @($vmd | ForEach-Object { $_.message } | Sort-Object -Unique) | Should -HaveCount 2
+        }
+
+        It 'says what an unnamed device is instead of printing empty quotes' {
+            # THE LATITUDE REPORTS EIGHT DEVICES WITH NO NAME AT ALL, and the log
+            # rendered them as '' - "iaLPSS2_GPIO2_TGL.inf claims ACPI\INT34C5,
+            # which '' reports as a HardwareID". An empty pair of quotes tells a
+            # technician nothing; the class and the id do.
+            $latitudeText = [System.IO.File]::ReadAllText(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests\fixtures\cim\Win32_PnPEntity-latitude-5420.json'))
+            $latitude = ConvertFrom-Json -InputObject $latitudeText
+
+            $script:cim = New-HDTFakeCimProvider -Instance @{ Win32_PnPEntity = [object[]] @($latitude) }
+            $context = & $script:newContext $null
+
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $context
+
+            $unnamed = @(& $script:record 'driver.match' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['claimCount'] -and
+                        [string] $_.data.deviceId -like 'ACPI\INT34C5*' })
+
+            $unnamed.Count | Should -Be 1
+            $unnamed[0].message | Should -Not -Match "''"
+            $unnamed[0].message | Should -Match 'ACPI'
+        }
+
+        It 'tells the two VMD instances apart in the pre-staging listing too' {
+            # WHERE THE USER ACTUALLY SAW IT. The duplicate in the live log was
+            # a driver.enumerate record, not a driver.match one - the short
+            # pre-staging listing of the classes that strand a machine. Fixing
+            # the claim listing and leaving this one printing the same line
+            # twice would fix half of it.
+            $latitudeText = [System.IO.File]::ReadAllText(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests\fixtures\cim\Win32_PnPEntity-latitude-5420.json'))
+            $latitude = ConvertFrom-Json -InputObject $latitudeText
+
+            $script:cim = New-HDTFakeCimProvider -Instance @{ Win32_PnPEntity = [object[]] @($latitude) }
+            $context = & $script:newContext $null
+
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $context
+
+            $listed = @(& $script:record 'driver.enumerate' |
+                    Where-Object { $null -ne $_.data.PSObject.Properties['deviceName'] -and
+                        [string] $_.data.hardwareId -like '*DEV_09AB*' })
+
+            $listed.Count | Should -Be 2
+            @($listed | ForEach-Object { $_.message } | Sort-Object -Unique) | Should -HaveCount 2
+        }
+
         It 'does not run the report on the fallback path, where it would say nothing' {
             # The fallback CHOSE its packages by matching them against this
             # machine, so every .inf it staged is relevant by construction - and

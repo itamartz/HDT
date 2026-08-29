@@ -1,0 +1,22 @@
+; Captured from E1D68x64.inf in the Dell Latitude 5490 network pack on the lab
+; share (VP20T_A00-00), trimmed to the sections a driver catalog reads. The
+; older half of the pair - see e1d-excerpt.inf. Same hardware id, different
+; file name, older DriverVer.
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = Net
+ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}
+Provider    = %Intel%
+CatalogFile = e1d68x64.cat
+DriverVer = 07/25/2019,12.18.9.10
+
+[Manufacturer]
+%Intel%     = Intel, NTamd64.10.0, NTamd64.10.0.1,  NTamd64.10.0...18362, NTamd64.10.0.1..18362
+
+[Intel.NTamd64.10.0.1]
+%E15FBNC.DeviceDesc%            = E15FB.10.0.1,       PCI\VEN_8086&DEV_15FB
+
+[Strings]
+Intel       = "Intel"
+E15FBNC.DeviceDesc = "Intel(R) Ethernet Connection (13) I219-LM"

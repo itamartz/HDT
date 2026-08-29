@@ -1,4 +1,4 @@
-function Invoke-HDTApplyDriversStep {
+﻿function Invoke-HDTApplyDriversStep {
     <#
         .SYNOPSIS
             Stages drivers onto the applied operating system.
@@ -416,6 +416,60 @@ function Invoke-HDTApplyDriversStep {
             })
     }
 
+    # -- how a device is written down -------------------------------------
+    #
+    # AN EMPTY PAIR OF QUOTES IS NOT A DEVICE NAME. Windows leaves Name empty on
+    # real hardware - the Latitude 5420 reports eight such devices out of 108,
+    # ACPI nodes and a USB hub among them - and the log rendered them literally:
+    #
+    #   iaLPSS2_GPIO2_TGL.inf claims ACPI\INT34C5, which '' reports as a HardwareID
+    #
+    # which tells a technician nothing at all and reads like a bug in the
+    # reader. PNPClass is empty on some of the same rows (SPIKES S19 found it
+    # populated on 32 of 44 in HDT's own boot image), so both need a stand-in.
+    # The id is always there and is the thing a vendor's download page is
+    # searched for; the placeholder just has to stop pretending a name was read.
+    $describeName = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) { return '(unnamed)' }
+
+        return ("'{0}'" -f $Value)
+    }
+
+    $describeClass = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) { return '(unclassified)' }
+
+        return $Value
+    }
+
+    # AND WHICH ONE OF TWO IDENTICAL DEVICES THIS IS. The Latitude 5420 publishes
+    # PCI\VEN_8086&DEV_09AB on TWO devices - two functions of one Intel VMD
+    # controller, same name, same hardware ids - so a line carrying only the
+    # hardware id printed twice, identically, in the live log and read as a
+    # de-duplication bug. It is two real devices.
+    #
+    # THE LAST SEGMENT OF THE DEVICE INSTANCE PATH is what Windows uses to tell
+    # siblings apart and what Device Manager shows under "Device instance path".
+    # The hardware id stays in the line because it is the searchable one - it is
+    # what a vendor's download page is looked up by and what an .inf claims - and
+    # this is the handful of characters that says which of them you are looking
+    # at.
+    $describeInstance = {
+        param([string] $DeviceId)
+
+        # [char] 0x5C IS A BACKSLASH, as its code point - the same reason
+        # Compare-HDTDriverInventory writes it that way. A literal one here
+        # became LastIndexOf('') once, which returns the string length and would
+        # silently make every instance id empty.
+        $at = $DeviceId.LastIndexOf([char] 0x5C)
+        if ($at -lt 0 -or $at -ge ($DeviceId.Length - 1)) { return '' }
+
+        return (' [{0}]' -f $DeviceId.Substring($at + 1))
+    }
+
     # -- the cross-match, run after everything is on the disk -------------
     #
     # PARSED FROM THE STAGED COPY, NOT FROM THE SHARE. The .inf files are on
@@ -488,7 +542,7 @@ function Invoke-HDTApplyDriversStep {
                     # PAGE IS SEARCHED FOR - and the one MDT logs, in
                     # ZTIDrivers's "Skipping Device <id> No 3rd party drivers
                     # found."
-                    "'{0}' ({1}, {2})" -f $_.Name, $_.Class, $firstId
+                    '{0} ({1}, {2})' -f (& $describeName ([string] $_.Name)), (& $describeClass ([string] $_.Class)), $firstId
                 })
 
             # A CAP, BECAUSE A LINE NOBODY FINISHES READING IS A LINE NOBODY
@@ -522,14 +576,80 @@ function Invoke-HDTApplyDriversStep {
         # somebody disagrees with them.
         foreach ($one in @($coverage.RelevantDriver)) {
             Write-HDTLog -Context $Context.Log -Event 'driver.match' -Component 'ApplyDrivers' -Severity Debug `
-                -Message ("{0} claims {1}, which '{2}' reports as a {3}" -f
-                    $one.InfName, $one.MatchedId, $one.DeviceName, $one.Source) `
+                -Message ('{0} claims {1}, which {2} reports as a {3}' -f
+                    $one.InfName, $one.MatchedId, (& $describeName ([string] $one.DeviceName)), $one.Source) `
                 -Data ([ordered] @{
                     infName    = [string] $one.InfName
                     class      = [string] $one.Class
                     matchedId  = [string] $one.MatchedId
                     source     = [string] $one.Source
                     deviceName = [string] $one.DeviceName
+                })
+        }
+
+        # AND THE OTHER DIRECTION, WHICH IS THE ONE A TECHNICIAN STARTS FROM.
+        # The loop above is INF -> device: it names the 29 staged .inf files that
+        # claim something, and a device nothing claims is simply not in it. So
+        # the log said "105 device(s) reported hardware ids" and then printed
+        # four of them, and the device that did not come up was invisible.
+        #
+        # THIS IS MDT'S LINE. ZTIDrivers.wsf walks every PnP device and writes
+        # "Found Device <id> with 3rd party drivers! Count = N" or "Skipping
+        # Device <id> No 3rd party drivers found." - one per device, whichever
+        # way it went. 105 records at Debug is what Debug is for, and a
+        # technician reads the log rather than going to find
+        # Gather\devices.json.
+        #
+        # AND IT IS NOT THE WARNING WIDENING. The warning names five devices -
+        # critical class AND real bus - because one naming 118 trains an
+        # administrator to ignore it. That narrowing stands. This is a listing,
+        # read by somebody who already knows which device is missing.
+        #
+        # ONE RECORD PER DEVICE, NEVER ONE BLOB. A multi-line record is
+        # unreadable in CMTrace, which is line-oriented, and carries no per-
+        # device `data` to filter on.
+        foreach ($one in @($coverage.DeviceClaim)) {
+            $said = 'no staged .inf claims it'
+            $listed = [string[]] @()
+
+            if ([int] $one.ClaimCount -gt 0) {
+                # A CAP, AND IT SAYS WHAT IT DROPPED. A chipset pack can have a
+                # dozen .inf files claiming one id; four names and a count is
+                # the readable form of that, and truncating silently would make
+                # the count and the list disagree with no way to tell.
+                $listed = [string[]] @($one.ClaimingInf)
+                $shown = @($listed)
+
+                if ($shown.Count -gt 4) {
+                    $shown = @(@($listed)[0..3] + ('and {0} more' -f ($listed.Count - 4)))
+                }
+
+                $said = 'claimed by {0} staged .inf ({1})' -f [int] $one.ClaimCount, (@($shown) -join ', ')
+            }
+
+            $firstId = ''
+            if (@($one.HardwareId).Count -gt 0) { $firstId = [string] @($one.HardwareId)[0] }
+
+            $instance = & $describeInstance ([string] $one.DeviceId)
+
+            Write-HDTLog -Context $Context.Log -Event 'driver.match' -Component 'ApplyDrivers' -Severity Debug `
+                -Message ('{0}: {1} {2}{3} - {4}' -f
+                    (& $describeClass ([string] $one.Class)), (& $describeName ([string] $one.Name)),
+                    $firstId, $instance, $said) `
+                -Data ([ordered] @{
+                    class      = [string] $one.Class
+                    deviceName = [string] $one.Name
+                    # THE INSTANCE PATH, WHICH IS THE ONLY THING THAT TELLS TWO
+                    # FUNCTIONS OF ONE CONTROLLER APART. The Latitude 5420
+                    # reports PCI\VEN_8086&DEV_09AB twice with the same name and
+                    # the same ids; the live log printed one line twice and it
+                    # read as a de-duplication bug. It is two real devices.
+                    deviceId   = [string] $one.DeviceId
+                    hardwareId = [string] $firstId
+                    # THE COUNT IS EXACT AND THE LIST MAY BE CAPPED, which is
+                    # why they are separate fields rather than one length.
+                    claimCount = [int] $one.ClaimCount
+                    claimingInf = [string[]] $listed
                 })
         }
     }
@@ -628,11 +748,18 @@ function Invoke-HDTApplyDriversStep {
                 $firstId = ''
                 if (@($one.HardwareID).Count -gt 0) { $firstId = [string] @($one.HardwareID)[0] }
 
+                # THE INSTANCE ID, FOR THE SAME REASON THE CLAIM LISTING CARRIES
+                # ONE - and this is the listing the live log printed twice. The
+                # Latitude 5420's two VMD functions share a name and a hardware
+                # id, so without it these two records are byte-identical.
                 Write-HDTLog -Context $Context.Log -Event 'driver.enumerate' -Component 'ApplyDrivers' -Severity Debug `
-                    -Message ("{0}: '{1}' {2}" -f $one.Class, $one.Name, $firstId) `
+                    -Message ('{0}: {1} {2}{3}' -f (& $describeClass ([string] $one.Class)),
+                        (& $describeName ([string] $one.Name)), $firstId,
+                        (& $describeInstance ([string] $one.DeviceId))) `
                     -Data ([ordered] @{
                         class      = [string] $one.Class
                         deviceName = [string] $one.Name
+                        deviceId   = [string] $one.DeviceId
                         hardwareId = [string] $firstId
                     })
             }

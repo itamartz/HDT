@@ -1,0 +1,105 @@
+[
+  {
+    "Name": "Intel RST VMD Managed Controller 09AB",
+    "PNPClass": "SCSIAdapter",
+    "PNPDeviceID": "PCI\\VEN_8086&DEV_09AB&SUBSYS_00000000&REV_00\\3&11583659&0&B8",
+    "HardwareID": [
+      "PCI\\VEN_8086&DEV_09AB&SUBSYS_00000000&REV_00",
+      "PCI\\VEN_8086&DEV_09AB&SUBSYS_00000000",
+      "PCI\\VEN_8086&DEV_09AB&REV_00",
+      "PCI\\VEN_8086&DEV_09AB",
+      "PCI\\VEN_8086&DEV_09AB&CC_088000",
+      "PCI\\VEN_8086&DEV_09AB&CC_0880"
+    ],
+    "CompatibleID": [
+      "PCI\\VEN_8086&CC_088000",
+      "PCI\\VEN_8086&CC_0880",
+      "PCI\\VEN_8086",
+      "PCI\\CC_088000",
+      "PCI\\CC_0880"
+    ],
+    "Manufacturer": "Intel Corporation",
+    "Service": ""
+  },
+  {
+    "Name": "Intel RST VMD Managed Controller 09AB",
+    "PNPClass": "SCSIAdapter",
+    "PNPDeviceID": "PCI\\VEN_8086&DEV_09AB&SUBSYS_00000000&REV_00\\3&11583659&0&E8",
+    "HardwareID": [
+      "PCI\\VEN_8086&DEV_09AB&SUBSYS_00000000&REV_00",
+      "PCI\\VEN_8086&DEV_09AB&SUBSYS_00000000",
+      "PCI\\VEN_8086&DEV_09AB&REV_00",
+      "PCI\\VEN_8086&DEV_09AB",
+      "PCI\\VEN_8086&DEV_09AB&CC_088000",
+      "PCI\\VEN_8086&DEV_09AB&CC_0880"
+    ],
+    "CompatibleID": [
+      "PCI\\VEN_8086&CC_088000",
+      "PCI\\VEN_8086&CC_0880",
+      "PCI\\VEN_8086",
+      "PCI\\CC_088000",
+      "PCI\\CC_0880"
+    ],
+    "Manufacturer": "Intel Corporation",
+    "Service": ""
+  },
+  {
+    "Name": "Intel(R) Ethernet Connection (13) I219-LM",
+    "PNPClass": "Net",
+    "PNPDeviceID": "PCI\\VEN_8086&DEV_15FB&SUBSYS_0A201028&REV_20\\3&11583659&0&FE",
+    "HardwareID": [
+      "PCI\\VEN_8086&DEV_15FB&SUBSYS_0A201028&REV_20",
+      "PCI\\VEN_8086&DEV_15FB&SUBSYS_0A201028",
+      "PCI\\VEN_8086&DEV_15FB&CC_020000",
+      "PCI\\VEN_8086&DEV_15FB&CC_0200"
+    ],
+    "CompatibleID": [
+      "PCI\\VEN_8086&DEV_15FB&REV_20",
+      "PCI\\VEN_8086&DEV_15FB",
+      "PCI\\VEN_8086&CC_020000",
+      "PCI\\VEN_8086&CC_0200",
+      "PCI\\VEN_8086",
+      "PCI\\CC_020000",
+      "PCI\\CC_0200"
+    ],
+    "Manufacturer": "Intel",
+    "Service": "e1dexpress"
+  },
+  {
+    "Name": "",
+    "PNPClass": "",
+    "PNPDeviceID": "ACPI\\INT34C5\\2&DABA3FF&0",
+    "HardwareID": [
+      "ACPI\\VEN_INT&DEV_34C5",
+      "ACPI\\INT34C5",
+      "*INT34C5"
+    ],
+    "CompatibleID": [],
+    "Manufacturer": "",
+    "Service": ""
+  },
+  {
+    "Name": "RAID Controller",
+    "PNPClass": "SCSIAdapter",
+    "PNPDeviceID": "PCI\\VEN_8086&DEV_9A0B&SUBSYS_0A201028&REV_00\\3&11583659&0&70",
+    "HardwareID": [
+      "PCI\\VEN_8086&DEV_9A0B&SUBSYS_0A201028&REV_00",
+      "PCI\\VEN_8086&DEV_9A0B&SUBSYS_0A201028",
+      "PCI\\VEN_8086&DEV_9A0B&CC_010400",
+      "PCI\\VEN_8086&DEV_9A0B&CC_0104"
+    ],
+    "CompatibleID": [
+      "PCI\\VEN_8086&DEV_9A0B&REV_00",
+      "PCI\\VEN_8086&DEV_9A0B",
+      "PCI\\VEN_8086&CC_010400",
+      "PCI\\VEN_8086&CC_0104",
+      "PCI\\VEN_8086",
+      "PCI\\CC_010400&DT_9",
+      "PCI\\CC_010400",
+      "PCI\\CC_0104&DT_9",
+      "PCI\\CC_0104"
+    ],
+    "Manufacturer": "Intel Corporation",
+    "Service": "iaStorVD"
+  }
+]

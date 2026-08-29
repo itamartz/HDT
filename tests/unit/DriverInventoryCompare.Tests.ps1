@@ -48,6 +48,21 @@ BeforeAll {
     $script:spaceportText = [System.IO.File]::ReadAllText((Join-Path -Path $script:infRoot -ChildPath 'spaceport.inf'))
     $script:northpeakText = [System.IO.File]::ReadAllText((Join-Path -Path $script:infRoot -ChildPath 'latitude-5490-northpeak.inf'))
 
+    # THE LATITUDE 5420 CAPTURE, AND EVERY ROW IN IT IS THERE FOR A REASON THE
+    # LIVE LOG SURFACED. Two Intel VMD instances that share a name AND a first
+    # hardware id and differ only in their instance path; the I219-LM, which two
+    # differently named .inf files on the share both claim; the RAID controller;
+    # and an ACPI device Windows reports with NO NAME AT ALL, which the log
+    # rendered as ''. Five real rows out of the 108 that machine reported.
+    $script:latitudeText = [System.IO.File]::ReadAllText(
+        (Join-Path -Path $script:repoRoot -ChildPath 'tests\fixtures\cim\Win32_PnPEntity-latitude-5420.json'))
+    $script:latitude = ConvertFrom-Json -InputObject $script:latitudeText
+
+    # ReadAllText again, and iastorvd-excerpt.inf is UTF-16LE like its original.
+    $script:iastorvdText = [System.IO.File]::ReadAllText((Join-Path -Path $script:infRoot -ChildPath 'iastorvd-excerpt.inf'))
+    $script:e1dText = [System.IO.File]::ReadAllText((Join-Path -Path $script:infRoot -ChildPath 'e1d-excerpt.inf'))
+    $script:e1d68Text = [System.IO.File]::ReadAllText((Join-Path -Path $script:infRoot -ChildPath 'e1d68x64-excerpt.inf'))
+
     $script:compare = {
         param([object[]] $Device, [object[]] $Driver)
 
@@ -285,6 +300,139 @@ Describe 'Compare-HDTDriverInventory' {
             $row = @($report.UnmatchedCriticalDevice | Where-Object { $_.Class -eq 'Net' })[0]
 
             $row.HardwareId | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    # ONE LINE PER DEVICE, WHICH IS MDT'S SHAPE AND THE ONE THING THE LOG DID
+    # NOT HAVE. ZTIDrivers.wsf walks every PnP device and writes either "Found
+    # Device <id> with 3rd party drivers! Count = N" or "Skipping Device <id> No
+    # 3rd party drivers found." - so a device nothing claims is NAMED rather
+    # than silently absent. HDT logged the INF-to-device direction and not this
+    # one, which meant a device with no staged .inf could not be found in the
+    # log at all: "105 device(s) reported hardware ids" and then four lines.
+    #
+    # THE WARNING IS A DIFFERENT DECISION AND IT STAYS NARROW. Class AND real
+    # bus took 118 "critical" devices down to 5, deliberately, because a warning
+    # naming 118 trains an administrator to ignore it. That narrowing was right
+    # for the WARNING; applying it to the LISTING is what hid the other 100.
+    Context 'every device, and what claims it' {
+
+        BeforeEach {
+            $script:dell = @(Get-HDTPresentDevice -Cim (New-HDTFakeCimProvider -Instance @{
+                        Win32_PnPEntity = [object[]] @($script:latitude)
+                    }))
+
+            $script:iastorvd = & $script:parse $script:iastorvdText 'iaStorVD.inf'
+            $script:e1d = & $script:parse $script:e1dText 'e1d.inf'
+            $script:e1d68 = & $script:parse $script:e1d68Text 'E1D68x64.inf'
+        }
+
+        It 'reads the UTF-16LE storage excerpt as a driver claiming both VMD ids' {
+            @($script:iastorvd.HardwareId) | Should -Contain 'PCI\VEN_8086&DEV_09AB'
+            @($script:iastorvd.HardwareId) | Should -Contain 'PCI\VEN_8086&DEV_9A0B'
+        }
+
+        It 'answers one row per device, not one per device that matched' {
+            $report = & $script:compare $script:dell @($script:iastorvd)
+
+            @($report.DeviceClaim) | Should -HaveCount @($script:dell).Count
+        }
+
+        It 'names the .inf that claims a device, and counts it' {
+            $report = & $script:compare $script:dell @($script:iastorvd)
+
+            $row = @($report.DeviceClaim | Where-Object { $_.DeviceId -like '*DEV_9A0B*' })[0]
+
+            $row.ClaimCount | Should -Be 1
+            @($row.ClaimingInf) | Should -Contain 'iaStorVD.inf'
+        }
+
+        It 'names both .inf files when two of them claim the same id' {
+            # THE REAL CASE OFF THE SHARE: e1d.inf out of the 5420 pack and
+            # E1D68x64.inf out of the 5490 pack both claim the I219-LM's id.
+            $report = & $script:compare $script:dell @($script:e1d, $script:e1d68)
+
+            $row = @($report.DeviceClaim | Where-Object { $_.Class -eq 'Net' })[0]
+
+            $row.ClaimCount | Should -Be 2
+            @($row.ClaimingInf) | Should -Contain 'e1d.inf'
+            @($row.ClaimingInf) | Should -Contain 'E1D68x64.inf'
+        }
+
+        It 'says zero rather than staying silent about a device nothing claims' {
+            # THE WHOLE POINT. Before this, a device no staged .inf claimed was
+            # simply absent from the log, because the only per-device records
+            # came from the drivers that DID match.
+            $report = & $script:compare $script:dell @($script:iastorvd)
+
+            $row = @($report.DeviceClaim | Where-Object { $_.Class -eq 'Net' })[0]
+
+            $row.ClaimCount | Should -Be 0
+            @($row.ClaimingInf) | Should -HaveCount 0
+        }
+
+        It 'keeps the two VMD instances apart by their instance path' {
+            # NOT A DE-DUPLICATION GAP. The Latitude 5420 really does report
+            # PCI\VEN_8086&DEV_09AB twice - two functions of one VMD controller,
+            # same name, same hardware ids, different instance path. A row that
+            # carried only the hardware id would render them as one line printed
+            # twice, which is exactly what the live log did.
+            $report = & $script:compare $script:dell @($script:iastorvd)
+
+            $vmd = @($report.DeviceClaim | Where-Object { $_.DeviceId -like '*DEV_09AB*' })
+
+            $vmd | Should -HaveCount 2
+            @($vmd | ForEach-Object { $_.DeviceId } | Sort-Object -Unique) | Should -HaveCount 2
+        }
+
+        It 'counts a claim that landed on a CompatibleID, not only on a HardwareID' {
+            # A generic claim is still a claim, and MDT counts it: ZTIDrivers
+            # walks every childnode of the device, hardware and compatible alike.
+            $generic = [pscustomobject] @{
+                InfName    = 'generic.inf'; Name = 'Generic AHCI'; Class = 'SCSIAdapter'
+                Provider   = 'Test'; Version = '1.0'; Date = '01/01/2020'
+                HardwareId = [string[]] @('PCI\VEN_8086&CC_088000')
+            }
+
+            $report = & $script:compare $script:dell @($generic)
+
+            $row = @($report.DeviceClaim | Where-Object { $_.DeviceId -like '*DEV_09AB*' })[0]
+
+            $row.ClaimCount | Should -Be 1
+            @($row.ClaimingInf) | Should -Contain 'generic.inf'
+        }
+
+        It 'carries the device the machine reported with no name at all' {
+            # The Latitude reports eight of these. They still publish the ids
+            # that identify them, so they are rows - and the CALLER decides what
+            # to print instead of an empty pair of quotes.
+            $report = & $script:compare $script:dell @($script:iastorvd)
+
+            $row = @($report.DeviceClaim | Where-Object { $_.DeviceId -like 'ACPI\INT34C5*' })[0]
+
+            $row | Should -Not -BeNullOrEmpty
+            $row.Name | Should -BeExactly ''
+            @($row.HardwareId)[0] | Should -BeExactly 'ACPI\VEN_INT&DEV_34C5'
+        }
+
+        It 'does not narrow the listing the way the warning is narrowed' {
+            # The unnamed ACPI device is not in a critical class on a critical
+            # bus, so it is correctly absent from UnmatchedCriticalDevice - and
+            # correctly PRESENT here. Two decisions, and conflating them is what
+            # this whole change is about.
+            $report = & $script:compare $script:dell @($script:iastorvd)
+
+            @($report.UnmatchedCriticalDevice | Where-Object { $_.DeviceId -like 'ACPI\INT34C5*' }) |
+                Should -HaveCount 0
+            @($report.DeviceClaim | Where-Object { $_.DeviceId -like 'ACPI\INT34C5*' }) |
+                Should -HaveCount 1
+        }
+
+        It 'answers a claim row per device rather than throwing when nothing was staged' {
+            $report = & $script:compare $script:dell @()
+
+            @($report.DeviceClaim) | Should -HaveCount @($script:dell).Count
+            @($report.DeviceClaim | Where-Object { $_.ClaimCount -gt 0 }) | Should -HaveCount 0
         }
     }
 
