@@ -61,6 +61,12 @@ id: Contoso-Broken
 name: Contoso thing that fails
 install: broken.msi /qn
 '@
+        (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Licensed\app.yaml') = @'
+schemaVersion: 1
+id: Contoso-Licensed
+name: Contoso thing with a licence key
+install: licensed.exe /passive /PASSWORD=hunter2 VALUE_OF_PASSWORD=hunter2 /qn
+'@
     }
 
     $script:newStep = {
@@ -82,7 +88,8 @@ install: broken.msi /qn
     }
 
     $script:newContext = {
-        param($Process, [hashtable] $ExtraFile, [System.Collections.IDictionary] $Variable, [string] $Level = 'Info')
+        param($Process, [hashtable] $ExtraFile, [System.Collections.IDictionary] $Variable, [string] $Level = 'Info',
+            [object] $Progress)
 
         $file = @{}
         foreach ($key in @($script:catalogFile.Keys)) { $file[$key] = $script:catalogFile[$key] }
@@ -95,7 +102,7 @@ install: broken.msi /qn
         $script:environment = New-HDTFakeEnvironmentProvider -Variable @{ ComSpec = 'cmd.exe' }
 
         $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
-            -Process $Process -Environment $script:environment
+            -Process $Process -Environment $script:environment -Progress $Progress
 
         $log = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
             -FileSystem $script:fileSystem -Clock $script:clock -Level $Level
@@ -136,6 +143,7 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
             'cmd.exe /c baseline.cmd'     = @{ ExitCode = 0 }
             'cmd.exe /c reboot.msi /qn'   = @{ ExitCode = 3010 }
             'cmd.exe /c broken.msi /qn'   = @{ ExitCode = 1603 }
+            'cmd.exe /c licensed.exe /passive /PASSWORD=hunter2 VALUE_OF_PASSWORD=hunter2 /qn' = @{ ExitCode = 0 }
         }
     }
 
@@ -327,6 +335,459 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
 
             $planIndex | Should -BeGreaterOrEqual 0
             $execIndex | Should -BeGreaterThan $planIndex
+        }
+    }
+
+    Context 'what it says while it is installing' {
+
+        # THE STEP WAS SILENT FOR THE WHOLE OF ITS RUN, and on this lab it is
+        # one of the two longest steps there is. Measured on LT-7FJ45S2,
+        # run-20260829-172208: two applications, an Acrobat Reader MSI carrying
+        # a 687 MB patch and TightVNC, both installed over SMB, and the step
+        # wrote exactly four lines - the plan, then nothing for minutes, then
+        # one line per application after each had finished, then a total.
+        #
+        # EVERY ONE OF THOSE IS A BOUNDARY LINE. Nothing at all is written
+        # between starting an installer and it returning, so the progress card
+        # showed "Install Applications" and a motionless bar, and - because
+        # elapsed on that card is derived from the FIRST and LAST record in the
+        # log - the clock stopped too. A working machine and a hung one look
+        # identical.
+        #
+        # THE FACT WAS ALREADY IN HAND AND WAS SIMPLY NOT SAID. The step
+        # resolves the whole ordered plan before it starts and logs it; from
+        # that it knows it is on application 1 of 2 and which one. So this needs
+        # no output capture from msiexec, no new service and no second channel -
+        # only a record written where there was none, and the nudge that makes
+        # the window re-read it, exactly as ApplyImage and ApplyDrivers do.
+
+        It 'says which application it is starting, before it starts it' {
+            # BEFORE, NOT AFTER, and that is the whole point: a line written
+            # after Acrobat returns is a line four minutes too late to tell
+            # anybody what the machine was doing.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem)
+
+            $startIndex = [array]::IndexOf(@($record | ForEach-Object {
+                        ($_.event -eq 'step.progress') -and ([string] $_.data.application -eq 'Contoso-Agent') }), $true)
+            $doneIndex = [array]::IndexOf(@($record | ForEach-Object {
+                        [string] $_.message -like "installed 'Contoso agent'*" }), $true)
+
+            $startIndex | Should -BeGreaterOrEqual 0
+            $doneIndex | Should -BeGreaterThan $startIndex
+        }
+
+        It 'counts the applications, so the line says one of two' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            # THE ANNOUNCEMENTS, not every progress record. Each application
+            # produces two - one when it starts and one when it is banked - and
+            # the count a technician reads is on the first of each pair.
+            $progress = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.event -eq 'step.progress' -and [string] $_.message -like 'installing *' })
+
+            $progress.Count | Should -Be 2
+            [int] $progress[0].data.done | Should -Be 1
+            [int] $progress[0].data.total | Should -Be 2
+            [int] $progress[1].data.done | Should -Be 2
+            [int] $progress[1].data.total | Should -Be 2
+        }
+
+        It 'names the application in the message a technician reads' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $progress = @(& $script:jsonlRecord $script:fileSystem | Where-Object { $_.event -eq 'step.progress' })
+
+            [string] $progress[0].message | Should -BeLike '*1 of 2*'
+            [string] $progress[0].message | Should -BeLike '*Contoso agent*'
+        }
+
+        It 'reports a percentage the step bar can draw' {
+            # ONE OF TWO IS NOT FIFTY PER CENT DONE, it is nought per cent done
+            # and fifty per cent through the list. The bar is asked to show how
+            # far through the LIST the step is, which is the only measure the
+            # step has - msiexec does not tell it how far through a 687 MB patch
+            # it is.
+            #
+            # SO EACH APPLICATION IS ANNOUNCED AND THEN BANKED, and the bar has
+            # to do both. Announcing only, at (n-1)/total, was what shipped, and
+            # measured on LT-7FJ45S2 run-20260829-190105 it produced exactly two
+            # numbers for a two-application list: 0 and 50. The bar opened
+            # empty, moved once, and the step finished at half - which on a
+            # screen is indistinguishable from a step that never reported at
+            # all, and is the defect this pair of records fixes.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $percent = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.event -eq 'step.progress' } | ForEach-Object { [int] $_.data.percent })
+
+            $percent | Should -Be @(0, 50, 50, 100)
+        }
+
+        It 'reaches a hundred per cent when the last application is done' {
+            # THE LAST THING A STEP SAYS ABOUT ITSELF SHOULD BE THAT IT
+            # FINISHED - ApplyImage's rule, and the reason its meter is always
+            # allowed through at a hundred. A step bar whose highest value is
+            # 50 tells a technician the step stopped half way.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $percent = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.event -eq 'step.progress' } | ForEach-Object { [int] $_.data.percent })
+
+            @($percent)[-1] | Should -Be 100
+        }
+
+        It 'credits an application that was already installed' {
+            # A SKIP IS A POSITION IN THE LIST GOT PAST. A plan whose every
+            # application is already present would otherwise leave the bar at
+            # nought for the whole step and finish there, which reads as a step
+            # that did nothing - and it did exactly what it was asked to.
+            $context = & $script:newContext $script:process -ExtraFile @{
+                'C:\Program Files\Contoso\Agent\agent.exe' = 'binary'
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Agent') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $percent = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.event -eq 'step.progress' } | ForEach-Object { [int] $_.data.percent })
+
+            @($percent)[-1] | Should -Be 100
+        }
+
+        It 'credits an application installed on an earlier leg of this run' {
+            # THE RESUMED LEG IS THE ONE A TECHNICIAN IS MOST LIKELY WATCHING,
+            # because it is the one after the reboot. Restarting its bar from
+            # nought would say the applications already installed had not been.
+            $context = & $script:newContext $script:process -Variable @{
+                _HDTApplicationInstalled = [string[]] @('Contoso-Agent')
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $percent = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.event -eq 'step.progress' } | ForEach-Object { [int] $_.data.percent })
+
+            $percent | Should -Be @(50, 50, 100)
+        }
+
+        It 'credits an application that returned a reboot code' {
+            # 3010 IS "INSTALLED, REBOOT REQUIRED", and the step already
+            # checkpoints it as installed for that reason. The bar has to agree
+            # with the checkpoint, or the leg after the reboot starts behind
+            # where the leg before it ended.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Reboot') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'RebootRequested'
+
+            $percent = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.event -eq 'step.progress' } | ForEach-Object { [int] $_.data.percent })
+
+            $percent | Should -Be @(0, 100)
+        }
+
+        It 'drives the progress display while the installs are still running' {
+            # END TO END, AND NOTHING HERE IS A SECOND CHANNEL (DESIGN 11.1):
+            # the step logs, the display re-reads the log, and what lands on the
+            # screen is what the log says.
+            $display = New-HDTFakeProgressHost
+            $context = & $script:newContext $script:process $null $null 'Info' $display
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            @($display.Operations | Where-Object { $_ -eq 'Update' }).Count | Should -BeGreaterThan 1
+        }
+
+        It 'installs the same applications it always did' {
+            # The progress channel is an addition, not a change.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            @($script:process.Operations).Count | Should -Be 2
+        }
+    }
+
+    Context 'what an admin can reconstruct from the log' {
+
+        # THE TEST IS AN ADMIN AT A CUSTOMER SITE WITH THIS LOG AND NOTHING
+        # ELSE. Measured on LT-7FJ45S2, run-20260829-190105: the whole step was
+        # eight lines, every one of them Info, and the run around it had 36
+        # Debug records. Three questions it could not answer, and all three are
+        # the ordinary ones:
+        #
+        #   Acrobat returned 1603     no command line, no switches, no source
+        #                             and no working directory, so it cannot be
+        #                             reproduced by hand without going and
+        #                             reading the task sequence on the share
+        #   an app did not install    'skipped 1 already present' never says
+        #                             what the rule looked for or what it found,
+        #                             so a wrong detection rule and a machine
+        #                             that genuinely had the app read the same
+        #   Acrobat hung              the last line is 'installing 1 of 2'
+        #
+        # THE STEP ABOVE IT IN THE SAME RUN GETS THIS RIGHT: ApplyDrivers names
+        # its source UNC and prints its own elapsed. This step named neither.
+        #
+        # AND THE SPLIT IS DELIBERATE. Info stays a short summary a technician
+        # standing at the machine reads at a glance; the forensics go to Debug,
+        # which is what a support case turns on and nobody watches. Promoting
+        # them all would answer the complaint by making the step louder rather
+        # than more useful.
+
+        It 'records the source it is installing from' {
+            # THE SINGLE MOST VALUABLE MISSING LINE. On a real deployment this
+            # is the UNC the content provider resolved, and it is also the
+            # working directory cmd.exe is given - the two are the same value
+            # here, and both are what an admin needs to go and look at the
+            # media by hand. MDT logs it as 'Change directory:'.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*change directory*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].level | Should -BeExactly 'Debug'
+            [string] $record[0].message | Should -BeLike '*C:\Deploy\Applications\Corp-Baseline*'
+        }
+
+        It 'records the command line in a form an admin can paste into a prompt' {
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*run command*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].level | Should -BeExactly 'Debug'
+            [string] $record[0].message | Should -BeLike '*cmd.exe /c baseline.cmd*'
+        }
+
+        It 'redacts a secret in the command line' {
+            # A VENDOR'S OWN SILENT INSTALL CARRIES CREDENTIALS, and this log
+            # gets attached to a support case. The switch NAME survives, because
+            # the admin still has to know the argument was passed; the value
+            # does not.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Licensed') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            # PARSED, NOT GREPPED: the JSONL escapes the angle brackets, so a
+            # raw-text match for <redacted> looks like a redaction that never
+            # happened.
+            $text = [string] $script:fileSystem.File['C:\HDT\Logs\HDT.jsonl']
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*run command*' })
+
+            $text | Should -Not -BeLike '*hunter2*'
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].message | Should -BeLike '*PASSWORD=<redacted>*'
+        }
+
+        It 'redacts a bare installer property, not only a switch' {
+            # TIGHTVNC'S OWN DOCUMENTED SILENT INSTALL IS
+            # 'msiexec /i ... SET_PASSWORD=1 VALUE_OF_PASSWORD=<secret>', and
+            # it is on this lab's share. An MSI property carries no leading
+            # slash, so a redactor that only recognises switches would have
+            # written that password into the log of every machine that installs
+            # it - which is exactly what the first version of this did.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Licensed') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*run command*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].message | Should -BeLike '*VALUE_OF_PASSWORD=<redacted>*'
+        }
+
+        It 'leaves the switches that are not secrets alone' {
+            # A REDACTOR THAT EATS THE COMMAND LINE IS WORSE THAN NO REDACTOR.
+            # '/passive' begins with the letters of 'pass', and a word list that
+            # matched it would swallow whatever followed - so the line an admin
+            # is meant to paste into a prompt would be missing the argument that
+            # mattered.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Licensed') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*run command*' })
+
+            [string] $record[0].message | Should -BeLike '*/passive*'
+            [string] $record[0].message | Should -BeLike '*/qn*'
+            [string] $record[0].message | Should -BeLike '*licensed.exe*'
+        }
+
+        It 'leaves an empty detection field out of the summary' {
+            # THE PROJECTION FILLS EVERY OPTIONAL KEY, so a file rule that
+            # declares no version still carries one. Printing 'version=' with
+            # nothing after it puts a field on the line that says only that the
+            # renderer does not read what it prints.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Agent') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*detection*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].message | Should -Not -BeLike '*version=)*'
+            [string] $record[0].message | Should -Not -BeLike '*version=,*'
+        }
+
+        It 'says what detection looked for and that it found it' {
+            $context = & $script:newContext $script:process -ExtraFile @{
+                'C:\Program Files\Contoso\Agent\agent.exe' = 'binary'
+            } -Level 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Agent') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*detection*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].level | Should -BeExactly 'Debug'
+            [string] $record[0].message | Should -BeLike '*file*'
+            [string] $record[0].message | Should -BeLike '*agent.exe*'
+            [string] $record[0].message | Should -BeLike '*found it*'
+        }
+
+        It 'says what detection looked for when it did NOT find it' {
+            # THE HALF THAT WAS MISSING. A step that logs only its skips leaves
+            # a wrong rule invisible: the application installs, the rule never
+            # matched, and nothing in the log says the rule was even evaluated.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Agent') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*detection*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].message | Should -BeLike '*agent.exe*'
+            [string] $record[0].message | Should -BeLike '*did not find it*'
+        }
+
+        It 'says when an application declares no rule at all' {
+            # DESIGN 8's documented behaviour, and the one an admin mistakes for
+            # a broken rule: Corp-Baseline installs on every run because it asks
+            # to, not because detection failed.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*no detect rule*' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].level | Should -BeExactly 'Debug'
+        }
+
+        It 'records the codes it was configured to accept and which one matched' {
+            # rebootCodes IS CONFIGURED ON BOTH APPLICATIONS IN THE REAL RUN and
+            # nothing recorded that it had even been considered. An admin
+            # chasing an installer that returned 3010 and did not reboot has no
+            # way to tell a missing rebootCodes entry from an engine defect.
+            $context = & $script:newContext $script:process $null $null 'Debug'
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like '*successCodes*' -and [string] $_.level -eq 'Debug' })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].message | Should -BeLike '*rebootCodes*'
+            [string] $record[0].message | Should -BeLike '*success code*'
+        }
+
+        It 'labels the exit code and says how long the install took' {
+            # THE HOUSE STYLE, not a fourth one: ApplyDrivers ends 'in 48078
+            # ms.' and ApplyImage 'in 131203 ms.', and the CommandLine step says
+            # "'X' returned N". The bare '(0)' this line used to end with was an
+            # unlabelled number.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like "installed 'Corporate baseline'*" })
+
+            $record.Count | Should -BeGreaterThan 0
+            [string] $record[0].message | Should -BeLike '*exit code 0*'
+            [string] $record[0].message | Should -Match 'in \d+ ms'
+        }
+
+        It 'keeps the forensics off the Info log' {
+            # THE COMPLAINT WAS THAT THE STEP READS AS INFO-ONLY, not that it
+            # should be louder. A technician watching the screen gets the plan,
+            # a line per application and a total; everything added here is
+            # Debug, and an Info log must look exactly as it did.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $text = [string] $script:fileSystem.File['C:\HDT\Logs\HDT.jsonl']
+
+            $text | Should -Not -BeLike '*run command*'
+            $text | Should -Not -BeLike '*change directory*'
+            $text | Should -Not -BeLike '*detection*'
+            $text | Should -Not -BeLike '*successCodes*'
+        }
+
+        It 'keeps the install plan line exactly as it was' {
+            # THE ONE GENUINELY GOOD LINE IN THE STEP. MDT makes an admin
+            # reconstruct the order from what ran; this says it up front, and
+            # nothing here is allowed to reword it.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like 'install plan, in order:*' })
+
+            $record.Count | Should -Be 1
+            [string] $record[0].message | Should -BeExactly 'install plan, in order: Contoso-Agent, Contoso-Suite'
         }
     }
 
