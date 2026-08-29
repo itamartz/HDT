@@ -194,4 +194,62 @@ Describe 'Copy-HDTLog' {
         $help.Name | Should -BeExactly 'Copy-HDTLog'
         $help.Synopsis | Should -Not -BeNullOrEmpty
     }
+
+    # THE NESTING, MEASURED ON THE SHARE AND ON THE MACHINE. Three levels of it:
+    #
+    #   PC-5784-6600-26-run-20260829-052141\
+    #     PC-5784-6600-26-run-20260829-052141\
+    #       PC-5784-6600-26-run-20260829-052141\
+    #
+    # each carrying its own Steps\ and Gather\. Invoke-HDTTaskSequence's restart
+    # path copies the log onto the volume that survives the reboot - and by then
+    # Set-HDTLogPath has already moved the CONTEXT onto that volume, so the
+    # destination this command composes, <volume>\HDT\Logs\<Computer>-<RunId>,
+    # sits INSIDE its own source, <volume>\HDT\Logs. The walk then found the
+    # folder it had just created, descended into it and copied it into itself -
+    # once per copy, which is why the count of levels matched the count of legs.
+    #
+    # Copy-HDTContentTree has refused a destination inside its source since it
+    # was written. This is the same rule, expressed as a SKIP rather than a
+    # refusal, because this command is documented never to throw and the rest of
+    # the tree still has to arrive.
+    Context 'a destination that sits inside the log directory' {
+
+        BeforeEach {
+            $script:volumeFs = New-HDTFakeFileSystem -File @{
+                'W:\HDT\Logs\HDT.log'                = 'master'
+                'W:\HDT\Logs\HDT.jsonl'              = "{`"seq`":1}`n"
+                'W:\HDT\Logs\status.json'            = '{"status":"Running"}'
+                'W:\HDT\Logs\Steps\001-Validate.log' = 'validate'
+                'W:\HDT\Logs\Gather\facts.json'      = '{"schemaVersion":1}'
+            }
+            $script:volumeContext = New-HDTLogContext -RunId 'run-20260829-052141' -Phase WinPE `
+                -LogPath 'W:\HDT\Logs' -FileSystem $script:volumeFs -Clock $script:clock
+            $script:volumeRoot = 'W:\HDT\Logs\PC-0001-run-20260829-052141'
+        }
+
+        It 'does not copy the run folder into itself' {
+            Copy-HDTLog -Context $script:volumeContext -Destination 'W:\HDT\Logs' -ComputerName $script:machine | Out-Null
+
+            $script:volumeFs.TestPath(($script:volumeRoot + '\PC-0001-run-20260829-052141')) | Should -BeFalse
+        }
+
+        It 'still brings the rest of the tree across' -ForEach @(
+            'HDT.log'
+            'HDT.jsonl'
+            'status.json'
+            'Steps\001-Validate.log'
+            'Gather\facts.json'
+        ) {
+            Copy-HDTLog -Context $script:volumeContext -Destination 'W:\HDT\Logs' -ComputerName $script:machine | Out-Null
+
+            $script:volumeFs.TestPath(('W:\HDT\Logs\PC-0001-run-20260829-052141\{0}' -f $PSItem)) | Should -BeTrue
+        }
+
+        It 'says it succeeded, because skipping its own destination is not a failure' {
+            $result = Copy-HDTLog -Context $script:volumeContext -Destination 'W:\HDT\Logs' -ComputerName $script:machine
+
+            $result.Succeeded | Should -BeTrue
+        }
+    }
 }

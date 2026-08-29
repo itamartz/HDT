@@ -33,11 +33,39 @@ function Copy-HDTContentTree {
             An IFileSystem - the real adapter in production,
             New-HDTFakeFileSystem in a test.
 
+        .PARAMETER UnwrapRunFolder
+            Copies a per-run log folder's CONTENT into the destination instead of
+            copying the folder.
+
+            C:\Windows\Logs\HDT IS WHERE A TECHNICIAN IS SENT, AND IT HELD ONE
+            FOLDER. Watched after a real deployment: the machine's own log
+            directory contained nothing but
+            PC-5784-6600-26-run-20260829-052141\, and the name of that folder is
+            the one thing nobody can know in advance. The logs are what the
+            directory is for, so the files go in it.
+
+            A RUN FOLDER IS RECOGNISED BY THE NAME Copy-HDTLog GIVES IT -
+            <ComputerName>-<RunId>, where Start-HDTDeployment.ps1 mints the run
+            id as run-<yyyyMMdd-HHmmss>. Steps\, Gather\ and Native\ do not match
+            and survive as subfolders, which is the point: this flattens one
+            wrapper, not the tree.
+
+            IT RECURSES, because a tree copied by an engine that had this defect
+            carries the folder more than once - three deep on the machine that
+            provoked the report.
+
         .OUTPUTS
             System.Int32 - the number of files copied.
 
         .EXAMPLE
             Copy-HDTContentTree -Source 'C:\media\Win11' -Destination $osFolder -FileSystem $fs
+
+        .EXAMPLE
+            Copy-HDTContentTree -Source 'C:\HDT\Logs' -Destination 'C:\Windows\Logs\HDT' -FileSystem $fs -UnwrapRunFolder
+
+            What Remove-HDTResumeAgent keeps at the end of state restore:
+            HDT.log, HDT.jsonl, status.json, Steps\ and Gather\ directly under
+            C:\Windows\Logs\HDT, with no folder named for the run around them.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'The caller owns the ShouldProcess decision; this runs only after it was made.')]
@@ -54,7 +82,10 @@ function Copy-HDTContentTree {
 
         [Parameter(Mandatory = $true)]
         [ValidateNotNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        [Parameter()]
+        [switch] $UnwrapRunFolder
     )
 
     Set-StrictMode -Version Latest
@@ -99,7 +130,18 @@ function Copy-HDTContentTree {
             continue
         }
 
-        $copied += Copy-HDTContentTree -Source $child -Destination $target -FileSystem $FileSystem
+        # THE WRAPPER COMES OFF, AND ONLY THE WRAPPER. See -UnwrapRunFolder:
+        # <ComputerName>-run-<stamp> and run-<stamp> both match, Steps\ and
+        # Gather\ do not, and the recursion carries the switch so a folder that
+        # was wrapped twice is unwrapped twice.
+        if ($UnwrapRunFolder -and $leaf -match '(?:^|-)run-[^\\/]+$') {
+            $copied += Copy-HDTContentTree -Source $child -Destination $Destination `
+                -FileSystem $FileSystem -UnwrapRunFolder
+            continue
+        }
+
+        $copied += Copy-HDTContentTree -Source $child -Destination $target `
+            -FileSystem $FileSystem -UnwrapRunFolder:$UnwrapRunFolder
     }
 
     return $copied

@@ -35,6 +35,14 @@
             Steps\003-ApplyImage.log arrives as Steps\003-ApplyImage.log rather
             than being flattened into a directory of clashing names.
 
+            EXCEPT FOR A FOLDER OF THE NAME IT IS WRITING, WHICH IS SKIPPED.
+            The log root frequently already holds a copy of itself under exactly
+            <ComputerName>-<RunId> - the copy the previous leg made onto the
+            volume that survives the reboot - and the destination is sometimes
+            that folder. Carrying it across is what produced three levels of
+            <run>\<run>\<run> on a real share. The comment at $runFolder has the
+            whole account.
+
             Everything goes through the context's injected IFileSystem. Children
             are classified with GetLength, which succeeds for a file and throws
             for a directory on both implementations of IFileSystem - the interface
@@ -99,6 +107,34 @@
     $root = '{0}\{1}-{2}' -f $Destination.TrimEnd('\', '/'), $ComputerName, $Context.RunId
     $source = [string] $Context.LogPath
 
+    # THE NAME OF THE FOLDER BEING WRITTEN, WHICH THE SOURCE MAY ALREADY HOLD A
+    # COPY OF. Measured on a real share and on the machine it deployed:
+    #
+    #   PC-5784-6600-26-run-20260829-052141\
+    #     PC-5784-6600-26-run-20260829-052141\
+    #       PC-5784-6600-26-run-20260829-052141\
+    #
+    # three deep, each with its own Steps\ and Gather\. Two call sites feed it
+    # and both are this one folder name appearing on both sides of the copy.
+    #
+    # Invoke-HDTTaskSequence copies the log onto the volume that survives the
+    # reboot - and Set-HDTLogPath has by then moved the CONTEXT onto that
+    # volume, so the destination composed above, <volume>\HDT\Logs\<name>, sits
+    # INSIDE its own source, <volume>\HDT\Logs. The walk found the folder it had
+    # just created and copied it into itself.
+    #
+    # And that copy outlives the reboot, so the full-OS log root then holds a
+    # folder of this name too - which the final copy-back to the share carries
+    # across, giving the second level, once per leg.
+    #
+    # SKIPPED, NOT MERGED, AND NOT REFUSED. The folder is a snapshot of the very
+    # tree being copied, so nothing in it is lost by leaving it behind; merging
+    # it would ask CopyItem to copy a file onto itself in the case where the
+    # destination IS that folder, which throws; and refusing outright is not
+    # available to a command documented never to throw. Copy-HDTContentTree
+    # refuses the same shape because it may.
+    $runFolder = [System.IO.Path]::GetFileName($root)
+
     try {
         $fileSystem.CreateDirectory($root)
 
@@ -113,6 +149,10 @@
 
             foreach ($child in @($fileSystem.GetChildItem($current.Path))) {
                 $leaf = Split-Path -Path $child -Leaf
+
+                # See $runFolder above: a previous copy of this same run, or the
+                # destination itself when it sits inside the source.
+                if ($leaf -eq $runFolder) { continue }
 
                 $relative = $leaf
                 if (-not [string]::IsNullOrEmpty([string] $current.Relative)) {

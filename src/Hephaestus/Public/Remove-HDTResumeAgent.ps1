@@ -32,6 +32,22 @@ function Remove-HDTResumeAgent {
             resume agent could not be removed", and the whole folder survived
             with the credential in it. Copy-HDTContentTree is what recurses.
 
+            AND THEY GO IN THE DIRECTORY, NOT IN A FOLDER INSIDE IT. A finished
+            machine's %WINDIR%\Logs\HDT held one entry -
+            PC-5784-6600-26-run-20260829-052141\ - and the name of that folder is
+            the one thing the technician sent there cannot know in advance. The
+            files land at the top: HDT.log, HDT.jsonl, state.json, status.json,
+            with Steps\ and Gather\ under them. Copy-HDTContentTree's
+            -UnwrapRunFolder is what takes the wrapper off.
+
+            THAT MAKES THE PATH FIXED, AND A SECOND DEPLOYMENT OVERWRITES THE
+            FIRST. One machine deployed twice keeps the second run's files and
+            nothing of the first, because CopyItem overwrites and there is no
+            longer a per-run name to separate them. The share keeps every run
+            under <share>\Logs\<ComputerName>-<RunId>, which is where a history
+            is read from; this directory answers "how was this machine built",
+            in the present tense.
+
             WHERE THEY GO IS THE CALLER'S ANSWER, and the payload's default is
             %WINDIR%\Logs\HDT rather than %WINDIR%\TEMP\DeploymentLogs - a
             directory Windows itself cleans out, which is a poor home for the
@@ -223,8 +239,12 @@ function Remove-HDTResumeAgent {
         # A TREE, NOT A LIST OF FILES - see the description. Copy-HDTContentTree
         # creates the destination and recurses, and it tells a directory from a
         # file the one way IFileSystem allows.
+        #
+        # AND THE LOG FILES GO IN THE LOG DIRECTORY, NOT IN A FOLDER INSIDE IT.
+        # -UnwrapRunFolder takes the per-run wrapper off; Steps\ and Gather\
+        # survive underneath. Its help carries the reason.
         $result['LogFileCount'] += [int] (Copy-HDTContentTree -Source $logRoot `
-                -Destination $destination -FileSystem $FileSystem)
+                -Destination $destination -FileSystem $FileSystem -UnwrapRunFolder)
     } else {
         $FileSystem.CreateDirectory($destination)
     }

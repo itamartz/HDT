@@ -23,10 +23,14 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
 
     # A STAGED AGENT, THE WAY Copy-HDTResumeAgent LEAVES ONE - AND THE WAY A
-    # REAL ONE WAS FOUND ON A DEPLOYED MACHINE. C:\HDT\Logs holds exactly one
-    # entry and it is a DIRECTORY: the run folder. There is no loose file in it
-    # at all, which is the shape the first version of this command could not
-    # copy and did not survive.
+    # REAL ONE WAS FOUND ON A DEPLOYED MACHINE. C:\HDT\Logs carries the live
+    # full-OS log at the top - HDT.log, HDT.jsonl, status.json, Steps\, Gather\ -
+    # AND a per-run folder, <ComputerName>-<RunId>, left behind by the copy
+    # Invoke-HDTTaskSequence makes onto the target volume before the reboot. The
+    # run folder is a duplicate of the same tree: W: became C:, so the file it
+    # was copied from is the file still being appended to at the top.
+    $script:runFolder = 'PC-0001-run-20260828-233000'
+
     $script:newAgent = {
         $fs = New-HDTFakeFileSystem
         $fs.SeedFile('C:\HDT\Start-HDTResume.ps1', '# the agent')
@@ -35,11 +39,33 @@ BeforeAll {
         $fs.SeedFile('C:\HDT\state.json', '{"status":"Succeeded"}')
         $fs.SeedFile('C:\HDT\Modules\Hephaestus\Hephaestus.psd1', '@{}')
         $fs.SeedFile('C:\HDT\UI\HDTProgress.xaml', '<Window />')
-        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\HDT.log', 'the account of this deployment')
-        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\HDT.jsonl', '{"event":"run.end"}')
-        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\status.json', '{"phase":"FullOS"}')
-        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\Steps\01-Format.log', 'formatted')
-        $fs.SeedFile('C:\HDT\Logs\run-20260828-233000\Gather\provenance.json', '{"variable":[]}')
+        $fs.SeedFile('C:\HDT\Logs\HDT.log', 'the account of this deployment')
+        $fs.SeedFile('C:\HDT\Logs\HDT.jsonl', '{"event":"run.end"}')
+        $fs.SeedFile('C:\HDT\Logs\status.json', '{"phase":"FullOS"}')
+        $fs.SeedFile('C:\HDT\Logs\Steps\01-Format.log', 'formatted')
+        $fs.SeedFile('C:\HDT\Logs\Gather\provenance.json', '{"variable":[]}')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\HDT.log', 'the account of this deployment')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\HDT.jsonl', '{"event":"run.end"}')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\status.json', '{"phase":"FullOS"}')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\Steps\01-Format.log', 'formatted')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\Gather\provenance.json', '{"variable":[]}')
+
+        return $fs
+    }
+
+    # THE SHAPE THAT BROKE THE FIRST VERSION, KEPT AS ITS OWN CASE: a log root
+    # whose ONLY entry is a directory. GetChildItem returns it, CopyItem is
+    # File.Copy and throws when handed one, and the whole cleanup died on the
+    # first iteration of every deployment ever finished.
+    $script:newFolderOnlyAgent = {
+        $fs = New-HDTFakeFileSystem
+        $fs.SeedFile('C:\HDT\Start-HDTResume.ps1', '# the agent')
+        $fs.SeedFile('C:\HDT\Remove-HDTAgentTree.ps1', '# the deleter')
+        $fs.SeedFile('C:\HDT\bootstrap.json', '{"credential":{"protected":"AAAA"}}')
+        $fs.SeedFile('C:\HDT\state.json', '{"status":"Succeeded"}')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\HDT.log', 'the account of this deployment')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\Steps\01-Format.log', 'formatted')
+        $fs.SeedFile('C:\HDT\Logs\PC-0001-run-20260828-233000\Gather\provenance.json', '{"variable":[]}')
 
         return $fs
     }
@@ -83,20 +109,20 @@ Describe 'Remove-HDTResumeAgent' {
     Context 'a log tree that is a folder of folders, which is every real one' {
 
         It 'keeps a log tree whose only entry is a directory' {
-            $fs = & $script:newAgent
+            $fs = & $script:newFolderOnlyAgent
             $proc = New-HDTFakeProcessService
 
             { & $script:sweep $fs $proc } | Should -Not -Throw
 
-            $fs.TestPath('C:\Windows\Logs\HDT\run-20260828-233000\HDT.log') | Should -BeTrue
+            $fs.TestPath('C:\Windows\Logs\HDT\HDT.log') | Should -BeTrue
         }
 
         It 'keeps every file at every depth, not just the top one' -ForEach @(
-            'C:\Windows\Logs\HDT\run-20260828-233000\HDT.log'
-            'C:\Windows\Logs\HDT\run-20260828-233000\HDT.jsonl'
-            'C:\Windows\Logs\HDT\run-20260828-233000\status.json'
-            'C:\Windows\Logs\HDT\run-20260828-233000\Steps\01-Format.log'
-            'C:\Windows\Logs\HDT\run-20260828-233000\Gather\provenance.json'
+            'C:\Windows\Logs\HDT\HDT.log'
+            'C:\Windows\Logs\HDT\HDT.jsonl'
+            'C:\Windows\Logs\HDT\status.json'
+            'C:\Windows\Logs\HDT\Steps\01-Format.log'
+            'C:\Windows\Logs\HDT\Gather\provenance.json'
         ) {
             $fs = & $script:newAgent
             [void] (& $script:sweep $fs (New-HDTFakeProcessService))
@@ -109,8 +135,75 @@ Describe 'Remove-HDTResumeAgent' {
 
             $answer = & $script:sweep $fs (New-HDTFakeProcessService)
 
-            # Five under Logs\, plus the run state document beside the agent.
-            [int] $answer.LogFileCount | Should -Be 6
+            # Five at the top of Logs\ and five more inside the run folder, which
+            # is unwrapped rather than skipped, plus the run state document
+            # beside the agent.
+            [int] $answer.LogFileCount | Should -Be 11
+        }
+    }
+
+    # C:\Windows\Logs\HDT HOLDS THE LOG FILES, NOT A FOLDER HOLDING THE LOG
+    # FILES. Asked for after a real deployment left
+    #
+    #   C:\Windows\Logs\HDT\PC-5784-6600-26-run-20260829-052141\...
+    #
+    # there: the log root a technician is sent to had one folder in it and
+    # nothing else, and the name of that folder is the one thing they cannot
+    # know in advance. Whatever C:\HDT\Logs holds, this keeps its CONTENT, and a
+    # per-run folder is unwrapped into the destination rather than carried
+    # across.
+    #
+    # ONE MACHINE, ONE FOLDER, AND THE SECOND DEPLOYMENT OVERWRITES THE FIRST.
+    # That is the price of a flat layout and it is deliberate: the destination is
+    # a fixed path, CopyItem overwrites, and a machine deployed twice keeps only
+    # the second run's files.
+    Context 'the destination is the log root itself, flat' {
+
+        It 'puts the log files at the top of the destination' -ForEach @(
+            'HDT.log'
+            'HDT.jsonl'
+            'status.json'
+        ) {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath(('C:\Windows\Logs\HDT\{0}' -f $PSItem)) | Should -BeTrue
+        }
+
+        It 'keeps Steps and Gather as subfolders, with their contents' -ForEach @(
+            'Steps\01-Format.log'
+            'Gather\provenance.json'
+        ) {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath(('C:\Windows\Logs\HDT\{0}' -f $PSItem)) | Should -BeTrue
+        }
+
+        It 'does not copy the run folder' {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath(('C:\Windows\Logs\HDT\{0}' -f $script:runFolder)) | Should -BeFalse
+        }
+
+        It 'leaves no folder under the destination named after any run' {
+            $fs = & $script:newAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $under = @($fs.Directory.Keys | Where-Object {
+                    $_ -like 'C:\Windows\Logs\HDT\*'
+                } | ForEach-Object { [System.IO.Path]::GetFileName($_) })
+
+            @($under | Where-Object { $_ -match '(?:^|-)run-' }) | Should -BeNullOrEmpty
+        }
+
+        It 'unwraps a run folder even when it is the only thing in the log root' {
+            $fs = & $script:newFolderOnlyAgent
+            [void] (& $script:sweep $fs (New-HDTFakeProcessService))
+
+            $fs.TestPath('C:\Windows\Logs\HDT\Steps\01-Format.log') | Should -BeTrue
+            $fs.TestPath(('C:\Windows\Logs\HDT\{0}' -f $script:runFolder)) | Should -BeFalse
         }
     }
 
