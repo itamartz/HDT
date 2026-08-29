@@ -1,4 +1,4 @@
-# ROADMAP M2's "a simulated reboot mid-sequence resuming at the right index" and
+﻿# ROADMAP M2's "a simulated reboot mid-sequence resuming at the right index" and
 # "an interrupted non-resumable step failing rather than silently re-running".
 #
 # Every test here drives two or three LEGS. A leg ends at RebootPending; the next
@@ -19,13 +19,22 @@ BeforeAll {
 
     $script:rebootYaml = Get-Content -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/sequences/valid-reboot-legs.yaml') -Raw
 
-    # One leg: a fresh harness over the shared filesystem, resumed from the state
-    # text the previous leg checkpointed.
+    # One leg: a fresh harness over the shared filesystem AND THE SHARED LSA,
+    # resumed from the state text the previous leg checkpointed.
+    #
+    # THE LSA IS SHARED FOR THE SAME REASON THE FILESYSTEM IS. A machine's LSA
+    # secrets survive a restart exactly as its disk does, and a leg that resumes
+    # reads back the autologon password the leg before it stored - which is how
+    # the engine recovers HDTAdminPassword now that Save-HDTRunState redacts it
+    # on the way into state.json. A fresh service per leg modelled a machine
+    # that forgot its own secrets across a reboot, which no machine does, and it
+    # made the second leg fail to arm the third.
     $script:runLeg = {
-        param([object] $FileSystem, [string] $StateJson, [string] $Phase)
+        param([object] $FileSystem, [string] $StateJson, [string] $Phase, [object] $Lsa)
 
         $argument = @{ Yaml = $script:rebootYaml; Phase = $Phase }
         if ($null -ne $FileSystem) { $argument['FileSystem'] = $FileSystem }
+        if ($null -ne $Lsa) { $argument['Lsa'] = $Lsa }
         if (-not [string]::IsNullOrEmpty($StateJson)) { $argument['StateJson'] = $StateJson }
 
         $harness = New-HDTSequenceTestHarness @argument
@@ -51,10 +60,11 @@ Describe 'Invoke-HDTTaskSequence' {
 
         BeforeAll {
             $script:fs = New-HDTFakeFileSystem
+            $script:lsa = New-HDTFakeLsaService
 
-            $script:leg1 = & $script:runLeg $script:fs '' 'WinPE'
-            $script:leg2 = & $script:runLeg $script:fs $script:leg1.StateJson 'FullOS'
-            $script:leg3 = & $script:runLeg $script:fs $script:leg2.StateJson 'FullOS'
+            $script:leg1 = & $script:runLeg $script:fs '' 'WinPE' $script:lsa
+            $script:leg2 = & $script:runLeg $script:fs $script:leg1.StateJson 'FullOS' $script:lsa
+            $script:leg3 = & $script:runLeg $script:fs $script:leg2.StateJson 'FullOS' $script:lsa
 
             $script:record = @(Get-HDTLogRecord -FileSystem $script:fs -Path 'X:\HDT\Logs\HDT.jsonl')
         }
@@ -178,14 +188,15 @@ Describe 'Invoke-HDTTaskSequence' {
 
         BeforeAll {
             $script:fsRecover = New-HDTFakeFileSystem
+            $script:lsaRecover = New-HDTFakeLsaService
 
-            $first = & $script:runLeg $script:fsRecover '' 'WinPE'
+            $first = & $script:runLeg $script:fsRecover '' 'WinPE' $script:lsaRecover
 
             $stale = $first.StateJson | ConvertFrom-Json
             $stale.stepIndex = 1
             $rewound = ConvertTo-Json -InputObject $stale -Depth 8
 
-            $script:second = & $script:runLeg $script:fsRecover $rewound 'FullOS'
+            $script:second = & $script:runLeg $script:fsRecover $rewound 'FullOS' $script:lsaRecover
             $script:recoverRecord = @(Get-HDTLogRecord -FileSystem $script:fsRecover -Path 'X:\HDT\Logs\HDT.jsonl')
         }
 
@@ -310,6 +321,84 @@ steps:
                     Where-Object { $_.message -like '*interrupted*' })
 
             $warning.Count | Should -Be 1
+        }
+    }
+
+    # THE PASSWORD IS NOT IN state.json ANY MORE, AND THE SEQUENCE STILL COMES
+    # BACK.
+    #
+    # A real run wrote HDTAdminPassword in clear into the run's state document,
+    # which is copied to the deployment share and moved to C:\Windows\Logs\HDT
+    # on the deployed machine - so any local user could read the local
+    # administrator password of the machine they were logged into.
+    # Save-HDTRunState now redacts it on the way to disk, and a resumed leg
+    # rehydrates its variable bag from that file, so the value it holds for
+    # HDTAdminPassword is the redaction rather than the password.
+    #
+    # ARMING WINLOGON WITH THE REDACTION WOULD BE WORSE THAN THE LEAK. The
+    # machine would reboot, fail to log on, and sit at a logon screen with
+    # nothing in any log to say why. So the engine recovers the value from the
+    # autologon LSA secret - admin-only, and the same value by construction:
+    # the unattend set the account's password from %HDTAdminPassword% and armed
+    # the first logon with it (DESIGN 4.5.2, SPIKES S7).
+    Context 'a resumed leg whose state document no longer carries the password' {
+
+        BeforeAll {
+            $script:secretFs = New-HDTFakeFileSystem
+            $script:secretLsa = New-HDTFakeLsaService
+
+            $script:secretLeg1 = & $script:runLeg $script:secretFs '' 'WinPE' $script:secretLsa
+
+            # What the harness put in the bag, read back rather than written
+            # down here - a second copy of a password in a test file is the
+            # thing this whole change exists to stop.
+            $script:adminPassword = [string] $script:secretLeg1.Harness.Context.Variable['HDTAdminPassword']
+
+            $script:secretLeg2 = & $script:runLeg $script:secretFs $script:secretLeg1.StateJson 'FullOS' $script:secretLsa
+        }
+
+        It 'has a password to lose, so the assertions below are not vacuous' {
+            $script:adminPassword | Should -Not -BeNullOrEmpty
+        }
+
+        It 'does not write the password into the state document' {
+            $script:secretLeg1.StateJson | Should -Not -BeLike ('*{0}*' -f $script:adminPassword)
+        }
+
+        It 'still says the password was set, which is not the same as unset' {
+            ($script:secretLeg1.StateJson | ConvertFrom-Json).variable.HDTAdminPassword |
+                Should -BeExactly '(set, not shown)'
+        }
+
+        It 'gives the resumed leg the redaction rather than the password' {
+            [string] $script:secretLeg2.Harness.Context.Variable['HDTAdminPassword'] |
+                Should -BeExactly '(set, not shown)'
+        }
+
+        It 'arms the next logon with the real password all the same' {
+            # Set-HDTAutoLogon stores what it was given. If the engine had armed
+            # with the value out of state.json, this would read back as the
+            # redaction and the machine would never log itself on again.
+            $script:secretLsa.GetSecret('DefaultPassword') | Should -BeExactly $script:adminPassword
+        }
+
+        It 'reaches the reboot rather than failing the leg' {
+            $script:secretLeg2.Result.Status | Should -BeExactly 'RebootPending'
+        }
+
+        It 'says so plainly when there is nothing left to recover it from' {
+            # The one case with no honest answer: the state document does not
+            # have it and neither does the LSA. Failing here and naming both
+            # places beats arming Winlogon with a string that is not a password.
+            $emptyLsa = New-HDTFakeLsaService
+            $leg = & $script:runLeg (New-HDTFakeFileSystem) $script:secretLeg1.StateJson 'FullOS' $emptyLsa
+
+            $leg.Result.Status | Should -BeExactly 'Failed'
+
+            $failure = @(Get-HDTLogRecord -FileSystem $leg.Harness.FileSystem -Path $leg.Harness.Log.JsonlPath |
+                    Where-Object { $_.message -like '*not recoverable*' })
+
+            $failure.Count | Should -BeGreaterThan 0
         }
     }
 }

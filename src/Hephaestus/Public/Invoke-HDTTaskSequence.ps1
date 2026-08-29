@@ -843,6 +843,41 @@
                 # Invoke-HDTStepAttempt above. By here it is known to be set.
                 $password = [string] $Context.Variable['HDTAdminPassword']
 
+                # UNLESS THIS LEG READ IT OUT OF state.json, WHERE IT IS NOT
+                # WRITTEN DOWN ANY MORE.
+                #
+                # Save-HDTRunState redacts a secret's value on the way to disk,
+                # because that file is copied to the deployment share and moved
+                # to C:\Windows\Logs\HDT on the deployed machine. A leg that
+                # resumed after a reboot rehydrates its variable bag from that
+                # file, so it holds the redaction rather than the password - and
+                # arming Winlogon with the literal "(set, not shown)" would leave
+                # the machine sitting at a logon screen with nothing in any log
+                # to explain it. That is a worse failure than the leak was.
+                #
+                # SO IT COMES BACK FROM THE PLACE THAT LEGITIMATELY HOLDS IT.
+                # The autologon LSA secret is admin-only, it is how this leg
+                # logged itself on at all, and it is the same value by
+                # construction: the unattend set the account's password from
+                # %HDTAdminPassword% and armed the first logon with it (DESIGN
+                # 4.5.2). Reading it here is a recovery, not a second store.
+                $restartLsa = $Context.Service.GetRequired('Lsa', 'Restart')
+
+                # The redaction's wording from the one place that defines it,
+                # rather than a second copy of the literal here.
+                $redaction = [string] (Protect-HDTSecretValue -Name 'HDTAdminPassword' -Value 'a set value')
+
+                if ($password -eq $redaction) {
+                    $recovered = [string] $restartLsa.GetSecret('DefaultPassword')
+
+                    if ([string]::IsNullOrEmpty($recovered)) {
+                        throw (New-HDTErrorRecord -ErrorId 'HDTConfigurationError' `
+                                -Message ("step '{0}' asks for a restart on a resumed leg, but the administrator password is not recoverable: state.json carries the redaction rather than the value and the autologon LSA secret is empty. Nothing can arm the next logon, so the sequence would not come back." -f $step.Name))
+                    }
+
+                    $password = $recovered
+                }
+
                 $remainingLeg = 1
                 for ($ahead = $index + 1; $ahead -le $stepList.Count; $ahead++) {
                     if ([string] $stepList[$ahead - 1].Type -eq 'Restart') {
@@ -852,7 +887,7 @@
 
                 $armArgument = @{
                     Registry     = $Context.Service.GetRequired('Registry', 'Restart')
-                    Lsa          = $Context.Service.GetRequired('Lsa', 'Restart')
+                    Lsa          = $restartLsa
                     UserName     = $AutoLogonUserName
                     Password     = $password
                     RemainingLeg = $remainingLeg

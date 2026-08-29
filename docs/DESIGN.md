@@ -988,6 +988,46 @@ These are the reasons to reimplement rather than copy:
   tools that own those jobs. That is how MDT has been operated for fifteen
   years, and it is honest about where the trust actually sits. HDT builds no
   keyword for it: see §4.5.4 on why `HDTAdminPasswordPolicy` was cut.
+
+  **But clear text in the CONFIGURATION is not clear text in the OUTPUT.** The
+  files above are ones an administrator authors, restricts and treats as
+  credentials. The files a deployment *produces* — `HDT.jsonl`, `HDT.log`,
+  `state.json`, `Gather\provenance.json`, `Gather\facts.json` and the HTML
+  report — are none of those things: SLShare copies them to the deployment
+  share, which every machine being deployed can read, and the finish action
+  moves them to `C:\Windows\Logs\HDT` on the deployed machine, which
+  authenticated users can read. A password written there is readable by any
+  local user of the machine it administers, which is privilege escalation
+  rather than disclosure. It happened: a real run put `HDTAdminPassword` in
+  clear in the first three of those files while the fourth, written from the
+  same resolution seconds earlier, correctly said `(set, not shown)`.
+
+  So every writer of a name-and-value pair asks one shared helper —
+  `Test-HDTSecretVariable` classifies, `Protect-HDTSecretValue` substitutes —
+  and the name, source, rule and file all survive while only the value is
+  replaced. Which names count is `Get-HDTVariableMap`'s `IsSecret` column
+  unioned with a name pattern: the column covers what HDT ships, the pattern
+  covers the `HDTJoinPassword` a customer invents. MDT solved the same problem
+  more bluntly — `ZTIUtility.vbs` replaces any log message containing the word
+  "password" with `<Message containing password has been suppressed>`, losing
+  the line rather than the value.
+
+  **A consequence, and it is load-bearing.** A leg that resumes after a reboot
+  rehydrates its variable bag from `state.json`, so it sees the redaction where
+  a secret was. `HDTAdminPassword` is recovered from the autologon LSA secret,
+  which is admin-only and holds the same value by construction. Any *other*
+  secret consumed by a full-OS step after a reboot has no such recovery — see
+  the note below.
+
+  **Open, and named here rather than left to be rediscovered.**
+  `HDTBitLockerPin`, `HDTProductKey` and `HDTDomainAdminPassword` are read from
+  the variable bag by their steps. None of the shipped sequences consume one in
+  a full-OS group *after* a reboot — the unattend is applied in WinPE, and the
+  EnableBitLocker step's PIN is authored in the sequence rather than resolved
+  across a leg — so nothing regresses today. A sequence that did so would get
+  the redaction. The durable answer is an LSA-carried secret bag written
+  alongside each checkpoint, which is the same mechanism §4.5.2 already chose
+  for the autologon password; it is not built.
 - **It is stored as an LSA secret, not registry cleartext.** Winlogon reads
   `DefaultPassword` from LSA private data as well as from the registry; this is
   the mechanism Sysinternals' `Autologon.exe` uses. Same behavior, no plaintext

@@ -1,4 +1,4 @@
-function New-HDTSequenceTestHarness {
+﻿function New-HDTSequenceTestHarness {
     <#
         .SYNOPSIS
             Assembles everything Invoke-HDTTaskSequence needs to run against
@@ -61,6 +61,16 @@ function New-HDTSequenceTestHarness {
         .PARAMETER FileSystem
             An existing fake filesystem to reuse, so several legs share one log
             stream and one state file the way one machine does.
+
+        .PARAMETER Lsa
+            An existing fake LSA service to reuse, so several legs share one
+            secret store the way one machine does. A machine's LSA survives a
+            reboot exactly as its disk does, and a leg that resumes reads the
+            autologon password the leg before it stored - which is how
+            Invoke-HDTTaskSequence recovers HDTAdminPassword on a resumed leg
+            now that state.json no longer carries it in clear. A fresh service
+            per leg models a machine that forgot its own secrets across a
+            restart, which no machine does.
 
         .PARAMETER WriteFailure
             Paths whose writes throw, passed through to the fake filesystem.
@@ -154,6 +164,10 @@ function New-HDTSequenceTestHarness {
 
         [Parameter()]
         [AllowNull()]
+        [object] $Lsa,
+
+        [Parameter()]
+        [AllowNull()]
         [hashtable] $WriteFailure,
 
         [Parameter()]
@@ -216,11 +230,14 @@ function New-HDTSequenceTestHarness {
     }
     $registry = New-HDTFakeRegistryService @registryArgument
 
-    $lsaArgument = @{}
-    if ($PSBoundParameters.ContainsKey('Secret') -and $null -ne $Secret) {
-        $lsaArgument['Secret'] = $Secret
+    $lsa = $Lsa
+    if ($null -eq $lsa) {
+        $lsaArgument = @{}
+        if ($PSBoundParameters.ContainsKey('Secret') -and $null -ne $Secret) {
+            $lsaArgument['Secret'] = $Secret
+        }
+        $lsa = New-HDTFakeLsaService @lsaArgument
     }
-    $lsa = New-HDTFakeLsaService @lsaArgument
 
     $processArgument = @{}
     if ($PSBoundParameters.ContainsKey('ProcessResult') -and $null -ne $ProcessResult) {

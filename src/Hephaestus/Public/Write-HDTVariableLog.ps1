@@ -23,6 +23,12 @@
             resolution order, so reading the stream top to bottom is reading what
             the engine did in the order it did it.
 
+            A SECRET'S VALUE IS NOT IN IT. The name, the source, the rule and the
+            file all survive - "which rule set the administrator password" is
+            exactly what this stream exists to answer - and only the value and
+            the rawValue are replaced by "(set, not shown)". Which names those
+            are is Protect-HDTSecretValue's decision and not this command's.
+
             AN UNRESOLVED %Var% IS A WARNING, NOT A FAILURE. 02-03 settled that a
             token nothing supplied is surfaced in the log and left in place rather
             than ending the deployment, so one Warning record names every
@@ -77,20 +83,47 @@
     $ErrorActionPreference = 'Stop'
 
     foreach ($record in @(Get-HDTVariableProvenance -Resolution $Resolution)) {
+        # THE VALUE GOES THROUGH THE REDACTION; THE PROVENANCE DOES NOT.
+        #
+        # A real run wrote "HDTAdminPassword = 'A123a123' (Rule)" into HDT.jsonl
+        # and, CMTrace-formatted, into HDT.log beside it - while
+        # Gather\provenance.json, written from this same resolution seconds
+        # earlier, correctly said "(set, not shown)". One writer asked whether
+        # the variable was secret and this one did not, which is why the answer
+        # now lives in Protect-HDTSecretValue and no writer gets to decide.
+        #
+        # IT IS NOT A LOG THAT STAYS ON THE MACHINE. SLShare copies this pair to
+        # the deployment share, which every machine being deployed can read, and
+        # the finish action moves it to C:\Windows\Logs\HDT, which authenticated
+        # users can read - so a local administrator password written here is
+        # readable by any local user of the machine it administers.
+        #
+        # AND rawValue LEAKS THE SAME THING. It is the unexpanded text, which for
+        # a password authored literally in rules.yaml is the password itself.
+        $value = Protect-HDTSecretValue -Name ([string] $record.Name) -Value $record.Value
+        $rawValue = Protect-HDTSecretValue -Name ([string] $record.Name) -Value $record.RawValue
+
         $data = [ordered] @{
             name      = $record.Name
-            value     = $record.Value
+            value     = $value
             source    = $record.Source
             rule      = $record.Rule
             ruleIndex = $record.RuleIndex
             file      = $record.File
-            rawValue  = $record.RawValue
+            rawValue  = $rawValue
             expanded  = $record.Expanded
             order     = $record.Order
         }
 
+        # ConvertTo-HDTVariableText, NOT THE FORMAT OPERATOR ON ITS OWN. An
+        # array argument NESTS in a -f argument list rather than flattening, so
+        # a multi-homed machine logged "HDTIPAddress = 'System.Object[]'" - its
+        # own addresses as the name of their type - and the source shifted along
+        # with it. The data field below still carries the real array; the
+        # message carries the comma-delimited text a %Var% expands to.
         Write-HDTLog -Context $Context -Severity Debug -Event 'var.resolve' -Component 'Variable' `
-            -Message ("{0} = '{1}' ({2})" -f $record.Name, $record.Value, $record.Source) -Data $data
+            -Message ("{0} = '{1}' ({2})" -f $record.Name,
+                (ConvertTo-HDTVariableText -Value $value), $record.Source) -Data $data
     }
 
     $unresolved = @($Resolution.Unresolved)

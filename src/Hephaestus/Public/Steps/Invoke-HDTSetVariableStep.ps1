@@ -142,9 +142,17 @@ and a name outside ^HDT[A-Za-z0-9_]*$ - both as
         # between this and Add-HDTResolvedVariable.
         $Context.Variable[$name] = $value
 
+        # THE SECOND WRITER OF var.resolve, AND IT LEAKS BY THE SAME ROUTE.
+        # A sequence may set HDTAdminPassword from a step as readily as a rule
+        # may; the record it writes lands in the same HDT.jsonl and HDT.log that
+        # SLShare copies to the share. Whether the name is a secret is
+        # Protect-HDTSecretValue's decision, not this step's - a second opinion
+        # here is how the log and Gather\provenance.json came to disagree.
+        $logged = Protect-HDTSecretValue -Name $name -Value $value
+
         $data = [ordered] @{
             name   = $name
-            value  = $value
+            value  = $logged
             source = 'Step'
             step   = [string] $Step.Name
         }
@@ -153,8 +161,11 @@ and a name outside ^HDT[A-Za-z0-9_]*$ - both as
             $data['unresolved'] = [string[]] @($unresolved)
         }
 
+        # The same rendering Write-HDTVariableLog uses, so a sequence assignment
+        # and a rule resolution read alike in one stream - and so an authored
+        # list value cannot log itself as 'System.Object[]'.
         Write-HDTLog -Context $Context.Log -Event 'var.resolve' -Component 'SetVariable' `
-            -Message ("{0} = '{1}' (Step)" -f $name, $value) -Data $data
+            -Message ("{0} = '{1}' (Step)" -f $name, (ConvertTo-HDTVariableText -Value $logged)) -Data $data
 
         if (@($unresolved).Count -gt 0) {
             Write-HDTLog -Context $Context.Log -Severity Warning -Event 'var.resolve' -Component 'SetVariable' `

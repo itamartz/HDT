@@ -1,4 +1,4 @@
-# The shared assembly line for every 03-04 loop test.
+﻿# The shared assembly line for every 03-04 loop test.
 #
 # Running Invoke-HDTTaskSequence against fakes takes eleven objects wired
 # together in one order: a journal, seven fakes, a service catalog, a log
@@ -212,6 +212,33 @@ Describe 'New-HDTSequenceTestHarness' {
             $harness = New-HDTSequenceTestHarness -Yaml $script:yaml
 
             $harness.FileSystem.TestPath($harness.SequencePath) | Should -BeTrue
+        }
+
+        # A MACHINE DOES NOT FORGET ITS OWN SECRETS ACROSS A REBOOT, and neither
+        # may the harness. The engine recovers HDTAdminPassword from the
+        # autologon LSA secret on a resumed leg, now that Save-HDTRunState
+        # redacts it on the way into state.json - so a leg-per-harness test that
+        # built a fresh LSA each time modelled a machine that could not arm its
+        # own next logon. -Lsa shares one store the way -FileSystem shares one
+        # disk.
+        It 'reuses an LSA service handed to it, so several legs share one secret store' {
+            $lsa = New-HDTFakeLsaService
+
+            $first = New-HDTSequenceTestHarness -Yaml $script:yaml -Lsa $lsa
+            $first.Lsa.SetSecret('DefaultPassword', 'MARKER-NOT-A-PASSWORD')
+
+            $second = New-HDTSequenceTestHarness -Yaml $script:yaml -Lsa $lsa
+
+            $second.Lsa.GetSecret('DefaultPassword') | Should -BeExactly 'MARKER-NOT-A-PASSWORD'
+        }
+
+        It 'builds its own LSA service when none is handed to it' {
+            $first = New-HDTSequenceTestHarness -Yaml $script:yaml
+            $first.Lsa.SetSecret('DefaultPassword', 'MARKER-NOT-A-PASSWORD')
+
+            $second = New-HDTSequenceTestHarness -Yaml $script:yaml
+
+            $second.Lsa.GetSecret('DefaultPassword') | Should -BeNullOrEmpty
         }
 
         It 'refuses a sequence that does not parse' {

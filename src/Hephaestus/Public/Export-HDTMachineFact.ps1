@@ -89,9 +89,16 @@
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
+    # THE SAME RULE AS ITS SIBLING, THOUGH NOTHING HAS PUT A SECRET HERE YET.
+    # This is a name-and-value serialiser writing into the log directory that
+    # SLShare copies to the share, which is the whole shape of the defect that
+    # put the local administrator password in HDT.jsonl, HDT.log and state.json:
+    # four writers of the same kind, one of which asked whether the name was a
+    # secret. A rule script can add a fact under any name it likes, so this one
+    # asks too - and the asking is one call, to the one place that knows.
     $entry = [ordered] @{}
     foreach ($key in @($Fact.Keys)) {
-        $entry[[string] $key] = $Fact[$key]
+        $entry[[string] $key] = Protect-HDTSecretValue -Name ([string] $key) -Value $Fact[$key]
     }
 
     # A [string], never the [datetime] itself - see the description.

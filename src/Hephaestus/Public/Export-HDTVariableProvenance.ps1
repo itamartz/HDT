@@ -94,40 +94,23 @@
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
-    # THE SECRETS, FROM THE ONE PLACE THAT KNOWS WHICH THEY ARE. Read on a
-    # deployed machine's C:\HDT\Logs\<run>\Gather\provenance.json:
-    # HDTAdminPassword and its actual value, side by side. SLShare then copies
-    # that file to the deployment share, where every machine being deployed can
-    # read it.
-    #
-    # Get-HDTVariableMap RATHER THAN A WORD LIST HERE. Three writers already
-    # needed to know which variables are secret and each answered it its own
-    # way; a fourth private list is a fourth thing to forget to update, and this
-    # file is the one that gets it wrong silently.
-    $secret = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
-
-    foreach ($mapped in @(Get-HDTVariableMap)) {
-        if ($mapped.IsSecret) { $secret[[string] $mapped.HDTName] = $true }
-    }
-
     $entry = New-Object -TypeName System.Collections.ArrayList
 
     foreach ($record in @(Get-HDTVariableProvenance -Resolution $Resolution)) {
-        $value = $record.Value
-        $rawValue = $record.RawValue
-
         # THE NAME AND THE PROVENANCE STAY; ONLY THE VALUE GOES. "Which source
         # set the administrator password" is exactly the question this file
         # exists to answer, and dropping the entry would answer it with silence.
+        # The fact that it was SET survives too: a redaction and an empty string
+        # read identically in JSON and mean opposite things.
         #
-        # AND SO DOES THE FACT THAT IT WAS SET. A redaction and an empty string
-        # read identically in JSON and mean opposite things - the second is a
-        # deployment that had no password and was going to fail - so the same
-        # words the wizard summary uses are written instead of a blank.
-        if ($secret.ContainsKey([string] $record.Name)) {
-            if (-not [string]::IsNullOrEmpty([string] $value)) { $value = '(set, not shown)' }
-            if (-not [string]::IsNullOrEmpty([string] $rawValue)) { $rawValue = '(set, not shown)' }
-        }
+        # AND THE DECISION IS NOT MADE HERE ANY MORE. This file was once the only
+        # writer that asked whether a variable was secret, and it asked by
+        # building its own hashtable from Get-HDTVariableMap - so the log stream,
+        # the CMTrace file and state.json, which never asked at all, went on
+        # writing the same password in clear on the same run. The answer now
+        # lives in Protect-HDTSecretValue and every writer calls it.
+        $value = Protect-HDTSecretValue -Name ([string] $record.Name) -Value $record.Value
+        $rawValue = Protect-HDTSecretValue -Name ([string] $record.Name) -Value $record.RawValue
 
         [void] $entry.Add([pscustomobject] ([ordered] @{
                     name      = $record.Name

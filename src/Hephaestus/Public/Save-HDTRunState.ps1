@@ -98,8 +98,59 @@
 
     $State.updatedUtc = $Clock.GetUtcNow().ToUniversalTime().ToString('o', [System.Globalization.CultureInfo]::InvariantCulture)
 
+    # A SECRET'S VALUE DOES NOT GO INTO THE FILE.
+    #
+    # THIS DOCUMENT TRAVELS. It is written into the run's log directory, SLShare
+    # copies that directory to the deployment share where every machine being
+    # deployed can read it, and the finish action moves it to
+    # C:\Windows\Logs\HDT on the deployed machine, which authenticated users can
+    # read. A real run left HDTAdminPassword in clear in all three places, so the
+    # local administrator password of a machine was readable by any local user of
+    # that machine - privilege escalation, not merely a disclosure.
+    #
+    # THE IN-MEMORY DOCUMENT IS UNTOUCHED, which is the whole reason the
+    # redaction happens at serialisation rather than at the checkpoint that
+    # fills the map. The running leg goes on reading the real value out of
+    # $State.variable and out of the execution context beside it; only the bytes
+    # that leave this process are redacted.
+    #
+    # WHAT THAT COSTS, WRITTEN DOWN BECAUSE IT IS REAL: a leg that RESUMES after
+    # a reboot rehydrates its variable bag from this file, so it sees
+    # "(set, not shown)" where a secret was. Invoke-HDTTaskSequence recovers
+    # HDTAdminPassword from the autologon LSA secret for exactly that reason -
+    # see the Restart branch there. Any other secret consumed by a full-OS step
+    # after a reboot has no such recovery and needs a design decision, not a
+    # quiet return to writing the password down.
+    $document = $State
+
+    if ($null -ne $State.PSObject.Properties['variable'] -and $null -ne $State.variable) {
+        $safe = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        # A dictionary is what New-HDTRunState and Import-HDTRunState both hand
+        # over; the PSObject branch is for a document read straight from JSON.
+        if ($State.variable -is [System.Collections.IDictionary]) {
+            foreach ($key in @($State.variable.Keys)) {
+                $safe[[string] $key] = Protect-HDTSecretValue -Name ([string] $key) -Value $State.variable[$key]
+            }
+        } else {
+            foreach ($property in @($State.variable.PSObject.Properties)) {
+                $safe[[string] $property.Name] = Protect-HDTSecretValue -Name ([string] $property.Name) -Value $property.Value
+            }
+        }
+
+        # A COPY, NOT AN EDIT. Writing the redaction back into $State would
+        # destroy the running leg's own password on the first checkpoint.
+        $clone = [System.Collections.Specialized.OrderedDictionary]::new()
+        foreach ($property in @($State.PSObject.Properties)) {
+            $clone[[string] $property.Name] = $property.Value
+        }
+        $clone['variable'] = $safe
+
+        $document = [pscustomobject] $clone
+    }
+
     # Serialised once, so the mirror is byte-for-byte the document at Path.
-    $json = ConvertTo-Json -InputObject $State -Depth 8
+    $json = ConvertTo-Json -InputObject $document -Depth 8
 
     if ($PSCmdlet.ShouldProcess($Path, 'Write run state')) {
         $FileSystem.WriteAllText($Path, $json)

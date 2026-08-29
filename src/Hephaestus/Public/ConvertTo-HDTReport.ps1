@@ -563,8 +563,17 @@
         $name = ''
         if ($data.ContainsKey('name')) { $name = $data['name'] }
 
+        # REDACTED AGAIN HERE, THOUGH THE STREAM ALREADY IS. This report is
+        # emailed and attached; it is the artefact most likely to leave the
+        # organisation that built the machine. The var.resolve writers redact
+        # before the record is written, so this is belt and braces - but a
+        # report rendered from a stream produced by an OLDER engine, or by a
+        # writer added tomorrow that forgot, would otherwise publish the
+        # password this file was still displaying after the log stopped.
         $value = ''
-        if ($data.ContainsKey('value')) { $value = $data['value'] }
+        if ($data.ContainsKey('value')) {
+            $value = Protect-HDTSecretValue -Name ([string] $name) -Value $data['value']
+        }
 
         $source = ''
         if ($data.ContainsKey('source')) { $source = $data['source'] }

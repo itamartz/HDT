@@ -17,7 +17,12 @@ function ConvertTo-HDTCmTraceLine {
               file="<file>">
 
             type maps 1 = Info and Debug, 2 = Warning, 3 = Error, which is what
-            gives CMTrace its colour coding for free.
+            gives CMTrace its colour coding for free. CMTrace has no debug value,
+            so a Debug message says so in its own text - "[DEBUG] " in front of
+            it - rather than in a type field that would stop CMTrace colouring
+            and filtering the file at all. MDT reaches the same place from the
+            other direction: ZTIUtility.vbs defines a LogTypeVerbose and rewrites
+            it to LogTypeInfo before the line is written.
 
             ONE PHYSICAL LINE, ALWAYS. CMTrace's parser is line oriented, so a
             carriage return or a line feed inside the message would split one
@@ -106,6 +111,27 @@ function ConvertTo-HDTCmTraceLine {
 
     # CRLF first, so one line break becomes one space rather than two.
     $flat = $Message.Replace("`r`n", ' ').Replace("`r", ' ').Replace("`n", ' ')
+
+    # DEBUG IS SAID IN THE MESSAGE, BECAUSE THE TYPE FIELD CANNOT SAY IT.
+    #
+    # CMTrace's type is 1 = Info, 2 = Warning, 3 = Error and nothing else. A
+    # fourth value would cost the colouring and the level filter that are the
+    # whole reason this format was chosen, so HDT does not invent one - and
+    # neither does MDT, whose ZTIUtility.vbs defines LogTypeVerbose = 4 and then
+    # rewrites it to LogTypeInfo before writing the line.
+    #
+    # THE RESULT WAS EIGHTY RECORDS INDISTINGUISHABLE FROM INFO. A run at Debug
+    # writes a var.resolve line per variable, and in CMTrace they looked exactly
+    # like the handful of Info lines an administrator actually wanted - the
+    # verbosity was invisible in the one view a technician uses.
+    #
+    # SO IT GOES IN THE LOG TEXT, which is the column CMTrace shows and the
+    # field its filter box searches: "[DEBUG]" in the filter now hides or
+    # isolates them. The JSONL beside it carries the real level in its own
+    # field, so nothing machine-read depends on this prefix.
+    if ($Severity -eq 'Debug') {
+        $flat = '[DEBUG] ' + $flat
+    }
 
     $type = '1'
     if ($Severity -eq 'Warning') {

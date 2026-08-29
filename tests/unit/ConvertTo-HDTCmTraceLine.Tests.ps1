@@ -1,4 +1,4 @@
-# DESIGN 4.4.2's second format: one physical CMTrace line per log call, so an
+﻿# DESIGN 4.4.2's second format: one physical CMTrace line per log call, so an
 # administrator's existing CMTrace/OneTrace workflow reads an HDT deployment on
 # day one.
 #
@@ -70,6 +70,45 @@ Describe 'ConvertTo-HDTCmTraceLine' {
         }
 
         $line | Should -BeLike ('*type="{0}"*' -f $Type)
+    }
+
+    # CMTRACE HAS NO DEBUG, AND HDT DOES NOT INVENT ONE.
+    #
+    # The type field is 1 = Info, 2 = Warning, 3 = Error and nothing else; a
+    # fourth value would lose CMTrace's colouring and filtering, which is the
+    # entire reason this format was chosen. MDT hits the same wall and answers
+    # it the same way - ZTIUtility.vbs defines LogTypeVerbose = 4 and then
+    # rewrites it to LogTypeInfo before the line is written.
+    #
+    # SO THE LEVEL IS SAID IN THE ONE FIELD A TECHNICIAN READS. The Log Text
+    # column is what CMTrace shows and what its filter box searches, so a
+    # "[DEBUG] " prefix is both visible at a glance and filterable, and it
+    # answers the complaint that started this: eighty resolution records that
+    # looked exactly like Info. The JSONL keeps the real level either way, so
+    # nothing machine-read depends on this.
+    It 'says DEBUG in the message, because the type field cannot' {
+        $line = InModuleScope Hephaestus -Parameters @{ Stamp = $script:stamp } {
+            param($Stamp)
+            ConvertTo-HDTCmTraceLine -Message 'HDTComputerName = ...' -Component 'Variable' -Severity 'Debug' `
+                -Timestamp $Stamp -ThreadId 1 -File 'Engine'
+        }
+
+        # -Match with an escaped literal, not -BeLike: a wildcard pattern reads
+        # '[' as a character class and would match almost anything here.
+        $line | Should -Match ([regex]::Escape('<![LOG[[DEBUG] HDTComputerName = ...]LOG]!>'))
+        $line | Should -BeLike '*type="1"*'
+    }
+
+    It 'says nothing extra at <Severity>, which is every level that is not Debug' -ForEach @(
+        @{ Severity = 'Info' }, @{ Severity = 'Warning' }, @{ Severity = 'Error' }
+    ) {
+        $line = InModuleScope Hephaestus -Parameters @{ Stamp = $script:stamp; Severity = $Severity } {
+            param($Stamp, $Severity)
+            ConvertTo-HDTCmTraceLine -Message 'plain' -Component 'Engine' -Severity $Severity `
+                -Timestamp $Stamp -ThreadId 1 -File 'a.ps1'
+        }
+
+        $line | Should -Match ([regex]::Escape('<![LOG[plain]LOG]!>'))
     }
 
     It 'emits exactly one physical line for a multi-line message' {
