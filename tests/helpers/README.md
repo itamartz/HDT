@@ -602,6 +602,49 @@ Two exclusions keep them harmless, and both must stay true:
 change that widens `Run.Path` or `Get-HDTSourceFile` turns the suite red instead
 of quietly poisoning it.
 
+### `Remove-HDTLabScratchTree` and `Get-HDTScratchLeakViolation` — the scratch teardown
+
+The four files in `tests/e2e` each build a boot image into their own root under
+`C:\HDTLab\scratch` — a gigabyte or two a run — and for four milestones not one
+of them removed it. The scratch area reached **7.1 GB**, 5 GB of it dead build
+roots from runs three weeks apart, and the only directory still in use was the
+one nothing in `tests/e2e` touches.
+
+`Remove-HDTLabScratchTree` is the teardown, and it exists as **one command**
+rather than four copies of `Remove-Item` for the reason CLAUDE.md gives: never
+pass a variable to `Remove-Item -Recurse` without asserting first that it is a
+permitted location. Written once the assertion can be proven; written four times
+it is four chances to get it wrong.
+
+What it accepts is exactly one shape — a **first-level** directory under
+`C:\HDTLab\scratch\`, spelt out, no wildcard, no `..`. Everything else throws:
+the lab root, the media, the share, the reference clone, the repository, a drive
+root, another volume, a relative path, and anything **deeper** than the first
+level, because a deeper path is how somebody eventually names a `mount\` folder
+and takes a live build out from under itself.
+
+`C:\HDTLab\scratchootimage` is refused **by name**, and so is anything inside
+it. It is the user's live build scratch: bounded already, because
+`Update-HDTBootImage` empties it at the start of every run, and read afterwards
+by the tests that answer "what actually went into my image?".
+
+Two failures are told apart on purpose. A **wrong target** throws — it is a
+defect in the caller, and callers pass literals, so it can only fire while
+somebody is editing. A **removal that fails** warns and returns, because an
+`AfterAll` runs after a failure and a teardown that throws turns one red test
+into a red container. The warning says `SCRATCH LEAK`, names the path and its
+size, so a green run that leaked still says so. A stranded DISM mount is the
+usual cause, and every image mounted under the target is discarded before the
+delete is attempted.
+
+`Get-HDTScratchRootReference` reads which roots a file names and which it gives
+back; `Get-HDTScratchLeakViolation` applies the judgement.
+`tests/contract/ScratchTeardown.Contract.Tests.ps1` runs it over the **set** of
+`tests/e2e/*.ps1`, so the fifth E2E file cannot leak the way the first four did,
+and holds the short KEEP list — the artifact roots, which stay because
+`tests/e2e/README.md` is a table telling a human which of those files to open
+when a run fails.
+
 ### `Get-HDTSlowSuiteSkipViolation` — the S9.15 guard
 
 `tests/contract/SlowSuiteSkip.Contract.Tests.ps1` runs it over every file in
@@ -809,6 +852,7 @@ create. Damaging one is worse than failing a test. The protected set is
 | `Save-HDTLabVmScreen` | SPIKES S4's thumbnail, as a PNG for a human to read |
 | `Wait-HDTLabVmState` | a power state, or an integration-services heartbeat |
 | `Get-HDTLabOfflineComputerName` | mounts a VHDX read-only, `reg load`s its `SYSTEM` hive, unloads in a `finally` |
+| `Remove-HDTLabScratchTree` | one first-level directory under `C:\HDTLab\scratch`, and nothing else — the E2E teardown |
 
 ### The rules, and where each is enforced
 

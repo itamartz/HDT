@@ -282,6 +282,16 @@ AfterAll {
             Remove-HDTLabVirtualMachine -Name 'HDT-M3-Smoke' -Confirm:$false
         }
     }
+
+    # THE BUILD ROOT GOES BACK - the probe image this file builds, mount tree and
+    # all. The ARTIFACT root, C:\HDTLab\scratch\e2e, stays: PROBE.json and the
+    # WinPE screenshots are copied off a content disk that goes with the VM.
+    #
+    # After the VM, because its DVD drive holds this root's ISO open, and not at
+    # all when the operator asked to keep the VM.
+    if ($env:HDT_KEEP_LAB_VM -ne '1' -and (Get-Command -Name 'Remove-HDTLabScratchTree' -ErrorAction SilentlyContinue)) {
+        Remove-HDTLabScratchTree -Path 'C:\HDTLab\scratch\e2e-probeimage' -Confirm:$false
+    }
 }
 
 Describe 'the engine inside WinPE' -Tag 'E2E' -Skip:$skipSmoke {

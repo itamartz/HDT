@@ -47,8 +47,15 @@ BeforeAll {
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
 
+    # A BUILD ROOT AND AN ARTIFACT ROOT, SIDE BY SIDE RATHER THAN NESTED.
+    #
+    # The artifacts used to live inside the lab root, which meant the only way to
+    # give back the gigabyte of WinPE staging was to delete the screenshots and
+    # WIZARDPROBE-*.json with it - the evidence copied off a content disk the
+    # AfterAll destroys, and the only thing there is to look at when this fails.
+    # Siblings, so the AfterAll can remove one and leave the other.
     $script:labRoot = 'C:\HDTLab\scratch\wizard-e2e'
-    $script:artifactRoot = Join-Path -Path $script:labRoot -ChildPath 'artifacts'
+    $script:artifactRoot = 'C:\HDTLab\scratch\wizard-e2e-artifacts'
 
     $script:result = @{}
 
@@ -212,6 +219,16 @@ AfterAll {
                 Remove-HDTLabVirtualMachine -Name $name -Confirm:$false
             }
         }
+    }
+
+    # THE LAB ROOT GOES BACK. Two complete build-boot-read runs live in it - two
+    # workspaces, two payload stagings, two mount trees, two ISOs - and nothing
+    # ever removed them. The artifact root is a sibling now, so it survives.
+    #
+    # After the VMs, because their DVD drives hold the ISOs inside this root
+    # open, and not at all when the operator asked to keep the VMs.
+    if ($env:HDT_KEEP_LAB_VM -ne '1' -and (Get-Command -Name 'Remove-HDTLabScratchTree' -ErrorAction SilentlyContinue)) {
+        Remove-HDTLabScratchTree -Path 'C:\HDTLab\scratch\wizard-e2e' -Confirm:$false
     }
 }
 

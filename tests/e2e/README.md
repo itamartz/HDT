@@ -195,7 +195,16 @@ deployment.
 | `C:\HDTLab\scratch\e2e-m4\m4-0*.png` | the M4 deployment. **`m4-01-winpe.png` is the one to open**: it must show the engine already running, never a bare `X:\Windows\System32>` prompt |
 | `C:\HDTLab\scratch\e2e-m4\RESULT.json` | the M4 run's own account of itself — `launchedBy`, `deployRootSource`, `resolvedDeployRoot`, `endedWith` — copied off the content disk **before** the VM is destroyed |
 | `C:\HDTLab\scratch\e2e-m4\HDT.jsonl`, `state.json`, `LAUNCHER.log` | the evidence every M4 assertion rests on, persisted because the `AfterAll` destroys the disk it came from |
-| `C:\HDTLab\scratch\e2e-bootimage\Share\Boot\` | the boot image the M4 run built and booted |
+| `C:\HDTLab\scratch\wizard-e2e-artifacts\` | the W2 wizard screenshots and `WIZARDPROBE-*.json`, one set per path |
+
+Those roots are the ones that **stay**. The build roots each suite mounts and
+stages into — `e2e-m3-bootimage`, `e2e-bootimage`, `e2e-probeimage`,
+`wizard-e2e` — are removed by that suite's `AfterAll` through
+`Remove-HDTLabScratchTree`, because a gigabyte or two a run had put 7.1 GB in
+`C:\HDTLab\scratch`. Set `HDT_KEEP_LAB_VM=1` to keep the VM **and** the image it
+booted; a kept VM whose ISO has been deleted is not a machine anybody can
+debug. `ScratchTeardown.Contract.Tests.ps1` scans this directory and fails a
+suite that names a scratch root without giving it back.
 
 ## Preconditions
 

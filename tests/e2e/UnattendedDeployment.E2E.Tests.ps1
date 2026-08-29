@@ -684,6 +684,17 @@ AfterAll {
             Remove-HDTLabVirtualMachine -Name 'HDT-M4-Deploy' -Confirm:$false
         }
     }
+
+    # THE BUILD ROOT GOES BACK - two gigabytes of WinPE staging, mount, WIM and
+    # ISO, which this file has been leaving behind since M4. The ARTIFACT root,
+    # C:\HDTLab\scratch\e2e-m4, stays: it is the only copy of the evidence every
+    # assertion above rests on, read off a content disk this AfterAll destroys.
+    #
+    # After the VM, because its DVD drive holds this root's ISO open, and not at
+    # all when the operator asked to keep the VM.
+    if ($env:HDT_KEEP_LAB_VM -ne '1' -and (Get-Command -Name 'Remove-HDTLabScratchTree' -ErrorAction SilentlyContinue)) {
+        Remove-HDTLabScratchTree -Path 'C:\HDTLab\scratch\e2e-bootimage' -Confirm:$false
+    }
 }
 
 Describe 'it started itself' -Tag 'E2E' -Skip:$skipDeployment {

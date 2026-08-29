@@ -632,6 +632,25 @@ AfterAll {
             Remove-HDTLabVirtualMachine -Name 'HDT-M3-Deploy' -Confirm:$false
         }
     }
+
+    # THE BUILD ROOT GOES BACK. This file stages a WinPE tree, mounts it, injects
+    # the engine and writes a WIM and an ISO into its own root - about two
+    # gigabytes - and for four milestones nothing ever removed it. Three of these
+    # roots, from runs weeks apart, were still sitting in C:\HDTLab\scratch.
+    #
+    # The ARTIFACT root, C:\HDTLab\scratch\e2e, deliberately stays: it holds the
+    # screenshots, RESULT.json, HDT.jsonl and state.json copied off a content
+    # disk this same AfterAll destroys, and tests/e2e/README.md is a table
+    # telling a human which of them to open when this fails.
+    #
+    # AFTER the VM, not before: the VM's DVD drive holds the ISO inside this
+    # root open, and a delete while it is attached fails half way through.
+    #
+    # NOT WHEN THE OPERATOR ASKED TO KEEP THE VM - a kept VM whose ISO has been
+    # deleted is not a machine anybody can debug.
+    if ($env:HDT_KEEP_LAB_VM -ne '1' -and (Get-Command -Name 'Remove-HDTLabScratchTree' -ErrorAction SilentlyContinue)) {
+        Remove-HDTLabScratchTree -Path 'C:\HDTLab\scratch\e2e-m3-bootimage' -Confirm:$false
+    }
 }
 
 Describe 'the engine ran the deployment' -Tag 'E2E' -Skip:$skipDeployment {
