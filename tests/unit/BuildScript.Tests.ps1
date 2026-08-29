@@ -538,6 +538,140 @@ Describe 'build.ps1' {
         }
     }
 
+    Context 'the documents a version bump makes stale' {
+
+        # BUMPING THE VERSION AND REGENERATING WHAT QUOTES IT ARE ONE OPERATION,
+        # and for four milestones only the first half was automated. Every bump
+        # reddened CommandReference.Contract.Tests.ps1 - the page embeds the
+        # version - and 0.8.0 -> 0.9.0 stalled a release on it.
+        #
+        # WHICH documents those are is asserted against the discovered SET in
+        # tests/contract/GeneratedDocument.Contract.Tests.ps1. What is asserted
+        # here is the behaviour around them: only on a bump, under 5.1, and loud
+        # when the generator dies.
+
+        BeforeAll {
+            foreach ($wanted in @('Get-HDTGeneratedDocument', 'Update-HDTGeneratedDocument')) {
+                $definition = @($script:functionAst | Where-Object { $_.Name -eq $wanted })
+
+                if ($definition.Count -eq 1) {
+                    # DEFINED FROM THE FILE'S OWN TEXT, so these are the build's
+                    # functions and not a copy of them. build.ps1 cannot be
+                    # dot-sourced - it dispatches a task on the way past.
+                    . ([scriptblock]::Create($definition[0].Extent.Text))
+                }
+            }
+
+            $script:versionFunction = @($script:functionAst | Where-Object { $_.Name -eq 'Invoke-HDTVersion' })
+
+            $script:newFakeRepository = {
+                param([string] $Name, [string[]] $Body)
+
+                $root = Join-Path -Path $TestDrive -ChildPath $Name
+                $null = New-Item -Path (Join-Path -Path $root -ChildPath 'tools') -ItemType Directory -Force
+                $null = New-Item -Path (Join-Path -Path $root -ChildPath 'docs') -ItemType Directory -Force
+
+                Set-Content -LiteralPath (Join-Path -Path $root -ChildPath 'tools\New-HDTFakeDocument.ps1') `
+                    -Value $Body -Encoding UTF8
+
+                $root
+            }
+        }
+
+        It 'declares the generator and the document for every entry it lists' {
+            $declared = @(Get-HDTGeneratedDocument)
+
+            $declared.Count | Should -BeGreaterThan 0
+            foreach ($item in $declared) {
+                $item.Generator | Should -Match '^tools/.+\.ps1$'
+                $item.Path | Should -Not -BeNullOrEmpty
+            }
+        }
+
+        It 'regenerates them only when the version actually moved' {
+            # Update-HDTModuleVersion writes nothing when the sources have not
+            # moved, so regenerating on every invocation of the task would dirty
+            # a tracked document on every build.
+            $script:versionFunction.Count | Should -Be 1
+
+            $call = @($script:versionFunction[0].Body.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.CommandAst] -and
+                        $node.GetCommandName() -eq 'Update-HDTGeneratedDocument'
+                    }, $true))
+
+            $call.Count | Should -Be 1 -Because 'the regeneration happens in exactly one place in the version task'
+
+            $guard = @($script:versionFunction[0].Body.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.IfStatementAst]
+                    }, $true) | Where-Object { [string] $_.Clauses[0].Item1.Extent.Text -match '\$answer\.Changed' })
+
+            $guard.Count | Should -Be 1
+            [string] $guard[0].Clauses[0].Item2.Extent.Text |
+                Should -BeLike '*Update-HDTGeneratedDocument*' -Because 'the bump is what makes the document stale, so the bump is what regenerates it'
+
+            if ($null -ne $guard[0].ElseClause) {
+                [string] $guard[0].ElseClause.Extent.Text |
+                    Should -Not -BeLike '*Update-HDTGeneratedDocument*' -Because 'an unchanged version leaves every generated document exactly as it was'
+            }
+        }
+
+        It 'runs a generator under Windows PowerShell 5.1, whatever this build runs under' {
+            # The page quotes Get-Command -Syntax and 5.1 is the shell the engine
+            # runs in, so a pwsh leg must not be the one that writes it. Proven by
+            # having the fake generator report the edition that started it.
+            $root = & $script:newFakeRepository 'edition' @(
+                '$out = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath ''docs\fake.txt'''
+                'Set-Content -LiteralPath $out -Value ([string] $PSVersionTable.PSVersion.Major) -Encoding UTF8'
+            )
+
+            Update-HDTGeneratedDocument -RepositoryRoot $root -Confirm:$false -Document @(
+                [pscustomobject] @{ Generator = 'tools/New-HDTFakeDocument.ps1'; Path = 'docs/fake.txt' })
+
+            (Get-Content -LiteralPath (Join-Path -Path $root -ChildPath 'docs\fake.txt') -Raw).Trim() |
+                Should -Be '5' -Because 'the generator has to be started by Windows PowerShell 5.1'
+        }
+
+        It 'fails the build when a generator fails, and says which one and why' {
+            # NOT A WARNING. A warning scrolls past in a ten minute build and the
+            # run then fails hundreds of lines later on the symptom - a page
+            # stating the wrong version - with the cause off the top of the log.
+            $root = & $script:newFakeRepository 'failure' @(
+                'throw ''the categories file is missing'''
+            )
+
+            $message = ''
+            try {
+                Update-HDTGeneratedDocument -RepositoryRoot $root -Confirm:$false -Document @(
+                    [pscustomobject] @{ Generator = 'tools/New-HDTFakeDocument.ps1'; Path = 'docs/fake.txt' })
+            } catch {
+                $message = [string] $_.Exception.Message
+            }
+
+            $message | Should -BeLike '*tools/New-HDTFakeDocument.ps1*' -Because 'the message names the generator that died'
+            $message | Should -BeLike '*the categories file is missing*' -Because 'the generator''s own words are the cause; the exit code alone is the symptom'
+        }
+
+        It 'fails when a generator exits clean and writes nothing' {
+            $root = & $script:newFakeRepository 'silent' @(
+                '# writes nothing at all'
+            )
+
+            { Update-HDTGeneratedDocument -RepositoryRoot $root -Confirm:$false -Document @(
+                    [pscustomobject] @{ Generator = 'tools/New-HDTFakeDocument.ps1'; Path = 'docs/fake.txt' }) } |
+                Should -Throw -ExpectedMessage '*docs/fake.txt*' -Because 'a document that was not written is as stale as one written wrong, and exit 0 says nothing about it'
+        }
+
+        It 'names the generator it cannot find rather than the document' {
+            $root = & $script:newFakeRepository 'absent' @('# unused')
+
+            { Update-HDTGeneratedDocument -RepositoryRoot $root -Confirm:$false -Document @(
+                    [pscustomobject] @{ Generator = 'tools/New-HDTNotThere.ps1'; Path = 'docs/fake.txt' }) } |
+                Should -Throw -ExpectedMessage '*New-HDTNotThere.ps1*'
+        }
+    }
+
     Context 'naming' {
 
         It 'names every build function Verb-HDTNoun' {

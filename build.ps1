@@ -156,6 +156,15 @@ function Invoke-HDTVersion {
             THE MANIFEST IS A TRACKED SOURCE FILE, so this task really does
             change the working tree. That is the point: the number moves with
             the code rather than when somebody remembers.
+
+            AND SO ARE THE DOCUMENTS THAT QUOTE THE NUMBER. Bumping the version
+            and regenerating what states it are one operation, and only the first
+            half of it used to be automated: docs/command-reference.html embeds
+            the version, a contract test asserts the two agree, and every bump
+            therefore turned that test red until somebody ran the generator by
+            hand. 0.8.0 -> 0.9.0 is the release that stalled on it.
+            Update-HDTGeneratedDocument is the other half, and it runs only when
+            the version actually moved.
     #>
     [CmdletBinding()]
     [OutputType([void])]
@@ -169,9 +178,163 @@ function Invoke-HDTVersion {
     if ($answer.Changed) {
         Write-Information ("version: {0} -> {1} ({2}, {3} file(s))" -f
             $answer.PreviousVersion, $answer.Version, $answer.Reason, $answer.FileCount)
+
+        # ON THE BUMP, NOT ON THE TASK. Update-HDTModuleVersion writes nothing
+        # at all when the sources have not moved, and regenerating here anyway
+        # would rewrite a tracked document on every build for no reason.
+        Update-HDTGeneratedDocument -RepositoryRoot $script:HDTRepositoryRoot -Confirm:$false
     } else {
         Write-Information ("version: {0} unchanged ({1}, {2} file(s))" -f
             $answer.Version, $answer.Reason, $answer.FileCount)
+    }
+}
+
+function Get-HDTGeneratedDocument {
+    <#
+        .SYNOPSIS
+            The tracked documents that quote the module version, and the script
+            in tools\ that rewrites each one.
+
+        .DESCRIPTION
+            ONE PLACE OF TRUTH FOR A PAIR THAT WAS ONLY HALF AUTOMATED. The
+            version task writes a new ModuleVersion into Hephaestus.psd1;
+            docs/command-reference.html embeds that number and
+            tests/contract/CommandReference.Contract.Tests.ps1 asserts the two
+            agree. That assertion is right and stays; what was missing is the
+            step that keeps it true.
+
+            EACH DOCUMENT DECLARES ITS OWN GENERATOR - the command reference
+            carries a meta generator tag naming the script that writes it - and
+            tests/contract/GeneratedDocument.Contract.Tests.ps1 discovers the
+            whole set from those declarations and fails when this list is missing
+            one. So the test is written against the set: a second generated
+            document added tomorrow is covered without anybody editing the test.
+
+            THE PATHS ARE REPOSITORY-RELATIVE WITH FORWARD SLASHES, because that
+            is the form the documents use to name their own generators, and the
+            form the contract test compares the two lists in.
+
+        .OUTPUTS
+            System.Management.Automation.PSCustomObject with Generator and Path.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param()
+
+    [pscustomobject] @{
+        Generator = 'tools/New-HDTCommandReference.ps1'
+        Path      = 'docs/command-reference.html'
+    }
+}
+
+function Update-HDTGeneratedDocument {
+    <#
+        .SYNOPSIS
+            Rewrites the documents a version bump has just made stale.
+
+        .DESCRIPTION
+            IT IS ORCHESTRATION, SO IT LIVES IN THE BUILD SCRIPT.
+            Update-HDTModuleVersion writes a manifest, and giving that command a
+            dependency on a documentation generator under tools\ would make a
+            shipped module command need a folder the module does not ship - and
+            fire it inside WinPE, where there is no tools\ at all. Running one
+            task after another is what build.ps1 is.
+
+            BEFORE test, BY THE CANONICAL ORDER. version is the second task and
+            test the sixth, so the regenerated page is on disk well before
+            CommandReference.Contract.Tests.ps1 reads it.
+
+            IT CANNOT FEED THE NEXT BUMP. Every document here lives outside
+            src\Hephaestus, which is the only tree Update-HDTModuleVersion
+            fingerprints, so writing one can never move the version that caused
+            it to be written.
+
+            WINDOWS POWERSHELL 5.1, WHATEVER THIS BUILD IS RUNNING UNDER. The
+            command reference prints Get-Command -Syntax lines, and 5.1 is the
+            shell the engine runs in, so 5.1's rendering is what an administrator
+            matches against what they typed. A pwsh leg generating the page would
+            produce a different document from the 5.1 leg for the same sources,
+            and the two legs would fight over a tracked file.
+
+            A GENERATOR THAT FAILS IS FATAL, DELIBERATELY. The defect this whole
+            function exists to close is a stale document nobody noticed, and a
+            warning in the middle of a ten minute build is how a thing stays
+            unnoticed. Left to warn, the build would carry on and fail hundreds of
+            lines later on "the page states a version the manifest does not" -
+            the symptom, with the cause scrolled off the top. So this throws, and
+            the generator's own output travels in the message.
+
+        .PARAMETER RepositoryRoot
+            The repository the relative paths are resolved against.
+
+        .PARAMETER Document
+            The documents to regenerate. Defaults to what
+            Get-HDTGeneratedDocument declares; a parameter so the build tests can
+            hand it a generator that fails on purpose.
+
+        .OUTPUTS
+            None.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    [OutputType([void])]
+    param(
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
+        [string] $RepositoryRoot = $script:HDTRepositoryRoot,
+
+        [Parameter()]
+        [ValidateNotNull()]
+        [object[]] $Document = @(Get-HDTGeneratedDocument)
+    )
+
+    $shell = Join-Path -Path $env:SystemRoot -ChildPath 'System32\WindowsPowerShell\v1.0\powershell.exe'
+
+    if (-not (Test-Path -LiteralPath $shell -PathType Leaf)) {
+        throw ("Windows PowerShell 5.1 is not at '{0}', and it is what has to write the generated documents - they quote Get-Command -Syntax, and 5.1 is the shell the engine runs in." -f $shell)
+    }
+
+    foreach ($item in $Document) {
+        $generator = Join-Path -Path $RepositoryRoot -ChildPath $item.Generator
+        $target = Join-Path -Path $RepositoryRoot -ChildPath $item.Path
+
+        if (-not (Test-Path -LiteralPath $generator -PathType Leaf)) {
+            throw ("the version moved and '{0}' is written by '{1}', which is not at '{2}'. Nothing can bring the document up to date." -f
+                $item.Path, $item.Generator, $generator)
+        }
+
+        if (-not $PSCmdlet.ShouldProcess($target, ('Regenerate with {0}' -f $item.Generator))) {
+            continue
+        }
+
+        # 2>&1 OFF A NATIVE COMMAND, WITH THE PREFERENCE PUT BACK. Under
+        # $ErrorActionPreference = 'Stop' some PowerShell 7 builds turn a
+        # redirected stderr line into a terminating error, which would replace
+        # the sentence below with a raw stack trace and lose the exit code
+        # entirely. The exit code is the verdict here, not the stream.
+        $previousPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $output = @(& $shell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $generator 2>&1 |
+                    ForEach-Object { [string] $_ })
+            $exitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousPreference
+        }
+
+        if ($exitCode -ne 0) {
+            throw ("{0} exited {1}, so '{2}' still states the version from before the bump. {3}" -f
+                $item.Generator, $exitCode, $item.Path, ($output -join ' '))
+        }
+
+        # EXIT 0 AND NO FILE IS STILL A FAILURE. A generator whose ShouldProcess
+        # was declined, or which wrote somewhere else, leaves the document as
+        # stale as a crash does and says nothing about it.
+        if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
+            throw ("{0} exited 0 and there is no '{1}' at '{2}' for it to have written. {3}" -f
+                $item.Generator, $item.Path, $target, ($output -join ' '))
+        }
+
+        Write-Information ("version: regenerated {0} with {1}" -f $item.Path, $item.Generator)
     }
 }
 
