@@ -156,7 +156,25 @@
         -Data ([ordered] @{ commandLine = $commandLine; workingDirectory = $workingDirectory; timeoutMs = $timeoutMillisecond })
 
     $process = $Context.Service.GetRequired('Process', 'CommandLine')
-    $result = $process.Start($filePath, $argument, $workingDirectory, $timeoutMillisecond)
+
+    # THE ONE THING THIS STEP CAN HONESTLY REPORT. It runs an operator's own
+    # command and cannot know how far through it is - a percentage invented from
+    # elapsed time would be a bar that lied, which is why this step type is
+    # classified quiet in StepProgress.Contract.Tests.ps1 and stays that way.
+    #
+    # BUT "STILL RUNNING, AND FOR HOW LONG" IS NOT AN INVENTION. It is the only
+    # fact in hand, it is true, and it changes - and without it the progress
+    # card's elapsed clock, derived from record timestamps, stops dead for the
+    # entire length of whatever the operator asked for. An install script that
+    # runs for four minutes looked exactly like a hung machine.
+    #
+    # THE STEP'S NAME, NOT THE COMMAND LINE. DESIGN 4.4.5 keeps the command at
+    # Debug because it routinely carries a licence key; the heartbeat is written
+    # at Info, and the name is what a technician recognises anyway.
+    $heartbeat = New-HDTStepHeartbeat -Context $Context -Component 'CommandLine' `
+        -Activity ([string] $Step.Name)
+
+    $result = $process.Start($filePath, $argument, $workingDirectory, $timeoutMillisecond, $heartbeat)
 
     foreach ($stream in @($result.StandardOutput, $result.StandardError)) {
         foreach ($line in @([string] $stream -split "`r?`n")) {

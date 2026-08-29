@@ -276,6 +276,24 @@
     $writeLog = Get-Command -Name 'Write-HDTLog'
     $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
 
+    # NO New-HDTStepHeartbeat HERE, AND THE REASON IS WORTH THE LINES.
+    #
+    # The heartbeat exists for a step that BLOCKS with nothing to report -
+    # IProcessService.Start waiting on an MSI - and it fires from that adapter's
+    # poll loop. This step neither blocks nor lacks a number: dism streams its
+    # meter and ConvertFrom-HDTDismProgressLine turns it into a step.progress
+    # every five points, which is a better fact than "still running".
+    #
+    # AND A HEARTBEAT HUNG OFF THIS CALLBACK WOULD ONLY FIRE WHEN DISM SPEAKS,
+    # which is exactly when the meter already has. What it would add is a record
+    # on the banner lines of a tool that prints no meter at all - the one thing
+    # 'writes nothing when the tool prints no meter at all' below exists to
+    # forbid, because progress driven by how chatty a tool is is not progress.
+    #
+    # THE GAP THAT REMAINS is a dism that goes silent mid-apply. Closing it means
+    # running dism as a polled process rather than a pipeline - MDT's
+    # WshShell.Exec loop - which is a rewrite of an adapter proven only in
+    # tests/integration. It has not been done here and is not pretended to be.
     $onOutput = {
         param([string] $Line)
 

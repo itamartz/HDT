@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 <#
@@ -1975,7 +1975,27 @@ class HDTFakeProcessService {
 
     # -- IProcessService ---------------------------------------------------
 
+    # THE FOUR-ARGUMENT FORM EVERY EXISTING TEST CALLS, forwarded. An overload
+    # rather than a default: PowerShell class methods have no optional
+    # parameters, and changing the arity in place would break every step test in
+    # the suite for a reason that has nothing to do with what they assert.
     [object] Start([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond) {
+        return $this.Start($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond, $null)
+    }
+
+    # THE TICK A REAL WaitForExit WOULD HAVE PRODUCED, SEEDED, BECAUSE A FAKE
+    # CANNOT WAIT. The real adapter ticks because time passes; this one returns
+    # instantly, so a test that wants to see what a step does DURING a long
+    # install seeds TickCount on the command line and gets that many callbacks
+    # before the result.
+    #
+    # IT DEFAULTS TO ZERO, AND THAT MATTERS. Every command line seeded without
+    # it stands for a process that returned before the first poll - which is
+    # what almost every command in almost every test is - so no existing test
+    # starts seeing heartbeats it never asked for.
+    [object] Start([string] $FilePath, [string] $Argument, [string] $WorkingDirectory, [int] $TimeoutMillisecond,
+        [scriptblock] $OnTick) {
+
         $this.Record('Start', @($FilePath, $Argument, $WorkingDirectory, $TimeoutMillisecond))
 
         $commandLine = $this.Normalize($FilePath, $Argument)
@@ -2004,6 +2024,17 @@ class HDTFakeProcessService {
 
         $durationMs = 0
         if ($seed.Contains('DurationMs')) { $durationMs = [long] $seed['DurationMs'] }
+
+        # BEFORE THE RESULT, THE WAY THE REAL ONE DOES IT. The real adapter ticks
+        # while the process is running and returns afterwards; a fake that
+        # ticked after returning would let a caller pass a test it would fail on
+        # a machine.
+        $tickCount = 0
+        if ($seed.Contains('TickCount')) { $tickCount = [int] $seed['TickCount'] }
+
+        if ($null -ne $OnTick) {
+            for ($i = 0; $i -lt $tickCount; $i++) { $null = $OnTick.Invoke() }
+        }
 
         return [pscustomobject] @{
             ExitCode       = $exitCode
@@ -2062,8 +2093,13 @@ function New-HDTFakeProcessService {
 
         .PARAMETER Result
             Seed results. Keys are command lines; values are hashtables carrying
-            any of ExitCode, StandardOutput, StandardError, TimedOut and
-            DurationMs. Anything omitted takes its default.
+            any of ExitCode, StandardOutput, StandardError, TimedOut, DurationMs
+            and TickCount. Anything omitted takes its default.
+
+            TickCount is how many times Start invokes its OnTick callback before
+            returning - what a real WaitForExit would have done to a process that
+            ran for TickCount half-seconds. It defaults to zero, which stands for
+            a process that returned before the first poll.
 
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
