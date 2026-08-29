@@ -118,6 +118,30 @@ Describe 'New-HDTFakeBootImageService' {
             [string] $call[0].Arguments[1] | Should -BeExactly 'Israel Standard Time'
         }
 
+        It 'throws when SetTimeZoneDaylight is called with nothing mounted' {
+            # It loads the mounted image's own SYSTEM hive, so an unmounted path
+            # has no hive to load and the real adapter fails on reg load.
+            { $script:boot.SetTimeZoneDaylight($script:mountPath, @()) } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException])
+        }
+
+        It 'records the daylight values it was handed' {
+            # The VALUES matter, not just that it was called: this is the half of
+            # the time zone key dism does not write, and a builder that called it
+            # with an empty set would leave WinPE an hour out for half the year
+            # while still recording the operation.
+            $script:boot.MountImage($script:wimPath, 1, $script:mountPath)
+            $script:boot.SetTimeZoneDaylight($script:mountPath, @(
+                    [pscustomobject] @{ Name = 'DaylightBias'; Kind = 'DWord'; Data = -60 }))
+
+            $call = @($script:boot.Operations | Where-Object { $_.Operation -eq 'SetTimeZoneDaylight' })
+
+            $call.Count | Should -Be 1
+            [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
+            @($call[0].Arguments[1])[0].Name | Should -BeExactly 'DaylightBias'
+            @($call[0].Arguments[1])[0].Data | Should -Be -60
+        }
+
         It 'throws when DismountImage is called with nothing mounted' {
             { $script:boot.DismountImage($script:mountPath, $true) } |
                 Should -Throw -ExceptionType ([System.InvalidOperationException])

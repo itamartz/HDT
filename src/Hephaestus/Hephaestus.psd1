@@ -48,6 +48,7 @@
         'Get-HDTBootstrapConfiguration',
         'ConvertTo-HDTDiskLayout',
         'ConvertTo-HDTReport',
+        'ConvertTo-HDTTimeZoneDaylightValue',
         'Copy-HDTLog',
         'Copy-HDTResumeAgent',
         'Export-HDTDeviceInventory',

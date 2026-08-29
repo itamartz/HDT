@@ -104,6 +104,19 @@
             build had no zone or was made by an engine that had never heard of
             zones.
 
+        .PARAMETER TimeZoneDaylight
+            Whether the zone's DAYLIGHT rule reached the image as well as its
+            standard half.
+
+            IT IS A SEPARATE FACT FROM THE ZONE, and recording only the zone was
+            how the second hour hid behind the first. dism writes the standard
+            half of the image's time zone key and no daylight rule at all, so an
+            image can carry the right zone id and still keep standard time the
+            year round - which is one hour of error in every timestamp, for half
+            of every year. A manifest saying 'Israel Standard Time' and nothing
+            else cannot tell those two images apart, and they are the two images
+            this defect was about.
+
         .PARAMETER CredentialRecord
             Username, Embedded, PromptForCredential. Anything else in this
             hashtable is ignored.
@@ -197,6 +210,9 @@
         [Parameter()]
         [AllowEmptyString()]
         [string] $TimeZone = '',
+
+        [Parameter()]
+        [bool] $TimeZoneDaylight = $false,
 
         [Parameter()]
         [AllowNull()]
@@ -317,6 +333,7 @@
         extraContent       = [object[]] @($extraRow)
         startnet           = $Startnet
         timeZone           = $TimeZone
+        timeZoneDaylight   = [bool] $TimeZoneDaylight
         credential         = [ordered] @{
             username            = [string] (& $valueOf $CredentialRecord 'Username' '')
             embedded            = [bool] (& $valueOf $CredentialRecord 'Embedded' $false)

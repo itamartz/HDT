@@ -2040,7 +2040,18 @@ neither MDT nor PSD sets a WinPE zone at all.
 dism /Image:<mount> /Set-TimeZone:"Israel Standard Time"
 ```
 
-Offline only — dism refuses it against `/Online`. It writes the whole of
+Offline only — dism refuses it against `/Online`.
+
+> ⚠ **CORRECTED BY S21.1 — the claim below was WRONG and cost a second
+> defect.** `/Set-TimeZone` writes the **standard half only**: `Bias`,
+> `StandardBias`, `TimeZoneKeyName` and `StandardName`. It leaves `DaylightBias`
+> at 0, `DaylightName` empty, `StandardStart` and `DaylightStart` **all zeros**,
+> writes **no `ActiveTimeBias` at all**, and leaves `DynamicDaylightTimeDisabled`
+> at the 1 the ADK ships. That is why the lab still read one hour ahead after
+> this spike was written. Read S21.1 before trusting anything here about what
+> this command writes.
+
+It writes
 `HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation` (Bias, StandardBias,
 DaylightBias, ActiveTimeBias, TimeZoneKeyName and the transition dates) as one
 consistent set, and **validates the id against the image before writing** — so a
@@ -2051,3 +2062,175 @@ ADK default.
 **The rule this leaves behind:** a boot image setting that needs a command at run
 time needs that command proven present first. A build-time write has nothing left
 to go missing.
+
+## S21.1 — `dism /Set-TimeZone` writes the STANDARD HALF ONLY, and S21 said otherwise ✅
+
+**Verified by execution**, by reading the registry out of two images and
+comparing them side by side. This is the second half of the same defect: S21
+above took the lab from **eleven hours out to one**, and that last hour was a
+different bug hiding behind the first.
+
+### What was believed, and is false
+
+S21, the comment in `IBootImageService.SetTimeZone` and the header of
+`New-HDTBootImageService` all stated that `/Set-TimeZone`
+
+> writes Bias, StandardBias, DaylightBias, ActiveTimeBias, TimeZoneKeyName and
+> the standard/daylight transition dates **as one consistent set**.
+
+**It does not.** It writes the standard half of the zone and stops. That claim
+survived a build, a deployment and a code review, and it is why the remaining
+hour was blamed on WinPE rather than on the image. The natural next diagnosis —
+*"WinPE does not perform DST transitions"* — is **also false**, and would have
+led to a runtime correction nobody needed.
+
+### The two tables, as measured
+
+Same zone id (`Israel Standard Time`), same key
+(`SYSTEM\CurrentControlSet\Control\TimeZoneInformation`), read 2026-08-29 during
+Israeli daylight time:
+
+| value | full Windows (build host) | HDT boot image, after dism |
+|---|---|---|
+| `Bias` | -120 | -120 ✅ |
+| `StandardBias` | 0 | 0 ✅ |
+| `TimeZoneKeyName` | `Israel Standard Time` | `Israel Standard Time` ✅ |
+| `StandardName` | MUI string | MUI string ✅ |
+| **`DaylightBias`** | **-60** | **0** ❌ |
+| **`DaylightName`** | set | **empty** ❌ |
+| **`StandardStart`** | recurring rule | **all zeros** ❌ |
+| **`DaylightStart`** | recurring rule | **all zeros** ❌ |
+| **`ActiveTimeBias`** | **-180** | **ABSENT** ❌ |
+| **`DynamicDaylightTimeDisabled`** | **0** | **1** ❌ |
+
+With no `ActiveTimeBias` the kernel falls back to `Bias + StandardBias`, which is
+**-120 the year round**. A correct machine reads **-180** between the March and
+October transitions.
+
+**-120 + -60 = -180 — the exact hour every WinPE record was ahead of true UTC.**
+
+It also explains S21's eleven hours with no extra theory: the ADK default is
+Pacific and the reading was bias **480**, the *standard* value, in August. Two
+measurements, two different zones, both the standard bias. Nothing was ever
+evaluating a rule, because no rule was ever present.
+
+### WinPE is not missing the data — only the copy of it
+
+The ADK's stock `winpe.wim` carries the **complete** time zone database:
+**141 zones** under `SOFTWARE\Microsoft\Windows NT\CurrentVersion\Time Zones`,
+each with its 44-byte `TZI` and a `Dynamic DST` subkey. `Israel Standard Time`
+there reads `Bias -120, StandardBias 0, DaylightBias -60`, March last-Friday
+02:00 to October last-Sunday 02:00 — captured verbatim as
+`tests/fixtures/winpe/timezone-israel-tzi.json`.
+
+The daylight rule was sitting in the image the whole time. Nothing had ever
+copied it into the key the kernel reads.
+
+The stock `Control\TimeZoneInformation` is worth recording too: Pacific,
+`DaylightBias 0`, both transition values all zeros, **no `ActiveTimeBias` value
+at all**, `DynamicDaylightTimeDisabled 1`. dism changes the zone identity and
+leaves every one of those in place.
+
+### How to repeat it without building anything
+
+No mount, no rebuild, nothing written — 7-Zip reads a WIM read-only, which is
+what makes this safe to run while a deployment is live:
+
+```powershell
+& 'C:\Program Files\7-Zip\7z.exe' x -o"$env:TEMP\tz" `
+    '<any>.wim' 'Windows/System32/config/SYSTEM' 'Windows/System32/config/SOFTWARE'
+
+reg load HKLM\HDTPE "$env:TEMP\tz\Windows\System32\config\SYSTEM"
+Get-ItemProperty 'HKLM:\HDTPE\ControlSet001\Control\TimeZoneInformation'
+
+# THE UNLOAD FAILS WITHOUT THIS. PowerShell's registry provider holds a handle on
+# every key it has read, and reg unload answers "Access is denied" - measured.
+[gc]::Collect(); [gc]::WaitForPendingFinalizers()
+reg unload HKLM\HDTPE
+```
+
+An offline hive has **no `CurrentControlSet`** — that link is made at boot — and a
+WinPE `SYSTEM` hive has exactly one control set: `ControlSet001`, beside
+`DriverDatabase`, `Keyboard Layout`, `RNG`, `Select`, `Setup`, `Software`, `WPA`
+and nothing else. Resolving `Select\Current` would be a branch that can only ever
+answer 1.
+
+### The fix, and why a build-time write does not expire here
+
+`ConvertTo-HDTTimeZoneDaylightValue` emits the missing half and
+`IBootImageService.SetTimeZoneDaylight` writes it, in `Update-HDTBootImage` step
+**9c — after dism, never before**, because dism rewrites the whole key from the
+zone database and would erase a daylight half written first *while the build
+stayed green*.
+
+**Nothing it writes is a moment.** An image is built once and booted for months,
+so computing "is it daylight time today" and baking the answer would be right in
+August and an hour out from the last Sunday of October — worse than being
+honestly wrong all year. Instead:
+
+- the transition `SYSTEMTIME`s carry **`wYear = 0`**, Windows' encoding for the
+  *recurring* rule "the Nth weekday of month M", evaluated against whatever day
+  the machine boots on;
+- the **open-ended** adjustment rule is used (`DateEnd` 9999-12-31), never "the
+  rule covering today" — picking by today's date is a moment by the back door;
+- **`ActiveTimeBias` is deliberately never written.** It is the only value in
+  that key answering "is it daylight time *right now*". Left absent — exactly as
+  dism leaves it — the kernel computes it at each boot, which is how a full
+  Windows machine comes up correct the morning after a transition with no
+  service running.
+
+### STILL UNPROVEN, AND HERE IS THE CHECK
+
+**That last bullet is reasoned, not measured.** A deployment was running on the
+lab hardware, so the boot image could not be rebuilt, and *"the WinPE kernel
+evaluates the recurring rule and computes `ActiveTimeBias` at boot"* has not been
+observed. It is the same `ntoskrnl` as full Windows and no service is involved,
+which is the whole basis for expecting it.
+
+**The next boot image build settles it in one glance.** Two checks, and they
+separate the two failure modes:
+
+1. **Did the build write the rule?** At a WinPE prompt — `reg` *is* in
+   `tests/fixtures/winpe/winpe-command-amd64.json`; `tzutil` and `w32tm` still
+   are not:
+
+   ```
+   reg query HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation
+   ```
+
+   Expect `DaylightBias 0xffffffc4` (-60), `DynamicDaylightTimeDisabled 0x0`, and
+   `StandardStart` / `DaylightStart` **not** all zeros. If these are wrong, step
+   9c did not run — a build problem, not a kernel one.
+
+2. **Did the kernel act on it?** Compare the first WinPE record's `ts` in
+   `HDT.jsonl` against true UTC:
+
+   - **equal → the rule is being evaluated.** Fixed.
+   - **one hour ahead → it is not.** The kernel is still using
+     `Bias + StandardBias`, and the honest answer becomes the `clockUnsynced`
+     flag the engine already emits.
+
+   In that case also read whether `ActiveTimeBias` is now *present* in check 1.
+   If the kernel writes it back at boot it appears; if the key still has no
+   `ActiveTimeBias`, nothing evaluated anything.
+
+**THE CHECK IS ONLY MEANINGFUL DURING DAYLIGHT TIME.** Between the last Sunday of
+October and the last Friday of March a correct machine and a broken one read
+*identically* — both -120. Running this in January proves nothing and will look
+like a pass.
+
+### The downside is bounded — do not roll this back if the hour is still wrong
+
+If the kernel turns out not to evaluate the rule, an image built this way behaves
+**exactly as one built before it**: the fallback is `Bias + StandardBias`, which
+is today's behaviour. Every value added is inert in that case rather than
+harmful, and none can become wrong at a transition. There is no version of this
+change that is right in August and broken in November — the specific failure it
+was designed around. A reverted step 9c buys nothing and loses the fix if the
+kernel *does* evaluate.
+
+**The rule this leaves behind:** S21 said "a build-time write has nothing left to
+go missing", and that is still true — but a build-time write can still write only
+*half* of what it claims. What a tool documents itself as writing is not
+evidence; read the key back out of the artefact. Both defects here were found by
+reading the image, and neither was visible from a green build.

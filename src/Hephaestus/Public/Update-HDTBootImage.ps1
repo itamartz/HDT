@@ -871,6 +871,12 @@
 
         $BootImageService.SetScratchSpace($mountPath, [int] $workspace.BootImage.ScratchSpaceMB)
 
+        # RECORDED FOR THE MANIFEST, and declared here so that the one document
+        # an operator reads can distinguish "this image observes daylight time"
+        # from "this image keeps standard time all year" - a difference of one
+        # hour in every timestamp, for half of every year.
+        $timeZoneDaylight = $false
+
         # -- 9b. the time zone, IN THE IMAGE ---------------------------------
         #
         # HDT used to write `tzutil /s "<id>"` into startnet.cmd. tzutil.exe IS
@@ -904,6 +910,63 @@
                 [string] $workspace.BootImage.TimeZone)
 
             $BootImageService.SetTimeZone($mountPath, [string] $workspace.BootImage.TimeZone)
+
+            # -- 9c. and the daylight half, which dism does not write ----------
+            #
+            # SETTING THE ZONE TOOK THE LIVE RUN FROM ELEVEN HOURS OUT TO ONE,
+            # and the last hour was a second defect hiding behind the first.
+            # Read back out of the built WIM's own SYSTEM hive, dism leaves
+            # DaylightBias 0, DaylightName empty, StandardStart and DaylightStart
+            # ALL ZEROS, no ActiveTimeBias at all, and DynamicDaylightTimeDisabled
+            # at the 1 the ADK ships. With no ActiveTimeBias the kernel falls
+            # back to Bias + StandardBias - standard time in July.
+            #
+            # SO WinPE WAS NOT REFUSING TO OBSERVE DAYLIGHT TIME. It was never
+            # given a rule to observe. The image carries the whole time zone
+            # database - 141 zones in the ADK's own winpe.wim, each with its
+            # rule - and nothing had ever copied the chosen zone's daylight half
+            # into the key the kernel reads.
+            #
+            # NOTHING WRITTEN HERE IS A MOMENT, which is what makes this a
+            # build-time fix rather than a lie with a shelf life. A boot image is
+            # built once and booted for months, so writing "it is daylight time
+            # today" would be right in August and an hour out from the last
+            # Sunday of October. ConvertTo-HDTTimeZoneDaylightValue emits only
+            # the RECURRING rule - wYear 0, "the Nth weekday of a month" - and
+            # deliberately never emits ActiveTimeBias, leaving the kernel to
+            # work that out at each boot the way full Windows does.
+            #
+            # AFTER dism, NEVER BEFORE. dism rewrites the whole key from the
+            # zone database, so a daylight half written first would simply be
+            # erased - and the build would still be green.
+            $daylightValue = @()
+
+            try {
+                $daylightValue = @(ConvertTo-HDTTimeZoneDaylightValue `
+                        -Id ([string] $workspace.BootImage.TimeZone))
+            } catch {
+                # WARN AND CARRY ON - never fail a build over this. dism
+                # validates the id against the IMAGE and may well accept a zone
+                # this BUILD HOST has never heard of; Get-HDTTimeZone's header
+                # explains how a workspace comes to be edited on one machine and
+                # built on another. Standard time all year is exactly what every
+                # HDT boot image did before this existed, so refusing to build
+                # would take away a working image to protect an hour.
+                $sentence = ("the daylight saving rule for '{0}' could not be read on this build host, so Windows PE will keep standard time all year and its clock will be an hour out whenever that zone is observing daylight time: {1}" -f
+                    [string] $workspace.BootImage.TimeZone, $_.Exception.Message)
+
+                Write-Warning $sentence
+                $Progress.Report(9, $stepTotal, 'Setting the Windows PE time zone', $sentence)
+            }
+
+            # A ZONE WITH NO DAYLIGHT SAVING RETURNS NOTHING, and that is a
+            # normal answer rather than a failure: UTC, India and Arizona need
+            # no daylight half, and dism's is already the whole key.
+            if ($daylightValue.Count -gt 0) {
+                $BootImageService.SetTimeZoneDaylight($mountPath, $daylightValue)
+
+                $timeZoneDaylight = $true
+            }
         }
 
         # -- 10. the boot driver group ---------------------------------------
@@ -1623,6 +1686,7 @@
         -Payload ([object[]] @($payloadRow)) -ExtraContent ([object[]] @($extraRow)) `
         -Startnet $startnet `
         -TimeZone ([string] $workspace.BootImage.TimeZone) `
+        -TimeZoneDaylight $timeZoneDaylight `
         -CredentialRecord @{
         Username            = $credentialUserName
         Embedded            = $embedCredential

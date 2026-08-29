@@ -70,6 +70,7 @@
                 'Get-HDTUsableAddress'
                 'Set-HDTStaticAddress'
                 'Get-HDTTimeZone'
+                'ConvertTo-HDTTimeZoneDaylightValue'
                 'Test-HDTComputerName'
                 'Split-HDTAccountName'
                 'Test-HDTElevation'

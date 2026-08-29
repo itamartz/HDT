@@ -11,6 +11,7 @@
 #   ExportImage(sourcePath, index, destinationPath)
 #   SetScratchSpace(mountPath, megabyte)
 #   SetTimeZone(mountPath, name)
+#   SetTimeZoneDaylight(mountPath, value)
 #   NewIso(mediaRoot, isoPath, argument)
 #
 # THE REAL ROW CALLS GetImageInfo AND NOTHING ELSE.
@@ -130,7 +131,7 @@ Describe 'IBootImageService contract: <Name>' -ForEach $script:HDTImplementation
 
             foreach ($name in @('MountImage', 'DismountImage', 'AddPackage', 'AddDriver',
                     'GetPackage', 'GetImageInfo', 'ExportImage', 'SetScratchSpace',
-                    'SetTimeZone', 'NewIso')) {
+                    'SetTimeZone', 'SetTimeZoneDaylight', 'NewIso')) {
                 $method | Should -Contain $name -Because "IBootImageService requires $name"
             }
         }

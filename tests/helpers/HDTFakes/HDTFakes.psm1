@@ -5262,6 +5262,12 @@ class HDTFakeBootImageService {
         $this.AssertMounted($MountPath)
     }
 
+    [void] SetTimeZoneDaylight([string] $MountPath, [object[]] $Value) {
+        $this.Record('SetTimeZoneDaylight', @($MountPath, $Value))
+        $this.AssertNoFailure('SetTimeZoneDaylight')
+        $this.AssertMounted($MountPath)
+    }
+
     [void] NewIso([string] $MediaRoot, [string] $IsoPath, [string[]] $Argument) {
         $this.Record('NewIso', @($MediaRoot, $IsoPath, $Argument))
         $this.AssertNoFailure('NewIso')

@@ -14,7 +14,7 @@
             New-HDTFakeBootImageService in a test with no ADK, no elevation and
             nothing mounted.
 
-            TEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:
+            ELEVEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
               MountImage(imagePath, index, mountPath)
                   Mount-WindowsImage -ImagePath -Index -Path
@@ -54,11 +54,19 @@ and the difference is how "the build applied
               SetTimeZone(mountPath, name)
                   dism.exe /Image:<mount> /Set-TimeZone:"<id>". ALSO NO CMDLET,
                   and offline only - dism refuses it against /Online. It writes
-                  the whole of
-                  HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation as
-                  one consistent set and VALIDATES the id against the image
-                  first, which is why the zone is set here rather than by a
-                  command in startnet.cmd that WinPE turned out not to have.
+                  the STANDARD half of
+                  HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation and
+                  VALIDATES the id against the image first, which is why the zone
+                  is set here rather than by a command in startnet.cmd that WinPE
+                  turned out not to have.
+
+              SetTimeZoneDaylight(mountPath, value)
+                  The DAYLIGHT half, which dism does not write at all - measured
+                  by reading the key back out of a built image. Loads the mounted
+                  image's own SYSTEM hive under a scratch key, writes the values
+                  ConvertTo-HDTTimeZoneDaylightValue produced, unloads. Without
+                  it every WinPE clock runs on the standard bias all year, an
+                  hour out for every zone that observes daylight time.
 
               NewIso(mediaRoot, isoPath, argument)
                   oscdimg.exe @argument <mediaRoot> <isoPath>
@@ -71,14 +79,16 @@ and the difference is how "the build applied
             method.
 
             THIS IS AN UNTESTED ADAPTER, and deliberately so:
-            nine of its ten methods mount a WIM, write into a mounted image,
+            ten of its eleven methods mount a WIM, write into a mounted image,
             export half a gigabyte or burn an ISO, and every one of them needs
             elevation. Its contract row calls GetImageInfo and nothing else; the
             rest is proven in tests/integration/BootImage.Integration.Tests.ps1,
             which builds a real image and re-mounts it read-only to read
             startnet.cmd back out. The price of not testing it is that it must
-            stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, THREE
-            EXIT-CODE CHECKS (dism twice, oscdimg once), ONE LAZY PATH RESOLUTION AND ONE ARGUMENT
+            stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, FIVE
+            EXIT-CODE CHECKS (dism twice, oscdimg once, reg load once, and reg
+            unload once - that last one WARNS rather than throws because it sits
+            in a finally block), ONE LAZY PATH RESOLUTION AND ONE ARGUMENT
             CONSTRUCTION FROM THE BOOLEAN THE INTERFACE CARRIES, each commented
             as such. Do not add logic here.
 
@@ -101,7 +111,7 @@ and the difference is how "the build applied
             globally across services.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the ten
+            System.Management.Automation.PSCustomObject with the eleven
             IBootImageService ScriptMethods. Note that
             Get-Member -MemberType Method does NOT list a ScriptMethod - use
             -MemberType Method, ScriptMethod.
@@ -335,12 +345,23 @@ and the difference is how "the build applied
         #
         # /Set-TimeZone WRITES
         # HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation IN THE
-        # OFFLINE IMAGE - the very key whose Pacific default produced that -8 -
-        # and it writes Bias, StandardBias, DaylightBias, ActiveTimeBias,
-        # TimeZoneKeyName and the standard/daylight transition dates as one
-        # consistent set. Half of that key written by hand is worse than none of
-        # it, which is why this is not five SetValue calls through
-        # IRegistryService against a manually loaded hive.
+        # OFFLINE IMAGE - the very key whose Pacific default produced that -8.
+        #
+        # IT WRITES THE STANDARD HALF OF THAT KEY AND ONLY THAT HALF, which this
+        # comment claimed otherwise for a release and cost a second measured
+        # defect. Read back out of a built image, dism leaves:
+        #
+        #   Bias -120, StandardBias 0, TimeZoneKeyName and StandardName correct;
+        #   DaylightBias 0, DaylightName empty, StandardStart and DaylightStart
+        #   ALL ZEROS, no ActiveTimeBias at all, and DynamicDaylightTimeDisabled
+        #   left at the 1 the ADK ships.
+        #
+        # With no ActiveTimeBias the kernel falls back to Bias + StandardBias -
+        # -120 the year round, where a correct machine reads -180 between the
+        # March and October transitions. That is the hour every WinPE timestamp
+        # on the live Dell run was ahead of true UTC by, and it is not WinPE
+        # refusing to perform daylight transitions: the image was never given a
+        # rule to perform. SetTimeZoneDaylight below supplies the missing half.
         #
         # IT VALIDATES BEFORE IT WRITES. DISM checks the id against the image, so
         # a zone that does not exist there fails the BUILD, at a build host, with
@@ -365,6 +386,66 @@ and the difference is how "the build applied
 
         $this.AssertExitCode($LASTEXITCODE, 'dism.exe',
             ('dism {0} {1}' -f $imageArgument, $zoneArgument), $output)
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name SetTimeZoneDaylight -Value {
+        param([string] $MountPath, [object[]] $Value)
+
+        $this.Record('SetTimeZoneDaylight', @($MountPath, $Value))
+
+        # THE HALF dism DOES NOT WRITE. See SetTimeZone above for the measured
+        # shape of what it leaves behind. The values come from
+        # ConvertTo-HDTTimeZoneDaylightValue, which is where every decision about
+        # them lives - including the one not to emit ActiveTimeBias, so that
+        # nothing here bakes the build day's answer into an image that is booted
+        # for months. This method writes what it is handed and decides nothing.
+        #
+        # THE OFFLINE HIVE HAS TO BE LOADED TO BE WRITTEN. There is no dism verb
+        # for these values and no Dism cmdlet either, so the image's own SYSTEM
+        # hive is mounted under a scratch key, written, and unloaded again.
+        $hivePath = [System.IO.Path]::Combine($MountPath, 'Windows\System32\config\SYSTEM')
+        $scratchKey = 'HDTBootImageTimeZone'
+        $scratchPath = 'HKLM\{0}' -f $scratchKey
+
+        $loadOutput = @(& "$env:SystemRoot\System32\reg.exe" load $scratchPath $hivePath 2>&1)
+
+        # EXIT-CODE CHECK, not a decision.
+        $this.AssertExitCode($LASTEXITCODE, 'reg.exe',
+            ('reg load {0} {1}' -f $scratchPath, $hivePath), $loadOutput)
+
+        try {
+            # ControlSet001 BY NAME, AND THAT IS CORRECT HERE RATHER THAN LAZY.
+            # An offline hive has no CurrentControlSet - that link is made at
+            # boot - and a WinPE image has exactly ONE control set: the ADK's
+            # winpe.wim SYSTEM hive carries ControlSet001, DriverDatabase,
+            # Keyboard Layout, RNG, Select, Setup, Software and WPA, and nothing
+            # else. Resolving Select\Current would be a branch that can only ever
+            # answer 1.
+            $keyPath = 'HKLM:\{0}\ControlSet001\Control\TimeZoneInformation' -f $scratchKey
+
+            foreach ($item in @($Value)) {
+                Set-ItemProperty -LiteralPath $keyPath -Name ([string] $item.Name) `
+                    -Value $item.Data -Type ([string] $item.Kind)
+            }
+        } finally {
+            # THE UNLOAD FAILS WITHOUT THIS, AND IT WAS MEASURED FAILING.
+            # PowerShell's registry provider keeps a handle open on every key it
+            # has touched, so reg unload answers "Access is denied" and the hive
+            # stays loaded - after which the image cannot be dismounted and the
+            # build fails somewhere that says nothing about a registry.
+            [gc]::Collect()
+            [gc]::WaitForPendingFinalizers()
+
+            $unloadOutput = @(& "$env:SystemRoot\System32\reg.exe" unload $scratchPath 2>&1)
+
+            # EXIT-CODE CHECK, not a decision - and it warns rather than throws
+            # because this is a finally block: a hive that would not unload must
+            # not replace the real failure that brought us here.
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning ("reg unload of '{0}' exited {1}, so the image's SYSTEM hive is still loaded and the dismount will fail: {2}" -f
+                    $scratchPath, $LASTEXITCODE, (@($unloadOutput) -join ' '))
+            }
+        }
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name NewIso -Value {

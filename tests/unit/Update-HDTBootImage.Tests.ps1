@@ -1291,6 +1291,129 @@ Describe 'Update-HDTBootImage' {
             @($manifest.PSObject.Properties.Name) | Should -Contain 'timeZone'
             [string] $manifest.timeZone | Should -BeExactly ''
         }
+
+        # AND THE DAYLIGHT HALF, WHICH dism DOES NOT WRITE AT ALL.
+        #
+        # Setting the zone took the live Dell run from eleven hours out to ONE,
+        # and the remaining hour was not WinPE refusing to observe daylight
+        # time - it was an image that had never been given a daylight rule.
+        # Read back out of the built WIM's own SYSTEM hive, dism leaves
+        # DaylightBias 0, DaylightName empty, StandardStart and DaylightStart all
+        # zeros, no ActiveTimeBias, and DynamicDaylightTimeDisabled at the 1 the
+        # ADK ships. The kernel then falls back to Bias + StandardBias, which is
+        # standard time in July.
+        #
+        # ConvertTo-HDTTimeZoneDaylightValue decides every value; this step just
+        # has to write them, in the right order, and not stop a build that can
+        # live without them.
+        It 'writes the daylight half of the key dism leaves empty' {
+            $call = @($script:zoneContext.Boot.Operations |
+                    Where-Object { $_.Operation -eq 'SetTimeZoneDaylight' })
+
+            $call.Count | Should -Be 1
+            [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
+
+            $name = @(@($call[0].Arguments[1]) | ForEach-Object { $_.Name })
+            $name | Should -Contain 'DaylightBias'
+            $name | Should -Contain 'DaylightStart'
+            $name | Should -Contain 'StandardStart'
+            $name | Should -Contain 'DynamicDaylightTimeDisabled'
+        }
+
+        It 'writes a daylight bias of one hour for Israel Standard Time' {
+            # Israel has observed one hour of daylight time for decades, so this
+            # is stable across build hosts. -120 standard plus -60 is the -180
+            # a correct machine reports, and the hour the Dell run was out by.
+            $call = @($script:zoneContext.Boot.Operations |
+                    Where-Object { $_.Operation -eq 'SetTimeZoneDaylight' })
+
+            $bias = @(@($call[0].Arguments[1]) | Where-Object { $_.Name -eq 'DaylightBias' })
+
+            $bias[0].Data | Should -Be -60
+        }
+
+        It 'writes the daylight half after dism has written the standard half' {
+            # ORDER IS LOAD-BEARING. dism rewrites the whole key from the zone
+            # database, so a daylight half written first would be erased by the
+            # standard half that followed it - and the build would still be
+            # green, which is exactly how this defect survived a release.
+            $name = @($script:zoneContext.Boot.GetOperationName())
+
+            [array]::IndexOf($name, 'SetTimeZoneDaylight') |
+                Should -BeGreaterThan ([array]::IndexOf($name, 'SetTimeZone'))
+        }
+
+        It 'writes the daylight half while the image is still mounted' {
+            $name = @($script:zoneContext.Boot.GetOperationName())
+
+            [array]::IndexOf($name, 'SetTimeZoneDaylight') |
+                Should -BeLessThan ([array]::IndexOf($name, 'DismountImage'))
+        }
+
+        It 'writes no daylight half when the workspace names no zone' {
+            @($script:noZoneContext.Boot.GetOperationName()) |
+                Should -Not -Contain 'SetTimeZoneDaylight'
+        }
+
+        It 'records that the daylight rule reached the image' {
+            $manifest = $script:zoneContext.FileSystem.ReadAllText($script:manifestPath) | ConvertFrom-Json
+
+            [bool] $manifest.timeZoneDaylight | Should -BeTrue
+        }
+
+        It 'records no daylight rule when the workspace names no zone' {
+            $manifest = $script:noZoneContext.FileSystem.ReadAllText($script:manifestPath) | ConvertFrom-Json
+
+            @($manifest.PSObject.Properties.Name) | Should -Contain 'timeZoneDaylight'
+            [bool] $manifest.timeZoneDaylight | Should -BeFalse
+        }
+    }
+
+    # A ZONE THIS BUILD HOST HAS NEVER HEARD OF.
+    #
+    # Get-HDTTimeZone's header already says why this happens: a workspace is
+    # edited on one machine and built on another, and Windows adds time zones.
+    # dism validates the id against the IMAGE and may well accept it; the
+    # daylight rule is read from the HOST, which may not have it.
+    #
+    # THAT MUST NOT FAIL THE BUILD. The image still gets its zone, and standard
+    # time all year is exactly the behaviour every HDT boot image had before this
+    # existed - so refusing to build would take away a working image to protect
+    # an hour.
+    Context 'a time zone the build host cannot resolve' {
+
+        BeforeAll {
+            $script:unknownZoneYaml = $script:workspaceYaml -replace '  scratchSpaceMB: 512',
+            "  scratchSpaceMB: 512`n  timeZone: Hephaestus Standard Time"
+
+            $script:unknownZoneContext = New-HDTBootImageTestContext -WorkspaceYaml $script:unknownZoneYaml
+            $script:unknownZoneResult = Invoke-HDTBootImageTestBuild -Context $script:unknownZoneContext
+        }
+
+        It 'still sets the zone dism accepted' {
+            @($script:unknownZoneContext.Boot.GetOperationName()) | Should -Contain 'SetTimeZone'
+        }
+
+        It 'writes no daylight half it could not read' {
+            @($script:unknownZoneContext.Boot.GetOperationName()) |
+                Should -Not -Contain 'SetTimeZoneDaylight'
+        }
+
+        It 'says in the build log that the image keeps standard time all year' {
+            # A build that quietly skipped this would be a build whose clock is
+            # an hour out for half the year with nothing anywhere saying why.
+            $log = $script:unknownZoneContext.FileSystem.ReadAllText(
+                $script:workspaceRoot + '\Boot\HDTPE_x64.build.log')
+
+            $log | Should -Match 'Hephaestus Standard Time'
+            $log | Should -Match 'standard time all year'
+        }
+
+        It 'records that no daylight rule reached the image' {
+            $manifest = $script:unknownZoneContext.FileSystem.ReadAllText($script:manifestPath) | ConvertFrom-Json
+
+            [bool] $manifest.timeZoneDaylight | Should -BeFalse
+        }
     }
 
     Context 'the two artifacts' {
