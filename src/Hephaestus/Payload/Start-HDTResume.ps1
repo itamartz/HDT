@@ -1,4 +1,4 @@
-﻿<#
+<#
     .SYNOPSIS
         The RunOnce payload: reconcile the boot, then resume the task sequence.
 
@@ -256,6 +256,14 @@ Write-HDTLog -Context $bootLog -Component 'Resume' `
 # $run whichever way this goes - a catch that left them undefined would replace
 # the failure with a different one.
 $log = $null
+
+# AND $failLog IS ONE OF THEM, which it was not. It was assigned only inside the
+# catch below, so on the path where the sequence SUCCEEDS it was never set - and
+# the summary, the finish action and every line of the cleanup write through it.
+# A deployed Latitude clicked Finish, this threw, and the cleanup died on its
+# first statement with C:\HDT and the share credential still on the disk.
+$failLog = $bootLog
+
 $run = $null
 $variable = $null
 $logDestination = ''
@@ -446,6 +454,10 @@ try {
     # reissue it.
     $log = New-HDTLogContext -RunId ([string] $state.runId) -Phase FullOS -LogPath $logRoot `
         -FileSystem $fileSystem -Clock $clock -Seq ([long] $bootLog.Seq)
+
+    # AND THE TAIL WRITES THROUGH THE RUN'S CONTEXT FROM HERE ON, so a summary
+    # or a cleanup line lands in the run's log rather than the boot log.
+    $failLog = $log
 
     # THE BAG FIRST, BECAUSE THE BOARD IS DECIDED FROM IT. HDTSkipProgress
     # lives here, and Start-HDTProgressDisplay reads it to answer whether there

@@ -1,4 +1,4 @@
-﻿# src/Hephaestus/Payload/Start-HDTResume.ps1 - the RunOnce payload.
+# src/Hephaestus/Payload/Start-HDTResume.ps1 - the RunOnce payload.
 #
 # Not a module file: the loader only dot-sources Private\ and Public\, so this is
 # staged to C:\HDT\ and launched by the RunOnce entry Set-HDTAutoLogon writes.
@@ -880,6 +880,84 @@ Describe 'Start-HDTResume.ps1 and the cleanup at the end of a deployment' {
             # Two things issuing a restart is a machine that goes down while
             # C:\HDT is half deleted.
             $script:codeOnly | Should -BeLike '*RemovalStarted*'
+        }
+    }
+
+    Context 'the log context every tail statement writes through' {
+
+        # $failLog WAS ASSIGNED ONLY INSIDE A catch, AND EVERY SUCCESS-PATH USE
+        # OF IT WAS A TERMINATING ERROR.
+        #
+        # The payload runs under Set-StrictMode -Version Latest, where reading an
+        # unset variable throws. $failLog was set in the handler of the try that
+        # runs the task sequence - so on the path where the sequence SUCCEEDS it
+        # was never set at all, and the summary, the finish action and the whole
+        # cleanup block all write through it.
+        #
+        # ON A REAL DEPLOYED LATITUDE: the technician clicked Finish, line 666
+        # threw "The variable '$failLog' cannot be retrieved because it has not
+        # been set", the catch reported it as "the deployment summary could not
+        # be shown", and then the cleanup died on its first statement - whose own
+        # catch referenced $failLog too, so the second throw was uncaught. C:\HDT
+        # survived with the share credential and the Administrator password in
+        # it, which is the exact defect the release had just claimed to fix.
+        #
+        # AGAINST THE SET, not against $failLog. Any variable this file writes a
+        # log through has the same requirement, and naming one of them would pass
+        # for it and fail nobody after it.
+
+        It 'assigns every -Context variable somewhere other than a catch block' {
+            $writes = @(& $script:commandNamed 'Write-HDTLog')
+
+            $name = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            foreach ($call in $writes) {
+                $element = @($call.CommandElements)
+
+                for ($i = 0; $i -lt ($element.Count - 1); $i++) {
+                    if ([string] $element[$i].Extent.Text -ne '-Context') { continue }
+
+                    $value = $element[$i + 1]
+                    if ($value -is [System.Management.Automation.Language.VariableExpressionAst]) {
+                        [void] $name.Add([string] $value.VariablePath.UserPath)
+                    }
+                }
+            }
+
+            $name.Count | Should -BeGreaterThan 0
+
+            $assignment = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.AssignmentStatementAst]
+                    }, $true))
+
+            $offender = @()
+
+            foreach ($candidate in $name) {
+                $mine = @($assignment | Where-Object {
+                        $_.Left -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                        [string] $_.Left.VariablePath.UserPath -eq [string] $candidate
+                    })
+
+                $outside = @($mine | Where-Object {
+                        $parent = $_.Parent
+                        $inCatch = $false
+
+                        while ($null -ne $parent) {
+                            if ($parent -is [System.Management.Automation.Language.CatchClauseAst]) {
+                                $inCatch = $true
+                                break
+                            }
+                            $parent = $parent.Parent
+                        }
+
+                        -not $inCatch
+                    })
+
+                if ($outside.Count -eq 0) { $offender += [string] $candidate }
+            }
+
+            ($offender -join ', ') | Should -BeExactly ''
         }
     }
 }
