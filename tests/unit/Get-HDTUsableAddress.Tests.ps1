@@ -102,4 +102,48 @@ Describe 'Get-HDTUsableAddress' {
             Get-HDTUsableAddress -Fact @{ HDTIPAddress = $null } | Should -BeNullOrEmpty
         }
     }
+
+    Context 'against what Get-HDTMachineFact really produces' {
+
+        # A HAND-WRITTEN HASHTABLE IS NOT THE FACT TABLE. Every assertion above
+        # states a shape this command should accept; this one gathers the fact
+        # through the real command from a captured multi-homed machine - nine IP
+        # enabled adapters, twenty-seven addresses - and asks the same question.
+        # The incident was a reader and a producer disagreeing about a type, and
+        # only running both can catch that.
+
+        BeforeAll {
+            $script:cimFixturePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/cim'
+            $script:tpmFixturePath = Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/cim-microsofttpm'
+
+            Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+
+            $instance = @{}
+            foreach ($file in @(Get-ChildItem -LiteralPath $script:cimFixturePath -Filter '*.json' -File)) {
+                $instance[$file.BaseName] = [object[]] @(Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json)
+            }
+
+            $cim = New-HDTFakeCimProvider -Instance $instance `
+                -NamespaceFixturePath @{ 'root/cimv2/security/microsofttpm' = $script:tpmFixturePath }
+
+            $script:gathered = Get-HDTMachineFact -CimProvider $cim `
+                -RegistryService (New-HDTFakeRegistryService) `
+                -EnvironmentProvider (New-HDTFakeEnvironmentProvider)
+        }
+
+        It 'is reading a machine with more than one address' {
+            @($script:gathered['HDTIPAddress']).Count | Should -BeGreaterThan 1
+        }
+
+        It 'finds the first IPv4 address of a multi-homed machine' {
+            $expected = @(@($script:gathered['HDTIPAddress']) |
+                    Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' -and -not $_.StartsWith('169.254.') })[0]
+
+            Get-HDTUsableAddress -Fact $script:gathered | Should -BeExactly $expected
+        }
+
+        It 'skips the IPv6 addresses interleaved between them' {
+            Get-HDTUsableAddress -Fact $script:gathered | Should -Not -Match ':'
+        }
+    }
 }
