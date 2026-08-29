@@ -252,6 +252,10 @@
         $startDown = $window.FindName('HDTStartCommandDownButton')
 
         $commandText = $window.FindName('HDTBootImageCommandText')
+
+        # THE ONE LINE THAT SAYS THE IMAGE HAS GONE STALE. See the block that
+        # raises it, below $book, and the markup it lives in.
+        $rebuildText = $window.FindName('HDTBootImageRebuildText')
         $perDriverCheck = $window.FindName('HDTBootImagePerDriverCheck')
         $update = $window.FindName('HDTBootImageUpdateButton')
         $save = $window.FindName('HDTBootImageSaveButton')
@@ -306,6 +310,59 @@
             SelectionProfile = [object[]] @($SelectionProfile)
         }
 
+        # -- the boot image this window has left behind -----------------------
+        #
+        # SAVE WRITES A DOCUMENT AND MOUNTS NOTHING. Nearly every field on this
+        # window is read by Update-HDTBootImage and baked into the .wim, so
+        # changing one and pressing Save leaves the share holding an image that
+        # still carries the old value - and the window said so for none of them.
+        # Somebody picked a time zone, saved, read a success footer, and
+        # deployed a machine that came up in the old zone.
+        #
+        # STICKY, AND CLEARED ONLY BY A BUILD THAT SUCCEEDED. This is the part
+        # that is easy to get wrong: hanging it off $book.Dirty would clear it
+        # on Save, which is EXACTLY the moment the document and the image start
+        # to disagree. Pending goes down in one place, after
+        # Show-HDTBuildProgressWindow returns true.
+        #
+        # WHICH ALSO MEANS IT DOES NOT COME BACK DOWN ON AN UNDO. A field typed
+        # to something else and typed back is left raised, because this window
+        # has no record of what the last build actually baked - only of what it
+        # was handed when it opened. Over-reporting a rebuild costs three
+        # minutes; under-reporting one costs a deployment nobody is watching.
+        $rebuild = [pscustomobject] @{
+            Pending = $false
+
+            # PUTTING A VALUE IN A BOX IS NOT AN EDIT, and telling the two apart
+            # is the whole of what this flag does. $fillBoxes reassigns every
+            # control on the General and Drivers tabs - on the way up, after
+            # Save, after a build, and after the profile window closes - and a
+            # ComboBox handed a fresh ItemsSource raises SelectionChanged with
+            # nothing selected on the way past. Every one of those would read as
+            # somebody changing the architecture.
+            Filling = $false
+        }
+
+        $noteRebuild = {
+            if ($rebuild.Filling) { return }
+
+            $rebuild.Pending = $true
+            $rebuildText.Visibility = [System.Windows.Visibility]::Visible
+        }.GetNewClosure()
+
+        # THE DOCUMENT AND THE IMAGE, MARKED TOGETHER. Every list on this window
+        # - components, certificates, extra content, start commands - splices
+        # workspace.yaml as its button is pressed, and every one of those lists
+        # is baked into the .wim. So the two flags are raised by one closure
+        # rather than by nine pairs of lines, and a tenth handler cannot edit
+        # the document while leaving the footer silent.
+        # tests/contract/ConsoleBootImageField.Contract.Tests.ps1 asserts that
+        # $book.Dirty is set true in exactly one place.
+        $markDirty = {
+            $book.Dirty = $true
+            & $noteRebuild
+        }.GetNewClosure()
+
         # THE QUERY, AND ONLY ASSIGNMENT AFTER IT. Every value put on a control
         # below came out of Get-HDTConsoleBootImageSetting; this computes none of them.
         $ask = {
@@ -351,6 +408,14 @@
 
 
         $fillBoxes = {
+            # FILLING, NOT EDITING - see $rebuild.Filling. try/finally rather
+            # than two assignments, because a view model that throws halfway
+            # would otherwise leave the window unable to notice an edit for as
+            # long as it is open.
+            $rebuild.Filling = $true
+
+            try {
+
             $view = & $ask
 
             $titleText.Text = [string] $view.Title
@@ -399,6 +464,9 @@
             # SelectedValue means nothing until an item carries that value. This
             # one's items are in the markup, so they always do.
 
+            } finally {
+                $rebuild.Filling = $false
+            }
         }.GetNewClosure()
 
         # THE TWO LISTS THAT MAY BE REBUILT. Neither carries a control that
@@ -498,7 +566,7 @@
                 }
 
                 $book.Line = @(Add-HDTBootImageComponent -Line $book.Line -Name ([string] $row.Name) -Confirm:$false)
-                $book.Dirty = $true
+                & $markDirty
                 $commandText.Text = [string] $row.AddCommand
 
                 $componentSize.Text = [string] (& $ask).SelectedSizeText
@@ -522,7 +590,7 @@
                 }
 
                 $book.Line = @(Remove-HDTBootImageComponent -Line $book.Line -Name ([string] $row.Name) -Confirm:$false)
-                $book.Dirty = $true
+                & $markDirty
                 $commandText.Text = [string] $row.RemoveCommand
 
                 $componentSize.Text = [string] (& $ask).SelectedSizeText
@@ -537,7 +605,7 @@
                 $book.Line = @(Add-HDTBootImageContent -Line $book.Line `
                         -Source ([string] $contentSource.Text) `
                         -Destination ([string] $contentDestination.Text) -Confirm:$false)
-                $book.Dirty = $true
+                & $markDirty
 
                 $commandText.Text = $book.View.AddContentCommandFormat -f
                     [string] $contentSource.Text, [string] $contentDestination.Text
@@ -554,7 +622,7 @@
 
                 $book.Line = @(Remove-HDTBootImageContent -Line $book.Line `
                         -Destination ([string] $row.Destination) -Confirm:$false)
-                $book.Dirty = $true
+                & $markDirty
                 $commandText.Text = [string] $row.RemoveCommand
 
                 & $fillLists
@@ -577,7 +645,7 @@
                 }
 
                 $book.Line = @(Add-HDTBootImageStartCommand @startSplat)
-                $book.Dirty = $true
+                & $markDirty
                 $commandText.Text = $format -f [string] $startBox.Text
 
                 $startBox.Text = ''
@@ -608,7 +676,7 @@
 
             $book.Line = @(Move-HDTBootImageStartCommand -Line $book.Line `
                     -Command $moved -Direction $Direction -Confirm:$false)
-            $book.Dirty = $true
+            & $markDirty
             $commandText.Text = "Move-HDTBootImageStartCommand -Line `$line -Command '{0}' -Direction {1}" -f
                 $moved, $Direction
 
@@ -626,7 +694,7 @@
 
                 $book.Line = @(Remove-HDTBootImageStartCommand -Line $book.Line `
                         -Command ([string] $row.Text) -Confirm:$false)
-                $book.Dirty = $true
+                & $markDirty
                 $commandText.Text = [string] $row.RemoveCommand
 
                 & $fillLists
@@ -661,7 +729,7 @@
 
                 try {
                     $book.Line = @(Add-HDTBootImageCertificate -Line $book.Line -Path $typed -Confirm:$false)
-                    $book.Dirty = $true
+                    & $markDirty
                     $commandText.Text = $book.View.AddCertificateCommandFormat -f $typed
                     $certificateBox.Text = ''
 
@@ -684,7 +752,7 @@
 
                 $book.Line = @(Remove-HDTBootImageCertificate -Line $book.Line `
                         -Path ([string] $row.Path) -Confirm:$false)
-                $book.Dirty = $true
+                & $markDirty
                 $commandText.Text = [string] $row.RemoveCommand
 
                 & $fillLists
@@ -745,6 +813,13 @@
                         -Password $entry.SecurePassword -Confirm:$false
 
                     $commandText.Text = $book.View.ClientCertificate.PasswordCommandFormat -f $root
+
+                    # NOT $markDirty - THIS ONE DOES NOT TOUCH workspace.yaml.
+                    # It is written straight to Control\certificate-password.json,
+                    # which is why there is nothing for Save to do about it. The
+                    # BUILD still reads it there and carries an obfuscated copy
+                    # into the image, so the image is stale all the same.
+                    & $noteRebuild
                 } catch {
                     $commandText.Text = [string] $_.Exception.Message
                 }
@@ -850,7 +925,7 @@
 
                     try {
                         $book.Line = @(Add-HDTBootImageCertificate -Line $book.Line -Path $named -Confirm:$false)
-                        $book.Dirty = $true
+                        & $markDirty
                         [void] $ran.Add($book.View.AddCertificateCommandFormat -f $named)
                     } catch {
                         [void] $ran.Add([string] $_.Exception.Message)
@@ -949,7 +1024,8 @@
             # Save handler below therefore captured $null, saved the document
             # and then threw "The property 'Text' cannot be found on this
             # object" on the way out.
-            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap, $Command, $Tab)
+            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap, $Command, $Tab,
+                $NeedsRebuild, $NoteRebuild)
 
             # ONE STATE OBJECT PER INVOCATION, AND THAT IS WHY IT IS DECLARED
             # HERE. This block is invoked twice; a flag held in the function
@@ -1053,6 +1129,18 @@
 
                     & $mark
                     & $judge
+
+                    # AND ONE OF THESE TWO FILES IS BAKED INTO THE IMAGE.
+                    # rules.yaml is read off the share when a machine deploys,
+                    # so editing it needs no build and a notice here would be a
+                    # lie. bootstrap-rules.yaml is COPIED INTO THE WIM, because
+                    # WinPE has to read it before it knows which share to reach
+                    # - so an edit to it that is saved and not built leaves
+                    # every machine going wherever the old copy says. Which of
+                    # the two this tab is comes from
+                    # Get-HDTConsoleBootImageField, not from a flag decided
+                    # here.
+                    if ($NeedsRebuild -and $state.Dirty) { & $NoteRebuild }
                 }.GetNewClosure())
 
             $Reload.Add_Click({
@@ -1089,12 +1177,23 @@
             return [pscustomobject] @{ Fill = $fill; Judge = $judge; State = $state; Path = $RulePath }
         }
 
+        # WHICH CONTROLS ARE BAKED INTO THE .wim, ASKED RATHER THAN LISTED. The
+        # table is Get-HDTConsoleBootImageField and the contract test sweeps it
+        # against the controls this window actually has, so a field added later
+        # has to be classified before it can ship.
+        $fieldEffect = @{}
+        foreach ($one in @(& $call 'Get-HDTConsoleBootImageField')) {
+            $fieldEffect[[string] $one.Name] = [string] $one.Effect
+        }
+
         $rulesTab = & $wireRuleTab $rulesBox $rulesSummaryText $rulesProblemText `
-            $rulesSaveButton $rulesReloadButton $rulesPath $false $commandText $rulesTabItem
+            $rulesSaveButton $rulesReloadButton $rulesPath $false $commandText $rulesTabItem `
+            ($fieldEffect['HDTRulesBox'] -eq 'Rebuild') $noteRebuild
 
         $bootstrapRulesTab = & $wireRuleTab $bootstrapRulesBox $bootstrapRulesSummaryText `
             $bootstrapRulesProblemText $bootstrapRulesSaveButton $bootstrapRulesReloadButton `
-            $bootstrapRulesPath $true $commandText $bootstrapTabItem
+            $bootstrapRulesPath $true $commandText $bootstrapTabItem `
+            ($fieldEffect['HDTBootstrapRulesBox'] -eq 'Rebuild') $noteRebuild
 
         # FILLED NOW, not with the boxes three hundred lines above: these
         # scriptblocks are made here, and one called before it is assigned is
@@ -1103,6 +1202,69 @@
         & $rulesTab.Judge
         & $bootstrapRulesTab.Fill
         & $bootstrapRulesTab.Judge
+
+        # -- every other baked control, watched off the same table -------------
+        #
+        # THE BOXES ON GENERAL AND DRIVERS ARE READ AT Save AND NOWHERE ELSE, so
+        # nothing on this window ever noticed them changing. That was fine while
+        # Save was the only thing that mattered; it is not fine now, because
+        # Save is exactly what does NOT rebuild the image.
+        #
+        # DRIVEN OFF Get-HDTConsoleBootImageField, NOT OFF A LIST HERE. A field
+        # added to the markup and to that table is watched the day it is added;
+        # a field added to the markup alone fails the contract test rather than
+        # shipping a box that quietly does nothing.
+        #
+        # THE LISTS ARE NOT HERE and do not need to be: a component, a
+        # certificate, a line of extra content and a start command all splice
+        # the document through $markDirty, which raises this already. These are
+        # the controls with no button of their own.
+        #
+        # THE TWO RULE BOXES ARE NOT HERE EITHER. They carry their own dirty
+        # state, their own Save and their own Reload - which reassigns .Text -
+        # so they are wired inside $wireRuleTab, where that machinery lives.
+        $watchedField = @(
+            foreach ($name in @($fieldEffect.Keys)) {
+                if ($fieldEffect[[string] $name] -ne 'Rebuild') { continue }
+
+                $found = $window.FindName([string] $name)
+                if ($null -eq $found) { continue }
+                if ($found -eq $rulesBox -or $found -eq $bootstrapRulesBox) { continue }
+
+                if (-not ($found -is [System.Windows.Controls.TextBox] -or
+                        $found -is [System.Windows.Controls.ComboBox] -or
+                        $found -is [System.Windows.Controls.CheckBox])) {
+                    continue
+                }
+
+                [pscustomobject] @{ Name = [string] $name; Control = $found }
+            }
+        )
+
+        foreach ($one in $watchedField) {
+            # A CLOSURE CAPTURES A VALUE, WHICH IS WHY THIS IS SAFE IN A LOOP.
+            # $watched is copied into each handler's own scope as it is made, so
+            # the last control does not end up owning all of them.
+            $watched = $one
+
+            $noticeChange = { & $noteRebuild }.GetNewClosure()
+
+            if ($watched.Control -is [System.Windows.Controls.TextBox]) {
+                $watched.Control.Add_TextChanged($noticeChange)
+                continue
+            }
+
+            if ($watched.Control -is [System.Windows.Controls.ComboBox]) {
+                $watched.Control.Add_SelectionChanged($noticeChange)
+                continue
+            }
+
+            # A TICK BOX HAS TWO EVENTS AND BOTH ARE A CHANGE. Unticking the boot
+            # prompt rebuilds the ISO with the other boot sector just as ticking
+            # it does.
+            $watched.Control.Add_Checked($noticeChange)
+            $watched.Control.Add_Unchecked($noticeChange)
+        }
 
         # -- every document this window can write, in one list ----------------
         #
@@ -1233,7 +1395,7 @@
                     $commandText.Text = "{0} -PerDriver" -f $commandText.Text
                 }
 
-                [void] (Show-HDTBuildProgressWindow -WorkspaceRoot $root -ConsoleHost $imageHost `
+                $built = [bool] (Show-HDTBuildProgressWindow -WorkspaceRoot $root -ConsoleHost $imageHost `
                         -Screen (New-HDTConsoleScreen) -PerDriver:$perDriver)
 
                 # The build wrote a manifest and possibly a warning; what this
@@ -1241,6 +1403,20 @@
                 # touch. Re-asking costs nothing and keeps the two honest.
                 & $fillBoxes
                 & $fillLists
+
+                # THE ONE PLACE THE NOTICE GOES DOWN, and only for a build that
+                # SUCCEEDED. A failed build leaves the old .wim on the share, so
+                # clearing it on the way out of a failure would say the image
+                # had caught up at the exact moment it had not.
+                #
+                # AFTER THE REFILL, not before: $fillBoxes reassigns every
+                # watched control, and $rebuild.Filling covers that - but doing
+                # it in this order means nothing has to be true about the guard
+                # for this line to be right.
+                if ($built) {
+                    $rebuild.Pending = $false
+                    $rebuildText.Visibility = [System.Windows.Visibility]::Collapsed
+                }
             }.GetNewClosure())
 
         $close.Add_Click({

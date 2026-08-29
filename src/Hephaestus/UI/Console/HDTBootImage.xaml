@@ -1320,6 +1320,46 @@
  MinWidth="150"
  />
 
+                <!--
+                    THE IMAGE AND THE DOCUMENT CAN DISAGREE, AND NOTHING SAID SO.
+                    Nearly every field on this window is read by
+                    Update-HDTBootImage and baked into the .wim - the name, the
+                    architecture, the language, the scratch space, the boot
+                    prompt, the answer file, the background, the time zone, the
+                    certificates, the components, the drivers, the extra
+                    content, the start commands, and bootstrap-rules.yaml.
+                    Save writes workspace.yaml and mounts nothing, so the image
+                    on the share goes on carrying whatever it was built with.
+                    Somebody picked a time zone, saved, read a success footer,
+                    and deployed a machine that came up in the old one.
+
+                    ONCE, IN THE FOOTER, RATHER THAN UNDER EACH FIELD. There are
+                    sixteen of them and they would all say the same sentence;
+                    sixteen copies of one sentence is wallpaper, and the remedy
+                    is a single button - which is why this sits beside it.
+
+                    ON CHANGE, NOT ALWAYS. A label permanently announcing that
+                    this window needs a rebuild is one nobody reads by the
+                    second week. It is Collapsed until something baked moves,
+                    and New-HDTConsoleBootImageView decides what "baked" means
+                    from Get-HDTConsoleBootImageField rather than from here.
+
+                    AND IT SURVIVES Save, which is the whole point: Save is
+                    exactly the moment the share and the image start to
+                    disagree. Only a build that succeeded takes it down.
+
+                    THE COMMAND BLUE, NOT THE ERROR RED. Nothing is wrong - a
+                    document ahead of its image is the normal state of a window
+                    being edited. It is the same brush HDTRulesProblemText uses
+                    for "worth your notice, not a failure".
+                -->
+                <TextBlock Grid.Column="1" x:Name="HDTBootImageRebuildText"
+                           Visibility="Collapsed"
+                           Margin="16,0,16,0" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="12"
+                           Foreground="{DynamicResource HDTCommandTextBrush}" />
+
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button x:Name="HDTBootImageSaveButton" MinWidth="96" />
                     <Button x:Name="HDTBootImageCloseButton" MinWidth="96" Margin="0" />

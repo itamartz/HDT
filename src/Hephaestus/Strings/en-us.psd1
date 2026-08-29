@@ -377,6 +377,7 @@
         'HDTStartCommandDownButton.ToolTip' = 'Run this one place later'
         'HDTStartCommandAddButton.Content' = 'Add'
         'HDTStartCommandRemoveButton.Content' = 'Remove'
+        'HDTBootImageRebuildText.Text' = 'Settings changed. The boot image carries the old ones until Update Boot Image runs.'
         'HDTBootImageUpdateButton.Content' = 'Update Boot Image'
         'HDTBootImageUpdateButton.ToolTip' = 'Rebuilds the .wim and the .iso from what is saved. Minutes.'
         'HDTBootImageSaveButton.Content' = 'Save'
