@@ -1109,6 +1109,70 @@ Describe 'Invoke-HDTApplyUnattendStep applies the document offline' {
         [string] $applied[0].Arguments[0] | Should -BeExactly 'W:\'
     }
 
+    It 'beats a heartbeat while dism says nothing at all' {
+        # THE DEFECT THE METER ABOVE DID NOT CLOSE, AND THE RUN THAT PROVED IT.
+        # LT-D5M1NN3 run-20260829-223623 was deployed from a boot image built
+        # AFTER the meter was wired to this step. Step 7 emitted step.start at
+        # seq 189 and its next record 153 seconds later. In that same run
+        # ApplyImage emitted TWENTY step.progress records - so the wiring works
+        # and the callback resolves; dism.exe simply prints no percentage for
+        # /Apply-Unattend. A scraper cannot fix a tool that is silent.
+        #
+        # SO THE ADAPTER POLLS, AND THE POLL IS WHAT REPORTS. UnattendTick is
+        # the fake's stand-in for the half-second slices a real polled dism
+        # would have spent saying nothing.
+        $script:clock = New-HDTFakeClock `
+            -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, [System.DateTimeKind]::Utc)) `
+            -TickMillisecond 16000
+
+        $script:image = New-HDTFakeImageService -UnattendTick 3
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $beat = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                Where-Object { $null -ne $_.data.PSObject.Properties['heartbeat'] })
+
+        @($beat).Count | Should -BeGreaterThan 0
+        [string] $beat[0].component | Should -BeExactly 'ApplyUnattend'
+    }
+
+    It 'says how long it has been running rather than inventing a percentage' {
+        # A NUMBER DERIVED FROM ELAPSED TIME WOULD BE A BAR THAT LIED, which is
+        # the one thing worse than a bar that stops. What is genuinely known
+        # here is that the pass is still running and for how long, so that is
+        # what the record says - and it carries NO percent, so it cannot drag
+        # the step bar backwards from wherever real progress left it.
+        $script:clock = New-HDTFakeClock `
+            -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, [System.DateTimeKind]::Utc)) `
+            -TickMillisecond 16000
+
+        $script:image = New-HDTFakeImageService -UnattendTick 2
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $beat = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                Where-Object { $null -ne $_.data.PSObject.Properties['heartbeat'] })
+
+        $beat[0].data.PSObject.Properties['percent'] | Should -BeNullOrEmpty
+        [int] $beat[0].data.elapsedSecond | Should -BeGreaterThan 0
+        [string] $beat[0].message | Should -BeLike '*still running after*'
+    }
+
+    It 'writes no heartbeat for a pass that returns before the first poll' {
+        # THE RATION, AND IT IS WHAT KEEPS EVERY OTHER TEST IN THIS FILE
+        # UNCHANGED. A pass with nothing to service returns in well under half a
+        # second; the adapter never ticks, so nothing is written. A heartbeat
+        # that fired regardless would put a line in the log of every deployment
+        # for a step that took no time at all.
+        $script:image = New-HDTFakeImageService
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                Where-Object { $null -ne $_.data.PSObject.Properties['heartbeat'] }) |
+            Should -BeNullOrEmpty
+    }
+
     It 'does not apply a document that declares no offlineServicing pass' {
         $script:fileSystem = New-HDTFakeFileSystem -File @{ $script:templatePath = $script:capturedUnattend }
 

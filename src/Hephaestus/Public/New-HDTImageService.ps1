@@ -24,11 +24,13 @@ function New-HDTImageService {
                   every line the tool prints handed to onOutput as it arrives.
                   That is where the percentage comes from - see the method.
 
-              ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput])
-                  dism.exe /Image: /Apply-Unattend: /ScratchDir:, with every
-                  line the tool prints handed to onOutput as it arrives - the
-                  same channel ApplyImage uses, because this pass is the other
-                  one that runs for minutes. THE ONLY
+              ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput[, onTick]])
+                  dism.exe /Image: /Apply-Unattend: /ScratchDir:, run as a
+                  POLLED PROCESS rather than a pipeline. Every line the tool
+                  prints goes to onOutput as it arrives, and onTick fires every
+                  500 ms that it prints nothing - which for this verb is nearly
+                  all of them, because dism emits no percentage meter for
+                  /Apply-Unattend at all. See the method. THE ONLY
                   THING THAT RUNS THE offlineServicing PASS, which is where the
                   answer file's driver paths live - Setup reading Panther on
                   first boot runs specialize and oobeSystem and not that one.
@@ -87,10 +89,21 @@ function New-HDTImageService {
             entries. Its contract row calls GetImageInfo and nothing else; the
             rest is proven in tests/integration (04-04) against a scratch VHDX.
             The price of not testing it is that it must stay dumb. THE ONLY
-            BRANCHES BELOW ARE AN EXISTENCE GUARD AND FIVE EXIT-CODE CHECKS,
-            each commented as such. Every decision about WHICH index to apply or
-            WHETHER a recovery partition exists lives in the steps, which are
-            tested against the fake. Do not add logic here.
+            BRANCHES BELOW ARE AN EXISTENCE GUARD, FIVE EXIT-CODE CHECKS AND
+            ApplyUnattend's POLL LOOP, each commented as such. Every decision
+            about WHICH index to apply or WHETHER a recovery partition exists
+            lives in the steps, which are tested against the fake. Do not add
+            logic here.
+
+            THE POLL LOOP IS THE ONE DELIBERATE EXCEPTION TO "BRANCH-FREE", and
+            it is the same exception New-HDTProcessService.Start already carries.
+            A loop that waits in slices is not a decision about the deployment -
+            it takes no branch on an argument, a machine or a result - and there
+            is no way to tick a callback while an external tool is silent
+            without one. Everything that IS a decision was pushed out to a pure,
+            unit-tested function: ConvertTo-HDTNativeArgument for the command
+            line, ConvertFrom-HDTDismProgressLine for what a line means, and
+            New-HDTStepHeartbeat for when a tick is worth a log record.
 
             EVERY NATIVE FAILURE CARRIES THE TOOL'S OWN OUTPUT. "bcdboot failed"
             without bcdboot's own sentence is the log entry that wastes an hour
@@ -303,44 +316,133 @@ function New-HDTImageService {
     # RAM disk, and left to itself DISM expands packages into TEMP there and
     # runs out of room. Both MDT and PSD hand it a folder on the local disk.
     #
-    # AND EVERY LINE GOES TO $OnOutput AS IT ARRIVES, exactly as ApplyImage's
-    # does. THIS PASS IS THE OTHER LONG ONE: on LT-7FJ45S2 it ran for over three
-    # minutes over 133 .inf packages, and a step that reported nothing for the
-    # whole of it left a technician looking at a screen indistinguishable from a
-    # hung machine. Measured on this host, /Cleanup-Image /ScanHealth - the same
-    # servicing stack - printed its meter from 4.9% to 100.0% across 116
-    # seconds, one repaint per pipeline object, which is what makes this worth
-    # wiring at all. What a line MEANS is still decided by
-    # ConvertFrom-HDTDismProgressLine and the step; a default parameter value is
-    # not a branch, so the adapter stays dumb (rule 1).
+    # AND IT IS RUN AS A POLLED PROCESS, NOT AS A PIPELINE. THIS IS THE ONE
+    # PLACE THE TWO DISM VERBS DIFFER, AND THE REASON IS MEASURED RATHER THAN
+    # PREFERRED.
+    #
+    # ApplyImage's meter is real: LT-D5M1NN3 run-20260829-223623 has twenty
+    # step.progress records from the apply, scraped out of the pipeline as dism
+    # printed them. THE SAME RUN HAS NONE AT ALL FROM THIS CALL, over 153
+    # seconds of genuine offlineServicing across 260 .inf packages, on a boot
+    # image built AFTER the meter was wired to it. dism.exe prints no percentage
+    # for /Apply-Unattend - a banner, then silence, then one sentence - so
+    # scraping stdout can never move anything here. MDT reached the same
+    # conclusion and hard-codes a flat 99 before the call (LTIApply.wsf:1042)
+    # rather than expecting a meter.
+    #
+    # A PIPELINE CANNOT TICK. '& dism | ForEach-Object' only runs the block when
+    # a line arrives, and the engine is Windows PowerShell 5.1 and
+    # single-threaded, so between the banner and the final sentence NOTHING in
+    # the deployment executes. That is the whole defect: not a bar that moves
+    # too slowly, but a step that cannot report at all while it is the only
+    # thing running.
+    #
+    # SO IT IS MDT'S SHAPE, WHICH IS POLL, SCRAPE AND TICK - ZTIUtility.vbs's
+    # RunCommandLog launches with WshShell.Exec, spins on oExec.Status with
+    # SafeSleep 100, scrapes the tool's percentage out of stdout, AND writes a
+    # timed heartbeat of its own (event 41003) for exactly the case where the
+    # tool says nothing (lines 2173-2261). See NOTICE.md. HDT does all three:
+    # $OnOutput still receives every line as it arrives, so a dism that DOES
+    # print a meter is still read; $OnTick fires every 500 ms that dism is
+    # silent, which is what actually moves the screen during this pass.
+    #
+    # ApplyImage KEEPS ITS PIPELINE, DELIBERATELY. Its meter works, on real
+    # hardware, and it is that meter's arrival that already proves the step is
+    # alive. Converting it would put the one number a technician watches at risk
+    # of a redirection or encoding regression to buy liveness it already has.
+    #
+    # THE BRANCHES BELOW ARE THE POLL LOOP AND NOTHING ELSE, and they are the
+    # same loop New-HDTProcessService.Start already carries for the same reason.
+    # Everything that could be a decision is not here: the command line's
+    # quoting is ConvertTo-HDTNativeArgument, what a line MEANS is
+    # ConvertFrom-HDTDismProgressLine, and when a tick is worth a log record is
+    # New-HDTStepHeartbeat. All three are pure and unit tested.
     $service | Add-Member -MemberType ScriptMethod -Name ApplyUnattend -Value {
-        param([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath, [scriptblock] $OnOutput = {})
+        param([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath,
+            [scriptblock] $OnOutput = {}, [scriptblock] $OnTick = {})
 
         $this.Record('ApplyUnattend', @($ImagePath, $UnattendPath, $ScratchPath))
 
-        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
-        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
-        # Stop that engine code sets makes the FIRST one terminating - so a tool
-        # that merely printed a progress meter kills the call before its exit code
-        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
-        # first integration run under powershell.exe (SPIKES S13.5). Local to this
-        # method scope, so nothing outside it changes. No branch: rule 1 holds.
-        $ErrorActionPreference = 'Continue'
-
         $null = [System.IO.Directory]::CreateDirectory($ScratchPath)
 
-        $commandLine = 'dism /Image:{0} /Apply-Unattend:{1} /ScratchDir:{2}' -f $ImagePath, $UnattendPath, $ScratchPath
+        # MDT'S ARGUMENT SHAPE, UNCHANGED (LTIApply.wsf:1043). What changed is
+        # only how the process is started, and the quoting rule keeps the
+        # command line byte-identical for the paths this actually passes: none
+        # of 'W:\', the Panther path or the scratch path contains a space, so
+        # every one of them goes on bare.
+        $argument = @(
+            ('/Image:{0}' -f $ImagePath),
+            ('/Apply-Unattend:{0}' -f $UnattendPath),
+            ('/ScratchDir:{0}' -f $ScratchPath)
+        )
 
-        $output = @(& "$env:SystemRoot\System32\dism.exe" "/Image:$ImagePath" `
-                "/Apply-Unattend:$UnattendPath" "/ScratchDir:$ScratchPath" 2>&1 |
-                ForEach-Object {
-                    $line = [string] $_
-                    $null = $OnOutput.Invoke($line)
-                    $line
-                })
+        $argumentLine = (@($argument | ForEach-Object { ConvertTo-HDTNativeArgument -Argument $_ }) -join ' ')
+        $commandLine = 'dism {0}' -f $argumentLine
 
-        # Exit-code check, with dism's own sentence attached.
-        $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)
+        $startInfo = New-Object -TypeName System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = "$env:SystemRoot\System32\dism.exe"
+        $startInfo.Arguments = $argumentLine
+        $startInfo.UseShellExecute = $false
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $startInfo.CreateNoWindow = $true
+
+        $process = New-Object -TypeName System.Diagnostics.Process
+        $process.StartInfo = $startInfo
+
+        $output = New-Object -TypeName System.Collections.ArrayList
+
+        try {
+            [void] $process.Start()
+
+            # STDERR IS DRAINED ASYNCHRONOUSLY, and it is not tidiness: reading
+            # stdout to its end while the child fills the stderr pipe buffer is
+            # the classic redirect deadlock, and a deadlock here would hang a
+            # deployment on the servicing pass forever.
+            $errorTask = $process.StandardError.ReadToEndAsync()
+
+            # THE POLL. ReadLine would block, and a blocked read is the pipeline
+            # again with more code; ReadLineAsync waited on in half-second
+            # slices is a read that can be interrupted, which is the whole point.
+            $reader = $process.StandardOutput
+            $pending = $reader.ReadLineAsync()
+
+            while ($true) {
+
+                # FIVE HUNDRED MILLISECONDS, New-HDTProcessService.Start's
+                # stride and for its reasons: the tick is free but not
+                # weightless, and New-HDTStepHeartbeat rations records to one
+                # every fifteen seconds regardless of how often it is called.
+                while (-not $pending.Wait(500)) {
+                    $null = $OnTick.Invoke()
+                }
+
+                $line = $pending.Result
+
+                # A null line is end of stream, which is the process closing its
+                # handle - the only way out of the loop.
+                if ($null -eq $line) { break }
+
+                [void] $output.Add([string] $line)
+                $null = $OnOutput.Invoke([string] $line)
+
+                $pending = $reader.ReadLineAsync()
+            }
+
+            $process.WaitForExit()
+
+            # dism's own sentences, whichever handle it chose to write them on.
+            foreach ($errorLine in @([string] $errorTask.Result -split "`r?`n")) {
+                [void] $output.Add([string] $errorLine)
+            }
+
+            # Exit-code check, with dism's own sentence attached. $LASTEXITCODE
+            # is not set by a process started this way; the process object
+            # carries it.
+            $this.AssertExitCode($process.ExitCode, 'dism.exe', $commandLine, @($output))
+        } finally {
+            $process.Dispose()
+        }
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name AddDriver -Value {

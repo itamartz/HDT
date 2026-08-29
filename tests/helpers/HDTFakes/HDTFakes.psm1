@@ -3546,6 +3546,13 @@ class HDTFakeImageService {
     # step's throttling unprovable in the presence of the other.
     [string[]] $UnattendOutput
 
+    # HOW MANY TIMES ApplyUnattend INVOKES ITS OnTick CALLBACK. The real adapter
+    # ticks because time passes and dism says nothing; this one returns
+    # instantly, so a test that wants to see what the step does DURING the
+    # offlineServicing pass seeds the ticks it would have had. Zero - the
+    # default - stands for a pass that returned before the first poll.
+    [int] $UnattendTick
+
     # What AddDriver reports back - the rows the step logs as injected. Named
     # and shaped as IBootImageService's, because it is the same DISM verb.
     [object[]] $Driver
@@ -3557,6 +3564,7 @@ class HDTFakeImageService {
         $this.ServiceName = 'ImageService'
         $this.ApplyOutput = [string[]] @()
         $this.UnattendOutput = [string[]] @()
+        $this.UnattendTick = 0
         $this.Driver = [object[]] @()
     }
 
@@ -3717,7 +3725,7 @@ class HDTFakeImageService {
     # asked, so a step can be shown to ask with the right image root and the
     # STAGED document rather than the template back on the share.
     [void] ApplyUnattend([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath) {
-        $this.ApplyUnattend($ImagePath, $UnattendPath, $ScratchPath, {})
+        $this.ApplyUnattend($ImagePath, $UnattendPath, $ScratchPath, {}, $null)
     }
 
     # THE FOUR-ARGUMENT FORM, FOR THE SAME REASON ApplyImage HAS ONE. Applying
@@ -3730,10 +3738,39 @@ class HDTFakeImageService {
     # in: dism prints its way to 60% and then hits a corrupt package, and a step
     # that logged nothing about the first 60% is a step nobody can debug.
     [void] ApplyUnattend([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath, [object] $OnOutput) {
+        $this.ApplyUnattend($ImagePath, $UnattendPath, $ScratchPath, $OnOutput, $null)
+    }
+
+    # THE FIVE-ARGUMENT FORM, AND THE TICK IS THE POINT OF IT. The real adapter
+    # runs dism as a POLLED process and invokes $OnTick every 500 ms the tool is
+    # silent, because dism prints no percentage meter for /Apply-Unattend at all
+    # - measured on LT-D5M1NN3 run-20260829-223623, 153 seconds of real
+    # offlineServicing with the meter wired and not one line matching it.
+    #
+    # A FAKE CANNOT WAIT, so the ticks are SEEDED, exactly as
+    # New-HDTFakeProcessService seeds TickCount: a test that wants to see what
+    # the step does DURING the pass asks for UnattendTick ticks and gets that
+    # many callbacks.
+    #
+    # IT DEFAULTS TO ZERO, which stands for a pass that returned before the
+    # first poll - so no existing test starts seeing heartbeats it never asked
+    # for.
+    #
+    # THE ORDER IS THE REAL ONE: lines and ticks before the failure, because
+    # that is when they happen. dism speaks, or does not, and THEN it exits
+    # non-zero; a step that logged nothing about the first two minutes is a step
+    # nobody can debug afterwards.
+    [void] ApplyUnattend([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath, [object] $OnOutput,
+        [object] $OnTick) {
+
         $this.Record('ApplyUnattend', @($ImagePath, $UnattendPath, $ScratchPath))
 
         if ($null -ne $OnOutput) {
             foreach ($line in @($this.UnattendOutput)) { $null = $OnOutput.Invoke([string] $line) }
+        }
+
+        if ($null -ne $OnTick) {
+            for ($i = 0; $i -lt $this.UnattendTick; $i++) { $null = $OnTick.Invoke() }
         }
 
         $this.AssertNoFailure('ApplyUnattend')
@@ -3773,7 +3810,7 @@ function New-HDTFakeImageService {
               GetImageInfo(imagePath) -> Index, Name, Description, Edition,
                                          SizeBytes, Architecture, Version
               ApplyImage(imagePath, index, applyPath[, onOutput])
-              ApplyUnattend(imagePath, unattendPath, scratchPath)
+              ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput[, onTick]])
               InstallBootFile(osRoot, systemVolume, firmware)
               SetRecoveryImage(osRoot, recoveryPath)
               SetBootOrderFirst()
@@ -3822,6 +3859,12 @@ function New-HDTFakeImageService {
             tests/fixtures/image/dism-offline-servicing-output.txt for a real
             servicing meter. Separate from ApplyOutput so a test driving both
             verbs can prove each step's throttling on its own transcript.
+
+        .PARAMETER UnattendTick
+            How many times ApplyUnattend invokes its OnTick callback - the ticks
+            a real polled dism would have produced while it said nothing. dism
+            prints no meter for /Apply-Unattend, so this, and not UnattendOutput,
+            is what a heartbeat test seeds. Defaults to zero.
 
         .PARAMETER Driver
             What AddDriver reports back - one row per driver injected, with Inf,
@@ -3874,6 +3917,10 @@ function New-HDTFakeImageService {
         [string[]] $UnattendOutput = @(),
 
         [Parameter()]
+        [ValidateRange(0, 10000)]
+        [int] $UnattendTick = 0,
+
+        [Parameter()]
         [AllowEmptyCollection()]
         [object[]] $Driver = @(),
 
@@ -3886,6 +3933,7 @@ function New-HDTFakeImageService {
     $fake.Journal = $Journal
     $fake.ApplyOutput = [string[]] @($ApplyOutput)
     $fake.UnattendOutput = [string[]] @($UnattendOutput)
+    $fake.UnattendTick = [int] $UnattendTick
     $fake.Driver = [object[]] @($Driver)
 
     if ($PSBoundParameters.ContainsKey('FixturePath')) {

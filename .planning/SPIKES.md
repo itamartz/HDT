@@ -2063,6 +2063,90 @@ ADK default.
 time needs that command proven present first. A build-time write has nothing left
 to go missing.
 
+## S22 — dism prints no meter for `/Apply-Unattend`, and a hand-built command line eats its own quote ✅⚠
+
+Measured on 2026-08-29, on this host and on the machine that surfaced it. Both
+findings correct something that was already believed here.
+
+### ⚠ S16 is true of `/Apply-Image` and false of `/Apply-Unattend`
+
+S16 established that dism's percentage meter reaches a PowerShell pipeline live,
+and that finding is sound — for the verb it was measured on. It was then assumed
+to hold for the servicing pass, and the assumption is wrong.
+
+`LT-D5M1NN3` `run-20260829-223623` was deployed from a boot image built **after**
+the meter was wired to `Invoke-HDTApplyUnattendStep`. In that one run:
+
+| Step | `step.progress` records |
+|---|---|
+| `ApplyImage` | **20** |
+| `ApplyDrivers` | 21 |
+| `InstallApplications` | 9 |
+| `ApplyUnattend` | **0**, across 153 seconds of real `offlineServicing` over 260 `.inf` packages |
+
+The callback resolves and the parser works — the same run proves it on the other
+verb. **`dism.exe` simply prints no percentage for `/Apply-Unattend`:** a banner,
+then silence, then one sentence. MDT knew, and says so in code rather than in a
+comment — `LTIApply.wsf:1042` reports a flat `99` immediately before shelling the
+call, instead of driving a bar from its output.
+
+**The rule this leaves behind:** a tool's meter is a property of the *verb*, not
+of the executable. Measure the verb you are about to ship, on the machine, and
+do not carry a finding across from a sibling command.
+
+### ✅ The fix is MDT's poll-scrape-tick, and a pipeline cannot do it
+
+`& dism | ForEach-Object` only runs the block when a line arrives, and the engine
+is Windows PowerShell 5.1 and single-threaded — so between the banner and the
+final sentence *nothing in the deployment executes*. That is the defect: not a
+bar that moves too slowly, but a step that cannot report at all while it is the
+only thing running.
+
+`ZTIUtility.vbs`'s `RunCommandLog` (2173-2261) does all three — poll `oExec.Status`
+with `SafeSleep 100`, scrape the percentage out of stdout, **and** beat a timed
+event 41003 for when the tool says nothing. `ApplyUnattend` now starts dism
+through `ProcessStartInfo`, drains stderr with `ReadToEndAsync` (the classic
+redirect deadlock is not hypothetical), and waits on `ReadLineAsync` in 500 ms
+slices, ticking a callback on every slice it waits through.
+
+**`ApplyImage` keeps its pipeline, deliberately.** Its meter works on real
+hardware, and the arrival of that meter is itself the proof the step is alive.
+Converting it would risk the one number a technician watches to buy liveness it
+already has.
+
+### ⚠ `ProcessStartInfo.Arguments` is one string, and `W:\` ends in a backslash
+
+.NET Framework — which is what WinPE has — gives `ProcessStartInfo` no
+`ArgumentList`, only an `Arguments` **string**, which Windows parses back with
+`CommandLineToArgvW`. `/Image:` takes the *root* of the offline installation,
+`W:\`. Quoted the obvious way:
+
+```
+"/Image:W:\" "/Apply-Unattend:W:\Windows\Panther\unattend.xml" "/ScratchDir:W:\HDT\Scratch"
+```
+
+argv comes back as **one argument**:
+
+```
+/Image:W:" /Apply-Unattend:W:\Windows\Panther\unattend.xml /ScratchDir:W:\HDT\Scratch
+```
+
+The backslash escaped the closing quote and the rest of the line was swallowed as
+text. dism would have been handed a single nonsense switch — a silent corruption
+of the only call that runs `offlineServicing`.
+
+The rule is **not** "escape every backslash": a backslash is only special
+immediately before a quote. A run of them before an embedded quote doubles, a run
+at the *end* of a quoted argument doubles (the closing quote is the quote it
+precedes), and every other separator is left alone. That is
+`ConvertTo-HDTNativeArgument`, and its tests assert it by running the built line
+through a real process and reading the argv back, because the string alone proves
+nothing.
+
+**The rule this leaves behind:** moving a native call off PowerShell's `&`
+operator means taking over its argument quoting, and the trap is invisible in
+every path that happens to have no space in it.
+
 ## S21.1 — `dism /Set-TimeZone` writes the STANDARD HALF ONLY, and S21 said otherwise ✅
 
 **Verified by execution**, by reading the registry out of two images and

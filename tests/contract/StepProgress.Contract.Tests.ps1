@@ -42,7 +42,16 @@ Import-Module -Name (Join-Path -Path $script:HDTRepositoryRoot -ChildPath 'src/H
 $script:HDTReportingStep = [ordered] @{
     'ApplyImage'          = "dism.exe prints a percentage meter on stdout while it writes the image."
     'ApplyDrivers'        = "it stages drivers one at a time and knows how many there are."
-    'ApplyUnattend'       = "dism.exe prints the same meter while it runs the offlineServicing pass."
+    # NOT "the same meter", WHICH IS WHAT THIS LINE USED TO SAY AND WAS WRONG.
+    # dism.exe prints NO percentage for /Apply-Unattend - a banner, then silence,
+    # then one sentence. LT-D5M1NN3 run-20260829-223623 proved it from a boot
+    # image built AFTER the meter was wired here: twenty step.progress records
+    # out of ApplyImage in that run, none at all out of this step, across 153
+    # seconds of real offlineServicing over 260 .inf packages. So the adapter
+    # runs dism as a POLLED process and the step hands it a heartbeat, which is
+    # MDT's shape - RunCommandLog polls, scrapes AND beats event 41003 for
+    # exactly the case where the tool says nothing.
+    'ApplyUnattend'       = "dism.exe prints no meter for /Apply-Unattend, so the adapter polls the process and the step beats a heartbeat with the elapsed time."
     'InstallApplications' = "it resolves the whole ordered plan before it starts, so it knows it is on 1 of 2."
     'EnableBitLocker'     = "it polls the volume every fifteen seconds and can say the disk is still encrypting."
 }

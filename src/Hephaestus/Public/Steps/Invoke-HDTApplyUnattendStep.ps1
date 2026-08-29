@@ -486,18 +486,26 @@
         $writeLog = Get-Command -Name 'Write-HDTLog'
         $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
 
-        # NO New-HDTStepHeartbeat HERE, FOR THE REASON SET OUT ON ApplyImage.
-        # The heartbeat is for a step that BLOCKS with nothing to report, and it
-        # fires from IProcessService.Start's poll loop. This pass streams a meter
-        # and reports it, which is a better fact than "still running"; a
-        # heartbeat hung off this callback could only fire when dism speaks -
-        # which is when the meter already has.
+        # THE METER IS WIRED AND IT HAS NEVER ONCE FIRED, WHICH IS WHY THERE IS
+        # A HEARTBEAT BELOW AS WELL.
         #
-        # THE 03:04:41 TO 03:08:02 SILENCE ON LT-7FJ45S2 run-20260829-190105 WAS
-        # THIS PASS WITH NO METER WIRED AT ALL, and the wiring below is what
-        # closes it. A dism that goes silent mid-pass would still freeze the
-        # screen, and closing THAT means running dism as a polled process rather
-        # than a pipeline - MDT's WshShell.Exec loop. Not done here.
+        # The wiring went in to close the 03:04:41 to 03:08:02 silence on
+        # LT-7FJ45S2 run-20260829-190105, on the reasoning that dism prints the
+        # same meter here that it prints for /Apply-Image. IT DOES NOT.
+        # LT-D5M1NN3 run-20260829-223623 ran on a boot image built AFTER that
+        # fix and spent 153 seconds in this call over 260 .inf packages: twenty
+        # step.progress records came out of ApplyImage in the same run, and NOT
+        # ONE came out of here. dism.exe emits a banner, then silence, then one
+        # sentence for /Apply-Unattend. MDT knew: LTIApply.wsf:1042 hard-codes a
+        # flat 99 before the call rather than expecting a number.
+        #
+        # SO THE CALLBACK STAYS - a meter that appears will still be read, and
+        # the throttling it does is proven against a captured transcript - BUT
+        # IT IS NOT WHAT KEEPS THE SCREEN ALIVE. The heartbeat below is. It
+        # cannot be hung off this callback, which only fires when dism speaks;
+        # it fires on the adapter's poll loop, which is why ApplyUnattend now
+        # runs dism as a POLLED PROCESS rather than a pipeline (MDT's
+        # WshShell.Exec shape - poll, scrape AND tick).
         $onOutput = {
             param([string] $Line)
 
@@ -533,8 +541,22 @@
             }
         }.GetNewClosure()
 
+        # THE ONLY THING THAT ACTUALLY MOVES DURING THIS PASS. dism says nothing
+        # for minutes; the adapter polls it in half-second slices and calls this
+        # on every slice, and this writes one record every fifteen seconds and
+        # asks the display to re-read the log. It carries no percent - there is
+        # no honest percentage to be had here - so it reports elapsed time,
+        # which is true, and cannot drag the bar backwards, which an invented
+        # number would.
+        #
+        # THE ACTIVITY IS A NAME AND NOT A COMMAND LINE (DESIGN 4.4.5): the
+        # unattend's path would be harmless, but the rule that keeps a licence
+        # key out of an Info record is the rule, not the exception.
+        $heartbeat = New-HDTStepHeartbeat -Context $Context -Component 'ApplyUnattend' `
+            -Activity 'applying the answer file, which installs the staged drivers'
+
         try {
-            $image.ApplyUnattend($imageRoot, $unattendPath, $scratchPath, $onOutput)
+            $image.ApplyUnattend($imageRoot, $unattendPath, $scratchPath, $onOutput, $heartbeat)
         } catch {
             # NOT SWALLOWED, AND NOT DOWNGRADED TO A WARNING. The staging
             # succeeded, so everything upstream looks green; if this failure did

@@ -366,6 +366,18 @@ Describe 'IImageService applying Windows 11 for real' -Tag 'Slow' -Skip:$skipSlo
             $variable['HDTComputerName'] = 'HDT-INTEG-01'
             $variable['HDTTaskSequenceID'] = 'DEMO-M3'
 
+            # THE THREE TESTS BELOW WERE RED BEFORE THIS LINE EXISTED, and not
+            # for anything to do with imaging. The sample's unattend asks for
+            # %HDTAdminPassword%, and DESIGN 4.5.2 settled that nothing
+            # supplying it FAILS THE STEP rather than minting one - so the step
+            # refused, nothing was staged, and all three assertions read an
+            # answer file that was never written. The refusal grew after this
+            # context was authored and its variable bag was never caught up.
+            #
+            # A FIXTURE VALUE, NOT A REAL SECRET, and the last test in this
+            # context is the one that proves it never reaches the log.
+            $variable['HDTAdminPassword'] = 'Fixture-P@ssw0rd'
+
             $context = New-HDTExecutionContext -RunId 'run-integration' -Phase 'WinPE' `
                 -WorkspaceRoot $script:workspaceRoot -Variable $variable -Service $catalog -Log $log
 
@@ -406,5 +418,99 @@ Describe 'IImageService applying Windows 11 for real' -Tag 'Slow' -Skip:$skipSlo
             $log = Get-Content -LiteralPath (Join-Path -Path $script:logRoot -ChildPath 'HDT.jsonl') -Raw
             $log | Should -Not -BeLike ('*{0}*' -f $password)
         }
+    }
+}
+
+# THE POLLED DISM CALL, AGAINST A REAL dism.exe AND NO IMAGE AT ALL.
+#
+# ApplyUnattend stopped being a pipeline and became a polled process, because
+# dism prints no percentage meter for /Apply-Unattend and a pipeline cannot tick
+# a heartbeat while a tool is silent (see New-HDTImageService). That conversion
+# moved the command line from PowerShell's native argument passing, which is
+# proven, to a hand-built ProcessStartInfo.Arguments STRING, which is not - and
+# the paths involved end in a backslash.
+#
+# THE TRAP THIS FILE EXISTS TO CATCH. Quoted the obvious way, "/Image:W:\"
+# escapes its own closing quote and CommandLineToArgvW hands dism ONE argument
+# containing the whole rest of the line. Measured on this machine before the
+# code was written. ConvertTo-HDTNativeArgument's unit tests assert the STRING;
+# this asserts what dism.exe itself did with it, which is the only authority.
+#
+# IT NEEDS NO MEDIA, NO VHDX AND NO FREE DRIVE LETTERS, and it finishes in about
+# a second: dism refuses an image root that is not there, and refusing correctly
+# is exactly the evidence wanted. Every path is under the scratch root, created
+# and removed by this file.
+Describe 'IImageService running dism as a polled process' {
+
+    BeforeAll {
+        $script:pollRoot = Join-Path -Path 'C:\HDTLab\scratch' -ChildPath ('HDT-poll-{0}' -f [guid]::NewGuid().ToString('N'))
+        $script:pollScratch = Join-Path -Path $script:pollRoot -ChildPath 'Scratch'
+
+        # A ROOT THAT IS NOT AN OFFLINE WINDOWS INSTALLATION. dism reads the
+        # path, cannot service it, and says so - which proves it received the
+        # path rather than a mangled switch.
+        $script:pollImage = '{0}\' -f $script:pollRoot
+        $null = New-Item -ItemType Directory -Path $script:pollRoot -Force
+
+        $script:pollLine = New-Object -TypeName System.Collections.ArrayList
+        $script:pollTick = 0
+
+        $service = New-HDTImageService
+
+        try {
+            $service.ApplyUnattend($script:pollImage,
+                (Join-Path -Path $script:pollRoot -ChildPath 'unattend.xml'),
+                $script:pollScratch,
+                { param([string] $Line) [void] $script:pollLine.Add($Line) },
+                { $script:pollTick++ })
+
+            $script:pollError = ''
+        } catch {
+            $script:pollError = [string] $_.Exception.Message
+        }
+    }
+
+    AfterAll {
+        # By explicit -LiteralPath, to a directory this file created in this run.
+        if ($script:pollRoot -like 'C:\HDTLab\scratch\HDT-poll-*' -and
+            (Test-Path -LiteralPath $script:pollRoot)) {
+
+            Remove-Item -LiteralPath $script:pollRoot -Recurse -Force
+        }
+    }
+
+    It 'gave dism the image root as its own argument' {
+        # THE ASSERTION THAT CATCHES THE QUOTING TRAP. dism complaining that it
+        # cannot access THIS image means it parsed /Image: and read the path.
+        # A mangled command line produces an unrecognised-option error instead,
+        # and never mentions the image at all.
+        $script:pollError | Should -BeLike '*Unable to access the image*'
+    }
+
+    It 'attached dism own words to the failure rather than a bare exit code' {
+        $script:pollError | Should -BeLike '*dism.exe exited*'
+        $script:pollError | Should -BeLike '*Deployment Image Servicing and Management tool*'
+    }
+
+    It 'streamed the tool output to the callback as it arrived' {
+        # The pipeline form did this and the polled form has to keep doing it:
+        # a dism that DOES print a meter is still read line by line.
+        @($script:pollLine).Count | Should -BeGreaterThan 1
+        @($script:pollLine) -join "`n" | Should -BeLike '*Deployment Image Servicing and Management tool*'
+    }
+
+    It 'created the scratch directory dism was told to use' {
+        # WinPE runs from an X: RAM disk and dism left to itself expands into
+        # TEMP there and runs out of room, so the scratch path is not optional -
+        # and it has to exist before dism is handed it.
+        Test-Path -LiteralPath $script:pollScratch | Should -BeTrue
+    }
+
+    It 'did not tick for a call that returned before the first poll' {
+        # THE RATION, FROM THE OTHER SIDE. dism refuses a bad image in about
+        # forty milliseconds; the wait returns first, so the tick never fires.
+        # That is what keeps a fast call costing the log nothing - the same rule
+        # New-HDTProcessService.Start follows.
+        $script:pollTick | Should -Be 0
     }
 }
