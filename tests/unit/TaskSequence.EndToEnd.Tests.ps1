@@ -261,6 +261,50 @@ BeforeAll {
                 @($script:winpeState, $script:fullosState) -contains [string] $_.Arguments[0]
             })
 
+    # -- what was durable at the instant each restart was issued --------------
+    #
+    # A REAL MACHINE MAY NEVER RUN THE finally. $power.Restart returns here
+    # because the fake returns, so this harness goes on to write run.end, copy
+    # the logs back and checkpoint again - and a deployed machine does not:
+    # Windows terminates the process moments after the restart is issued. On
+    # run-20260829-223623 the WinPE leg's last record is seq 203, state.json on
+    # the disk says 202, and there is no run.end for that leg at all.
+    #
+    # SO THE THING TO PROVE IS THE INVARIANT, NOT THE STREAM. Whatever the
+    # process does or does not live to do afterwards, at the moment control is
+    # handed to a reboot the durable state must already account for every record
+    # this leg has written. A leg that leaves one uncovered hands the next leg a
+    # number it has already used, which is what both real deployments did.
+    #
+    # READ FROM THE JOURNAL, over the SET of restarts rather than the one that
+    # showed the defect - the same rule applies to the second reboot and to any
+    # added later.
+    $script:rebootBoundary = @()
+    $script:lastCheckpointSeq = [long] (-1)
+    $script:lastRecordSeq = [long] (-1)
+
+    foreach ($entry in $script:journal) {
+        $path = ''
+        if (@($entry.Arguments).Count -gt 0) { $path = [string] $entry.Arguments[0] }
+
+        if ($entry.Service -eq 'FileSystem' -and $entry.Operation -eq 'WriteAllText' -and
+            @($script:winpeState, $script:fullosState) -contains $path) {
+
+            $script:lastCheckpointSeq = [long] (ConvertFrom-Json -InputObject ([string] $entry.Arguments[1])).seq
+        }
+
+        if ($entry.Service -eq 'FileSystem' -and $entry.Operation -eq 'AppendAllText' -and $path -like '*\HDT.jsonl') {
+            $script:lastRecordSeq = [long] (ConvertFrom-Json -InputObject ([string] $entry.Arguments[1])).seq
+        }
+
+        if ($entry.Service -eq 'PowerService' -and $entry.Operation -eq 'Restart') {
+            $script:rebootBoundary += [pscustomobject] @{
+                Checkpointed = $script:lastCheckpointSeq
+                LastRecord   = $script:lastRecordSeq
+            }
+        }
+    }
+
     $script:finalState = $script:leg3.Result.State
     $script:record = @(Get-HDTLogRecord -FileSystem $script:fs -Path $script:jsonlPath)
     $script:rawLog = [string] (Get-HDTLogRecord -FileSystem $script:fs -Path $script:jsonlPath -Raw)
@@ -363,13 +407,20 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
         It 'wrote the state document at every checkpoint' {
             # Checkpoints bracket every step: one when it is marked Running and
             # one when its outcome is known. Leg 1: four steps x 2, plus the
-            # save after arming, the finally save and the seq-only save after
-            # run.end = 11. Leg 2: three steps x 2 plus those same three = 9.
-            # Leg 3: three steps that ran x 2, three that were skipped x 1, the
-            # finally save and the teardown's own save = 11. Both full-OS legs
-            # write the same file, so 9 + 11 = 20.
-            @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:winpeState }).Count | Should -Be 11
-            @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:fullosState }).Count | Should -Be 20
+            # save after arming, THE SAVE IMMEDIATELY BEFORE THE RESTART, the
+            # finally save and the seq-only save after run.end = 12. Leg 2:
+            # three steps x 2 plus those same four = 10. Leg 3: three steps that
+            # ran x 2, three that were skipped x 1, the finally save and the
+            # teardown's own save = 11 - it never reboots, so it has no save
+            # before a restart. Both full-OS legs write the same file, so
+            # 10 + 11 = 21.
+            #
+            # THE SAVE BEFORE THE RESTART IS THE LAST DURABLE ACT OF A LEG. On a
+            # real machine the finally never runs: Windows kills the process
+            # moments after the restart is issued, so a checkpoint taken any
+            # earlier leaves records the next leg does not know were written.
+            @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:winpeState }).Count | Should -Be 12
+            @($script:stateWrite | Where-Object { $_.Arguments[0] -eq $script:fullosState }).Count | Should -Be 21
         }
 
         It 'checkpointed every step as Running before it ran' {
@@ -509,11 +560,50 @@ Describe 'the DEMO-M2 task sequence, end to end against fakes' {
 
     Context 'the log' {
 
-        It 'increases seq strictly across all three legs' {
+        # DESIGN 4.4.2: MONOTONIC, WHICH IS NOT THE SAME AS CONTIGUOUS.
+        #
+        # A GAP IS FINE; A COLLISION IS NOT. The leg that comes back from a
+        # reboot knows only what the last durable checkpoint recorded, and the
+        # leg before it may have died between a record and a checkpoint. Sorting
+        # a run needs the numbers to increase; nothing anywhere reads them as a
+        # count, and chasing contiguity across the reboot would mean the resumed
+        # leg GUESSING how many records the dead one got out - which is how a
+        # gap becomes a collision.
+        #
+        # ASSERTED OVER THE SET, PAIRWISE, NOT AGAINST A LIST OF NAMES. This
+        # used to read `$seq | Should -Be @(1..$seq.Count)` and passed on every
+        # real deployment's defect, because the harness let the first leg finish
+        # its finally - see $script:freezeStateAtRestart.
+        It 'never issues one seq twice across the whole record stream' {
             $seq = @($script:record | ForEach-Object { [long] $_.seq })
 
             $seq[0] | Should -Be 1
-            $seq | Should -Be @(1..$seq.Count)
+
+            $offender = @()
+            for ($i = 1; $i -lt $seq.Count; $i++) {
+                if ($seq[$i] -le $seq[$i - 1]) {
+                    $offender += ('seq {0} "{1}" does not follow seq {2} "{3}"' -f
+                        $seq[$i], [string] $script:record[$i].message,
+                        $seq[$i - 1], [string] $script:record[$i - 1].message)
+                }
+            }
+
+            $offender -join '; ' | Should -BeExactly ''
+        }
+
+        # THE ASSERTION THAT WOULD HAVE CAUGHT IT. See $script:rebootBoundary.
+        It 'checkpoints every record it has written before it hands the machine to a reboot' {
+            $script:rebootBoundary.Count | Should -Be 2 -Because 'this sequence reboots twice'
+
+            $offender = @()
+            foreach ($boundary in $script:rebootBoundary) {
+                if ($boundary.Checkpointed -ne $boundary.LastRecord) {
+                    $offender += ('state.json carries seq {0} while the log has reached seq {1}' -f
+                        $boundary.Checkpointed, $boundary.LastRecord)
+                }
+            }
+
+            ($offender -join '; ') | Should -BeExactly '' -Because 'the next leg seeds its counter from state.json and would reissue every record written after it'
         }
 
         It 'restarts seq nowhere' {

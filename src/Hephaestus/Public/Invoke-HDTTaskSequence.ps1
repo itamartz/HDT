@@ -1027,6 +1027,34 @@
                     }
                 }
 
+                # -- THE LAST DURABLE THING THIS LEG DOES ----------------------
+                #
+                # THE CHECKPOINT GOES AFTER THE LAST RECORD, NOT BEFORE IT. The
+                # save above runs before the log is copied to the disk, and the
+                # copy writes a record of its own - so state.seq was one short
+                # of what this leg had actually emitted. The next leg seeds its
+                # counter from that number and correctly issues seq+1, which is
+                # the number that record already used.
+                #
+                # AND THE finally's CLOSING SAVE NEVER RUNS ON A REAL MACHINE.
+                # $power.Restart returns, but Windows terminates this process
+                # moments later; the finally that would have caught up is dead
+                # with it. Measured on run-20260829-223623: the WinPE leg's last
+                # record is seq 203, state.json says 202, the full-OS leg's
+                # reboot.resume opens at 203 a second time - and there is no
+                # run.end for leg 1 in that log at all. A fake power service
+                # returns and lets the finally run, which is why the benchmark
+                # was green for it.
+                #
+                # A GAP IS FINE; A COLLISION IS NOT. DESIGN 4.4.2 asks for a
+                # MONOTONIC seq, so a run can be sorted into its true order when
+                # WinPE's clock has skewed. Nothing reads it as a count. If this
+                # leg dies between a record and this line the next one simply
+                # starts higher, which loses nothing - where chasing contiguity
+                # would mean the resumed leg GUESSING how many records the dead
+                # leg got out, and guessing low reissues them.
+                & $saveState
+
                 $power = $Context.Service.GetRequired('Power', 'Restart')
                 $power.Restart($delaySecond)
 

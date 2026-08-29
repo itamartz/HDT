@@ -595,7 +595,15 @@ try {
 
     $display = Start-HDTProgressDisplay -XamlPath $progressXaml -Variable $progressVariable
 
-    Write-HDTLog -Context $bootLog -Severity Info -Component 'Resume' `
+    # THROUGH $log, AND THE CONTEXT IS THE WHOLE POINT OF THE LINE. This wrote
+    # through $bootLog, whose counter was handed to $log a hundred lines above
+    # with -Seq $bootLog.Seq. NextSeq lives on the context, so from that moment
+    # the two objects held the same number and each incremented its own copy -
+    # and the next write through either one reissued it. run-20260829-223623
+    # put "logging live to '\\...'" and this line both at seq 209, one second
+    # apart, both in the full OS; run-20260829-190105 did it at 128. Nothing
+    # after $log exists may write through $bootLog.
+    Write-HDTLog -Context $log -Severity Info -Component 'Resume' `
         -Message ("progress display: {0} {1}" -f $display.Mode, $display.Reason)
 
     if ($display.Mode -ne 'Suppressed') {

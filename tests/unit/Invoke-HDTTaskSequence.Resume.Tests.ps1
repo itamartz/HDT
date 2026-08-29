@@ -134,12 +134,30 @@ Describe 'Invoke-HDTTaskSequence' {
         }
 
         It 'continues the JSONL seq across legs' {
-            # No restart to 1, no gap. The reboot-survival property of DESIGN
-            # 4.4.2, over one physical log file written by three separate runs.
+            # No restart to 1, and no number issued twice. The reboot-survival
+            # property of DESIGN 4.4.2, over one physical log file written by
+            # three separate runs.
+            #
+            # MONOTONIC, NOT CONTIGUOUS, and the distinction is the whole point.
+            # This read `$seq | Should -Be @(1..$seq.Count)`, which demands that
+            # the resumed leg know exactly how many records the dead one got
+            # out. It cannot: a leg that is killed by its own restart may write
+            # records after its last durable checkpoint, and the only number the
+            # next leg has is what reached the disk. A GAP THERE IS CORRECT; a
+            # collision is the defect - and demanding contiguity is what would
+            # produce one, by seeding the next leg low.
             $seq = @($script:record | ForEach-Object { [long] $_.seq })
 
             $seq[0] | Should -Be 1
-            $seq | Should -Be @(1..$seq.Count)
+
+            $offender = @()
+            for ($i = 1; $i -lt $seq.Count; $i++) {
+                if ($seq[$i] -le $seq[$i - 1]) {
+                    $offender += ('seq {0} does not follow seq {1}' -f $seq[$i], $seq[$i - 1])
+                }
+            }
+
+            ($offender -join '; ') | Should -BeExactly ''
         }
 
         It 'carries variables set in the first leg into the second' {
@@ -399,6 +417,105 @@ steps:
                     Where-Object { $_.message -like '*not recoverable*' })
 
             $failure.Count | Should -BeGreaterThan 0
+        }
+    }
+
+    # -- the number the next leg is given, and the records it does not know
+    #    were written --------------------------------------------------------
+    #
+    # A LEG DOES NOT LIVE THROUGH ITS OWN RESTART. $power.Restart returns here
+    # because the fake returns, so this suite goes on to run the whole finally -
+    # run.end, the copy-back, one last checkpoint. A deployed machine does not:
+    # Windows terminates the process moments after the restart is issued.
+    # run-20260829-223623 has no run.end for its WinPE leg at all.
+    #
+    # SO THE ONLY seq THE NEXT LEG EVER SEES IS THE ONE THAT REACHED THE DISK
+    # BEFORE THE RESTART, and every record written after that checkpoint is a
+    # number it will hand out again. Measured on two machines an hour apart:
+    # LT-D5M1NN3 wrote "the log was copied to 'W:\HDT\Logs\...'" at seq 203 and
+    # the full-OS leg's reboot.resume opened at 203; LT-7FJ45S2 did the same at
+    # 122. state.json said 202 and 121 - the arming checkpoint runs BEFORE that
+    # copy.
+    #
+    # THE LOG IS ON W: HERE, WHICH IS WHERE A REAL ONE IS BY THEN. DESIGN
+    # 4.4.1's relocation moves it off the RAM disk the moment a step publishes
+    # HDTOSVolume, and both machines above rebooted with their WinPE log already
+    # on the OS volume. It is also what keeps this a test about the checkpoint:
+    # the relocation only fires while the log is still at Get-HDTLogPath -Phase
+    # WinPE, so a leg that starts relocated exercises the reboot alone.
+    Context 'the checkpoint that has to cover the last record' {
+
+        BeforeAll {
+            $script:boundary = New-HDTSequenceTestHarness -Yaml $script:rebootYaml -Phase 'WinPE' `
+                -LogPath 'W:\HDT\Logs' -Variable @{ HDTOSVolume = 'W' }
+
+            $script:boundaryResult = Invoke-HDTTaskSequence -Sequence $script:boundary.Sequence `
+                -Context $script:boundary.Context -State $script:boundary.State
+
+            # WALKED IN ORDER, ACROSS SERVICES. Which record was durable when
+            # the power service was called is a question about the ORDER of two
+            # different fakes' operations, and the shared journal is the only
+            # thing that answers it.
+            $script:boundaryCheckpoint = [long] (-1)
+            $script:boundaryLastRecord = [long] (-1)
+            $script:boundaryAtRestart = $null
+            $script:boundaryRecordAfterArm = 0
+
+            $armed = $false
+
+            foreach ($entry in $script:boundary.Journal) {
+                $path = ''
+                if (@($entry.Arguments).Count -gt 0) { $path = [string] $entry.Arguments[0] }
+
+                if ($entry.Service -eq 'FileSystem' -and $entry.Operation -eq 'WriteAllText' -and
+                    $path -eq $script:boundary.StatePath) {
+
+                    $script:boundaryCheckpoint =
+                    [long] (ConvertFrom-Json -InputObject ([string] $entry.Arguments[1])).seq
+                }
+
+                if ($entry.Service -eq 'FileSystem' -and $entry.Operation -eq 'AppendAllText' -and
+                    $path -eq [string] $script:boundary.Log.JsonlPath) {
+
+                    $script:boundaryLastRecord =
+                    [long] (ConvertFrom-Json -InputObject ([string] $entry.Arguments[1])).seq
+
+                    if ($armed) { $script:boundaryRecordAfterArm++ }
+                }
+
+                # The autologon secret is the arming, and the checkpoint that
+                # used to be the last one follows it immediately.
+                if ($entry.Service -eq 'LsaService' -and $entry.Operation -eq 'SetSecret') { $armed = $true }
+
+                if ($entry.Service -eq 'PowerService' -and $entry.Operation -eq 'Restart' -and
+                    $null -eq $script:boundaryAtRestart) {
+
+                    $script:boundaryAtRestart = [pscustomobject] @{
+                        Checkpointed = $script:boundaryCheckpoint
+                        LastRecord   = $script:boundaryLastRecord
+                    }
+                }
+            }
+        }
+
+        It 'reaches the reboot' {
+            $script:boundaryResult.Status | Should -BeExactly 'RebootPending'
+            $script:boundaryAtRestart | Should -Not -BeNullOrEmpty
+        }
+
+        # THE VACUITY GUARD. Without a record between the arming and the restart
+        # there is nothing for a checkpoint to miss, and the assertion below
+        # would pass on an engine that never checkpointed again at all. This is
+        # the copy of the log onto the OS volume, which is what a WinPE leg does
+        # last and what carried the colliding number on both machines.
+        It 'writes at least one record after it arms the next logon' {
+            $script:boundaryRecordAfterArm | Should -BeGreaterThan 0
+        }
+
+        It 'has checkpointed that record before it issues the restart' {
+            $script:boundaryAtRestart.Checkpointed |
+                Should -Be $script:boundaryAtRestart.LastRecord `
+                    -Because 'the next leg seeds its counter from state.json and reissues every record written after it'
         }
     }
 }

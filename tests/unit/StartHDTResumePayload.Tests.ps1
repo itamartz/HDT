@@ -996,5 +996,73 @@ Describe 'Start-HDTResume.ps1 and the cleanup at the end of a deployment' {
 
             ($offender -join ', ') | Should -BeExactly ''
         }
+
+        # TWO CONTEXTS, ONE COUNTER, AND BOTH ISSUE THE SAME NUMBER.
+        #
+        # The run log is seeded with -Seq $bootLog.Seq, which is right: the boot
+        # context has already consumed numbers for the reconcile's own records
+        # and the run has to carry on from there. But NextSeq lives on the
+        # context, so from that line onwards the two objects hold the same value
+        # and each increments its OWN copy. The next write through either one
+        # returns the same number.
+        #
+        # MEASURED ON TWO REAL DEPLOYMENTS. run-20260829-223623 wrote seq 209
+        # twice - "logging live to '\\...\Logs\...'" through the run log and
+        # "progress display: Window" through the boot log, one second apart,
+        # both in the full OS. run-20260829-190105 did the identical thing at
+        # 128. DESIGN 4.4.2 wants seq monotonic so a run can be sorted; a
+        # duplicate inside ONE leg cannot even be blamed on the reboot.
+        #
+        # ASSERTED OVER THE SET, NOT OVER $bootLog. The rule is about any
+        # context this file forks a counter out of: once -Seq $X.Seq has been
+        # handed to a new context, $X must never be written through again. A
+        # third context added later inherits it.
+        It 'writes through no log context whose counter it has already handed on' {
+            $donor = @{}
+
+            foreach ($call in @(& $script:commandNamed 'New-HDTLogContext')) {
+                $element = @($call.CommandElements)
+
+                for ($i = 0; $i -lt ($element.Count - 1); $i++) {
+                    if ([string] $element[$i].Extent.Text -ne '-Seq') { continue }
+
+                    # '([long] $bootLog.Seq)', '$bootLog.Seq' - the name is what
+                    # matters, not how the argument was wrapped.
+                    if ([string] $element[$i + 1].Extent.Text -match '\$([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*Seq') {
+                        $handedOn = [string] $Matches[1]
+
+                        if (-not $donor.ContainsKey($handedOn) -or
+                            $donor[$handedOn] -gt $call.Extent.StartOffset) {
+
+                            $donor[$handedOn] = $call.Extent.StartOffset
+                        }
+                    }
+                }
+            }
+
+            $donor.Count | Should -BeGreaterThan 0 -Because 'this payload continues one run''s numbering across the reboot'
+
+            $offender = @()
+
+            foreach ($call in @(& $script:commandNamed 'Write-HDTLog')) {
+                $element = @($call.CommandElements)
+
+                for ($i = 0; $i -lt ($element.Count - 1); $i++) {
+                    if ([string] $element[$i].Extent.Text -ne '-Context') { continue }
+
+                    $value = $element[$i + 1]
+                    if ($value -isnot [System.Management.Automation.Language.VariableExpressionAst]) { continue }
+
+                    $written = [string] $value.VariablePath.UserPath
+
+                    if ($donor.ContainsKey($written) -and $call.Extent.StartOffset -gt $donor[$written]) {
+                        $offender += ('line {0} writes through ${1} after its counter was handed on' -f
+                            $call.Extent.StartLineNumber, $written)
+                    }
+                }
+            }
+
+            ($offender -join '; ') | Should -BeExactly ''
+        }
     }
 }
