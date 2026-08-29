@@ -289,12 +289,25 @@ Describe 'Write-HDTLog' {
     Context 'the CMTrace line' {
 
         It 'appends one line to HDT.log' {
+            # THE FIRST CALL OF A WinPE RUN WRITES TWO: its own entry and the
+            # once-per-run clock notice above it. Counted as a delta so this
+            # asserts what it says - one line per call - rather than a total
+            # that moves whenever the run's preamble does.
+            Write-HDTLog -Context $script:context -Message 'the notice rides on this one'
+            $before = @($script:fs.ReadAllText($script:masterPath) -split "`n" | Where-Object { $_ }).Count
+
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
-            @($script:fs.ReadAllText($script:masterPath) -split "`n" | Where-Object { $_ }).Count | Should -Be 1
+            @($script:fs.ReadAllText($script:masterPath) -split "`n" | Where-Object { $_ }).Count - $before |
+                Should -Be 1
         }
 
         It 'writes both files from one call' {
+            # The SECOND call, so the once-per-run clock notice is already
+            # written and this measures the steady state: one append each.
+            Write-HDTLog -Context $script:context -Message 'the notice rides on this one'
+            $script:fs.Operations.Clear()
+
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
             $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText')
@@ -302,12 +315,21 @@ Describe 'Write-HDTLog' {
                 Should -Be @($script:jsonlPath, $script:masterPath)
         }
 
+        It 'writes the clock notice to the master log as its own append' {
+            Write-HDTLog -Context $script:context -Message 'Applied index 1'
+
+            $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText', 'AppendAllText')
+            @($script:fs.Operations | ForEach-Object { $_.Arguments[0] }) |
+                Should -Be @($script:jsonlPath, $script:masterPath, $script:masterPath)
+        }
+
         It 'writes the message into the CMTrace line' {
             Write-HDTLog -Context $script:context -Message 'Applied index 1 to W:\ in 95s'
 
-            # StartsWith, not -BeLike: '[' opens a character class in a wildcard
-            # pattern, and this format is made of square brackets.
-            $script:fs.ReadAllText($script:masterPath).StartsWith('<![LOG[Applied index 1 to W:\ in 95s (clock unsynced)]LOG]!>') |
+            # Contains, not StartsWith and not -BeLike: '[' opens a character
+            # class in a wildcard pattern and this format is made of square
+            # brackets, and a WinPE run's first line is the clock notice.
+            $script:fs.ReadAllText($script:masterPath).Contains('<![LOG[Applied index 1 to W:\ in 95s]LOG]!>') |
                 Should -BeTrue
         }
 
@@ -354,8 +376,10 @@ Describe 'Write-HDTLog' {
             $script:context.SetStep(3, 'Apply OS', 'ApplyImage', 'X:\HDT\Logs\Steps\003-ApplyImage.log')
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
-            $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText', 'AppendAllText')
-            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log').StartsWith('<![LOG[Applied index 1 (clock unsynced)]LOG]!>') |
+            # Four: the jsonl, the once-per-run clock notice, the master log
+            # and the step log.
+            $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText', 'AppendAllText', 'AppendAllText')
+            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log').StartsWith('<![LOG[Applied index 1]LOG]!>') |
                 Should -BeTrue
         }
 
@@ -363,12 +387,21 @@ Describe 'Write-HDTLog' {
             $script:context.SetStep(3, 'Apply OS', 'ApplyImage', 'X:\HDT\Logs\Steps\003-ApplyImage.log')
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
-            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log') |
-                Should -BeExactly ($script:fs.ReadAllText($script:masterPath))
+            # THE ENTRY, not the whole file: the master log also carries the
+            # once-per-run clock notice, which is a fact about the RUN and so
+            # belongs to the run's log rather than to a step's.
+            $stepEntry = @($script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log') -split "`r`n" |
+                    Where-Object { $_ })
+            $masterEntry = @($script:fs.ReadAllText($script:masterPath) -split "`r`n" | Where-Object { $_ })
+
+            $stepEntry[-1] | Should -BeExactly $masterEntry[-1]
         }
 
         It 'does not write a step log when none is set' {
             $script:context.SetStep(3, 'Apply OS', 'ApplyImage', $null)
+            Write-HDTLog -Context $script:context -Message 'the notice rides on this one'
+            $script:fs.Operations.Clear()
+
             Write-HDTLog -Context $script:context -Message 'x'
 
             $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText')
@@ -382,7 +415,8 @@ Describe 'Write-HDTLog' {
             Write-HDTLog -Context $script:context -Message 'x'
 
             $script:context.StepLogPath | Should -BeExactly 'X:\HDT\Logs\Steps\003-ApplyImage.log'
-            $script:fs.Operations[2].Arguments[0] | Should -BeExactly 'X:\HDT\Logs\Steps\003-ApplyImage.log'
+            # [3], not [2]: the jsonl and the clock notice come first.
+            $script:fs.Operations[3].Arguments[0] | Should -BeExactly 'X:\HDT\Logs\Steps\003-ApplyImage.log'
         }
     }
 
@@ -468,9 +502,11 @@ Describe 'Write-HDTLog' {
 
             $entry = @($fs.ReadAllText([string] $context.MasterLogPath) -split "`r`n" | Where-Object { $_ })
 
-            $entry.Count | Should -Be 2
-            $entry[0].StartsWith('<![LOG[first (clock unsynced)]LOG]!>') | Should -BeTrue
-            $entry[1].StartsWith('<![LOG[second (clock unsynced)]LOG]!>') | Should -BeTrue
+            # Three: the once-per-run clock notice, then the two calls.
+            $entry.Count | Should -Be 3
+            $entry[0].StartsWith('<![LOG[Clock not synchronised') | Should -BeTrue
+            $entry[1].StartsWith('<![LOG[first]LOG]!>') | Should -BeTrue
+            $entry[2].StartsWith('<![LOG[second]LOG]!>') | Should -BeTrue
         }
     }
 
@@ -488,7 +524,8 @@ Describe 'Write-HDTLog' {
 
             Write-HDTLog -Context $verbose -Message 'x' -Severity Debug
 
-            @($script:fs.Operations).Count | Should -Be 2
+            # Three: the jsonl, the once-per-run clock notice and the master log.
+            @($script:fs.Operations).Count | Should -Be 3
         }
 
         It 'drops Info and Debug when the level is Warning' {
@@ -542,8 +579,11 @@ Describe 'Write-HDTLog' {
         It 'writes only through the injected filesystem' {
             Write-HDTLog -Context $script:context -Message 'x'
 
+            # Three appends, not two: the first call of a WinPE run announces
+            # the clock as its own entry in the master log.
             @($script:journal | ForEach-Object { '{0}.{1}' -f $_.Service, $_.Operation }) |
-                Should -Be @('Clock.GetUtcNow', 'FileSystem.AppendAllText', 'FileSystem.AppendAllText')
+                Should -Be @('Clock.GetUtcNow', 'FileSystem.AppendAllText', 'FileSystem.AppendAllText',
+                    'FileSystem.AppendAllText')
         }
 
         It 'reads the time only through the injected clock' {
@@ -625,7 +665,9 @@ Describe 'Write-HDTLog' {
         It 'appends to every local and mirrored path from one call' {
             # If this number moves, the two classifications below have a new
             # member to account for and the assertions that follow will say so.
-            $script:appended.Count | Should -Be 6
+            # Eight, not six: the first call of a WinPE run also announces the
+            # clock, once to the master log and once to the share mirror.
+            $script:appended.Count | Should -Be 8
         }
 
         It 'writes only CMTrace entries or JSON Lines records, nothing else' {
@@ -644,7 +686,7 @@ Describe 'Write-HDTLog' {
         It 'terminates every CMTrace entry with a carriage return and line feed' {
             $cmtrace = @($script:appended | Where-Object { $_.Content.StartsWith('<![LOG[') })
 
-            $cmtrace.Count | Should -Be 4
+            $cmtrace.Count | Should -Be 6
             foreach ($write in $cmtrace) {
                 $write.Content.EndsWith("`r`n") | Should -BeTrue -Because ('CMTrace cannot split {0} on a bare LF' -f $write.Path)
             }
@@ -681,13 +723,24 @@ Describe 'Write-HDTLog' {
             Write-HDTLog -Context $script:everyPath -Message 'two'
             Write-HDTLog -Context $script:everyPath -Message 'three'
 
-            foreach ($path in @($script:masterPath, 'X:\HDT\Logs\Steps\003-ApplyImage.log',
-                    '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2\HDT.log',
-                    '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2\Steps\003-ApplyImage.log')) {
-                $text = $script:fs.ReadAllText($path)
+            # The master logs carry a fourth entry - the once-per-file clock
+            # notice - and it is terminated by the same rule as the other three.
+            foreach ($case in @(
+                    @{ Path = $script:masterPath; Entry = 4 }
+                    @{ Path = 'X:\HDT\Logs\Steps\003-ApplyImage.log'; Entry = 3 }
 
-                @([regex]::Matches($text, "`r`n")).Count | Should -Be 3 -Because ('{0} needs one CRLF per entry' -f $path)
-                @([regex]::Matches($text, "`n")).Count | Should -Be 3 -Because ('{0} must carry no bare LF' -f $path)
+                    # THE MIRROR'S PATHS ARE ASKED FOR, NOT SPELLED OUT. They
+                    # carry a folder per RUN under the share now, and a suite
+                    # about LINE ENDINGS that hard-coded the folder shape would
+                    # fail for a reason it does not test. The shape belongs to
+                    # DynamicLogRunFolder.Tests.ps1.
+                    @{ Path = [string] $script:everyPath.DynamicMasterLogPath; Entry = 4 }
+                    @{ Path = [string] $script:everyPath.DynamicStepLogPath; Entry = 3 })) {
+
+                $text = $script:fs.ReadAllText($case.Path)
+
+                @([regex]::Matches($text, "`r`n")).Count | Should -Be $case.Entry -Because ('{0} needs one CRLF per entry' -f $case.Path)
+                @([regex]::Matches($text, "`n")).Count | Should -Be $case.Entry -Because ('{0} must carry no bare LF' -f $case.Path)
             }
         }
 
@@ -695,7 +748,8 @@ Describe 'Write-HDTLog' {
             Write-HDTLog -Context $script:everyPath -Message 'two'
             Write-HDTLog -Context $script:everyPath -Message 'three'
 
-            foreach ($path in @($script:jsonlPath, '\192.0.2.108\HDTShare\Logs\LT-7FJ45S2\HDT.jsonl')) {
+            # As above: the mirror's own path, asked for rather than spelled out.
+            foreach ($path in @($script:jsonlPath, [string] $script:everyPath.DynamicJsonlPath)) {
                 $text = $script:fs.ReadAllText($path)
 
                 @([regex]::Matches($text, "`n")).Count | Should -Be 3
@@ -757,33 +811,150 @@ Describe 'Write-HDTLog' {
             [bool] $record.clockUnsynced | Should -BeFalse
         }
 
-        It 'says so on the CMTrace line a technician actually reads' {
-            Write-HDTLog -Context $script:context -Message 'Applied index 1'
-
-            $text = $script:fs.ReadAllText($script:masterPath)
-
-            $text.Contains('Applied index 1 (clock unsynced)') |
-                Should -BeTrue -Because 'the CMTrace reader shows the message, not the jsonl field'
-        }
-
-        It 'leaves the full OS line alone' {
-            $fs = New-HDTFakeFileSystem
-            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
-            $context = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
-                -FileSystem $fs -Clock $clock -ThreadId 4820
-
-            Write-HDTLog -Context $context -Message 'Applied index 1'
-
-            $fs.ReadAllText([string] $context.MasterLogPath).Contains('clock unsynced') | Should -BeFalse
-        }
-
-        It 'keeps the jsonl message clean, so the suffix is the reader''s and not the record''s' {
+        It 'keeps the jsonl message clean, so the caveat is the reader''s and not the record''s' {
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
             $line = @($script:fs.ReadAllText($script:jsonlPath) -split "`n" | Where-Object { $_ })
             $record = ConvertFrom-Json -InputObject $line[0]
 
             [string] $record.message | Should -BeExactly 'Applied index 1'
+        }
+    }
+
+    Context 'the clock notice' {
+
+        # ANNOUNCED ONCE, NOT APPENDED TO EVERY LINE.
+        #
+        # The first build of this suffixed "(clock unsynced)" to every CMTrace
+        # message. WinPE's clock is unsynchronised for the whole of the WinPE
+        # leg, so on a real Latitude that fired on 93 records out of 93: a
+        # column of noise down the log rather than a marker, and the log was
+        # materially harder to read for it.
+        #
+        # THE ASSERTIONS ARE COUNTS OVER THE WHOLE FILE, not a look at one
+        # call, so a change that reintroduces the per-line caveat fails here
+        # rather than passing a single-record test.
+
+        BeforeEach {
+            $script:notice = 'Clock not synchronised'
+            $script:cleared = 'Clock synchronised'
+        }
+
+        It 'announces the unsynchronised clock once, whatever the number of records' {
+            1..6 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('record {0}' -f $_) }
+
+            $text = $script:fs.ReadAllText($script:masterPath)
+            $entry = @($text -split "`r`n" | Where-Object { $_ })
+
+            @([regex]::Matches($text, $script:notice)).Count |
+                Should -Be 1 -Because 'a marker on every line is not a marker'
+            $entry.Count | Should -Be 7 -Because 'six records and the one notice'
+        }
+
+        It 'announces it before the first record it applies to' {
+            Write-HDTLog -Context $script:context -Message 'the first thing the run did'
+
+            $entry = @($script:fs.ReadAllText($script:masterPath) -split "`r`n" | Where-Object { $_ })
+
+            $entry[0] | Should -BeLike ('*{0}*' -f $script:notice)
+            $entry[1] | Should -BeLike '*the first thing the run did*'
+        }
+
+        It 'says what it means for the timestamps that follow' {
+            Write-HDTLog -Context $script:context -Message 'x'
+
+            $entry = @($script:fs.ReadAllText($script:masterPath) -split "`r`n" | Where-Object { $_ })[0]
+
+            $entry | Should -BeLike '*timestamps that follow*'
+            $entry | Should -BeLike '*type="2"*' -Because 'a caveat about the evidence is a warning, and CMTrace colours it'
+        }
+
+        It 'leaves every ordinary CMTrace line free of the old per-line caveat' {
+            1..6 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('record {0}' -f $_) }
+
+            $script:fs.ReadAllText($script:masterPath) |
+                Should -Not -BeLike '*(clock unsynced)*' -Because 'DESIGN 4.4.2: the caveat is announced, not repeated'
+        }
+
+        It 'still marks every JSONL record, so the two surfaces cannot drift' {
+            1..6 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('record {0}' -f $_) }
+
+            $record = @($script:fs.ReadAllText($script:jsonlPath) -split "`n" |
+                    Where-Object { $_ } | ForEach-Object { ConvertFrom-Json -InputObject $_ })
+
+            $record.Count | Should -Be 6
+            @($record | Where-Object { $_.PSObject.Properties['clockUnsynced'] }).Count |
+                Should -Be 6 -Because 'a consumer filtering on the field wants it per record'
+            @($record | Where-Object { [bool] $_.clockUnsynced }).Count | Should -Be 6
+        }
+
+        It 'writes no notice into the JSONL, which needs none' {
+            1..3 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('record {0}' -f $_) }
+
+            $script:fs.ReadAllText($script:jsonlPath) | Should -Not -BeLike ('*{0}*' -f $script:notice)
+        }
+
+        It 'says nothing at all when the clock is trustworthy' {
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+                -FileSystem $fs -Clock $clock -ThreadId 4820
+
+            1..3 | ForEach-Object { Write-HDTLog -Context $context -Message ('record {0}' -f $_) }
+
+            $text = $fs.ReadAllText([string] $context.MasterLogPath)
+
+            $text | Should -Not -BeLike ('*{0}*' -f $script:cleared) -Because 'a full-OS log opening by announcing that its clock is fine is noise'
+            $text | Should -Not -BeLike '*clock unsynced*'
+            @($text -split "`r`n" | Where-Object { $_ }).Count | Should -Be 3
+        }
+
+        It 'announces the clear once when the clock becomes trustworthy' {
+            # The mechanism is symmetric: a reader knows exactly which stretch
+            # of the log is suspect because both ends of it are marked.
+            1..2 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('winpe {0}' -f $_) }
+            $script:context.Phase = 'FullOS'
+            1..2 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('fullos {0}' -f $_) }
+
+            $text = $script:fs.ReadAllText($script:masterPath)
+            $entry = @($text -split "`r`n" | Where-Object { $_ })
+
+            @([regex]::Matches($text, $script:notice)).Count | Should -Be 1
+            @([regex]::Matches($text, ('{0}:' -f $script:cleared))).Count | Should -Be 1
+            $entry.Count | Should -Be 6
+            $entry[3] | Should -BeLike ('*{0}:*' -f $script:cleared)
+            $entry[4] | Should -BeLike '*fullos 1*'
+        }
+
+        It 'keeps the step log free of it, because the clock is a fact about the run' {
+            $script:context.SetStep(3, 'Apply OS', 'ApplyImage', 'X:\HDT\Logs\Steps\003-ApplyImage.log')
+            1..3 | ForEach-Object { Write-HDTLog -Context $script:context -Message ('record {0}' -f $_) }
+
+            $text = $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log')
+
+            $text | Should -Not -BeLike ('*{0}*' -f $script:notice)
+            @($text -split "`r`n" | Where-Object { $_ }).Count | Should -Be 3
+        }
+
+        It 'announces it once on the share mirror, which starts mid-run' {
+            # HDTSLShareDynamicLogging resolves after the wizard, so the mirror
+            # opens partway through and would carry no notice at all if the
+            # local log's "told you already" counted for it.
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fs -Clock $clock -ThreadId 4820
+
+            Write-HDTLog -Context $context -Message 'before the share was known'
+            $context.SetDynamicPath('\\192.0.2.108\HDTShare\Logs\LT-7FJ45S2')
+            1..3 | ForEach-Object { Write-HDTLog -Context $context -Message ('after {0}' -f $_) }
+
+            $mirror = $fs.ReadAllText([string] $context.DynamicMasterLogPath)
+
+            @([regex]::Matches($mirror, $script:notice)).Count | Should -Be 1
+            @($mirror -split "`r`n" | Where-Object { $_ }).Count | Should -Be 4
+            @([regex]::Matches($fs.ReadAllText([string] $context.MasterLogPath), $script:notice)).Count |
+                Should -Be 1 -Because 'the local log was told once and must not be told again'
         }
     }
 }

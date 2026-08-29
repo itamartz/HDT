@@ -44,6 +44,11 @@ function Write-HDTLog {
             Verbosity order is Error < Warning < Info < Debug, so Level = Warning
             emits Error and Warning only.
 
+            THE CLOCK CAVEAT IS ANNOUNCED ONCE PER LOG FILE, not appended to
+            every message. DESIGN 4.4.2: WinPE's clock is unsynchronised for the
+            whole of the WinPE leg, so a per-line marker fires on every line and
+            is not a marker. The jsonl keeps clockUnsynced on every record.
+
         .PARAMETER Context
             A New-HDTLogContext result.
 
@@ -233,19 +238,68 @@ function Write-HDTLog {
     $userContext = ''
     if ($null -ne $Context.PSObject.Properties['User']) { $userContext = [string] $Context.User }
 
-    # AND THE CMTrace READER GETS IT IN THE MESSAGE. CMTrace shows the message,
-    # the component, the time and the thread - it has no column for a field we
-    # invented, so a clockUnsynced the jsonl carries would be invisible to the
-    # one reader most likely to be looking at a skewed timestamp. The jsonl
-    # message stays clean; this suffix belongs to the rendering.
-    $cmTraceMessage = $Message
-    if ([bool] $record['clockUnsynced']) {
-        $cmTraceMessage = '{0} (clock unsynced)' -f $Message
-    }
-
-    $line = ConvertTo-HDTCmTraceLine -Message $cmTraceMessage -Component $componentName `
+    $line = ConvertTo-HDTCmTraceLine -Message $Message -Component $componentName `
         -Severity $Severity -Timestamp $timestamp -ThreadId ([int] $Context.ThreadId) -File $sourceName `
         -UserContext $userContext
+
+    # -- the clock caveat, ANNOUNCED ONCE rather than repeated -----------------
+    #
+    # CMTrace has no column for a field we invented, so clockUnsynced is
+    # invisible to the reader most likely to be looking at a skewed timestamp
+    # unless the rendering says it. It said it by suffixing "(clock unsynced)"
+    # to every message - and WinPE's clock is unsynchronised for the WHOLE of
+    # the WinPE leg, so on a real Latitude that fired on 93 records out of 93.
+    # A marker that is on every line is not a marker; it is a column of noise
+    # down the log, and it made the file materially harder to read.
+    #
+    # So the run says it ONCE, as its own entry, at the point it first becomes
+    # true - and says so again if it ever clears, because a reader then knows
+    # exactly which stretch of the log is suspect. The jsonl is untouched: every
+    # record still carries the boolean, which is the surface a filter wants and
+    # the reason the CMTrace line does not have to repeat it.
+    #
+    # ONCE PER FILE, NOT ONCE PER PROCESS. HDTSLShareDynamicLogging is resolved
+    # after the wizard, so the share mirror starts mid-run; keyed by path, the
+    # mirror gets its own notice the first time it is written to instead of
+    # inheriting a "told you already" from a file the watcher cannot see.
+    #
+    # THE STEP LOGS GET NOTHING. The clock is a fact about the run, and a
+    # per-step file that opened with a caveat about the run would be the same
+    # noise one directory down.
+    $clockUnsynced = [bool] $record['clockUnsynced']
+    $clockNotice = $null
+    if ($null -ne $Context.PSObject.Properties['ClockNotice']) { $clockNotice = $Context.ClockNotice }
+
+    # Returns the notice entry a given file is owed, or '' when it is owed
+    # nothing. It does NOT record that the file was told: that is done by the
+    # caller, after the append succeeded, so a share that was unreachable for
+    # one line is still told when it comes back.
+    $clockNoticeFor = {
+        param([string] $Path)
+
+        if ($null -eq $clockNotice) { return '' }
+
+        $announced = $null
+        if ($clockNotice.Contains($Path)) { $announced = [bool] $clockNotice[$Path] }
+
+        # Nothing to say when the file already knows, and nothing to say to a
+        # file whose first record is trustworthy - a full-OS log would otherwise
+        # open by announcing that its clock is fine, which nobody asked.
+        if ($announced -eq $clockUnsynced) { return '' }
+        if ($null -eq $announced -and -not $clockUnsynced) { return '' }
+
+        $noticeMessage = 'Clock synchronised: the timestamps that follow are the deployment''s own'
+        $noticeSeverity = 'Info'
+
+        if ($clockUnsynced) {
+            $noticeMessage = 'Clock not synchronised: the timestamps that follow are WinPE''s own, not the deployment''s - ordering comes from seq'
+            $noticeSeverity = 'Warning'
+        }
+
+        return (ConvertTo-HDTCmTraceLine -Message $noticeMessage -Component $componentName `
+                -Severity $noticeSeverity -Timestamp $timestamp -ThreadId ([int] $Context.ThreadId) `
+                -File $sourceName -UserContext $userContext)
+    }
 
     # TWO FORMATS, TWO SEPARATORS, AND THEY ARE NOT INTERCHANGEABLE.
     #
@@ -267,6 +321,16 @@ function Write-HDTLog {
     # startnet.cmd is "written ASCII with CRLF and no BOM" for the same reason -
     # a file a Windows tool parses gets the terminator that tool splits on.
     $Context.FileSystem.AppendAllText($Context.JsonlPath, ($json + "`n"))
+
+    # ITS OWN APPEND, not a two-entry string: one append is one CMTrace entry
+    # everywhere else in this function, and the CRLF tests hold every write to
+    # exactly one terminator each.
+    $masterNotice = & $clockNoticeFor ([string] $Context.MasterLogPath)
+    if (-not [string]::IsNullOrEmpty($masterNotice)) {
+        $Context.FileSystem.AppendAllText($Context.MasterLogPath, ($masterNotice + "`r`n"))
+        $clockNotice[[string] $Context.MasterLogPath] = $clockUnsynced
+    }
+
     $Context.FileSystem.AppendAllText($Context.MasterLogPath, ($line + "`r`n"))
 
     if (-not [string]::IsNullOrWhiteSpace([string] $Context.StepLogPath)) {
@@ -293,17 +357,32 @@ function Write-HDTLog {
     # line, which is the one a technician actually reads.
     if ([string]::IsNullOrWhiteSpace([string] $Context.DynamicPath)) { return }
 
+    # The mirror's own copy of the clock notice, because the mirror starts
+    # mid-run and would otherwise never carry it - see $clockNoticeFor above.
+    # Notice is the flag that says "record that this file has now been told",
+    # and it is only set after the append it belongs to has succeeded.
+    $mirrorNotice = ''
+    if (-not [string]::IsNullOrWhiteSpace([string] $Context.DynamicMasterLogPath)) {
+        $mirrorNotice = & $clockNoticeFor ([string] $Context.DynamicMasterLogPath)
+    }
+
     $mirror = @(
-        @{ Path = [string] $Context.DynamicJsonlPath; Text = ($json + "`n") }
-        @{ Path = [string] $Context.DynamicMasterLogPath; Text = ($line + "`r`n") }
-        @{ Path = [string] $Context.DynamicStepLogPath; Text = ($line + "`r`n") }
+        @{ Path = [string] $Context.DynamicJsonlPath; Text = ($json + "`n"); Notice = $false }
+        @{ Path = [string] $Context.DynamicMasterLogPath; Text = ($mirrorNotice + "`r`n"); Notice = $true
+            Skip = [string]::IsNullOrEmpty($mirrorNotice)
+        }
+        @{ Path = [string] $Context.DynamicMasterLogPath; Text = ($line + "`r`n"); Notice = $false }
+        @{ Path = [string] $Context.DynamicStepLogPath; Text = ($line + "`r`n"); Notice = $false }
     )
 
     foreach ($current in $mirror) {
         if ([string]::IsNullOrWhiteSpace($current.Path)) { continue }
+        if ($current.Contains('Skip') -and $current.Skip) { continue }
 
         try {
             $Context.FileSystem.AppendAllText($current.Path, $current.Text)
+
+            if ($current.Notice) { $clockNotice[[string] $current.Path] = $clockUnsynced }
         } catch {
             # Write-Verbose, NOT Write-Warning. A share that has gone will fail
             # on every line for the rest of the deployment, and a warning per

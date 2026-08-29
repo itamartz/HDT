@@ -693,8 +693,32 @@ the same skew, so a deployment's WinPE leg can appear on the wrong day entirely.
 Every record therefore carries a boolean `clockUnsynced`, true while the engine
 has no evidence the clock is trustworthy — set in WinPE, cleared once the full
 OS has synchronised. `ConvertTo-HDTReport` marks those rows rather than
-presenting them as fact, and the CMTrace line appends `(clock unsynced)` to the
-message.
+presenting them as fact.
+
+**The CMTrace log announces it once, and does not repeat it.** The first build
+suffixed `(clock unsynced)` to every message, and because WinPE's clock is
+unsynchronised for the *whole* of the WinPE leg that fired on 93 records out of
+93 on a real machine — a column of noise down the log rather than a marker, and
+a log materially harder to read for it. So `Write-HDTLog` writes one entry of
+its own, `Clock not synchronised: the timestamps that follow are WinPE's own,
+not the deployment's - ordering comes from seq`, at the point the answer first
+becomes true, and a matching `Clock synchronised: …` entry if it ever clears —
+so a reader knows exactly which stretch of the log is suspect. It is a
+**warning**, which is how CMTrace colours it.
+
+Three properties of that announcement are load bearing:
+
+- **The JSONL is untouched.** Every record still carries the boolean, which is
+  the surface a filter wants, and the reason the CMTrace line does not have to
+  repeat it. The notice is a rendering, so it is written to `HDT.log` only — it
+  is not a record, consumes no `seq`, and appears in no JSONL stream.
+- **Once per file, not once per process.** `HDTSLShareDynamicLogging` resolves
+  after the wizard, so the share mirror starts mid-run; the state is keyed by
+  path, and the mirror gets its own notice the first time it is written to
+  rather than inheriting a “already said” from a file the watcher cannot see.
+- **Per-step logs get nothing.** The clock is a fact about the run, and a step
+  file opening with a caveat about the run would be the same noise one directory
+  down.
 
 The engine does **not** try to fix the clock. Setting time needs a time source
 that may not exist on an isolated deployment VLAN, and a toolkit that refuses to
