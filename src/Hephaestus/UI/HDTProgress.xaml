@@ -123,6 +123,39 @@
                            TextTrimming="CharacterEllipsis" />
 
                 <!--
+                    WHICH ONE OF THE MANY. "Install Applications" is one step
+                    and eleven installers, and a technician watching a machine
+                    sit on that name for twenty minutes cannot tell Acrobat from
+                    the one that hung. Every step that loops already writes what
+                    it is on - "installing 1 of 2: Acrobat Acrobat Reader DC",
+                    "staging Latitude 5420: 64%" - and until this line existed
+                    the log knew and the screen did not.
+
+                    A HEARTBEAT LANDS HERE TOO. A step that has gone quiet says
+                    "... - still running after 45s" every fifteen seconds, and
+                    on a card where nothing else is moving that sentence is the
+                    difference between a slow machine and a hung one.
+
+                    ONE LINE, ELLIPSIS, AND THE LOG KEEPS THE WHOLE OF IT.
+                    "applying Z:\OperatingSystems\...\install.wim (index 1) to
+                    W:\: 45%" is longer than any card; wrapping it would push
+                    the bars down the screen every time a long one arrived, and
+                    the bars are what a technician is looking at. The message is
+                    written for the LOG, which is the record - this is a view of
+                    it, and a view is allowed to run out of room.
+
+                    MinHeight, SO THE CARD DOES NOT BREATHE. This line is blank
+                    between steps by design (a finished step is not still
+                    installing TightVNC), and a control that collapses when it
+                    empties would move the counter and both bars up and down
+                    twice per step on a board somebody is watching from across a
+                    room.
+                -->
+                <TextBlock x:Name="HDTProgressActivity" Text="" Foreground="#FFCCCCCC"
+                           FontSize="14" Margin="0,6,0,0" MinHeight="19"
+                           TextTrimming="CharacterEllipsis" />
+
+                <!--
                     THE COUNTER AND THE STEP'S OWN PERCENTAGE SHARE A LINE, and
                     the percentage is here rather than beside its bar so that
                     both bars are the same width. A bar with a caption at the
@@ -212,6 +245,39 @@
                         </TextBlock.Style>
                     </TextBlock>
 
+                    <!--
+                        THE CLOCK, AND IT IS A CLOCK. Every other value on this
+                        card is derived from the log; this one is not, because
+                        the log cannot supply it. It used to be: the engine
+                        summed the stretches the records' own timestamps ran
+                        forwards through, which advances only when something
+                        WRITES a record - so between records it was frozen by
+                        construction. Measured on LT-D5M1NN3,
+                        run-20260829-223623: step 7 wrote step.start and then
+                        nothing for minutes, and this number sat at its opening
+                        value the whole time. Gaps of 12.7s, 12.3s, 10.2s and
+                        9.3s in the driver step of the same run.
+
+                        SO THE LOG SUPPLIES THE STEP'S START TIME AND THE HOST
+                        SUBTRACTS IT FROM ITS OWN CLOCK, on the timer that is
+                        already repainting this card four times a second. Time
+                        passes whether or not a deployment has anything to say
+                        about it.
+
+                        IT IS THIS STEP'S CLOCK, NOT THE RUN'S, AND THE LABEL
+                        SAYS SO. A run clock would have to be measured across
+                        the reboot, where WinPE's unsynchronised clock is
+                        corrected - routinely BACKWARDS, by ten hours and
+                        fifty-three minutes on LT-7FJ45S2, run-20260829-172208 -
+                        and across that jump nothing is measurable at all. The
+                        step running now started on THIS side of the reboot,
+                        stamped by the same clock the host is reading, so the
+                        skew is on both sides of the subtraction and cancels.
+
+                        AND IT IS THE NUMBER THE QUESTION IS ABOUT ANYWAY: not
+                        "how long has this machine been deploying" but "has this
+                        step been going longer than it should".
+                    -->
                     <TextBlock Grid.Column="1" x:Name="HDTProgressElapsed" Text="" Foreground="#FF8A8A8A"
                                FontSize="15" VerticalAlignment="Center" />
                 </Grid>

@@ -29,6 +29,12 @@ InModuleScope -ModuleName Hephaestus {
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 
+    # THE CLOCK, FIXED, AND PASSED IN AT EVERY CALL BELOW. The line's elapsed is
+    # now the difference between the step's start and the time of asking, so a
+    # test that let the real clock supply the second half would assert on when
+    # the suite happened to run.
+    $script:now = [datetime]::new(2026, 8, 15, 9, 30, 0, [System.DateTimeKind]::Utc)
+
     function New-HDTTestProgress {
         [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
             Justification = 'Builds in-memory test data; it changes no state.')]
@@ -44,7 +50,8 @@ BeforeAll {
             [Parameter()] [string] $Phase = 'WinPE',
             [Parameter()] [string] $Status = 'Running',
             [Parameter()] [int] $ElapsedSecond = 84,
-            [Parameter()] [int] $StepPercent = 0
+            [Parameter()] [int] $StepPercent = 0,
+            [Parameter()] [string] $Activity = ''
         )
 
         return [pscustomobject] @{
@@ -58,8 +65,14 @@ BeforeAll {
             PercentComplete = $PercentComplete
             Phase           = $Phase
             Status          = $Status
-            ElapsedSecond   = $ElapsedSecond
             StepPercent     = $StepPercent
+            Activity        = $Activity
+
+            # THE KNOB IS STILL "HOW LONG HAS IT BEEN GOING", because that is
+            # what every assertion below is about - but the progress object no
+            # longer carries a duration, so the seconds are turned back into the
+            # instant the step started, which is what it does carry.
+            StepStartTime   = $script:now.AddSeconds(-$ElapsedSecond)
         }
     }
 }
@@ -77,29 +90,41 @@ Describe 'Format-HDTProgressLine' {
     Context 'what it says' {
 
         It 'carries step N of M' {
-            Format-HDTProgressLine -Progress (New-HDTTestProgress) | Should -BeLike '*3/8*'
+            Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now | Should -BeLike '*3/8*'
         }
 
         It 'carries the percentage' {
-            Format-HDTProgressLine -Progress (New-HDTTestProgress) | Should -BeLike '*25%*'
+            Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now | Should -BeLike '*25%*'
         }
 
         It 'carries the phase, which is the first thing asked about a long run' {
-            Format-HDTProgressLine -Progress (New-HDTTestProgress) | Should -BeLike '*WinPE*'
+            Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now | Should -BeLike '*WinPE*'
         }
 
         It 'carries the step name' {
-            Format-HDTProgressLine -Progress (New-HDTTestProgress) | Should -BeLike '*Apply Windows 11*'
+            Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now | Should -BeLike '*Apply Windows 11*'
         }
 
         It 'carries elapsed as a clock rather than as a count of seconds' {
             # 84 seconds is 00:01:24. A technician comparing two machines reads
             # a clock; nobody divides by sixty at a bench.
-            Format-HDTProgressLine -Progress (New-HDTTestProgress) | Should -BeLike '*00:01:24*'
+            Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now | Should -BeLike '*00:01:24*'
+        }
+
+        It 'measures elapsed against the time it is told, not against the records' {
+            # THE DEFECT THIS REPLACED. The number used to be summed from the
+            # records' own timestamps, so it moved only when something wrote a
+            # record - and on a step that went quiet for minutes it did not move
+            # at all. Same progress object, two different moments of asking, two
+            # different clocks: that is what makes it a clock.
+            $progress = New-HDTTestProgress
+
+            Format-HDTProgressLine -Progress $progress -Now $script:now | Should -BeLike '*00:01:24*'
+            Format-HDTProgressLine -Progress $progress -Now $script:now.AddSeconds(30) | Should -BeLike '*00:01:54*'
         }
 
         It 'is one line, because a console scrolls' {
-            @((Format-HDTProgressLine -Progress (New-HDTTestProgress)) -split "`n").Count | Should -Be 1
+            @((Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now) -split "`n").Count | Should -Be 1
         }
     }
 
@@ -109,21 +134,21 @@ Describe 'Format-HDTProgressLine' {
             # A WinPE prompt and a serial console are both 80 wide, and neither
             # wraps kindly - a line that spills leaves the technician reading
             # half of every second line.
-            [int] (Format-HDTProgressLine -Progress (New-HDTTestProgress)).Length |
+            [int] (Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now).Length |
                 Should -BeLessOrEqual 80
         }
 
         It 'still fits when the step name is absurd' {
             $long = New-HDTTestProgress -StepName ('Apply ' + ('very ' * 40) + 'long image')
 
-            [int] (Format-HDTProgressLine -Progress $long).Length | Should -BeLessOrEqual 80
+            [int] (Format-HDTProgressLine -Progress $long -Now $script:now).Length | Should -BeLessOrEqual 80
         }
 
         It 'keeps the counter and the phase when it truncates the name' {
             # THE NAME IS THE PART THAT GIVES WAY. Where the deployment is up to
             # survives; which step it is on is allowed to be abbreviated.
             $long = New-HDTTestProgress -StepName ('x' * 200)
-            $line = Format-HDTProgressLine -Progress $long
+            $line = Format-HDTProgressLine -Progress $long -Now $script:now
 
             $line | Should -BeLike '*3/8*'
             $line | Should -BeLike '*WinPE*'
@@ -131,8 +156,8 @@ Describe 'Format-HDTProgressLine' {
         }
 
         It 'pads the counter so consecutive lines form columns' {
-            $one = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepNumber 3 -StepCount 8 -PercentComplete 25)
-            $two = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepNumber 10 -StepCount 48 -PercentComplete 100)
+            $one = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepNumber 3 -StepCount 8 -PercentComplete 25) -Now $script:now
+            $two = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepNumber 10 -StepCount 48 -PercentComplete 100) -Now $script:now
 
             # The step name starts at the same column in both.
             [int] $one.IndexOf('Apply') | Should -Be ([int] $two.IndexOf('Apply'))
@@ -142,18 +167,18 @@ Describe 'Format-HDTProgressLine' {
     Context 'a run that is not simply running' {
 
         It 'says so when it failed' {
-            Format-HDTProgressLine -Progress (New-HDTTestProgress -Status 'Failed') | Should -BeLike '*FAILED*'
+            Format-HDTProgressLine -Progress (New-HDTTestProgress -Status 'Failed') -Now $script:now | Should -BeLike '*FAILED*'
         }
 
         It 'says so when it finished' {
-            Format-HDTProgressLine -Progress (New-HDTTestProgress -Status 'Succeeded' -PercentComplete 100) |
+            Format-HDTProgressLine -Progress (New-HDTTestProgress -Status 'Succeeded' -PercentComplete 100) -Now $script:now |
                 Should -BeLike '*DONE*'
         }
 
         It 'does not shout on an ordinary running step' {
             # A line that says RUNNING on every step is a line nobody reads by
             # the fourth one, and then FAILED goes past unnoticed.
-            $line = Format-HDTProgressLine -Progress (New-HDTTestProgress)
+            $line = Format-HDTProgressLine -Progress (New-HDTTestProgress) -Now $script:now
 
             $line | Should -Not -BeLike '*RUNNING*'
             $line | Should -Not -BeLike '*FAILED*'
@@ -168,13 +193,34 @@ Describe 'Format-HDTProgressLine' {
                 CompletedCount = 0; PercentComplete = 0; Phase = ''; Status = 'Unknown'; ElapsedSecond = 0
             }
 
-            { Format-HDTProgressLine -Progress $empty } | Should -Not -Throw
+            { Format-HDTProgressLine -Progress $empty -Now $script:now } | Should -Not -Throw
+        }
+
+        It 'prints a clock of zero when no step has started' {
+            # A run that has not reached its first step has nothing to time, and
+            # the column has to be there anyway: consecutive lines forming
+            # columns is the whole of the styling this fallback has, so a clock
+            # that came and went would shift every other column sideways.
+            $notYet = New-HDTTestProgress
+            $notYet.StepStartTime = $null
+
+            Format-HDTProgressLine -Progress $notYet -Now $script:now | Should -BeLike '*00:00:00*'
+        }
+
+        It 'never prints a negative clock' {
+            # WinPE corrects its clock mid-run (DESIGN 4.4.2), and a correction
+            # landing between the step's start and the moment of asking is a
+            # real shape. A negative timespan renders through the format string
+            # as a huge hour count on a wall.
+            $ahead = New-HDTTestProgress -ElapsedSecond -600
+
+            Format-HDTProgressLine -Progress $ahead -Now $script:now | Should -BeLike '*00:00:00*'
         }
 
         It 'omits the count when nothing said how many steps there are' {
             $unknown = New-HDTTestProgress -StepCount 0 -StepNumber 1
 
-            Format-HDTProgressLine -Progress $unknown | Should -Not -BeLike '*/0*'
+            Format-HDTProgressLine -Progress $unknown -Now $script:now | Should -Not -BeLike '*/0*'
         }
     }
 }
@@ -192,16 +238,16 @@ Describe 'the step that is taking all the time' {
     # sideways mid-deployment.
 
     It 'shows the percentage the step reported' {
-        Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 37) | Should -BeLike '*37%*'
+        Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 37) -Now $script:now | Should -BeLike '*37%*'
     }
 
     It 'shows nothing where a step reported nothing' {
-        Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 0) | Should -Not -BeLike '*0%*'
+        Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 0) -Now $script:now | Should -Not -BeLike '*0%*'
     }
 
     It 'keeps the clock in the same column either way' {
-        $with = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 37)
-        $without = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 0)
+        $with = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 37) -Now $script:now
+        $without = Format-HDTProgressLine -Progress (New-HDTTestProgress -StepPercent 0) -Now $script:now
 
         $with.IndexOf('00:01:24') | Should -Be $without.IndexOf('00:01:24')
     }
@@ -209,7 +255,7 @@ Describe 'the step that is taking all the time' {
     It 'still fits in eighty columns with a long name and a percentage' {
         $long = New-HDTTestProgress -StepPercent 100 -StepName ('Apply ' + ('Windows Server 2025 Standard Desktop Experience ' * 3))
 
-        (Format-HDTProgressLine -Progress $long).Length | Should -BeLessOrEqual 80
+        (Format-HDTProgressLine -Progress $long -Now $script:now).Length | Should -BeLessOrEqual 80
     }
 
     It 'survives a progress object that predates the field' {
@@ -218,7 +264,7 @@ Describe 'the step that is taking all the time' {
             CompletedCount = 2; PercentComplete = 25; Phase = 'WinPE'; Status = 'Running'; ElapsedSecond = 84
         }
 
-        { Format-HDTProgressLine -Progress $old } | Should -Not -Throw
+        { Format-HDTProgressLine -Progress $old -Now $script:now } | Should -Not -Throw
     }
 }
 

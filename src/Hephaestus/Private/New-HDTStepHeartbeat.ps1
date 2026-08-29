@@ -16,15 +16,20 @@ function New-HDTStepHeartbeat {
                                        fifty-seven while one MSI ran.
 
             AND SILENCE IS NOT COSMETIC. Get-HDTDeploymentProgress derives
-            EVERYTHING it shows from the timestamps of the records themselves -
-            the bar, the step, and the elapsed clock - deliberately, because
-            reading a wall clock there would make the answer depend on when it
-            was asked and would count time spent in a reboot the deployment was
-            not running through. That reasoning is right and does not change.
-            The consequence is that between two records nothing on the screen
-            moves at all: a technician watched "00:00:00 elapsed" for three and a
-            half minutes of a deployment that was working perfectly, and
-            reasonably concluded it had hung.
+            everything it shows from the records themselves and holds no clock,
+            deliberately - reading one there would make the answer depend on
+            when it was asked. The consequence is that between two records
+            nothing it reports changes at all: a technician watched a motionless
+            card for three and a half minutes of a deployment that was working
+            perfectly, and reasonably concluded it had hung.
+
+            THE ELAPSED CLOCK IS NO LONGER ONE OF THOSE THINGS, and this text
+            used to say it was. It was summed from the records' own timestamps
+            and so was frozen between them by construction; the window now
+            subtracts the step's start time from its own clock on its repaint
+            timer, so the seconds move whether or not anything writes. What a
+            heartbeat is still for is everything the clock cannot say: WHICH
+            installer, and that the machine was alive at that instant.
 
             SO THE FIX IS ON THE PRODUCER SIDE. A step that is waiting emits a
             record periodically, and the derivation has something fresh to read.
@@ -42,9 +47,10 @@ function New-HDTStepHeartbeat {
 
             IT REUSES step.progress AND ADDS NO NEW EVENT NAME, and that is a
             decision rather than laziness. Get-HDTDeploymentProgress reads
-            `percent` off a step.progress record and nothing else off it, and it
-            reads it CONDITIONALLY - so a record that carries no percent leaves
-            StepPercent exactly where the last real progress record put it. A
+            `percent` off a step.progress record CONDITIONALLY - so a record
+            that carries no percent leaves StepPercent exactly where the last
+            real progress record put it, while its message still reaches the
+            card's activity line, which is the half a heartbeat is for. A
             heartbeat therefore cannot drag a bar backwards, which a
             step.progress carrying percent 0 would do every fifteen seconds in
             the middle of an apply that was 70% done. A new name in the

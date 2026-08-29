@@ -21,6 +21,14 @@
             scrolls, so every line printed pushes the last real change further
             up. Only a line that DIFFERS is written.
 
+            THE CLOCK MOVES NOW, so two updates a second apart differ and both
+            print. That is the right answer rather than a hole in the rule: the
+            caller updates once per step outcome and once per heartbeat, and a
+            heartbeat whose only news is that thirty more seconds have passed on
+            the same step is exactly the news a technician at a serial console
+            is waiting for. What the rule still stops is the same line, in the
+            same second, twice.
+
             THE LINE ITSELF IS Format-HDTProgressLine's, which is pure and
             tested. What is left here is writing it, which is why this adapter
             can be exempt from tests at all (CLAUDE.md rule 1).
@@ -87,7 +95,11 @@
 
         if ($null -eq $Progress) { return }
 
-        $line = Format-HDTProgressLine -Progress $Progress
+        # THE CLOCK IS READ HERE, WHICH IS WHY IT IS READ IN AN ADAPTER AT ALL.
+        # Format-HDTProgressLine subtracts the step's start time from whatever
+        # it is told the time is, and stays pure and deterministic by being told
+        # rather than looking. On this side there is nothing to keep pure.
+        $line = Format-HDTProgressLine -Progress $Progress -Now ([datetime]::UtcNow)
         if ($line -eq $this.LastLine) { return }
 
         $this.LastLine = $line

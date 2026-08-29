@@ -15,6 +15,15 @@
             all. What is left here is: start a runspace, load markup, set text
             by name, and tear it down.
 
+            THE ONE NUMBER THIS WORKS OUT ITSELF IS THE CLOCK, and it has to be
+            here because it is the one fact the log cannot supply: how long the
+            current step has been running is UtcNow minus the step's start time,
+            and only something holding a clock can ask. It is a subtraction and
+            a format string on a timer that was already ticking - see the timer
+            below - which is small enough to stay inside the exemption, and the
+            derivation it replaced is remembered in Get-HDTDeploymentProgress
+            and in the markup because it froze on a real deployment.
+
             THE WINDOW RUNS IN ITS OWN RUNSPACE, and DESIGN 11.1 requires it in
             those words: "The engine must never block on rendering, and a UI
             fault must not take the deployment with it." A WPF window owns the
@@ -128,6 +137,7 @@
                 $sequenceName = $window.FindName('HDTProgressSequenceName')
                 $phase = $window.FindName('HDTProgressPhase')
                 $stepName = $window.FindName('HDTProgressStepName')
+                $activity = $window.FindName('HDTProgressActivity')
                 $stepGroup = $window.FindName('HDTProgressStepGroup')
                 $stepCounter = $window.FindName('HDTProgressStepCounter')
                 $bar = $window.FindName('HDTProgressBar')
@@ -139,6 +149,14 @@
                 # THE UI PULLS; THE ENGINE NEVER PUSHES. Four ticks a second is
                 # far below anything a technician perceives as lag and far above
                 # anything that costs a deployment measurable time.
+                #
+                # AND IT IS WHAT MAKES THE CLOCK A CLOCK. The elapsed below is
+                # not read out of the progress object - it is UtcNow minus the
+                # step's start time, worked out here, on this tick, whether or
+                # not the engine has said anything since the last one. One timer
+                # rather than a second at one second: this one is already
+                # repainting the card, and a clock rendered four times a second
+                # instead of once costs a string format nobody can measure.
                 $timer = New-Object -TypeName System.Windows.Threading.DispatcherTimer
                 $timer.Interval = [TimeSpan]::FromMilliseconds(250)
                 $timer.Add_Tick({
@@ -207,8 +225,34 @@
                             $stepPercent.Text = ''
                         }
 
-                        $span = [timespan]::FromSeconds([int] $progress.ElapsedSecond)
-                        $elapsed.Text = '{0:00}:{1:00}:{2:00} elapsed' -f
+                        # WHICH ONE OF THE MANY - "installing 1 of 2: Acrobat
+                        # Acrobat Reader DC", or a heartbeat's "still running
+                        # after 45s". Blank between steps, and the markup keeps
+                        # the line's height so the card does not breathe.
+                        $activity.Text = [string] $progress.Activity
+
+                        # THE CLOCK. UtcNow minus the step's start, worked out on
+                        # every tick - see the timer's own comment above and the
+                        # long note in the markup for the frozen clock this
+                        # replaced and the backwards jump that is still real.
+                        #
+                        # $null IS "NO STEP YET" and shows 00:00:00 rather than
+                        # nothing: this is a board a technician reads from
+                        # across a room, and a field that appears once the first
+                        # step starts is a field that looks broken until then.
+                        #
+                        # NEGATIVE IS CLAMPED. WinPE corrects its clock mid-run,
+                        # and a correction landing between the step's start and
+                        # this subtraction would otherwise render as a huge hour
+                        # count on the wall of a room somebody is deploying in.
+                        $span = [timespan]::Zero
+
+                        if ($null -ne $progress.StepStartTime) {
+                            $span = [datetime]::UtcNow - ([datetime] $progress.StepStartTime)
+                            if ($span.Ticks -lt 0) { $span = [timespan]::Zero }
+                        }
+
+                        $elapsed.Text = '{0:00}:{1:00}:{2:00} in this step' -f
                         [int] $span.TotalHours, $span.Minutes, $span.Seconds
                     }.GetNewClosure())
                 $timer.Start()

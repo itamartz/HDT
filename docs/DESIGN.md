@@ -2161,8 +2161,26 @@ working or hung.
 
 **MDT's shape, on the wallpaper**, shown from the moment the engine starts
 until it hands over to the full OS. It displays: computer name, task sequence
-name, the current step and its group, **step N of M**, a progress bar, elapsed
-time, and the current phase (WinPE or Full OS).
+name, the current step and its group, **what the step is doing right now**,
+**step N of M**, a progress bar, elapsed time, and the current phase (WinPE or
+Full OS).
+
+**The activity line is which one of the many.** "Install Applications" is one
+step and eleven installers; every step that loops writes what it is on
+(`installing 1 of 2: Acrobat Acrobat Reader DC`, `staging Latitude 5420: 64%`,
+and a heartbeat's `… - still running after 45s`), and the card shows that
+message unchanged. It is blank between steps, because a finished step's last
+line under the next step's name states something that is no longer true.
+
+**Elapsed is the CURRENT STEP's, and the window runs it against its own clock.**
+It was derived from the log like everything else — summed from the records' own
+timestamps — and it therefore advanced only when something wrote a record, so on
+a quiet step it was frozen by construction. `Get-HDTDeploymentProgress` reports
+the step's start time instead and the window subtracts it from `UtcNow` on its
+repaint timer. It is the step's rather than the run's because the run cannot be
+measured across the reboot: WinPE's unsynchronised clock is corrected there,
+routinely backwards, whereas the step running now was stamped by the same clock
+the window is reading, so the skew is on both sides and cancels.
 
 **The card is MDT's** — LiteTouch shows a modest centred "Installation Progress"
 dialog and an admin has watched it a thousand times; a full-screen takeover of

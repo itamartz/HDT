@@ -70,18 +70,25 @@ if ([string]::IsNullOrWhiteSpace($XamlPath)) {
 
 # A sequence with the shape a real one has: WinPE work, a reboot, full-OS work.
 $step = @(
-    @{ Index = 1; Name = 'Validate the machine'; Type = 'Validate'; Phase = 'WinPE' }
-    @{ Index = 2; Name = 'Partition disk 0'; Type = 'DiskPartition'; Phase = 'WinPE' }
-    @{ Index = 3; Name = 'Apply Windows 11 Enterprise LTSC 2024'; Type = 'ApplyImage'; Phase = 'WinPE' }
-    @{ Index = 4; Name = 'Apply the unattend'; Type = 'ApplyUnattend'; Phase = 'WinPE' }
-    @{ Index = 5; Name = 'Configure the boot volume'; Type = 'ConfigureBoot'; Phase = 'WinPE' }
-    @{ Index = 6; Name = 'Restart into the full operating system'; Type = 'Restart'; Phase = 'WinPE' }
-    @{ Index = 7; Name = 'Install applications'; Type = 'InstallApplications'; Phase = 'FullOS' }
-    @{ Index = 8; Name = 'Join corp.contoso.com'; Type = 'JoinDomain'; Phase = 'FullOS' }
+    @{ Index = 1; Name = 'Validate the machine'; Type = 'Validate'; Phase = 'WinPE'
+        Activity = 'checking the disk, the firmware and the network' }
+    @{ Index = 2; Name = 'Partition disk 0'; Type = 'DiskPartition'; Phase = 'WinPE'
+        Activity = 'creating S: W: R: on disk 0' }
+    @{ Index = 3; Name = 'Apply Windows 11 Enterprise LTSC 2024'; Type = 'ApplyImage'; Phase = 'WinPE'
+        Activity = 'applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 45%' }
+    @{ Index = 4; Name = 'Apply the unattend'; Type = 'ApplyUnattend'; Phase = 'WinPE'
+        Activity = 'writing W:\Windows\Panther\unattend.xml' }
+    @{ Index = 5; Name = 'Configure the boot volume'; Type = 'ConfigureBoot'; Phase = 'WinPE'
+        Activity = 'bcdboot W:\Windows /s S: /f UEFI' }
+    @{ Index = 6; Name = 'Restart into the full operating system'; Type = 'Restart'; Phase = 'WinPE'
+        Activity = 'checkpointing state.json before the reboot' }
+    @{ Index = 7; Name = 'Install applications'; Type = 'InstallApplications'; Phase = 'FullOS'
+        Activity = 'installing 1 of 2: Acrobat Acrobat Reader DC 2600121771' }
+    @{ Index = 8; Name = 'Join corp.contoso.com'; Type = 'JoinDomain'; Phase = 'FullOS'
+        Activity = 'joining corp.contoso.com as OSDTEST01' }
 )
 
 $record = New-Object -TypeName System.Collections.ArrayList
-$second = 0
 $seq = 0
 
 function Add-HDTPreviewRecord {
@@ -108,13 +115,18 @@ function Add-HDTPreviewRecord {
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $StepType = ''
+        [string] $StepType = '',
+
+        # The card's activity line reads the record's own message.
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $Message
     )
 
     $script:seq++
 
     $row = [ordered] @{
-        ts        = ([datetime]::UtcNow).AddSeconds(- ($script:total - $script:second)).ToString('o')
+        ts        = ([datetime]::UtcNow).ToString('o')
         runId     = 'preview'
         seq       = $script:seq
         level     = 'Info'
@@ -123,6 +135,8 @@ function Add-HDTPreviewRecord {
         event     = $Event
         message   = $Event
     }
+
+    if ($PSBoundParameters.ContainsKey('Message')) { $row['message'] = $Message }
 
     if ($StepIndex -gt 0) {
         $row['stepIndex'] = $StepIndex
@@ -135,9 +149,13 @@ function Add-HDTPreviewRecord {
     [void] $script:record.Add([pscustomobject] $row)
 }
 
-# Elapsed on screen is derived from the RECORDS, so the timestamps have to move
-# as the replay does rather than all being 'now'.
-$total = $step.Count * $StepSecond
+# EVERY RECORD IS STAMPED AS IT IS WRITTEN, AND THAT IS NOW THE WHOLE OF IT.
+# The replay used to backdate them, because elapsed on screen was summed from
+# the records' own timestamps and a replay whose records were all 'now' showed
+# nothing moving. The window runs the clock itself against the step's start
+# time, so a replay that sleeps between steps in real seconds shows real
+# seconds on the card - which is also the only way this preview can show that
+# the clock keeps moving while nothing is being written.
 
 $display = Start-HDTProgressDisplay -XamlPath $XamlPath
 
@@ -167,8 +185,16 @@ try {
             -Data @{ index = $current.Index; name = $current.Name; type = $current.Type; attempt = 1 }
 
         $display.DisplayHost.Update((Get-HDTDeploymentProgress -Record @($record)))
+
+        # WHAT THE STEP IS DOING, which is the card's activity line. A looping
+        # step writes one of these per item; the preview writes one per step so
+        # the line is exercised at all.
+        Add-HDTPreviewRecord -Event 'step.progress' -Phase $current.Phase -StepIndex $current.Index `
+            -StepName $current.Name -StepType $current.Type `
+            -Message ($current.Activity) -Data @{ index = $current.Index; percent = 45 }
+
+        $display.DisplayHost.Update((Get-HDTDeploymentProgress -Record @($record)))
         Start-Sleep -Seconds $StepSecond
-        $second += $StepSecond
 
         if ($Fail -and $current.Index -eq 3) {
             Add-HDTPreviewRecord -Event 'step.fail' -Phase $current.Phase -StepIndex $current.Index `

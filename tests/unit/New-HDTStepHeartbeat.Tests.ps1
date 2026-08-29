@@ -259,7 +259,19 @@ Describe 'New-HDTStepHeartbeat' {
             [int] $progress.StepPercent | Should -Be 70
         }
 
-        It 'moves the elapsed clock, which is the whole point of it' {
+        It 'says on screen what the step is still doing, which is now the whole point of it' {
+            # WHAT THIS TEST USED TO ASSERT, AND WHY IT NO LONGER CAN. Elapsed
+            # was summed from the records' own timestamps, so a heartbeat was
+            # the thing that MOVED THE CLOCK - and between heartbeats the clock
+            # was frozen by construction. The window runs the clock itself now,
+            # against the step's start time, so it moves whether or not anything
+            # writes a record and there is no elapsed here to assert on.
+            #
+            # THE HEARTBEAT IS STILL WORTH WRITING, and this is what for: on a
+            # step that has gone quiet its message is the only thing on the card
+            # that says anything at all, and the log keeps the evidence that the
+            # machine was alive at that instant.
+            #
             # The measured defect, reproduced: a step.start and then silence.
             $silent = @(
                 [pscustomobject] @{ ts = '2026-08-29T03:04:41.3700000Z'; event = 'step.start'
@@ -267,15 +279,27 @@ Describe 'New-HDTStepHeartbeat' {
                 }
             )
 
-            [int] (Get-HDTDeploymentProgress -Record $silent).ElapsedSecond | Should -Be 0
+            $quiet = Get-HDTDeploymentProgress -Record $silent
+
+            [string] $quiet.Activity | Should -BeExactly ''
+            [datetime] $quiet.StepStartTime |
+                Should -Be ([datetime]::new(2026, 8, 29, 3, 4, 41, [System.DateTimeKind]::Utc).AddTicks(3700000))
 
             $withHeartbeat = $silent + @(
                 [pscustomobject] @{ ts = '2026-08-29T03:07:41.3700000Z'; event = 'step.progress'
+                    message             = 'applying the answer file - still running after 180s'
                     data                = [pscustomobject] @{ activity = 'applying the answer file'; elapsedSecond = 180; heartbeat = $true }
                 }
             )
 
-            [int] (Get-HDTDeploymentProgress -Record $withHeartbeat).ElapsedSecond | Should -Be 180
+            $beating = Get-HDTDeploymentProgress -Record $withHeartbeat
+
+            [string] $beating.Activity | Should -BeExactly 'applying the answer file - still running after 180s'
+
+            # AND IT DID NOT RESTART THE CLOCK. Only step.start does that; a
+            # heartbeat that moved the step's start time would reset the very
+            # number it is written to keep honest.
+            [datetime] $beating.StepStartTime | Should -Be ([datetime] $quiet.StepStartTime)
         }
     }
 

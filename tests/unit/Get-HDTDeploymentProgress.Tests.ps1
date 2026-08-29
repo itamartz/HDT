@@ -11,9 +11,12 @@
 # file system. The window is a thin adapter over what this returns, which is
 # what lets the whole of it be asserted on a developer machine with no display.
 #
-# ELAPSED COMES FROM THE RECORDS' OWN TIMESTAMPS. Reading a clock here would
-# make every assertion below depend on when it ran, and would report time
-# passing during a reboot the deployment was not running through.
+# THERE IS NO ELAPSED HERE, AND THAT IS THE POINT. A record says WHAT is
+# happening; only a clock can say HOW LONG, and this function has none - reading
+# one would make every assertion below depend on when it ran. So it reports the
+# times it can read off the stream - when the run started, when the step running
+# now started - and the window subtracts those from its own clock, once a
+# second, for as long as the step takes. See the note above the skew context.
 #
 # THE RECORDS ARE THE REAL SHAPE - ts, runId, seq, level, phase, stepIndex,
 # stepName, stepType, component, event, message, durationMs, data - as
@@ -56,7 +59,14 @@ BeforeAll {
 
             [Parameter()]
             [AllowEmptyString()]
-            [string] $StepName = ''
+            [string] $StepName = '',
+
+            # THE LINE A LOOPING STEP WRITES ABOUT ITSELF - "installing 1 of 2:
+            # Acrobat Acrobat Reader DC". Defaulted to the event name, which is
+            # what every record above this parameter was already carrying.
+            [Parameter()]
+            [AllowEmptyString()]
+            [string] $Message
         )
 
         $record = [ordered] @{
@@ -69,6 +79,8 @@ BeforeAll {
             event     = $Event
             message   = $Event
         }
+
+        if ($PSBoundParameters.ContainsKey('Message')) { $record['message'] = $Message }
 
         if ($StepIndex -gt 0) {
             $record['stepIndex'] = $StepIndex
@@ -134,11 +146,40 @@ Describe 'Get-HDTDeploymentProgress' {
             [string] (Get-HDTDeploymentProgress -Record $script:midRun).Phase | Should -BeExactly 'WinPE'
         }
 
-        It 'reports elapsed from the records themselves, never from a clock' {
-            # A clock here would make this assertion depend on when it ran, and
-            # would count time passing during a reboot the deployment was not
-            # running through.
-            [int] (Get-HDTDeploymentProgress -Record $script:midRun).ElapsedSecond | Should -Be 26
+        It 'reports when the step that is running now started' {
+            # THE FACT THE WINDOW NEEDS TO RUN A CLOCK, and the only one this
+            # function can honestly supply: the step began at +26s, and how long
+            # ago that was is a question only something holding a clock can
+            # answer.
+            [datetime] (Get-HDTDeploymentProgress -Record $script:midRun).StepStartTime |
+                Should -Be ([datetime]::new(2026, 8, 15, 9, 0, 26, [System.DateTimeKind]::Utc))
+        }
+
+        It 'reports when the run started' {
+            [datetime] (Get-HDTDeploymentProgress -Record $script:midRun).RunStartTime |
+                Should -Be ([datetime]::new(2026, 8, 15, 9, 0, 0, [System.DateTimeKind]::Utc))
+        }
+
+        It 'reports those times in UTC, which is what ts is written in' {
+            # The window subtracts them from UtcNow. A local-kind time here
+            # would be out by the machine's offset - two hours of imaginary
+            # deployment in this lab, and none at all in Reykjavik, which is
+            # exactly the kind of defect that reproduces on one site only.
+            [string] (Get-HDTDeploymentProgress -Record $script:midRun).StepStartTime.Kind |
+                Should -BeExactly 'Utc'
+        }
+
+        It 'works out no elapsed of its own, because it has no clock to do it with' {
+            # THE DEFECT THIS REPLACED. ElapsedSecond was the sum of the
+            # stretches the records' own timestamps ran forwards through, so it
+            # advanced only when something wrote a record and was frozen between
+            # them by construction - measured on LT-D5M1NN3, run-20260829-223623:
+            # step 7 wrote step.start and then nothing for minutes, and the
+            # number on the card never moved. The field is gone rather than
+            # merely unused, because a stale duration nobody notices is exactly
+            # how it would come back.
+            (Get-HDTDeploymentProgress -Record $script:midRun).PSObject.Properties['ElapsedSecond'] |
+                Should -BeNullOrEmpty
         }
 
         It 'is Running' {
@@ -169,12 +210,19 @@ Describe 'Get-HDTDeploymentProgress' {
         # reboots does, and elapsed has been zero on the full-OS leg of all of
         # them.
         #
-        # SEGMENTS, NOT MIN-TO-MAX. Time is only measurable inside a stretch the
-        # clock ran forwards through; across the jump nothing is knowable, and
-        # min-to-max would have reported ten hours of "deployment" that was
-        # really one wrong clock. So each forward run is measured and the
-        # measurements are added, which undercounts the reboot itself and never
-        # invents time that was not spent.
+        # WHAT MAKES THIS SURVIVABLE NOW IS THAT NOTHING SUBTRACTS ACROSS THE
+        # JUMP. The window runs the clock, against StepStartTime, and it
+        # subtracts it from the SAME clock that stamped it - the machine's own,
+        # this side of the reboot - so WinPE's skew cancels out of the
+        # difference even while the absolute time is nonsense. The resumed leg
+        # is a new process with a new window starting from the resumed step's
+        # own step.start, so there is no stretch left for a wrong clock to be
+        # measured across. That is why the segment machinery could go, and it
+        # went because summing record timestamps froze the clock between
+        # records (see the run-in-flight context above).
+        #
+        # THE JUMP ITSELF IS STILL REAL and these assertions still exist:
+        # nothing below may report a WinPE time as the start of a full-OS step.
 
         BeforeAll {
             # The shape above, in miniature: a WinPE leg an hour ahead, then a
@@ -189,31 +237,39 @@ Describe 'Get-HDTDeploymentProgress' {
             )
         }
 
-        It 'still reports elapsed after the clock jumps backwards at the reboot' {
-            # THE HEADLINE. Zero here is the bug; anything that counts is the fix.
-            [int] (Get-HDTDeploymentProgress -Record $script:skewed).ElapsedSecond |
-                Should -BeGreaterThan 0
+        It 'times the resumed step by the clock the resumed leg is stamping' {
+            # THE HEADLINE. The full-OS step began at +40s on the corrected
+            # clock, and that is what the window subtracts from its own UtcNow -
+            # the same clock, so the skew is on both sides and cancels.
+            [datetime] (Get-HDTDeploymentProgress -Record $script:skewed).StepStartTime |
+                Should -Be ([datetime]::new(2026, 8, 15, 9, 0, 40, [System.DateTimeKind]::Utc))
         }
 
-        It 'adds the legs up rather than measuring end to end across the jump' {
-            # 3600->3700 is 100 seconds of WinPE; 30->130 is 100 seconds of full
-            # OS. 200, and NOT the 3570 a min-to-max would report, which is a
-            # wrong clock rendered as an hour of work.
-            [int] (Get-HDTDeploymentProgress -Record $script:skewed).ElapsedSecond | Should -Be 200
+        It 'never carries the clock of the WinPE leg into the full-OS one' {
+            # An hour ahead is what the WinPE leg was stamped with. A window
+            # subtracting THAT from the corrected clock would open reading an
+            # hour of deployment that had not happened, in the field somebody
+            # uses to decide whether to intervene.
+            [datetime] (Get-HDTDeploymentProgress -Record $script:skewed).StepStartTime |
+                Should -Not -Be ([datetime]::new(2026, 8, 15, 10, 0, 10, [System.DateTimeKind]::Utc))
         }
 
-        It 'never reports a negative elapsed' {
-            # [timespan]::FromSeconds on a negative renders as a huge hour count
-            # through the progress host format string, so a sign error here is a
-            # nonsense figure on a wall rather than an exception anybody sees.
-            [int] (Get-HDTDeploymentProgress -Record $script:skewed).ElapsedSecond |
-                Should -BeGreaterOrEqual 0
+        It 'follows the last run.start, so a resume dates the run from the resume' {
+            $resumed = @($script:skewed) + @(
+                New-HDTProgressRecord -Event 'run.start' -Second 200 -Phase 'FullOS' -Data @{ sequenceId = 'client'; stepCount = 4 })
+
+            [datetime] (Get-HDTDeploymentProgress -Record $resumed).RunStartTime |
+                Should -Be ([datetime]::new(2026, 8, 15, 9, 3, 20, [System.DateTimeKind]::Utc))
         }
 
-        It 'measures a run whose clock never moved backwards exactly as before' {
-            # The fix must not change the ordinary case: one forward segment is
-            # first-to-last, which is what every green test above asserts.
-            [int] (Get-HDTDeploymentProgress -Record $script:midRun).ElapsedSecond | Should -Be 26
+        It 'has no step running at the instant a run starts' {
+            # The leg before the reboot left its step.start in this same file.
+            # Carrying it across would open the resumed window on a clock that
+            # had already been running for the whole of WinPE.
+            $resumed = @($script:skewed) + @(
+                New-HDTProgressRecord -Event 'run.start' -Second 200 -Phase 'FullOS' -Data @{ sequenceId = 'client'; stepCount = 4 })
+
+            (Get-HDTDeploymentProgress -Record $resumed).StepStartTime | Should -BeNullOrEmpty
         }
     }
 
@@ -399,6 +455,156 @@ Describe 'how far through the step itself' {
 
         { Get-HDTDeploymentProgress -Record $record } | Should -Not -Throw
         [int] (Get-HDTDeploymentProgress -Record $record).StepPercent | Should -Be 0
+    }
+}
+
+Describe 'which one of the many it is on' {
+
+    # "INSTALL APPLICATIONS" IS ONE STEP AND ELEVEN INSTALLERS. A technician
+    # watching a machine sit on that name for twenty minutes cannot tell Acrobat
+    # from the one that hung, and the step name is the same string either way.
+    #
+    # THE STEPS ALREADY WRITE IT. Measured on LT-D5M1NN3, run-20260829-223623
+    # and on the VM run PC-5784-6600-26-run-20260829-220902: step.progress
+    # records reading "installing 1 of 2: Acrobat Acrobat Reader DC 2600121771",
+    # "staging Latitude 5420: 64%", "Acrobat ... - still running after 45s". The
+    # window had nothing to render them with, because this function exposed no
+    # such field - so the log knew and the screen did not.
+    #
+    # THE MESSAGE, NOT SOMETHING REBUILT FROM data. It is written for a person,
+    # it is the same string in the log and on the screen, and it is the one
+    # field every step type fills the same way - data carries application,
+    # package or imagePath depending on who wrote it.
+
+    It 'shows what the step said it was doing' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'installing 1 of 2: Acrobat Acrobat Reader DC 2600121771' `
+                -Data @{ index = 3; application = 'Acrobat Reader DC'; done = 1; total = 2; percent = 0 })
+
+        [string] (Get-HDTDeploymentProgress -Record $record).Activity |
+            Should -BeExactly 'installing 1 of 2: Acrobat Acrobat Reader DC 2600121771'
+    }
+
+    It 'follows the latest one, because the next application is the news' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'installing 1 of 2: Acrobat Acrobat Reader DC 2600121771' -Data @{ index = 3; percent = 0 }
+            New-HDTProgressRecord -Event 'step.progress' -Second 90 -StepIndex 3 `
+                -Message 'installing 2 of 2: TightVNC Software Tightvnc 2.8.88' -Data @{ index = 3; percent = 50 })
+
+        [string] (Get-HDTDeploymentProgress -Record $record).Activity |
+            Should -BeExactly 'installing 2 of 2: TightVNC Software Tightvnc 2.8.88'
+    }
+
+    It 'says nothing before the step has said anything' {
+        # Blank is honest for the second or two after step.start. The previous
+        # step's last line would be a screen stating something that stopped
+        # being true one record ago.
+        [string] (Get-HDTDeploymentProgress -Record $script:midRun).Activity | Should -BeExactly ''
+    }
+
+    It 'is cleared when the next step starts' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'installing 2 of 2: TightVNC Software Tightvnc 2.8.88' -Data @{ index = 3; percent = 50 }
+            New-HDTProgressRecord -Event 'step.complete' -Second 90 -StepIndex 3 -Data @{ index = 3; attempt = 1; exitCode = 0 }
+            New-HDTProgressRecord -Event 'step.start' -Second 91 -StepIndex 4 -StepName 'Apply Windows Settings' `
+                -Data @{ index = 4; name = 'Apply Windows Settings'; type = 'ApplyUnattend'; attempt = 1 })
+
+        [string] (Get-HDTDeploymentProgress -Record $record).Activity | Should -BeExactly ''
+    }
+
+    It 'is cleared when the step that said it finishes' {
+        # THE SAME TRAP THE STEP BAR WAS ALREADY CAUGHT BY: a finished step is
+        # not a step that is 60% done, and it is not still installing TightVNC.
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'installing 2 of 2: TightVNC Software Tightvnc 2.8.88' -Data @{ index = 3; percent = 50 }
+            New-HDTProgressRecord -Event 'step.complete' -Second 90 -StepIndex 3 -Data @{ index = 3; attempt = 1; exitCode = 0 })
+
+        [string] (Get-HDTDeploymentProgress -Record $record).Activity | Should -BeExactly ''
+    }
+
+    It 'is cleared when the step that said it is skipped' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'installing 2 of 2: TightVNC Software Tightvnc 2.8.88' -Data @{ index = 3; percent = 50 }
+            New-HDTProgressRecord -Event 'step.skip' -Second 90 -StepIndex 3 -Data @{ index = 3 })
+
+        [string] (Get-HDTDeploymentProgress -Record $record).Activity | Should -BeExactly ''
+    }
+
+    It 'shows a heartbeat without letting it touch the bar' {
+        # A HEARTBEAT IS A step.progress WITH NO percent, and both halves of that
+        # matter: its message is the most useful thing on the screen when a step
+        # has gone quiet, and resetting the bar to zero underneath it would
+        # undo the only number that had been moving.
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'applying install.wim (index 1) to W:\: 45%' -Data @{ index = 3; percent = 45 }
+            New-HDTProgressRecord -Event 'step.progress' -Second 75 -StepIndex 3 `
+                -Message 'Acrobat Acrobat Reader DC 2600121771 - still running after 45s' `
+                -Data @{ index = 3; heartbeat = $true })
+
+        $progress = Get-HDTDeploymentProgress -Record $record
+
+        [string] $progress.Activity | Should -BeExactly 'Acrobat Acrobat Reader DC 2600121771 - still running after 45s'
+        [int] $progress.StepPercent | Should -Be 45
+    }
+
+    It 'ignores a step.progress with no message rather than blanking the line' {
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.progress' -Second 30 -StepIndex 3 `
+                -Message 'installing 1 of 2: Acrobat Acrobat Reader DC 2600121771' -Data @{ index = 3; percent = 0 }
+            New-HDTProgressRecord -Event 'step.progress' -Second 60 -StepIndex 3 -Message '' -Data @{ index = 3; percent = 20 })
+
+        [string] (Get-HDTDeploymentProgress -Record $record).Activity |
+            Should -BeExactly 'installing 1 of 2: Acrobat Acrobat Reader DC 2600121771'
+    }
+}
+
+Describe 'a clock the records cannot start' {
+
+    It 'has no step start time before the first step' {
+        # THE WINDOW SHOWS 00:00:00 HERE, and it must be able to tell "no step
+        # yet" from "a step that started at midnight". $null says so; a zero
+        # datetime would be the year 1 AD rendered as a fortnight of elapsed.
+        $record = @(New-HDTProgressRecord -Event 'run.start' -Second 0 -Data @{ sequenceId = 'STD-CLIENT'; stepCount = 5 })
+
+        (Get-HDTDeploymentProgress -Record $record).StepStartTime | Should -BeNullOrEmpty
+    }
+
+    It 'has no times at all when there are no records' {
+        $progress = Get-HDTDeploymentProgress -Record @()
+
+        $progress.StepStartTime | Should -BeNullOrEmpty
+        $progress.RunStartTime | Should -BeNullOrEmpty
+    }
+
+    It 'survives a timestamp it cannot parse' {
+        # A JSONL on a RAM disk that a deployment was cut off in the middle of
+        # writing is the normal way this arrives, and a window that goes blank
+        # over half a line is the second failure of the night.
+        $record = @([pscustomobject] @{ ts = 'not a time'; event = 'step.start'
+                data                       = [pscustomobject] @{ index = 1; name = 'Partition disk'; type = 'DiskPartition' }
+            })
+
+        { Get-HDTDeploymentProgress -Record $record } | Should -Not -Throw
+        (Get-HDTDeploymentProgress -Record $record).StepStartTime | Should -BeNullOrEmpty
+    }
+
+    It 'keeps the step running while the engine moves between steps' {
+        # BETWEEN step.complete AND THE NEXT step.start THE CLOCK DOES NOT
+        # RESET. The deployment is still doing something in that gap, and a
+        # clock that flicked to zero four times a second between every pair of
+        # steps would read as a screen resetting rather than as a machine
+        # working.
+        $record = @($script:midRun) + @(
+            New-HDTProgressRecord -Event 'step.complete' -Second 90 -StepIndex 3 -Data @{ index = 3; attempt = 1; exitCode = 0 })
+
+        [datetime] (Get-HDTDeploymentProgress -Record $record).StepStartTime |
+            Should -Be ([datetime]::new(2026, 8, 15, 9, 0, 26, [System.DateTimeKind]::Utc))
     }
 }
 

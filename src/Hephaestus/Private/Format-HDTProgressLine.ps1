@@ -34,8 +34,29 @@ function Format-HDTProgressLine {
             ELAPSED IS A CLOCK, NOT A COUNT OF SECONDS. Nobody divides by sixty
             at a bench.
 
+            AND IT IS A CLOCK IN THE OTHER SENSE TOO: HOW LONG THE STEP HAS BEEN
+            RUNNING, worked out here from the step's start time and the time
+            passed in. Get-HDTDeploymentProgress used to hand over an
+            ElapsedSecond it had summed from the records' own timestamps, which
+            advanced only when something wrote a record - so on a step that went
+            quiet the number was frozen by construction (measured on
+            LT-D5M1NN3, run-20260829-223623). The time now comes from a clock,
+            and this stays pure by being told what the clock says.
+
         .PARAMETER Progress
             What Get-HDTDeploymentProgress returned.
+
+        .PARAMETER Now
+            The current time, in UTC, for the subtraction against
+            Progress.StepStartTime.
+
+            INJECTED SO THIS STAYS DETERMINISTIC - every assertion about the
+            clock in the tests would otherwise depend on when the suite ran. It
+            DEFAULTS rather than being mandatory on purpose: a caller that
+            forgot would otherwise either prompt (and a mandatory-parameter
+            prompt on a WinPE console is a deployment that stops for a keystroke
+            nobody is there to press) or silently print 00:00:00 forever, which
+            is the very defect this replaced.
 
         .INPUTS
             None. This command does not accept pipeline input.
@@ -57,7 +78,10 @@ function Format-HDTProgressLine {
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateNotNull()]
-        [object] $Progress
+        [object] $Progress,
+
+        [Parameter(Position = 1)]
+        [datetime] $Now = ([datetime]::UtcNow)
     )
 
     Set-StrictMode -Version Latest
@@ -78,8 +102,25 @@ function Format-HDTProgressLine {
     $phase = [string] (& $valueOf 'Phase' '')
     $stepName = [string] (& $valueOf 'StepName' '')
     $status = [string] (& $valueOf 'Status' '')
-    $elapsed = [int] (& $valueOf 'ElapsedSecond' 0)
     $stepPercent = [int] (& $valueOf 'StepPercent' 0)
+
+    # HOW LONG THE STEP HAS BEEN GOING, AGAINST THE CLOCK RATHER THAN AGAINST
+    # THE RECORDS. $null is a run that has not reached its first step, and it
+    # prints 00:00:00 rather than nothing: the columns are the whole of the
+    # styling this fallback has, and a clock that came and went would move every
+    # other one sideways.
+    #
+    # NEGATIVE IS CLAMPED, NOT RENDERED. WinPE's clock corrects itself mid-run
+    # (DESIGN 4.4.2), and a correction landing between the step's start and this
+    # subtraction is a real shape - [timespan] on a negative would print through
+    # the format string below as a huge hour count on a wall.
+    $span = [timespan]::Zero
+    $stepStart = & $valueOf 'StepStartTime' $null
+
+    if ($null -ne $stepStart) {
+        $span = $Now - ([datetime] $stepStart)
+        if ($span.Ticks -lt 0) { $span = [timespan]::Zero }
+    }
 
     # A COUNT NOBODY STATED IS NOT PRINTED AS ZERO. '3/0' is a wrong fact where
     # '3' is an incomplete one.
@@ -88,7 +129,6 @@ function Format-HDTProgressLine {
 
     $header = '[{0} {1,3}%]' -f $counter.PadRight(5), $percent
 
-    $span = [timespan]::FromSeconds($elapsed)
     $clock = '{0:00}:{1:00}:{2:00}' -f [int] $span.TotalHours, $span.Minutes, $span.Seconds
 
     # ONLY WHEN SOMETHING HAPPENED - see the header.

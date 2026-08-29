@@ -20,11 +20,13 @@ function Get-HDTDeploymentProgress {
             window itself thin enough to stay inside the adapter exemption
             (CLAUDE.md rule 1).
 
-            ELAPSED COMES FROM THE RECORDS' OWN TIMESTAMPS. Reading a clock here
-            would make the answer depend on when it was asked, and would count
-            time passing during a reboot the deployment was not running through -
-            a machine that spent four minutes in Windows Setup did not spend
-            them in the step that is on screen.
+            IT REPORTS TIMES, NOT DURATIONS. A record says WHAT is happening;
+            only a clock can say HOW LONG. This has no clock and must not grow
+            one - reading one here would make the answer depend on when it was
+            asked - so it hands back the times it can read off the stream
+            (StepStartTime, RunStartTime) and the view subtracts them from its
+            own clock. See the long note at the timestamp parse below for the
+            defect that forced the split.
 
             COMPLETED IS COUNTED, NOT INFERRED FROM THE CURRENT STEP. A bar
             driven by "current index minus one" advances the moment a step
@@ -53,8 +55,8 @@ function Get-HDTDeploymentProgress {
         .OUTPUTS
             System.Management.Automation.PSCustomObject with SequenceId,
             StepNumber, StepCount, StepName, StepType, CompletedCount,
-            PercentComplete, StepPercent, Phase, Status, ElapsedSecond and
-            RunId.
+            PercentComplete, StepPercent, Activity, Phase, Status,
+            StepStartTime, RunStartTime and RunId.
 
             PercentComplete AND StepPercent ARE DIFFERENT FACTS. The first is
             how many steps of the sequence are done; the second is how far
@@ -62,6 +64,28 @@ function Get-HDTDeploymentProgress {
             number that changes for nine minutes. A step reports it with
             step.progress; a step that reports nothing leaves it at zero, and
             a step that starts, finishes or is skipped clears it.
+
+            Activity IS WHICH ONE OF THE MANY. "Install Applications" is one
+            step and eleven installers, and a technician watching a machine sit
+            on that name for twenty minutes cannot tell Acrobat from the one
+            that hung. Every step that loops already writes what it is on -
+            "installing 1 of 2: Acrobat Acrobat Reader DC", "staging Latitude
+            5420: 64%", "Acrobat ... - still running after 45s" - so this is the
+            step.progress record's own message, carried through unchanged.
+
+            THE MESSAGE, NOT SOMETHING REBUILT FROM data. The message is already
+            written for a person to read, it is identical in the log and on the
+            screen (DESIGN 11.1: they cannot disagree because they are the same
+            fact), and it is the ONE field every step type fills the same way -
+            data carries application, package or imagePath depending on who
+            wrote it, so composing from data would mean a new branch here every
+            time somebody adds a step type, and a blank line on screen for the
+            one they forgot.
+
+            AND IT CLEARS AT EVERY STEP BOUNDARY, exactly as StepPercent does
+            and for the same reason: the last thing the previous step said,
+            sitting under the next step's name, is a screen telling a technician
+            something that is no longer true.
 
         .EXAMPLE
             Get-HDTDeploymentProgress -Record $record
@@ -96,8 +120,14 @@ function Get-HDTDeploymentProgress {
         PercentComplete = 0
         Phase           = ''
         Status          = 'Unknown'
-        ElapsedSecond   = 0
         StepPercent     = 0
+        Activity        = ''
+
+        # THE TWO CLOCKS' STARTING POINTS, AND $null MEANS "NOT YET". A run that
+        # has not reached its first step has no step to time, and zero here
+        # would be the year 1 AD rendered as a fortnight of elapsed.
+        StepStartTime   = $null
+        RunStartTime    = $null
     }
 
     $ordered = @($Record)
@@ -138,60 +168,61 @@ function Get-HDTDeploymentProgress {
     $failed = $false
     $endStatus = ''
 
-    # ELAPSED IS THE SUM OF THE STRETCHES THE CLOCK RAN FORWARDS THROUGH, NOT
-    # FIRST-TO-LAST. It was first-to-last, and on every deployment that reboots
-    # it reported ZERO.
-    #
-    # WHY: WinPE boots with an unsynchronised clock (DESIGN 4.4.2 - every WinPE
-    # record carries clockUnsynced true), the full OS corrects it at the first
-    # sync, and the correction is routinely BACKWARDS. Measured on LT-7FJ45S2,
-    # run-20260829-172208: 122 WinPE records stamped 08/30 01:22:10 to 01:29:00,
-    # then reboot.resume and 18 full-OS records stamped 08/29 14:34:22 to
-    # 14:36:36 - ten hours and fifty-three minutes EARLIER. The last record in
-    # the file was older than the first, so the subtraction went negative, the
-    # guard on it refused to write, and ElapsedSecond kept its initialised zero.
-    # The technician watched "00:00:00 elapsed" for the whole of the full-OS leg
-    # of a deployment that had been running two and a half hours.
-    #
-    # A CLOCK THAT NEVER STARTED LOOKS EXACTLY LIKE A CLOCK THAT IS STUCK, which
-    # is why this was read as a heartbeat problem first.
-    #
-    # SEGMENTS RATHER THAN MIN-TO-MAX, AND THE DIFFERENCE IS HONESTY. Across the
-    # jump nothing is measurable - the two legs are timed by two different
-    # clocks and there is no offset to recover - so min-to-max would report ten
-    # hours of "deployment" that was really one wrong clock, at the top of the
-    # screen, in the field somebody uses to decide whether to intervene. Each
-    # forward stretch is measured against itself and the measurements are added.
-    # That undercounts the reboot, which is time the deployment was not running
-    # anyway, and it never invents time that was not spent.
-    $elapsedTicks = [long] 0
-    $segmentStartTicks = [long] 0
-    $previousTicks = [long] 0
-
     foreach ($row in $ordered) {
 
         # -- the timestamps, whatever else the record turns out to be --------
+        #
+        # A TIME THIS FUNCTION HANDS OVER, AND NEVER A DURATION IT WORKED OUT.
+        #
+        # THE CLOCK USED TO BE COMPUTED HERE, AND IT FROZE. ElapsedSecond was
+        # the sum of the stretches the records' own timestamps ran forwards
+        # through, which advances only when something WRITES a record - so
+        # between records it was frozen by construction. Measured on LT-D5M1NN3,
+        # run-20260829-223623: step 7 "Apply Windows Settings" wrote step.start
+        # and then nothing for minutes, and the number on the card did not move
+        # once. Gaps of 12.7s, 12.3s, 10.2s and 9.3s in the driver step of that
+        # same run. A clock that only ticks when somebody speaks is not a clock.
+        #
+        # THE BACKWARDS JUMP THAT PUT IT THERE IS REAL, AND NOTHING BELOW MAY
+        # "SIMPLIFY" IT AWAY. WinPE boots with an unsynchronised clock (DESIGN
+        # 4.4.2 - every WinPE record carries clockUnsynced true), the full OS
+        # corrects it at the first sync, and the correction is routinely
+        # BACKWARDS. Measured on LT-7FJ45S2, run-20260829-172208: 122 WinPE
+        # records stamped 08/30 01:22:10 to 01:29:00, then reboot.resume and 18
+        # full-OS records stamped 08/29 14:34:22 to 14:36:36 - ten hours and
+        # fifty-three minutes EARLIER. The last record in the file was older
+        # than the first, first-to-last went negative, and the technician
+        # watched "00:00:00 elapsed" for a run that had been going two and a
+        # half hours.
+        #
+        # WHY MOVING THE SUBTRACTION TO THE VIEW SURVIVES BOTH. The window
+        # subtracts StepStartTime from the SAME CLOCK that stamped it - the
+        # machine's own, this side of the reboot - so WinPE's skew cancels out
+        # of the difference even while the absolute time is nonsense. And the
+        # jump cannot be straddled, because the resumed leg is a new process
+        # with a new window that starts from the resumed step's own step.start.
+        # There is no stretch left for a wrong clock to be measured across, so
+        # there is nothing left to bank into segments.
+        $rowTime = $null
+
         $ts = [string] (& $valueOf $row 'ts')
         if (-not [string]::IsNullOrWhiteSpace($ts)) {
             $parsed = [datetime]::MinValue
             if ([datetime]::TryParse($ts, [System.Globalization.CultureInfo]::InvariantCulture,
                     [System.Globalization.DateTimeStyles]::RoundtripKind, [ref] $parsed)) {
 
-                $currentTicks = [long] $parsed.Ticks
-
-                if ($segmentStartTicks -eq 0) {
-                    $segmentStartTicks = $currentTicks
-                } elseif ($currentTicks -lt $previousTicks) {
-
-                    # THE CLOCK WENT BACKWARDS, so the stretch that was being
-                    # measured has ended and a new one begins here. Banking what
-                    # was measured before starting again is what keeps the WinPE
-                    # leg's minutes on the screen after the reboot.
-                    $elapsedTicks += ($previousTicks - $segmentStartTicks)
-                    $segmentStartTicks = $currentTicks
+                # UTC, BECAUSE THE VIEW SUBTRACTS IT FROM UtcNow. ts is written
+                # by ConvertTo-HDTLogRecord as ToUniversalTime().ToString('o'),
+                # which always carries the Z - so RoundtripKind gives Kind Utc
+                # and this converts nothing. A record hand-written without one
+                # parses as Unspecified, and it is stamped rather than shifted:
+                # every writer of this field writes UTC, so treating it as local
+                # would invent the machine's own offset out of nowhere.
+                if ($parsed.Kind -eq [System.DateTimeKind]::Unspecified) {
+                    $parsed = [datetime]::SpecifyKind($parsed, [System.DateTimeKind]::Utc)
                 }
 
-                $previousTicks = $currentTicks
+                $rowTime = $parsed.ToUniversalTime()
             }
         }
 
@@ -216,11 +247,21 @@ function Get-HDTDeploymentProgress {
                 $stepCount = & $valueOf $data 'stepCount'
                 if ($null -ne $stepCount) { $result['StepCount'] = [int] $stepCount }
 
+                if ($null -ne $rowTime) { $result['RunStartTime'] = $rowTime }
+
                 # A RESUME IS A RUN STARTING, and the run before it did not
                 # fail just because this one is beginning - but a run that HAS
                 # failed and is being retried starts clean.
                 $failed = $false
                 $endStatus = ''
+
+                # AND NOTHING IS RUNNING AT THE INSTANT A RUN STARTS. The leg
+                # before the reboot left its last step.start in this same file;
+                # carrying that time across would open the resumed window on a
+                # clock that had already been going for the whole of WinPE, and
+                # timed by WinPE's wrong clock at that.
+                $result['StepStartTime'] = $null
+                $result['Activity'] = ''
             }
 
             'phase.change' {
@@ -234,6 +275,18 @@ function Get-HDTDeploymentProgress {
                 # it is the only number on the screen that moves.
                 $percent = & $valueOf $data 'percent'
                 if ($null -ne $percent) { $result['StepPercent'] = [int] $percent }
+
+                # WHICH OF THE ELEVEN INSTALLERS IT IS ON. See the header: the
+                # record's own message, unchanged, because it was written for a
+                # person to read and every step type writes it the same way.
+                #
+                # A HEARTBEAT IS ONE OF THESE, AND IT CARRIES NO percent - the
+                # guard above is what keeps it from resetting the bar, and this
+                # line is what puts its "still running after 45s" on the screen,
+                # which is the whole reason a step that has gone quiet writes
+                # one at all.
+                $activity = [string] (& $valueOf $row 'message')
+                if (-not [string]::IsNullOrWhiteSpace($activity)) { $result['Activity'] = $activity }
             }
 
             'step.start' {
@@ -241,6 +294,18 @@ function Get-HDTDeploymentProgress {
                 # this the bar would open at whatever the last step reached and
                 # count down.
                 $result['StepPercent'] = 0
+
+                # AND IT HAS NOT SAID WHAT IT IS DOING YET EITHER. Blank is
+                # honest for the second or two before the first step.progress
+                # arrives; the previous step's last line would be a screen
+                # stating something that stopped being true one record ago.
+                $result['Activity'] = ''
+
+                # THE CLOCK THE WINDOW RUNS STARTS HERE, and this is the only
+                # place it is set. Everything about how long the step has been
+                # going is then a subtraction the view does against its own
+                # clock, once a second, whether or not anything writes a record.
+                if ($null -ne $rowTime) { $result['StepStartTime'] = $rowTime }
 
                 $index = & $valueOf $data 'index'
                 if ($null -eq $index) { $index = & $valueOf $row 'stepIndex' }
@@ -258,8 +323,10 @@ function Get-HDTDeploymentProgress {
             { $_ -eq 'step.complete' -or $_ -eq 'step.skip' } {
                 # A FINISHED STEP IS NOT A STEP THAT IS 60% DONE. The step bar
                 # belongs to whatever is running now, and between two steps
-                # nothing is.
+                # nothing is - and the same is true of the line that says which
+                # installer it was on.
                 $result['StepPercent'] = 0
+                $result['Activity'] = ''
 
                 # BY INDEX, NOT BY COUNTING RECORDS. A step that was retried
                 # logs more than one completion, and a resumed run replays
@@ -299,17 +366,6 @@ function Get-HDTDeploymentProgress {
         # bar past its own end is a bar nobody believes again.
         if ($percent -gt 100) { $percent = 100 }
         $result['PercentComplete'] = $percent
-    }
-
-    # The stretch still open when the records ran out - which on a live run is
-    # the one the machine is in - closed the same way the earlier ones were.
-    if ($previousTicks -gt $segmentStartTicks) {
-        $elapsedTicks += ($previousTicks - $segmentStartTicks)
-    }
-
-    if ($elapsedTicks -gt 0) {
-        $result['ElapsedSecond'] = [int] [System.Math]::Floor(
-            ([timespan]::FromTicks($elapsedTicks)).TotalSeconds)
     }
 
     # run.end IS THE ENGINE'S OWN VERDICT and outranks the counting: a run that

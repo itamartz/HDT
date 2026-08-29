@@ -182,7 +182,8 @@ Describe 'Start-HDTProgressDisplay' {
             $progress = [pscustomobject] @{
                 SequenceId = 'STD-CLIENT'; StepNumber = 1; StepCount = 3; StepName = 'Partition disk'
                 StepType = 'DiskPartition'; CompletedCount = 0; PercentComplete = 0
-                Phase = 'WinPE'; Status = 'Running'; ElapsedSecond = 5
+                Phase = 'WinPE'; Status = 'Running'; StepPercent = 0; Activity = ''
+                StepStartTime = [datetime]::UtcNow.AddSeconds(-5); RunStartTime = [datetime]::UtcNow.AddSeconds(-9)
             }
 
             { $display.DisplayHost.Update($progress) } | Should -Not -Throw 6>$null
@@ -264,8 +265,9 @@ Describe 'Start-HDTProgressDisplay' {
 
         It 'names every control the host fills' {
             foreach ($name in @('HDTProgressComputerName', 'HDTProgressSequenceName', 'HDTProgressPhase',
-                    'HDTProgressStepName', 'HDTProgressStepGroup', 'HDTProgressStepCounter',
-                    'HDTProgressBar', 'HDTProgressStatus', 'HDTProgressElapsed')) {
+                    'HDTProgressStepName', 'HDTProgressActivity', 'HDTProgressStepGroup', 'HDTProgressStepCounter',
+                    'HDTProgressBar', 'HDTProgressStepBar', 'HDTProgressStepPercent',
+                    'HDTProgressStatus', 'HDTProgressElapsed')) {
 
                 $script:realXaml | Should -BeLike ('*{0}*' -f $name)
             }
