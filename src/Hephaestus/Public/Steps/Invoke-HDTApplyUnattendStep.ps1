@@ -259,7 +259,8 @@
                 # The whole line first, so removing the element does not leave a
                 # blank line where it was; then the bare element, for a template
                 # that puts it inline with something else.
-                $text = $text -replace '(?m)^[ 	]*<ProductKey>%HDTProductKey%</ProductKey>[ 	]*?
+                $text = $text -replace '(?m)^[ 	]*<ProductKey>%HDTProductKey%</ProductKey>[ 	]*
+?
 ?', ''
                 $text = $text -replace '<ProductKey>%HDTProductKey%</ProductKey>', ''
             } else {
@@ -331,14 +332,10 @@
                 continue
             }
 
-            # THE SHAPES Expand-HDTVariableToken RENDERS, rendered the same way.
-            # A list joins on commas there, so it has to join on commas here or
-            # the two disagree about what a multi-valued variable is.
-            if (($raw -is [System.Collections.IList]) -and -not ($raw -is [string])) {
-                $rendered = @(@($raw) | ForEach-Object { ConvertTo-HDTComparableString -Value $_ }) -join ','
-            } else {
-                $rendered = ConvertTo-HDTComparableString -Value $raw
-            }
+            # THE SHAPES Expand-HDTVariableToken RENDERS, rendered the same way -
+            # by calling the same command, rather than by carrying a copy of it
+            # that has to be kept in step by hand.
+            $rendered = ConvertTo-HDTVariableText -Value $raw
 
             $escaped[[string] $key] = [System.Security.SecurityElement]::Escape($rendered)
         }
@@ -455,8 +452,89 @@
         # MDT creates <LocalRootPath>\Scratch on the local disk for exactly this.
         $scratchPath = '{0}:\HDT\Scratch' -f $volume
 
+        # -- the only number that moves for the next three minutes ------------
+        #
+        # MEASURED, ON THE MACHINE THAT SURFACED IT. LT-7FJ45S2,
+        # run-20260829-172208: step 7, Apply Windows Settings, held the progress
+        # card motionless for over three minutes. It was working - that was the
+        # first image with the driver-ordering fix, so this call was genuinely
+        # running offlineServicing over 133 .inf packages instead of scanning an
+        # empty folder - but the step said nothing between its start and its
+        # end. A working machine and a hung one looked identical, and the card's
+        # elapsed clock, derived from the first and last record in the log,
+        # stopped with it.
+        #
+        # STILL NO SECOND CHANNEL (DESIGN 11.1). This writes a record to the
+        # JSONL and asks the display to re-read it, exactly as the step loop
+        # does between steps. The screen and the log cannot disagree because
+        # they are the same facts.
+        #
+        # EVERY FIVE POINTS, AND ALWAYS AT A HUNDRED - ApplyImage's stride, and
+        # for its reasons: dism prints about a hundred meter lines, five is the
+        # granularity a bar on a wall is read at, and the last thing the log
+        # says about a pass should be that it finished.
+        $progressState = @{ Percent = 0 }
+
+        # RESOLVED HERE AND CAPTURED, NOT LOOKED UP IN THE CALLBACK. The
+        # callback is invoked from inside the image service, and the fake is a
+        # PowerShell CLASS in HDTFakes - a scriptblock invoked from a class
+        # method resolves its commands in THAT module, where these private
+        # functions do not exist. The identical trap is documented at length on
+        # Invoke-HDTApplyImageStep; a CommandInfo invoked with & does not care
+        # whose scope it is called from.
+        $parseProgress = Get-Command -Name 'ConvertFrom-HDTDismProgressLine'
+        $writeLog = Get-Command -Name 'Write-HDTLog'
+        $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
+
+        # NO New-HDTStepHeartbeat HERE, FOR THE REASON SET OUT ON ApplyImage.
+        # The heartbeat is for a step that BLOCKS with nothing to report, and it
+        # fires from IProcessService.Start's poll loop. This pass streams a meter
+        # and reports it, which is a better fact than "still running"; a
+        # heartbeat hung off this callback could only fire when dism speaks -
+        # which is when the meter already has.
+        #
+        # THE 03:04:41 TO 03:08:02 SILENCE ON LT-7FJ45S2 run-20260829-190105 WAS
+        # THIS PASS WITH NO METER WIRED AT ALL, and the wiring below is what
+        # closes it. A dism that goes silent mid-pass would still freeze the
+        # screen, and closing THAT means running dism as a polled process rather
+        # than a pipeline - MDT's WshShell.Exec loop. Not done here.
+        $onOutput = {
+            param([string] $Line)
+
+            # A BAR DOES NOT GET TO FAIL A DEPLOYMENT. This runs inside the
+            # servicing pass, on a machine part-way through building a computer;
+            # a log write that lost its RAM disk or a display whose runspace has
+            # died is not a reason to stop.
+            try {
+                $percent = & $parseProgress -Line $Line
+                if ($null -eq $percent) { return }
+
+                $reported = [int] $progressState['Percent']
+                if ([int] $percent -le $reported) { return }
+                if ([int] $percent -lt ($reported + 5) -and [int] $percent -lt 100) { return }
+
+                $progressState['Percent'] = [int] $percent
+
+                & $writeLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyUnattend' `
+                    -Message ('applying the answer file to {0}, which installs the staged drivers: {1}%' -f
+                        $imageRoot, [int] $percent) `
+                    -Data ([ordered] @{
+                        imageRoot = $imageRoot
+                        path      = $unattendPath
+                        percent   = [int] $percent
+                    })
+
+                & $updateDisplay -Context $Context
+            } catch {
+                # Kept where a debugger can reach it rather than thrown away: an
+                # empty catch is how a percentage that never appeared stays a
+                # mystery.
+                $progressState['Error'] = [string] $_.Exception.Message
+            }
+        }.GetNewClosure()
+
         try {
-            $image.ApplyUnattend($imageRoot, $unattendPath, $scratchPath)
+            $image.ApplyUnattend($imageRoot, $unattendPath, $scratchPath, $onOutput)
         } catch {
             # NOT SWALLOWED, AND NOT DOWNGRADED TO A WARNING. The staging
             # succeeded, so everything upstream looks green; if this failure did

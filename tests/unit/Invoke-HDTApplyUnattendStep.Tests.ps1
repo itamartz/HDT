@@ -1,4 +1,4 @@
-# The unattend, staged where SPIKES S7 proved Setup consumes it.
+﻿# The unattend, staged where SPIKES S7 proved Setup consumes it.
 #
 #   <target>:\Windows\Panther\unattend.xml
 #
@@ -946,6 +946,167 @@ Describe 'Invoke-HDTApplyUnattendStep applies the document offline' {
         # not, and only the step knows that.
         $result.Status | Should -BeExactly 'Failed'
         $result.Message | Should -BeLike '*0x800f081e*'
+    }
+
+    It 'reports what DISM says while the offlineServicing pass is running' {
+        # THE STEP THAT LOOKED HUNG, AND THE RUN THAT PROVED IT WAS NOT.
+        # LT-7FJ45S2, run-20260829-172208: step 7, Apply Windows Settings, sat
+        # on the progress card for over three minutes with nothing changing. It
+        # was working - that was the first image with the driver-ordering fix,
+        # so dism was genuinely running offlineServicing over 133 .inf packages
+        # instead of scanning an empty folder - but the step wrote nothing
+        # between its start and its end, so the screen could not say so. Worse,
+        # elapsed on that card is derived from the first and last record in the
+        # log, so the clock stopped with it.
+        #
+        # THE MECHANISM IS ApplyImage'S, UNCHANGED. The adapter hands every line
+        # dism prints to a callback; the callback decides which of them is a
+        # percentage and writes step.progress. Nothing here is a second channel
+        # (DESIGN 11.1) and nothing here is invented - it is the same shape the
+        # apply step has had since the step bar was built.
+        #
+        # THE FIXTURE IS REAL DISM OUTPUT AND IT IS NOT THIS VERB'S. Applying an
+        # unattend needs an offline Windows image to apply it TO, so the
+        # transcript cannot be captured on a developer's machine without
+        # deploying one first. dism-offline-servicing-output.txt is
+        # /Online /Cleanup-Image /ScanHealth captured on this host: the same
+        # servicing stack, the same meter, 4.9% to 100.0% over 116 seconds, one
+        # repaint per pipeline object. What is under test here is the step's
+        # THROTTLING and the parser, and neither cares which verb drew the bar.
+        $line = [System.IO.File]::ReadAllLines(
+            (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-offline-servicing-output.txt'))
+
+        $script:image = New-HDTFakeImageService -UnattendOutput $line
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $percent = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                ForEach-Object { [int] $_.data.percent })
+
+        # MORE THAN ONE, AND IT ENDS AT A HUNDRED. Three minutes of silence
+        # became a number that moves; the stride is asserted separately.
+        @($percent).Count | Should -BeGreaterThan 1
+        $percent[-1] | Should -Be 100
+    }
+
+    It 'reports every five points rather than every line the tool prints' {
+        # dism repaints its meter about a hundred times. A record per repaint is
+        # a hundred log writes and a hundred re-reads of the log by the display,
+        # on a machine part-way through building a computer, to move a bar by
+        # one pixel. Five is the granularity a bar on a wall is read at.
+        $line = @([System.IO.File]::ReadAllLines(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-offline-servicing-output.txt')))
+
+        $script:image = New-HDTFakeImageService -UnattendOutput $line
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $percent = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress' |
+                ForEach-Object { [int] $_.data.percent })
+
+        $meterCount = @($line | Where-Object { $_ -match '%' }).Count
+
+        # BOUNDED, AND BOUNDED BY THE STRIDE RATHER THAN BY THE TOOL: far fewer
+        # records than meter repaints, and never two at the same number.
+        @($percent).Count | Should -BeLessThan $meterCount
+        @($percent).Count | Should -BeLessOrEqual 21
+
+        for ($i = 1; $i -lt @($percent).Count; $i++) {
+            $percent[$i] | Should -BeGreaterThan $percent[$i - 1]
+        }
+    }
+
+    It 'names the image root in the progress record' {
+        $line = [System.IO.File]::ReadAllLines(
+            (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-offline-servicing-output.txt'))
+
+        $script:image = New-HDTFakeImageService -UnattendOutput $line
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $record = @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress')
+
+        [string] $record[0].component | Should -BeExactly 'ApplyUnattend'
+        [string] $record[0].data.imageRoot | Should -BeExactly 'W:\'
+    }
+
+    It 'writes nothing when the tool prints no meter at all' {
+        # A dism build that prints only its banner, and the reason the parser is
+        # asked rather than the line count: a bar driven by how chatty a tool is
+        # would be a bar that lied.
+        $script:image = New-HDTFakeImageService -UnattendOutput @(
+            'Deployment Image Servicing and Management tool', 'Version: 10.0.26100.8521', '',
+            'The operation completed successfully.')
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress') |
+            Should -BeNullOrEmpty
+    }
+
+    It 'drives the progress display while the pass is still running' {
+        # END TO END: the step logs, the display re-reads the log, and what
+        # reaches the screen is what the log says.
+        $display = New-HDTFakeProgressHost
+
+        $line = [System.IO.File]::ReadAllLines(
+            (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-offline-servicing-output.txt'))
+
+        $script:image = New-HDTFakeImageService -UnattendOutput $line
+
+        $catalog = New-HDTServiceCatalog -FileSystem $script:fileSystem -Clock $script:clock `
+            -Image $script:image -Progress $display
+
+        $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+            -FileSystem $script:fileSystem -Clock $script:clock -Level Debug
+
+        $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $live['HDTOSVolume'] = 'W'
+        $live['HDTComputerName'] = 'HDT-M3-01'
+        $live['HDTTaskSequenceID'] = 'DEMO-M3'
+        $live['HDTAdminPassword'] = 'Fixture-P@ssw0rd'
+
+        $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+            -Variable $live -Service $catalog -Log $log
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context $context | Out-Null
+
+        @($display.Operations | Where-Object { $_ -eq 'Update' }).Count | Should -BeGreaterThan 1
+    }
+
+    It 'keeps the progress it made when the pass then fails' {
+        # A pass that died at 60% died somewhere different from one that never
+        # started, and the log is the only place a technician can tell them
+        # apart afterwards.
+        $line = @([System.IO.File]::ReadAllLines(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-offline-servicing-output.txt')))
+
+        $script:image = New-HDTFakeImageService -UnattendOutput $line[0..120]
+        $script:image.SeedFailure('ApplyUnattend', 'Error: 0x800f081e')
+
+        $result = Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext)
+
+        $result.Status | Should -BeExactly 'Failed'
+
+        @(Get-HDTLogRecord -FileSystem $script:fileSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress') |
+            Should -Not -BeNullOrEmpty
+    }
+
+    It 'still applies the unattend with the same three arguments' {
+        # The progress channel is an addition, not a change: what the step asks
+        # the service to do is what it always asked.
+        $line = [System.IO.File]::ReadAllLines(
+            (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-offline-servicing-output.txt'))
+
+        $script:image = New-HDTFakeImageService -UnattendOutput $line
+
+        Invoke-HDTApplyUnattendStep -Step $script:applyStep -Context (& $script:newContext) | Out-Null
+
+        $applied = @($script:image.Operations | Where-Object { $_.Operation -eq 'ApplyUnattend' })
+
+        @($applied).Count | Should -Be 1
+        @($applied[0].Arguments).Count | Should -Be 3
+        [string] $applied[0].Arguments[0] | Should -BeExactly 'W:\'
     }
 
     It 'does not apply a document that declares no offlineServicing pass' {

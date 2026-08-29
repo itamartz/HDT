@@ -3540,6 +3540,12 @@ class HDTFakeImageService {
     # transcript, or a handful of lines a test wrote to make one point.
     [string[]] $ApplyOutput
 
+    # The same, for ApplyUnattend. SEPARATE FROM $ApplyOutput ON PURPOSE: a
+    # sequence test drives both verbs against one fake, and one shared list
+    # would replay an apply-image meter through the unattend pass and make each
+    # step's throttling unprovable in the presence of the other.
+    [string[]] $UnattendOutput
+
     # What AddDriver reports back - the rows the step logs as injected. Named
     # and shaped as IBootImageService's, because it is the same DISM verb.
     [object[]] $Driver
@@ -3550,6 +3556,7 @@ class HDTFakeImageService {
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.ServiceName = 'ImageService'
         $this.ApplyOutput = [string[]] @()
+        $this.UnattendOutput = [string[]] @()
         $this.Driver = [object[]] @()
     }
 
@@ -3710,7 +3717,25 @@ class HDTFakeImageService {
     # asked, so a step can be shown to ask with the right image root and the
     # STAGED document rather than the template back on the share.
     [void] ApplyUnattend([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath) {
+        $this.ApplyUnattend($ImagePath, $UnattendPath, $ScratchPath, {})
+    }
+
+    # THE FOUR-ARGUMENT FORM, FOR THE SAME REASON ApplyImage HAS ONE. Applying
+    # the answer file is the offlineServicing pass, which on a machine with a
+    # driver package of any size runs for minutes; the real adapter hands every
+    # line dism prints to $OnOutput as it arrives, and this replays the seeded
+    # lines so the step's throttling is provable with no image and no wait.
+    #
+    # THE LINES COME BEFORE THE FAILURE, because that is the order they happen
+    # in: dism prints its way to 60% and then hits a corrupt package, and a step
+    # that logged nothing about the first 60% is a step nobody can debug.
+    [void] ApplyUnattend([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath, [object] $OnOutput) {
         $this.Record('ApplyUnattend', @($ImagePath, $UnattendPath, $ScratchPath))
+
+        if ($null -ne $OnOutput) {
+            foreach ($line in @($this.UnattendOutput)) { $null = $OnOutput.Invoke([string] $line) }
+        }
+
         $this.AssertNoFailure('ApplyUnattend')
     }
 
@@ -3791,6 +3816,13 @@ function New-HDTFakeImageService {
             tests/fixtures/image/dism-apply-image-output.txt to give a step a
             real apply's worth of progress in no time at all.
 
+        .PARAMETER UnattendOutput
+            The same, for ApplyUnattend - the lines dism.exe prints while it
+            runs the offlineServicing pass. Seed
+            tests/fixtures/image/dism-offline-servicing-output.txt for a real
+            servicing meter. Separate from ApplyOutput so a test driving both
+            verbs can prove each step's throttling on its own transcript.
+
         .PARAMETER Driver
             What AddDriver reports back - one row per driver injected, with Inf,
             Provider, Version and Date, as Add-WindowsDriver returns them. A
@@ -3839,6 +3871,10 @@ function New-HDTFakeImageService {
 
         [Parameter()]
         [AllowEmptyCollection()]
+        [string[]] $UnattendOutput = @(),
+
+        [Parameter()]
+        [AllowEmptyCollection()]
         [object[]] $Driver = @(),
 
         [Parameter()]
@@ -3849,6 +3885,7 @@ function New-HDTFakeImageService {
     $fake = [HDTFakeImageService]::new()
     $fake.Journal = $Journal
     $fake.ApplyOutput = [string[]] @($ApplyOutput)
+    $fake.UnattendOutput = [string[]] @($UnattendOutput)
     $fake.Driver = [object[]] @($Driver)
 
     if ($PSBoundParameters.ContainsKey('FixturePath')) {

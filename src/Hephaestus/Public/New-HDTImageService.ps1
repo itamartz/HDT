@@ -24,8 +24,11 @@ function New-HDTImageService {
                   every line the tool prints handed to onOutput as it arrives.
                   That is where the percentage comes from - see the method.
 
-              ApplyUnattend(imagePath, unattendPath, scratchPath)
-                  dism.exe /Image: /Apply-Unattend: /ScratchDir:. THE ONLY
+              ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput])
+                  dism.exe /Image: /Apply-Unattend: /ScratchDir:, with every
+                  line the tool prints handed to onOutput as it arrives - the
+                  same channel ApplyImage uses, because this pass is the other
+                  one that runs for minutes. THE ONLY
                   THING THAT RUNS THE offlineServicing PASS, which is where the
                   answer file's driver paths live - Setup reading Panther on
                   first boot runs specialize and oobeSystem and not that one.
@@ -299,8 +302,19 @@ function New-HDTImageService {
     # THE SCRATCH DIRECTORY IS NOT OPTIONAL IN PRACTICE. WinPE runs from an X:
     # RAM disk, and left to itself DISM expands packages into TEMP there and
     # runs out of room. Both MDT and PSD hand it a folder on the local disk.
+    #
+    # AND EVERY LINE GOES TO $OnOutput AS IT ARRIVES, exactly as ApplyImage's
+    # does. THIS PASS IS THE OTHER LONG ONE: on LT-7FJ45S2 it ran for over three
+    # minutes over 133 .inf packages, and a step that reported nothing for the
+    # whole of it left a technician looking at a screen indistinguishable from a
+    # hung machine. Measured on this host, /Cleanup-Image /ScanHealth - the same
+    # servicing stack - printed its meter from 4.9% to 100.0% across 116
+    # seconds, one repaint per pipeline object, which is what makes this worth
+    # wiring at all. What a line MEANS is still decided by
+    # ConvertFrom-HDTDismProgressLine and the step; a default parameter value is
+    # not a branch, so the adapter stays dumb (rule 1).
     $service | Add-Member -MemberType ScriptMethod -Name ApplyUnattend -Value {
-        param([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath)
+        param([string] $ImagePath, [string] $UnattendPath, [string] $ScratchPath, [scriptblock] $OnOutput = {})
 
         $this.Record('ApplyUnattend', @($ImagePath, $UnattendPath, $ScratchPath))
 
@@ -318,7 +332,12 @@ function New-HDTImageService {
         $commandLine = 'dism /Image:{0} /Apply-Unattend:{1} /ScratchDir:{2}' -f $ImagePath, $UnattendPath, $ScratchPath
 
         $output = @(& "$env:SystemRoot\System32\dism.exe" "/Image:$ImagePath" `
-                "/Apply-Unattend:$UnattendPath" "/ScratchDir:$ScratchPath" 2>&1)
+                "/Apply-Unattend:$UnattendPath" "/ScratchDir:$ScratchPath" 2>&1 |
+                ForEach-Object {
+                    $line = [string] $_
+                    $null = $OnOutput.Invoke($line)
+                    $line
+                })
 
         # Exit-code check, with dism's own sentence attached.
         $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)
