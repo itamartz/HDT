@@ -639,10 +639,35 @@ find things without searching:
   Gather\
     facts.json                resolved facts (3.2)
     provenance.json           every variable + which source set it (3.1)
+    devices.json              every PnP device and its hardware ids
   Native\
     dism-<timestamp>.log      raw tool logs, unparsed
     setupact.log              collected from the target where relevant
 ```
+
+`devices.json` is the one fact gather never recorded. The twenty facts in
+`facts.json` are what a *rule* matches on — make, model, serial, chassis,
+firmware — and **not one of them is a hardware id**. Make and model tell an
+administrator which driver *pack* to fetch; the hardware id is the only thing
+that identifies the specific device that did not come up, so a deployment that
+finished with no network card could be diagnosed as far as "it is a Latitude
+5490" and no further.
+
+It is a **file rather than variables**, deliberately: a machine reports dozens of
+devices with several ids each, and as engine variables that would bury the twenty
+facts a rule reads under a hundred nothing matches on. This is also MDT's shape —
+`ZTIDrivers.wsf` shells `Microsoft.BDD.PnpEnum.exe` and writes `PnpEnum.xml` into
+its log directory for the same reason. HDT differs twice, and both are
+deliberate: it is written **at gather** rather than inside the driver step, so it
+survives a run that dies before drivers (MDT's does not); and it comes from
+`Win32_PnPEntity` through `ICimProvider` rather than a compiled enumerator,
+because that binary is an MDT dependency. Hardware ids come from **bus
+enumeration**, not from a driver, so a device with no driver at all still
+publishes its id — which is why the file is trustworthy in WinPE (SPIKES S19).
+
+It deliberately records **no problem state**: WinPE's view of "this device has no
+driver" is a fact about WinPE's driver set, not about the Windows being deployed,
+and recording it would flag a dozen devices on every healthy machine.
 
 Step files are **numbered in execution order**, so the directory listing itself
 tells you the sequence and where it stopped — the thing you want first when a

@@ -50,6 +50,7 @@
         'ConvertTo-HDTReport',
         'Copy-HDTLog',
         'Copy-HDTResumeAgent',
+        'Export-HDTDeviceInventory',
         'Export-HDTMachineFact',
         'Export-HDTVariableProvenance',
         'Get-HDTAutoLogonState',

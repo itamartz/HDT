@@ -251,7 +251,7 @@ try {
     </div>
     <nav><ul><li><a href="#workspace-and-share"><span class="nav-t">Workspace &amp; deployment share</span><span class="nav-n">15</span></a></li>
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
-<li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">10</span></a></li>
+<li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">11</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
 <li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">38</span></a></li>
 <li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">21</span></a></li>
@@ -285,10 +285,10 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">273</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">274</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">273</div><div class="l">carry examples</div></div>
-        <div class="stat"><div class="n">80</div><div class="l">support -WhatIf</div></div>
+        <div class="stat"><div class="n">274</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">81</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
         <span class="chip v-read">Get &middot; reads</span>
@@ -983,7 +983,7 @@ $answer = Resolve-HDTBootstrapRule -RuleDocument $document -Fact $fact -DeployRo
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="machine-facts-and-network" data-cat="machine-facts-and-network"><header class="cat-head"><div class="cat-eyebrow">10 commands</div><h2>Machine facts, network &amp; host checks</h2><p class="cat-blurb">Gather what a machine is, read or set its IPv4 configuration, and judge names, accounts and elevation.</p></header><div class="cat-body">
+    <section class="cat" id="machine-facts-and-network" data-cat="machine-facts-and-network"><header class="cat-head"><div class="cat-eyebrow">11 commands</div><h2>Machine facts, network &amp; host checks</h2><p class="cat-blurb">Gather what a machine is, read or set its IPv4 configuration, and judge names, accounts and elevation.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTMachineFact" data-name="get-hdtmachinefact" data-hay="get-hdtmachinefact gathers the machine facts through injected services. cimprovider registryservice environmentprovider">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTMachineFact">Get-HDTMachineFact</a></h3>
@@ -1032,6 +1032,45 @@ $fact[&#x27;HDTModel&#x27;]</pre><p>Gathers from the live machine through the re
 <p>A DEVICE WITH NO HARDWARE IDS IS DROPPED HERE. A running Windows reports a few hundred entries and a tenth of them are software enumerations carrying no ids at all - they can never match a driver, and dropping them here is one filter rather than one in every caller.</p>
 <p>NULL BECOMES AN EMPTY ARRAY. CIM answers null for a device with no CompatibleID; engine code runs under StrictMode, where that is an error at the point somebody reads .Count rather than at the point it was produced.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject per device, with Name, Class, DeviceId, HardwareID, CompatibleID, Manufacturer and Service.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Export-HDTDeviceInventory" data-name="export-hdtdeviceinventory" data-hay="export-hdtdeviceinventory writes the machine&#x27;s pnp devices and their hardware ids to gather\devices.json. device path filesystem timestamp whatif confirm">
+<header class="fn-head">
+<h3><a class="anchor" href="#Export-HDTDeviceInventory">Export-HDTDeviceInventory</a></h3>
+<div class="tags"><span class="chip v-read">Export</span>
+<span class="chip risk" title="Supports -WhatIf and -Confirm">ShouldProcess</span>
+</div></header>
+<p class="syn">Writes the machine&#x27;s PnP devices and their hardware ids to Gather\devices.json.</p>
+<div class="sig-wrap"><pre class="sig">Export-HDTDeviceInventory [-Device] &lt;Object[]&gt; [-Path] &lt;string&gt; -Timestamp &lt;datetime&gt; [-FileSystem &lt;Object&gt;] [-WhatIf] [-Confirm] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Device</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object[]</code></td><td class="p-desc"><p>Get-HDTPresentDevice&#x27;s answer, or any collection of rows carrying Name, Class, DeviceId, HardwareID, CompatibleID, Manufacturer and Service. An empty collection writes an empty inventory rather than refusing: a machine that reported nothing is a finding, and a missing file cannot be told apart from a step that never ran.</p></td></tr><tr><td class="p-name"><code>-Path</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>Where to write it. Conventionally &lt;_HDTLogPath&gt;\Gather\devices.json. Parent directories are created by the filesystem service.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem - New-HDTFileSystem in production, New-HDTFakeFileSystem in a test. Defaults to the real one.</p></td></tr><tr><td class="p-name"><code>-Timestamp</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>DateTime</code></td><td class="p-desc"><p>The instant recorded as &quot;generated&quot;. Mandatory, and deliberately so: the engine has an IClock and must pass its answer, and a test passes a fixed one so it can assert an exact document. A default of &quot;now&quot; would put a real clock reading inside engine code.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$device = Get-HDTPresentDevice
+Export-HDTDeviceInventory -Device $device -Path &#x27;X:\HDT\Logs\Gather\devices.json&#x27; -Timestamp $clock.GetUtcNow()</pre><p>Records every hardware id this machine publishes, where a technician can read it after the deployment rather than by rebuilding it.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$inventory = ConvertFrom-Json -InputObject (Get-Content -Raw &#x27;X:\HDT\Logs\Gather\devices.json&#x27;)
+$inventory.device | Where-Object { $_.class -eq &#x27;Net&#x27; } | Select-Object name, hardwareId</pre><p>The network cards a deployed machine had, and the exact ids to search a vendor&#x27;s driver page for.</p></div><div class="ex"><div class="ex-title">Example 3</div><pre class="code">Export-HDTDeviceInventory -Device $device -Path &#x27;X:\HDT\Logs\Gather\devices.json&#x27; -Timestamp $clock.GetUtcNow() -WhatIf</pre><p>Names the file and writes nothing.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE FACT GATHER NEVER RECORDED. Get-HDTMachineFact captures twenty things about a machine - make, model, serial, UUID, SKU, memory, firmware, TPM, chassis, MAC, IP - and NOT ONE hardware id. Make and model tell an administrator which driver PACK to fetch. The hardware id is the only thing that identifies the specific device that did not come up, and without it a deployment that finished with no network card can be diagnosed as far as &quot;it is a Latitude 5490&quot; and no further.</p>
+<p>SO IT IS A FILE, NOT A HUNDRED VARIABLES. A machine reports dozens of devices with several ids each; turning that into engine variables would bury the twenty facts a rule actually reads under a hundred nothing ever matches on. This sits beside facts.json and provenance.json in the run&#x27;s log directory, where it can be diffed against the next machine and read by a person.</p>
+<p>IT IS MDT&#x27;S SHAPE. ZTIDrivers.wsf shells Microsoft.BDD.PnpEnum.exe and writes PnpEnum.xml into the log directory - a device inventory file beside the logs, which is exactly this. HDT differs twice, and both are deliberate:</p>
+<pre class="block">  WRITTEN AT GATHER, NOT INSIDE THE DRIVER STEP. MDT&#x27;s only exists
+  because the driver step needed it, so a run that died before
+  drivers left no inventory - which is most of the runs somebody
+  wants one for.</pre>
+<pre class="block">  READ THROUGH CIM, NOT A COMPILED ENUMERATOR.
+  Microsoft.BDD.PnpEnum.exe is an MDT binary and HDT takes no MDT
+  dependency. Win32_PnPEntity answers the same question, and SPIKES
+  S19 proved it populated inside HDT&#x27;s own boot image: 44 devices,
+  42 with hardware ids, in 498 ms.</pre>
+<p>HARDWARE IDS ARE RELIABLE IN WinPE, AND THAT IS WHY THIS CAN BE TRUSTED THERE. They come from BUS ENUMERATION rather than from a driver: the PCI bus reports what a device answers on its configuration space, so a device with no driver loaded at all still publishes PCI\VEN_8086&amp;DEV_15D7&amp;SUBSYS_08161028&amp;REV_21. The id does not depend on WinPE having anything that can drive the device.</p>
+<p>WHAT IT DELIBERATELY DOES NOT RECORD IS PROBLEM STATE. WinPE&#x27;s view of &quot;this device has no driver&quot; is a fact about WINPE&#x27;S driver set, not about the Windows being deployed - a boot image legitimately lacks audio, display and fingerprint drivers, so recording problem codes would flag a dozen devices on every healthy machine and mean nothing. Ids are recorded; the editorial is left out.</p>
+<p>THE DOCUMENT:</p>
+<pre class="block">  { &quot;schemaVersion&quot;: 1,
+    &quot;generated&quot;: &quot;2026-08-13T00:11:02.4810000Z&quot;,
+    &quot;deviceCount&quot;: 44,
+    &quot;device&quot;: [ { &quot;name&quot;: &quot;...&quot;, &quot;class&quot;: &quot;Net&quot;, &quot;deviceId&quot;: &quot;...&quot;,
+                  &quot;hardwareId&quot;: [ ... ], &quot;compatibleId&quot;: [ ... ],
+                  &quot;manufacturer&quot;: &quot;...&quot;, &quot;service&quot;: &quot;...&quot; } ] }</pre>
+<p>THE TIMESTAMP IS FORMATTED BEFORE SERIALISATION, the same rule Export-HDTMachineFact carries: ConvertTo-Json renders a raw [datetime] as &quot;\/Date(1786579862481)\/&quot; under Windows PowerShell 5.1, and 5.1 is the engine that runs in WinPE, where this file is written.</p>
+<p>THE ID LISTS KEEP THEIR ORDER AND STAY SEPARATE. Windows publishes HardwareID most specific first with CompatibleID as the generic tail behind it, and that order is the only specificity signal there is - Get-HDTDriverMatch ranks on exactly it. Sorting, deduping or merging the two lists here would throw it away.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>None.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Export-HDTMachineFact" data-name="export-hdtmachinefact" data-hay="export-hdtmachinefact writes gathered facts to gather\facts.json. fact path filesystem timestamp whatif confirm">
@@ -1128,8 +1167,8 @@ Get-HDTUsableAddress -Fact $fact</pre><p>Still the IPv4 address. HDTIPAddress is
 <div class="sig-wrap"><pre class="sig">Get-HDTTimeZone [[-Id] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Id</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>One time zone, by id. Omitted, every one this machine knows.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTTimeZone | Where-Object { $_.Display -like &#x27;*Jerusalem*&#x27; }</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTTimeZone -Id &#x27;UTC&#x27;</pre></div></section>
-<details class="notes"><summary>How it works</summary><div class="prose"><p>WHAT THE WINDOWS PE WINDOW OFFERS AND WHAT tzutil TAKES. tzutil /s wants the ID - &#x27;Israel Standard Time&#x27; - and nobody knows the ids; what an administrator is looking for is &#x27;(UTC+02:00) Jerusalem&#x27;. This returns both, so a list can show one and store the other.</p>
-<p>IT READS .NET, NOT tzutil. TimeZoneInfo::GetSystemTimeZones returns the same set from the same registry without starting a process, which matters because the console asks for this list every time the window opens.</p>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>WHAT THE WINDOWS PE WINDOW OFFERS AND WHAT DISM TAKES. dism /Set-TimeZone wants the ID - &#x27;Israel Standard Time&#x27; - and nobody knows the ids; what an administrator is looking for is &#x27;(UTC+02:00) Jerusalem&#x27;. This returns both, so a list can show one and store the other.</p>
+<p>IT READS .NET, NOT A PROCESS. TimeZoneInfo::GetSystemTimeZones returns the same set from the same registry without starting a process, which matters because the console asks for this list every time the window opens.</p>
 <p>IT IS THIS MACHINE&#x27;S LIST, and that is worth knowing: Windows adds time zones, so a build host patched last year offers fewer than one patched last week. The document is not validated against it - a workspace edited on one machine and built on another would otherwise be refused for naming a zone the editor had never heard of.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject[] with Id, Display and BaseUtcOffset.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
@@ -4323,8 +4362,9 @@ Save-HDTWorkspaceDocument -Path &#x27;C:\HDTLab\Share\workspace.yaml&#x27; -Line
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Line</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String[]</code></td><td class="p-desc"><p>The workspace.yaml lines to edit.</p></td></tr><tr><td class="p-name"><code>-Name</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The Windows time zone id.</p></td></tr><tr><td class="p-name"><code>-Clear</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><p>Leave WinPE on the hardware clock, which is what it does today.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$line = Set-HDTBootImageTimeZone -Line $line -Name &#x27;Israel Standard Time&#x27;</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTTimeZone | Where-Object { $_.Display -like &#x27;*Jerusalem*&#x27; }</pre><p>Finding the id to pass.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>WinPE&#x27;S ANSWER FILE CANNOT SET THIS, and that is why the command exists. The windowsPE configuration pass carries Microsoft-Windows-International-Core-WinPE, which is InputLocale, SystemLocale, UILanguage and UserLocale - there is no TimeZone in it. Microsoft&#x27;s TimeZone setting belongs to Microsoft-Windows-Shell-Setup and is valid only in specialize, oobeSystem and auditSystem, which are passes of the DEPLOYED OS. So a booted WinPE runs on whatever the hardware clock says, which is UTC in practice.</p>
-<p>tzutil IS THE SUPPORTED WAY TO MOVE IT, and startnet.cmd is where a command that has to run on every boot belongs. Named here, Get-HDTStartnetScript writes `tzutil /s &quot;&lt;id&gt;&quot;` after wpeinit.</p>
-<p>IT IS A WINDOWS TIME ZONE ID, not an offset: &#x27;Israel Standard Time&#x27;, not &#x27;+02:00&#x27;. Run Get-HDTTimeZone, or tzutil /l, for the list. The id is NOT validated here - this document is edited and validated on machines that are not the one deploying, and a time zone Windows added last month would be refused by an engine that shipped before it.</p>
+<p>IT IS SET IN THE IMAGE, NOT AT BOOT. Named here, Update-HDTBootImage runs dism /Image:&lt;mount&gt; /Set-TimeZone:&quot;&lt;id&gt;&quot; against the mounted WIM, which writes the whole of HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation as one consistent set and validates the id against the image first.</p>
+<p>IT USED TO BE A LINE IN startnet.cmd AND THAT LINE NEVER RAN. `tzutil /s &quot;&lt;id&gt;&quot;` was written after wpeinit for a whole release; tzutil.exe IS NOT IN WinPE, so cmd.exe printed &quot;is not recognized&quot;, startnet ran on, and every deployment stayed on the image&#x27;s baked-in Pacific Standard Time with nothing failing anywhere. w32tm is absent too. The value in this document was always right; the thing that was supposed to apply it was not. A build-time write leaves no runtime command that can go missing.</p>
+<p>IT IS A WINDOWS TIME ZONE ID, not an offset: &#x27;Israel Standard Time&#x27;, not &#x27;+02:00&#x27;. Run Get-HDTTimeZone for the list - tzutil /l gives the same ids on a full Windows install, but not in WinPE, which has no tzutil at all. The id is NOT validated here - this document is edited and validated on machines that are not the one deploying, and a time zone Windows added last month would be refused by an engine that shipped before it.</p>
 <p>WHAT IT DOES NOT DO IS SET THE DEPLOYED MACHINE&#x27;S TIME ZONE. That is HDTTimeZone, which the task sequence&#x27;s unattend.xml carries into the specialize pass. Start-HDTDeployment seeds it from this value so one choice covers both, and a rule may override it per machine.</p>
 <p>IT IS SHAPED LIKE Set-HDTBootImageUnattend - one value, -Clear to take it away, the key removed rather than written empty.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the workspace.yaml lines, spliced.</p></div></div></div>
@@ -6220,8 +6260,11 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
       dism.exe /Apply-Image /ImageFile: /Index: /ApplyDir:, with
       every line the tool prints handed to onOutput as it arrives.
       That is where the percentage comes from - see the method.</pre>
-<pre class="block">  ApplyUnattend(imagePath, unattendPath, scratchPath)
-      dism.exe /Image: /Apply-Unattend: /ScratchDir:. THE ONLY
+<pre class="block">  ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput])
+      dism.exe /Image: /Apply-Unattend: /ScratchDir:, with every
+      line the tool prints handed to onOutput as it arrives - the
+      same channel ApplyImage uses, because this pass is the other
+      one that runs for minutes. THE ONLY
       THING THAT RUNS THE offlineServicing PASS, which is where the
       answer file&#x27;s driver paths live - Setup reading Panther on
       first boot runs specialize and oobeSystem and not that one.
@@ -6269,7 +6312,7 @@ $boot.MountImage(&#x27;C:\scratch\HDTPE_x64.wim&#x27;, 1, &#x27;C:\scratch\mount
 $boot.AddPackage(&#x27;C:\scratch\mount&#x27;, &#x27;C:\Adk\WinPE_OCs\WinPE-WMI.cab&#x27;)
 $boot.DismountImage(&#x27;C:\scratch\mount&#x27;, $true)</pre><p>The mount/apply/commit cycle, as three calls.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The one place in HDT that names Mount-WindowsImage, Dismount-WindowsImage, Add-WindowsPackage, Add-WindowsDriver, Get-WindowsPackage, Get-WindowsImage, Export-WindowsImage, dism.exe or oscdimg.exe. PROJECT constraint 4 forbids engine logic from touching hardware or a tool directly, so Update-HDTBootImage and New-HDTBootIso receive this object and can be swapped for New-HDTFakeBootImageService in a test with no ADK, no elevation and nothing mounted.</p>
-<p>NINE METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
+<p>TEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
 <pre class="block">  MountImage(imagePath, index, mountPath)
       Mount-WindowsImage -ImagePath -Index -Path</pre>
 <pre class="block">  DismountImage(mountPath, save)
@@ -6297,6 +6340,14 @@ and the difference is how &quot;the build applied
       dism.exe /Image:&lt;mount&gt; /Set-ScratchSpace:&lt;mb&gt;. THERE IS NO
       CMDLET for this - the Dism module exposes no scratch-space
       verb at all - so it is the one image operation that shells out.</pre>
+<pre class="block">  SetTimeZone(mountPath, name)
+      dism.exe /Image:&lt;mount&gt; /Set-TimeZone:&quot;&lt;id&gt;&quot;. ALSO NO CMDLET,
+      and offline only - dism refuses it against /Online. It writes
+      the whole of
+      HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation as
+      one consistent set and VALIDATES the id against the image
+      first, which is why the zone is set here rather than by a
+      command in startnet.cmd that WinPE turned out not to have.</pre>
 <pre class="block">  NewIso(mediaRoot, isoPath, argument)
       oscdimg.exe @argument &lt;mediaRoot&gt; &lt;isoPath&gt;</pre>
 <pre class="block">NewIso TAKES THE ARGUMENT ARRAY ALREADY BUILT. Every decision -
@@ -6305,10 +6356,10 @@ firmware, -NoPromptForKey, the space-free staging oscdimg requires
 therefore fully tested. This method runs the process and checks
 $LASTEXITCODE. That division is the whole adapter rule in one
 method.</pre>
-<p>THIS IS AN UNTESTED ADAPTER, and deliberately so: eight of its nine methods mount a WIM, write into a mounted image, export half a gigabyte or burn an ISO, and every one of them needs elevation. Its contract row calls GetImageInfo and nothing else; the rest is proven in tests/integration/BootImage.Integration.Tests.ps1, which builds a real image and re-mounts it read-only to read startnet.cmd back out. The price of not testing it is that it must stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, TWO EXIT-CODE CHECKS, ONE LAZY PATH RESOLUTION AND ONE ARGUMENT CONSTRUCTION FROM THE BOOLEAN THE INTERFACE CARRIES, each commented as such. Do not add logic here.</p>
+<p>THIS IS AN UNTESTED ADAPTER, and deliberately so: nine of its ten methods mount a WIM, write into a mounted image, export half a gigabyte or burn an ISO, and every one of them needs elevation. Its contract row calls GetImageInfo and nothing else; the rest is proven in tests/integration/BootImage.Integration.Tests.ps1, which builds a real image and re-mounts it read-only to read startnet.cmd back out. The price of not testing it is that it must stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, THREE EXIT-CODE CHECKS (dism twice, oscdimg once), ONE LAZY PATH RESOLUTION AND ONE ARGUMENT CONSTRUCTION FROM THE BOOLEAN THE INTERFACE CARRIES, each commented as such. Do not add logic here.</p>
 <p>EVERY NATIVE FAILURE CARRIES THE TOOL&#x27;S OWN OUTPUT. &quot;oscdimg failed&quot; without oscdimg&#x27;s own sentence is the log entry that wastes an hour.</p>
 <p>It is a [pscustomobject] carrying ScriptMethod members rather than a PowerShell class: classes dot-sourced into the module are the known flaky path across -Force re-imports (see 01-03).</p></div></details>
-<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with the nine IBootImageService ScriptMethods. Note that Get-Member -MemberType Method does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.</p></div></div></div>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with the ten IBootImageService ScriptMethods. Note that Get-Member -MemberType Method does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="New-HDTBitLockerService" data-name="new-hdtbitlockerservice" data-hay="new-hdtbitlockerservice the real ibitlockerservice: a thin adapter over the bitlocker module. journal">

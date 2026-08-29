@@ -64,6 +64,7 @@
             Command = @(
                 'Get-HDTMachineFact'
                 'Get-HDTPresentDevice'
+                'Export-HDTDeviceInventory'
                 'Export-HDTMachineFact'
                 'Get-HDTNetworkConfiguration'
                 'Get-HDTUsableAddress'

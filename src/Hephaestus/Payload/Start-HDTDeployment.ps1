@@ -1636,6 +1636,46 @@ try {
         & $say ("Gather\provenance.json could not be written: {0}" -f $_.Exception.Message)
     }
 
+    # -- AND WHAT THE MACHINE IS MADE OF, WHICH GATHER NEVER RECORDED ---------
+    #
+    # The twenty facts above are what a RULE matches on - make, model, serial,
+    # chassis, firmware. Not one of them is a hardware id, and the hardware id is
+    # the only thing that identifies the specific device that did not come up. A
+    # deployment that finished with no network card could be diagnosed as far as
+    # "it is a Latitude 5490" and no further.
+    #
+    # A FILE, NOT VARIABLES. A machine reports dozens of devices with several ids
+    # each; as engine variables that would bury the twenty facts a rule reads
+    # under a hundred nothing matches on. devices.json sits beside facts.json and
+    # provenance.json, which is MDT's shape - ZTIDrivers writes PnpEnum.xml into
+    # the log directory for the same reason.
+    #
+    # HERE RATHER THAN IN THE DRIVER STEP, and that is the difference from MDT.
+    # MDT's inventory exists only because its driver step needed one, so a run
+    # that died before drivers left none - which is most of the runs somebody
+    # wants one for. This is written before the sequence starts.
+    #
+    # IT MAY NOT END A DEPLOYMENT, for the same reason the two writes above may
+    # not: this is evidence ABOUT the run, not part of it.
+    try {
+        $presentDevice = @(Get-HDTPresentDevice -Cim $cim)
+
+        [void] (Export-HDTDeviceInventory -Device $presentDevice `
+                -Path ([System.IO.Path]::Combine($logDirectory, 'Gather', 'devices.json')) `
+                -FileSystem $fileSystem -Timestamp ([System.DateTime]::UtcNow))
+
+        # driver.enumerate IS ALREADY THE NAME FOR "how many devices the machine
+        # reported" - the driver step's PnP fallback writes it. Reusing it means
+        # a technician filtering the log for that name finds the inventory and
+        # the fallback's own count together, and it adds nothing to a controlled
+        # vocabulary that is pinned to DESIGN 4.4.2.
+        Write-HDTLog -Context $log -Event driver.enumerate -Component 'Gather' `
+            -Message ('{0} device(s) reported hardware ids; written to Gather\devices.json' -f $presentDevice.Count) `
+            -Data ([ordered] @{ deviceCount = [int] $presentDevice.Count })
+    } catch {
+        & $say ("Gather\devices.json could not be written: {0}" -f $_.Exception.Message)
+    }
+
     # WHAT THIS BOOT IMAGE CARRIES, so a sequence can ask before it acts. The
     # client template's Install Certificates step is conditioned on it, and it
     # is set here rather than gathered because it is a fact about the IMAGE, not

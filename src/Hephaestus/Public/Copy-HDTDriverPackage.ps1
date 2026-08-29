@@ -37,12 +37,23 @@ function Copy-HDTDriverPackage {
         .PARAMETER FileSystem
             An IFileSystem.
 
+        .PARAMETER OnProgress
+            Called after each file with Source, Done, Total and Percent. Omitted,
+            the copy is silent - which is what it was on the deployment that made
+            this necessary: 48 seconds staging a Dell pack, one log line, written
+            at the end.
+
+            A CALLBACK RATHER THAN A LOG WRITE. This command has no log context
+            and should not grow one; the step decides what the record is called
+            and how often to write it, which is DESIGN 11.1's single source of
+            truth for what a deployment is doing.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Source,
-            Destination and FileCount.
+            Destination, FileCount, InfCount and ByteCount.
 
         .EXAMPLE
             Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' -Destination 'W:\Drivers\Win11\Dell\Net'
@@ -50,6 +61,23 @@ function Copy-HDTDriverPackage {
             Source      : Z:\Deploy\Drivers\Win11\Dell\Net
             Destination : W:\Drivers\Win11\Dell\Net
             FileCount   : 4
+            InfCount    : 1
+            ByteCount   : 28
+
+            THE .inf COUNT IS THE ONE THAT MAPS TO DEVICES. The Latitude 5490
+            pack on the lab share is 126 .inf files, 1302 files and 3.72 GB, and
+            a log that reports only the 1302 is reporting .sys, .cat, .dll and
+            the vendor's documentation.
+
+        .EXAMPLE
+            $package = 'Z:\Deploy\Drivers\Win11\Dell Inc.\Latitude 5490'
+            $target = 'W:\Drivers\Win11\Dell Inc.\Latitude 5490'
+            Copy-HDTDriverPackage -Source $package -Destination $target -FileSystem (New-HDTFileSystem) `
+                -OnProgress { param($P) Write-Verbose ('{0}%' -f $P.Percent) } -Verbose
+
+            The same copy, saying how far through it is. The denominator comes
+            from a walk taken before the first file moves, so the percentage is
+            counted rather than guessed from elapsed time.
 
         .EXAMPLE
             $staged = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
@@ -76,7 +104,22 @@ function Copy-HDTDriverPackage {
         # mandatory would mean every caller had to build one to copy a folder.
         [Parameter()]
         [AllowNull()]
-        [object] $FileSystem
+        [object] $FileSystem,
+
+        # WHAT SOMEBODY SEES WHILE THIS RUNS, and until now that was nothing.
+        # Staging the Latitude 5490 pack took 48 seconds on a real deployment and
+        # wrote one log line, at the end. Worse than a still bar: the progress
+        # card's elapsed clock is derived from the FIRST AND LAST record in the
+        # log, so a step that says nothing stops the clock for the whole
+        # deployment.
+        #
+        # A CALLBACK RATHER THAN A LOG WRITE, because this command has no log
+        # context and should not grow one - the STEP owns what a record is called
+        # and at what stride it is written (DESIGN 11.1: one source of truth).
+        # This only says how far along it is.
+        [Parameter()]
+        [AllowNull()]
+        [scriptblock] $OnProgress
     )
 
     Set-StrictMode -Version Latest
@@ -93,44 +136,49 @@ function Copy-HDTDriverPackage {
     $root = $Destination.TrimEnd('\', '/')
     $FileSystem.CreateDirectory($root)
 
-    $pending = New-Object -TypeName System.Collections.ArrayList
-    [void] $pending.Add([pscustomobject] @{ Path = $Source; Relative = '' })
+    # WALKED FIRST, THEN COPIED, AND THE WALK IS WHY THE PERCENTAGE CAN BE
+    # HONEST. Discovering files as it copied meant the denominator was unknown
+    # until the end, so the only progress available would have been elapsed time
+    # dressed up as a fraction. A walk is directory metadata - 1302 stats against
+    # 48 seconds of actual copying - and it buys an exact total, the .inf count
+    # and the byte count in the same pass.
+    $file = @(Get-HDTDriverPackageFile -Path $Source -FileSystem $FileSystem)
+
+    $total = $file.Count
+    $infCount = @($file | Where-Object { $_.IsInf }).Count
+    $byteCount = [long] 0
+    foreach ($one in $file) { $byteCount += [long] $one.Length }
 
     $fileCount = 0
 
-    while ($pending.Count -gt 0) {
-        $current = $pending[0]
-        $pending.RemoveAt(0)
+    foreach ($one in $file) {
+        $FileSystem.CopyItem($one.FullPath, ('{0}\{1}' -f $root, $one.RelativePath))
+        $fileCount++
 
-        foreach ($child in @($FileSystem.GetChildItem($current.Path))) {
-            $leaf = Split-Path -Path $child -Leaf
+        if ($null -eq $OnProgress) { continue }
 
-            $relative = $leaf
-            if (-not [string]::IsNullOrEmpty([string] $current.Relative)) {
-                $relative = '{0}\{1}' -f $current.Relative, $leaf
-            }
-
-            # A DIRECTORY HAS NO LENGTH, which is how this tells them apart
-            # through an interface that does not say. Copy-HDTLog does the same.
-            $isFile = $true
-            try {
-                [void] $FileSystem.GetLength($child)
-            } catch {
-                $isFile = $false
-            }
-
-            if ($isFile) {
-                $FileSystem.CopyItem($child, ('{0}\{1}' -f $root, $relative))
-                $fileCount++
-            } else {
-                [void] $pending.Add([pscustomobject] @{ Path = $child; Relative = $relative })
-            }
+        # THE DENOMINATOR IS THE WALK'S, so this cannot exceed 100 - and a
+        # package that walked to nothing never gets here at all.
+        $percent = 100
+        if ($total -gt 0) {
+            $percent = [int] [System.Math]::Floor(($fileCount / $total) * 100)
         }
+
+        & $OnProgress ([pscustomobject] @{
+                Source  = $Source
+                Done    = [int] $fileCount
+                Total   = [int] $total
+                Percent = [int] $percent
+            })
     }
 
     return [pscustomobject] @{
         Source      = $Source
         Destination = $root
         FileCount   = $fileCount
+        # THE .inf COUNT IS THE ONE THAT MAPS TO DEVICES. 1302 files is .sys,
+        # .cat, .dll and documentation; 126 .inf files is what Windows reads.
+        InfCount    = [int] $infCount
+        ByteCount   = [long] $byteCount
     }
 }

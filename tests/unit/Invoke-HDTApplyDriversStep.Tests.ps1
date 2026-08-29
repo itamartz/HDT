@@ -269,7 +269,7 @@ Describe 'Invoke-HDTApplyDriversStep' {
             # a device this machine has not got. Both live in the SAME folder,
             # so the package is copied once and carries both - which is what a
             # driver folder is, and why the count is packages rather than infs.
-            [int] $result.Data['injected'] | Should -Be 1
+            [int] $result.Data['staged'] | Should -Be 1
 
             $script:fileSystem.TestPath('W:\Drivers\Win11\Dell inc\Dell Pro 3 16 P316265\net-realtek.inf') | Should -BeTrue
             $script:fileSystem.TestPath('W:\Drivers\Win11\Acme\Elsewhere\net-elsewhere.inf') |
@@ -293,7 +293,7 @@ Describe 'Invoke-HDTApplyDriversStep' {
 
             $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
 
-            [int] $result.Data['injected'] | Should -Be 1
+            [int] $result.Data['staged'] | Should -Be 1
             @(& $script:record 'driver.staged').Count | Should -Be 1
         }
     }
@@ -378,6 +378,220 @@ Describe 'Invoke-HDTApplyDriversStep' {
         }
     }
 
+    Context 'the log a technician actually reads' {
+
+        BeforeEach {
+            $script:groupStep = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+        }
+
+        It 'says both what the rule produced and where it resolved to, in one line' {
+            # IT TOOK TWO LINES TO SAY THIS AND NEITHER SAID THE HALF THAT
+            # MATTERS. The step logged the full resolved path and then, a moment
+            # later, "staged <leaf> to <target>" - while the value the rule
+            # actually produced sat in the data payload and appeared nowhere in
+            # the text. "What did my rule expand to?" is the only question worth
+            # asking when the folder is missing.
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $group = @(& $script:record 'driver.group' | Where-Object { $_.level -eq 'Info' })
+
+            $group[0].message | Should -Match 'Win11\\Dell inc\\Dell Pro 3 16 P316265'
+            $group[0].message | Should -Match 'Z:\\Deploy\\Drivers'
+            $group[0].data.written | Should -Be 'Win11\Dell inc\Dell Pro 3 16 P316265'
+        }
+
+        It 'warns in words when the group folder is not on the share' {
+            # `found:false` IN A DATA PAYLOAD IS INVISIBLE TO A PERSON, and this
+            # is the single most important line in the file when it happens. It
+            # was Info - the same severity as success - so a log filtered to
+            # problems showed nothing at all for the case that produces a machine
+            # with no network card.
+            $step = & $script:newStep @{ group = 'Win11\Dell inc\Latitude 9999' }
+
+            $null = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            $warned = @(& $script:record 'driver.group' | Where-Object { $_.level -eq 'Warning' })
+
+            $warned.Count | Should -BeGreaterThan 0
+            $warned[0].message | Should -Match 'Latitude 9999'
+            $warned[0].message | Should -Match 'not found under'
+        }
+
+        It 'counts the .inf files, not only the files' {
+            # 1302 FILES IS .sys, .cat, .dll AND THE VENDOR'S RELEASE NOTES. The
+            # Latitude 5490 pack is 126 .inf files inside those 1302, and 126 is
+            # the number that maps to devices.
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $staged = @(& $script:record 'driver.staged')
+
+            [int] $staged[0].data.infCount | Should -Be 2
+            [long] $staged[0].data.byteCount | Should -BeGreaterThan 0
+            $staged[0].message | Should -Match '\.inf'
+        }
+
+        It 'reports progress while it copies, which the group path never did' {
+            # 48 SECONDS OF SILENCE ON A REAL DEPLOYMENT. Only the PnP fallback
+            # reported progress, and the fallback almost never runs - so the
+            # path nearly every deployment takes copied a folder whole and said
+            # nothing until it was finished. Worse than a still bar: the progress
+            # card's elapsed clock comes from the first and last record in the
+            # log, so silence stops the clock for the whole deployment.
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $progress = @(& $script:record 'step.progress')
+
+            $progress.Count | Should -BeGreaterThan 0
+            [int] $progress[-1].data.percent | Should -Be 100
+            $progress[0].data.package | Should -Not -BeNullOrEmpty
+            [int] $progress[0].data.total | Should -BeGreaterThan 0
+        }
+
+        It 'never reports a percent above a hundred' {
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            @(& $script:record 'step.progress' | Where-Object { [int] $_.data.percent -gt 100 }) |
+                Should -HaveCount 0
+        }
+
+        It 'names what installs the drivers, rather than stopping at "staged"' {
+            # THE LOG USED TO END AT "staged", WHICH LEFT NO THREAD TO PULL.
+            # Staging only copies; the answer file's DriverPaths is what installs
+            # them - and that is exactly what was broken here until the step
+            # order changed.
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $done = @(& $script:record 'native.exec')
+
+            $done[0].message | Should -Match 'offlineServicing'
+            $done[0].message | Should -Match 'DriverPaths'
+        }
+    }
+
+    Context 'the payload, which said two things that were not true' {
+
+        It 'calls the count staged rather than injected' {
+            # NOTHING IS INJECTED ANY MORE. The message beside it says "staged N
+            # driver package(s)" while the payload called the same number
+            # injected, which is what this step did through DISM until the
+            # per-driver commit cost eleven minutes on a Latitude.
+            $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            $result.Data.Contains('staged') | Should -BeTrue
+            $result.Data.Contains('injected') | Should -BeFalse
+        }
+
+        It 'omits matched entirely on the group path, where nothing is ever ranked' {
+            # IT WAS PERMANENTLY 0 THERE, sitting beside a successful staging.
+            # An administrator reading it concluded their hardware matched none
+            # of the drivers they had just shipped, and went debugging a problem
+            # that did not exist. A number that is only ever zero is not a
+            # measurement.
+            $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            $result.Data.Contains('matched') | Should -BeFalse
+        }
+
+        It 'keeps matched on the fallback path, where it is a real count' {
+            # THE FIX IS NOT TO DELETE THE NUMBER. When the PnP ranking actually
+            # runs, how many drivers matched is the whole story of the step.
+            $step = & $script:newStep @{ group = 'Win11\Dell inc\Latitude 9999' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            $result.Data.Contains('matched') | Should -BeTrue
+            [int] $result.Data['matched'] | Should -BeGreaterThan 0
+        }
+
+        It 'carries the .inf and byte counts it now reports' {
+            $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            [int] $result.Data['infCount'] | Should -Be 2
+            [long] $result.Data['byteCount'] | Should -BeGreaterThan 0
+        }
+
+        It 'keeps the rule''s raw value beside the resolved path' {
+            # Provenance done properly, and no other step here has an equivalent.
+            $step = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            $result.Data['written'] | Should -Be 'Win11\Dell inc\Dell Pro 3 16 P316265'
+            [string] $result.Data['group'] | Should -Match 'Z:\\Deploy\\Drivers'
+        }
+    }
+
+    Context 'whether the pack was the right one for this machine' {
+
+        # THE GROUP PATH COPIES A FOLDER WHOLE BECAUSE SOMEBODY'S RULE NAMED IT,
+        # and until now nothing ever checked that folder against the machine in
+        # front of it. A pack for the wrong model stages just as successfully as
+        # the right one.
+        #
+        # AND THE FRAMING IS THE POINT. "118 devices, 112 not covered" is true
+        # and useless - most devices are served by Windows in-box drivers, so
+        # that number is both normal and alarming, and an administrator who reads
+        # it twice learns to ignore the line.
+
+        BeforeEach {
+            $script:groupStep = & $script:newStep @{ group = 'Win11\%HDTMake%\%HDTModel%' }
+        }
+
+        It 'says how many staged .inf files are relevant to this machine' {
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $report = @(& $script:record 'driver.match' | Where-Object { $null -ne $_.data.PSObject.Properties['relevant'] })
+
+            $report.Count | Should -Be 1
+            [int] $report[0].data.staged | Should -Be 2
+            [int] $report[0].data.relevant | Should -Be 1
+        }
+
+        It 'words it so it cannot be read as a prediction of failure' {
+            # A CONFIDENT FALSE NEGATIVE SENDS AN ADMINISTRATOR HUNTING A DRIVER
+            # THEY DO NOT NEED. This does not rank drivers, read signatures,
+            # dates or versions, and knows nothing about the in-box drivers in
+            # the image being applied - which are what serve most of these
+            # devices. The log has to say so.
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $report = @(& $script:record 'driver.match' | Where-Object { $null -ne $_.data.PSObject.Properties['relevant'] })
+
+            $report[0].message | Should -Match 'in-box'
+            $report[0].message | Should -Match 'not a prediction'
+        }
+
+        It 'names the devices that would strand a machine and have nothing staged' {
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $script:context
+
+            $warned = @(& $script:record 'driver.match' |
+                    Where-Object { $_.level -eq 'Warning' -and $null -ne $_.data.PSObject.Properties['unmatched'] })
+
+            $warned.Count | Should -Be 1
+            [int] $warned[0].data.unmatched | Should -BeGreaterThan 0
+            $warned[0].message | Should -Match 'may still serve'
+        }
+
+        It 'does not run the report on the fallback path, where it would say nothing' {
+            # The fallback CHOSE its packages by matching them against this
+            # machine, so every .inf it staged is relevant by construction - and
+            # a report restating that would double the driver.match records the
+            # fallback has already written.
+            $step = & $script:newStep @{ group = 'Win11\Dell inc\Latitude 9999' }
+
+            $null = Invoke-HDTApplyDriversStep -Step $step -Context $script:context
+
+            @(& $script:record 'driver.match' | Where-Object { $null -ne $_.data.PSObject.Properties['relevant'] }) |
+                Should -HaveCount 0
+        }
+    }
+
     Context 'when it cannot' {
 
         It 'refuses rather than guessing a volume to inject into' {
@@ -409,7 +623,7 @@ Describe 'Invoke-HDTApplyDriversStep' {
             $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
 
             $result.Status | Should -Be 'Completed'
-            [int] $result.Data['injected'] | Should -Be 0
+            [int] $result.Data['staged'] | Should -Be 0
         }
     }
 }

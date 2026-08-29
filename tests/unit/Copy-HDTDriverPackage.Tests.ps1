@@ -98,6 +98,103 @@ Describe 'Copy-HDTDriverPackage' {
         }
     }
 
+    Context 'the counts a technician actually reads' {
+
+        # 1302 FILES IS NOT THE NUMBER THAT MAPS TO DEVICES. The Latitude 5490
+        # pack on the lab share is 126 .inf files, 1302 files and 3.72 GB, and
+        # the driver step's log reported only the 1302 - .sys, .cat, .dll and the
+        # vendor's documentation. An administrator judging whether the right pack
+        # went on needs the .inf count, and judging whether the copy is worth
+        # waiting for needs the bytes.
+
+        It 'counts the .inf files apart from the rest' {
+            $fs = & $script:newStore
+
+            $answer = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs
+
+            $answer.InfCount | Should -Be 1
+            $answer.FileCount | Should -Be 4
+        }
+
+        It 'totals the bytes it moved' {
+            $fs = & $script:newStore
+
+            $answer = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs
+
+            # '[Version]' + 'binary' + 'catalog' + 'nested' = 9+6+7+6.
+            $answer.ByteCount | Should -Be 28
+        }
+    }
+
+    Context 'saying something while it runs' {
+
+        # 48 SECONDS OF SILENCE ON A REAL DEPLOYMENT. Staging the Latitude pack
+        # took 48078 ms and wrote one log line, at the end. The progress card's
+        # elapsed clock is derived from the first and last record in the log, so
+        # a step that writes nothing does not merely fail to move its own bar -
+        # it stops the clock for the whole deployment.
+        #
+        # THE DENOMINATOR IS EXACT, which is why this one can be honest. The walk
+        # knows how many files there are before the copy starts, so the
+        # percentage is counted rather than guessed from elapsed time.
+
+        It 'reports progress as it copies' {
+            $fs = & $script:newStore
+            $seen = New-Object -TypeName System.Collections.ArrayList
+
+            $null = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs `
+                -OnProgress { param($P) [void] $seen.Add($P) }
+
+            @($seen).Count | Should -BeGreaterThan 0
+        }
+
+        It 'hands the callback a done, a total and a percent' {
+            $fs = & $script:newStore
+            $seen = New-Object -TypeName System.Collections.ArrayList
+
+            $null = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs `
+                -OnProgress { param($P) [void] $seen.Add($P) }
+
+            $last = @($seen)[-1]
+
+            $last.Total | Should -Be 4
+            $last.Done | Should -Be 4
+            $last.Percent | Should -Be 100
+        }
+
+        It 'never reports a percent above a hundred' {
+            # The denominator comes from a walk taken before the copy; if the two
+            # ever disagreed a bar would run off the end of the card.
+            $fs = & $script:newStore
+            $seen = New-Object -TypeName System.Collections.ArrayList
+
+            $null = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs `
+                -OnProgress { param($P) [void] $seen.Add($P) }
+
+            @($seen | Where-Object { $_.Percent -gt 100 }) | Should -HaveCount 0
+            @($seen | Where-Object { $_.Percent -lt 0 }) | Should -HaveCount 0
+        }
+
+        It 'copies exactly the same files whether or not anybody is listening' {
+            $quiet = & $script:newStore
+            $loud = & $script:newStore
+
+            $a = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $quiet
+
+            $b = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $loud -OnProgress { param($P) }
+
+            $b.FileCount | Should -Be $a.FileCount
+            $b.ByteCount | Should -Be $a.ByteCount
+        }
+    }
+
     Context 'what it refuses' {
 
         It 'refuses a source that is not there' {
