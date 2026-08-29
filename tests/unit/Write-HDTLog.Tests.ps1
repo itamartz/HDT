@@ -281,7 +281,7 @@ Describe 'Write-HDTLog' {
 
             $record = ConvertFrom-Json -InputObject ($script:fs.ReadAllText($script:jsonlPath))
             @($record.PSObject.Properties.Name) | Should -Be @(
-                'ts', 'runId', 'seq', 'level', 'phase', 'stepIndex', 'stepName', 'stepType',
+                'ts', 'runId', 'seq', 'level', 'phase', 'clockUnsynced', 'stepIndex', 'stepName', 'stepType',
                 'component', 'event', 'message', 'durationMs', 'data')
         }
     }
@@ -307,7 +307,7 @@ Describe 'Write-HDTLog' {
 
             # StartsWith, not -BeLike: '[' opens a character class in a wildcard
             # pattern, and this format is made of square brackets.
-            $script:fs.ReadAllText($script:masterPath).StartsWith('<![LOG[Applied index 1 to W:\ in 95s]LOG]!>') |
+            $script:fs.ReadAllText($script:masterPath).StartsWith('<![LOG[Applied index 1 to W:\ in 95s (clock unsynced)]LOG]!>') |
                 Should -BeTrue
         }
 
@@ -355,7 +355,7 @@ Describe 'Write-HDTLog' {
             Write-HDTLog -Context $script:context -Message 'Applied index 1'
 
             $script:fs.GetOperationName() | Should -Be @('AppendAllText', 'AppendAllText', 'AppendAllText')
-            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log').StartsWith('<![LOG[Applied index 1]LOG]!>') |
+            $script:fs.ReadAllText('X:\HDT\Logs\Steps\003-ApplyImage.log').StartsWith('<![LOG[Applied index 1 (clock unsynced)]LOG]!>') |
                 Should -BeTrue
         }
 
@@ -469,8 +469,8 @@ Describe 'Write-HDTLog' {
             $entry = @($fs.ReadAllText([string] $context.MasterLogPath) -split "`r`n" | Where-Object { $_ })
 
             $entry.Count | Should -Be 2
-            $entry[0].StartsWith('<![LOG[first]LOG]!>') | Should -BeTrue
-            $entry[1].StartsWith('<![LOG[second]LOG]!>') | Should -BeTrue
+            $entry[0].StartsWith('<![LOG[first (clock unsynced)]LOG]!>') | Should -BeTrue
+            $entry[1].StartsWith('<![LOG[second (clock unsynced)]LOG]!>') | Should -BeTrue
         }
     }
 
@@ -711,6 +711,79 @@ Describe 'Write-HDTLog' {
 
             $help.Name | Should -BeExactly 'Write-HDTLog'
             $help.Synopsis | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context 'clockUnsynced' {
+
+        # DESIGN 4.4.2, WRITTEN DOWN AND NEVER BUILT.
+        #
+        # WinPE boots with an unsynchronised clock, so a WinPE-phase timestamp is
+        # present, correctly formatted and WRONG - and because ts is written as
+        # UTC a reader cannot tell it is unreliable. The CMTrace date field
+        # inherits the same skew, so a leg can appear on the wrong day entirely.
+        #
+        # MEASURED ON A REAL LATITUDE: the WinPE leg stamped 20:53Z while the
+        # machine's own wall clock read 12:53 local and real UTC was 09:53. Its
+        # runId - built from local time - was run-20260829-125325 and correct.
+        # WinPE's session time zone is not the deployment's, so GetUtcNow() was
+        # eight hours out, and the FullOS leg's status.json two minutes later was
+        # right to the second. Nothing in the log said which half to trust.
+        #
+        # THE ENGINE DOES NOT TRY TO FIX THE CLOCK. Setting time needs a source
+        # that may not exist on an isolated deployment VLAN. Ordering comes from
+        # seq; the timestamp is a hint, and now an explicitly labelled one.
+
+        It 'marks a WinPE record as having an untrustworthy clock' {
+            Write-HDTLog -Context $script:context -Message 'Applied index 1'
+
+            $line = @($script:fs.ReadAllText($script:jsonlPath) -split "`n" | Where-Object { $_ })
+            $record = ConvertFrom-Json -InputObject $line[0]
+
+            [bool] $record.clockUnsynced | Should -BeTrue
+        }
+
+        It 'clears it once the full OS is running' {
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+                -FileSystem $fs -Clock $clock -ThreadId 4820
+
+            Write-HDTLog -Context $context -Message 'Applied index 1'
+
+            $line = @($fs.ReadAllText([string] $context.JsonlPath) -split "`n" | Where-Object { $_ })
+            $record = ConvertFrom-Json -InputObject $line[0]
+
+            [bool] $record.clockUnsynced | Should -BeFalse
+        }
+
+        It 'says so on the CMTrace line a technician actually reads' {
+            Write-HDTLog -Context $script:context -Message 'Applied index 1'
+
+            $text = $script:fs.ReadAllText($script:masterPath)
+
+            $text.Contains('Applied index 1 (clock unsynced)') |
+                Should -BeTrue -Because 'the CMTrace reader shows the message, not the jsonl field'
+        }
+
+        It 'leaves the full OS line alone' {
+            $fs = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 11, 2, 481, [System.DateTimeKind]::Utc))
+            $context = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+                -FileSystem $fs -Clock $clock -ThreadId 4820
+
+            Write-HDTLog -Context $context -Message 'Applied index 1'
+
+            $fs.ReadAllText([string] $context.MasterLogPath).Contains('clock unsynced') | Should -BeFalse
+        }
+
+        It 'keeps the jsonl message clean, so the suffix is the reader''s and not the record''s' {
+            Write-HDTLog -Context $script:context -Message 'Applied index 1'
+
+            $line = @($script:fs.ReadAllText($script:jsonlPath) -split "`n" | Where-Object { $_ })
+            $record = ConvertFrom-Json -InputObject $line[0]
+
+            [string] $record.message | Should -BeExactly 'Applied index 1'
         }
     }
 }

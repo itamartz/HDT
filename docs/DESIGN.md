@@ -609,6 +609,7 @@ deployment fails.
   "seq":       417,
   "level":     "Info",
   "phase":     "WinPE",
+  "clockUnsynced": true,
   "stepIndex": 3,
   "stepName":  "Apply OS",
   "stepType":  "ApplyImage",

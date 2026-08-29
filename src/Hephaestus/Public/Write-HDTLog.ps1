@@ -233,7 +233,17 @@ function Write-HDTLog {
     $userContext = ''
     if ($null -ne $Context.PSObject.Properties['User']) { $userContext = [string] $Context.User }
 
-    $line = ConvertTo-HDTCmTraceLine -Message $Message -Component $componentName `
+    # AND THE CMTrace READER GETS IT IN THE MESSAGE. CMTrace shows the message,
+    # the component, the time and the thread - it has no column for a field we
+    # invented, so a clockUnsynced the jsonl carries would be invisible to the
+    # one reader most likely to be looking at a skewed timestamp. The jsonl
+    # message stays clean; this suffix belongs to the rendering.
+    $cmTraceMessage = $Message
+    if ([bool] $record['clockUnsynced']) {
+        $cmTraceMessage = '{0} (clock unsynced)' -f $Message
+    }
+
+    $line = ConvertTo-HDTCmTraceLine -Message $cmTraceMessage -Component $componentName `
         -Severity $Severity -Timestamp $timestamp -ThreadId ([int] $Context.ThreadId) -File $sourceName `
         -UserContext $userContext
 

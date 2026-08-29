@@ -8,7 +8,7 @@ function ConvertTo-HDTLogRecord {
             source of truth the report renderer and the console's monitoring view
             consume, so every line is one object with the same shape:
 
-              ts, runId, seq, level, phase, stepIndex, stepName, stepType,
+              ts, runId, seq, level, phase, clockUnsynced, stepIndex, stepName, stepType,
               component, event, message, durationMs, data
 
             THE TIMESTAMP IS A FORMATTED STRING, NEVER A [datetime]. ConvertTo-Json
@@ -112,6 +112,24 @@ function ConvertTo-HDTLogRecord {
     $record['seq'] = $Seq
     $record['level'] = $Level
     $record['phase'] = $Context.Phase
+
+    # DESIGN 4.4.2. WinPE boots with an unsynchronised clock, so a WinPE-phase
+    # timestamp is present, correctly formatted and WRONG - and because ts is
+    # written as UTC a reader cannot tell it is unreliable. The CMTrace date
+    # field inherits the same skew, so a leg can land on the wrong day.
+    #
+    # MEASURED: a Latitude's WinPE leg stamped 20:53Z while its wall clock read
+    # 12:53 local and real UTC was 09:53 - WinPE's session time zone is not the
+    # deployment's, so the UTC conversion was eight hours out. The FullOS leg two
+    # minutes later was right to the second, and nothing in the log said which
+    # half to trust.
+    #
+    # PHASE IS THE EVIDENCE. The engine does not try to FIX the clock - setting
+    # time needs a source that may not exist on an isolated deployment VLAN, and
+    # a toolkit that refuses to deploy because it cannot reach NTP would be worse
+    # than one that logs honestly. Ordering comes from seq; the timestamp is a
+    # hint, and now a labelled one.
+    $record['clockUnsynced'] = ([string] $Context.Phase -eq 'WinPE')
 
     if ($Context.StepIndex -gt 0) {
         $record['stepIndex'] = $Context.StepIndex
