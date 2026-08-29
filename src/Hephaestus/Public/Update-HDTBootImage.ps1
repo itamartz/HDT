@@ -1,4 +1,4 @@
-function Update-HDTBootImage {
+﻿function Update-HDTBootImage {
     <#
         .SYNOPSIS
             Builds the HDT boot image: one mount, two artifacts, and a manifest
@@ -809,10 +809,6 @@ function Update-HDTBootImage {
         $startnetSplat['CertificateScript'] = 'X:\HDT\Import-HDTBootCertificate.ps1'
     }
 
-    if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.TimeZone)) {
-        $startnetSplat['TimeZone'] = [string] $workspace.BootImage.TimeZone
-    }
-
     $startnet = Get-HDTStartnetScript @startnetSplat
 
     try {
@@ -874,6 +870,41 @@ function Update-HDTBootImage {
             ('{0} MB' -f [int] $workspace.BootImage.ScratchSpaceMB))
 
         $BootImageService.SetScratchSpace($mountPath, [int] $workspace.BootImage.ScratchSpaceMB)
+
+        # -- 9b. the time zone, IN THE IMAGE ---------------------------------
+        #
+        # HDT used to write `tzutil /s "<id>"` into startnet.cmd. tzutil.exe IS
+        # NOT IN WinPE - captured proof in
+        # tests/fixtures/winpe/winpe-command-amd64.json, and confirmed at a real
+        # WinPE prompt - so cmd.exe printed "is not recognized", startnet ran on
+        # to the next line, and every deployment stayed on the image's baked-in
+        # Pacific Standard Time. NOTHING FAILED ANYWHERE: the build was green,
+        # the manifest recorded the startnet text containing the line, and the
+        # only visible symptom was an engine reporting a UTC eleven hours out
+        # while `time` at the prompt read correctly.
+        #
+        # SO IT IS SET AT BUILD TIME AND THERE IS NO RUNTIME COMMAND LEFT.
+        # dism /Image:<mount> /Set-TimeZone writes the whole of
+        # HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation - the very
+        # key whose Pacific default produced that -8 - as one consistent set,
+        # and validates the id against the image BEFORE writing. A zone that
+        # does not exist fails the build, here, with a message; it does not fail
+        # a boot in silence. Nothing was ever wrong with the id in
+        # workspace.yaml, only with the thing that was supposed to apply it.
+        #
+        # NOT THE ANSWER FILE, and that was checked rather than assumed.
+        # wpeinit accepts exactly eight settings, all of them
+        # Microsoft-Windows-Setup: Display, EnableFirewall, EnableNetwork,
+        # LogPath, PageFile, Restart, RunSynchronous, RunAsynchronous. TimeZone
+        # belongs to Shell-Setup and to the DEPLOYED OS's passes, so putting it
+        # in windowsPE risks wpeinit rejecting the whole file - which is how a
+        # mis-passed setting took out a real deployment the same week.
+        if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.TimeZone)) {
+            $Progress.Report(9, $stepTotal, 'Setting the Windows PE time zone',
+                [string] $workspace.BootImage.TimeZone)
+
+            $BootImageService.SetTimeZone($mountPath, [string] $workspace.BootImage.TimeZone)
+        }
 
         # -- 10. the boot driver group ---------------------------------------
 
@@ -1248,8 +1279,8 @@ function Update-HDTBootImage {
             $bootstrap['certificate'] = $certificateBlock
         }
 
-        # CARRIED SO THE DEPLOYED MACHINE GETS THE SAME ANSWER. startnet.cmd
-        # already moves WinPE's clock with it; this is how HDTTimeZone reaches
+        # CARRIED SO THE DEPLOYED MACHINE GETS THE SAME ANSWER. Step 9b already
+        # set the zone in the boot image itself; this is how HDTTimeZone reaches
         # the unattend's specialize pass without the administrator choosing
         # twice and getting two different answers.
         if (-not [string]::IsNullOrWhiteSpace([string] $workspace.BootImage.TimeZone)) {
@@ -1591,6 +1622,7 @@ function Update-HDTBootImage {
         -Component ([object[]] @($component)) -Driver ([object[]] @($driver)) `
         -Payload ([object[]] @($payloadRow)) -ExtraContent ([object[]] @($extraRow)) `
         -Startnet $startnet `
+        -TimeZone ([string] $workspace.BootImage.TimeZone) `
         -CredentialRecord @{
         Username            = $credentialUserName
         Embedded            = $embedCredential

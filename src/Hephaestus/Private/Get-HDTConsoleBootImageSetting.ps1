@@ -1,4 +1,4 @@
-function Get-HDTConsoleBootImageSetting {
+﻿function Get-HDTConsoleBootImageSetting {
     <#
         .SYNOPSIS
             Everything the WinPE window shows, worked out without a window.
@@ -221,7 +221,7 @@ function Get-HDTConsoleBootImageSetting {
 
     # -- the time zone --------------------------------------------------------
     #
-    # A LIST, BECAUSE tzutil TAKES AN ID AND NOBODY KNOWS THE IDS. What an
+    # A LIST, BECAUSE THE MECHANISM TAKES AN ID AND NOBODY KNOWS THE IDS. What an
     # administrator is looking for is "(UTC+02:00) Jerusalem"; what the document
     # has to hold is "Israel Standard Time".
     #
@@ -263,7 +263,17 @@ function Get-HDTConsoleBootImageSetting {
         Id                 = $declaredZone
         Choice             = [pscustomobject[]] @($zoneChoice)
 
-        Hint               = 'WinPE has no time zone setting in its answer file, so it runs on the hardware clock - UTC in practice, which puts its log timestamps hours from the machine it just built. Named here, startnet.cmd runs tzutil, and the deployed machine''s unattend inherits the same answer.'
+        # WHY THE HINT SAYS "BUILT INTO THE IMAGE" AND NOT "SET AT BOOT".
+        # WinPE has no time zone setting in its answer file - wpeinit accepts
+        # eight Microsoft-Windows-Setup settings and TimeZone is not among them
+        # - so an image ships on whatever zone its registry carries, which is
+        # Pacific Standard Time out of the ADK. HDT used to write
+        # `tzutil /s "<id>"` into startnet.cmd; tzutil.exe is not in WinPE, so
+        # that line printed "is not recognized" every boot and moved nothing,
+        # and the only symptom was log timestamps hours out. It is now written
+        # into the mounted WIM by dism /Set-TimeZone at build time, which is
+        # also why changing it here needs a rebuild rather than a reboot.
+        Hint               = 'The zone WinPE itself runs in, built into the image - so a change takes effect at the next boot image build. The deployed machine''s unattend inherits the same answer.'
 
         ApplyCommandFormat = 'Set-HDTBootImageTimeZone -Line $line -Name ''{0}'''
         ClearCommand       = 'Set-HDTBootImageTimeZone -Line $line -Clear'

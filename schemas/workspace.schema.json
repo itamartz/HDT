@@ -120,7 +120,7 @@
           "minLength": 1
         },
         "timeZone": {
-          "description": "The time zone WinPE runs in, as a Windows time zone id - 'Israel Standard Time', not '+02:00'. WinPE has no time zone setting in its answer file (the windowsPE pass carries locale and nothing else), so it runs on whatever the hardware clock says - UTC in practice. Named here, startnet.cmd runs tzutil /s with it. Run Get-HDTTimeZone, or tzutil /l, for the ids.",
+          "description": "The time zone WinPE runs in, as a Windows time zone id - 'Israel Standard Time', not '+02:00'. WinPE has no time zone setting in its answer file (wpeinit accepts eight Microsoft-Windows-Setup settings and TimeZone is not one of them), so an image runs on whatever its registry carries - Pacific Standard Time out of the ADK. Named here, Update-HDTBootImage runs dism /Image:<mount> /Set-TimeZone against the mounted WIM at build time, so a change needs a rebuild. Run Get-HDTTimeZone for the ids; tzutil is not in WinPE and is not what applies this.",
           "type": "string",
           "minLength": 1
         },

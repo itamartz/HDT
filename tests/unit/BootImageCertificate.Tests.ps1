@@ -272,11 +272,17 @@ Describe 'Set-HDTBootImageCertificatePassword' {
 
 Describe 'Set-HDTBootImageTimeZone' {
 
-    # WinPE HAS NO TIME ZONE SETTING IN ITS ANSWER FILE. The windowsPE pass
-    # component carries InputLocale, SystemLocale, UILanguage and UserLocale and
-    # nothing else, so an image runs on whatever the hardware clock says - which
-    # is UTC in practice. tzutil is the supported way to move it, and startnet.cmd
-    # is where a command an image runs every boot belongs.
+    # WinPE HAS NO TIME ZONE SETTING IN ITS ANSWER FILE. wpeinit accepts eight
+    # Microsoft-Windows-Setup settings - Display, EnableFirewall, EnableNetwork,
+    # LogPath, PageFile, Restart, RunSynchronous, RunAsynchronous - and TimeZone
+    # is not among them, so an image runs on whatever its registry carries,
+    # which is Pacific Standard Time out of the ADK.
+    #
+    # THIS DOCUMENT KEY IS UNCHANGED BY THE MECHANISM MOVING. It used to put
+    # `tzutil /s "<id>"` into startnet.cmd, which never ran because tzutil.exe
+    # is not in WinPE; Update-HDTBootImage now writes the zone into the mounted
+    # WIM with dism /Set-TimeZone. The value an administrator types is the same
+    # either way, which is exactly why these tests did not change.
 
     It 'names the time zone in the document' {
         $result = Set-HDTBootImageTimeZone -Line $script:plain -Name 'Israel Standard Time' -Confirm:$false
@@ -330,7 +336,7 @@ Describe 'Get-HDTTimeZone' {
     }
 
     It 'carries a display name a person can pick from' {
-        # tzutil TAKES THE ID AND NOBODY KNOWS THE IDS. "(UTC+02:00) Jerusalem"
+        # THE MECHANISM TAKES THE ID AND NOBODY KNOWS THE IDS. "(UTC+02:00) Jerusalem"
         # is what an administrator is looking for; 'Israel Standard Time' is what
         # the document has to hold.
         $row = @(Get-HDTTimeZone | Where-Object { $_.Id -eq 'UTC' })[0]

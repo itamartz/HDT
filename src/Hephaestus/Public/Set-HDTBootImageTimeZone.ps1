@@ -1,4 +1,4 @@
-function Set-HDTBootImageTimeZone {
+﻿function Set-HDTBootImageTimeZone {
     <#
         .SYNOPSIS
             Names the time zone WinPE runs in.
@@ -13,12 +13,26 @@ function Set-HDTBootImageTimeZone {
             are passes of the DEPLOYED OS. So a booted WinPE runs on whatever the
             hardware clock says, which is UTC in practice.
 
-            tzutil IS THE SUPPORTED WAY TO MOVE IT, and startnet.cmd is where a
-            command that has to run on every boot belongs. Named here,
-            Get-HDTStartnetScript writes `tzutil /s "<id>"` after wpeinit.
+            IT IS SET IN THE IMAGE, NOT AT BOOT. Named here,
+            Update-HDTBootImage runs
+            dism /Image:<mount> /Set-TimeZone:"<id>" against the mounted WIM,
+            which writes the whole of
+            HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation as one
+            consistent set and validates the id against the image first.
+
+            IT USED TO BE A LINE IN startnet.cmd AND THAT LINE NEVER RAN.
+            `tzutil /s "<id>"` was written after wpeinit for a whole release;
+            tzutil.exe IS NOT IN WinPE, so cmd.exe printed "is not recognized",
+            startnet ran on, and every deployment stayed on the image's baked-in
+            Pacific Standard Time with nothing failing anywhere. w32tm is absent
+            too. The value in this document was always right; the thing that was
+            supposed to apply it was not. A build-time write leaves no runtime
+            command that can go missing.
 
             IT IS A WINDOWS TIME ZONE ID, not an offset: 'Israel Standard Time',
-            not '+02:00'. Run Get-HDTTimeZone, or tzutil /l, for the list. The
+            not '+02:00'. Run Get-HDTTimeZone for the list - tzutil /l gives the
+            same ids on a full Windows install, but not in WinPE, which has no
+            tzutil at all. The
             id is NOT validated here - this document is edited and validated on
             machines that are not the one deploying, and a time zone Windows
             added last month would be refused by an engine that shipped before

@@ -1,4 +1,4 @@
-function New-HDTBootImageManifest {
+﻿function New-HDTBootImageManifest {
     <#
         .SYNOPSIS
             Builds the boot image build manifest as JSON text.
@@ -92,6 +92,18 @@ function New-HDTBootImageManifest {
         .PARAMETER Startnet
             The exact text written to startnet.cmd.
 
+        .PARAMETER TimeZone
+            The Windows time zone id the image was built with, empty for none.
+
+            IT IS RECORDED BECAUSE THE MANIFEST UNDER-REPORTED AND THAT COST A
+            DIAGNOSIS. The manifest carried the startnet text - which contained
+            a `tzutil` line that WinPE could not run - and had no timeZone field
+            at all, so the one document an operator reads to find out what is in
+            a WIM could not answer the question the whole failure turned on. It
+            is written even when empty: an absent key cannot say whether the
+            build had no zone or was made by an engine that had never heard of
+            zones.
+
         .PARAMETER CredentialRecord
             Username, Embedded, PromptForCredential. Anything else in this
             hashtable is ignored.
@@ -117,7 +129,8 @@ function New-HDTBootImageManifest {
             New-HDTBootImageManifest -BuildId $id -BuiltUtc $utc -BuiltOn $env:COMPUTERNAME `
                 -EngineVersion '0.1.0' -WorkspaceId 'HDT-LAB' -Architecture amd64 -Language en-us `
                 -Adk $adk -Component $component -Driver $driver -Payload $payload `
-                -ExtraContent $extra -Startnet $startnet -CredentialRecord $credential `
+                -ExtraContent $extra -Startnet $startnet -TimeZone 'Israel Standard Time' `
+                -CredentialRecord $credential `
                 -Wim $wim -Iso $iso -IsoBootWimSha256 $wim.Sha256
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
@@ -180,6 +193,10 @@ function New-HDTBootImageManifest {
         [Parameter()]
         [AllowEmptyString()]
         [string] $Startnet = '',
+
+        [Parameter()]
+        [AllowEmptyString()]
+        [string] $TimeZone = '',
 
         [Parameter()]
         [AllowNull()]
@@ -299,6 +316,7 @@ function New-HDTBootImageManifest {
         payload            = [object[]] @($payloadRow)
         extraContent       = [object[]] @($extraRow)
         startnet           = $Startnet
+        timeZone           = $TimeZone
         credential         = [ordered] @{
             username            = [string] (& $valueOf $CredentialRecord 'Username' '')
             embedded            = [bool] (& $valueOf $CredentialRecord 'Embedded' $false)

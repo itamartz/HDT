@@ -1,4 +1,4 @@
-function New-HDTBootImageService {
+﻿function New-HDTBootImageService {
     <#
         .SYNOPSIS
             Creates the real IBootImageService adapter over the DISM image
@@ -14,7 +14,7 @@ function New-HDTBootImageService {
             New-HDTFakeBootImageService in a test with no ADK, no elevation and
             nothing mounted.
 
-            NINE METHODS, AND THE EXACT MECHANISM EACH WRAPS:
+            TEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
               MountImage(imagePath, index, mountPath)
                   Mount-WindowsImage -ImagePath -Index -Path
@@ -51,6 +51,15 @@ and the difference is how "the build applied
                   CMDLET for this - the Dism module exposes no scratch-space
                   verb at all - so it is the one image operation that shells out.
 
+              SetTimeZone(mountPath, name)
+                  dism.exe /Image:<mount> /Set-TimeZone:"<id>". ALSO NO CMDLET,
+                  and offline only - dism refuses it against /Online. It writes
+                  the whole of
+                  HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation as
+                  one consistent set and VALIDATES the id against the image
+                  first, which is why the zone is set here rather than by a
+                  command in startnet.cmd that WinPE turned out not to have.
+
               NewIso(mediaRoot, isoPath, argument)
                   oscdimg.exe @argument <mediaRoot> <isoPath>
 
@@ -62,14 +71,14 @@ and the difference is how "the build applied
             method.
 
             THIS IS AN UNTESTED ADAPTER, and deliberately so:
-            eight of its nine methods mount a WIM, write into a mounted image,
+            nine of its ten methods mount a WIM, write into a mounted image,
             export half a gigabyte or burn an ISO, and every one of them needs
             elevation. Its contract row calls GetImageInfo and nothing else; the
             rest is proven in tests/integration/BootImage.Integration.Tests.ps1,
             which builds a real image and re-mounts it read-only to read
             startnet.cmd back out. The price of not testing it is that it must
-            stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, TWO
-            EXIT-CODE CHECKS, ONE LAZY PATH RESOLUTION AND ONE ARGUMENT
+            stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, THREE
+            EXIT-CODE CHECKS (dism twice, oscdimg once), ONE LAZY PATH RESOLUTION AND ONE ARGUMENT
             CONSTRUCTION FROM THE BOOLEAN THE INTERFACE CARRIES, each commented
             as such. Do not add logic here.
 
@@ -92,7 +101,7 @@ and the difference is how "the build applied
             globally across services.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the nine
+            System.Management.Automation.PSCustomObject with the ten
             IBootImageService ScriptMethods. Note that
             Get-Member -MemberType Method does NOT list a ScriptMethod - use
             -MemberType Method, ScriptMethod.
@@ -307,6 +316,55 @@ and the difference is how "the build applied
 
         $this.AssertExitCode($LASTEXITCODE, 'dism.exe',
             ('dism {0} {1}' -f $imageArgument, $scratchArgument), $output)
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name SetTimeZone -Value {
+        param([string] $MountPath, [string] $Name)
+
+        $this.Record('SetTimeZone', @($MountPath, $Name))
+
+        # THE ZONE IS SET IN THE IMAGE, NOT AT BOOT, AND THAT IS THE WHOLE POINT.
+        # HDT used to write `tzutil /s "<id>"` into startnet.cmd. tzutil.exe IS
+        # NOT IN WinPE - captured proof in
+        # tests/fixtures/winpe/winpe-command-amd64.json, and confirmed at a real
+        # WinPE prompt - so cmd.exe printed "is not recognized", startnet ran on
+        # to the next line, and every deployment stayed on the image's baked-in
+        # Pacific Standard Time. Nothing failed anywhere. The symptom was an
+        # engine reporting a UTC eleven hours out while `time` at the prompt read
+        # correctly: the hardware clock was right and the ZONE had never moved.
+        #
+        # /Set-TimeZone WRITES
+        # HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation IN THE
+        # OFFLINE IMAGE - the very key whose Pacific default produced that -8 -
+        # and it writes Bias, StandardBias, DaylightBias, ActiveTimeBias,
+        # TimeZoneKeyName and the standard/daylight transition dates as one
+        # consistent set. Half of that key written by hand is worse than none of
+        # it, which is why this is not five SetValue calls through
+        # IRegistryService against a manually loaded hive.
+        #
+        # IT VALIDATES BEFORE IT WRITES. DISM checks the id against the image, so
+        # a zone that does not exist there fails the BUILD, at a build host, with
+        # a message - rather than failing a boot in a datacentre with silence.
+        # That is the property the old mechanism could not have at any price.
+        #
+        # OFFLINE ONLY. dism refuses /Set-TimeZone against /Online, which is why
+        # it takes a mount path and never a switch.
+        $imageArgument = '/Image:{0}' -f $MountPath
+        $zoneArgument = '/Set-TimeZone:{0}' -f $Name
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
+        $output = @(& "$env:SystemRoot\System32\dism.exe" $imageArgument $zoneArgument 2>&1)
+
+        $this.AssertExitCode($LASTEXITCODE, 'dism.exe',
+            ('dism {0} {1}' -f $imageArgument, $zoneArgument), $output)
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name NewIso -Value {

@@ -186,10 +186,11 @@
         $background = [string] $bootImage['background']
     }
 
-    # THE TIME ZONE WinPE RUNS IN, which its answer file cannot set: the
-    # windowsPE pass carries locale and nothing else, so an image runs on
-    # whatever the hardware clock says - UTC in practice. Empty means exactly
-    # that, and startnet.cmd gets no tzutil line.
+    # THE TIME ZONE WinPE RUNS IN, which its answer file cannot set: wpeinit
+    # accepts eight Microsoft-Windows-Setup settings and TimeZone is not one of
+    # them, so an image runs on whatever its registry carries - Pacific Standard
+    # Time out of the ADK. Empty means exactly that, and Update-HDTBootImage
+    # leaves the image's own zone alone.
     $timeZone = ''
     if ($null -ne $bootImage -and $bootImage.Contains('timeZone')) {
         $timeZone = [string] $bootImage['timeZone']

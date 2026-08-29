@@ -1998,3 +1998,56 @@ sanctions.
 **Do not read the warning as "the ISO is untrustworthy".** Rufus phrases it as a
 possible malware indicator because it cannot know where an image came from. This
 one was built on this machine, from the installed ADK, minutes earlier.
+
+## S21 — `tzutil` is not in WinPE, and the boot image's zone must be set offline ✅
+
+**Verified by execution**, twice: at a real WinPE prompt (`tzutil` → *command
+not found*; `w32tm` likewise), and by reading the images themselves —
+
+```powershell
+# neither the ADK's untouched WinPE nor a finished HDT boot image carries it
+Get-WindowsImageContent -ImagePath '…\Windows Preinstallation Environment\amd64\en-us\winpe.wim' -Index 1
+Get-WindowsImageContent -ImagePath '<share>\Boot\HDTPE_x64.wim' -Index 1
+```
+
+154 executables are reachable on WinPE's PATH in a built HDT image. `tzutil` and
+`w32tm` are not among them. The captured set is
+`tests/fixtures/winpe/winpe-command-amd64.json`, and
+`tests/contract/StartnetCommand.Contract.Tests.ps1` asserts every command
+`startnet.cmd` emits is in it.
+
+**What it cost before it was found.** HDT wrote `tzutil /s "<id>"` into
+`startnet.cmd` for a release. cmd.exe printed *'tzutil' is not recognized*,
+startnet ran straight on to the next line, and **nothing failed anywhere** — the
+build was green, the manifest recorded the startnet text containing the line, and
+every deployment ran on the image's baked-in **Pacific Standard Time**. The only
+visible symptom was the engine's `[datetime]::UtcNow` reading eleven hours out
+while `time` at the prompt was correct: the hardware clock was right and the
+*zone* had never moved.
+
+**The answer file cannot set it either, and that was checked rather than
+assumed.** `wpeinit` accepts exactly eight settings, all
+`Microsoft-Windows-Setup`: Display, EnableFirewall, EnableNetwork, LogPath,
+PageFile, Restart, RunSynchronous, RunAsynchronous. `TimeZone` belongs to
+`Microsoft-Windows-Shell-Setup` and to the deployed OS's passes, so putting it in
+`windowsPE` risks `wpeinit` rejecting the whole file. MDT's own
+`Unattend_PE_x64.xml` carries `Microsoft-Windows-Setup` and nothing else, and
+neither MDT nor PSD sets a WinPE zone at all.
+
+**What works:**
+
+```cmd
+dism /Image:<mount> /Set-TimeZone:"Israel Standard Time"
+```
+
+Offline only — dism refuses it against `/Online`. It writes the whole of
+`HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation` (Bias, StandardBias,
+DaylightBias, ActiveTimeBias, TimeZoneKeyName and the transition dates) as one
+consistent set, and **validates the id against the image before writing** — so a
+zone that does not exist fails the build, at a build host, with a message. That
+key being read at boot is not a hope: the -8 the lab measured *was* that key's
+ADK default.
+
+**The rule this leaves behind:** a boot image setting that needs a command at run
+time needs that command proven present first. A build-time write has nothing left
+to go missing.

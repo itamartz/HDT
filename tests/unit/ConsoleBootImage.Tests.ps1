@@ -552,8 +552,9 @@ bootImage:
 Describe 'the time zone row' {
 
     # WinPE'S ANSWER FILE CANNOT SET A TIME ZONE, so this row is not a duplicate
-    # of anything on the answer file line above it: it is what puts tzutil into
-    # startnet.cmd, and what the deployed machine's unattend inherits.
+    # of anything on the answer file line above it: it is what
+    # Update-HDTBootImage writes into the mounted WIM with dism /Set-TimeZone,
+    # and what the deployed machine's unattend inherits.
 
     BeforeAll {
         # INJECTED, like the ADK list and the driver groups. Windows adds time

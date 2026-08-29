@@ -1,4 +1,4 @@
-# The IBootImageService contract (PROJECT constraint 4, DESIGN 5.1, DESIGN 12.2.3).
+﻿# The IBootImageService contract (PROJECT constraint 4, DESIGN 5.1, DESIGN 12.2.3).
 #
 # Nine methods:
 #
@@ -10,11 +10,12 @@
 #   GetImageInfo(imagePath)                    -> object[] { Index, Name, SizeBytes }
 #   ExportImage(sourcePath, index, destinationPath)
 #   SetScratchSpace(mountPath, megabyte)
+#   SetTimeZone(mountPath, name)
 #   NewIso(mediaRoot, isoPath, argument)
 #
 # THE REAL ROW CALLS GetImageInfo AND NOTHING ELSE.
 #
-# The other eight mount a WIM, write into a mounted image, burn an ISO or export
+# The other nine mount a WIM, write into a mounted image, burn an ISO or export
 # half a gigabyte. None of those is something a contract test gets to do on a
 # developer's machine, and every one of them needs elevation. THEY ARE PROVEN IN
 # tests/integration/BootImage.Integration.Tests.ps1, which builds a real image
@@ -128,7 +129,8 @@ Describe 'IBootImageService contract: <Name>' -ForEach $script:HDTImplementation
             $method = @($script:boot | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
             foreach ($name in @('MountImage', 'DismountImage', 'AddPackage', 'AddDriver',
-                    'GetPackage', 'GetImageInfo', 'ExportImage', 'SetScratchSpace', 'NewIso')) {
+                    'GetPackage', 'GetImageInfo', 'ExportImage', 'SetScratchSpace',
+                    'SetTimeZone', 'NewIso')) {
                 $method | Should -Contain $name -Because "IBootImageService requires $name"
             }
         }

@@ -1,15 +1,16 @@
-function Get-HDTTimeZone {
+﻿function Get-HDTTimeZone {
     <#
         .SYNOPSIS
             The time zones this machine can name, id and display together.
 
         .DESCRIPTION
-            WHAT THE WINDOWS PE WINDOW OFFERS AND WHAT tzutil TAKES. tzutil /s
-            wants the ID - 'Israel Standard Time' - and nobody knows the ids;
+            WHAT THE WINDOWS PE WINDOW OFFERS AND WHAT DISM TAKES.
+            dism /Set-TimeZone wants the ID - 'Israel Standard Time' - and
+            nobody knows the ids;
             what an administrator is looking for is '(UTC+02:00) Jerusalem'. This
             returns both, so a list can show one and store the other.
 
-            IT READS .NET, NOT tzutil. TimeZoneInfo::GetSystemTimeZones returns
+            IT READS .NET, NOT A PROCESS. TimeZoneInfo::GetSystemTimeZones returns
             the same set from the same registry without starting a process, which
             matters because the console asks for this list every time the window
             opens.

@@ -377,25 +377,34 @@ Describe 'Get-HDTStartnetScript' {
         $none | Should -BeExactly $script:startnet
     }
 
-    It 'moves the clock with tzutil, after wpeinit' {
-        # WinPE's ANSWER FILE CANNOT SET A TIME ZONE - the windowsPE pass carries
-        # locale and nothing else - so tzutil is the supported way, and this is
-        # the file that runs on every boot. AFTER wpeinit, because everything
-        # that is not a certificate goes after wpeinit and tzutil needs nothing
-        # wpeinit provides.
-        $withZone = InModuleScope Hephaestus {
-            Get-HDTStartnetScript -TimeZone 'Israel Standard Time'
-        }
-        $zoneLine = @($withZone.TrimEnd("`r", "`n") -split "`r`n")
+    It 'sets no time zone at all, because WinPE has no command that could' {
+        # THIS FILE CARRIED `tzutil /s "<id>"` FOR A RELEASE AND IT NEVER RAN
+        # ONCE. tzutil.exe is not in WinPE - captured proof in
+        # tests/fixtures/winpe/winpe-command-amd64.json - so cmd.exe printed
+        # "is not recognized", startnet ran straight on, and every deployment
+        # stayed on the image's baked-in Pacific Standard Time with nothing
+        # failing anywhere. w32tm is absent too and is not the fix either.
+        #
+        # The zone is now written INTO the image at build time, by
+        # IBootImageService.SetTimeZone. There must be no parameter here to
+        # tempt anyone back: a startnet that mentions a zone is a startnet that
+        # LOOKS like it handles one.
+        $parameter = @(InModuleScope Hephaestus {
+                @((Get-Command -Name Get-HDTStartnetScript).Parameters.Keys)
+            })
 
-        $zoneLine[3] | Should -BeExactly 'wpeinit'
-        $zoneLine[4] | Should -BeExactly 'tzutil /s "Israel Standard Time"'
+        $parameter | Should -Not -Contain 'TimeZone'
     }
 
-    It 'writes no tzutil line when no time zone is named' {
-        $none = InModuleScope Hephaestus { Get-HDTStartnetScript -TimeZone '' }
-
-        $none | Should -BeExactly $script:startnet
+    It 'writes the same five lines whether or not a zone is configured' {
+        # THE POSITIVE HALF OF THE REMOVAL. The zone now lives in the image, so
+        # a workspace that names one must change nothing here - and the only way
+        # to say that is to show the default script is what it always was.
+        # tests/contract/StartnetCommand.Contract.Tests.ps1 carries the general
+        # rule: every command this emits is one WinPE actually has.
+        $script:line.Count | Should -Be 5
+        $script:startnet | Should -Not -Match 'tzutil'
+        $script:startnet | Should -Not -Match 'w32tm'
     }
 
     It 'is private to the module' {

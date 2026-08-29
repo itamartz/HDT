@@ -1,4 +1,4 @@
-# The IBootImageService double, and the one fake in this repository that MODELS
+﻿# The IBootImageService double, and the one fake in this repository that MODELS
 # A MOUNT.
 #
 # Every other fake answers questions. This one has to hold a small piece of
@@ -97,6 +97,25 @@ Describe 'New-HDTFakeBootImageService' {
         It 'throws when SetScratchSpace is called with nothing mounted' {
             { $script:boot.SetScratchSpace($script:mountPath, 512) } |
                 Should -Throw -ExceptionType ([System.InvalidOperationException])
+        }
+
+        It 'throws when SetTimeZone is called with nothing mounted' {
+            # dism /Set-TimeZone is offline-only and refuses a path that is not
+            # a mounted image, so a builder that set the zone before it mounted
+            # has to fail here rather than on metal.
+            { $script:boot.SetTimeZone($script:mountPath, 'Israel Standard Time') } |
+                Should -Throw -ExceptionType ([System.InvalidOperationException])
+        }
+
+        It 'records the zone it was asked for' {
+            $script:boot.MountImage($script:wimPath, 1, $script:mountPath)
+            $script:boot.SetTimeZone($script:mountPath, 'Israel Standard Time')
+
+            $call = @($script:boot.Operations | Where-Object { $_.Operation -eq 'SetTimeZone' })
+
+            $call.Count | Should -Be 1
+            [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
+            [string] $call[0].Arguments[1] | Should -BeExactly 'Israel Standard Time'
         }
 
         It 'throws when DismountImage is called with nothing mounted' {

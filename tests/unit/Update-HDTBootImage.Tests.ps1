@@ -1,4 +1,4 @@
-# Update-HDTBootImage against fakes: no ADK, no DISM, no elevation, nothing
+﻿# Update-HDTBootImage against fakes: no ADK, no DISM, no elevation, nothing
 # mounted, nothing burned - and every decision the build makes asserted.
 #
 # The real build takes fifteen to twenty-five minutes and needs an elevated
@@ -1162,6 +1162,134 @@ Describe 'Update-HDTBootImage' {
 
             $call.Count | Should -Be 1
             [int] $call[0].Arguments[1] | Should -Be 512
+        }
+    }
+
+    # THE TIME ZONE, AND IT IS SET IN THE IMAGE RATHER THAN AT BOOT.
+    #
+    # HDT used to write `tzutil /s "<id>"` into startnet.cmd. tzutil.exe IS NOT
+    # IN WinPE - captured proof in tests/fixtures/winpe/winpe-command-amd64.json -
+    # so cmd.exe printed "is not recognized", startnet carried on, and every
+    # WinPE run stayed on the image's baked-in Pacific Standard Time. The
+    # symptom was an engine whose UtcNow was eleven hours out while `time` at the
+    # prompt read correctly: the hardware clock was right and the ZONE had never
+    # moved.
+    #
+    # `DISM /Image:<mount> /Set-TimeZone:"<id>"` is the supported offline form.
+    # It writes HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation in the
+    # image - the very key whose Pacific default produced the -8 - and DISM
+    # VERIFIES THE ID AGAINST THE IMAGE before writing, so a zone that does not
+    # exist fails the build instead of failing a boot.
+    #
+    # It needs nothing at run time, which is the point: there is no command left
+    # that can go missing.
+    Context 'the time zone' {
+
+        BeforeAll {
+            $script:zoneYaml = $script:workspaceYaml -replace '  scratchSpaceMB: 512',
+            "  scratchSpaceMB: 512`n  timeZone: Israel Standard Time"
+
+            $script:zoneContext = New-HDTBootImageTestContext -WorkspaceYaml $script:zoneYaml
+            $script:zoneResult = Invoke-HDTBootImageTestBuild -Context $script:zoneContext
+
+            # The same build with no zone declared, so the "names none" cases
+            # rest on a context this Context owns rather than on one an earlier
+            # Context happened to leave in $script: scope.
+            $script:noZoneContext = New-HDTBootImageTestContext
+            $script:noZoneResult = Invoke-HDTBootImageTestBuild -Context $script:noZoneContext
+        }
+
+        It 'sets the zone the workspace declares, on the mounted image' {
+            $call = @($script:zoneContext.Boot.Operations | Where-Object { $_.Operation -eq 'SetTimeZone' })
+
+            $call.Count | Should -Be 1
+            [string] $call[0].Arguments[0] | Should -BeExactly $script:mountPath
+            [string] $call[0].Arguments[1] | Should -BeExactly 'Israel Standard Time'
+        }
+
+        It 'sets it while the image is still mounted' {
+            $name = @($script:zoneContext.Boot.GetOperationName())
+            $zone = [array]::IndexOf($name, 'SetTimeZone')
+            $mount = [array]::IndexOf($name, 'MountImage')
+            $dismount = [array]::IndexOf($name, 'DismountImage')
+
+            $zone | Should -BeGreaterThan $mount
+            $zone | Should -BeLessThan $dismount
+        }
+
+        It 'writes no tzutil line into startnet' {
+            # The regression this whole context exists for. startnet is recorded
+            # verbatim in the manifest, so it is readable straight off the result.
+            $startnet = $script:zoneContext.FileSystem.ReadAllText($script:mountPath + '\Windows\System32\startnet.cmd')
+
+            $startnet | Should -Not -Match 'tzutil'
+        }
+
+        It 'sets no zone when the workspace names none' {
+            @($script:noZoneContext.Boot.GetOperationName()) | Should -Not -Contain 'SetTimeZone'
+        }
+
+        It 'fails the build when the zone cannot be set' {
+            # NOT SWALLOWED, AND THAT IS THE WHOLE LESSON. The old mechanism
+            # could not fail: cmd.exe printed a line nobody read and startnet
+            # went to the next command. DISM returns an exit code, the service
+            # asserts it, and the build stops.
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $script:zoneYaml `
+                -Failure @{ SetTimeZone = 'Error: 0x8007054F - the time zone is not valid for this image' }
+
+            $record = $null
+            try { Invoke-HDTBootImageTestBuild -Context $context } catch { $record = $_ }
+
+            $record | Should -Not -BeNullOrEmpty
+        }
+
+        It 'names the zone in the log when it cannot be set' {
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $script:zoneYaml `
+                -Failure @{ SetTimeZone = 'Error: 0x8007054F - the time zone is not valid for this image' }
+
+            try { Invoke-HDTBootImageTestBuild -Context $context } catch { $null = $_ }
+
+            # The build log has to say WHICH zone was refused, and that DISM
+            # refused it. A message naming only a hex code sends the next person
+            # to the wrong document; a build that just stopped tells them
+            # nothing at all.
+            $log = $context.FileSystem.ReadAllText($script:workspaceRoot + '\Boot\HDTPE_x64.build.log')
+
+            $log | Should -Match 'Israel Standard Time'
+            $log | Should -Match '0x8007054F'
+        }
+
+        It 'discards the mount when the zone cannot be set' {
+            $context = New-HDTBootImageTestContext -WorkspaceYaml $script:zoneYaml `
+                -Failure @{ SetTimeZone = 'seeded failure' }
+
+            try { Invoke-HDTBootImageTestBuild -Context $context } catch { $null = $_ }
+
+            $dismount = @($context.Boot.Operations | Where-Object { $_.Operation -eq 'DismountImage' })
+            $dismount.Count | Should -Be 1
+            [bool] $dismount[0].Arguments[1] | Should -BeFalse
+        }
+
+        # THE MANIFEST UNDER-REPORTED, AND THAT IS ITS OWN DEFECT. The built
+        # image's manifest carried the startnet text - tzutil line and all - and
+        # had NO timeZone field, so the one document an operator reads to find
+        # out what is in a WIM could not answer the question the whole failure
+        # turned on. A manifest that under-reports is what makes a later
+        # diagnosis wrong.
+        It 'records the zone the image was built with' {
+            $manifest = $script:zoneContext.FileSystem.ReadAllText($script:manifestPath) | ConvertFrom-Json
+
+            [string] $manifest.timeZone | Should -BeExactly 'Israel Standard Time'
+        }
+
+        It 'records an empty zone when the workspace names none' {
+            $manifest = $script:noZoneContext.FileSystem.ReadAllText($script:manifestPath) | ConvertFrom-Json
+
+            # Present and empty, not absent. An absent key cannot tell an
+            # operator whether the build had no zone or was built by an engine
+            # that did not know about zones.
+            @($manifest.PSObject.Properties.Name) | Should -Contain 'timeZone'
+            [string] $manifest.timeZone | Should -BeExactly ''
         }
     }
 

@@ -5256,6 +5256,12 @@ class HDTFakeBootImageService {
         $this.AssertMounted($MountPath)
     }
 
+    [void] SetTimeZone([string] $MountPath, [string] $Name) {
+        $this.Record('SetTimeZone', @($MountPath, $Name))
+        $this.AssertNoFailure('SetTimeZone')
+        $this.AssertMounted($MountPath)
+    }
+
     [void] NewIso([string] $MediaRoot, [string] $IsoPath, [string[]] $Argument) {
         $this.Record('NewIso', @($MediaRoot, $IsoPath, $Argument))
         $this.AssertNoFailure('NewIso')
@@ -5278,7 +5284,7 @@ function New-HDTFakeBootImageService {
             seventeen steps provable in seconds, on a machine with no ADK, no
             elevation and nothing mounted.
 
-            Nine methods:
+            Ten methods:
 
               MountImage(imagePath, index, mountPath)
               DismountImage(mountPath, save)
@@ -5288,6 +5294,7 @@ function New-HDTFakeBootImageService {
               GetImageInfo(imagePath)                   -> { Index, Name, SizeBytes }
               ExportImage(sourcePath, index, destinationPath)
               SetScratchSpace(mountPath, megabyte)
+              SetTimeZone(mountPath, name)
               NewIso(mediaRoot, isoPath, argument)
 
             IT MODELS THE MOUNT, AND THAT IS WHY IT EXISTS. Update-HDTBootImage
@@ -5304,8 +5311,8 @@ function New-HDTFakeBootImageService {
             nothing this service does by itself appears in the shared journal as
             an operation the builder performed.
 
-            AddPackage, AddDriver, SetScratchSpace and DismountImage REFUSE A
-            PATH THAT IS NOT MOUNTED, as DISM does. A builder that packaged
+            AddPackage, AddDriver, SetScratchSpace, SetTimeZone and
+            DismountImage REFUSE A PATH THAT IS NOT MOUNTED, as DISM does. A builder that packaged
             before it mounted cannot pass here and fail on metal.
 
         .PARAMETER FileSystem
