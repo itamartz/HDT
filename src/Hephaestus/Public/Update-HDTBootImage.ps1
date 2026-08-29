@@ -112,7 +112,7 @@ function Update-HDTBootImage {
         .PARAMETER ScratchPath
             Where to mount and stage. Must contain no space, and must not be
             inside the workspace or the repository. Defaults to
-            C:\HDTLab\scratch\bootimage.
+            C:\ProgramData\Hephaestus\bootimage.
 
         .PARAMETER EngineModulePath
             The engine to stage into the image. Defaults to the RUNNING module's
@@ -427,7 +427,7 @@ function Update-HDTBootImage {
     # oscdimg's -bootdata: cannot carry a quoted path.
     if ($scratch -match '\s') {
         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $scratch `
-                    -Message ("the scratch path '{0}' contains a space. The boot bits for the ISO are staged in <scratch>\bootbits, and oscdimg's -bootdata: argument cannot carry a quoted path - a quoted one arrives doubled and produces `"Could not open boot sector file`" / Error 123. A staging directory under a path with a space solves nothing. Choose a scratch path without one, such as C:\HDTLab\scratch\bootimage." -f $scratch)))
+                    -Message ("the scratch path '{0}' contains a space. The boot bits for the ISO are staged in <scratch>\bootbits, and oscdimg's -bootdata: argument cannot carry a quoted path - a quoted one arrives doubled and produces `"Could not open boot sector file`" / Error 123. A staging directory under a path with a space solves nothing. Choose a scratch path without one, such as C:\ProgramData\Hephaestus\bootimage." -f $scratch)))
     }
 
     $workspaceFull = [System.IO.Path]::GetFullPath($WorkspaceRoot).TrimEnd('\', '/')
@@ -457,7 +457,7 @@ function Update-HDTBootImage {
             $scratchFull.StartsWith(($repositoryRoot + $separator), [System.StringComparison]::OrdinalIgnoreCase)) {
 
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -TargetObject $scratch `
-                        -Message ("the scratch path '{0}' is inside the repository '{1}'. A boot image build mounts a WIM there and empties the directory first; neither belongs in a working tree. Choose a scratch path outside it, such as C:\HDTLab\scratch\bootimage." -f $scratch, $repositoryRoot)))
+                        -Message ("the scratch path '{0}' is inside the repository '{1}'. A boot image build mounts a WIM there and empties the directory first; neither belongs in a working tree. Choose a scratch path outside it, such as C:\ProgramData\Hephaestus\bootimage." -f $scratch, $repositoryRoot)))
         }
     }
 

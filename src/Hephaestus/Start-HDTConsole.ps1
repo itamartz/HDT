@@ -1,4 +1,4 @@
-﻿<#
+<#
     .SYNOPSIS
         Opens the HDT admin console on one or more deployment shares.
 
@@ -60,9 +60,18 @@
 #>
 [CmdletBinding()]
 param(
+    # NO PATH MEANS YOUR OWN SHARES, NOT SOMEBODY ELSE'S.
+    #
+    # This defaulted to @('C:\HDTLab\Share') - one author's lab - and
+    # shipped that way, which was worse than untidy: Show-HDTConsole
+    # deliberately defaults -Path to @() so a bare console reopens THE
+    # SHARES YOU LAST CLOSED IT ON, and opens empty with New and Open on
+    # the root row when there are none. This command is the one people
+    # actually type, and it overrode that behaviour with a path that
+    # exists on exactly one machine.
     [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
-    [ValidateNotNullOrEmpty()]
-    [string[]] $Path = @('C:\HDTLab\Share'),
+    [AllowEmptyCollection()]
+    [string[]] $Path = @(),
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
