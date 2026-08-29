@@ -268,6 +268,12 @@
         # own dirty state; the workspace Save at the bottom does not touch it.
         $rulesBox = $window.FindName('HDTRulesBox')
         $rulesSummaryText = $window.FindName('HDTRulesSummaryText')
+        # THE TAB ITSELF, so its header can say the box below it has work in it.
+        # The Save that writes workspace.yaml is at the bottom of the GENERAL
+        # tab, where the Rules box is not on the screen at all - which is how an
+        # administrator pressed it, read a success footer naming a different
+        # file, and closed on an edit that had never been written.
+        $rulesTabItem = $window.FindName('HDTBootImageRules')
         $rulesProblemText = $window.FindName('HDTRulesProblemText')
         $rulesReloadButton = $window.FindName('HDTRulesReloadButton')
         $rulesSaveButton = $window.FindName('HDTRulesSaveButton')
@@ -276,6 +282,7 @@
 
         $bootstrapRulesBox = $window.FindName('HDTBootstrapRulesBox')
         $bootstrapRulesSummaryText = $window.FindName('HDTBootstrapRulesSummaryText')
+        $bootstrapTabItem = $window.FindName('HDTBootImageBootstrap')
         $bootstrapRulesProblemText = $window.FindName('HDTBootstrapRulesProblemText')
         $bootstrapRulesReloadButton = $window.FindName('HDTBootstrapRulesReloadButton')
         $bootstrapRulesSaveButton = $window.FindName('HDTBootstrapRulesSaveButton')
@@ -915,8 +922,19 @@
         # one copy to get wrong, and the one that rots is always the second.
         #
         # NEITHER IS PART OF THE WORKSPACE Save. They are their own files, saved
-        # by their own buttons, so an administrator who edits rules and presses
-        # the wrong Save has lost nothing.
+        # by their own buttons - and THAT COST SOMEBODY AN EDIT. This comment
+        # used to claim "an administrator who edits rules and presses the wrong
+        # Save has lost nothing", which was true of the FILES and false of the
+        # WORK: the bottom Save wrote workspace.yaml, said so in the footer, and
+        # the rules tabs marked nothing dirty - so the close prompt asked only
+        # about workspace.yaml and the window shut on the edit in silence.
+        #
+        # SO EACH TAB CARRIES ITS OWN DIRTY STATE, its own asterisk on its own
+        # tab header, and its own entry in the set the close prompt is asked
+        # about. Pressing the wrong Save still writes the wrong file - two
+        # documents, two buttons, and a Save that quietly wrote a file nobody
+        # asked it to write would be its own defect - but the window now says so
+        # on the way out.
         #
         # THE PARAMETERS ARE WHAT THE CLOSURES CAPTURE. GetNewClosure copies by
         # VALUE at the moment the handler is made, and these are locals of this
@@ -931,7 +949,19 @@
             # Save handler below therefore captured $null, saved the document
             # and then threw "The property 'Text' cannot be found on this
             # object" on the way out.
-            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap, $Command)
+            param($Box, $Summary, $Problem, $Save, $Reload, $RulePath, $IsBootstrap, $Command, $Tab)
+
+            # ONE STATE OBJECT PER INVOCATION, AND THAT IS WHY IT IS DECLARED
+            # HERE. This block is invoked twice; a flag held in the function
+            # body above would be ONE flag for both tabs, so typing in Bootstrap
+            # would mark rules.yaml unsaved and the close prompt would name a
+            # file nobody had touched.
+            #
+            # Saved IS WHAT THE FILE SAYS, not whether a key was pressed. $fill
+            # records it, TextChanged compares against it - so an edit typed and
+            # then typed back out again leaves the tab clean, and re-opening a
+            # tab does not mark it dirty.
+            $state = [pscustomobject] @{ Saved = ''; Dirty = $false }
 
             # ITS OWN DOOR, BECAUSE GetNewClosure CAPTURES THE LOCAL SCOPE ONLY.
             # The $call declared in ShowBootImage is a parent scope from in here:
@@ -939,6 +969,26 @@
             # it, and a keystroke in the rules box would find nothing behind the
             # & - which is the boot image window refusing to open at all.
             $call = Get-HDTHandlerCall
+
+            # AN ASTERISK ON THE TAB HEADER, AND NO NEW STRING FOR IT. The
+            # header is set from Strings\en-us.psd1 by Set-HDTWindowText, so
+            # marking it with a coloured element instead would take the tab's
+            # name out of the string table and into this file - a second source
+            # of truth for one character. Trailing ' *' is the convention every
+            # editor with tabs already uses, and it survives translation.
+            #
+            # STRIPPED BEFORE IT IS ADDED, rather than remembered from the
+            # header this read at wiring time: nothing here has to know whether
+            # Set-HDTWindowText has run yet, and marking twice cannot stack.
+            $mark = {
+                $bare = [string] $Tab.Header -replace '\s\*$', ''
+
+                if ($state.Dirty) {
+                    $Tab.Header = '{0} *' -f $bare
+                } else {
+                    $Tab.Header = $bare
+                }
+            }.GetNewClosure()
 
             # WHAT THE ENGINE WOULD SAY, SAID NOW. Assert-HDTRuleLine is the gate
             # Add-HDTRule passes through and, for the bootstrap file, the one
@@ -968,10 +1018,42 @@
                     $ruleLine = @([string] $fileSystem.ReadAllText($RulePath) -split "`r?`n")
                 }
 
-                $Box.Text = [string] (& $call 'Get-HDTConsoleRuleSetting' @{ Line = $ruleLine; Path = $RulePath; Bootstrap = [bool] $IsBootstrap }).Text
+                $text = [string] (& $call 'Get-HDTConsoleRuleSetting' @{ Line = $ruleLine; Path = $RulePath; Bootstrap = [bool] $IsBootstrap }).Text
+
+                # RECORDED BEFORE THE BOX IS FILLED, and that order is the whole
+                # trick. Assigning .Text raises TextChanged SYNCHRONOUSLY, and
+                # that handler compares the box against $state.Saved - so
+                # recording it afterwards would leave every freshly opened tab
+                # dirty and put a prompt on every close.
+                $state.Saved = $text
+                $Box.Text = $text
+
+                # AND AGAIN AFTERWARDS, against what the box actually holds: a
+                # TextBox is free to normalise what it was given, and a
+                # comparison against what it was HANDED would then never match.
+                $state.Saved = [string] $Box.Text
+                $state.Dirty = $false
+
+                & $mark
             }.GetNewClosure()
 
-            $Box.Add_TextChanged({ & $judge }.GetNewClosure())
+            # THE COMPARISON IS THE POINT, NOT THE KEYSTROKE. $fill assigns
+            # .Text and so raises this itself, and every Reload and Save goes
+            # through $fill - so a handler that marked dirty on every change
+            # would mark a tab nobody had edited.
+            #
+            # ORDINAL, ON THE WHOLE STRING, rather than through
+            # Test-HDTConsoleLineChange: that helper compares line by line
+            # because the sequence editor splices lines, and a rules tab is one
+            # TextBox holding one string. -cne is the same judgement - a
+            # document differing only in case, or by a trailing space, is a
+            # different document - without splitting one to reach it.
+            $Box.Add_TextChanged({
+                    $state.Dirty = ([string] $Box.Text -cne [string] $state.Saved)
+
+                    & $mark
+                    & $judge
+                }.GetNewClosure())
 
             $Reload.Add_Click({
                     & $fill
@@ -1000,15 +1082,19 @@
                     $Command.Text = [string] $judged.SaveCommand
                 }.GetNewClosure())
 
-            return [pscustomobject] @{ Fill = $fill; Judge = $judge }
+            # State AND Path TRAVEL WITH IT, because the close prompt is asked
+            # about the SET of documents this window can write and this is one
+            # of them. Handing back the object rather than its value is what
+            # makes the registry below read a LIVE flag.
+            return [pscustomobject] @{ Fill = $fill; Judge = $judge; State = $state; Path = $RulePath }
         }
 
         $rulesTab = & $wireRuleTab $rulesBox $rulesSummaryText $rulesProblemText `
-            $rulesSaveButton $rulesReloadButton $rulesPath $false $commandText
+            $rulesSaveButton $rulesReloadButton $rulesPath $false $commandText $rulesTabItem
 
         $bootstrapRulesTab = & $wireRuleTab $bootstrapRulesBox $bootstrapRulesSummaryText `
             $bootstrapRulesProblemText $bootstrapRulesSaveButton $bootstrapRulesReloadButton `
-            $bootstrapRulesPath $true $commandText
+            $bootstrapRulesPath $true $commandText $bootstrapTabItem
 
         # FILLED NOW, not with the boxes three hundred lines above: these
         # scriptblocks are made here, and one called before it is assigned is
@@ -1017,6 +1103,39 @@
         & $rulesTab.Judge
         & $bootstrapRulesTab.Fill
         & $bootstrapRulesTab.Judge
+
+        # -- every document this window can write, in one list ----------------
+        #
+        # THE SET, NOT THE ONE IN FRONT OF YOU. This window edits three files
+        # through three Save buttons, and its close prompt was asked about one
+        # of them - so a window holding an unsaved rule shut without a word.
+        # Add a fourth editable document and it goes here, or
+        # tests/contract/ConsoleBootImageDocument.Contract.Tests.ps1 fails: that
+        # test reads the documents out of THIS FILE'S source rather than out of
+        # a list somebody remembered to update.
+        #
+        # Dirty IS A ScriptProperty AND HAS TO BE. A copied [bool] would answer
+        # whatever it was at build time for ever - $false, always, which is
+        # exactly the silence being fixed. This asks the tab.
+        #
+        # SaveWith COMES OFF THE BUTTON, not out of the string table a second
+        # time. Set-HDTWindowText has already run, so what is read here is the
+        # label the administrator can see; renaming the button in en-us.psd1
+        # renames it in the prompt with no second edit.
+        $documentSet = @(
+            [pscustomobject] @{ Path = [string] $Path; State = $book; SaveWith = [string] $save.Content }
+            [pscustomobject] @{ Path = [string] $rulesTab.Path; State = $rulesTab.State; SaveWith = [string] $rulesSaveButton.Content }
+            [pscustomobject] @{ Path = [string] $bootstrapRulesTab.Path; State = $bootstrapRulesTab.State; SaveWith = [string] $bootstrapRulesSaveButton.Content }
+        )
+
+        foreach ($one in $documentSet) {
+            $one | Add-Member -MemberType ScriptProperty -Name 'Dirty' -Value { [bool] $this.State.Dirty } -Force
+        }
+
+        # ON THE WINDOW, because that is what a test holds and what the closing
+        # handler closes over. It is the one place that says what this window
+        # can lose.
+        $window | Add-Member -NotePropertyName 'HDTDocument' -NotePropertyValue ([object[]] $documentSet) -Force
 
         # -- Save, which writes workspace.yaml and nothing else --------------
         #
@@ -1133,10 +1252,16 @@
         # never runs a button's handler, which is how the editor came to discard
         # every splice in silence. Both windows ask the same command what to
         # say and what the answer means.
+        #
+        # AND IT ASKS ABOUT ALL THREE DOCUMENTS. Asked about $Path alone it
+        # could only ever warn about workspace.yaml, so an unsaved rule left the
+        # window without a word - the same defect, in the same window, one file
+        # along. The whole registered set goes over, live, and the prompt
+        # decides which of them are worth stopping for.
         $window.Add_Closing({
                 param($closingWindow, $closing)
 
-                $prompt = & $call 'Get-HDTConsoleClosePrompt' @{ DocumentPath = $Path; Dirty = [bool] $book.Dirty }
+                $prompt = & $call 'Get-HDTConsoleClosePrompt' @{ Document = [object[]] $documentSet }
 
                 if (-not $prompt.Ask) { return }
 
@@ -1151,7 +1276,18 @@
                     return
                 }
 
-                if ($decision.Save) {
+                # YES IS THE BOTTOM Save, AND ONLY THAT, which is what the
+                # prompt says it is. It does NOT write the rules files: each of
+                # those has its own Save, dark while its document will not
+                # parse, and a message box has no way to be dark - so a Yes that
+                # wrote them would either put an unparseable rules.yaml on the
+                # share or skip it silently. The prompt names the button beside
+                # each file instead, and Cancel is the answer that keeps them.
+                #
+                # AND ONLY WHEN THERE IS SOMETHING TO WRITE. Re-serialising an
+                # untouched workspace.yaml because Yes was the nearest button is
+                # a write nobody asked for.
+                if ($decision.Save -and $book.Dirty) {
                     [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `
                             -FileSystem (New-HDTFileSystem) -Confirm:$false)
                     $book.Dirty = $false
