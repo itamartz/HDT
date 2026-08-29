@@ -191,3 +191,75 @@ Describe 'Shipped sequence template plan contract' {
         ($broken -join ' | ') | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Shipped sequence templates: drivers are staged before the answer file is applied' {
+
+    # THE DRIVERS HAVE TO BE ON THE VOLUME BEFORE offlineServicing LOOKS FOR THEM.
+    #
+    # unattend.xml carries Microsoft-Windows-PnpCustomizationsNonWinPE with
+    # DriverPaths pointing at \Drivers, in the offlineServicing pass - which is
+    # processed the moment the answer file is APPLIED TO THE OFFLINE IMAGE. That
+    # is what ApplyUnattend does, and its own log line says so: "applied the
+    # unattend to the offline image at W:\, which runs its offlineServicing
+    # pass".
+    #
+    # client.yaml shipped ApplyUnattend BEFORE ApplyDrivers, so that pass scanned
+    # a \Drivers folder that did not exist yet and injected nothing. Every driver
+    # was left to be found by PnP after first boot instead - which does happen,
+    # asynchronously, which is why a real Latitude came up with ten devices
+    # yellow in Device Manager that resolved themselves a few minutes later while
+    # nobody touched it. The feature looked like it worked and never once ran.
+    #
+    # AGAINST THE SET, so a template added tomorrow cannot reintroduce the order.
+
+    BeforeAll {
+        $script:orderRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) -ChildPath 'src/Hephaestus/Templates'
+
+        $script:typeOrder = New-Object -TypeName System.Collections.ArrayList
+
+        $script:orderWalk = {
+            param($Node, [string] $Template)
+
+            foreach ($current in @($Node)) {
+                if ($null -eq $current) { continue }
+                if (-not ($current -is [System.Collections.IDictionary])) { continue }
+
+                if ($current.Contains('steps')) { & $script:orderWalk -Node $current['steps'] -Template $Template }
+                if (-not $current.Contains('type')) { continue }
+
+                [void] $script:typeOrder.Add([pscustomobject] @{
+                        Template = $Template
+                        Type     = [string] $current['type']
+                    })
+            }
+        }
+
+        foreach ($file in @(Get-ChildItem -LiteralPath $script:orderRoot -Filter '*.yaml' -File -ErrorAction SilentlyContinue)) {
+            $document = ConvertFrom-Yaml -Yaml ([System.IO.File]::ReadAllText($file.FullName)) -Ordered
+
+            if ($null -eq $document) { continue }
+            if (-not $document.Contains('steps')) { continue }
+
+            & $script:orderWalk -Node $document['steps'] -Template $file.Name
+        }
+    }
+
+    It 'puts ApplyDrivers before ApplyUnattend in every template that has both' {
+        $offender = @()
+
+        foreach ($template in @($script:typeOrder | ForEach-Object { $_.Template } | Sort-Object -Unique)) {
+            $ordered = @($script:typeOrder | Where-Object { $_.Template -eq $template } | ForEach-Object { $_.Type })
+
+            $driverAt = [array]::IndexOf($ordered, 'ApplyDrivers')
+            $unattendAt = [array]::IndexOf($ordered, 'ApplyUnattend')
+
+            if ($driverAt -lt 0 -or $unattendAt -lt 0) { continue }
+
+            if ($driverAt -gt $unattendAt) {
+                $offender += ('{0} (ApplyDrivers at {1}, ApplyUnattend at {2})' -f $template, $driverAt, $unattendAt)
+            }
+        }
+
+        ($offender -join '; ') | Should -BeExactly ''
+    }
+}

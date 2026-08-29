@@ -183,18 +183,23 @@ steps:
   - group: Postinstall
     runIn: WinPE
     steps:
-      # Staged at <os volume>\Windows\Panther\unattend.xml, which is where Setup
-      # consumes it.
-      - name: Apply Windows Settings
-        type: ApplyUnattend
-        template: unattend.xml
-
       # MDT'S Inject Drivers, AND IT SHIPS IN THE TEMPLATE FOR MDT'S REASON:
       # a client task sequence that does not inject drivers is one every
       # administrator has to remember to fix, on every sequence, for ever.
       #
-      # HERE, BETWEEN THE SETTINGS AND THE BOOT CONFIGURATION, because injection
-      # is OFFLINE into the volume the image was just applied to - it must come
+      # BEFORE Apply Windows Settings, AND THAT ORDER IS THE FEATURE.
+      #
+      # unattend.xml carries DriverPaths (Microsoft-Windows-PnpCustomizations-
+      # NonWinPE) in the offlineServicing pass, and that pass is processed the
+      # moment ApplyUnattend applies the file to the offline image. So the
+      # drivers have to be ON the volume before that step runs. Shipped the
+      # other way round, offlineServicing scanned a \Drivers folder that did not
+      # exist yet, injected nothing, and left every driver to be found by PnP
+      # after first boot - which happens asynchronously, so a real Latitude came
+      # up with ten yellow devices that cleared themselves minutes later. The
+      # feature looked like it worked and had never once run.
+      #
+      # Still OFFLINE into the volume the image was just applied to, so it comes
       # after Install Operating System and before the machine boots off it.
       #
       # THE GROUP IS A PATH WITH VARIABLES IN IT, which is MDT's Total Control
@@ -214,6 +219,12 @@ steps:
         type: ApplyDrivers
         group: 'Win11\%HDTMake%\%HDTModel%'
         mode: all
+
+      # Staged at <os volume>\Windows\Panther\unattend.xml, which is where Setup
+      # consumes it.
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
 
       # bcdboot, the recovery image, and then the FIRMWARE BOOT ORDER. Without
       # the last part the machine restarts into the installation media and the
