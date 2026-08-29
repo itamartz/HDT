@@ -386,6 +386,34 @@
 
         $elapsedMinute = ($clock.GetUtcNow() - $startedUtc).TotalMinutes
 
+        # STILL ENCRYPTING, AND SAYING SO. This loop can run for the better part
+        # of an hour and used to write nothing at all until it finished, so the
+        # progress card showed a motionless "Enable BitLocker" - and because
+        # elapsed on that card is derived from the first and last record in the
+        # log, its clock stopped too. A machine encrypting a disk looked
+        # identical to a machine that had died doing it.
+        #
+        # NO PERCENTAGE, AND THAT IS DELIBERATE. The volume shape this step
+        # reads carries VolumeStatus and no completion figure, and inventing one
+        # from the elapsed time would be a bar that lied about a disk. A
+        # step.progress with no percent leaves the step bar collapsed and still
+        # moves the clock, which is the fact that was missing - see
+        # Get-HDTDeploymentProgress, which reads the percentage only when there
+        # is one.
+        #
+        # ONCE PER POLL IS ONCE EVERY FIFTEEN SECONDS, which is the interval the
+        # step already sleeps for. It adds no round trips of its own.
+        Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'EnableBitLocker' `
+            -Message ('{0} is still encrypting ({1}), {2:0} minute(s) so far.' -f
+                $drive, [string] $volume.VolumeStatus, $elapsedMinute) `
+            -Data ([ordered] @{
+                drive         = $drive
+                volumeStatus  = [string] $volume.VolumeStatus
+                elapsedMinute = [int] $elapsedMinute
+            })
+
+        Update-HDTProgressDisplay -Context $Context
+
         if ($elapsedMinute -ge $timeoutMinute) {
             # A bounded wait that gives up is a step an administrator can
             # diagnose; an unbounded one is a deployment that never ends. The disk

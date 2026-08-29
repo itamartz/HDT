@@ -146,6 +146,77 @@ Describe 'Get-HDTDeploymentProgress' {
         }
     }
 
+    Context "WinPE's clock, which is wrong, and then corrects itself" {
+
+        # THE DEFECT THIS CONTEXT EXISTS FOR, MEASURED ON A REAL DEPLOYMENT.
+        # LT-7FJ45S2, run-20260829-172208: the WinPE leg stamped its 122 records
+        # 08/30 01:22:10 to 01:29:00 with clockUnsynced true, the machine
+        # rebooted, and the full-OS leg stamped its 18 records 08/29 14:34:22 to
+        # 14:36:36 with a corrected clock - TEN HOURS AND FIFTY-THREE MINUTES
+        # EARLIER. The last record in the file was therefore older than the
+        # first, the guard on the subtraction refused a negative span, and
+        # ElapsedSecond kept its initialised zero.
+        #
+        # WHAT THE TECHNICIAN SAW was "00:00:00 elapsed" on the progress card for
+        # the whole of the full-OS leg, on a deployment that had by then been
+        # running two and a half hours. Not a frozen clock - a clock that never
+        # started, which is a different defect and looks identical.
+        #
+        # WHY THE CLOCK MOVES AT ALL is DESIGN 4.4.2: WinPE boots with an
+        # unsynchronised clock, the engine already knows it (every WinPE record
+        # carries clockUnsynced true) and the full OS fixes it at the first
+        # sync. So this is not an exotic case - it is what EVERY deployment that
+        # reboots does, and elapsed has been zero on the full-OS leg of all of
+        # them.
+        #
+        # SEGMENTS, NOT MIN-TO-MAX. Time is only measurable inside a stretch the
+        # clock ran forwards through; across the jump nothing is knowable, and
+        # min-to-max would have reported ten hours of "deployment" that was
+        # really one wrong clock. So each forward run is measured and the
+        # measurements are added, which undercounts the reboot itself and never
+        # invents time that was not spent.
+
+        BeforeAll {
+            # The shape above, in miniature: a WinPE leg an hour ahead, then a
+            # full-OS leg at the true time.
+            $script:skewed = @(
+                New-HDTProgressRecord -Event 'run.start' -Second 3600 -Data @{ sequenceId = 'client'; stepCount = 4 }
+                New-HDTProgressRecord -Event 'step.start' -Second 3610 -StepIndex 1 -StepName 'Format'
+                New-HDTProgressRecord -Event 'step.complete' -Second 3700 -StepIndex 1 -StepName 'Format'
+                New-HDTProgressRecord -Event 'reboot.resume' -Second 30 -Phase 'FullOS'
+                New-HDTProgressRecord -Event 'step.start' -Second 40 -Phase 'FullOS' -StepIndex 2 -StepName 'Install Applications'
+                New-HDTProgressRecord -Event 'step.progress' -Second 130 -Phase 'FullOS' -StepIndex 2 -Data @{ percent = 50 }
+            )
+        }
+
+        It 'still reports elapsed after the clock jumps backwards at the reboot' {
+            # THE HEADLINE. Zero here is the bug; anything that counts is the fix.
+            [int] (Get-HDTDeploymentProgress -Record $script:skewed).ElapsedSecond |
+                Should -BeGreaterThan 0
+        }
+
+        It 'adds the legs up rather than measuring end to end across the jump' {
+            # 3600->3700 is 100 seconds of WinPE; 30->130 is 100 seconds of full
+            # OS. 200, and NOT the 3570 a min-to-max would report, which is a
+            # wrong clock rendered as an hour of work.
+            [int] (Get-HDTDeploymentProgress -Record $script:skewed).ElapsedSecond | Should -Be 200
+        }
+
+        It 'never reports a negative elapsed' {
+            # [timespan]::FromSeconds on a negative renders as a huge hour count
+            # through the progress host format string, so a sign error here is a
+            # nonsense figure on a wall rather than an exception anybody sees.
+            [int] (Get-HDTDeploymentProgress -Record $script:skewed).ElapsedSecond |
+                Should -BeGreaterOrEqual 0
+        }
+
+        It 'measures a run whose clock never moved backwards exactly as before' {
+            # The fix must not change the ordinary case: one forward segment is
+            # first-to-last, which is what every green test above asserts.
+            [int] (Get-HDTDeploymentProgress -Record $script:midRun).ElapsedSecond | Should -Be 26
+        }
+    }
+
     Context 'the phase changing under it' {
 
         It 'follows phase.change rather than the record it is written on' {

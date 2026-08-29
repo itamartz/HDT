@@ -138,8 +138,35 @@ function Get-HDTDeploymentProgress {
     $failed = $false
     $endStatus = ''
 
-    $firstTicks = 0
-    $lastTicks = 0
+    # ELAPSED IS THE SUM OF THE STRETCHES THE CLOCK RAN FORWARDS THROUGH, NOT
+    # FIRST-TO-LAST. It was first-to-last, and on every deployment that reboots
+    # it reported ZERO.
+    #
+    # WHY: WinPE boots with an unsynchronised clock (DESIGN 4.4.2 - every WinPE
+    # record carries clockUnsynced true), the full OS corrects it at the first
+    # sync, and the correction is routinely BACKWARDS. Measured on LT-7FJ45S2,
+    # run-20260829-172208: 122 WinPE records stamped 08/30 01:22:10 to 01:29:00,
+    # then reboot.resume and 18 full-OS records stamped 08/29 14:34:22 to
+    # 14:36:36 - ten hours and fifty-three minutes EARLIER. The last record in
+    # the file was older than the first, so the subtraction went negative, the
+    # guard on it refused to write, and ElapsedSecond kept its initialised zero.
+    # The technician watched "00:00:00 elapsed" for the whole of the full-OS leg
+    # of a deployment that had been running two and a half hours.
+    #
+    # A CLOCK THAT NEVER STARTED LOOKS EXACTLY LIKE A CLOCK THAT IS STUCK, which
+    # is why this was read as a heartbeat problem first.
+    #
+    # SEGMENTS RATHER THAN MIN-TO-MAX, AND THE DIFFERENCE IS HONESTY. Across the
+    # jump nothing is measurable - the two legs are timed by two different
+    # clocks and there is no offset to recover - so min-to-max would report ten
+    # hours of "deployment" that was really one wrong clock, at the top of the
+    # screen, in the field somebody uses to decide whether to intervene. Each
+    # forward stretch is measured against itself and the measurements are added.
+    # That undercounts the reboot, which is time the deployment was not running
+    # anyway, and it never invents time that was not spent.
+    $elapsedTicks = [long] 0
+    $segmentStartTicks = [long] 0
+    $previousTicks = [long] 0
 
     foreach ($row in $ordered) {
 
@@ -150,8 +177,21 @@ function Get-HDTDeploymentProgress {
             if ([datetime]::TryParse($ts, [System.Globalization.CultureInfo]::InvariantCulture,
                     [System.Globalization.DateTimeStyles]::RoundtripKind, [ref] $parsed)) {
 
-                if ($firstTicks -eq 0) { $firstTicks = $parsed.Ticks }
-                $lastTicks = $parsed.Ticks
+                $currentTicks = [long] $parsed.Ticks
+
+                if ($segmentStartTicks -eq 0) {
+                    $segmentStartTicks = $currentTicks
+                } elseif ($currentTicks -lt $previousTicks) {
+
+                    # THE CLOCK WENT BACKWARDS, so the stretch that was being
+                    # measured has ended and a new one begins here. Banking what
+                    # was measured before starting again is what keeps the WinPE
+                    # leg's minutes on the screen after the reboot.
+                    $elapsedTicks += ($previousTicks - $segmentStartTicks)
+                    $segmentStartTicks = $currentTicks
+                }
+
+                $previousTicks = $currentTicks
             }
         }
 
@@ -261,9 +301,15 @@ function Get-HDTDeploymentProgress {
         $result['PercentComplete'] = $percent
     }
 
-    if ($lastTicks -gt $firstTicks) {
+    # The stretch still open when the records ran out - which on a live run is
+    # the one the machine is in - closed the same way the earlier ones were.
+    if ($previousTicks -gt $segmentStartTicks) {
+        $elapsedTicks += ($previousTicks - $segmentStartTicks)
+    }
+
+    if ($elapsedTicks -gt 0) {
         $result['ElapsedSecond'] = [int] [System.Math]::Floor(
-            ([timespan]::FromTicks($lastTicks - $firstTicks)).TotalSeconds)
+            ([timespan]::FromTicks($elapsedTicks)).TotalSeconds)
     }
 
     # run.end IS THE ENGINE'S OWN VERDICT and outranks the counting: a run that
