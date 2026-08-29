@@ -90,6 +90,20 @@ preference.
    saying so, and updating the shares that matter by splicing their `wizard.yaml`
    rather than replacing it.
 
+   **And when it lands, bring THIS lab's share up to it.** A change to
+   `Templates\`, `Payload\` or the engine that `C:\HDTLab\Share` does not have
+   is a change nobody here can test. The next deployment runs the SHARE's copy,
+   not the repository's, so the old behaviour goes on proving itself green while
+   the fix sits in `src/` looking finished. The change is not done until that
+   share carries it — spliced, never replaced, because the rest of those files
+   are somebody's edits.
+
+   0.10.1 is the example. `client.yaml` now stages drivers BEFORE the answer
+   file is applied, and `TaskSequences\PNP-TEST\sequence.yaml` on the share
+   still had the old order — so the very machine that surfaced the defect would
+   have reproduced it on the next run, against a repository that was already
+   fixed.
+
    **And a thing is not added until every surface that must know about it does.**
    Adding a page, a step type, a rule, a layout means finding every place that
    has to learn about it — and proving it with a test written against the
