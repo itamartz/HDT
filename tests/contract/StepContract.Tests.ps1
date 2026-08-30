@@ -42,7 +42,7 @@ $script:HDTExpectedStepType = @(
     'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
     'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ApplyDrivers',
     'ConfigureBoot', 'InstallApplications', 'InstallRoles', 'InstallCertificate',
-    'EnableBitLocker', 'Tattoo', 'Gather'
+    'EnableBitLocker', 'Tattoo', 'Gather', 'Sysprep', 'CaptureImage'
 )
 
 Describe 'the step contract' {

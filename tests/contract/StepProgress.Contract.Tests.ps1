@@ -54,6 +54,20 @@ $script:HDTReportingStep = [ordered] @{
     'ApplyUnattend'       = "dism.exe prints no meter for /Apply-Unattend, so the adapter polls the process and the step beats a heartbeat with the elapsed time."
     'InstallApplications' = "it resolves the whole ordered plan before it starts, so it knows it is on 1 of 2."
     'EnableBitLocker'     = "it polls the volume every fifteen seconds and can say the disk is still encrypting."
+
+    # THE CAPTURE IS THE APPLY RUN BACKWARDS, and the meter is the same one:
+    # dism.exe prints a percentage on stdout for /Capture-Image exactly as it
+    # does for /Apply-Image, and the adapter hands every line to the step.
+    'CaptureImage'        = "dism.exe prints a percentage meter on stdout while it reads the volume into the WIM."
+
+    # AND SYSPREP IS THE OTHER SHAPE ENTIRELY. It prints no meter, no banner and
+    # no line - it is simply silent, for minutes, at the end of a reference
+    # build somebody has spent a day preparing. It cannot go in the quiet list:
+    # that list takes two shapes only, a step that finishes in seconds and a
+    # step that hands control to an operator's own program, and this is neither.
+    # So the step beats a heartbeat, which is ApplyUnattend's answer to the same
+    # problem on the same evidence.
+    'Sysprep'             = "sysprep.exe prints no meter and is silent for minutes, so the step writes a first frame and then beats a heartbeat with the elapsed time."
 }
 
 # THE STEPS THAT DO NOT, EACH WITH THE REASON IT CANNOT RATHER THAN A BLANK
