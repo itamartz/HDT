@@ -119,6 +119,7 @@ which is what makes this whole file provable
         Operations  = [System.Collections.ArrayList]::new()
         Journal     = $Journal
         ServiceName = 'ContentProvider'
+        Kind        = 'Local'
         IsConnected = $false
     }
 

@@ -30,18 +30,21 @@
 $script:HDTImplementation = @(
     @{
         Name           = 'FakeContentProvider'
+        Kind           = 'Smb'
         Factory        = { New-HDTFakeContentProvider -Root 'Z:\Deploy' }
         JournalFactory = { param($Journal) New-HDTFakeContentProvider -Root 'Z:\Deploy' -Journal $Journal }
         Skip           = $false
     }
     @{
         Name           = 'LocalContentProvider'
+        Kind           = 'Local'
         Factory        = { param($LocalRoot) New-HDTLocalContentProvider -Root $LocalRoot -FileSystem (New-HDTFileSystem) }
         JournalFactory = { param($Journal, $LocalRoot) New-HDTLocalContentProvider -Root $LocalRoot -FileSystem (New-HDTFileSystem) -Journal $Journal }
         Skip           = $false
     }
     @{
         Name           = 'SmbContentProvider'
+        Kind           = 'Smb'
         Factory        = {
             # Over a FAKE SMB service and a FAKE filesystem, so this row runs on
             # any machine with nothing mapped. The contract is about shape; the
@@ -126,6 +129,19 @@ Describe 'IContentProvider contract: <Name>' -ForEach $script:HDTImplementation 
 
         It 'exposes a Root' {
             $script:content.Root | Should -Not -BeNullOrEmpty
+        }
+
+        It 'says which transport it is' {
+            # ASSERTED ACROSS THE SET, NOT ON THE ONE THAT NEEDED IT. Every
+            # provider answers this or none can be trusted to, and a fake whose
+            # Kind said something a real adapter's does not would let a capture
+            # pass here and refuse on media.
+            #
+            # ONE STEP READS IT AND ONLY TO REFUSE. DESIGN 6.2 keeps steps
+            # ignorant of the transport; DESIGN 9.3 note 6 is the exception it
+            # names, because a capture onto a read-only disc cannot succeed and
+            # there is no correction a technician could make.
+            $script:content.Kind | Should -BeExactly $Kind
         }
 
         It 'resolves a relative path under the root' {

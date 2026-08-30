@@ -191,6 +191,7 @@
         Operations     = [System.Collections.ArrayList]::new()
         Journal        = $Journal
         ServiceName    = 'ContentProvider'
+        Kind            = 'Smb'
         IsConnected    = $false
 
         # WHAT THE CONNECTION WAS NOT, KEPT RATHER THAN PRINTED. Connect used
