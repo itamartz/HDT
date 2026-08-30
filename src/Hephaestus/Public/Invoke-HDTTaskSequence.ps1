@@ -627,7 +627,24 @@
             # in the state document. It was abandoned for the reason the design
             # gives: a deployment that fails halfway leaves a machine nobody can
             # log into, at exactly the moment somebody needs to get into it.
-            if ([string] $attempt.Status -eq 'RebootRequested' -and
+            # AND ONLY WHEN SOMETHING AFTER THE RESTART ACTUALLY LOGS ON.
+            #
+            # An autologon exists to get a FULL-OS leg running again. A leg that
+            # resumes in WinPE is started by the boot media and needs nothing
+            # armed - so demanding a password for it refuses a restart that would
+            # have worked perfectly.
+            #
+            # THAT IS NOT HYPOTHETICAL: it is the reference build. DESIGN 9.3's
+            # sequence syspreps the machine, restarts into the boot media and
+            # captures it, and Invoke-HDTSysprepStep CLEARS THE AUTOLOGON one
+            # step before this - correctly, because an image that kept it would
+            # log itself in and re-enter a finished deployment on every machine
+            # built from it. The restart then asked for the secret sysprep had
+            # just removed and took the run down at step 11 of 12, on a machine
+            # that had already been generalized and so could not be picked up
+            # where it left off. Watched end to end on 2026-08-31.
+            $needsAutoLogon = Test-HDTAutoLogonNeeded -Step $stepList -AfterIndex $index
+            if ([string] $attempt.Status -eq 'RebootRequested' -and $needsAutoLogon -and
                 [string]::IsNullOrWhiteSpace([string] $(
                     if ($Context.Variable.Contains('HDTAdminPassword')) { $Context.Variable['HDTAdminPassword'] } else { '' }))) {
 
@@ -879,6 +896,20 @@
                     }
                 }
 
+                # -- and the logon, ONLY IF ANYTHING AFTER THIS RESTART LOGS ON --
+                #
+                # THE SAME QUESTION THE GUARD ABOVE ASKED, asked again at the
+                # moment of arming and answered by the same function, so the two
+                # cannot disagree: a refusal that fired while the arming went
+                # ahead - or the reverse - would be a machine armed for a logon
+                # nothing needs, or refused for one nothing wanted.
+                #
+                # WHAT IT BUYS IS THE REFERENCE BUILD'S LAST RESTART. The capture
+                # leg resumes in WinPE off the boot media, so there is nothing to
+                # arm and nothing to arm it with: sysprep cleared the LSA secret
+                # one step earlier, on purpose, so the image would not carry it.
+                if ($needsAutoLogon) {
+
                 # THE PASSWORD IS THE ADMINISTRATOR'S, AND IT WAS CHECKED BEFORE
                 # THIS STEP WAS EVER RECORDED - see the guard beside
                 # Invoke-HDTStepAttempt above. By here it is known to be set.
@@ -941,6 +972,12 @@
                 }
 
                 Set-HDTAutoLogon @armArgument
+
+                } else {
+                    Write-HDTLog -Context $log -Component 'Restart' `
+                        -Message ("no autologon was armed: every step after '{0}' runs in WinPE, so the boot media starts the next leg and nothing has to log on." -f $step.Name) `
+                        -Data ([ordered] @{ autoLogonArmed = $false })
+                }
 
                 # The second save: autoLogon.armed has to be durable too.
                 & $saveState
