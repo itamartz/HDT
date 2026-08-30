@@ -394,4 +394,186 @@ Describe 'Get-HDTConsoleClosePrompt over a set of documents' {
     }
 }
 
+Describe 'The application list of a rule, edited on the Rules tab' {
+
+    # WHAT WAS REPORTED. An administrator took Acrobat out of a rule's
+    # HDTApplications list, pressed a Save, and found on the way out that the
+    # window still thought the tab was dirty - and Acrobat still in the file
+    # when they came back. The save path was accused; it is not at fault. What
+    # they pressed was the Save at the BOTTOM of the window, which writes
+    # workspace.yaml and deliberately writes nothing else.
+    #
+    # SO THIS PINS THE PATH THAT DOES WORK, over the SET of edits an
+    # application list takes rather than the one edit that was reported.
+    # Removing the first id, removing the second, adding one, reordering them
+    # and emptying the list are five different strings through the same
+    # splice-free editor, and a test naming only 'remove Acrobat' would pass for
+    # it and fail nobody after it.
+    #
+    # AND IT PROVES THE COMMENTS SURVIVE. rules.yaml is mostly commentary - the
+    # HDTApplications line on the lab share carries two sentences above it
+    # explaining why a skipped page still has to be answered - and an editor
+    # that parsed and re-serialised the document would take them out. This tab
+    # never parses to write: Save-HDTRuleDocument writes the lines it was given.
+
+    # HERE AND NOT IN BeforeAll, because -ForEach is read during DISCOVERY and
+    # BeforeAll does not run until the tests do. A set declared in there is
+    # $null when Pester asks for it, and the whole file fails to discover.
+    #
+    # Before, after, and what the administrator was doing. Held as data so the
+    # assertions below run over the set rather than over one of them.
+    $listEdit = @(
+        @{ What = 'removes the first application'
+            From = 'Acrobat-Acrobat-Reader-DC-2600121771;TightVNC-Software-Tightvnc-2.8.88'
+            To   = 'TightVNC-Software-Tightvnc-2.8.88' }
+        @{ What = 'removes the last application'
+            From = 'Acrobat-Acrobat-Reader-DC-2600121771;TightVNC-Software-Tightvnc-2.8.88'
+            To   = 'Acrobat-Acrobat-Reader-DC-2600121771' }
+        @{ What = 'adds an application'
+            From = 'TightVNC-Software-Tightvnc-2.8.88'
+            To   = 'TightVNC-Software-Tightvnc-2.8.88;Acrobat-Acrobat-Reader-DC-2600121771' }
+        @{ What = 'reorders them'
+            From = 'Acrobat-Acrobat-Reader-DC-2600121771;TightVNC-Software-Tightvnc-2.8.88'
+            To   = 'TightVNC-Software-Tightvnc-2.8.88;Acrobat-Acrobat-Reader-DC-2600121771' }
+        @{ What = 'removes the only application, leaving the list empty'
+            From = 'Acrobat-Acrobat-Reader-DC-2600121771'
+            To   = '' }
+    )
+
+    BeforeAll {
+        # A SECOND RULE, AND THE LIST LIVES IN IT. The reported rule was not the
+        # first in the file, and an editor that only ever wrote rule 1 would
+        # have passed a test that used rule 1.
+        function New-HDTTestApplicationRule {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+                Justification = 'Composes an array of strings in memory and writes nothing.')]
+            [CmdletBinding()]
+            [OutputType([string[]])]
+            param([Parameter(Mandatory = $true)] [AllowEmptyString()] [string] $Selection)
+
+            return [string[]] @(
+                'schemaVersion: 1'
+                'rules:'
+                '  - name: Language and region'
+                '    set:'
+                '      HDTUILanguage: en-US'
+                ''
+                '  - name: Lab, by gateway - zero touch'
+                '    when: { HDTDefaultGateway: "192.168.1.1" }'
+                '    set:'
+                '      # WHAT THIS MACHINE INSTALLS. The Applications page is skipped too, and a'
+                '      # skipped page still has to be answered - ids from Applications, ; separated.'
+                ('      HDTApplications: "{0}"' -f $Selection)
+                '      HDTTimeZone: Israel Standard Time'
+            )
+        }
+
+        # ONE PRESS, DONE THE WAY THE WINDOW DOES IT: put the file on disk, open
+        # the window on it, retype the box, raise the click.
+        function Invoke-HDTTestApplicationEdit {
+            [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+                Justification = 'Writes only into the Pester TestDrive fixture this suite created.')]
+            [CmdletBinding()]
+            [OutputType([object])]
+            param(
+                [Parameter(Mandatory = $true)] [AllowEmptyString()] [string] $From,
+                [Parameter(Mandatory = $true)] [AllowEmptyString()] [string] $To,
+                [Parameter()] [switch] $PressTheBottomSave
+            )
+
+            [System.IO.File]::WriteAllLines($script:rulesPath, (New-HDTTestApplicationRule -Selection $From))
+
+            $window = New-HDTTestRuleWindow
+            $box = $window.FindName('HDTRulesBox')
+
+            $box.Text = ((New-HDTTestApplicationRule -Selection $To) -join "`r`n")
+
+            if ($PressTheBottomSave) {
+                Invoke-HDTTestClick -Button $window.FindName('HDTBootImageSaveButton')
+            } else {
+                Invoke-HDTTestClick -Button $window.FindName('HDTRulesSaveButton')
+            }
+
+            return [pscustomobject] @{
+                Window = $window
+                Text   = [string] [System.IO.File]::ReadAllText($script:rulesPath)
+                Dirty  = [bool] (Get-HDTTestDocumentState -Window $window -Path $script:rulesPath).Dirty
+                Prompt = (Get-HDTConsoleClosePrompt -Document ([object[]] @($window.HDTDocument)))
+            }
+        }
+    }
+
+    It 'writes the new list to rules.yaml when Save rules is pressed - <What>' -ForEach $listEdit {
+        $result = Invoke-HDTTestApplicationEdit -From $From -To $To
+
+        $result.Text | Should -BeLike ('*HDTApplications: "{0}"*' -f $To)
+    }
+
+    It 'takes the removed application out of the file - <What>' -ForEach $listEdit {
+        # The assertion the report turns on, and it looks at the WHOLE document:
+        # an id left anywhere in it is an application that still installs.
+        $result = Invoke-HDTTestApplicationEdit -From $From -To $To
+
+        $kept = @($To -split ';' | Where-Object { $_ })
+
+        foreach ($gone in @($From -split ';' | Where-Object { $_ -and $kept -notcontains $_ })) {
+            $result.Text | Should -Not -BeLike ('*{0}*' -f $gone)
+        }
+    }
+
+    It 'leaves the tab clean, so closing asks nothing - <What>' -ForEach $listEdit {
+        # THE SECOND HALF OF THE REPORT. A save that wrote the file but left the
+        # tab dirty would put a 'save changes?' box on the way out and read as a
+        # save that had not happened.
+        $result = Invoke-HDTTestApplicationEdit -From $From -To $To
+
+        $result.Dirty | Should -BeFalse
+        $result.Prompt.Ask | Should -BeFalse
+    }
+
+    It 'keeps the comments above the list - <What>' -ForEach $listEdit {
+        $result = Invoke-HDTTestApplicationEdit -From $From -To $To
+
+        $result.Text | Should -BeLike '*WHAT THIS MACHINE INSTALLS*'
+        $result.Text | Should -BeLike '*skipped page still has to be answered*'
+    }
+
+    It 'leaves the rule above it alone - <What>' -ForEach $listEdit {
+        $result = Invoke-HDTTestApplicationEdit -From $From -To $To
+
+        $result.Text | Should -BeLike '*  - name: Language and region*'
+        $result.Text | Should -BeLike '*      HDTUILanguage: en-US*'
+    }
+
+    Context 'the bottom Save, which is the button that was actually pressed' {
+
+        # NOT A CLAIM THAT THIS IS RIGHT - it is the reported experience, pinned
+        # so that whatever shape is chosen for the two buttons has to change a
+        # test rather than change behaviour quietly. The bottom Save writes
+        # workspace.yaml; rules.yaml is untouched and the tab stays dirty, which
+        # is why the close prompt fires and why the application is still there
+        # on the next open.
+
+        BeforeAll {
+            $script:wrongButton = Invoke-HDTTestApplicationEdit `
+                -From 'Acrobat-Acrobat-Reader-DC-2600121771;TightVNC-Software-Tightvnc-2.8.88' `
+                -To 'TightVNC-Software-Tightvnc-2.8.88' -PressTheBottomSave
+        }
+
+        It 'does not write the rules file' {
+            $script:wrongButton.Text | Should -BeLike '*Acrobat-Acrobat-Reader-DC-2600121771*'
+        }
+
+        It 'leaves the tab unsaved' {
+            $script:wrongButton.Dirty | Should -BeTrue
+        }
+
+        It 'is why the close prompt asks, and it names the button that would have worked' {
+            $script:wrongButton.Prompt.Ask | Should -BeTrue
+            $script:wrongButton.Prompt.Unsaved | Should -Contain $script:rulesPath
+            $script:wrongButton.Prompt.Message | Should -BeLike '*Save rules*'
+        }
+    }
+}
+
 }
