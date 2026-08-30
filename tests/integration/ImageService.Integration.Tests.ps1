@@ -514,3 +514,140 @@ Describe 'IImageService running dism as a polled process' {
         $script:pollTick | Should -Be 0
     }
 }
+
+# THE CAPTURE, AGAINST A REAL dism.exe AND A REAL WIM IT WRITES.
+#
+# CaptureImage is the one method here whose PATH ARGUMENT IS AN OUTPUT, and that
+# is the whole reason it needs a test of its own rather than a line in the
+# ceremony above. Every other method that takes an image path is guarded by
+# AssertImage, which throws when the file is absent; for a capture an absent
+# destination is the ORDINARY case, so the guard moved to the source volume and
+# the destination is left alone. A test that only ever captured over an existing
+# WIM would never notice if that came back.
+#
+# IT ROUND-TRIPS. The WIM this writes is read back with GetImageInfo, and the
+# Name and Description that come out are the ones that went in - which is how
+# /Name: and /Description: are proven to have reached dism as their own
+# arguments rather than being folded into the path before them. Nothing short of
+# reading the WIM proves that; an exit code of zero does not.
+#
+# IT NEEDS NO MEDIA, NO VHDX AND NO FREE DRIVE LETTERS, exactly as the polled
+# dism Describe above does not, and it finishes in about a second: a capture of
+# three small files is the same dism code path as a capture of a Windows volume,
+# and paying ten minutes for a second copy of the apply Describe's disk would buy
+# nothing this does not already say. Every path is under the scratch root,
+# created and removed by this file.
+#
+# THE SOURCE DIRECTORY HAS A SPACE IN ITS NAME ON PURPOSE. The adapter passes
+# '/CaptureDir:<path>' as a single native argument, and a path with a space in it
+# is where that either holds or hands dism two arguments - the same class of trap
+# the polled Describe above exists to catch on the other verb.
+Describe 'IImageService capturing an image for real' {
+
+    BeforeAll {
+        $script:captureRoot = Join-Path -Path 'C:\HDTLab\scratch' -ChildPath ('HDT-capture-{0}' -f [guid]::NewGuid().ToString('N'))
+        $script:captureSource = Join-Path -Path $script:captureRoot -ChildPath 'Source Files'
+        $script:captureScratch = Join-Path -Path $script:captureRoot -ChildPath 'Scratch'
+        $script:capturedWim = Join-Path -Path $script:captureRoot -ChildPath 'REF-01.wim'
+
+        $null = New-Item -ItemType Directory -Path (Join-Path -Path $script:captureSource -ChildPath 'sub') -Force
+        Set-Content -LiteralPath (Join-Path -Path $script:captureSource -ChildPath 'marker.txt') `
+            -Value 'captured by HDT' -Encoding Ascii
+        Set-Content -LiteralPath (Join-Path -Path $script:captureSource -ChildPath 'sub\second.txt') `
+            -Value 'x' -Encoding Ascii
+
+        $script:captureService = New-HDTImageService
+        $script:captureLine = New-Object -TypeName System.Collections.ArrayList
+        $script:captureError = ''
+
+        try {
+            $script:captureService.CaptureImage($script:captureSource, $script:capturedWim,
+                'HDT-REF-01', 'HDT integration capture', 'fast', $script:captureScratch,
+                { param([string] $Line) [void] $script:captureLine.Add($Line) })
+        } catch {
+            $script:captureError = [string] $_.Exception.Message
+        }
+
+        $script:captureInfo = @()
+        if (Test-Path -LiteralPath $script:capturedWim -PathType Leaf) {
+            $script:captureInfo = @($script:captureService.GetImageInfo($script:capturedWim))
+        }
+
+        # THE GUARD, FROM THE SIDE THAT IS SUPPOSED TO REFUSE. A capture source
+        # that is not there is a real mistake and dism's own message for it does
+        # not say plainly that the source is missing.
+        $script:missingSourceWim = Join-Path -Path $script:captureRoot -ChildPath 'never-written.wim'
+        $script:missingSourceError = $null
+        try {
+            $script:captureService.CaptureImage(
+                (Join-Path -Path $script:captureRoot -ChildPath 'no-such-volume'),
+                $script:missingSourceWim, 'X', '', 'fast', $script:captureScratch)
+        } catch {
+            $script:missingSourceError = $_
+        }
+    }
+
+    AfterAll {
+        # By explicit -LiteralPath, to a directory this file created in this run.
+        if ($script:captureRoot -like 'C:\HDTLab\scratch\HDT-capture-*' -and
+            (Test-Path -LiteralPath $script:captureRoot)) {
+
+            Remove-Item -LiteralPath $script:captureRoot -Recurse -Force
+        }
+    }
+
+    It 'captured without throwing, into a WIM that was not there' {
+        # THE POINT OF NOT GUARDING THE DESTINATION. AssertImage on this path
+        # would have refused before dism ever ran.
+        $script:captureError | Should -BeNullOrEmpty
+    }
+
+    It 'wrote the WIM it was told to write' {
+        Test-Path -LiteralPath $script:capturedWim -PathType Leaf | Should -BeTrue
+    }
+
+    It 'gave dism the name as its own argument' {
+        # Read back off the WIM, not off the command line. A /Name: that had been
+        # folded into the argument before it would produce a nameless image or no
+        # image at all.
+        $script:captureInfo.Count | Should -Be 1
+        $script:captureInfo[0].Index | Should -Be 1
+        $script:captureInfo[0].Name | Should -BeExactly 'HDT-REF-01'
+    }
+
+    It 'gave dism the description as its own argument' {
+        $script:captureInfo[0].Description | Should -BeExactly 'HDT integration capture'
+    }
+
+    It 'printed a percentage meter to the callback' {
+        # THE REASON THE ADAPTER SHELLS dism.exe RATHER THAN New-WindowsImage,
+        # and the reason this method is a pipeline rather than a poll: unlike
+        # /Apply-Unattend, /Capture-Image has a real meter to read.
+        @($script:captureLine | Where-Object { $_ -match '%' }) |
+            Should -Not -BeNullOrEmpty -Because 'the step bar is driven by these lines'
+    }
+
+    It 'ended at a hundred' {
+        $meter = @($script:captureLine | Where-Object { $_ -match '%' })
+
+        $meter[-1] | Should -Match '100(\.0)?%'
+    }
+
+    It 'created the scratch directory dism was told to use' {
+        # WinPE runs from an X: RAM disk and dism left to itself expands into
+        # TEMP there and runs out of room, so the scratch path is not optional -
+        # and it has to exist before dism is handed it.
+        Test-Path -LiteralPath $script:captureScratch | Should -BeTrue
+    }
+
+    It 'refuses a capture source that is not there, naming it' {
+        $script:missingSourceError | Should -Not -BeNullOrEmpty
+        $script:missingSourceError.Exception.GetBaseException() |
+            Should -BeOfType ([System.IO.DirectoryNotFoundException])
+        [string] $script:missingSourceError.Exception.Message | Should -BeLike '*no-such-volume*'
+    }
+
+    It 'writes no WIM for a capture it refused' {
+        Test-Path -LiteralPath $script:missingSourceWim | Should -BeFalse
+    }
+}

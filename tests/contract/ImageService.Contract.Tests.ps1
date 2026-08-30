@@ -1,16 +1,22 @@
 # The IImageService contract (PROJECT constraint 4, DESIGN 9.2, DESIGN 12.2.1).
 #
-# Seven methods:
+# Eight methods:
 #
 #   GetImageInfo(imagePath) -> object[]  Index, Name, Description, Edition,
 #                                        SizeBytes, Architecture, Version
 #   ApplyImage(imagePath, index, applyPath)
+#   CaptureImage(capturePath, imagePath, name, description, compress, scratchPath)
 #   ApplyUnattend(imagePath, unattendPath, scratchPath)
 #   AddDriver(imagePath, driverPath, recurse) -> object[]  Inf, Provider,
 #                                                          Version, Date
 #   InstallBootFile(osRoot, systemVolume, firmware)
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
+#
+# CaptureImage IS ApplyImage RUN BACKWARDS, and it is the half of M7 that turns
+# a sysprepped machine into a WIM the share can deploy. Its image path is the
+# OUTPUT, which is why - alone among the methods that take one - it is not
+# guarded for existence: the file it names is the file it is about to write.
 #
 # AddDriver IS OFFLINE INJECTION INTO THE APPLIED OS, and it is deliberately the
 # same shape as IBootImageService.AddDriver because it is the same DISM verb -
@@ -21,7 +27,7 @@
 #
 # THE REAL ROW CALLS GetImageInfo AND NOTHING ELSE.
 #
-# The other four write to a disk: dism /Apply-Image lays 4 GB of Windows down
+# The others write to a disk: dism /Apply-Image lays 4 GB of Windows down
 # somewhere, bcdboot writes boot files, reagentc registers a recovery image and
 # bcdedit reorders this machine's own firmware boot entries. None of those is
 # something a contract test gets to do on a developer's box. THEY ARE PROVEN IN
@@ -92,7 +98,7 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
             # real adapter is a pscustomobject carrying ScriptMethod members.
             $method = @($script:image | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
-            foreach ($name in @('GetImageInfo', 'ApplyImage', 'ApplyUnattend', 'AddDriver', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
+            foreach ($name in @('GetImageInfo', 'ApplyImage', 'CaptureImage', 'ApplyUnattend', 'AddDriver', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
                 $method | Should -Contain $name -Because "IImageService requires $name"
             }
         }

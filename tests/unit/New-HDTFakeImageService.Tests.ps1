@@ -1,11 +1,12 @@
 # The hand-written IImageService double (PROJECT constraint 4, DESIGN 9.2,
 # DESIGN 12.2.1, DESIGN 12.2.3).
 #
-# Five methods:
+# The methods this file drives:
 #
 #   GetImageInfo(imagePath) -> object[]  Index, Name, Description, Edition,
 #                                        SizeBytes, Architecture, Version
 #   ApplyImage(imagePath, index, applyPath)
+#   CaptureImage(capturePath, imagePath, name, description, compress, scratchPath)
 #   InstallBootFile(osRoot, systemVolume, firmware)
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
@@ -114,6 +115,19 @@ Describe 'New-HDTFakeImageService' {
             @($script:image.Operations[0].Arguments) | Should -Be @($script:win11Wim, 1, 'W:\')
         }
 
+        It 'records CaptureImage with all six arguments the tool is given' {
+            # THE ARGUMENT ORDER IS THE CONTRACT. A capture that recorded its
+            # source and destination the wrong way round would still be green
+            # against a fake that only counted calls - and would overwrite the
+            # machine it was asked to capture.
+            $script:image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01',
+                'Reference build', 'max', 'C:\HDTLab\scratch\dism')
+
+            @($script:image.GetOperationName()) | Should -Be @('CaptureImage')
+            @($script:image.Operations[0].Arguments) |
+                Should -Be @('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', 'Reference build', 'max', 'C:\HDTLab\scratch\dism')
+        }
+
         It 'records InstallBootFile with the OS root, the system volume and the firmware' {
             $script:image.InstallBootFile('W:\', 'S:', 'UEFI')
 
@@ -164,6 +178,16 @@ Describe 'New-HDTFakeImageService' {
             @($image.GetOperationName()) | Should -Be @('ApplyImage')
         }
 
+        It 'throws the seeded failure from CaptureImage' {
+            # 0x8007000D is what dism returns for a capture whose destination
+            # WIM already exists, which is the failure this method will meet
+            # first in the field: the adapter takes no /Append-Image decision.
+            $image = New-HDTFakeImageService -Failure @{ CaptureImage = 'Error: 0x8007000D' }
+
+            { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch') } |
+                Should -Throw -ExpectedMessage '*0x8007000D*'
+        }
+
         It 'throws the seeded failure from InstallBootFile' {
             $image = New-HDTFakeImageService -Failure @{ InstallBootFile = 'BFSVC: Failed to copy boot files' }
 
@@ -186,6 +210,18 @@ Describe 'New-HDTFakeImageService' {
             $image.ApplyImage($script:win11Wim, 1, $applyPath)
 
             Test-Path -LiteralPath $applyPath | Should -BeFalse
+        }
+
+        It 'captures nothing' {
+            # The one method whose path argument is an OUTPUT. A fake that let
+            # it through to dism would write a multi-gigabyte WIM into the
+            # developer's tree on every run of this suite.
+            $imagePath = 'C:\HDTLab\does-not-exist\REF-01.wim'
+            $image = New-HDTFakeImageService
+
+            $image.CaptureImage('C:\', $imagePath, 'REF-01', '', 'max', 'C:\HDTLab\does-not-exist\scratch')
+
+            Test-Path -LiteralPath $imagePath | Should -BeFalse
         }
 
         It 'runs no native tool' {
@@ -280,6 +316,94 @@ Describe 'the apply that talks back' {
 
         { $image.ApplyImage('Z:\install.wim', 1, 'W:\', { param([string] $Text) [void] $seen.Add($Text) }) } |
             Should -Throw
+
+        @($seen).Count | Should -Be 3
+    }
+}
+
+Describe 'the capture that talks back' {
+
+    # /Capture-Image PRINTS THE SAME METER /Apply-Image DOES - it is the same
+    # verb run backwards - so the fake replays lines for it exactly as it does
+    # for the apply, and a step's throttling is provable with no reference
+    # machine and no nine-minute wait.
+    #
+    # THE LIST IS ITS OWN, NOT $ApplyOutput. A capture task sequence applies an
+    # image and later captures one against the SAME fake; one shared list would
+    # replay the apply's meter through the capture and leave each step's
+    # throttling unprovable in the presence of the other. That is the argument
+    # $UnattendOutput was split out for, and it holds here for the same reason.
+
+    BeforeAll {
+        $script:captureMeter = @(
+            '[                           1.0%                           ] '
+            '[==============             50.0%                          ] '
+            '[==========================100.0%==========================] '
+        )
+    }
+
+    It 'replays the seeded lines to the callback, in order' {
+        $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter
+        $seen = New-Object System.Collections.ArrayList
+
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+            { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -Be $script:captureMeter
+    }
+
+    It 'replays nothing when it was seeded with nothing' {
+        $image = New-HDTFakeImageService
+        $seen = New-Object System.Collections.ArrayList
+
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+            { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -BeNullOrEmpty
+    }
+
+    It 'does not replay the apply transcript through the capture' {
+        # THE WHOLE REASON THE LISTS ARE SEPARATE, asserted rather than trusted.
+        $image = New-HDTFakeImageService -ApplyOutput $script:captureMeter
+        $seen = New-Object System.Collections.ArrayList
+
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+            { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -BeNullOrEmpty
+    }
+
+    It 'still takes six arguments, for every caller that has no use for the output' {
+        $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter
+
+        { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch') } |
+            Should -Not -Throw
+    }
+
+    It 'records the same six arguments whether or not a callback was given' {
+        $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter
+
+        # THE CALLBACK TAKES A LINE AND DOES NOTHING WITH IT, which is the point
+        # of this test - but a parameter declared and never read is an analyzer
+        # warning, so it is discarded out loud.
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+            { param([string] $Text) [void] $Text })
+
+        @($image.Operations[0].Arguments) |
+            Should -Be @('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch')
+    }
+
+    It 'says what it printed before it fails' {
+        # A CAPTURE THAT DIED AT 50% DIED SOMEWHERE DIFFERENT from one that never
+        # started, and the lines are the only evidence of which happened - on a
+        # step that runs for a quarter of an hour against a reference machine
+        # somebody has spent a day building.
+        $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter `
+            -Failure @{ CaptureImage = 'Error: 0x80070070' }
+        $seen = New-Object System.Collections.ArrayList
+
+        { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+                { param([string] $Text) [void] $seen.Add($Text) }) } | Should -Throw
 
         @($seen).Count | Should -Be 3
     }

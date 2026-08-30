@@ -3557,6 +3557,12 @@ class HDTFakeImageService {
     # step's throttling unprovable in the presence of the other.
     [string[]] $UnattendOutput
 
+    # The same again, for CaptureImage. SEPARATE FOR THE SAME REASON, and the
+    # case is not hypothetical: a capture task sequence applies a reference
+    # image and later captures one, both against this one fake, so a shared list
+    # would replay the apply's meter through the capture.
+    [string[]] $CaptureOutput
+
     # HOW MANY TIMES ApplyUnattend INVOKES ITS OnTick CALLBACK. The real adapter
     # ticks because time passes and dism says nothing; this one returns
     # instantly, so a test that wants to see what the step does DURING the
@@ -3575,6 +3581,7 @@ class HDTFakeImageService {
         $this.ServiceName = 'ImageService'
         $this.ApplyOutput = [string[]] @()
         $this.UnattendOutput = [string[]] @()
+        $this.CaptureOutput = [string[]] @()
         $this.UnattendTick = 0
         $this.Driver = [object[]] @()
     }
@@ -3719,6 +3726,43 @@ class HDTFakeImageService {
         $this.AssertNoFailure('ApplyImage')
     }
 
+    # THE APPLY RUN BACKWARDS: a sysprepped machine becomes a WIM the share can
+    # deploy. The real adapter shells dism.exe /Capture-Image; this records that
+    # it was asked, with every argument, so a step can be shown to have named
+    # its source and its destination the right way round.
+    #
+    # THE ARGUMENT ORDER MATTERS MORE HERE THAN ANYWHERE ELSE IN THIS CLASS.
+    # capturePath is what is READ and imagePath is what is WRITTEN, and the two
+    # are both paths and both strings; a step that swapped them would be caught
+    # by nothing but this record.
+    [void] CaptureImage([string] $CapturePath, [string] $ImagePath, [string] $Name, [string] $Description,
+        [string] $Compress, [string] $ScratchPath) {
+
+        $this.CaptureImage($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath, {})
+    }
+
+    # THE SEVEN-ARGUMENT FORM, FOR THE SAME REASON ApplyImage HAS AN OVERLOAD.
+    # /Capture-Image prints a real percentage meter - it is /Apply-Image's
+    # mirror - and the real adapter hands every line to $OnOutput as it arrives.
+    # This replays the seeded lines instead, so a step's throttling is provable
+    # with no reference machine and no quarter of an hour.
+    #
+    # THE LINES COME BEFORE THE FAILURE, because that is the order they happen
+    # in: dism prints its way to 60% and then fills the destination volume, and
+    # a step that logged nothing about the first 60% is a step nobody can debug
+    # afterwards - on a capture of a machine somebody spent a day building.
+    [void] CaptureImage([string] $CapturePath, [string] $ImagePath, [string] $Name, [string] $Description,
+        [string] $Compress, [string] $ScratchPath, [object] $OnOutput) {
+
+        $this.Record('CaptureImage', @($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath))
+
+        if ($null -ne $OnOutput) {
+            foreach ($line in @($this.CaptureOutput)) { $null = $OnOutput.Invoke([string] $line) }
+        }
+
+        $this.AssertNoFailure('CaptureImage')
+    }
+
     # Offline injection into the applied OS. The real adapter returns what
     # Add-WindowsDriver reported; this returns what it was seeded with, so a
     # step asserting "it injected three drivers" needs no DISM and no volume.
@@ -3816,15 +3860,23 @@ function New-HDTFakeImageService {
             ConfigureBoot and their failure paths provable in seconds, against
             no media and with nothing written to a disk.
 
-            Five methods:
+            Eight methods:
 
               GetImageInfo(imagePath) -> Index, Name, Description, Edition,
                                          SizeBytes, Architecture, Version
               ApplyImage(imagePath, index, applyPath[, onOutput])
+              CaptureImage(capturePath, imagePath, name, description, compress,
+                           scratchPath[, onOutput])
               ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput[, onTick]])
+              AddDriver(imagePath, driverPath, recurse) -> Inf, Provider,
+                                                           Version, Date
               InstallBootFile(osRoot, systemVolume, firmware)
               SetRecoveryImage(osRoot, recoveryPath)
               SetBootOrderFirst()
+
+            CaptureImage's SECOND argument is the WIM it writes, not one it
+            reads, so an unseeded path is not an error for it the way it is for
+            GetImageInfo: there is nothing there yet by definition.
 
             SetBootOrderFirst is SPIKES.md S6's fourth finding as an API: after
             apply, a machine that still has the boot media first in the firmware
@@ -3870,6 +3922,13 @@ function New-HDTFakeImageService {
             tests/fixtures/image/dism-offline-servicing-output.txt for a real
             servicing meter. Separate from ApplyOutput so a test driving both
             verbs can prove each step's throttling on its own transcript.
+
+        .PARAMETER CaptureOutput
+            The lines CaptureImage replays to its output callback - the meter
+            dism.exe prints while it reads a sysprepped machine into a WIM.
+            Separate from ApplyOutput so a capture task sequence, which applies
+            an image and later captures one against this same fake, can prove
+            each step's throttling on its own transcript.
 
         .PARAMETER UnattendTick
             How many times ApplyUnattend invokes its OnTick callback - the ticks
@@ -3928,6 +3987,10 @@ function New-HDTFakeImageService {
         [string[]] $UnattendOutput = @(),
 
         [Parameter()]
+        [AllowEmptyCollection()]
+        [string[]] $CaptureOutput = @(),
+
+        [Parameter()]
         [ValidateRange(0, 10000)]
         [int] $UnattendTick = 0,
 
@@ -3944,6 +4007,7 @@ function New-HDTFakeImageService {
     $fake.Journal = $Journal
     $fake.ApplyOutput = [string[]] @($ApplyOutput)
     $fake.UnattendOutput = [string[]] @($UnattendOutput)
+    $fake.CaptureOutput = [string[]] @($CaptureOutput)
     $fake.UnattendTick = [int] $UnattendTick
     $fake.Driver = [object[]] @($Driver)
 

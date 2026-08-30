@@ -12,7 +12,7 @@ function New-HDTImageService {
             New-HDTFakeImageService in a test with no media, no disk and no
             reboot.
 
-            SIX METHODS, AND THE EXACT MECHANISM EACH WRAPS:
+            EIGHT METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
               GetImageInfo(imagePath)
                   Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
@@ -23,6 +23,19 @@ function New-HDTImageService {
                   dism.exe /Apply-Image /ImageFile: /Index: /ApplyDir:, with
                   every line the tool prints handed to onOutput as it arrives.
                   That is where the percentage comes from - see the method.
+
+              CaptureImage(capturePath, imagePath, name, description, compress,
+                           scratchPath[, onOutput])
+                  dism.exe /Capture-Image /CaptureDir: /ImageFile: /Name:
+                      /Description: /Compress: /ScratchDir:
+
+                  ApplyImage RUN BACKWARDS, and a pipeline for the same reason:
+                  /Capture-Image prints a real percentage meter, so every line
+                  goes to onOutput as it arrives and the poll loop below is not
+                  needed. THE IMAGE PATH IS THE OUTPUT - alone among the methods
+                  that take one, it is not guarded for existence, because the
+                  file it names is the file it is about to write. capturePath,
+                  the volume being read, is guarded instead.
 
               ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput[, onTick]])
                   dism.exe /Image: /Apply-Unattend: /ScratchDir:, run as a
@@ -84,12 +97,12 @@ function New-HDTImageService {
             the WinPE hosting it. Building the path from $OsRoot is argument
             construction, not a branch, so the adapter stays dumb.
 
-            THIS IS AN UNTESTED ADAPTER, and deliberately so: four of its five
+            THIS IS AN UNTESTED ADAPTER, and deliberately so: all but one of its
             methods write to a disk or reorder this machine's firmware boot
             entries. Its contract row calls GetImageInfo and nothing else; the
             rest is proven in tests/integration (04-04) against a scratch VHDX.
             The price of not testing it is that it must stay dumb. THE ONLY
-            BRANCHES BELOW ARE AN EXISTENCE GUARD, FIVE EXIT-CODE CHECKS AND
+            BRANCHES BELOW ARE TWO EXISTENCE GUARDS, SIX EXIT-CODE CHECKS AND
             ApplyUnattend's POLL LOOP, each commented as such. Every decision
             about WHICH index to apply or WHETHER a recovery partition exists
             lives in the steps, which are tested against the fake. Do not add
@@ -119,7 +132,7 @@ function New-HDTImageService {
             globally across services.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the five
+            System.Management.Automation.PSCustomObject with the eight
             IImageService ScriptMethods. Note that Get-Member -MemberType Method
             does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.
 
@@ -282,6 +295,99 @@ function New-HDTImageService {
 
         $output = @(& "$env:SystemRoot\System32\dism.exe" '/Apply-Image' "/ImageFile:$ImagePath" `
                 "/Index:$Index" "/ApplyDir:$ApplyPath" 2>&1 |
+                ForEach-Object {
+                    $line = [string] $_
+                    $null = $OnOutput.Invoke($line)
+                    $line
+                })
+
+        # Exit-code check, with dism's own sentence attached.
+        $this.AssertExitCode($LASTEXITCODE, 'dism.exe', $commandLine, $output)
+    }
+
+    # READS A SYSPREPPED MACHINE INTO A WIM THE SHARE CAN DEPLOY. It is
+    # ApplyImage's mirror - the same tool, the same meter, the same shape - and
+    # everything ApplyImage's comment says about why it is dism.exe and why it
+    # is a pipeline holds here without amendment.
+    #
+    # dism.exe, NOT New-WindowsImage, AND IT IS ApplyImage'S REASON VERBATIM.
+    # New-WindowsImage reports progress on PowerShell's progress STREAM, which
+    # is a console bar and not data: nothing in WinPE is reading it, and there
+    # is no parameter or callback that turns it into one. dism.exe prints a
+    # percentage on stdout, which is what DESIGN 11.1 needs in the log rather
+    # than on a screen nobody is at. And it is one fewer thing the boot image
+    # must carry: dism.exe is in WinPE as shipped, where the DISM cmdlets need
+    # the WinPE-DismCmdlets optional component - and a capture runs from WinPE,
+    # which is the whole point of sysprepping first.
+    #
+    # A PIPELINE, NOT A POLL, AND THE COMMENT ON ApplyUnattend BELOW EXPLAINS
+    # WHY THE TWO DIFFER. /Capture-Image prints a real percentage meter, as
+    # /Apply-Image does and as /Apply-Unattend does not, so the pipeline form
+    # already delivers liveness and there is nothing for a tick to add.
+    # Converting a working meter to a hand-built ProcessStartInfo would put the
+    # one number a technician watches at risk of a redirection or encoding
+    # regression to buy what it already has.
+    #
+    # THE IMAGE PATH IS THE OUTPUT, SO IT IS NOT GUARDED. AssertImage throws
+    # when the file it is handed is absent, which is right for every other
+    # method here and exactly wrong for this one: an absent destination WIM is
+    # the ordinary case. The GUARD GOES ON capturePath, the volume being read,
+    # where a missing directory is a real mistake - and dism's own message for
+    # it does not say plainly that the source is not there.
+    #
+    # NO /Append-Image FALLBACK, AND THAT IS DELIBERATE. MDT decides between
+    # capture and append by looking at whether the destination exists; deciding
+    # is exactly what this adapter is forbidden to do (rule 1, and the
+    # branch-free note above). If append is ever wanted it is a SECOND METHOD
+    # and the STEP chooses between them, where the choice can be unit tested.
+    $service | Add-Member -MemberType ScriptMethod -Name CaptureImage -Value {
+        param([string] $CapturePath, [string] $ImagePath, [string] $Name, [string] $Description,
+            [string] $Compress, [string] $ScratchPath, [scriptblock] $OnOutput = {})
+
+        $this.Record('CaptureImage', @($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath))
+
+        # Existence guard on the SOURCE, not the destination. See above.
+        if (-not (Test-Path -LiteralPath $CapturePath -PathType Container)) {
+            throw [System.IO.DirectoryNotFoundException]::new(
+                "Could not find the directory to capture, '$CapturePath'.")
+        }
+
+        # WinPE runs from an X: RAM disk and dism left to itself expands into
+        # TEMP there and runs out of room, so the scratch path is not optional -
+        # and it has to exist before dism is handed it. The same line
+        # ApplyUnattend carries, for the same reason.
+        $null = [System.IO.Directory]::CreateDirectory($ScratchPath)
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes. No branch: rule 1 holds.
+        $ErrorActionPreference = 'Continue'
+
+        # The quoting rule, so a capture into a share path with a space in it
+        # reaches dism as one argument. ConvertTo-HDTNativeArgument is pure and
+        # unit tested; a decision about quoting does not belong in the adapter.
+        $argument = @(
+            ('/CaptureDir:{0}' -f $CapturePath),
+            ('/ImageFile:{0}' -f $ImagePath),
+            ('/Name:{0}' -f $Name),
+            ('/Description:{0}' -f $Description),
+            ('/Compress:{0}' -f $Compress),
+            ('/ScratchDir:{0}' -f $ScratchPath)
+        )
+
+        $commandLine = 'dism /Capture-Image {0}' -f (
+            @($argument | ForEach-Object { ConvertTo-HDTNativeArgument -Argument $_ }) -join ' ')
+
+        # EVERY LINE GOES TO $OnOutput AS IT ARRIVES, RAW, exactly as ApplyImage
+        # does. What a line MEANS is decided by ConvertFrom-HDTDismProgressLine
+        # and the step: this adapter is not unit tested and gets no branches.
+        $output = @(& "$env:SystemRoot\System32\dism.exe" '/Capture-Image' `
+                "/CaptureDir:$CapturePath" "/ImageFile:$ImagePath" "/Name:$Name" `
+                "/Description:$Description" "/Compress:$Compress" "/ScratchDir:$ScratchPath" 2>&1 |
                 ForEach-Object {
                     $line = [string] $_
                     $null = $OnOutput.Invoke($line)
