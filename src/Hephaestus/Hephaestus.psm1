@@ -29,6 +29,14 @@ $script:HDTConsoleEditorDefaultHeight = 760
 $script:HDTConsoleEditorMinimumWidth = 820
 $script:HDTConsoleEditorMinimumHeight = 480
 
+# NO LOG UNTIL Start-HDTConsoleLog OPENS ONE, and $null is how that is said -
+# Get-HDTHandlerCall reads this before every command the console runs and writes
+# nothing when it is $null. DECLARED HERE because Set-StrictMode -Version Latest
+# makes reading a variable that was never assigned an error: without this line
+# every handler in every console window burned a swallowed exception per call
+# whenever the log had not been started, which is every Pester run.
+$script:HDTConsoleLogContext = $null
+
 # ONE FILE. ALWAYS THE BUNDLE, NEVER THE 377 IT WAS BUILT FROM.
 #
 # Dot-sourcing the sources costs 2.46 seconds on the lab host: PowerShell parses
