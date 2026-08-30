@@ -1953,7 +1953,7 @@ removed; they were created by this spike. `CM01` and `DC01` were never touched.
 
 ---
 
-## S20 — the ADK's WinPE bootloader is on the Secure Boot revocation list ⚠
+## S20 — the ADK's WinPE bootloader is below the Secure Boot SVN floor ⚠
 
 **Rufus refuses to write the ISO quietly.** Writing
 `C:\HDTLab\Share\Boot\HDTPE_wiz_x64.iso` to a USB stick raises:
@@ -1971,10 +1971,69 @@ ships. The boot file HDT copies into its media is the ADK's own:
 10.0.26100.1085 (WinBuild.160101.0800), dated 2024-11-16
 ```
 
-Microsoft revoked older `bootmgfw.efi`/`bootx64.efi` builds through the Secure
-Boot DBX after **CVE-2023-24932 (BlackLotus)**, and has continued adding to that
-list since. The ADK's copy is older than the current list, so **every** WinPE
-stick built from this ADK — MDT's, HDT's, or a hand-made one — hits it.
+**The gate is the SVN, not the DBX, and not the certificate.** Rufus's own log
+says which of the three refused it — `C:\HDTLab\Share\Boot\Rufus\rufus.log`,
+lines 33–41:
+
+```
+UEFI bootloaders analysis:
+  • /EFI/Boot/bootx64.efi*
+  Signed by 'Microsoft Windows Production PCA 2011'
+  SVN version 3.0 is lower than required minimum SVN version 7.0!
+  WARNING: '/EFI/Boot/bootx64.efi' has been revoked by Windows SVN
+  • /bootmgr.efi*
+  Signed by 'Microsoft Windows Production PCA 2011'
+  SVN version 3.0 is lower than required minimum SVN version 7.0!
+  WARNING: '/bootmgr.efi' has been revoked by Windows SVN
+```
+
+**Secure Version Number**: a version floor embedded in the loader itself, which
+the firmware compares against a minimum it has been told to enforce. This loader
+carries SVN 3.0 and the floor is 7.0, so it is refused — both files, for the
+same reason.
+
+Write the distinction down so nobody re-derives it, because the two are related
+and are not the same mechanism:
+
+| Mechanism | What it lists | How a build gets refused |
+|---|---|---|
+| **DBX** (forbidden-signature database) | **hashes** of specific revoked binaries, and revoked certificates | the firmware finds this exact file's hash in the list |
+| **SVN** (Secure Version Number) | nothing — it is a **version floor** | the loader's own embedded SVN is below the enforced minimum |
+
+Both are part of the response to **CVE-2023-24932 (BlackLotus)** — Microsoft
+moved to an SVN floor precisely because revoking by hash does not scale across
+every servicing build of a boot manager. What refused this image was the floor,
+so no DBX entry names it and none needs to.
+
+The ADK's copy is below the floor, so **every** WinPE stick built from this ADK
+— MDT's, HDT's, or a hand-made one — hits it.
+
+### Where every copy on this machine stands
+
+Read tonight, from each source's own `bootx64.efi` / `bootmgr.efi`:
+
+| Source | Version / date | Issuer |
+|---|---|---|
+| ADK WinPE Media (what HDT ships) | 10.0.26100.1085, 2024-11-16 | Production PCA 2011 |
+| `C:\HDTLab\media\Win11-LTSC-2024\` | 10.0.26100.1041, 2024-09-06 | Production PCA 2011 |
+| `C:\HDTLab\media\WS2025-Std\` | 10.0.26100.1041, 2024-09-06 | Production PCA 2011 |
+| this laptop, `C:\Windows\Boot\EFI\bootmgfw.efi` | 10.0.28000.342, written 2026-07-12 | Production PCA 2011 |
+
+Two conclusions, both tested tonight and both the opposite of the obvious guess:
+
+- **The install media is not a fix.** LTSC 2024 and Server 2025 both carry
+  `10.0.26100.1041` — **44 builds behind** the ADK's own copy. Swapping either
+  one in is a regression, not a repair. The staged media is the first place
+  anyone reaches for and it is the wrong one.
+- **The certificate is not the discriminator.** All four are signed by
+  *Microsoft Windows Production PCA 2011*, the patched loader included. A fully
+  patched Windows still signs under it; only the SVN moved. Anyone comparing
+  issuers will conclude all four are equivalent, and all four are not.
+
+Note the tell on the patched copy: its build, **28000.342**, runs *ahead* of the
+OS build it came from (26100). Servicing ships the boot manager on its own
+version track, so a boot manager whose build number outruns the OS is the
+post-revocation one. That is how to recognise a good source without a signtool.
 
 **What it costs, exactly:**
 
@@ -1994,10 +2053,30 @@ deployment and the wrong answer for a fleet.
 **For production media this needs solving properly**, and it is not yet done:
 the `bootmgr.efi` and `bootx64.efi` in the media have to be replaced with
 current ones from a fully patched Windows, and the boot image rebuilt around
-them. Recorded on the roadmap rather than fixed here, because it is a media
-concern rather than a driver one and it deserves its own verification —
-including confirming which replacement source the ADK's own guidance now
-sanctions.
+them. That is **now actually on the roadmap** — `docs/ROADMAP.md`, M4's "What M4
+ships without" list, with the two other files it has to touch and the risk —
+rather than fixed here, because it is a media concern rather than a driver one
+and it deserves its own verification.
+
+> This spike previously said the follow-up was "recorded on the roadmap" when
+> nothing on either roadmap mentioned it. Corrected 2026-08-30, along with the
+> DBX/SVN attribution above. A claim that work is tracked is worth exactly as
+> much as the tracking entry.
+
+### What is still unverified, stated so it is not assumed
+
+- **Nobody has read the SVN of the `10.0.28000.342` loader.** It is the
+  candidate replacement on the strength of its build number and its date, and
+  that is inference, not measurement. `signtool` is **not installed on this
+  host**, so nothing here reads an SVN directly.
+- **The cheap test is Rufus itself**, because Rufus is what read the SVN in the
+  first place: copy the patched loader into a scratch media tree, build an ISO
+  from it, and let Rufus analyse the ISO. If the analysis comes back clean, the
+  replacement clears the floor.
+- **That answers the SVN and nothing else.** Whether a 28000-series boot manager
+  boots against the ADK's 26100-era `EFI\Microsoft\Boot\BCD` is a **separate,
+  untested question**, and it cannot be answered by an analyser at all — it
+  needs a Generation 2 VM with Secure Boot on, booting the rebuilt media.
 
 **Do not read the warning as "the ISO is untrustworthy".** Rufus phrases it as a
 possible malware indicator because it cannot know where an image came from. This
