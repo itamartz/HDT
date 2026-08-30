@@ -228,6 +228,134 @@ Describe 'Invoke-HDTTattooStep' {
         }
     }
 
+    Context 'the share it was deployed from' {
+
+        # THE DEFECT THIS CONTEXT EXISTS FOR. run-20260830-221934 succeeded
+        # 15/15 and stamped DeployRoot EMPTY, warning "2 tattoo value(s)
+        # resolved to nothing". TaskSequenceVersion was right - that sequence
+        # declares no version: key - and DeployRoot was not: the share was
+        # named in workspace.yaml and printed by the resume path throughout.
+        #
+        # The step read HDTDeployRoot, which is the one an ADMINISTRATOR SETS in
+        # a bootstrap rule and which nothing sets when the share came from
+        # bootstrap.json - so on every ordinary deployment it is absent.
+        # _HDTDeployRoot is what the engine RESOLVED, published by
+        # New-HDTExecutionContext on every run there is, and it is what a tattoo
+        # means by "the share this machine was built from".
+
+        It 'stamps the root the engine resolved, with no bootstrap rule in sight' {
+            $script:variable.Remove('HDTDeployRoot')
+
+            Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context | Out-Null
+
+            [string] (& $script:written $script:registry $script:defaultPath)['DeployRoot'] |
+                Should -BeExactly '\\192.168.2.42\HDTShare'
+        }
+
+        It 'does not warn about a value it can resolve' {
+            $script:variable.Remove('HDTDeployRoot')
+
+            Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context | Out-Null
+
+            $warning = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.level -eq 'Warning' -and $_.component -eq 'Tattoo' })
+
+            (@($warning | ForEach-Object { [string] $_.message }) -join ' ') | Should -Not -BeLike '*DeployRoot*'
+        }
+
+        It 'prefers what the engine resolved over what a rule asked for' {
+            # They differ whenever a bootstrap rule sent the machine to another
+            # share, or the deployment is running from media - and the tattoo
+            # records where the bits CAME FROM, not where somebody pointed
+            # first. Get-HDTVariableMap says the same thing about the pair.
+            $script:variable['HDTDeployRoot'] = '\\wrong-server\NotThisOne'
+
+            Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context | Out-Null
+
+            [string] (& $script:written $script:registry $script:defaultPath)['DeployRoot'] |
+                Should -BeExactly '\\192.168.2.42\HDTShare'
+        }
+
+        It 'falls back to the administrator own value when the engine published none' {
+            # A context assembled by hand - a third-party step host, a test -
+            # need not carry _HDTDeployRoot, and a stamp of nothing would be
+            # worse than the rule's answer.
+            $script:context.Variable.Remove('_HDTDeployRoot')
+            $script:context.Variable['HDTDeployRoot'] = '\\fallback-server\HDTShare'
+
+            Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context | Out-Null
+
+            [string] (& $script:written $script:registry $script:defaultPath)['DeployRoot'] |
+                Should -BeExactly '\\fallback-server\HDTShare'
+        }
+    }
+
+    # AND THE SET, NOT THE ONE THAT WAS REPORTED (CLAUDE.md rule 8).
+    #
+    # DeployRoot was found by reading one run's log. The other thirteen values
+    # were stamped correctly on that run and could each fail the same way on the
+    # next machine, because the defect was not a typo - HDTDeployRoot is a real,
+    # documented, map-declared variable. It was that the ONLY name the field
+    # read is one that nothing publishes unless an administrator writes a
+    # bootstrap rule, so on an ordinary deployment it resolved to nothing and
+    # the tattoo stamped a blank.
+    #
+    # THE RULE, THEREFORE: every field must have at least one name that the
+    # ENGINE ITSELF assigns somewhere in src/. A field may read an authored
+    # variable as well - DeployRoot still falls back to HDTDeployRoot - but it
+    # may not read ONLY authored ones, because that is a field which is empty on
+    # every machine nobody hand-configured.
+    #
+    # The fields are read out of the step's own source rather than listed here:
+    # a fifteenth tattoo value added tomorrow is asserted by this file today,
+    # and it fails naming the field and the variables behind it.
+    Context 'every value it stamps has a publisher that runs on an ordinary deployment' {
+
+        BeforeAll {
+            $stepSource = [string] (Get-Content -LiteralPath (Join-Path -Path $script:repoRoot `
+                        -ChildPath 'src/Hephaestus/Public/Steps/Invoke-HDTTattooStep.ps1') -Raw)
+
+            # Field -> every variable name that field reads, primary and
+            # fallback alike, because a fallback assigns the same $stamp key.
+            $script:readName = @{}
+
+            foreach ($match in [regex]::Matches($stepSource, "\`$stamp\['([^']+)'\]\s*=\s*&\s*\`$valueOf\s+'([^']+)'")) {
+                $field = $match.Groups[1].Value
+                if (-not $script:readName.ContainsKey($field)) { $script:readName[$field] = @() }
+                $script:readName[$field] += $match.Groups[2].Value
+            }
+
+            # Everywhere in the engine that puts a name into a variable bag:
+            # $Variable['x'] = , $Context.Variable['x'] = , $bag['x'] = .
+            $script:engineSource = @(Get-ChildItem -LiteralPath (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus') `
+                    -Recurse -Filter '*.ps1' -File |
+                    Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' } |
+                    ForEach-Object { [string] (Get-Content -LiteralPath $_.FullName -Raw) }) -join "`n"
+        }
+
+        It 'found the fields to assert over, so the assertion below is not vacuous' {
+            @($script:readName.Keys).Count | Should -BeGreaterThan 10
+        }
+
+        It 'stamps no field whose only source is one an administrator has to author' {
+            $orphan = New-Object -TypeName System.Collections.ArrayList
+
+            foreach ($field in @($script:readName.Keys | Sort-Object)) {
+                $published = @(@($script:readName[$field]) | Where-Object {
+                        $script:engineSource -match ("\['{0}'\]\s*=" -f [regex]::Escape($PSItem))
+                    })
+
+                if (@($published).Count -eq 0) {
+                    [void] $orphan.Add(('{0} (reads {1})' -f $field, (@($script:readName[$field]) -join ', ')))
+                }
+            }
+
+            $because = 'a tattoo field with no engine-published source is stamped empty on every machine nobody hand-configured'
+
+            (@($orphan) -join '; ') | Should -BeExactly '' -Because $because
+        }
+    }
+
     Context 'a value that never resolved' {
 
         It 'writes it empty rather than leaving it out' {

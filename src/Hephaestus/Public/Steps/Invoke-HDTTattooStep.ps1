@@ -128,7 +128,29 @@
     $stamp = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     $stamp['ComputerName'] = & $valueOf 'HDTComputerName'
-    $stamp['DeployRoot'] = & $valueOf 'HDTDeployRoot'
+    # THE ROOT THE ENGINE RESOLVED, NOT THE ONE SOMEBODY ASKED FOR, and the
+    # order matters because getting it the other way round stamped this value
+    # EMPTY on every ordinary deployment. run-20260830-221934 succeeded 15/15
+    # and warned "2 tattoo value(s) resolved to nothing ... DeployRoot", with
+    # the share named in workspace.yaml and printed by the resume path the
+    # whole time.
+    #
+    # HDTDeployRoot is the one an ADMINISTRATOR SETS, and only a bootstrap rule
+    # sets it (Assert-HDTBootstrapRuleDocument allows exactly four names, and
+    # this is one of them). A share that came from bootstrap.json - which is
+    # every deployment that did not override it - sets nothing, so nothing in
+    # src/ ever assigns the name at all.
+    #
+    # _HDTDeployRoot is what the engine RESOLVED it to, published by
+    # New-HDTExecutionContext on every run there is, and Get-HDTVariableMap says
+    # the two differ "whenever a bootstrap rule chose another share or the
+    # deployment is running from media". A tattoo records where the bits CAME
+    # FROM, so the resolved one wins and the authored one is the fallback for a
+    # context assembled by hand.
+    $stamp['DeployRoot'] = & $valueOf '_HDTDeployRoot'
+    if ([string]::IsNullOrWhiteSpace([string] $stamp['DeployRoot'])) {
+        $stamp['DeployRoot'] = & $valueOf 'HDTDeployRoot'
+    }
     $stamp['TaskSequenceID'] = & $valueOf 'HDTTaskSequenceID'
     $stamp['TaskSequenceName'] = & $valueOf 'HDTTaskSequenceName'
     $stamp['TaskSequenceVersion'] = & $valueOf 'HDTTaskSequenceVersion'
