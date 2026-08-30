@@ -49,6 +49,23 @@ id: Corp-Baseline
 name: Corporate baseline
 install: baseline.cmd
 '@
+        # TWO APPLICATIONS THAT NEED EACH OTHER, which is an authoring error
+        # Resolve-HDTApplicationOrder refuses rather than hangs on. The step's
+        # job here is to log how far the resolution got before it did.
+        (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Ouroboros\app.yaml') = @'
+schemaVersion: 1
+id: Contoso-Ouroboros
+name: Contoso thing that needs the other one
+install: ouroboros.msi /qn
+dependencies: [Contoso-Serpent]
+'@
+        (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Serpent\app.yaml')   = @'
+schemaVersion: 1
+id: Contoso-Serpent
+name: Contoso thing that needs the first one
+install: serpent.msi /qn
+dependencies: [Contoso-Ouroboros]
+'@
         (Join-Path -Path $script:appRoot -ChildPath 'Contoso-Reboot\app.yaml')   = @'
 schemaVersion: 1
 id: Contoso-Reboot
@@ -857,6 +874,135 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
             $record.Count | Should -Be 1
             [string] $record[0].message | Should -BeExactly 'install plan, in order: Contoso-Agent, Contoso-Suite'
         }
+
+        # AN ADMINISTRATOR ASKED FOR ONE APPLICATION AND GOT TWO. In
+        # run-20260830-204613 HDTApplications named TightVNC alone; TightVNC's
+        # app.yaml declares a dependency on Acrobat, so the plan installed
+        # Acrobat first. The entire log record of that was Acrobat's id in the
+        # plan line - no statement that nothing had requested it, and no name of
+        # what had. These are the lines that answer it.
+
+        It 'says which application pulled in one the selection never named' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like "'Contoso-Agent' is in the plan*" })
+
+            @($record).Count | Should -Be 1
+            [string] $record[0].message | Should -BeExactly ("'Contoso-Agent' is in the plan because " +
+                "'Contoso-Suite' depends on it. Nothing asked for it by name; the chain that pulled " +
+                "it in is Contoso-Suite -> Contoso-Agent.")
+            [string] $record[0].level | Should -BeExactly 'Info'
+        }
+
+        It 'carries the reason as data, so a fleet of logs can be queried for it' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like "'Contoso-Agent' is in the plan*" })
+
+            $record[0].data.requested | Should -BeFalse
+            @($record[0].data.requiredBy) | Should -Be @('Contoso-Suite')
+            @($record[0].data.path) | Should -Be @('Contoso-Suite', 'Contoso-Agent')
+        }
+
+        It 'names the step selection as the source when the step named a fixed list' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Corp-Baseline') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like "'Corp-Baseline' is in the plan*" })
+
+            [string] $record[0].message | Should -BeExactly `
+                "'Corp-Baseline' is in the plan because the step's selection asked for it."
+        }
+
+        It 'names HDTApplications when the variable is what supplied the selection' {
+            # THE SOURCE THE REAL RUN HAD AND THE LOG DID NOT REPEAT. rules.yaml
+            # already logged "HDTApplications = '...' (Rule)"; this is the line
+            # that ties the plan back to it.
+            $context = & $script:newContext $script:process -Variable @{ HDTApplications = 'Corp-Baseline' }
+            $step = & $script:newStep 'Install applications' $null
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like "'Corp-Baseline' is in the plan*" })
+
+            [string] $record[0].message | Should -BeExactly `
+                "'Corp-Baseline' is in the plan because HDTApplications asked for it."
+        }
+
+        It 'names HDTMandatoryApplications for one the site does not let anybody opt out of' {
+            $context = & $script:newContext $script:process -Variable @{
+                HDTApplications          = 'Contoso-Agent'
+                HDTMandatoryApplications = 'Corp-Baseline'
+            }
+            $step = & $script:newStep 'Install applications' $null
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like "'Corp-Baseline' is in the plan*" })
+
+            [string] $record[0].message | Should -BeExactly `
+                "'Corp-Baseline' is in the plan because HDTMandatoryApplications asked for it."
+        }
+
+        It 'says where each application sits and what it waited for' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $null = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like 'plan position *' })
+
+            @($record).Count | Should -Be 2
+            [string] $record[1].message | Should -BeExactly ("plan position 2 of 2: 'Contoso-Suite' was " +
+                "ready once 'Contoso-Agent' had installed, which it depends on.")
+        }
+
+        It 'leaves the order the plan installs in exactly as it was' {
+            # THE REASON LINES ARE COMMENTARY. If one of them could move an
+            # install, the fix would be worse than the defect.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            @($result.Data.planned) | Should -Be @('Contoso-Agent', 'Contoso-Suite')
+            @($script:process.Operations)[0].Arguments[1] | Should -BeExactly '/c agent.msi /qn'
+            @($script:process.Operations)[1].Arguments[1] | Should -BeExactly '/c suite.msi /qn'
+        }
+
+        It 'writes how far the resolution got when the plan cannot be ordered' {
+            # THE RUN WHERE THE RESOLUTION MATTERS MOST is the one that failed,
+            # and it used to be the one with no record of it at all. The trace
+            # collections belong to the step, so a partial trace survives the
+            # terminating error the resolver throws.
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Ouroboros') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+
+            $record = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { [string] $_.message -like 'sort round 1 found nothing ready*' })
+
+            @($record).Count | Should -Be 1
+            @($record[0].data.stuck) | Should -Be @('Contoso-Ouroboros', 'Contoso-Serpent')
+        }
+
     }
 
     Context 'what the installer itself said' {

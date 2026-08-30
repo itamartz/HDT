@@ -154,6 +154,26 @@
     $property = $Step.Property
     $selection = @()
 
+    # WHICH INPUT ASKED FOR WHICH APPLICATION. The resolver knows what pulled an
+    # application in; only this function knows what named it in the first place,
+    # and "HDTApplications asked for it" is the line that ties a plan back to the
+    # "HDTApplications = '...' (Rule)" the variable log already wrote.
+    #
+    # FIRST WRITER WINS, the way Add-HDTResolvedVariable's precedence works: the
+    # lists are read in the order below and an id already accounted for keeps the
+    # source that first named it.
+    $selectionSource = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    $attribute = {
+        param([string[]] $Id, [string] $Name)
+
+        foreach ($current in @($Id)) {
+            if (-not $selectionSource.Contains([string] $current)) {
+                $selectionSource[[string] $current] = $Name
+            }
+        }
+    }
+
     if ($null -ne $property -and $property.Contains('selection')) {
         $raw = $property['selection']
 
@@ -169,8 +189,12 @@
 
             $selection = & $split ([string] $expanded)
         }
+
+        & $attribute $selection "the step's selection"
     } elseif ($Context.Variable.Contains('HDTApplications')) {
         $selection = & $split ([string] $Context.Variable['HDTApplications'])
+
+        & $attribute $selection 'HDTApplications'
     }
 
     # -- what the site installs whatever the technician picked ----------------
@@ -197,6 +221,8 @@
     # application next year.
     if ($Context.Variable.Contains('HDTMandatoryApplications')) {
         $mandatory = & $split ([string] $Context.Variable['HDTMandatoryApplications'])
+
+        & $attribute $mandatory 'HDTMandatoryApplications'
 
         if (@($mandatory).Count -gt 0) {
             $merged = New-Object -TypeName System.Collections.ArrayList
@@ -238,23 +264,35 @@
 
     # -- the plan -------------------------------------------------------------
 
+    # THE TRACE COLLECTIONS BELONG TO THE STEP, and that is the point of their
+    # being parameters rather than a second return value: the resolver fills them
+    # as it walks, so a plan that CANNOT be ordered still leaves behind the
+    # closure it got through and the cycle that stopped it. The run where the
+    # resolution failed used to be the one run with no record of the resolution.
+    $provenance = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $planDecision = New-Object -TypeName System.Collections.ArrayList
+    $plan = @()
+
     try {
         $catalog = @(Get-HDTApplication -WorkspaceRoot ([string] $Context.WorkspaceRoot) `
                 -FileSystem $fileSystem -Content $Context.Service.Content)
 
-        $plan = @(Resolve-HDTApplicationOrder -Application $catalog -Id $selection)
+        $plan = @(Resolve-HDTApplicationOrder -Application $catalog -Id $selection `
+                -Provenance $provenance -Decision $planDecision)
     } catch {
+        Write-HDTApplicationPlanLog -Context $Context.Log -Plan $plan -Provenance $provenance `
+            -Decision $planDecision -Source $selectionSource
+
         return (& $fail ([string] $_.Exception.Message) ([ordered] @{ errorId = 'HDTConfigurationError' }))
     }
 
     $plannedId = [string[]] @($plan | ForEach-Object { [string] $_.Id })
 
-    # No -Event: DESIGN 4.4's event vocabulary is closed, and the plan is a
-    # message rather than a lifecycle event. step.start already fired for this
-    # step; a second one would make the stream lie about how many steps ran.
-    Write-HDTLog -Context $Context.Log -Component 'InstallApplications' `
-        -Message ('install plan, in order: {0}' -f ($plannedId -join ', ')) `
-        -Data ([ordered] @{ planned = $plannedId; selected = [string[]] @($selection) })
+    # THE PLAN, AND WHY EVERY LINE OF IT IS THERE. The plan line alone said WHAT
+    # would install; a real run installed an application nobody had asked for and
+    # the log offered no way to tell that from a typo in HDTApplications.
+    Write-HDTApplicationPlanLog -Context $Context.Log -Plan $plan -Provenance $provenance `
+        -Decision $planDecision -Source $selectionSource
 
     # -- the progress this run already made -----------------------------------
 
