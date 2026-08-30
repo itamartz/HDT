@@ -2088,11 +2088,116 @@ Post-apply, in this order:
 
 ### 9.3 Capture
 
-A reference-image sequence: build → customize → `Sysprep` step
-(`/generalize /oobe /shutdown` with an unattend) → reboot to WinPE →
-`CaptureImage` step → WIM written to `Captures\`. `Import-HDTOperatingSystem`
-then promotes a capture into the OS catalog. This closes the loop so HDT builds
-its own reference images rather than depending on another tool.
+A reference-image sequence: build -> customize -> `Sysprep` step -> `Restart`
+step -> boot to WinPE -> `CaptureImage` step -> WIM written to `Captures\`.
+`Import-HDTOperatingSystem` then promotes a capture into the OS catalog. This
+closes the loop so HDT builds its own reference images rather than depending on
+another tool.
+
+1. **The `Sysprep` step runs `/quiet /generalize /oobe /quit`. Never
+   `/shutdown`.**
+
+   *Revised 2026-08-31. This section previously specified
+   `/generalize /oobe /shutdown`, in six lines with no reasoning attached.* The
+   switch is not a style choice, and `/shutdown` makes the step untestable by
+   construction: the machine powers off inside the call, so the step never
+   returns, never reports success, and cannot check anything about what sysprep
+   actually did. A step whose only outcome is "the power went out" is a step
+   that reports the same thing whether it worked or not.
+
+   MDT settled this years ago and the evidence is in its own scripts.
+   `LTISysprep.wsf:257` builds
+   `%SystemRoot%\system32\sysprep\sysprep.exe /quiet /generalize /oobe /quit`,
+   appending `/unattend:%SystemRoot%\system32\sysprep\unattend.xml` when one has
+   been staged, and deleting that unattend afterwards so the answer file does
+   not travel inside the captured image.
+
+2. **The step verifies `ImageState`, because sysprep's exit code is not
+   enough.** After the call returns, the step reads
+
+   ```
+   HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State\ImageState
+   ```
+
+   through `IRegistryService` and fails unless it is
+   `IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE`. The failure message names
+   `%SystemRoot%\system32\sysprep\panther\setupact.log`, which is where the
+   reason actually is. `LTISysprep.wsf:272-278` does exactly this, and it is
+   there because sysprep can return 0 having declined to generalize.
+
+   This is the same failure family as §9.2's fifth note: `reagentc /setreimage`
+   **exits 0, prints "Operation Successful" and registers nothing**. A tool that
+   reports success is not evidence that the thing happened. Where an external
+   tool leaves a readable trace of its own result, the step reads the trace, not
+   the exit code.
+
+3. **The reboot is a separate `Restart` step returning `RebootRequested`.** The
+   flow above already says so - the `Sysprep` step leaves the machine running,
+   the existing restart machinery of §4.3 and §4.5 takes it to WinPE, and the
+   `CaptureImage` step resumes there. No new reboot path is written for capture,
+   which is the whole reason `/quit` is the right switch: `/shutdown` would
+   bypass the checkpoint the resume depends on.
+
+4. **A generalized machine must not boot back into Windows.** Between the
+   `Sysprep` step and the capture there is exactly one legal next boot, and it
+   is the boot media. Booting the generalized installation instead runs OOBE,
+   consumes one of the three rearms, and leaves an image that is no longer in
+   the state it was sysprepped into - and nothing about it looks wrong
+   afterwards.
+
+   So a reference-build sequence keeps the boot media first in the firmware
+   order and sets **`setBootOrder: false`** on its `ConfigureBoot` step.
+   `New-HDTImageService`'s `SetBootOrderFirst` runs
+   `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst` for the SPIKES S6
+   reason recorded on it - after an apply, a machine whose firmware still has the
+   boot media first simply reboots into WinPE and the deployment loops. **A
+   reference build wants precisely that loop**, so the finding and the capture
+   flow are inverses of one another, and the switch that serves a deployment is
+   the switch that ruins a capture. `setBootOrder` defaults to `true`; a capture
+   sequence has to turn it off deliberately.
+
+5. **`Captures\` is one of only two folders the deployment account may write,
+   and the capture step verifies that write before sysprep runs.** §2.1 makes
+   the workspace read-only during deployment except for `Logs\` and `Captures\`,
+   and `Test-HDTShareAcl` checks exactly that pair. `CaptureImage` is the first
+   real consumer of the second one.
+
+   The check goes **before** the `Sysprep` step, not at the moment of writing.
+   A reference build is hours of installing and customizing; discovering at the
+   end of it that the account cannot write `Captures\` costs the whole run, and
+   costs it after the machine has already been generalized and can no longer be
+   picked up where it left off. The cheap test is a write probe against
+   `Captures\` while the machine is still an ordinary running Windows.
+
+6. **On media, capture refuses.** Under the `Local` provider the deploy root is
+   a read-only disc, `Captures\` cannot be written at all, and there is no
+   correction a technician could make - the same reasoning M7's carried-over
+   note 3 gives for the log copy-back. The step fails with what is actually
+   wrong rather than attempting a write that cannot succeed.
+
+7. **Every capture passes an exclusion list, and HDT's own working tree is on
+   it.** DISM takes `/ConfigFile:`, and MDT passes one on every capture -
+   `ZTIBackup.wsf:427` resolves `<DeployRoot>\Tools\<Architecture>\wimscript.ini`
+   and both the `/Capture-Image` and `/Append-Image` branches quote it in. Without
+   one, a capture swallows `pagefile.sys`, `hiberfil.sys`,
+   `System Volume Information` and the deployment's own scratch folders into the
+   reference image.
+
+   HDT ships its list as `Templates\Capture\wimscript.ini` inside the module, so
+   it travels into every boot image with the rest of `Templates\` and there is no
+   list of filenames anywhere that could disagree with the directory. A share may
+   override it with `Control\wimscript.ini`; the step prefers the share's copy
+   when there is one and falls back to the module's, so a share created before
+   this existed still captures correctly.
+
+   **The HDT-specific entries are the point of the file.** `\HDT` is excluded
+   because HDT put it there: `Copy-HDTResumeAgent` stages the resume agent to
+   `<osvolume>\HDT`, and the WinPE leg copies its log to `<osvolume>\HDT\Logs`
+   before restarting. Both are on the volume being captured at the moment it is
+   captured, and neither belongs in a reference image - an image carrying a
+   resume agent and one machine's deployment log would re-run somebody else's
+   deployment state on every machine built from it. MDT's equivalents, `\MININT`
+   and `\_SMSTaskSequence`, are not carried across: rule 4.
 
 ---
 
