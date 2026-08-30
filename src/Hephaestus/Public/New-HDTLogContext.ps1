@@ -345,6 +345,31 @@ function New-HDTLogContext {
         $this.StepName = $null
         $this.StepType = $null
         $this.StepLogPath = $null
+
+        # THE MIRROR'S HALF, WHICH THIS FORGOT AND THE SHARE PAID FOR.
+        #
+        # Three methods move the step - SetStep, SetDynamicPath and this one -
+        # and the first two recompute BOTH the local step log and the mirrored
+        # one. This nulled the local path and left DynamicStepLogPath pointing
+        # at the step that had just ended, so Write-HDTLog's mirror block went
+        # on appending to a file the machine-local writer had already closed.
+        #
+        # WHICH MADE THE TWO COPIES OF ONE RUN DISAGREE, and that is the worse
+        # half: neither could be trusted as THE log without cross-checking the
+        # other. On run-20260830-221934, which SUCCEEDED 15/15, the machine's
+        # Steps\015-Tattoo.log ended at "step 15 'Tattoo' completed" and the
+        # share's carried on for four more records - run.end, the summary
+        # answer, the share disconnect and the resume-agent sweep - every one of
+        # them stamped component="Engine" file="Engine". The records knew they
+        # were engine-level; only the file they landed in did not.
+        #
+        # ONCE PER LEG, NOT ONCE PER STEP, which is why it hid for so long.
+        # Between two steps both paths still name step N on both copies and they
+        # agree; the next SetStep moves the pair together. ClearStep runs in
+        # Invoke-HDTTaskSequence's finally, so a three-leg deployment mis-filed
+        # the tail of exactly three step logs - 010, 012 and 015 there - and was
+        # byte-for-byte identical everywhere else.
+        $this.DynamicStepLogPath = $null
     }
 
     $context | Add-Member -MemberType ScriptMethod -Name NextSeq -Value {
