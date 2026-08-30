@@ -15,11 +15,14 @@
             first file and stops. '-R' is not used - these are plain cabinets,
             not update packages.
 
-            An .exe - THE SOFTPAQ EXPANDS ITSELF. HP's installers take
-            '/s /e /f<path>': silent, extract-only, to a folder. The path is
-            attached to /f with NO SPACE, which is HP's own convention and the
-            reason a naive '/f <path>' extracts to the current directory
-            instead. Dell's own .exe packs accept the same shape.
+            An .exe - THE PACK EXPANDS ITSELF, AND THE VENDOR DECIDES HOW.
+            HP's SoftPaqs take '/s /e /f<path>': silent, extract-only, to a
+            folder. The path is attached to /f with NO SPACE, which is HP's own
+            convention and the reason a naive '/f <path>' extracts to the
+            current directory instead. A Dell Update Package takes '/s /e="<path>"'
+            and nothing else - see the comment on that branch for the pack it was
+            verified against. An .exe whose Vendor could not be read keeps HP's
+            shape, because most of them in the wild are SoftPaqs.
 
             A .zip - EXPANDED BY THE FILE SYSTEM, NOT A PROCESS. It is here
             so the
@@ -37,6 +40,10 @@
 
         .PARAMETER Destination
             The folder to expand it into.
+
+        .PARAMETER Vendor
+            What Get-HDTDriverSourceKind read out of the .exe's version block.
+            Empty means it could not be read, and that gets HP's shape.
 
         .INPUTS
             None. This command does not accept pipeline input.
