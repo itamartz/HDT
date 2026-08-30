@@ -215,11 +215,15 @@ performance concern at this scale.
   **no route between VM and host**. A VM on Default Switch cannot reach a share
   on the host.
 - Working arrangement: an **External** switch (`HDT External`) bound to Wi-Fi.
-  The VM then gets a lease from the real LAN DHCP (`192.168.2.0/24`) and reaches
-  the host share at `192.168.2.108`.
-- The host's internet egress is **Ethernet (192.168.1.219)**, so binding an
-  External switch to Wi-Fi does not interrupt host connectivity. Check this
-  before creating an External switch on any adapter.
+  The VM then gets a lease from the real LAN DHCP — the lab subnet, which was
+  `192.168.2.0/24` when this was measured and is `192.168.1.0/24` since
+  2026-08-28 — and reaches the host share on that subnet. **The host's own
+  octet is a lease, not a finding**: read it with `Get-NetIPAddress
+  -InterfaceAlias 'vEthernet (HDT External)'` before you build a boot image,
+  because it gets baked into what you build.
+- The host's internet egress is a **separate Ethernet adapter on its own
+  subnet**, so binding an External switch to Wi-Fi does not interrupt host
+  connectivity. Check this before creating an External switch on any adapter.
 - Inbound SMB was **blocked by default** — zero File and Printer Sharing rules
   enabled. A scoped rule (TCP 445 from the lab subnet only) was required. Any
   "cannot reach the share" report should check the firewall before the network.
