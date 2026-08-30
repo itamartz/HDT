@@ -79,47 +79,140 @@ Describe 'Console surface contract' {
     # The one that would have shipped broken: a handler naming a private helper
     # directly resolves it in the console's scope, where it does not exist. Every
     # such call has to go through the door.
-    It 'names no private console helper directly inside a closure' {
-        $files = @(
-            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Public/New-HDTConsoleHost.ps1')
-            (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Private/New-HDTConsoleShareReader.ps1')
-        )
+    #
+    # IT SWEEPS THE WHOLE MODULE AND THE WHOLE PRIVATE SURFACE, and it did not
+    # always. It read two files and only the helpers with Console in the name -
+    # so it could not see New-HDTConsoleView, which is where the windows live,
+    # and it could not see Get-HDTHandlerCall, which is the door itself. Both
+    # holes were open at once and a closure asked for the door from inside
+    # itself: 'The term Get-HDTHandlerCall is not recognized', in a message box,
+    # on a technician typing a version into a task sequence. A rule that names
+    # some of the set proves nothing about the set.
+    It 'names no private helper directly inside a closure, anywhere in the module' {
+        $files = @(Get-ChildItem -Path (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus') `
+                -Filter '*.ps1' -Recurse |
+                Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' })
 
-        $private = @(Get-ChildItem -Path (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Private') -Filter '*.ps1' |
-                ForEach-Object { $_.BaseName } |
-                Where-Object { $_ -like '*Console*' -and $_ -notin $script:allowed })
+        # EVERY FUNCTION THIS MODULE DEFINES, MINUS THE ONES IT EXPORTS. Read off
+        # the source rather than off an imported module, so a helper added today
+        # is covered today - and so the rule cannot be dodged by naming something
+        # without Console in it.
+        $defined = @{}
+        foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $tokens, [ref] $errors)
+            if (@($errors).Count -gt 0) { continue }
+
+            foreach ($function in @($ast.FindAll({
+                            param($n)
+                            $n -is [System.Management.Automation.Language.FunctionDefinitionAst]
+                        }, $true))) {
+
+                $defined[$function.Name] = $true
+            }
+        }
+
+        $private = @(@($defined.Keys) | Where-Object { $_ -notin $script:exported })
 
         $offence = foreach ($file in $files) {
             $tokens = $null
             $errors = $null
-            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file, [ref] $tokens, [ref] $errors)
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $tokens, [ref] $errors)
+            if (@($errors).Count -gt 0) { continue }
+
+            # & $module { ... } IS THE OTHER LEGAL DOOR, and it is the one that
+            # crosses INTO the module rather than out of it: a bare scriptblock
+            # invoked against a PSModuleInfo runs in that module's session state,
+            # private commands included. New-HDTConsoleEditorView parses a
+            # sequence that way. So a block handed to & after something else is
+            # not a closure's body, whatever encloses it.
+            $inModule = @{}
+            foreach ($invoked in @($ast.FindAll({
+                            param($n)
+                            $n -is [System.Management.Automation.Language.CommandAst] -and
+                            $n.InvocationOperator -eq [System.Management.Automation.Language.TokenKind]::Ampersand
+                        }, $true))) {
+
+                for ($i = 1; $i -lt @($invoked.CommandElements).Count; $i++) {
+                    if ($invoked.CommandElements[$i] -is [System.Management.Automation.Language.ScriptBlockExpressionAst]) {
+                        $inModule[$invoked.CommandElements[$i].Extent.StartOffset] = $true
+                    }
+                }
+            }
 
             $closures = @($ast.FindAll({
-                        param($node)
-                        $node -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
-                        $node.Member.Extent.Text -eq 'GetNewClosure' -and
-                        $node.Expression -is [System.Management.Automation.Language.ScriptBlockExpressionAst]
+                        param($n)
+                        $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                        $n.Member.Extent.Text -eq 'GetNewClosure' -and
+                        $n.Expression -is [System.Management.Automation.Language.ScriptBlockExpressionAst]
                     }, $true))
 
             foreach ($closure in $closures) {
                 $calls = @($closure.Expression.FindAll({
-                            param($node)
-                            $node -is [System.Management.Automation.Language.CommandAst]
+                            param($n)
+                            $n -is [System.Management.Automation.Language.CommandAst]
                         }, $true))
 
                 foreach ($call in $calls) {
                     $name = $call.GetCommandName()
-                    if ($null -ne $name -and $private -contains $name) {
-                        '{0}:{1} {2}' -f (Split-Path -Leaf $file), $call.Extent.StartLineNumber, $name
+                    if ($null -eq $name -or $private -notcontains $name) { continue }
+
+                    $shielded = $false
+                    $scope = $call.Parent
+
+                    while ($null -ne $scope -and
+                        $scope.Extent.StartOffset -ge $closure.Expression.Extent.StartOffset) {
+
+                        if ($inModule.ContainsKey($scope.Extent.StartOffset)) { $shielded = $true; break }
+                        $scope = $scope.Parent
                     }
+
+                    if ($shielded) { continue }
+
+                    '{0}:{1} {2}' -f $file.Name, $call.Extent.StartLineNumber, $name
                 }
             }
         }
 
-        $offence = @($offence)
+        $offence = @($offence | Sort-Object -Unique)
         $because = 'call it through Get-HDTHandlerCall - a closure resolves commands in the caller''s scope'
         if ($offence.Count -gt 0) {
             $because = "{0}. Found: {1}" -f $because, (@($offence) -join '; ')
+        }
+
+        $offence.Count | Should -Be 0 -Because $because
+    }
+
+    # AND THE SWEEP ABOVE HAS TO BE ABLE TO READ EVERY CLOSURE. It walks the
+    # scriptblock LITERAL in front of .GetNewClosure(); a $block.GetNewClosure()
+    # names one it cannot follow, so the rule would pass by not looking.
+    It 'applies GetNewClosure only to a scriptblock the sweep above can read' {
+        $files = @(Get-ChildItem -Path (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus') `
+                -Filter '*.ps1' -Recurse |
+                Where-Object { $_.Name -ne 'Hephaestus.bundle.ps1' })
+
+        $offence = foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $tokens, [ref] $errors)
+            if (@($errors).Count -gt 0) { continue }
+
+            foreach ($made in @($ast.FindAll({
+                            param($n)
+                            $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and
+                            $n.Member.Extent.Text -eq 'GetNewClosure' -and
+                            $n.Expression -isnot [System.Management.Automation.Language.ScriptBlockExpressionAst]
+                        }, $true))) {
+
+                '{0}:{1}' -f $file.Name, $made.Extent.StartLineNumber
+            }
+        }
+
+        $offence = @($offence)
+        $because = 'write the closure as { ... }.GetNewClosure() so the private-helper sweep can read it'
+        if ($offence.Count -gt 0) {
+            $because = "{0}. Found: {1}" -f $because, (@($offence) -join ', ')
         }
 
         $offence.Count | Should -Be 0 -Because $because

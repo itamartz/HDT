@@ -1385,11 +1385,17 @@
         $timer.Interval = [TimeSpan]::FromMilliseconds(250)
 
         $drain = {
-                # ITS OWN DOOR, because this one is not a closure either - see
-                # $writeRow. A $call inherited by luck from whichever scope
-                # invoked it is a null reference waiting for the caller that is
-                # not a closure, and this one runs on a timer where a throw is
-                # silent.
+                # ITS OWN DOOR, AND ONLY BECAUSE THIS IS NOT A CLOSURE. A $call
+                # inherited by luck from whichever scope invoked it is a null
+                # reference waiting for the caller that is not a closure, and
+                # this one runs on a timer where a throw is silent.
+                #
+                # THE OPPOSITE MISTAKE IS THE EXPENSIVE ONE, and $writeRow in
+                # New-HDTConsoleView made it: asking for the door from INSIDE a
+                # closure throws 'not recognized', because GetNewClosure binds a
+                # block to a fresh dynamic module that looks commands up in the
+                # global scope. Adding a $call here is right; adding
+                # .GetNewClosure() to this block would make it wrong.
                 $call = Get-HDTHandlerCall
 
                 $elapsed = [datetime]::UtcNow - $startedAt

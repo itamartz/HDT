@@ -767,13 +767,19 @@
                 [scriptblock] $revert
             )
 
-            # ITS OWN DOOR, because this one is not a closure. $writeRow is a
-            # plain scriptblock, so it does not carry the Show method's locals
-            # the way the .GetNewClosure() handlers do, and a $call inherited by
-            # luck from whichever scope invoked it is a null reference waiting
-            # for the one caller that is not a closure. The console surface
-            # contract asserts that every scope naming $call declares it.
-            $call = Get-HDTHandlerCall
+            # THE DOOR IS CAPTURED, NOT ASKED FOR. $writeRow used to be a plain
+            # scriptblock and fetched its own $call here; d0470cd made it a
+            # closure so it could see this function's locals, and that turned
+            # the fetch into the one thing a closure cannot do. GetNewClosure
+            # binds a block to a fresh dynamic module whose command lookup falls
+            # through to the GLOBAL scope, where no private function of this
+            # module exists - Get-HDTHandlerCall least of all. Typing a version
+            # into a task sequence raised 'The term Get-HDTHandlerCall is not
+            # recognized' in a message box and took the console down with it.
+            #
+            # So it comes from the enclosing scope, the way every other closure
+            # on this window gets it, and the contract sweeps the whole module
+            # for the mistake rather than two files of it.
 
             # WHICH DOCUMENT THIS ROW EDITS IS THE ROW'S KIND, and the pair
             # of commands follows from it: a sequence and an imported
@@ -814,7 +820,12 @@
                 $edit = $null
 
                 try {
-                    $edit = Get-HDTConsoleApplicationEdit -Property $key -Text $typed
+                    # THROUGH THE DOOR, because this is a closure: a private
+                    # name written straight into one resolves in the global
+                    # scope. Editing any application field would have thrown
+                    # 'Get-HDTConsoleApplicationEdit is not recognized' the
+                    # moment the version defect above stopped hiding it.
+                    $edit = & $call 'Get-HDTConsoleApplicationEdit' -Property $key -Text $typed
                 } catch {
                     # A LIST THAT WILL NOT PARSE NEVER REACHES THE DOCUMENT.
                     # The box goes back and the footer says which word was
