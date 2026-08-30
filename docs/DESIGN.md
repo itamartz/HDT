@@ -2157,10 +2157,10 @@ another tool.
    sequence has to turn it off deliberately.
 
 5. **`Captures\` is one of only two folders the deployment account may write,
-   and the capture step verifies that write before sysprep runs.** §2.1 makes
-   the workspace read-only during deployment except for `Logs\` and `Captures\`,
-   and `Test-HDTShareAcl` checks exactly that pair. `CaptureImage` is the first
-   real consumer of the second one.
+   and the write is proved before sysprep runs.** §2.1 makes the workspace
+   read-only during deployment except for `Logs\` and `Captures\`, and
+   `Test-HDTShareAcl` checks exactly that pair. `CaptureImage` is the first real
+   consumer of the second one.
 
    The check goes **before** the `Sysprep` step, not at the moment of writing.
    A reference build is hours of installing and customizing; discovering at the
@@ -2168,6 +2168,16 @@ another tool.
    costs it after the machine has already been generalized and can no longer be
    picked up where it left off. The cheap test is a write probe against
    `Captures\` while the machine is still an ordinary running Windows.
+
+   *Which means the `Sysprep` step performs it, not the `CaptureImage` step -
+   an earlier draft of this note said "the capture step verifies", and the
+   capture step physically cannot: it runs in WinPE, after the reboot, after the
+   machine has already been sealed.* `Test-HDTCaptureTarget` is therefore a
+   shared private helper that both steps call - `Sysprep` at the point of no
+   return, where the answer is still cheap, and `CaptureImage` at its own start,
+   because a sequence may reach a capture without having passed through a
+   sysprep. One function, so the early answer and the late one cannot drift; it
+   refuses the `Local` provider before probing anything, for note 6's reason.
 
 6. **On media, capture refuses.** Under the `Local` provider the deploy root is
    a read-only disc, `Captures\` cannot be written at all, and there is no
