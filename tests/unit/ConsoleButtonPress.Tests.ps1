@@ -89,8 +89,18 @@ BeforeAll {
         'HDTCloseButton', 'HDTEditorCloseButton', 'HDTBootImageCloseButton'
 
         # Reach the share. tests/unit may not touch the real filesystem.
-        'HDTEditorSaveButton', 'HDTBootImageSaveButton', 'HDTRulesSaveButton'
-        'HDTRulesReloadButton', 'HDTBootstrapSaveButton', 'HDTBootstrapReloadButton'
+        #
+        # THREE OF THESE NAMED NOTHING. 'HDTBootstrapSaveButton',
+        # 'HDTBootstrapReloadButton' and 'HDTEditorSaveButton' are not controls
+        # on any window here - the real ones are HDTBootstrapRulesSaveButton,
+        # HDTBootstrapRulesReloadButton and HDTSaveButton - so three buttons
+        # this list said it held back were offered to every sweep. Nothing was
+        # written only because the editor's Save is dark on a clean document and
+        # the windows are pointed at paths that do not exist. A deny-list is
+        # worth exactly what its spelling is, so the Describe above now fails on
+        # a name that matches no control.
+        'HDTSaveButton', 'HDTBootImageSaveButton', 'HDTRulesSaveButton'
+        'HDTRulesReloadButton', 'HDTBootstrapRulesSaveButton', 'HDTBootstrapRulesReloadButton'
 
         # Open a file picker, which needs a desktop and blocks without one.
         'HDTBootImageUnattendBrowseButton', 'HDTBootImageBackgroundBrowseButton'
@@ -165,6 +175,39 @@ BeforeAll {
             Found   = $found
             Pressed = [string[]] @($pressed)
             Threw   = [string[]] @($threw)
+        }
+    }
+}
+
+Describe 'the list of buttons this sweep will not press' {
+
+    # A NAME THAT MATCHES NOTHING EXCLUDES NOTHING, AND SAYS NOTHING EITHER.
+    # 'HDTBootstrapSaveButton' and 'HDTBootstrapReloadButton' sat here for
+    # months; the controls are called HDTBootstrapRulesSaveButton and
+    # HDTBootstrapRulesReloadButton, so the two buttons that write
+    # bootstrap-rules.yaml were pressed by every run while the list said they
+    # were held back. A deny-list is only worth what its spelling is.
+    #
+    # THE MARKUP, NOT A BUILT WINDOW. Three windows cost seconds to raise and
+    # this asks a question about names, which the XAML already answers.
+
+    BeforeAll {
+        $script:namedControl = @(
+            foreach ($markup in @('HDTConsole.xaml', 'HDTSequenceEditor.xaml', 'HDTBootImage.xaml')) {
+                [regex]::Matches((Get-HDTTestMarkup -Name $markup), 'x:Name="([^"]+)"') |
+                    ForEach-Object { $_.Groups[1].Value }
+            }
+        ) | Sort-Object -Unique
+    }
+
+    It 'found the named controls, so the sweep below is not vacuous' {
+        @($script:namedControl).Count | Should -BeGreaterThan 20
+    }
+
+    It 'names a control that exists, every one of them' {
+        foreach ($name in $script:wontPress) {
+            $script:namedControl | Should -Contain $name `
+                -Because "'$name' excludes nothing if no window has a control by that name"
         }
     }
 }
