@@ -556,6 +556,13 @@ Describe 'IImageService capturing an image for real' {
         Set-Content -LiteralPath (Join-Path -Path $script:captureSource -ChildPath 'sub\second.txt') `
             -Value 'x' -Encoding Ascii
 
+        # THE EXCLUSION LIST THE MODULE SHIPS, which is what a capture is handed
+        # when the share carries no Control\wimscript.ini of its own. Passing the
+        # real file rather than a stub is the point: /ConfigFile: has to reach
+        # dism as its own argument and be readable by it.
+        $script:captureConfig = Join-Path -Path $script:repoRoot `
+            -ChildPath 'src/Hephaestus/Templates/Capture/wimscript.ini'
+
         $script:captureService = New-HDTImageService
         $script:captureLine = New-Object -TypeName System.Collections.ArrayList
         $script:captureError = ''
@@ -563,6 +570,7 @@ Describe 'IImageService capturing an image for real' {
         try {
             $script:captureService.CaptureImage($script:captureSource, $script:capturedWim,
                 'HDT-REF-01', 'HDT integration capture', 'fast', $script:captureScratch,
+                $script:captureConfig,
                 { param([string] $Line) [void] $script:captureLine.Add($Line) })
         } catch {
             $script:captureError = [string] $_.Exception.Message
@@ -581,9 +589,23 @@ Describe 'IImageService capturing an image for real' {
         try {
             $script:captureService.CaptureImage(
                 (Join-Path -Path $script:captureRoot -ChildPath 'no-such-volume'),
-                $script:missingSourceWim, 'X', '', 'fast', $script:captureScratch)
+                $script:missingSourceWim, 'X', '', 'fast', $script:captureScratch,
+                $script:captureConfig)
         } catch {
             $script:missingSourceError = $_
+        }
+
+        # AND THE GUARD ON THE EXCLUSION LIST. dism warns about a /ConfigFile:
+        # that is not there and captures the whole volume anyway, so the only
+        # place this can be caught is before it runs.
+        $script:missingConfigError = $null
+        try {
+            $script:captureService.CaptureImage($script:captureSource,
+                (Join-Path -Path $script:captureRoot -ChildPath 'no-config.wim'),
+                'X', '', 'fast', $script:captureScratch,
+                (Join-Path -Path $script:captureRoot -ChildPath 'no-such-wimscript.ini'))
+        } catch {
+            $script:missingConfigError = $_
         }
     }
 
@@ -594,6 +616,14 @@ Describe 'IImageService capturing an image for real' {
 
             Remove-Item -LiteralPath $script:captureRoot -Recurse -Force
         }
+    }
+
+    It 'refuses a capture whose exclusion list is not there' {
+        # A CAPTURE WITHOUT EXCLUSIONS IS NOT A FAILURE dism REPORTS. It warns,
+        # captures pagefile.sys and \HDT along with everything else, and exits 0 -
+        # so the reference image is wrong and the run is green (DESIGN 9.3 note 7).
+        $script:missingConfigError | Should -Not -BeNullOrEmpty
+        [string] $script:missingConfigError.Exception.Message | Should -BeLike '*no-such-wimscript.ini*'
     }
 
     It 'captured without throwing, into a WIM that was not there' {

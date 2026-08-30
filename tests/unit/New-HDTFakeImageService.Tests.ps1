@@ -6,7 +6,8 @@
 #   GetImageInfo(imagePath) -> object[]  Index, Name, Description, Edition,
 #                                        SizeBytes, Architecture, Version
 #   ApplyImage(imagePath, index, applyPath)
-#   CaptureImage(capturePath, imagePath, name, description, compress, scratchPath)
+#   CaptureImage(capturePath, imagePath, name, description, compress, scratchPath,
+#                configPath)
 #   InstallBootFile(osRoot, systemVolume, firmware)
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
@@ -115,17 +116,17 @@ Describe 'New-HDTFakeImageService' {
             @($script:image.Operations[0].Arguments) | Should -Be @($script:win11Wim, 1, 'W:\')
         }
 
-        It 'records CaptureImage with all six arguments the tool is given' {
+        It 'records CaptureImage with all seven arguments the tool is given' {
             # THE ARGUMENT ORDER IS THE CONTRACT. A capture that recorded its
             # source and destination the wrong way round would still be green
             # against a fake that only counted calls - and would overwrite the
             # machine it was asked to capture.
             $script:image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01',
-                'Reference build', 'max', 'C:\HDTLab\scratch\dism')
+                'Reference build', 'max', 'C:\HDTLab\scratch\dism', 'Z:\Control\wimscript.ini')
 
             @($script:image.GetOperationName()) | Should -Be @('CaptureImage')
             @($script:image.Operations[0].Arguments) |
-                Should -Be @('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', 'Reference build', 'max', 'C:\HDTLab\scratch\dism')
+                Should -Be @('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', 'Reference build', 'max', 'C:\HDTLab\scratch\dism', 'Z:\Control\wimscript.ini')
         }
 
         It 'records InstallBootFile with the OS root, the system volume and the firmware' {
@@ -184,7 +185,7 @@ Describe 'New-HDTFakeImageService' {
             # first in the field: the adapter takes no /Append-Image decision.
             $image = New-HDTFakeImageService -Failure @{ CaptureImage = 'Error: 0x8007000D' }
 
-            { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch') } |
+            { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini') } |
                 Should -Throw -ExpectedMessage '*0x8007000D*'
         }
 
@@ -219,7 +220,7 @@ Describe 'New-HDTFakeImageService' {
             $imagePath = 'C:\HDTLab\does-not-exist\REF-01.wim'
             $image = New-HDTFakeImageService
 
-            $image.CaptureImage('C:\', $imagePath, 'REF-01', '', 'max', 'C:\HDTLab\does-not-exist\scratch')
+            $image.CaptureImage('C:\', $imagePath, 'REF-01', '', 'max', 'C:\HDTLab\does-not-exist\scratch', 'Z:\Control\wimscript.ini')
 
             Test-Path -LiteralPath $imagePath | Should -BeFalse
         }
@@ -346,7 +347,7 @@ Describe 'the capture that talks back' {
         $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter
         $seen = New-Object System.Collections.ArrayList
 
-        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini',
             { param([string] $Text) [void] $seen.Add($Text) })
 
         @($seen) | Should -Be $script:captureMeter
@@ -356,7 +357,7 @@ Describe 'the capture that talks back' {
         $image = New-HDTFakeImageService
         $seen = New-Object System.Collections.ArrayList
 
-        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini',
             { param([string] $Text) [void] $seen.Add($Text) })
 
         @($seen) | Should -BeNullOrEmpty
@@ -367,30 +368,30 @@ Describe 'the capture that talks back' {
         $image = New-HDTFakeImageService -ApplyOutput $script:captureMeter
         $seen = New-Object System.Collections.ArrayList
 
-        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini',
             { param([string] $Text) [void] $seen.Add($Text) })
 
         @($seen) | Should -BeNullOrEmpty
     }
 
-    It 'still takes six arguments, for every caller that has no use for the output' {
+    It 'still takes seven arguments, for every caller that has no use for the output' {
         $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter
 
-        { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch') } |
+        { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini') } |
             Should -Not -Throw
     }
 
-    It 'records the same six arguments whether or not a callback was given' {
+    It 'records the same seven arguments whether or not a callback was given' {
         $image = New-HDTFakeImageService -CaptureOutput $script:captureMeter
 
         # THE CALLBACK TAKES A LINE AND DOES NOTHING WITH IT, which is the point
         # of this test - but a parameter declared and never read is an analyzer
         # warning, so it is discarded out loud.
-        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+        $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini',
             { param([string] $Text) [void] $Text })
 
         @($image.Operations[0].Arguments) |
-            Should -Be @('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch')
+            Should -Be @('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini')
     }
 
     It 'says what it printed before it fails' {
@@ -402,7 +403,7 @@ Describe 'the capture that talks back' {
             -Failure @{ CaptureImage = 'Error: 0x80070070' }
         $seen = New-Object System.Collections.ArrayList
 
-        { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch',
+        { $image.CaptureImage('C:\', 'Z:\Captures\REF-01.wim', 'REF-01', '', 'max', 'C:\scratch', 'Z:\Control\wimscript.ini',
                 { param([string] $Text) [void] $seen.Add($Text) }) } | Should -Throw
 
         @($seen).Count | Should -Be 3

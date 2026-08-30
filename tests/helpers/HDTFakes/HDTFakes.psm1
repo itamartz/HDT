@@ -3736,12 +3736,12 @@ class HDTFakeImageService {
     # are both paths and both strings; a step that swapped them would be caught
     # by nothing but this record.
     [void] CaptureImage([string] $CapturePath, [string] $ImagePath, [string] $Name, [string] $Description,
-        [string] $Compress, [string] $ScratchPath) {
+        [string] $Compress, [string] $ScratchPath, [string] $ConfigPath) {
 
-        $this.CaptureImage($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath, {})
+        $this.CaptureImage($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath, $ConfigPath, {})
     }
 
-    # THE SEVEN-ARGUMENT FORM, FOR THE SAME REASON ApplyImage HAS AN OVERLOAD.
+    # THE EIGHT-ARGUMENT FORM, FOR THE SAME REASON ApplyImage HAS AN OVERLOAD.
     # /Capture-Image prints a real percentage meter - it is /Apply-Image's
     # mirror - and the real adapter hands every line to $OnOutput as it arrives.
     # This replays the seeded lines instead, so a step's throttling is provable
@@ -3752,9 +3752,9 @@ class HDTFakeImageService {
     # a step that logged nothing about the first 60% is a step nobody can debug
     # afterwards - on a capture of a machine somebody spent a day building.
     [void] CaptureImage([string] $CapturePath, [string] $ImagePath, [string] $Name, [string] $Description,
-        [string] $Compress, [string] $ScratchPath, [object] $OnOutput) {
+        [string] $Compress, [string] $ScratchPath, [string] $ConfigPath, [object] $OnOutput) {
 
-        $this.Record('CaptureImage', @($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath))
+        $this.Record('CaptureImage', @($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath, $ConfigPath))
 
         if ($null -ne $OnOutput) {
             foreach ($line in @($this.CaptureOutput)) { $null = $OnOutput.Invoke([string] $line) }
@@ -3866,7 +3866,7 @@ function New-HDTFakeImageService {
                                          SizeBytes, Architecture, Version
               ApplyImage(imagePath, index, applyPath[, onOutput])
               CaptureImage(capturePath, imagePath, name, description, compress,
-                           scratchPath[, onOutput])
+                           scratchPath, configPath[, onOutput])
               ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput[, onTick]])
               AddDriver(imagePath, driverPath, recurse) -> Inf, Provider,
                                                            Version, Date
@@ -4237,12 +4237,29 @@ class HDTFakeContentProvider {
     # a class type literal.
     [string] $ServiceName
 
+    # WHICH TRANSPORT THIS IS, AND IT IS HERE FOR EXACTLY ONE CALLER.
+    #
+    # DESIGN 6.2 is that a step never learns which provider it has - standalone
+    # media is a content projection with the provider swapped, not a second code
+    # path - and Invoke-HDTApplyImageStep asserts that by running both providers
+    # and comparing the ordered operation list.
+    #
+    # CAPTURE IS THE ONE PLACE THAT CANNOT HOLD. Under Local the deploy root is a
+    # read-only disc: Captures\ cannot be written at all, and there is no
+    # correction a technician standing at the machine could make (DESIGN 9.3
+    # note 6). Attempting the write and reporting whatever the disc says would
+    # describe the symptom - a failed write, hours into a reference build - and
+    # none of the cause. So the transport is readable, and exactly one step
+    # reads it.
+    [string] $Kind
+
     # Whether Connect has been called. Local and Smb both track it - Smb to map
     # once when Connect is called twice, this fake so a test can see the same.
     [bool] $IsConnected
 
     HDTFakeContentProvider() {
         $this.Root = 'Z:\Deploy'
+        $this.Kind = 'Smb'
         $this.Content = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
@@ -4465,10 +4482,21 @@ function New-HDTFakeContentProvider {
             $content = New-HDTFakeContentProvider -Root 'Z:\Deploy'
             $content.ResolveContent('OperatingSystems\Win11-LTSC-2024\sources\install.wim')
 
+        .PARAMETER Kind
+            Which transport this stands for - Smb, the default, or Local. Only
+            Invoke-HDTCaptureImageStep reads it, and only to refuse: a capture
+            onto read-only media cannot succeed and has no correction (DESIGN
+            9.3 note 6).
+
         .EXAMPLE
             $content = New-HDTFakeContentProvider -Failure @{ Connect = 'the network is not up' }
 
             The connect that fails, so a launcher's failure path is provable.
+
+        .EXAMPLE
+            $content = New-HDTFakeContentProvider -Kind Local
+
+            The media provider, which is what a capture step has to refuse.
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds an in-memory test double; it changes no state.')]
@@ -4478,6 +4506,10 @@ function New-HDTFakeContentProvider {
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string] $Root = 'Z:\Deploy',
+
+        [Parameter()]
+        [ValidateSet('Smb', 'Local')]
+        [string] $Kind = 'Smb',
 
         [Parameter()]
         [hashtable] $Content,
@@ -4493,6 +4525,7 @@ function New-HDTFakeContentProvider {
     $fake = [HDTFakeContentProvider]::new()
     $fake.Journal = $Journal
     $fake.Root = $Root
+    $fake.Kind = $Kind
 
     if ($PSBoundParameters.ContainsKey('Content')) {
         foreach ($key in @($Content.Keys)) {

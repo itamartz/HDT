@@ -25,9 +25,9 @@ function New-HDTImageService {
                   That is where the percentage comes from - see the method.
 
               CaptureImage(capturePath, imagePath, name, description, compress,
-                           scratchPath[, onOutput])
+                           scratchPath, configPath[, onOutput])
                   dism.exe /Capture-Image /CaptureDir: /ImageFile: /Name:
-                      /Description: /Compress: /ScratchDir:
+                      /Description: /Compress: /ScratchDir: /ConfigFile:
 
                   ApplyImage RUN BACKWARDS, and a pipeline for the same reason:
                   /Capture-Image prints a real percentage meter, so every line
@@ -342,14 +342,26 @@ function New-HDTImageService {
     # and the STEP chooses between them, where the choice can be unit tested.
     $service | Add-Member -MemberType ScriptMethod -Name CaptureImage -Value {
         param([string] $CapturePath, [string] $ImagePath, [string] $Name, [string] $Description,
-            [string] $Compress, [string] $ScratchPath, [scriptblock] $OnOutput = {})
+            [string] $Compress, [string] $ScratchPath, [string] $ConfigPath, [scriptblock] $OnOutput = {})
 
-        $this.Record('CaptureImage', @($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath))
+        $this.Record('CaptureImage', @($CapturePath, $ImagePath, $Name, $Description, $Compress, $ScratchPath, $ConfigPath))
 
         # Existence guard on the SOURCE, not the destination. See above.
         if (-not (Test-Path -LiteralPath $CapturePath -PathType Container)) {
             throw [System.IO.DirectoryNotFoundException]::new(
                 "Could not find the directory to capture, '$CapturePath'.")
+        }
+
+        # AND AN EXISTENCE GUARD ON THE EXCLUSION LIST, WHICH IS THE THIRD AND
+        # LAST BRANCH IN THIS METHOD. dism does not refuse a /ConfigFile: that is
+        # not there in a way anybody reads: it warns and captures the whole
+        # volume, so a typo in the path is a reference image with pagefile.sys,
+        # the deployment's own \HDT folder and one machine's log inside it - and
+        # nothing about the run looks wrong. DESIGN 9.3 note 7 is what this
+        # protects; a silent capture without exclusions is the failure it names.
+        if (-not (Test-Path -LiteralPath $ConfigPath -PathType Leaf)) {
+            throw [System.IO.FileNotFoundException]::new(
+                "Could not find the capture exclusion list, '$ConfigPath'. A capture without one writes the whole volume into the image.", $ConfigPath)
         }
 
         # WinPE runs from an X: RAM disk and dism left to itself expands into
@@ -376,7 +388,8 @@ function New-HDTImageService {
             ('/Name:{0}' -f $Name),
             ('/Description:{0}' -f $Description),
             ('/Compress:{0}' -f $Compress),
-            ('/ScratchDir:{0}' -f $ScratchPath)
+            ('/ScratchDir:{0}' -f $ScratchPath),
+            ('/ConfigFile:{0}' -f $ConfigPath)
         )
 
         $commandLine = 'dism /Capture-Image {0}' -f (
@@ -387,7 +400,8 @@ function New-HDTImageService {
         # and the step: this adapter is not unit tested and gets no branches.
         $output = @(& "$env:SystemRoot\System32\dism.exe" '/Capture-Image' `
                 "/CaptureDir:$CapturePath" "/ImageFile:$ImagePath" "/Name:$Name" `
-                "/Description:$Description" "/Compress:$Compress" "/ScratchDir:$ScratchPath" 2>&1 |
+                "/Description:$Description" "/Compress:$Compress" "/ScratchDir:$ScratchPath" `
+                "/ConfigFile:$ConfigPath" 2>&1 |
                 ForEach-Object {
                     $line = [string] $_
                     $null = $OnOutput.Invoke($line)
