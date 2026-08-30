@@ -64,6 +64,17 @@ What deferring the rest actually costs, stated so it is not discovered later:
   them** unless it hides them; it should read the workspace and omit what is not
   present rather than showing empty branches.
 
+And one cost that is **not** a deferral but belongs in the same list, because it
+is just as easy to discover late:
+
+- **A fully patched machine with Secure Boot on will refuse the boot image.**
+  The ADK's `bootmgr.efi` and `EFI\Boot\bootx64.efi` carry SVN 3.0 against an
+  enforced floor of 7.0 (SPIKES S20 — a Secure Version Number check, not a DBX
+  hash entry). The lab turns Secure Boot off; a fleet cannot. The fix — swap
+  both files for patched ones, in `Update-HDTBootImage` **and** in
+  `New-HDTPxePayload`, then prove it on a Secure Boot VM — is an open item under
+  **05** in `docs/ROADMAP.md`'s M4 list.
+
 ## Phase goals (one line each — full detail in `docs/ROADMAP.md`)
 
 **01 — Harness.** Make it impossible to add untested code. Module skeleton,

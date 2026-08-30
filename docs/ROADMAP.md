@@ -335,6 +335,33 @@ all.
   gives: there is no domain controller in this lab, and the `HDT Lab` switch is
   isolated by design.
 - **DESIGN 11's technician UI is absent.** It is M8.
+- **The boot image carries the ADK's bootloader, and a fully patched machine
+  with Secure Boot on will refuse it.** SPIKES S20: `bootmgr.efi` and
+  `EFI\Boot\bootx64.efi` out of the ADK's WinPE Media carry **SVN 3.0 against an
+  enforced floor of 7.0** — a Secure Version Number check, not a DBX hash entry
+  and not the signing certificate, both of which are fine. The work is to
+  **replace both files with current ones from a fully patched Windows and
+  rebuild the boot image around them**, and it is more than a file copy for
+  three reasons:
+
+  - **Where the swap goes.** In `Update-HDTBootImage`, after the ADK media tree
+    is copied (`Update-HDTBootImage.ps1:771`) and before the ISO is burned
+    (`:1644`). `New-HDTBootIso` itself needs no change — it burns whatever the
+    media tree holds.
+  - **There is a second delivery path, and an ISO-only fix misses it.**
+    `New-HDTPxePayload.ps1:18-20` stages `bootmgfw.efi` and `wdsmgfw.efi` from
+    the same ADK media, so a corrected ISO would still leave WDS/PXE serving the
+    refused loader. Both paths, or neither.
+  - **`efisys*.bin` is a separate artefact.** The El Torito boot image carries
+    its own embedded `cdboot_noprompt.efi`; Rufus did not flag it, but if an SVN
+    check ever reaches it, fixing it means **rebuilding the `.bin`** rather than
+    copying a file over one.
+
+  **The risk is a coupling nobody has tested:** the patched boot manager's build
+  (`10.0.28000.342`) runs ahead of the ADK's 26100-era
+  `EFI\Microsoft\Boot\BCD`, and whether it reads that store is unknown. So this
+  cannot be proven by a build succeeding — it needs a **Generation 2 VM with
+  Secure Boot on**, actually booting the rebuilt media.
 
 **One thing M4 shipped late, in 05-06, because it was the phase's own unanswered
 question.** M2 above asked whether WinPE needs `wpeutil reboot` rather than
