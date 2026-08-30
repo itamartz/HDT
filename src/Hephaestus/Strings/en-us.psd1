@@ -380,7 +380,13 @@
         'HDTBootImageRebuildText.Text' = 'Settings changed. The boot image carries the old ones until Update Boot Image runs.'
         'HDTBootImageUpdateButton.Content' = 'Update Boot Image'
         'HDTBootImageUpdateButton.ToolTip' = 'Rebuilds the .wim and the .iso from what is saved. Minutes.'
-        'HDTBootImageSaveButton.Content' = 'Save'
+        # 'Save settings', NOT 'Save'. The Rules and Bootstrap tabs each carry a
+        # 'Save rules' of their own, and this one sits in the same bottom-right
+        # corner about 130 px away - both blue, both starting with "Save". An
+        # administrator edited a rule, pressed this, read a success message
+        # naming a different file and lost the edit. The word after Save is what
+        # tells the two apart, and it costs nothing but the width of the button.
+        'HDTBootImageSaveButton.Content' = 'Save settings'
         'HDTBootImageCloseButton.Content' = 'Close'
         # The Rules tab - MDT's CustomSettings.ini, in the place MDT put it.
         'HDTBootImageRules.Header' = 'Rules'

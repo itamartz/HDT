@@ -340,12 +340,12 @@ Describe 'Get-HDTConsoleClosePrompt over a set of documents' {
 
     BeforeAll {
         $script:setClean = [object[]] @(
-            [pscustomobject] @{ Path = 'C:\ws\workspace.yaml'; Dirty = $false; SaveWith = 'Save' }
+            [pscustomobject] @{ Path = 'C:\ws\workspace.yaml'; Dirty = $false; SaveWith = 'Save settings' }
             [pscustomobject] @{ Path = 'C:\ws\rules.yaml'; Dirty = $false; SaveWith = 'Save rules' }
         )
 
         $script:setDirty = [object[]] @(
-            [pscustomobject] @{ Path = 'C:\ws\workspace.yaml'; Dirty = $false; SaveWith = 'Save' }
+            [pscustomobject] @{ Path = 'C:\ws\workspace.yaml'; Dirty = $false; SaveWith = 'Save settings' }
             [pscustomobject] @{ Path = 'C:\ws\rules.yaml'; Dirty = $true; SaveWith = 'Save rules' }
         )
     }
