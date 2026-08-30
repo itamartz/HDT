@@ -172,14 +172,74 @@
     # one that matters; this is a courtesy to somebody watching, and a machine
     # that stopped deploying because nobody was would be absurd. A share that
     # has gone is also the case this is most useful in.
+    $mirrored = $false
+    $mirrorError = ''
+
     if (-not [string]::IsNullOrWhiteSpace($ActivePath)) {
         try {
             if ($PSCmdlet.ShouldProcess($ActivePath, 'Mirror run status for the console')) {
                 $Context.FileSystem.WriteAllText($ActivePath, $json)
+                $mirrored = $true
             }
         } catch {
-            Write-Verbose ("the run status could not be mirrored to '{0}': {1}" -f
-                $ActivePath, $_.Exception.Message)
+            # -- A MIRROR THAT FAILED USED TO SAY SO TO NOBODY -----------------
+            #
+            # This was Write-Verbose, which in a deployment goes nowhere at all.
+            # <share>\Logs\_active\<RunId>.json is the ONE artifact that survives
+            # a pruned log tree, so a machine whose mirror quietly stopped
+            # updating leaves a marker frozen at whatever step it last managed to
+            # write - and a run that FAILED then reads, to anyone looking, as one
+            # still going. Twice here the marker was all that was left.
+            #
+            # STILL NOT ALLOWED TO END THE DEPLOYMENT. The local status.json is
+            # the one that matters and it is already written; this is a courtesy
+            # to somebody watching, and a machine that stopped deploying because
+            # nobody was would be absurd. A share that has gone is exactly when
+            # this line is worth having.
+            $mirrorError = [string] $_.Exception.Message
+
+            Write-HDTLog -Context $Context -Severity Warning -Component 'Status' `
+                -Message ("the run status could not be mirrored to '{0}', so a console watching this share will keep showing whatever was written there last: {1}" -f
+                    $ActivePath, $mirrorError) `
+                -Data ([ordered] @{
+                        activePath = $ActivePath
+                        status     = $Status
+                        stepIndex  = $stepIndexValue
+                        error      = $mirrorError
+                    })
         }
     }
+
+    # -- EVERY TRANSITION, SAID OUT LOUD --------------------------------------
+    #
+    # Running is the per-step heartbeat and there is one per step, so it goes at
+    # Debug where it adds volume without drowning the file. EVERYTHING ELSE IS A
+    # TRANSITION - RebootPending, Failed, Succeeded - and an administrator needs
+    # it to understand the outcome, so it goes at Info where they will see it
+    # without re-running anything.
+    #
+    # It says where BOTH copies went and whether the mirror actually landed,
+    # because "the marker disagrees with status.json" is otherwise a question
+    # with nothing in the log to answer it.
+    $severity = 'Info'
+    if ($Status -eq 'Running') { $severity = 'Debug' }
+
+    Write-HDTLog -Context $Context -Severity $severity -Component 'Status' `
+        -Message ("run status is {0} at step {1} of {2}; written to '{3}'{4}" -f
+            $Status, $stepIndexValue, $Context.StepCount, $Path,
+            @(
+                ''
+                (" and mirrored to '{0}'" -f $ActivePath)
+            )[[int] $mirrored]) `
+        -Data ([ordered] @{
+                status     = $Status
+                stepIndex  = $stepIndexValue
+                stepCount  = $Context.StepCount
+                stepName   = $stepNameValue
+                stepType   = $stepTypeValue
+                path       = $Path
+                activePath = $ActivePath
+                mirrored   = $mirrored
+                updated    = $updated
+            })
 }

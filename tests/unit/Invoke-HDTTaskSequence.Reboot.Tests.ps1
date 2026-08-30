@@ -1,4 +1,4 @@
-# The reboot ceremony (DESIGN 4.3, 4.5.1).
+﻿# The reboot ceremony (DESIGN 4.3, 4.5.1).
 #
 #   1. mark the step Completed, advancing stepIndex past it
 #   2. SAVE
@@ -383,5 +383,261 @@ steps:
 
         @($harness.Journal | Where-Object { $_.Service -eq 'PowerService' -and $_.Operation -eq 'Restart' }) |
             Should -BeNullOrEmpty
+    }
+}
+
+# TWO RESTARTS IN THE FULL OS, WHICH IS THE CASE run-20260830-204613 DIED ON.
+#
+# The reboot tests above all arm from WinPE. That is one leg of a real
+# deployment and it is the FORGIVING one: WinPE's
+# HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon is a shallow copy
+# on a RAM disk, so the adapter's `New-Item -Force` - which on the registry
+# provider DELETES the key tree and recreates it - emptied a key nobody would
+# miss and nothing ever failed.
+#
+# The second arm happens in the FULL OS, against the real Winlogon key, and that
+# is where it threw. Step 11 'Restart into Windows' (WinPE -> FullOS) succeeded
+# and step 12 'Restart before second application pass' (FullOS -> FullOS) did
+# not. Nothing in this file covered a second arm from the full OS at all.
+#
+# THE ADAPTER IS WHERE THE DEFECT WAS AND THE CONTRACT TEST IS WHERE IT IS
+# CAUGHT - the fake was right all along, so these tests were green before the
+# fix and are green after it. They are here because the SEQUENCE SHAPE was
+# uncovered: two arms, both in the full OS, converging rather than accumulating.
+# A seeded Winlogon value that must survive both of them is the engine-level
+# expression of "a set is not a delete".
+Describe 'Invoke-HDTTaskSequence' {
+
+    Context 'two Restart steps in the FullOS phase' {
+
+        BeforeAll {
+            $script:fullOsYaml = @'
+schemaVersion: 1
+id: FULLOS-TWO-RESTARTS
+name: Two restarts in the full OS
+steps:
+  - group: Configure
+    runIn: FullOS
+    steps:
+      - name: Install applications
+        type: NoOp
+      - name: Restart into Windows
+        type: Restart
+      - name: Restart before second application pass
+        type: Restart
+      - name: Finish
+        type: NoOp
+'@
+
+            # WHAT A REAL Winlogon KEY HAS IN IT BESIDES HDT'S OWN VALUES. These
+            # are the ones the delete took with it, and they are seeded so the
+            # test can say out loud that arming twice must not cost the machine
+            # its shell.
+            $script:seeded = @{
+                'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' = @{
+                    Shell    = 'explorer.exe'
+                    Userinit = 'C:\Windows\system32\userinit.exe,'
+                }
+            }
+
+            $script:fs = New-HDTFakeFileSystem
+            $script:sharedLsa = New-HDTFakeLsaService
+
+            $first = New-HDTSequenceTestHarness -Yaml $script:fullOsYaml -Phase FullOS `
+                -FileSystem $script:fs -Lsa $script:sharedLsa -RegistryValue $script:seeded `
+                -Variable @{ HDTAdminPassword = 'Set-By-The-Rules-1' }
+            $script:firstResult = Invoke-HDTTaskSequence -Sequence $first.Sequence -Context $first.Context -State $first.State
+            $script:firstHarness = $first
+
+            # Leg two: the state document out of the fake filesystem as TEXT,
+            # which is what a machine that has actually rebooted has.
+            $stateJson = $script:fs.ReadAllText($first.StatePath)
+
+            $second = New-HDTSequenceTestHarness -Yaml $script:fullOsYaml -Phase FullOS `
+                -FileSystem $script:fs -Lsa $script:sharedLsa -StateJson $stateJson `
+                -RegistryValue $script:seeded `
+                -Variable @{ HDTAdminPassword = 'Set-By-The-Rules-1' }
+            $second.State.leg = [int] $second.State.leg + 1
+            $script:secondResult = Invoke-HDTTaskSequence -Sequence $second.Sequence -Context $second.Context -State $second.State
+            $script:secondHarness = $second
+        }
+
+        It 'ends the first leg at the first Restart' {
+            $script:firstResult.Status | Should -BeExactly 'RebootPending'
+            @($script:firstResult.Result | ForEach-Object { $_.Name }) |
+                Should -Be @('Install applications', 'Restart into Windows')
+        }
+
+        It 'ends the second leg at the second Restart' {
+            $script:secondResult.Status | Should -BeExactly 'RebootPending'
+
+            $ran = @($script:secondResult.Result | Where-Object { $_.Status -ne 'Skipped' })
+            $ran[0].Name | Should -BeExactly 'Restart before second application pass'
+        }
+
+        It 'arms once on each leg' {
+            @(Get-HDTLogRecord -FileSystem $script:fs -Path $script:firstHarness.Log.JsonlPath -Event 'reboot.arm').Count |
+                Should -Be 2
+        }
+
+        It 'counts down rather than accumulating' {
+            # One more Restart after the first, so two autologons; none after the
+            # second, so one. Arming twice leaves what arming once left.
+            $script:firstHarness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 2
+            $script:secondHarness.Registry.GetValue($script:winlogonPath, 'AutoLogonCount') | Should -Be 1
+        }
+
+        It 'keeps the rest of the Winlogon key across both arms' {
+            # THE ONE THAT NAMES THE DEFECT. Arming used to empty this key.
+            foreach ($harness in @($script:firstHarness, $script:secondHarness)) {
+                $harness.Registry.GetValue($script:winlogonPath, 'Shell') | Should -BeExactly 'explorer.exe'
+                $harness.Registry.GetValue($script:winlogonPath, 'Userinit') |
+                    Should -BeExactly 'C:\Windows\system32\userinit.exe,'
+            }
+        }
+
+        It 'never deletes a registry key while arming' {
+            # A set is a set. No arm may issue a remove of the key it writes to.
+            @($script:firstHarness.Journal | Where-Object {
+                    $_.Service -eq 'RegistryService' -and $_.Operation -eq 'RemoveKey'
+                }) | Should -BeNullOrEmpty
+
+            @($script:secondHarness.Journal | Where-Object {
+                    $_.Service -eq 'RegistryService' -and $_.Operation -eq 'RemoveKey'
+                }) | Should -BeNullOrEmpty
+        }
+
+        It 're-arms RunOnce on the second leg, because RunOnce is consumed each leg' {
+            $script:secondHarness.Registry.GetValue($script:runOncePath, 'HDTResume') | Should -Not -BeNullOrEmpty
+        }
+
+        It 'restarts on both legs' {
+            @($script:firstHarness.Journal | Where-Object {
+                    $_.Service -eq 'PowerService' -and $_.Operation -eq 'Restart'
+                }).Count | Should -Be 1
+
+            @($script:secondHarness.Journal | Where-Object {
+                    $_.Service -eq 'PowerService' -and $_.Operation -eq 'Restart'
+                }).Count | Should -Be 1
+        }
+    }
+}
+
+# THE RECORD A FATAL FAILURE LEAVES BEHIND.
+#
+# When the reboot ceremony itself throws, nothing has turned that into a step
+# result - Invoke-HDTStepAttempt only catches what a STEP threw - so it reaches
+# the engine's own catch, and that catch writes the last thing anybody will ever
+# know about the deployment. On run-20260830-204613 the whole of it was:
+#
+#   The task sequence stopped: Exception calling "SetValue" with "4"
+#   argument(s): "The running command stopped because the preference variable
+#   "ErrorActionPreference" or common parameter is set to Stop: Cannot delete a
+#   subkey tree because the subkey does not exist."
+#
+# THE DOUBLE THROWS THROUGH A ScriptMethod ON PURPOSE, because that is what
+# builds the three-layer MethodInvocationException the old record could not read.
+# Throwing from a plain function would produce a one-layer error and would prove
+# nothing about the unwrap.
+Describe 'Invoke-HDTTaskSequence' {
+
+    Context 'a fatal error in the reboot ceremony' {
+
+        BeforeAll {
+            # A REAL SERVICE DOUBLE, NOT A Mock (tests/helpers/README.md 10). It
+            # delegates everything to a real fake and throws on the one call the
+            # ceremony makes, from inside a ScriptMethod.
+            $script:brokenLsa = [pscustomobject] @{
+                Inner       = New-HDTFakeLsaService
+                ServiceName = 'LsaService'
+            }
+            $script:brokenLsa | Add-Member -MemberType ScriptProperty -Name Operations -Value { $this.Inner.Operations }
+            # A SETTER AS WELL AS A GETTER: the harness assigns the shared
+            # cross-service journal onto every service it is given, and a
+            # read-only ScriptProperty makes that a SetValueException rather than
+            # a wiring problem anybody can see.
+            $script:brokenLsa | Add-Member -MemberType ScriptProperty -Name Journal `
+                -Value { $this.Inner.Journal } -SecondValue { $this.Inner.Journal = $args[0] }
+            $script:brokenLsa | Add-Member -MemberType ScriptMethod -Name GetSecret -Value {
+                param([string] $Name) return $this.Inner.GetSecret($Name)
+            }
+            $script:brokenLsa | Add-Member -MemberType ScriptMethod -Name RemoveSecret -Value {
+                param([string] $Name) $this.Inner.RemoveSecret($Name)
+            }
+            $script:brokenLsa | Add-Member -MemberType ScriptMethod -Name SetSecret -Value {
+                param([string] $Name, [string] $Value)
+
+                $ErrorActionPreference = 'Stop'
+                throw [System.ArgumentException]::new('Cannot delete a subkey tree because the subkey does not exist.')
+            }
+
+            $script:failYaml = @'
+schemaVersion: 1
+id: FATAL-ARM
+name: A restart that cannot be armed
+steps:
+  - name: Restart into Windows
+    type: Restart
+  - name: Never reached
+    type: NoOp
+'@
+
+            $harness = New-HDTSequenceTestHarness -Yaml $script:failYaml -Phase FullOS `
+                -Lsa $script:brokenLsa -Variable @{ HDTAdminPassword = 'Set-By-The-Rules-1' }
+
+            $script:fatalResult = Invoke-HDTTaskSequence -Sequence $harness.Sequence `
+                -Context $harness.Context -State $harness.State
+            $script:fatalHarness = $harness
+
+            $script:fatalRecord = @(Get-HDTLogRecord -FileSystem $harness.FileSystem `
+                    -Path $harness.Log.JsonlPath -Event 'step.fail')[-1]
+        }
+
+        It 'fails the run' {
+            $script:fatalResult.Status | Should -BeExactly 'Failed'
+        }
+
+        It 'writes a step.fail record' {
+            $script:fatalRecord | Should -Not -BeNullOrEmpty
+        }
+
+        It 'names the cause in the message rather than the plumbing that wrapped it' {
+            $script:fatalRecord.message | Should -BeLike '*Cannot delete a subkey tree*'
+        }
+
+        It 'names the real exception type' {
+            $script:fatalRecord.data.exceptionType | Should -BeExactly 'System.ArgumentException'
+        }
+
+        It 'keeps the outer wrapper too, because the chain is evidence' {
+            $script:fatalRecord.data.outerExceptionType |
+                Should -BeExactly 'System.Management.Automation.MethodInvocationException'
+            [int] $script:fatalRecord.data.layerCount | Should -BeGreaterOrEqual 2
+        }
+
+        It 'carries the file and the line' {
+            $script:fatalRecord.data.scriptName | Should -Not -BeNullOrEmpty
+            [int] $script:fatalRecord.data.scriptLineNumber | Should -BeGreaterThan 0
+            $script:fatalRecord.data.position | Should -Not -BeNullOrEmpty
+        }
+
+        It 'carries the stack trace' {
+            $script:fatalRecord.data.stackTrace | Should -Not -BeNullOrEmpty
+        }
+
+        It 'carries the category and the fully qualified error id' {
+            $script:fatalRecord.data.category | Should -Not -BeNullOrEmpty
+            $script:fatalRecord.data.fullyQualifiedErrorId | Should -Not -BeNullOrEmpty
+        }
+
+        It 'still says which sequence it was' {
+            $script:fatalRecord.data.sequenceId | Should -BeExactly 'FATAL-ARM'
+        }
+
+        It 'keeps the human-readable message to one line' {
+            # The CMTrace twin is read by eye, one row per record. The stack goes
+            # in data, never into the middle of the sentence.
+            @($script:fatalRecord.message -split "`n").Count | Should -Be 1
+        }
     }
 }

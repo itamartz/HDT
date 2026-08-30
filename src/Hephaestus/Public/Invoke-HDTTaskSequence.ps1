@@ -1063,16 +1063,34 @@
             }
 
             # Failed.
+            #
+            # AND THE DIAGNOSTICS TRAVEL WITH IT. Invoke-HDTStepAttempt keeps the
+            # ErrorRecord's full detail on the outcome - every exception layer,
+            # the file, the line, the stack - because it is the last place the
+            # ErrorRecord still exists. This is the record an administrator opens,
+            # so this is where that detail has to surface. A step that FAILED
+            # rather than THREW carries no Diagnostic, and the record simply has
+            # the fields below.
+            $failData = [ordered] @{
+                index        = $index
+                attempt      = [int] $attempt.Attempt
+                exitCode     = [int] $attempt.ExitCode
+                failureClass = $attempt.FailureClass
+                timedOut     = [bool] $attempt.TimedOut
+            }
+
+            # READ DEFENSIVELY: a third-party step type dot-sourced from Modules\
+            # may return an outcome this engine did not build.
+            if ($null -ne $attempt.PSObject.Properties['Diagnostic'] -and $null -ne $attempt.Diagnostic) {
+                foreach ($field in @($attempt.Diagnostic.Keys)) {
+                    $failData[$field] = $attempt.Diagnostic[$field]
+                }
+            }
+
             Write-HDTLog -Context $log -Severity Error -Event 'step.fail' `
                 -Message ("step {0} '{1}' failed: {2}" -f $index, $stepName, $attempt.Message) `
                 -DurationMs ([long] $attempt.DurationMs) `
-                -Data ([ordered] @{
-                    index        = $index
-                    attempt      = [int] $attempt.Attempt
-                    exitCode     = [int] $attempt.ExitCode
-                    failureClass = $attempt.FailureClass
-                    timedOut     = [bool] $attempt.TimedOut
-                })
+                -Data $failData
 
             if ([bool] $step.ContinueOnError) {
                 Write-HDTLog -Context $log -Severity Warning `
@@ -1103,9 +1121,28 @@
         # reaching here means the engine failed rather than the deployment.
         $runStatus = 'Failed'
 
+        # -- THE RECORD THAT HAD TO EXPLAIN A DEPLOYMENT AND COULD NOT --------
+        #
+        # This line used to be $_.Exception.Message and nothing else. On
+        # run-20260830-204613 that produced, as the ENTIRE record for a fatal
+        # failure: 'The task sequence stopped: Exception calling "SetValue" with
+        # "4" argument(s): "The running command stopped because the preference
+        # variable "ErrorActionPreference" or common parameter is set to Stop:
+        # Cannot delete a subkey tree because the subkey does not exist."'
+        #
+        # Three quoted layers deep, naming a SET while the failure was a DELETE,
+        # with no type, no file, no line and no stack - and the outermost layer,
+        # which is PowerShell describing its own method-call plumbing, is the one
+        # that won. Nobody can act on that at 2am on a machine they cannot touch.
+        #
+        # SO THE SENTENCE NAMES THE CAUSE AND THE DIAGNOSTICS GO IN data, where
+        # JSONL can carry them and the CMTrace twin stays one scannable line per
+        # record. Get-HDTErrorDetail has the reasoning and the full field list.
+        $fatal = Get-HDTErrorDetail -ErrorRecord $_
+        $fatal['sequenceId'] = [string] $Sequence.Id
+
         Write-HDTLog -Context $log -Severity Error -Event 'step.fail' `
-            -Message ("The task sequence stopped: {0}" -f $_.Exception.Message) `
-            -Data ([ordered] @{ sequenceId = [string] $Sequence.Id })
+            -Message (Get-HDTErrorSummary -ErrorRecord $_) -Data $fatal
     } finally {
         $log.ClearStep()
 
@@ -1132,36 +1169,29 @@
         # line of the run.
         if ($runStatus -ne 'RebootPending') {
 
-            # -- the heartbeat is swept, and until now it never was ----------
+            # -- THE HEARTBEAT IS NOT SWEPT HERE, AND THE SWEEP THAT USED TO BE
+            #    HERE NEVER RAN TO ANY EFFECT -------------------------------
             #
-            # <share>\Logs\_active\<RunId>.json is written every step so a
-            # console watching the share can see a machine still working - MDT's
-            # SLShareDynamicLogging. NOTHING EVER REMOVED IT. A share that had
-            # deployed twenty machines carried twenty files in a folder called
-            # _active, none of which was active, and the name stopped meaning
-            # anything. Get-HDTConsoleMonitorSummary already described the gap in
-            # passing: "a finished run in Logs\_active\ is a run whose file has
-            # not been swept yet".
+            # This block deleted <share>\Logs\_active\<RunId>.json, and then the
+            # verdict heartbeat at the end of this same finally WROTE IT
+            # STRAIGHT BACK - with the run's final status, which is the whole
+            # point of that write. So the delete was undone microseconds later
+            # on every run that reached it, and the comment that stood here
+            # claimed a behaviour the code did not have. Both markers on this
+            # lab's share outlived it: run-20260829-223623 reading Succeeded and
+            # run-20260830-204613 reading Failed.
             #
-            # UNDER THE SAME GUARD AS THE TEARDOWN, and for the same reason. A
-            # RebootPending run IS still active - it is coming back - and
-            # removing its heartbeat would make a restarting machine vanish from
-            # the console for the minutes it takes to return.
+            # AND LEAVING THE MARKER IS THE BEHAVIOUR THE PRODUCT WANTS. It is
+            # the one artifact that survives a pruned log tree - twice here it
+            # was all that was left of a deployment - so a run that FAILED has to
+            # be able to say so from it. Get-HDTConsoleMonitorSummary already
+            # counts finished runs in _active as a normal state rather than an
+            # error, and Remove-HDTMonitorRun is the command that clears one when
+            # somebody decides to.
             #
-            # A SWEEP THAT FAILS IS NOT A RUN THAT FAILED. The share may have
-            # gone away, which is exactly when the rest of this block matters
-            # most.
-            if (-not [string]::IsNullOrWhiteSpace($activeStatusPath)) {
-                try {
-                    if ($fileSystem.TestPath($activeStatusPath)) {
-                        $fileSystem.RemoveItem($activeStatusPath)
-                    }
-                } catch {
-                    Write-HDTLog -Context $log -Severity Warning `
-                        -Message ("The heartbeat at '{0}' could not be swept: {1}. The run is unaffected; a console watching this share will show it as finished rather than gone." -f
-                            $activeStatusPath, $_.Exception.Message)
-                }
-            }
+            # A run that is still coming back keeps its marker for a different
+            # reason again: RebootPending never reaches this branch at all, so a
+            # restarting machine never vanishes from the console.
 
             $registryService = $Context.Service.Registry
             $lsaService = $Context.Service.Lsa
@@ -1208,16 +1238,6 @@
         $failedCount = @(@($state.step) | Where-Object { [string] $_.status -eq 'Failed' }).Count
         $skippedCount = @(@($state.step) | Where-Object { [string] $_.status -eq 'Skipped' }).Count
 
-        Write-HDTLog -Context $log -Event 'run.end' `
-            -Message ("Run {0} ended {1}: {2} completed, {3} failed, {4} skipped" -f
-                $Context.RunId, $runStatus, $completedCount, $failedCount, $skippedCount) `
-            -Data ([ordered] @{
-                status    = $runStatus
-                completed = $completedCount
-                failed    = $failedCount
-                skipped   = $skippedCount
-                leg       = [int] $state.leg
-            })
 
         # WHERE THE RUN GOT TO, SAID OUT LOUD.
         #
@@ -1269,6 +1289,28 @@
         }
 
         Write-HDTStatus @statusArgument
+
+        # -- run.end IS THE LAST LINE OF THE RUN, AND THAT IS ASSERTED --------
+        #
+        # It used to be written BEFORE the verdict heartbeat above, which was
+        # harmless only while Write-HDTStatus logged nothing. It logs its
+        # transition now - every status change is a record, and the terminal one
+        # is the record that says how the deployment ended - so writing the
+        # heartbeat first is what keeps run.end genuinely last.
+        #
+        # ANYTHING READING THIS LOG READS run.end AS THE END. The reboot teardown
+        # above is ordered against it for the same reason, and
+        # Invoke-HDTTaskSequence.Ordering.Tests.ps1 asserts it directly.
+        Write-HDTLog -Context $log -Event 'run.end' `
+            -Message ("Run {0} ended {1}: {2} completed, {3} failed, {4} skipped" -f
+                $Context.RunId, $runStatus, $completedCount, $failedCount, $skippedCount) `
+            -Data ([ordered] @{
+                status    = $runStatus
+                completed = $completedCount
+                failed    = $failedCount
+                skipped   = $skippedCount
+                leg       = [int] $state.leg
+            })
 
         # THE LAST THING THE SCREEN IS TOLD, and the only update that carries a
         # verdict: run.end has just been written, so this is where Running

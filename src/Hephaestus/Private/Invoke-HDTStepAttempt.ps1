@@ -1,4 +1,4 @@
-function Invoke-HDTStepAttempt {
+﻿function Invoke-HDTStepAttempt {
     <#
         .SYNOPSIS
             Runs one step to its retry limit and reports the outcome in one
@@ -143,13 +143,26 @@ function Invoke-HDTStepAttempt {
         Update-HDTProgressDisplay -Context $Context
 
         $thrown = $null
+
+        # DECLARED HERE BECAUSE StrictMode MAKES A NEVER-ASSIGNED READ AN ERROR,
+        # and the outcome below reads it on every step - including the ones that
+        # succeeded and never entered the catch.
+        $diagnostic = $null
         $startedUtc = $clock.GetUtcNow()
 
         try {
             $result = Invoke-HDTStep -Step $Step -Context $Context -StepType $StepType
         } catch {
             $thrown = $_
-            $result = New-HDTStepResult -Status Failed -Message ([string] $_.Exception.Message)
+
+            # THE INNERMOST MESSAGE, NOT THE OUTERMOST WRAPPER. $_.Exception.Message
+            # on anything thrown through a ScriptMethod or under an
+            # ErrorActionPreference Stop is PowerShell's own plumbing wrapped
+            # around the sentence that matters - see Get-HDTErrorDetail. The full
+            # chain, the file, the line and the stack travel on $diagnostic and
+            # reach the step.fail record's data.
+            $diagnostic = Get-HDTErrorDetail -ErrorRecord $_
+            $result = New-HDTStepResult -Status Failed -Message ([string] $diagnostic['cause'])
         }
 
         $durationMillisecond = [long] (($clock.GetUtcNow()) - $startedUtc).TotalMilliseconds
@@ -195,6 +208,13 @@ function Invoke-HDTStepAttempt {
                 TimedOut     = $timedOut
                 FailureClass = $failureClass
                 Reenter      = $reenter
+
+                # $null unless the step threw. It is the full error detail -
+                # every exception layer, the file, the line, the stack - carried
+                # to the engine loop so the step.fail record can publish it. The
+                # loop is where the record is written; this is where the
+                # ErrorRecord still exists.
+                Diagnostic   = $diagnostic
             })
 
         if ([string] $result.Status -ne 'Failed') {
