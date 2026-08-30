@@ -601,6 +601,121 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
         }
     }
 
+    # THE SUMMARY MUST AGREE WITH THE LINES ABOVE IT (CLAUDE.md, logging).
+    #
+    # Steps\013-Install-Applications-second-pass-idempot.log, run-20260830-221934,
+    # verbatim:
+    #
+    #   skipped 1 of 2: Acrobat Acrobat Reader DC ..., installed on an earlier leg of this run.
+    #   skipped 2 of 2: TightVNC Software Tightvnc ..., installed on an earlier leg of this run.
+    #   installed 2 application(s), skipped 0 already present.
+    #
+    # Both were skipped and the summary claimed two installs and no skips. The
+    # counter was $installed, which is SEEDED from _HDTApplicationInstalled at
+    # the top of the step - so on a resumed leg it starts non-empty and counts
+    # work an earlier leg did as work this one did.
+    #
+    # AND THERE ARE TWO KINDS OF SKIP, which the old summary could not express
+    # with one number. "A detect rule found it already on the machine" and "this
+    # run installed it before the reboot" are the difference between an
+    # application that was there before HDT arrived and idempotency working, and
+    # an admin reading whether the second pass did what it was supposed to needs
+    # them apart.
+    Context 'the summary, and whether it agrees with its own detail' {
+
+        It 'counts nothing as installed when every application was done on an earlier leg' {
+            $context = & $script:newContext $script:process -Variable @{
+                _HDTApplicationInstalled = [string[]] @('Contoso-Agent', 'Contoso-Suite')
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            [string] $result.Status | Should -BeExactly 'Completed'
+            @($script:process.Operations).Count | Should -Be 0
+
+            [string] $result.Message | Should -BeLike 'installed 0 of 2 *'
+        }
+
+        It 'counts the two kinds of skip separately, and says which is which' {
+            $context = & $script:newContext $script:process -Variable @{
+                _HDTApplicationInstalled = [string[]] @('Contoso-Agent', 'Contoso-Suite')
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            [string] $result.Message | Should -BeLike '*0 that a detect rule found already present*'
+            [string] $result.Message | Should -BeLike '*2 that an earlier leg of this run installed*'
+        }
+
+        It 'puts both kinds of skip on the step result, under names that cannot be confused' {
+            $context = & $script:newContext $script:process -Variable @{
+                _HDTApplicationInstalled = [string[]] @('Contoso-Agent', 'Contoso-Suite')
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            @($result.Data.installedThisLeg).Count | Should -Be 0
+            @($result.Data.skippedAlreadyPresent).Count | Should -Be 0
+            @($result.Data.skippedEarlierLeg) | Should -Be @('Contoso-Agent', 'Contoso-Suite')
+
+            # AND THE CHECKPOINT IS UNCHANGED. installed stays what the RUN has
+            # installed across every leg, because that is what
+            # _HDTApplicationInstalled is and what the next leg resumes from.
+            @($result.Data.installed) | Should -Be @('Contoso-Agent', 'Contoso-Suite')
+            @($context.Variable['_HDTApplicationInstalled']) | Should -Be @('Contoso-Agent', 'Contoso-Suite')
+        }
+
+        It 'still counts a detect-rule skip as one, and names it as one' {
+            # The other kind, on a leg that carries no progress at all: Agent's
+            # detect rule finds its file, Suite declares no rule and installs.
+            $context = & $script:newContext $script:process -ExtraFile @{
+                'C:\Program Files\Contoso\Agent\agent.exe' = 'binary'
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            [string] $result.Message | Should -BeLike 'installed 1 of 2 *'
+            [string] $result.Message | Should -BeLike '*1 that a detect rule found already present*'
+            [string] $result.Message | Should -BeLike '*0 that an earlier leg of this run installed*'
+
+            @($result.Data.skippedAlreadyPresent) | Should -Be @('Contoso-Agent')
+            @($result.Data.skippedEarlierLeg).Count | Should -Be 0
+            @($result.Data.installedThisLeg) | Should -Be @('Contoso-Suite')
+        }
+
+        It 'counts an ordinary first pass as installs and nothing else' {
+            $context = & $script:newContext $script:process
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            [string] $result.Message | Should -BeLike 'installed 2 of 2 *'
+            [string] $result.Message | Should -BeLike '*0 that a detect rule found already present*'
+            [string] $result.Message | Should -BeLike '*0 that an earlier leg of this run installed*'
+        }
+
+        It 'writes the same summary to the log as it returns' {
+            $context = & $script:newContext $script:process -Variable @{
+                _HDTApplicationInstalled = [string[]] @('Contoso-Agent', 'Contoso-Suite')
+            }
+            $step = & $script:newStep 'Install applications' ([ordered] @{ selection = @('Contoso-Suite') })
+
+            $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
+
+            $summary = @(& $script:jsonlRecord $script:fileSystem |
+                    Where-Object { $_.component -eq 'InstallApplications' -and
+                        ([string] $_.message).StartsWith('installed ') -and
+                        ([string] $_.message) -like '*detect rule*' })
+
+            @($summary).Count | Should -Be 1
+            [string] $summary[0].message | Should -BeExactly ([string] $result.Message)
+        }
+    }
+
     Context 'what an admin can reconstruct from the log' {
 
         # THE TEST IS AN ADMIN AT A CUSTOMER SITE WITH THIS LOG AND NOTHING
@@ -1201,7 +1316,10 @@ Describe 'Invoke-HDTInstallApplicationsStep' {
 
             $result = Invoke-HDTInstallApplicationsStep -Step $step -Context $context
 
-            @($result.Data['skipped']) | Should -Contain 'Contoso-Agent'
+            # skippedAlreadyPresent, not 'skipped': the two kinds of skip are
+            # counted and named apart, and a detect-rule skip is this one.
+            @($result.Data['skippedAlreadyPresent']) | Should -Contain 'Contoso-Agent'
+            @($result.Data['skippedEarlierLeg']).Count | Should -Be 0
         }
     }
 

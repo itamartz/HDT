@@ -84,8 +84,13 @@
             only by the detection rules that use them.
 
         .OUTPUTS
-            A New-HDTStepResult. Data carries planned, installed, skipped and, on
-            a failure, the application and its exit code.
+            A New-HDTStepResult. Data carries planned, installed (what the RUN
+            has installed, across every leg - the _HDTApplicationInstalled
+            checkpoint), installedThisLeg, skippedAlreadyPresent (a detect rule
+            found it on the machine), skippedEarlierLeg (this run installed it
+            before a reboot) and, on a failure, the application and its exit
+            code. The two kinds of skip are never merged: one says the software
+            was there before HDT arrived, the other says idempotency worked.
 
         .EXAMPLE
             $clock = New-HDTClock
@@ -247,9 +252,11 @@
             -Data ([ordered] @{ planned = 0 })
 
         return (New-HDTStepResult -Status Completed -Message $message -Data ([ordered] @{
-                    planned   = [string[]] @()
-                    installed = [string[]] @()
-                    skipped   = [string[]] @()
+                    planned               = [string[]] @()
+                    installed             = [string[]] @()
+                    installedThisLeg      = [string[]] @()
+                    skippedAlreadyPresent = [string[]] @()
+                    skippedEarlierLeg     = [string[]] @()
                 }))
     }
 
@@ -306,7 +313,22 @@
         }
     }
 
+    # WHAT THIS LEG DID, KEPT APART FROM WHAT THE RUN HAS DONE. $installed is
+    # SEEDED above from _HDTApplicationInstalled, so on a resumed leg it starts
+    # non-empty - it is the run's checkpoint and the next leg resumes from it.
+    # Counting it as "installed" is what made the summary contradict its own
+    # detail on run-20260830-221934: two applications logged as skipped and a
+    # closing line reading "installed 2 application(s), skipped 0 already
+    # present."
+    $installedThisLeg = New-Object -TypeName System.Collections.ArrayList
+
+    # AND TWO KINDS OF SKIP, NEVER ONE NUMBER. "A detect rule found it already
+    # on the machine" and "this run installed it before the reboot" answer
+    # different questions - the first is an application that was there before
+    # HDT arrived, the second is idempotency working - and an admin reading a
+    # second pass needs to tell them apart. $skipped is the detect-rule kind.
     $skipped = New-Object -TypeName System.Collections.ArrayList
+    $skippedEarlierLeg = New-Object -TypeName System.Collections.ArrayList
 
     $comSpec = 'cmd.exe'
     if ($null -ne $Context.Service.Environment) {
@@ -598,6 +620,8 @@
         # application rather than restarting the list is the whole point of
         # checkpointing.
         if ($installed -contains $id) {
+            [void] $skippedEarlierLeg.Add($id)
+
             Write-HDTLog -Context $Context.Log -Severity Debug -Component 'InstallApplications' `
                 -Message ("'{0}' was installed on an earlier leg of this run." -f $id) `
                 -Data ([ordered] @{ application = $id })
@@ -615,10 +639,12 @@
                 -ScriptInvoker $Context.Service.ScriptInvoker -Variable $Context.Variable
         } catch {
             return (& $fail ("'{0}': {1}" -f $id, [string] $_.Exception.Message) ([ordered] @{
-                        application = $id
-                        planned     = $plannedId
-                        installed   = [string[]] @($installed)
-                        skipped     = [string[]] @($skipped)
+                        application           = $id
+                        planned               = $plannedId
+                        installed             = [string[]] @($installed)
+                        installedThisLeg      = [string[]] @($installedThisLeg)
+                        skippedAlreadyPresent = [string[]] @($skipped)
+                        skippedEarlierLeg     = [string[]] @($skippedEarlierLeg)
                     }))
         }
 
@@ -744,11 +770,13 @@
         $exitCode = [int] $result.ExitCode
 
         $data = [ordered] @{
-            application = $id
-            exitCode    = $exitCode
-            planned     = $plannedId
-            installed   = [string[]] @($installed)
-            skipped     = [string[]] @($skipped)
+            application           = $id
+            exitCode              = $exitCode
+            planned               = $plannedId
+            installed             = [string[]] @($installed)
+            installedThisLeg      = [string[]] @($installedThisLeg)
+            skippedAlreadyPresent = [string[]] @($skipped)
+            skippedEarlierLeg     = [string[]] @($skippedEarlierLeg)
         }
 
         # THE CODES IT WAS CONFIGURED TO ACCEPT, AND WHICH ONE MATCHED. Both
@@ -824,6 +852,7 @@
             # 3010 is "installed, reboot required" - so it IS installed, and the
             # next leg must not run it again.
             [void] $installed.Add($id)
+            [void] $installedThisLeg.Add($id)
             & $checkpoint
 
             $message = "'{0}' returned exit code {1} in {2} ms and asked for a restart. {3} of {4} application(s) done." -f
@@ -831,10 +860,12 @@
 
             Write-HDTLog -Context $Context.Log -Message $message -Event 'native.exec' `
                 -Component 'InstallApplications' -Data ([ordered] @{
-                    application = $id
-                    exitCode    = $exitCode
-                    installed   = [string[]] @($installed)
-                    skipped     = [string[]] @($skipped)
+                    application           = $id
+                    exitCode              = $exitCode
+                    installed             = [string[]] @($installed)
+                    installedThisLeg      = [string[]] @($installedThisLeg)
+                    skippedAlreadyPresent = [string[]] @($skipped)
+                    skippedEarlierLeg     = [string[]] @($skippedEarlierLeg)
                 })
 
             & $report $position $position $id (
@@ -843,11 +874,13 @@
 
             return (New-HDTStepResult -Status RebootRequested -ExitCode $exitCode -Reenter `
                     -Message $message -Data ([ordered] @{
-                        application = $id
-                        exitCode    = $exitCode
-                        planned     = $plannedId
-                        installed   = [string[]] @($installed)
-                        skipped     = [string[]] @($skipped)
+                        application           = $id
+                        exitCode              = $exitCode
+                        planned               = $plannedId
+                        installed             = [string[]] @($installed)
+                        installedThisLeg      = [string[]] @($installedThisLeg)
+                        skippedAlreadyPresent = [string[]] @($skipped)
+                        skippedEarlierLeg     = [string[]] @($skippedEarlierLeg)
                     }))
         }
 
@@ -857,6 +890,7 @@
         }
 
         [void] $installed.Add($id)
+        [void] $installedThisLeg.Add($id)
         & $checkpoint
 
         # THE HOUSE STYLE, NOT A FOURTH ONE. ApplyDrivers ends "in 48078 ms.",
@@ -875,14 +909,40 @@
             'installed {0} of {1}: {2}.' -f $position, $total, [string] $application.Name)
     }
 
-    $message = 'installed {0} application(s), skipped {1} already present.' -f @($installed).Count, @($skipped).Count
+    # THE CLOSING LINE, AND IT HAS TO AGREE WITH THE LINES ABOVE IT. This used
+    # to read "installed {n} application(s), skipped {n} already present." off
+    # $installed and $skipped, and both halves were wrong on a resumed leg:
+    # $installed is the RUN's checkpoint, seeded from _HDTApplicationInstalled
+    # before the loop starts, so a second pass that installed nothing at all
+    # reported every application the first pass had installed as its own work -
+    # directly under two lines each saying "skipped ..., installed on an earlier
+    # leg of this run".
+    #
+    # THREE NUMBERS, NOT TWO, because there are three outcomes and merging any
+    # two of them loses the question the line is read to answer. "0 installed, 2
+    # skipped" cannot distinguish a second pass proving idempotency from a
+    # machine that already had both applications before HDT touched it.
+    $message = ('installed {0} of {1} planned application(s) on this leg; ' +
+        'skipped {2} that a detect rule found already present and ' +
+        '{3} that an earlier leg of this run installed. ' +
+        '{4} of {1} planned application(s) are installed by this run in all.') -f
+    @($installedThisLeg).Count, @($plannedId).Count, @($skipped).Count,
+    @($skippedEarlierLeg).Count, @($installed).Count
 
     Write-HDTLog -Context $Context.Log -Message $message -Component 'InstallApplications' `
-        -Data ([ordered] @{ installed = [string[]] @($installed); skipped = [string[]] @($skipped) })
+        -Data ([ordered] @{
+            planned               = $plannedId
+            installed             = [string[]] @($installed)
+            installedThisLeg      = [string[]] @($installedThisLeg)
+            skippedAlreadyPresent = [string[]] @($skipped)
+            skippedEarlierLeg     = [string[]] @($skippedEarlierLeg)
+        })
 
     return (New-HDTStepResult -Status Completed -Message $message -Data ([ordered] @{
-                planned   = $plannedId
-                installed = [string[]] @($installed)
-                skipped   = [string[]] @($skipped)
+                planned               = $plannedId
+                installed             = [string[]] @($installed)
+                installedThisLeg      = [string[]] @($installedThisLeg)
+                skippedAlreadyPresent = [string[]] @($skipped)
+                skippedEarlierLeg     = [string[]] @($skippedEarlierLeg)
             }))
 }
