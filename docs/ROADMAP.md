@@ -711,11 +711,19 @@ evidence.
 
 ---
 
-## M7 — Capture and standalone media  ·  **DEFERRED TO v2**
+## M7 — Capture and standalone media  ·  **CAPTURE IN PROGRESS · MEDIA DEFERRED TO v2**
 
 > **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
 > kept here in full so v2 starts from a written plan rather than a memory. See
 > `.planning/ROADMAP.md` "v1 scope" for what deferring it costs.
+
+> **The capture half is being built, from 2026-08-31**, at the user's direction:
+> the `Sysprep` and `CaptureImage` steps, `Captures\` output and promotion into
+> the OS catalog. **`New-HDTMedia` stays deferred**, and so do the three
+> carried-over media behaviours at the foot of this section — nothing below
+> about the disc has been un-deferred by this. The milestone was written with
+> one exit that tests only the media half, so the capture half is given its own
+> below; both must pass before M7 as a whole is done.
 
 
 - `Sysprep` and `CaptureImage` steps; `Captures\` output; promotion into the OS
@@ -728,7 +736,32 @@ references is included, and nothing else (this is the correctness heart of media
 generation, and it is pure logic); provider-swap equivalence: the same sequence
 produces the same operation list under `Local` as under `Smb`.
 
-**Exit:** a USB stick built from the share deploys a machine with no network.
+**Exit — capture:** a VM deployed by HDT, customized, sysprepped by HDT and
+captured by HDT, whose WIM `Import-HDTOperatingSystem` promotes into the OS
+catalog, and which then deploys a **second** VM. That is the loop DESIGN §9.3
+says capture closes, and nothing short of the second deployment proves it: a WIM
+that exists, mounts and passes `Get-WindowsImage` is not evidence that the image
+inside it is generalized, bootable, or free of the first machine's identity.
+Three things it must also show, because each is a way the run can look green and
+be wrong:
+
+- The captured WIM **does not contain `\HDT`** — no resume agent, no first
+  machine's deployment log (DESIGN §9.3, note 7). If it does, the exclusion list
+  never reached DISM, and the second VM will resume somebody else's deployment.
+- The reference VM **reached WinPE and not OOBE** after the `Sysprep` step. A
+  machine that booted its own generalized Windows has spent a rearm and the
+  capture is of something else (DESIGN §9.3, note 4).
+- The `Captures\` write was proven **before** sysprep ran, not after the build
+  (DESIGN §9.3, note 5).
+
+**Run the two VMs in sequence, never concurrently.** `New-HDTLabVirtualMachine`
+enforces a combined 12 GB budget across running `HDT-*` VMs (CLAUDE.md, Hyper-V
+lab safety), so a criterion that starts the second machine while the first is
+still up fails on the budget rather than on the thing it is testing. Capture,
+stop the reference VM, then deploy the second.
+
+**Exit — media:** a USB stick built from the share deploys a machine with no
+network.
 
 **Carried over from v1, and it must be decided before `New-HDTMedia` is
 written** — three behaviours built for SMB that a disc has no answer for:
