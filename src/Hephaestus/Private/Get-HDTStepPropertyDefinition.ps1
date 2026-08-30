@@ -145,6 +145,18 @@
             & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the answer file is written to. Empty uses the volume the partition step published, which is what nearly every sequence wants.'
         }
 
+        # ROW ORDER IS THE TEMPLATE'S KEY ORDER: image then compress, which is
+        # what Get-HDTCaptureImageStepTemplate writes out, then the three the
+        # template deliberately leaves out because they have working defaults.
+        'CaptureImage' {
+            & $new 'image' 'Capture to' 'Text' '%HDTTaskSequenceID%.wim' 'The WIM this writes, under Captures\ on the share. A rooted path is taken as written; a name with no extension gets .wim.'
+            & $new 'compress' 'Compression' 'Choice' 'max' 'max is right for an image kept for years. fast halves the capture time and costs disk; none is for a lab.'
+            & $new 'name' 'Image name' 'Text' '' 'The name stored inside the WIM, which is what an Apply step asks for. Empty uses the file''s own name.'
+            & $new 'description' 'Description' 'Text' '' 'Stored inside the WIM beside the name. This is what tells somebody in six months what this build was.'
+            & $new 'source' 'Capture from' 'Text' '%HDTOSVolume%' 'The volume to read. Empty uses the volume the partition step published; HDT will not guess a drive letter to read an operating system out of.'
+            & $new 'configFile' 'Exclusion list' 'Text' '' 'What to leave out of the image. Empty uses the share''s Control\wimscript.ini if it has one, otherwise the list HDT ships - never nothing.'
+        }
+
         'ConfigureBoot' {
             & $new 'firmware' 'Firmware' 'Choice' 'auto' 'auto reads the machine rather than trusting what the sequence assumed, and is right unless a lab is deliberately testing the other path.'
             & $new 'recovery' 'Register recovery' 'Check' 'true' 'Points the recovery environment at the WinRE image on the recovery partition. Off leaves a machine with no recovery entry.'
@@ -194,6 +206,13 @@
         'SetVariable' {
             & $new 'variable' 'Variable name' 'Text' '' 'The name to set. It has to begin with HDT - the engine reserves everything else, and refuses a name starting with an underscore outright.'
             & $new 'value' 'Value' 'Text' '' 'What to set it to. %Other% tokens in here are expanded when the step runs, not when it is saved.'
+        }
+
+        # ONE ROW, AND IT IS THE ONE THE TEMPLATE LEAVES OUT. The template writes
+        # runIn and timeoutMinutes, both of which are common keys edited on the
+        # Options tab rather than here.
+        'Sysprep' {
+            & $new 'unattend' 'Answer file' 'Text' '' 'The GENERALIZE-pass answer file, which is not the deployment''s unattend.xml. It is staged where sysprep looks and deleted afterwards, so it does not travel inside the image. Empty runs sysprep without one.'
         }
 
         'Tattoo' {

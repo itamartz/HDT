@@ -253,8 +253,8 @@ try {
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
-<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">38</span></a></li>
-<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">21</span></a></li>
+<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">42</span></a></li>
+<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">23</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers &amp; selection profiles</span><span class="nav-n">21</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">6</span></a></li>
@@ -285,9 +285,9 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">275</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">281</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">275</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">281</div><div class="l">carry examples</div></div>
         <div class="stat"><div class="n">81</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
@@ -1760,7 +1760,7 @@ Save-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\seque
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">38 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
+    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">42 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTStepType" data-name="get-hdtsteptype" data-hay="get-hdtsteptype discovers every step type in the session, by convention. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTStepType">Get-HDTStepType</a></h3>
@@ -2372,8 +2372,74 @@ Get-HDTApplyDriversStepDescription -Step $step</pre><p>The row the console tree 
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
+<article class="fn" id="Get-HDTSysprepStepTemplate" data-name="get-hdtsysprepsteptemplate" data-hay="get-hdtsysprepsteptemplate the yaml for a new sysprep step. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTSysprepStepTemplate">Get-HDTSysprepStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML for a new Sysprep step.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTSysprepStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to the name this type is offered under.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTSysprepStepTemplate</pre><p>The YAML lines for a new Sysprep step, named after its type.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTSysprepStepTemplate -Name &#x27;Generalize the reference build&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under a name of your own. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>runIn: FullOS IS WRITTEN OUT AND IS NOT OPTIONAL. sysprep.exe is not in WinPE at all, so a step left on the default would fail with &quot;the system cannot find the file specified&quot; at the end of a reference build - a two-word answer to a question about a machine somebody spent a day preparing.</p>
+<p>timeoutMinutes IS WRITTEN OUT BECAUSE THE DEFAULT IS WRONG HERE. A generalize on a machine with a large provisioned appx set runs for several minutes and reports nothing while it does; sixty is MDT&#x27;s own order of magnitude and leaves room for the slow case rather than killing a working sysprep half way through.</p>
+<p>unattend: IS NOT. It is the GENERALIZE-PASS answer file, which is a different document from the deployment&#x27;s unattend.xml, and most reference builds need none - so the key is left out rather than written empty, because an empty one reads like a setting somebody forgot to fill in.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTSysprepStepDescription" data-name="get-hdtsysprepstepdescription" data-hay="get-hdtsysprepstepdescription describes a sysprep step by whether it answers setup from a file. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTSysprepStepDescription">Get-HDTSysprepStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a Sysprep step by whether it answers Setup from a file.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTSysprepStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REF-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;Sysprep&#x27; })[0]
+Get-HDTSysprepStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This is the step a technician watches in silence for several minutes at the end of a reference build, so the line says what is happening to the machine - it is being generalized, not merely &quot;sysprepped&quot; - and names the answer file when one is in play, because a wrong one is the commonest reason a generalize refuses.</p>
+<p>IT NAMES THE FILE AND NOT ITS CONTENTS. A sysprep answer file routinely carries a product key.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTCaptureImageStepTemplate" data-name="get-hdtcaptureimagesteptemplate" data-hay="get-hdtcaptureimagesteptemplate the yaml for a new captureimage step. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTCaptureImageStepTemplate">Get-HDTCaptureImageStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML for a new CaptureImage step.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTCaptureImageStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to the name this type is offered under.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTCaptureImageStepTemplate</pre><p>The YAML lines for a new CaptureImage step, named after its type.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTCaptureImageStepTemplate -Name &#x27;Capture the reference image&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under a name of your own. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>runIn: WinPE IS WRITTEN OUT AND IS LOAD-BEARING. A capture reads the volume it is capturing, and a volume with Windows running on it is a volume being written while it is read. The whole point of sysprepping and restarting first is that this step runs from the boot media instead (DESIGN 9.3).</p>
+<p>image: IS THE ONE VALUE, AND IT DEFAULTS TO THE SEQUENCE&#x27;S OWN ID. %HDTTaskSequenceID% means a share that builds three reference images gets three differently named WIMs without anybody typing a name, and a second run of the same sequence overwrites its own output rather than somebody else&#x27;s. It is a single-quoted scalar because the value carries per cent signs, and a double-quoted one would read a backslash as an escape - the trap StepTemplate.Contract.Tests.ps1 exists for.</p>
+<p>compress: max IS WRITTEN OUT because it is the decision worth seeing. A reference image is written once and then stored, copied and read for years, so the slow compression is the right default - but it is also the one that turns a ten-minute capture into twenty, and an author who is turning a lab build round quickly should be able to see the setting rather than discover it.</p>
+<p>name: AND description: ARE NOT. The step names the image after the file when nothing says otherwise, which is what an administrator would have typed anyway; writing them empty would make two more boxes to delete.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTCaptureImageStepDescription" data-name="get-hdtcaptureimagestepdescription" data-hay="get-hdtcaptureimagestepdescription describes a captureimage step by the wim it will write. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTCaptureImageStepDescription">Get-HDTCaptureImageStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a CaptureImage step by the WIM it will write.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTCaptureImageStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REF-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;CaptureImage&#x27; })[0]
+Get-HDTCaptureImageStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This is the step a technician watches for a quarter of an hour at the end of a reference build, so the line names the FILE that is being created - which is the one fact that says whether the right build is being captured, and the name the share will offer afterwards.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
 </div></section>
-    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">21 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
+    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">23 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
 <article class="fn" id="Invoke-HDTStep" data-name="invoke-hdtstep" data-hay="invoke-hdtstep dispatches one step to the invoke-hdt&lt;type&gt;step function that implements it. step context steptype">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTStep">Invoke-HDTStep</a></h3>
@@ -2573,6 +2639,74 @@ $result.Message</pre><p>Status is Completed, Failed or Skipped, and Message is w
 <p>AN EXPLICIT image: PATH BYPASSES THE CATALOG, for media too large to bring into the share. The indices are then read through IImageService.GetImageInfo, which is the same list Import-HDTOperatingSystem would have written into os.yaml. THE CONTENT PROVIDER IS NOT ASKED ABOUT IT EITHER: an explicit path is explicit, and a provider must not second-guess it.</p>
 <p>THE IMAGE IS RESOLVED THROUGH THE CONTENT PROVIDER when the run was started with one - $Context.Service.Content, handed to Get-HDTOperatingSystem, which is the whole change this step needed to close the seam 04-02 marked. It never learns whether that provider is Local or Smb, and the claim that it cannot tell is asserted by running this step through both and comparing the ordered list of every service call.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries imagePath, index, target and durationMs, or errorId on a refusal.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Invoke-HDTCaptureImageStep" data-name="invoke-hdtcaptureimagestep" data-hay="invoke-hdtcaptureimagestep reads the sysprepped reference machine into a wim the share can deploy. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTCaptureImageStep">Invoke-HDTCaptureImageStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Reads the sysprepped reference machine into a WIM the share can deploy.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTCaptureImageStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry Image and FileSystem services.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock `
+    -Image (New-HDTImageService) `
+    -Content (New-HDTContentProvider -Provider Smb -Root &#x27;\hdtserver\HdtShare&#x27;)
+$log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase WinPE -LogPath &#x27;X:\HDT\Logs&#x27; -Clock $clock
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase WinPE `
+    -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Variable ([ordered] @{}) -Service $service -Log $log
+$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REF-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;CaptureImage&#x27; })[0]
+Invoke-HDTCaptureImageStep -Step $step -Context $context</pre><p>Runs one step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTCaptureImageStep -Step $step -Context $context
+$result.Data.imagePath</pre><p>Where the WIM was written. It is also published as HDTCapturePath, so a later step - or Import-HDTOperatingSystem, which promotes a capture into the OS catalog - can name it without being told twice.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The second half of DESIGN 9.3&#x27;s reference-image loop, and ApplyImage&#x27;s mirror - the same service, the same dism meter, the same throttling, the inverse operation:</p>
+<pre class="block">  - name: Capture the reference image
+    type: CaptureImage
+    runIn: WinPE
+    image: &quot;%HDTTaskSequenceID%.wim&quot;
+    name: Windows 11 reference build
+    description: built by HDT
+    compress: max
+    source: &quot;%HDTOSVolume%&quot;       # optional
+    configFile: &quot;&quot;                # optional</pre>
+<p>THE SOURCE IS THE APPLIED OS VOLUME ROOT, W:\ and not a folder that merely contains an OS tree. A capture of the wrong directory produces a WIM that applies and does not boot, and nothing about the run says so.</p>
+<p>AND A SOURCE THAT RESOLVED TO NOTHING IS A REFUSAL NAMING THE VARIABLE, NEVER A GUESS AT C:. This is ApplyImage&#x27;s refusal read backwards: in WinPE a capture of C:\ is a capture of the boot media or of nothing at all, and either way it is not the machine anybody asked about.</p>
+<p>THE DESTINATION IS Captures\, resolved through Get-HDTWorkspacePath, because that is the folder the share is set up to let the deployment account write (DESIGN 2.1, Test-HDTShareAcl). A rooted path is taken as written, for a capture onto a second disk.</p>
+<p>THREE REFUSALS, ALL OF THEM BEFORE dism IS ASKED TO DO ANYTHING.</p>
+<pre class="block">  THE Local PROVIDER IS REFUSED OUTRIGHT. Under it the deploy root
+  is a read-only disc: Captures\ cannot be written at all, and there
+  is no correction a technician standing at the machine could make.
+  Attempting the write and reporting whatever the disc said would
+  describe the symptom and none of the cause (DESIGN 9.3 note 6).</pre>
+<pre class="block">  Captures\ IS PROVED WRITABLE FIRST, with a probe file this step
+  writes and removes. DESIGN 9.3 note 5: a reference build is hours
+  of installing and customizing, and discovering at the END that the
+  account cannot write Captures\ costs the whole run - after the
+  machine has been generalized and can no longer be picked up where
+  it left off. The probe is named from the run id rather than a
+  guid, so the one path that must fail is a path a test can seed.</pre>
+<pre class="block">  AND NO CAPTURE RUNS WITHOUT AN EXCLUSION LIST. dism takes
+  /ConfigFile:, MDT passes one on every capture (ZTIBackup.wsf:427),
+  and without one a capture swallows pagefile.sys, hiberfil.sys,
+  System Volume Information - and, because HDT put them there, the
+  resume agent at &lt;osvolume&gt;\HDT and this machine&#x27;s own deployment
+  log. An image carrying those re-runs somebody else&#x27;s deployment
+  state on every machine ever built from it.</pre>
+<pre class="block">  THE LIST IS RESOLVED, NOT ASSUMED: the share&#x27;s
+  Control\wimscript.ini when it has one, otherwise the module&#x27;s
+  Templates\Capture\wimscript.ini, which travels into every boot
+  image because Update-HDTBootImage copies Templates\ whole. A share
+  created before this existed still captures correctly, and a shop
+  with its own folder to exclude edits one file rather than the
+  module every machine boots. A named list that is not there is a
+  REFUSAL and never a silent capture without exclusions - dism
+  merely warns and captures everything, exit code zero, and the
+  image is wrong while the run is green.</pre>
+<p>THE SCRATCH DIRECTORY GOES ON THE VOLUME BEING CAPTURED, NEVER ON X:. WinPE runs from a RAM disk and dism left to itself expands into TEMP there and runs out of room - the same line ApplyUnattend carries, for the same reason (New-HDTImageService).</p>
+<p>max COMPRESSION BY DEFAULT, because a reference image is stored, copied and read for years and is written once. none and fast are offered for a lab turning one round quickly, and a fourth value is refused here rather than by dism four hours in - the closed set is Get-HDTStepPropertyChoice&#x27;s, which is the same list the console offers.</p>
+<p>THE METER IS dism&#x27;s OWN. /Capture-Image prints a percentage on stdout exactly as /Apply-Image does, the adapter hands every line to this step as it arrives, and ConvertFrom-HDTDismProgressLine turns it into a step.progress every five points and always at a hundred.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries capturePath, imagePath, name, compress, configFile and durationMs, or errorId on a refusal.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Invoke-HDTApplyUnattendStep" data-name="invoke-hdtapplyunattendstep" data-hay="invoke-hdtapplyunattendstep stages the unattend where windows setup consumes it. step context">
@@ -2952,6 +3086,63 @@ $result.Data.Path</pre><p>The registry key it stamped, which is where a technici
 <p>A SITE MAY ADD ITS OWN with a values: mapping, expanded against the live variables like every other authored string. An extra that collides with a standard name overrides it and says so: a silent substitution would make the tattoo lie about which sequence ran.</p>
 <p>IT WRITES THROUGH IRegistryService (rule 5), so the whole step runs under Pester against the hand-written fake. A registry that refuses it is a FAILED step and not a throw: the machine is otherwise deployed, and the loop is what decides what a failed step means.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Invoke-HDTSysprepStep" data-name="invoke-hdtsysprepstep" data-hay="invoke-hdtsysprepstep generalizes the reference machine, and proves it was generalized. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTSysprepStep">Invoke-HDTSysprepStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Generalizes the reference machine, and proves it was generalized.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTSysprepStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument. Its TimeoutMinutes becomes the process timeout.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry Cim, Registry, Process and FileSystem services, and an Lsa service for the autologon teardown.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock `
+    -Registry (New-HDTRegistryService) -Process (New-HDTProcessService) `
+    -Cim (New-HDTCimProvider) -Lsa (New-HDTLsaService) `
+    -Environment (New-HDTEnvironmentProvider)
+$log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase FullOS -LogPath &#x27;C:\HDT\Logs&#x27; -Clock $clock
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase FullOS `
+    -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Variable ([ordered] @{}) -Service $service -Log $log
+$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REF-WIN11\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;Sysprep&#x27; })[0]
+Invoke-HDTSysprepStep -Step $step -Context $context</pre><p>Runs one step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTSysprepStep -Step $step -Context $context
+$result.Data.imageState</pre><p>What the machine says about itself after the call, which is the fact this step exists to check. Anything but IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE is a Failed result.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The first half of DESIGN 9.3&#x27;s reference-image loop:</p>
+<pre class="block">  - name: Sysprep
+    type: Sysprep
+    runIn: FullOS
+    unattend: sysprep-unattend.xml    # optional
+    timeoutMinutes: 60</pre>
+<p>It runs</p>
+<pre class="block">  %SystemRoot%\system32\sysprep\sysprep.exe /quiet /generalize /oobe /quit</pre>
+<p>appending /unattend:&lt;path&gt; when one is configured - MDT&#x27;s line exactly (LTISysprep.wsf:257).</p>
+<p>/quit AND NEVER /shutdown, AND THAT IS NOT A STYLE CHOICE. /shutdown cuts the power inside the call: the step never returns, never reports success, and can check nothing about what sysprep actually did. A step whose only outcome is &quot;the power went out&quot; reports the same thing whether it worked or not - and it bypasses the checkpoint the WinPE leg resumes from. The reboot is a separate Restart step (DESIGN 9.3 notes 1 and 3).</p>
+<p>AN EXIT CODE OF ZERO IS NOT EVIDENCE, so afterwards this reads</p>
+<pre class="block">  HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State
+      ImageState</pre>
+<p>and fails unless it is IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE. sysprep can return 0 having declined to generalize, and the reason is never on the console - it is in %SystemRoot%\system32\sysprep\panther\setupact.log, which is what the failure message names. This repository has met the same shape once already: reagentc /setreimage exits 0, prints &quot;Operation Successful&quot; and registers nothing (DESIGN 9.2 note 5). Where an external tool leaves a readable trace of its own result, the step reads the trace.</p>
+<p>TWO PRECONDITIONS, BOTH BEFORE ANYTHING RUNS.</p>
+<pre class="block">  A DOMAIN MEMBER IS REFUSED. sysprep will not generalize one, and
+  Win32_ComputerSystem.DomainRole says so without asking sysprep:
+  1, 3, 4 and 5 are the joined roles. Finding this out from sysprep
+  means finding it out at the end of a reference build.</pre>
+<pre class="block">  A PENDING FILE RENAME FORCES THE RESTART FIRST. Windows queues
+  replacements at
+  HKLM\System\CurrentControlSet\Control\Session Manager
+  PendingFileRenameOperations, and sysprep refuses while any are
+  outstanding. The step returns RebootRequested and lets the existing
+  restart machinery clear the queue.</pre>
+<pre class="block">  ONCE, AND ONLY ONCE. HDTSysprepRestarted is the sentinel MDT&#x27;s own
+  guard is built around: a machine whose queue never empties would
+  otherwise reboot on every pass for ever, and every one of those
+  passes looks like progress in the log. The second time round it is
+  a failure naming the queue, not another restart.</pre>
+<p>IT STRIPS HDT&#x27;S OWN RESUME HOOK BEFORE IT GENERALIZES. MDT removes LiteTouch.lnk and RunOnce\LiteTouch here; HDT&#x27;s equivalents are the Winlogon autologon values, RunOnce\HDTResume, the LSA secret Winlogon reads and the staged answer files - the exact set Clear-HDTAutoLogon already removes, which is why this calls it rather than writing the registry itself. An image that carried them would log itself in and re-enter a finished deployment on the first boot of every machine ever built from it.</p>
+<p>THE STAGED AGENT TREE IS NOT DELETED HERE, AND THAT IS DELIBERATE. &lt;osvolume&gt;\HDT is excluded from the capture by the shipped Templates\Capture\wimscript.ini, which is the reason DESIGN 9.3 note 7 puts \HDT on that list at all - so it never reaches the image. Removing it would destroy the tree this engine is running from with the Restart step still to come, which is a deployment that ends mid-sequence to tidy up something the exclusion list already handles.</p>
+<p>THE ANSWER FILE IS STAGED AND THEN REMOVED. sysprep reads it from %SystemRoot%\system32\sysprep, so a file kept anywhere else is copied there and deleted after the call - MDT does the same, and for the same reason: an answer file left behind travels inside the captured image and answers Setup on every machine built from it.</p>
+<p>IT REPORTS WHILE IT WAITS, BECAUSE IT HAS TO. sysprep prints no meter and no percentage; on a real machine it is silent for minutes. New-HDTStepHeartbeat turns the process service&#x27;s poll into a record every fifteen seconds saying the machine is alive and how long it has been going, which is the only honest thing there is to say.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries the command, the exit code, the duration and the ImageState that was read back.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Invoke-HDTRestartStep" data-name="invoke-hdtrestartstep" data-hay="invoke-hdtrestartstep asks the engine to restart the machine before the next step. step context">
@@ -6313,7 +6504,7 @@ $image.ApplyImage(&#x27;Z:\OperatingSystems\Win11\sources\install.wim&#x27;, 1, 
 $image.InstallBootFile(&#x27;W:\&#x27;, &#x27;S:&#x27;, &#x27;UEFI&#x27;)
 $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by hand, as three calls.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The one place in HDT that names Get-WindowsImage, dism.exe, bcdboot.exe, bcdedit.exe or Reagentc.exe. PROJECT constraint 4 forbids a step from touching hardware directly, so ApplyImage and ConfigureBoot receive this object and can be swapped for New-HDTFakeImageService in a test with no media, no disk and no reboot.</p>
-<p>SIX METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
+<p>EIGHT METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
 <pre class="block">  GetImageInfo(imagePath)
       Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
       index for EditionId, Architecture and Version, which the
@@ -6322,6 +6513,17 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
       dism.exe /Apply-Image /ImageFile: /Index: /ApplyDir:, with
       every line the tool prints handed to onOutput as it arrives.
       That is where the percentage comes from - see the method.</pre>
+<pre class="block">  CaptureImage(capturePath, imagePath, name, description, compress,
+               scratchPath, configPath[, onOutput])
+      dism.exe /Capture-Image /CaptureDir: /ImageFile: /Name:
+          /Description: /Compress: /ScratchDir: /ConfigFile:</pre>
+<pre class="block">      ApplyImage RUN BACKWARDS, and a pipeline for the same reason:
+      /Capture-Image prints a real percentage meter, so every line
+      goes to onOutput as it arrives and the poll loop below is not
+      needed. THE IMAGE PATH IS THE OUTPUT - alone among the methods
+      that take one, it is not guarded for existence, because the
+      file it names is the file it is about to write. capturePath,
+      the volume being read, is guarded instead.</pre>
 <pre class="block">  ApplyUnattend(imagePath, unattendPath, scratchPath[, onOutput[, onTick]])
       dism.exe /Image: /Apply-Unattend: /ScratchDir:, run as a
       POLLED PROCESS rather than a pipeline. Every line the tool
@@ -6356,11 +6558,11 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
       bcdedit.exe /set &quot;{fwbootmgr}&quot; displayorder &quot;{bootmgr}&quot; /addfirst</pre>
 <p>SetBootOrderFirst IS SPIKES.md S6&#x27;s FOURTH FINDING AS AN API. After apply, a machine that still has the boot media first in the firmware order simply reboots into WinPE and the deployment loops. Putting the Windows Boot Manager first is what ends the loop; ConfigureBoot owns deciding when to call it.</p>
 <p>SetRecoveryImage CALLS THE APPLIED IMAGE&#x27;S OWN Reagentc.exe, BY FULL PATH, AND USES /setreimage. Two reasons, both checked on this machine rather than remembered. First, THE VERB THIS WAS FIRST WRITTEN AGAINST DOES NOT EXIST: reagentc on Windows 11 24H2 lists /info, /setreimage, /enable, /disable, /boottore, /setbootshelllink and the quick-machine-recovery verbs, and nothing else. The tool wins and 04-03 corrects the document. Second, THERE IS NO WinPE-Recovery OPTIONAL COMPONENT: reagentc.exe is not in WinPE, and WinPE is the only environment this method is ever called from, so a bare &#x27;reagentc.exe&#x27; would be command-not-found. Microsoft&#x27;s own offline WinRE procedure runs the target image&#x27;s copy, which exists as soon as ApplyImage has finished and is the same 26100 build as the WinPE hosting it. Building the path from $OsRoot is argument construction, not a branch, so the adapter stays dumb.</p>
-<p>THIS IS AN UNTESTED ADAPTER, and deliberately so: four of its five methods write to a disk or reorder this machine&#x27;s firmware boot entries. Its contract row calls GetImageInfo and nothing else; the rest is proven in tests/integration (04-04) against a scratch VHDX. The price of not testing it is that it must stay dumb. THE ONLY BRANCHES BELOW ARE AN EXISTENCE GUARD, FIVE EXIT-CODE CHECKS AND ApplyUnattend&#x27;s POLL LOOP, each commented as such. Every decision about WHICH index to apply or WHETHER a recovery partition exists lives in the steps, which are tested against the fake. Do not add logic here.</p>
+<p>THIS IS AN UNTESTED ADAPTER, and deliberately so: all but one of its methods write to a disk or reorder this machine&#x27;s firmware boot entries. Its contract row calls GetImageInfo and nothing else; the rest is proven in tests/integration (04-04) against a scratch VHDX. The price of not testing it is that it must stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, SIX EXIT-CODE CHECKS AND ApplyUnattend&#x27;s POLL LOOP, each commented as such. Every decision about WHICH index to apply or WHETHER a recovery partition exists lives in the steps, which are tested against the fake. Do not add logic here.</p>
 <p>THE POLL LOOP IS THE ONE DELIBERATE EXCEPTION TO &quot;BRANCH-FREE&quot;, and it is the same exception New-HDTProcessService.Start already carries. A loop that waits in slices is not a decision about the deployment - it takes no branch on an argument, a machine or a result - and there is no way to tick a callback while an external tool is silent without one. Everything that IS a decision was pushed out to a pure, unit-tested function: ConvertTo-HDTNativeArgument for the command line, ConvertFrom-HDTDismProgressLine for what a line means, and New-HDTStepHeartbeat for when a tick is worth a log record.</p>
 <p>EVERY NATIVE FAILURE CARRIES THE TOOL&#x27;S OWN OUTPUT. &quot;bcdboot failed&quot; without bcdboot&#x27;s own sentence is the log entry that wastes an hour at three in the morning in front of a machine that will not boot.</p>
 <p>It is a [pscustomobject] carrying ScriptMethod members rather than a PowerShell class: classes dot-sourced into the module are the known flaky path across -Force re-imports (see 01-03).</p></div></details>
-<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with the five IImageService ScriptMethods. Note that Get-Member -MemberType Method does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>Architecture comes back from Get-WindowsImage as a NUMERIC DISM code, not a string: the staged media reports 9, which is amd64. The captured fixtures record it as it arrives rather than prettified, because a fixture that improved on the tool would be a fixture that lied about it.</p></div></div></div>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with the eight IImageService ScriptMethods. Note that Get-Member -MemberType Method does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>Architecture comes back from Get-WindowsImage as a NUMERIC DISM code, not a string: the staged media reports 9, which is amd64. The captured fixtures record it as it arrives rather than prettified, because a fixture that improved on the tool would be a fixture that lied about it.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="New-HDTBootImageService" data-name="new-hdtbootimageservice" data-hay="new-hdtbootimageservice creates the real ibootimageservice adapter over the dism image cmdlets, dism.exe and oscdimg.exe. oscdimgpath journal">

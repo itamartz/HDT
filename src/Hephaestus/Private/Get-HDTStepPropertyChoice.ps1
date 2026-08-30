@@ -82,6 +82,16 @@ function Get-HDTStepPropertyChoice {
         'ApplyDrivers' = @{
             'mode' = @('all', 'matching')
         }
+
+        # dism's THREE COMPRESSION TYPES, max first because it is the default
+        # and the right answer for a reference image: written once, then stored,
+        # copied and read for years. THIS LIST IS ALSO THE STEP'S OWN REFUSAL -
+        # Invoke-HDTCaptureImageStep reads it rather than spelling the set again,
+        # so the console cannot offer a value dism would reject four hours into
+        # a capture.
+        'CaptureImage' = @{
+            'compress' = @('max', 'fast', 'none')
+        }
     }
 
     if (-not $table.ContainsKey($Type)) { return [string[]] @() }

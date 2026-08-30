@@ -135,6 +135,19 @@
         # where it belongs in a sequence: it acts on the volume the image was
         # just applied to, and it has to be there before the Restart below it.
         'InstallCertificate' = @{ Text = 'Install Certificates'; Category = 'Images'; Order = 5 }
+
+        # THE REFERENCE-IMAGE PAIR, ON THE Images SHELF AND LAST, WHICH IS WHERE
+        # THEY COME IN A SEQUENCE. MDT keeps its capture under Sysprep and
+        # Capture in the State Restore group and names the two steps for what
+        # they do rather than for their types; an administrator arriving from
+        # Workbench is looking for those words.
+        #
+        # THEY ARE OFFERED SEPARATELY BECAUSE THEY ARE SEPARATED BY A REBOOT.
+        # Sysprep runs in the full OS, the machine restarts into WinPE, and only
+        # then can the volume be read - so a single 'Sysprep and Capture' menu
+        # item would author one step for something that is three (DESIGN 9.3).
+        'Sysprep'       = @{ Text = 'Sysprep'; Category = 'Images'; Order = 6 }
+        'CaptureImage'  = @{ Text = 'Capture Image'; Category = 'Images'; Order = 7 }
     }
 
     # Workbench's order, and Custom last because it is whatever this particular

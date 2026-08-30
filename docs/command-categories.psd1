@@ -148,6 +148,10 @@
                 'Get-HDTNoOpStepDescription'
                 'Get-HDTApplyDriversStepTemplate'
                 'Get-HDTApplyDriversStepDescription'
+                'Get-HDTSysprepStepTemplate'
+                'Get-HDTSysprepStepDescription'
+                'Get-HDTCaptureImageStepTemplate'
+                'Get-HDTCaptureImageStepDescription'
             )
         }
         @{
@@ -161,6 +165,7 @@
                 'Invoke-HDTValidateStep'
                 'Invoke-HDTDiskPartitionStep'
                 'Invoke-HDTApplyImageStep'
+                'Invoke-HDTCaptureImageStep'
                 'Invoke-HDTApplyUnattendStep'
                 'Invoke-HDTConfigureBootStep'
                 'Invoke-HDTInstallApplicationsStep'
@@ -172,6 +177,7 @@
                 'Test-HDTPowerShellStepApplicable'
                 'Invoke-HDTSetVariableStep'
                 'Invoke-HDTTattooStep'
+                'Invoke-HDTSysprepStep'
                 'Invoke-HDTRestartStep'
                 'Invoke-HDTNoOpStep'
                 'New-HDTStepResult'
