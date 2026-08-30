@@ -1,0 +1,6 @@
+# PRESERVED RUN ARTEFACTS ARE BYTES, NOT SOURCE. These are copies of logs a real
+# deployment wrote, cited by name from docs/ROADMAP.md, and the point of keeping
+# them is that they are what the machine produced. Git's CRLF normalisation
+# rewrites them on the way in and on the way out, so a checkout no longer matches
+# what came off the share - which is the one property evidence has to have.
+.planning/evidence/** -text

@@ -1,0 +1,34 @@
+{
+    "schemaVersion":  1,
+    "generated":  "2026-08-30T17:46:18.0914338Z",
+    "fact":  {
+                 "HDTMake":  "Dell Inc.",
+                 "HDTModel":  "Latitude 5420",
+                 "HDTProduct":  "0M51J7",
+                 "HDTSerialNumber":  "D5M1NN3",
+                 "HDTUUID":  "4C4C4544-0035-4D10-8031-C4C04F4E4E33",
+                 "HDTSystemSKU":  "0A20",
+                 "HDTMemory":  15761,
+                 "HDTArchitecture":  "x64",
+                 "HDTDeploymentType":  "NEWCOMPUTER",
+                 "HDTIsUEFI":  true,
+                 "HDTSecureBootEnabled":  true,
+                 "HDTTPMVersion":  "2.0",
+                 "HDTIsDesktop":  false,
+                 "HDTIsLaptop":  true,
+                 "HDTIsServer":  false,
+                 "HDTAssetTag":  "",
+                 "HDTIsVM":  false,
+                 "HDTMacAddress":  "08:92:04:1A:66:19",
+                 "HDTIPAddress":  [
+                                      "192.168.1.201",
+                                      "fe80::4e85:f8bb:1a60:a700",
+                                      "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx",
+                                      "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx"
+                                  ],
+                 "HDTDefaultGateway":  [
+                                           "192.168.1.1",
+                                           "fe80::d692:5eff:fee9:5e2"
+                                       ]
+             }
+}

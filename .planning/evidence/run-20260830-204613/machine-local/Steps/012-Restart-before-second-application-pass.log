@@ -1,0 +1,4 @@
+<![LOG[step 12 'Restart before second application pass' (Restart) starting, attempt 1 of 1]LOG]!><time="21:00:36.178-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[a restart was requested]LOG]!><time="21:00:36.542-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[step 12 'Restart before second application pass' completed]LOG]!><time="21:00:36.624-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[The task sequence stopped: Exception calling "SetValue" with "4" argument(s): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Cannot delete a subkey tree because the subkey does not exist."]LOG]!><time="21:00:36.835-180" date="08-30-2026" component="Engine" context="" type="3" thread="13" file="Restart">

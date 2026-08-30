@@ -1,0 +1,15 @@
+<![LOG[step 1 'Gather local only' (Gather) starting, attempt 1 of 1]LOG]!><time="20:46:20.609-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Gather">
+<![LOG[gathering this machine's own facts; HDT has no settings database, so every gather is a local one.]LOG]!><time="20:46:20.799-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] HDTAssetTag: kept the resolved value; the machine could not determine it (Win32_SystemEnclosure.SMBIOSAssetTag was empty)]LOG]!><time="20:46:20.925-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] constant                           HDTDeploymentType in 0 ms]LOG]!><time="20:46:21.004-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] environment                        HDTArchitecture, HDTIsUEFI in 0 ms]LOG]!><time="20:46:21.054-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] registry                           HDTSecureBootEnabled in 0 ms]LOG]!><time="20:46:21.116-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_BaseBoard                    HDTProduct in 7 ms]LOG]!><time="20:46:21.182-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_BIOS                         HDTSerialNumber in 5 ms]LOG]!><time="20:46:21.243-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_ComputerSystem               HDTMake, HDTModel, HDTSystemSKU, HDTMemory, HDTIsVM in 9 ms]LOG]!><time="20:46:21.294-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_ComputerSystemProduct        HDTUUID in 7 ms]LOG]!><time="20:46:21.371-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_NetworkAdapterConfiguration  HDTMacAddress, HDTIPAddress, HDTDefaultGateway in 10 ms]LOG]!><time="20:46:21.437-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_SystemEnclosure              HDTIsDesktop, HDTIsLaptop, HDTIsServer, HDTAssetTag in 6 ms]LOG]!><time="20:46:21.483-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_Tpm                          HDTTPMVersion in 0 ms]LOG]!><time="20:46:21.547-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[19 facts from 10 source(s) in 118 ms; none changed since bootstrap; 1 resolved value(s) kept rather than overwritten by a fact the machine could not determine.]LOG]!><time="20:46:21.627-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[step 1 'Gather local only' completed]LOG]!><time="20:46:21.723-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Gather">

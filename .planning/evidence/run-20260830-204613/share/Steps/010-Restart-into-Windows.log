@@ -1,0 +1,6 @@
+<![LOG[step 10 'Restart into Windows' (Restart) starting, attempt 1 of 1]LOG]!><time="20:53:43.335-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[a restart was requested]LOG]!><time="20:53:43.654-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[step 10 'Restart into Windows' completed]LOG]!><time="20:53:43.781-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[the resume agent was staged to 'W:\HDT' (36 file(s))]LOG]!><time="20:53:43.962-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[Autologon armed for Administrator for 2 more leg(s)]LOG]!><time="20:53:44.196-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[the log was copied to 'W:\HDT\Logs\LT-D5M1NN3-run-20260830-204613', which survives the restart]LOG]!><time="20:53:44.372-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">

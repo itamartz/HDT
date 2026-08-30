@@ -1,0 +1,407 @@
+{
+    "schemaVersion":  1,
+    "generated":  "2026-08-30T17:46:19.5645402Z",
+    "variable":  [
+                     {
+                         "name":  "HDTKeyboardLocale",
+                         "value":  "0409:00000409",
+                         "source":  "Rule",
+                         "rule":  "Language and region",
+                         "ruleIndex":  1,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "0409:00000409",
+                         "expanded":  false,
+                         "order":  1
+                     },
+                     {
+                         "name":  "HDTSystemLocale",
+                         "value":  "en-US",
+                         "source":  "Rule",
+                         "rule":  "Language and region",
+                         "ruleIndex":  1,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "en-US",
+                         "expanded":  false,
+                         "order":  2
+                     },
+                     {
+                         "name":  "HDTUILanguage",
+                         "value":  "en-US",
+                         "source":  "Rule",
+                         "rule":  "Language and region",
+                         "ruleIndex":  1,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "en-US",
+                         "expanded":  false,
+                         "order":  3
+                     },
+                     {
+                         "name":  "HDTUserLocale",
+                         "value":  "en-US",
+                         "source":  "Rule",
+                         "rule":  "Language and region",
+                         "ruleIndex":  1,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "en-US",
+                         "expanded":  false,
+                         "order":  4
+                     },
+                     {
+                         "name":  "HDTComputerName",
+                         "value":  "LT-D5M1NN3",
+                         "source":  "Rule",
+                         "rule":  "Latitude naming",
+                         "ruleIndex":  3,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "#Left(LT-%HDTSerialNumber%, 15)#",
+                         "expanded":  true,
+                         "order":  5
+                     },
+                     {
+                         "name":  "HDTDriverGroup",
+                         "value":  "Dell\\Latitude 5420",
+                         "source":  "Rule",
+                         "rule":  "Latitude naming",
+                         "ruleIndex":  3,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "Dell\\%HDTModel%",
+                         "expanded":  true,
+                         "order":  6
+                     },
+                     {
+                         "name":  "HDTAssetTag",
+                         "value":  "ASSET-D5M1NN3",
+                         "source":  "RuleScript",
+                         "rule":  "Scripted name for laptops",
+                         "ruleIndex":  4,
+                         "file":  "Scripts\\Get-ComputerName.ps1",
+                         "rawValue":  "ASSET-D5M1NN3",
+                         "expanded":  false,
+                         "order":  7
+                     },
+                     {
+                         "name":  "HDTTaskSequenceID",
+                         "value":  "PNP-TEST",
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "PNP-TEST",
+                         "expanded":  false,
+                         "order":  8
+                     },
+                     {
+                         "name":  "HDTSkipWizard",
+                         "value":  true,
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  true,
+                         "expanded":  false,
+                         "order":  9
+                     },
+                     {
+                         "name":  "HDTFullName",
+                         "value":  "HDT Lab",
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "HDT Lab",
+                         "expanded":  false,
+                         "order":  10
+                     },
+                     {
+                         "name":  "HDTOrgName",
+                         "value":  "Hephaestus Deployment Toolkit",
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "Hephaestus Deployment Toolkit",
+                         "expanded":  false,
+                         "order":  11
+                     },
+                     {
+                         "name":  "HDTAdminPassword",
+                         "value":  "(set, not shown)",
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "(set, not shown)",
+                         "expanded":  false,
+                         "order":  12
+                     },
+                     {
+                         "name":  "HDTApplications",
+                         "value":  "TightVNC-Software-Tightvnc-2.8.88",
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "TightVNC-Software-Tightvnc-2.8.88",
+                         "expanded":  false,
+                         "order":  13
+                     },
+                     {
+                         "name":  "HDTTimeZone",
+                         "value":  "Israel Standard Time",
+                         "source":  "Rule",
+                         "rule":  "Lab, by gateway - zero touch",
+                         "ruleIndex":  5,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "Israel Standard Time",
+                         "expanded":  false,
+                         "order":  14
+                     },
+                     {
+                         "name":  "HDTJoinWorkgroup",
+                         "value":  "WORKGROUP",
+                         "source":  "Rule",
+                         "rule":  "Fallback",
+                         "ruleIndex":  6,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "WORKGROUP",
+                         "expanded":  false,
+                         "order":  15
+                     },
+                     {
+                         "name":  "HDTSLShareDynamicLogging",
+                         "value":  "\\\\192.168.1.219\\HDTShare\\Logs\\LT-D5M1NN3",
+                         "source":  "Rule",
+                         "rule":  "Fallback",
+                         "ruleIndex":  6,
+                         "file":  "\\\\192.168.1.219\\HDTShare\\rules.yaml",
+                         "rawValue":  "\\\\192.168.1.219\\HDTShare\\Logs\\%HDTComputerName%",
+                         "expanded":  true,
+                         "order":  16
+                     },
+                     {
+                         "name":  "HDTMake",
+                         "value":  "Dell Inc.",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "Dell Inc.",
+                         "expanded":  false,
+                         "order":  17
+                     },
+                     {
+                         "name":  "HDTModel",
+                         "value":  "Latitude 5420",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "Latitude 5420",
+                         "expanded":  false,
+                         "order":  18
+                     },
+                     {
+                         "name":  "HDTProduct",
+                         "value":  "0M51J7",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "0M51J7",
+                         "expanded":  false,
+                         "order":  19
+                     },
+                     {
+                         "name":  "HDTSerialNumber",
+                         "value":  "D5M1NN3",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "D5M1NN3",
+                         "expanded":  false,
+                         "order":  20
+                     },
+                     {
+                         "name":  "HDTUUID",
+                         "value":  "4C4C4544-0035-4D10-8031-C4C04F4E4E33",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "4C4C4544-0035-4D10-8031-C4C04F4E4E33",
+                         "expanded":  false,
+                         "order":  21
+                     },
+                     {
+                         "name":  "HDTSystemSKU",
+                         "value":  "0A20",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "0A20",
+                         "expanded":  false,
+                         "order":  22
+                     },
+                     {
+                         "name":  "HDTMemory",
+                         "value":  15761,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  15761,
+                         "expanded":  false,
+                         "order":  23
+                     },
+                     {
+                         "name":  "HDTArchitecture",
+                         "value":  "x64",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "x64",
+                         "expanded":  false,
+                         "order":  24
+                     },
+                     {
+                         "name":  "HDTDeploymentType",
+                         "value":  "NEWCOMPUTER",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "NEWCOMPUTER",
+                         "expanded":  false,
+                         "order":  25
+                     },
+                     {
+                         "name":  "HDTIsUEFI",
+                         "value":  true,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  true,
+                         "expanded":  false,
+                         "order":  26
+                     },
+                     {
+                         "name":  "HDTSecureBootEnabled",
+                         "value":  true,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  true,
+                         "expanded":  false,
+                         "order":  27
+                     },
+                     {
+                         "name":  "HDTTPMVersion",
+                         "value":  "2.0",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "2.0",
+                         "expanded":  false,
+                         "order":  28
+                     },
+                     {
+                         "name":  "HDTIsDesktop",
+                         "value":  false,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  false,
+                         "expanded":  false,
+                         "order":  29
+                     },
+                     {
+                         "name":  "HDTIsLaptop",
+                         "value":  true,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  true,
+                         "expanded":  false,
+                         "order":  30
+                     },
+                     {
+                         "name":  "HDTIsServer",
+                         "value":  false,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  false,
+                         "expanded":  false,
+                         "order":  31
+                     },
+                     {
+                         "name":  "HDTIsVM",
+                         "value":  false,
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  false,
+                         "expanded":  false,
+                         "order":  32
+                     },
+                     {
+                         "name":  "HDTMacAddress",
+                         "value":  "08:92:04:1A:66:19",
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  "08:92:04:1A:66:19",
+                         "expanded":  false,
+                         "order":  33
+                     },
+                     {
+                         "name":  "HDTIPAddress",
+                         "value":  [
+                                       "192.168.1.201",
+                                       "fe80::4e85:f8bb:1a60:a700",
+                                       "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx",
+                                       "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx"
+                                   ],
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  [
+                                          "192.168.1.201",
+                                          "fe80::4e85:f8bb:1a60:a700",
+                                          "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx",
+                                          "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx"
+                                      ],
+                         "expanded":  false,
+                         "order":  34
+                     },
+                     {
+                         "name":  "HDTDefaultGateway",
+                         "value":  [
+                                       "192.168.1.1",
+                                       "fe80::d692:5eff:fee9:5e2"
+                                   ],
+                         "source":  "GatheredFact",
+                         "rule":  null,
+                         "ruleIndex":  0,
+                         "file":  null,
+                         "rawValue":  [
+                                          "192.168.1.1",
+                                          "fe80::d692:5eff:fee9:5e2"
+                                      ],
+                         "expanded":  false,
+                         "order":  35
+                     }
+                 ]
+}

@@ -1,0 +1,641 @@
+<![LOG[Clock not synchronised: the timestamps that follow are WinPE's own, not the deployment's - ordering comes from seq]LOG]!><time="20:46:17.535-180" date="08-30-2026" component="Bootstrap" context="" type="2" thread="13" file="Engine">
+<![LOG[logging live to '\\192.168.1.219\HDTShare\Logs\LT-D5M1NN3\run-20260830-204613' as well as this machine]LOG]!><time="20:46:17.535-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[logs will be copied to '\\192.168.1.219\HDTShare\Logs' (DeployRoot)]LOG]!><time="20:46:17.646-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[wizard: 0 page(s) to ask, 7 skipped]LOG]!><time="20:46:17.804-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  TaskSequence skipped by HDTSkipWizard]LOG]!><time="20:46:17.836-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  ComputerDetail skipped by HDTSkipWizard]LOG]!><time="20:46:17.868-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  LocaleTime skipped by HDTSkipWizard]LOG]!><time="20:46:17.900-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  Applications skipped by HDTSkipWizard]LOG]!><time="20:46:17.948-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  BitLocker skipped by HDTSkipWizard]LOG]!><time="20:46:17.979-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  AdminPassword skipped by HDTSkipWizard]LOG]!><time="20:46:18.011-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[  Summary skipped by HDTSkipWizard]LOG]!><time="20:46:18.043-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTKeyboardLocale = '0409:00000409' (Rule)]LOG]!><time="20:46:18.138-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTSystemLocale = 'en-US' (Rule)]LOG]!><time="20:46:18.173-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTUILanguage = 'en-US' (Rule)]LOG]!><time="20:46:18.203-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTUserLocale = 'en-US' (Rule)]LOG]!><time="20:46:18.250-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTComputerName = 'LT-D5M1NN3' (Rule)]LOG]!><time="20:46:18.282-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTDriverGroup = 'Dell\Latitude 5420' (Rule)]LOG]!><time="20:46:18.330-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTAssetTag = 'ASSET-D5M1NN3' (RuleScript)]LOG]!><time="20:46:18.362-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTTaskSequenceID = 'PNP-TEST' (Rule)]LOG]!><time="20:46:18.412-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTSkipWizard = 'True' (Rule)]LOG]!><time="20:46:18.458-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTFullName = 'HDT Lab' (Rule)]LOG]!><time="20:46:18.490-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTOrgName = 'Hephaestus Deployment Toolkit' (Rule)]LOG]!><time="20:46:18.522-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTAdminPassword = '(set, not shown)' (Rule)]LOG]!><time="20:46:18.572-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTApplications = 'TightVNC-Software-Tightvnc-2.8.88' (Rule)]LOG]!><time="20:46:18.618-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTTimeZone = 'Israel Standard Time' (Rule)]LOG]!><time="20:46:18.652-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTJoinWorkgroup = 'WORKGROUP' (Rule)]LOG]!><time="20:46:18.698-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTSLShareDynamicLogging = '\\192.168.1.219\HDTShare\Logs\LT-D5M1NN3' (Rule)]LOG]!><time="20:46:18.729-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTMake = 'Dell Inc.' (GatheredFact)]LOG]!><time="20:46:18.777-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTModel = 'Latitude 5420' (GatheredFact)]LOG]!><time="20:46:18.812-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTProduct = '0M51J7' (GatheredFact)]LOG]!><time="20:46:18.859-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTSerialNumber = 'D5M1NN3' (GatheredFact)]LOG]!><time="20:46:18.907-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTUUID = '4C4C4544-0035-4D10-8031-C4C04F4E4E33' (GatheredFact)]LOG]!><time="20:46:18.955-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTSystemSKU = '0A20' (GatheredFact)]LOG]!><time="20:46:18.985-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTMemory = '15761' (GatheredFact)]LOG]!><time="20:46:19.035-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTArchitecture = 'x64' (GatheredFact)]LOG]!><time="20:46:19.066-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTDeploymentType = 'NEWCOMPUTER' (GatheredFact)]LOG]!><time="20:46:19.116-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTIsUEFI = 'True' (GatheredFact)]LOG]!><time="20:46:19.147-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTSecureBootEnabled = 'True' (GatheredFact)]LOG]!><time="20:46:19.177-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTTPMVersion = '2.0' (GatheredFact)]LOG]!><time="20:46:19.226-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTIsDesktop = 'False' (GatheredFact)]LOG]!><time="20:46:19.274-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTIsLaptop = 'True' (GatheredFact)]LOG]!><time="20:46:19.306-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTIsServer = 'False' (GatheredFact)]LOG]!><time="20:46:19.356-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTIsVM = 'False' (GatheredFact)]LOG]!><time="20:46:19.388-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTMacAddress = '08:92:04:1A:66:19' (GatheredFact)]LOG]!><time="20:46:19.434-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTIPAddress = '192.168.1.201,fe80::4e85:f8bb:1a60:a700,2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx,2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx' (GatheredFact)]LOG]!><time="20:46:19.483-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[[DEBUG] HDTDefaultGateway = '192.168.1.1,fe80::d692:5eff:fee9:5e2' (GatheredFact)]LOG]!><time="20:46:19.516-180" date="08-30-2026" component="Variable" context="" type="1" thread="13" file="Engine">
+<![LOG[105 device(s) reported hardware ids; written to Gather\devices.json]LOG]!><time="20:46:19.767-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Engine">
+<![LOG[sequence 'PNP-TEST': 15 step(s)]LOG]!><time="20:46:19.916-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[sequence defaults applied to 2 name(s) nothing else supplied: HDTOSImage, HDTOSImageIndex]LOG]!><time="20:46:19.957-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[HDTComputerName resolved to 'LT-D5M1NN3']LOG]!><time="20:46:20.005-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[progress display: Window ]LOG]!><time="20:46:20.085-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[running the task sequence]LOG]!><time="20:46:20.355-180" date="08-30-2026" component="Bootstrap" context="" type="1" thread="13" file="Engine">
+<![LOG[Run run-20260830-204613 starting at step 1 of 15 in the WinPE phase (leg 1)]LOG]!><time="20:46:20.429-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Engine">
+<![LOG[step 1 'Gather local only' (Gather) starting, attempt 1 of 1]LOG]!><time="20:46:20.609-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Gather">
+<![LOG[gathering this machine's own facts; HDT has no settings database, so every gather is a local one.]LOG]!><time="20:46:20.799-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] HDTAssetTag: kept the resolved value; the machine could not determine it (Win32_SystemEnclosure.SMBIOSAssetTag was empty)]LOG]!><time="20:46:20.925-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] constant                           HDTDeploymentType in 0 ms]LOG]!><time="20:46:21.004-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] environment                        HDTArchitecture, HDTIsUEFI in 0 ms]LOG]!><time="20:46:21.054-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] registry                           HDTSecureBootEnabled in 0 ms]LOG]!><time="20:46:21.116-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_BaseBoard                    HDTProduct in 7 ms]LOG]!><time="20:46:21.182-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_BIOS                         HDTSerialNumber in 5 ms]LOG]!><time="20:46:21.243-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_ComputerSystem               HDTMake, HDTModel, HDTSystemSKU, HDTMemory, HDTIsVM in 9 ms]LOG]!><time="20:46:21.294-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_ComputerSystemProduct        HDTUUID in 7 ms]LOG]!><time="20:46:21.371-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_NetworkAdapterConfiguration  HDTMacAddress, HDTIPAddress, HDTDefaultGateway in 10 ms]LOG]!><time="20:46:21.437-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_SystemEnclosure              HDTIsDesktop, HDTIsLaptop, HDTIsServer, HDTAssetTag in 6 ms]LOG]!><time="20:46:21.483-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[[DEBUG] Win32_Tpm                          HDTTPMVersion in 0 ms]LOG]!><time="20:46:21.547-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[19 facts from 10 source(s) in 118 ms; none changed since bootstrap; 1 resolved value(s) kept rather than overwritten by a fact the machine could not determine.]LOG]!><time="20:46:21.627-180" date="08-30-2026" component="Gather" context="" type="1" thread="13" file="Gather">
+<![LOG[step 1 'Gather local only' completed]LOG]!><time="20:46:21.723-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Gather">
+<![LOG[step 2 'Validate' (Validate) starting, attempt 1 of 1]LOG]!><time="20:46:21.819-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] memory                     15761 MB                           minimum 2048 MB                pass]LOG]!><time="20:46:22.850-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] firmware                   UEFI                               not declared                   skipped]LOG]!><time="20:46:22.899-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] TPM                        2.0                                not declared                   skipped]LOG]!><time="20:46:22.979-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] required variables         none declared                      not declared                   skipped]LOG]!><time="20:46:23.043-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] disk size                  largest is 238.5 GB                minimum 60.0 GB                pass]LOG]!><time="20:46:23.107-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] disk 0                     238.5 GB, NVMe, GPT, D (NTFS), C (NTFS) minimum 60.0 GB                pass: selected as the deployment target]LOG]!><time="20:46:23.156-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] disk 1                     28.9 GB, USB, GPT, E (FAT32)       minimum 60.0 GB                excluded: disk 1 is a USB disk; disk 1 is 31004295168 bytes, under the minimum of 64424509440 bytes]LOG]!><time="20:46:23.217-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[[DEBUG] target disk                disk 0                             exactly one usable disk        pass]LOG]!><time="20:46:23.267-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[pre-flight passed: 8 checks, 0 warnings.]LOG]!><time="20:46:23.335-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[disk 0 is the deployment target: 238.5 GB, NVMe, GPT, D (NTFS), C (NTFS) - the only disk of 2 that qualified.]LOG]!><time="20:46:23.393-180" date="08-30-2026" component="Validate" context="" type="1" thread="13" file="Validate">
+<![LOG[step 2 'Validate' completed]LOG]!><time="20:46:23.466-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Validate">
+<![LOG[step 3 'Format and Partition Disk (UEFI)' (DiskPartition) starting, attempt 1 of 1]LOG]!><time="20:46:23.568-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="DiskPartition">
+<![LOG[disk 0 (NVMe KBG50ZNS256G NVMe KIOXIA 256GB, 238.5 GB) will be cleared and repartitioned as authored:   1. System 272629760 bytes FAT32 S: as System   2. Windows 254696316928 bytes NTFS W: as Windows   3. Recovery 1073741824 bytes NTFS R: as Recovery]LOG]!><time="20:46:23.773-180" date="08-30-2026" component="DiskPartition" context="" type="1" thread="13" file="DiskPartition">
+<![LOG[disk 0 was cleared and repartitioned as authored: System on S:, Windows on W:, Recovery on R:.]LOG]!><time="20:46:34.936-180" date="08-30-2026" component="DiskPartition" context="" type="1" thread="13" file="DiskPartition">
+<![LOG[step 3 'Format and Partition Disk (UEFI)' completed]LOG]!><time="20:46:35.076-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="DiskPartition">
+<![LOG[_HDTLogPath moved from 'X:\HDT\Logs' to 'W:\HDT\Logs'. Everything written so far was mirrored, and the copy on the RAM disk is left in place.]LOG]!><time="20:46:35.188-180" date="08-30-2026" component="Logging" context="" type="1" thread="13" file="DiskPartition">
+<![LOG[step 4 'Format and Partition Disk (BIOS)' is skipped: its condition $HDTIsUEFI -eq $false is false]LOG]!><time="20:46:35.267-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="DiskPartition">
+<![LOG[step 5 'Install Operating System' (ApplyImage) starting, attempt 1 of 1]LOG]!><time="20:46:35.366-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1, Windows 11 Enterprise LTSC) to W:\]LOG]!><time="20:46:35.506-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 5%]LOG]!><time="20:46:44.328-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 10%]LOG]!><time="20:46:46.142-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 15%]LOG]!><time="20:46:50.998-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 20%]LOG]!><time="20:46:56.582-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 25%]LOG]!><time="20:47:01.165-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 30%]LOG]!><time="20:47:07.226-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 35%]LOG]!><time="20:47:12.383-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 40%]LOG]!><time="20:47:17.776-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 45%]LOG]!><time="20:47:23.039-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 50%]LOG]!><time="20:47:28.184-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 55%]LOG]!><time="20:47:33.831-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 60%]LOG]!><time="20:47:35.900-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 65%]LOG]!><time="20:47:40.296-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 70%]LOG]!><time="20:47:45.991-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 75%]LOG]!><time="20:47:50.994-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 80%]LOG]!><time="20:47:56.448-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 85%]LOG]!><time="20:48:02.187-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 90%]LOG]!><time="20:48:12.987-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 95%]LOG]!><time="20:48:33.750-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applying Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\: 100%]LOG]!><time="20:48:35.265-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[applied Z:\OperatingSystems\Win11-LTSC-2024\sources\install.wim (index 1) to W:\ in 119806 ms.]LOG]!><time="20:48:35.376-180" date="08-30-2026" component="ApplyImage" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[step 5 'Install Operating System' completed]LOG]!><time="20:48:35.472-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ApplyImage">
+<![LOG[step 6 'Inject Drivers' (ApplyDrivers) starting, attempt 1 of 1]LOG]!><time="20:48:35.570-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[driver group 'Win11\Dell Inc.\Latitude 5420' not found under \\192.168.1.219\HDTShare\Drivers. No drivers will be staged from a group; this machine is matched against the store by its hardware ids instead.]LOG]!><time="20:48:35.695-180" date="08-30-2026" component="ApplyDrivers" context="" type="2" thread="13" file="ApplyDrivers">
+<![LOG[[DEBUG] HDTDriverGroup is 'Dell\Latitude 5420'; this step's group property is 'Win11\%HDTMake%\%HDTModel%', which expanded to 'Win11\Dell Inc.\Latitude 5420']LOG]!><time="20:48:35.759-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[[DEBUG] 105 device(s) reported hardware ids]LOG]!><time="20:48:36.077-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[[DEBUG] SCSIAdapter: 'Intel RST VMD Managed Controller 09AB' PCI\VEN_8086&DEV_09AB&SUBSYS_00000000&REV_00 [3&11583659&0&B8]]LOG]!><time="20:48:36.156-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[[DEBUG] SCSIAdapter: 'Intel RST VMD Managed Controller 09AB' PCI\VEN_8086&DEV_09AB&SUBSYS_00000000&REV_00 [3&11583659&0&E8]]LOG]!><time="20:48:36.219-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[[DEBUG] Net: 'Intel(R) Ethernet Connection (13) I219-LM' PCI\VEN_8086&DEV_15FB&SUBSYS_0A201028&REV_20 [3&11583659&0&FE]]LOG]!><time="20:48:36.268-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[[DEBUG] SCSIAdapter: 'RAID Controller' PCI\VEN_8086&DEV_9A0B&SUBSYS_0A201028&REV_00 [3&11583659&0&70]]LOG]!><time="20:48:36.332-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[falling back to PnP match: the group folder '\\192.168.1.219\HDTShare\Drivers\Win11\Dell Inc.\Latitude 5420' is not on the share]LOG]!><time="20:48:36.398-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[105 devices reported hardware ids]LOG]!><time="20:48:36.537-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[ibtusb.inf matches USB\VID_8087&PID_0026&REV_0002 at rank 0]LOG]!><time="20:48:50.777-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HRP: 33%]LOG]!><time="20:48:50.889-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HRP: 66%]LOG]!><time="20:48:51.017-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HRP: 100%]LOG]!><time="20:48:51.256-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged HRP (1 .inf, 3 files, 10.2 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\network\VRTCR_A00-00\0\0\Drivers\Drivers\HRP in 542 ms.]LOG]!><time="20:48:51.399-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 1 of 44: ibtusb.inf]LOG]!><time="20:48:51.465-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[ibtusb.inf matches USB\VID_8087&PID_0026&REV_0002 at rank 0]LOG]!><time="20:48:51.590-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HRP: 33%]LOG]!><time="20:48:51.701-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HRP: 66%]LOG]!><time="20:48:51.844-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HRP: 100%]LOG]!><time="20:48:52.002-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged HRP (1 .inf, 3 files, 6.9 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\network\MCC7Y_A00-00\HRP in 476 ms.]LOG]!><time="20:48:52.129-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 2 of 44: ibtusb.inf]LOG]!><time="20:48:52.193-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iigd_ext.inf matches PCI\VEN_8086&DEV_9A49&SUBSYS_0A201028 at rank 1]LOG]!><time="20:48:52.321-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 4%]LOG]!><time="20:48:53.941-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 9%]LOG]!><time="20:48:54.326-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 14%]LOG]!><time="20:48:55.241-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 19%]LOG]!><time="20:48:55.589-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 24%]LOG]!><time="20:48:58.010-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 29%]LOG]!><time="20:48:59.782-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 34%]LOG]!><time="20:49:01.476-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 39%]LOG]!><time="20:49:02.318-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 44%]LOG]!><time="20:49:02.542-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 49%]LOG]!><time="20:49:03.687-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 54%]LOG]!><time="20:49:06.539-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 59%]LOG]!><time="20:49:09.623-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 64%]LOG]!><time="20:49:10.099-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 69%]LOG]!><time="20:49:11.964-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 74%]LOG]!><time="20:49:12.425-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 79%]LOG]!><time="20:49:12.774-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 84%]LOG]!><time="20:49:12.950-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 89%]LOG]!><time="20:49:13.139-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 94%]LOG]!><time="20:49:13.457-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 99%]LOG]!><time="20:49:13.853-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 100%]LOG]!><time="20:49:14.028-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Graphics (14 .inf, 301 files, 1.8 GB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\video\X14J0_A00-00\5333\5333\Graphics in 21786 ms.]LOG]!><time="20:49:14.155-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 3 of 44: iigd_ext.inf]LOG]!><time="20:49:14.219-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[MSHdaDac.inf matches HDAUDIO\FUNC_01&VEN_8086&DEV_2812&SUBSYS_80860101 at rank 1]LOG]!><time="20:49:14.346-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 4 of 44: MSHdaDac.inf]LOG]!><time="20:49:14.410-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iigd_dch.inf matches PCI\VEN_8086&DEV_9A49&SUBSYS_0A201028 at rank 1]LOG]!><time="20:49:14.538-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 5 of 44: iigd_dch.inf]LOG]!><time="20:49:14.602-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaLPSS2_GPIO2_TGL.inf matches ACPI\INT34C5 at rank 1]LOG]!><time="20:49:14.697-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 5%]LOG]!><time="20:49:14.967-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 11%]LOG]!><time="20:49:15.078-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 16%]LOG]!><time="20:49:15.205-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 22%]LOG]!><time="20:49:15.334-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 27%]LOG]!><time="20:49:15.460-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 33%]LOG]!><time="20:49:15.619-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 38%]LOG]!><time="20:49:15.763-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 44%]LOG]!><time="20:49:15.921-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 50%]LOG]!><time="20:49:16.032-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 55%]LOG]!><time="20:49:16.191-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 61%]LOG]!><time="20:49:16.318-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 66%]LOG]!><time="20:49:16.461-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 72%]LOG]!><time="20:49:16.604-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 77%]LOG]!><time="20:49:16.731-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 83%]LOG]!><time="20:49:16.857-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 88%]LOG]!><time="20:49:16.985-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 94%]LOG]!><time="20:49:17.113-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 100%]LOG]!><time="20:49:17.224-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged WU (12 .inf, 36 files, 2.6 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\WNJ1N_A00-00\0\0\Drivers\WU in 2591 ms.]LOG]!><time="20:49:17.351-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 6 of 44: iaLPSS2_GPIO2_TGL.inf]LOG]!><time="20:49:17.398-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[MSHdaDac.inf matches HDAUDIO\FUNC_01&VEN_8086&DEV_2812&SUBSYS_80860101 at rank 1]LOG]!><time="20:49:17.510-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 4%]LOG]!><time="20:49:19.114-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 9%]LOG]!><time="20:49:19.305-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 14%]LOG]!><time="20:49:19.557-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 19%]LOG]!><time="20:49:19.812-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 24%]LOG]!><time="20:49:19.986-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 29%]LOG]!><time="20:49:21.633-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 34%]LOG]!><time="20:49:25.214-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 39%]LOG]!><time="20:49:26.797-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 44%]LOG]!><time="20:49:28.081-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 49%]LOG]!><time="20:49:28.667-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 54%]LOG]!><time="20:49:28.920-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 59%]LOG]!><time="20:49:29.125-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 64%]LOG]!><time="20:49:29.649-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 69%]LOG]!><time="20:49:30.713-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 74%]LOG]!><time="20:49:32.091-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 79%]LOG]!><time="20:49:33.342-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 84%]LOG]!><time="20:49:34.010-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 89%]LOG]!><time="20:49:35.816-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 94%]LOG]!><time="20:49:36.134-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 99%]LOG]!><time="20:49:36.500-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Graphics: 100%]LOG]!><time="20:49:36.610-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Graphics (15 .inf, 222 files, 1.5 GB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\video\7TFPK_A00-00\Graphics in 19195 ms.]LOG]!><time="20:49:36.769-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 7 of 44: MSHdaDac.inf]LOG]!><time="20:49:36.833-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[Netwtw08.INF matches PCI\VEN_8086&DEV_A0F0&SUBSYS_40708086 at rank 1]LOG]!><time="20:49:36.960-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 5%]LOG]!><time="20:49:37.152-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 10%]LOG]!><time="20:49:37.263-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 15%]LOG]!><time="20:49:37.406-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 21%]LOG]!><time="20:49:37.517-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 26%]LOG]!><time="20:49:37.724-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 31%]LOG]!><time="20:49:37.914-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 36%]LOG]!><time="20:49:38.120-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 42%]LOG]!><time="20:49:38.279-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 47%]LOG]!><time="20:49:38.471-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 52%]LOG]!><time="20:49:38.618-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 57%]LOG]!><time="20:49:38.758-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 63%]LOG]!><time="20:49:39.011-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 68%]LOG]!><time="20:49:39.392-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 73%]LOG]!><time="20:49:39.535-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 78%]LOG]!><time="20:49:39.678-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 84%]LOG]!><time="20:49:39.821-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 89%]LOG]!><time="20:49:39.948-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 94%]LOG]!><time="20:49:40.106-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 100%]LOG]!><time="20:49:40.201-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Drivers (3 .inf, 19 files, 88.9 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\network\4JDC5_A00-00\0\0\Drivers\Drivers in 3305 ms.]LOG]!><time="20:49:40.328-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 8 of 44: Netwtw08.INF]LOG]!><time="20:49:40.379-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[Netwtw08.INF matches PCI\VEN_8086&DEV_A0F0&SUBSYS_40708086 at rank 1]LOG]!><time="20:49:40.520-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 4%]LOG]!><time="20:49:40.742-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 9%]LOG]!><time="20:49:40.868-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 14%]LOG]!><time="20:49:40.995-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 19%]LOG]!><time="20:49:41.138-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 28%]LOG]!><time="20:49:41.409-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 33%]LOG]!><time="20:49:41.663-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 38%]LOG]!><time="20:49:41.837-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 47%]LOG]!><time="20:49:42.042-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 52%]LOG]!><time="20:49:42.170-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 57%]LOG]!><time="20:49:42.313-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 66%]LOG]!><time="20:49:42.853-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 71%]LOG]!><time="20:49:42.980-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 76%]LOG]!><time="20:49:43.109-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 85%]LOG]!><time="20:49:43.234-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 90%]LOG]!><time="20:49:43.345-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 95%]LOG]!><time="20:49:43.520-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 100%]LOG]!><time="20:49:43.616-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Drivers (4 .inf, 21 files, 96.5 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\network\FCCJ9_A00-00\0\0\Drivers\Drivers in 3165 ms.]LOG]!><time="20:49:43.764-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 9 of 44: Netwtw08.INF]LOG]!><time="20:49:43.789-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[e1d.inf matches PCI\VEN_8086&DEV_15FB&SUBSYS_0A201028 at rank 1]LOG]!><time="20:49:43.900-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows11-x64: 20%]LOG]!><time="20:49:44.028-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows11-x64: 40%]LOG]!><time="20:49:44.155-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows11-x64: 60%]LOG]!><time="20:49:44.266-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows11-x64: 80%]LOG]!><time="20:49:44.393-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows11-x64: 100%]LOG]!><time="20:49:44.504-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Windows11-x64 (1 .inf, 5 files, 1.2 MB) to W:\Drivers\WinPE\Dell\WinPE11.0-Drivers-A10-XCXDW-2026-05-29\winpe\x64\network\V2RJJ_A00-00\WMP\production\Windows11-x64 in 684 ms.]LOG]!><time="20:49:44.663-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 10 of 44: e1d.inf]LOG]!><time="20:49:44.711-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[IntcDAud.inf matches HDAUDIO\FUNC_01&VEN_8086&DEV_2812&SUBSYS_80860101 at rank 1]LOG]!><time="20:49:44.886-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 33%]LOG]!><time="20:49:45.030-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 66%]LOG]!><time="20:49:45.173-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 100%]LOG]!><time="20:49:45.286-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged 11.2 (1 .inf, 3 files, 5.3 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\video\X14J0_A00-00\5333\5333\Graphics\DisplayAudio\11.2 in 525 ms.]LOG]!><time="20:49:45.459-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 11 of 44: IntcDAud.inf]LOG]!><time="20:49:45.525-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[IntcDAud.inf matches HDAUDIO\FUNC_01&VEN_8086&DEV_2812&SUBSYS_80860101 at rank 1]LOG]!><time="20:49:45.698-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 33%]LOG]!><time="20:49:45.858-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 66%]LOG]!><time="20:49:45.968-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 100%]LOG]!><time="20:49:46.096-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged 11.2 (1 .inf, 3 files, 5.3 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\video\X14J0_A00-00\2127\2127\Graphics\D\11.2 in 465 ms.]LOG]!><time="20:49:46.226-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 12 of 44: IntcDAud.inf]LOG]!><time="20:49:46.253-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[IntcDAud.inf matches HDAUDIO\FUNC_01&VEN_8086&DEV_2812&SUBSYS_80860101 at rank 1]LOG]!><time="20:49:46.396-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 33%]LOG]!><time="20:49:46.507-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 66%]LOG]!><time="20:49:46.666-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 11.2: 100%]LOG]!><time="20:49:46.809-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged 11.2 (1 .inf, 3 files, 5.4 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\video\7TFPK_A00-00\Graphics\DisplayAudio\11.2 in 505 ms.]LOG]!><time="20:49:46.935-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 13 of 44: IntcDAud.inf]LOG]!><time="20:49:46.969-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[RtsPerDLnQS.inf matches PCI\VEN_10EC&DEV_525A&SUBSYS_0A201028 at rank 1]LOG]!><time="20:49:47.078-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 16%]LOG]!><time="20:49:47.299-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 33%]LOG]!><time="20:49:47.490-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 50%]LOG]!><time="20:49:47.617-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 66%]LOG]!><time="20:49:47.761-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 83%]LOG]!><time="20:49:47.952-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging WU: 100%]LOG]!><time="20:49:48.096-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged WU (2 .inf, 6 files, 11.5 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\G378Y_A00-00\0\0\Drivers\WU in 1146 ms.]LOG]!><time="20:49:48.287-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 14 of 44: RtsPerDLnQS.inf]LOG]!><time="20:49:48.353-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[dptf_acpi.inf matches ACPI\INTC1040 at rank 1]LOG]!><time="20:49:48.510-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 5%]LOG]!><time="20:49:48.812-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 10%]LOG]!><time="20:49:49.002-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 16%]LOG]!><time="20:49:49.210-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 21%]LOG]!><time="20:49:49.369-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 27%]LOG]!><time="20:49:49.576-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 32%]LOG]!><time="20:49:49.736-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 37%]LOG]!><time="20:49:49.895-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 43%]LOG]!><time="20:49:50.070-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 48%]LOG]!><time="20:49:50.276-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 54%]LOG]!><time="20:49:50.450-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 59%]LOG]!><time="20:49:50.625-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 64%]LOG]!><time="20:49:50.767-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 70%]LOG]!><time="20:49:50.926-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 75%]LOG]!><time="20:49:51.099-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 81%]LOG]!><time="20:49:51.274-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 86%]LOG]!><time="20:49:51.433-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 91%]LOG]!><time="20:49:51.576-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 97%]LOG]!><time="20:49:51.750-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 100%]LOG]!><time="20:49:51.941-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged x64 (2 .inf, 37 files, 23.7 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\H5M3J_A00-00\17134\17134\Drivers\x64 in 3494 ms.]LOG]!><time="20:49:52.067-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 15 of 44: dptf_acpi.inf]LOG]!><time="20:49:52.099-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[HDXDELLBC2018.inf matches HDAUDIO\FUNC_01&VEN_10EC&DEV_0236&SUBSYS_10280A20 at rank 1]LOG]!><time="20:49:52.242-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 4%]LOG]!><time="20:49:52.942-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 9%]LOG]!><time="20:49:53.653-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 14%]LOG]!><time="20:49:53.875-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 19%]LOG]!><time="20:49:54.111-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 24%]LOG]!><time="20:49:54.526-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 29%]LOG]!><time="20:49:54.793-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 34%]LOG]!><time="20:49:55.238-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 39%]LOG]!><time="20:49:55.951-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 44%]LOG]!><time="20:49:57.919-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 49%]LOG]!><time="20:49:58.141-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 54%]LOG]!><time="20:49:58.426-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 59%]LOG]!><time="20:49:58.663-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 64%]LOG]!><time="20:49:58.854-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 69%]LOG]!><time="20:49:59.031-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 74%]LOG]!><time="20:49:59.253-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 79%]LOG]!><time="20:49:59.506-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 84%]LOG]!><time="20:49:59.807-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 89%]LOG]!><time="20:50:00.062-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 94%]LOG]!><time="20:50:00.349-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 99%]LOG]!><time="20:50:00.620-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Win64: 100%]LOG]!><time="20:50:00.762-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Win64 (29 .inf, 107 files, 426.6 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\audio\77WCK_A00-00\0\0\Drivers\Win64 in 8630 ms.]LOG]!><time="20:50:00.904-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 16 of 44: HDXDELLBC2018.inf]LOG]!><time="20:50:00.936-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[HidEventFilter.inf matches ACPI\INTC1051 at rank 1]LOG]!><time="20:50:01.063-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 33%]LOG]!><time="20:50:01.126-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 66%]LOG]!><time="20:50:01.300-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging x64: 100%]LOG]!><time="20:50:01.444-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged x64 (1 .inf, 3 files, 101.4 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\input\MDG8X_A00-00\0\0\Drivers\x64 in 520 ms.]LOG]!><time="20:50:01.614-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 17 of 44: HidEventFilter.inf]LOG]!><time="20:50:01.669-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[Ude.inf matches PCI\VEN_8086&DEV_7360&SUBSYS_58201028 at rank 1]LOG]!><time="20:50:01.853-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 5%]LOG]!><time="20:50:02.048-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 10%]LOG]!><time="20:50:02.198-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 15%]LOG]!><time="20:50:02.538-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 21%]LOG]!><time="20:50:02.681-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 26%]LOG]!><time="20:50:02.872-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 31%]LOG]!><time="20:50:03.045-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 36%]LOG]!><time="20:50:03.522-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 42%]LOG]!><time="20:50:03.681-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 47%]LOG]!><time="20:50:03.857-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 52%]LOG]!><time="20:50:04.062-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 57%]LOG]!><time="20:50:04.221-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 63%]LOG]!><time="20:50:04.397-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 68%]LOG]!><time="20:50:04.587-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 73%]LOG]!><time="20:50:04.840-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 78%]LOG]!><time="20:50:05.001-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 84%]LOG]!><time="20:50:05.174-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 89%]LOG]!><time="20:50:05.366-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 94%]LOG]!><time="20:50:05.539-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging V9594_A00-00: 100%]LOG]!><time="20:50:05.713-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged V9594_A00-00 (4 .inf, 19 files, 40.1 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\communication\V9594_A00-00 in 3933 ms.]LOG]!><time="20:50:05.856-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 18 of 44: Ude.inf]LOG]!><time="20:50:05.906-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[IntcAudioBus.inf matches PCI\VEN_8086&DEV_A0C8&CC_040380 at rank 2]LOG]!><time="20:50:06.078-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 4%]LOG]!><time="20:50:07.795-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 9%]LOG]!><time="20:50:08.463-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 14%]LOG]!><time="20:50:08.686-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 19%]LOG]!><time="20:50:08.924-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 24%]LOG]!><time="20:50:09.161-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 29%]LOG]!><time="20:50:09.415-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 34%]LOG]!><time="20:50:10.002-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 39%]LOG]!><time="20:50:10.237-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 44%]LOG]!><time="20:50:10.510-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 49%]LOG]!><time="20:50:10.808-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 54%]LOG]!><time="20:50:11.125-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 59%]LOG]!><time="20:50:11.426-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 64%]LOG]!><time="20:50:11.760-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 69%]LOG]!><time="20:50:12.109-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 74%]LOG]!><time="20:50:12.458-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 79%]LOG]!><time="20:50:12.822-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 84%]LOG]!><time="20:50:13.107-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 89%]LOG]!><time="20:50:13.408-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 94%]LOG]!><time="20:50:13.725-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 99%]LOG]!><time="20:50:13.996-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging TGL: 100%]LOG]!><time="20:50:14.170-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged TGL (14 .inf, 256 files, 187.6 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\audio\77WCK_A00-00\0\0\Drivers\I\TGL in 8171 ms.]LOG]!><time="20:50:14.312-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 19 of 44: IntcAudioBus.inf]LOG]!><time="20:50:14.361-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaStorVD.inf matches PCI\VEN_8086&DEV_09AB at rank 3]LOG]!><time="20:50:14.518-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 20%]LOG]!><time="20:50:14.614-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 40%]LOG]!><time="20:50:14.788-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 60%]LOG]!><time="20:50:14.947-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 80%]LOG]!><time="20:50:15.089-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 100%]LOG]!><time="20:50:15.310-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged VMD (1 .inf, 5 files, 3.6 MB) to W:\Drivers\WinPE\Dell\WinPE11.0-Drivers-A10-XCXDW-2026-05-29\winpe\x64\storage\D_108HG_A00-00\Drivers\20\VMD in 916 ms.]LOG]!><time="20:50:15.484-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 20 of 44: iaStorVD.inf]LOG]!><time="20:50:15.518-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaStorVD.inf matches PCI\VEN_8086&DEV_09AB at rank 3]LOG]!><time="20:50:15.690-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 16%]LOG]!><time="20:50:15.770-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 33%]LOG]!><time="20:50:15.944-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 50%]LOG]!><time="20:50:16.149-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 66%]LOG]!><time="20:50:16.292-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 83%]LOG]!><time="20:50:16.515-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VMD: 100%]LOG]!><time="20:50:16.703-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged VMD (1 .inf, 6 files, 3.5 MB) to W:\Drivers\WinPE\Dell\WinPE11.0-Drivers-A10-XCXDW-2026-05-29\winpe\x64\storage\C_R6VYH_A00-00\production\Windows11-x64\VMD in 1155 ms.]LOG]!><time="20:50:16.893-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 21 of 44: iaStorVD.inf]LOG]!><time="20:50:16.924-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaStorVD.inf matches PCI\VEN_8086&DEV_09AB at rank 3]LOG]!><time="20:50:17.083-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 10%]LOG]!><time="20:50:17.178-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 20%]LOG]!><time="20:50:17.337-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 30%]LOG]!><time="20:50:17.544-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 40%]LOG]!><time="20:50:17.766-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 50%]LOG]!><time="20:50:17.972-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 60%]LOG]!><time="20:50:18.147-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 70%]LOG]!><time="20:50:18.338-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 80%]LOG]!><time="20:50:18.574-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 90%]LOG]!><time="20:50:18.733-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging f6vmdflpy-x64: 100%]LOG]!><time="20:50:18.954-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged f6vmdflpy-x64 (1 .inf, 10 files, 6.9 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\storage\8KYW6_A00-00\F6\VMD\f6vmdflpy-x64 in 1997 ms.]LOG]!><time="20:50:19.112-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 22 of 44: iaStorVD.inf]LOG]!><time="20:50:19.144-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[RtsCrExtPrMup.inf matches PCI\VEN_10EC&DEV_525A&CC_FF00 at rank 3]LOG]!><time="20:50:19.319-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ExtInf: 50%]LOG]!><time="20:50:19.383-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ExtInf: 100%]LOG]!><time="20:50:19.540-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged ExtInf (1 .inf, 2 files, 14.7 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\G378Y_A00-00\0\0\Drivers\WU\ExtInf in 349 ms.]LOG]!><time="20:50:19.699-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 23 of 44: RtsCrExtPrMup.inf]LOG]!><time="20:50:19.747-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[RtsperDLnQS.inf matches PCI\VEN_10EC&DEV_525A&CC_FF00 at rank 3]LOG]!><time="20:50:19.921-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 14%]LOG]!><time="20:50:20.081-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 28%]LOG]!><time="20:50:20.319-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 42%]LOG]!><time="20:50:20.478-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 57%]LOG]!><time="20:50:20.701-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 71%]LOG]!><time="20:50:20.906-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 85%]LOG]!><time="20:50:21.098-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging R16KJ_A00-00: 100%]LOG]!><time="20:50:21.316-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged R16KJ_A00-00 (2 .inf, 7 files, 10.8 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\chipset\R16KJ_A00-00 in 1585 ms.]LOG]!><time="20:50:21.538-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 24 of 44: RtsperDLnQS.inf]LOG]!><time="20:50:21.586-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[RtsCrExt.inf matches PCI\VEN_10EC&DEV_525A&CC_FF00 at rank 3]LOG]!><time="20:50:21.808-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ExtInf: 33%]LOG]!><time="20:50:21.920-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ExtInf: 66%]LOG]!><time="20:50:22.142-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ExtInf: 100%]LOG]!><time="20:50:22.315-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged ExtInf (1 .inf, 3 files, 163.5 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\chipset\R16KJ_A00-00\ExtInf in 632 ms.]LOG]!><time="20:50:22.506-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 25 of 44: RtsCrExt.inf]LOG]!><time="20:50:22.538-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaNullVMD.inf matches PCI\VEN_8086&DEV_09AB at rank 3]LOG]!><time="20:50:22.681-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 6%]LOG]!><time="20:50:22.809-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 12%]LOG]!><time="20:50:22.997-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 18%]LOG]!><time="20:50:23.157-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 25%]LOG]!><time="20:50:23.377-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 31%]LOG]!><time="20:50:23.584-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 37%]LOG]!><time="20:50:23.789-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 43%]LOG]!><time="20:50:24.026-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 50%]LOG]!><time="20:50:24.262-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 56%]LOG]!><time="20:50:24.484-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 62%]LOG]!><time="20:50:24.675-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 68%]LOG]!><time="20:50:24.865-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 75%]LOG]!><time="20:50:25.070-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 81%]LOG]!><time="20:50:25.277-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 87%]LOG]!><time="20:50:25.481-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 93%]LOG]!><time="20:50:25.673-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Windows10-x64: 100%]LOG]!><time="20:50:25.893-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Windows10-x64 (5 .inf, 16 files, 5.6 MB) to W:\Drivers\WinPE\Dell\WinPE11.0-Drivers-A10-XCXDW-2026-05-29\winpe\x64\storage\8MM5M_A00-00\WMP\production\Windows10-x64 in 3401 ms.]LOG]!><time="20:50:26.113-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 26 of 44: iaNullVMD.inf]LOG]!><time="20:50:26.177-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[TbtHostController.inf matches PCI\VEN_8086&DEV_9A1B&CC_0C03 at rank 3]LOG]!><time="20:50:26.384-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 6%]LOG]!><time="20:50:26.575-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 12%]LOG]!><time="20:50:26.797-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 18%]LOG]!><time="20:50:26.986-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 25%]LOG]!><time="20:50:27.192-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 31%]LOG]!><time="20:50:27.414-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 37%]LOG]!><time="20:50:27.667-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 43%]LOG]!><time="20:50:27.842-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 50%]LOG]!><time="20:50:28.096-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 56%]LOG]!><time="20:50:28.286-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 62%]LOG]!><time="20:50:28.475-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 68%]LOG]!><time="20:50:28.699-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 75%]LOG]!><time="20:50:28.950-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 81%]LOG]!><time="20:50:29.155-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 87%]LOG]!><time="20:50:29.408-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 93%]LOG]!><time="20:50:29.582-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Drivers: 100%]LOG]!><time="20:50:29.785-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Drivers (5 .inf, 16 files, 4.7 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\TBB12_A00-00\16299\16299\Drivers\Drivers in 3542 ms.]LOG]!><time="20:50:29.990-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 27 of 44: TbtHostController.inf]LOG]!><time="20:50:30.021-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[wiman_wlan_extension.inf matches PCI\VEN_8086&DEV_A0E0 at rank 5]LOG]!><time="20:50:30.243-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging wiman_wlan_extension.inf: 50%]LOG]!><time="20:50:30.339-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging wiman_wlan_extension.inf: 100%]LOG]!><time="20:50:30.577-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged wiman_wlan_extension.inf (1 .inf, 2 files, 39.2 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\3XG3X_A00-00\wiman_wlan_extension.inf in 491 ms.]LOG]!><time="20:50:30.804-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 28 of 44: wiman_wlan_extension.inf]LOG]!><time="20:50:30.859-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[heci.inf matches PCI\VEN_8086&DEV_A0E0 at rank 5]LOG]!><time="20:50:31.080-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging heci.inf: 25%]LOG]!><time="20:50:31.209-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging heci.inf: 50%]LOG]!><time="20:50:31.446-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging heci.inf: 75%]LOG]!><time="20:50:31.668-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging heci.inf: 100%]LOG]!><time="20:50:31.891-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged heci.inf (1 .inf, 4 files, 603.2 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\3XG3X_A00-00\heci.inf in 968 ms.]LOG]!><time="20:50:32.112-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 29 of 44: heci.inf]LOG]!><time="20:50:32.160-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[wiman_wlan_extension.inf matches PCI\VEN_8086&DEV_A0E0 at rank 5]LOG]!><time="20:50:32.382-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging wiman_wlan_extension.inf: 50%]LOG]!><time="20:50:32.478-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging wiman_wlan_extension.inf: 100%]LOG]!><time="20:50:32.716-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged wiman_wlan_extension.inf (1 .inf, 2 files, 37.0 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\chipset\YDF1N_A00-00\wiman_wlan_extension.inf in 476 ms.]LOG]!><time="20:50:32.922-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 30 of 44: wiman_wlan_extension.inf]LOG]!><time="20:50:32.970-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[HdBusExt.inf matches PCI\VEN_8086&DEV_A0C8 at rank 5]LOG]!><time="20:50:33.193-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 31 of 44: HdBusExt.inf]LOG]!><time="20:50:33.257-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaLPSS2_I2C_TGL.inf matches PCI\VEN_8086&DEV_A0E8 at rank 5]LOG]!><time="20:50:33.495-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 32 of 44: iaLPSS2_I2C_TGL.inf]LOG]!><time="20:50:33.558-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[HdBusExt.inf matches PCI\VEN_8086&DEV_A0C8 at rank 5]LOG]!><time="20:50:33.779-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 33 of 44: HdBusExt.inf]LOG]!><time="20:50:33.844-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[iaStorHsa_Ext.inf matches PCI\VEN_8086&DEV_9A0B at rank 5]LOG]!><time="20:50:34.049-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HsaExtension: 50%]LOG]!><time="20:50:34.145-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging HsaExtension: 100%]LOG]!><time="20:50:34.414-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged HsaExtension (1 .inf, 2 files, 21.9 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\storage\8KYW6_A00-00\F6\HsaExtension in 515 ms.]LOG]!><time="20:50:34.628-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 34 of 44: iaStorHsa_Ext.inf]LOG]!><time="20:50:34.683-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[e1d.inf matches PCI\VEN_8086&DEV_15FB at rank 5]LOG]!><time="20:50:34.905-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 11%]LOG]!><time="20:50:35.050-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 22%]LOG]!><time="20:50:35.271-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 33%]LOG]!><time="20:50:35.524-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 44%]LOG]!><time="20:50:35.761-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 55%]LOG]!><time="20:50:36.014-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 66%]LOG]!><time="20:50:36.267-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 77%]LOG]!><time="20:50:36.504-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 88%]LOG]!><time="20:50:36.789-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging i219: 100%]LOG]!><time="20:50:37.059-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged i219 (2 .inf, 9 files, 3.2 MB) to W:\Drivers\WinPE\Dell\WinPE11.0-Drivers-A10-XCXDW-2026-05-29\winpe\x64\network\Y23GN_A00-00\i219 in 2311 ms.]LOG]!><time="20:50:37.296-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 35 of 44: e1d.inf]LOG]!><time="20:50:37.362-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[e1d.inf matches PCI\VEN_8086&DEV_15FB at rank 5]LOG]!><time="20:50:37.630-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Dell-I219-12.19.2.50: 25%]LOG]!><time="20:50:37.726-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Dell-I219-12.19.2.50: 50%]LOG]!><time="20:50:37.979-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Dell-I219-12.19.2.50: 75%]LOG]!><time="20:50:38.202-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging Dell-I219-12.19.2.50: 100%]LOG]!><time="20:50:38.440-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged Dell-I219-12.19.2.50 (1 .inf, 4 files, 1.1 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\network\99KJH_A00-00\0\0\Drivers\Dell-I219-12.19.2.50 in 966 ms.]LOG]!><time="20:50:38.662-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 36 of 44: e1d.inf]LOG]!><time="20:50:38.709-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[E1D68x64.inf matches PCI\VEN_8086&DEV_15FB at rank 5]LOG]!><time="20:50:38.963-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 5%]LOG]!><time="20:50:39.139-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 11%]LOG]!><time="20:50:39.408-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 17%]LOG]!><time="20:50:39.630-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 23%]LOG]!><time="20:50:39.883-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 29%]LOG]!><time="20:50:40.103-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 35%]LOG]!><time="20:50:40.324-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 41%]LOG]!><time="20:50:40.562-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 47%]LOG]!><time="20:50:40.799-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 52%]LOG]!><time="20:50:41.069-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 58%]LOG]!><time="20:50:41.368-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 64%]LOG]!><time="20:50:41.607-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 70%]LOG]!><time="20:50:41.891-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 76%]LOG]!><time="20:50:42.145-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 82%]LOG]!><time="20:50:42.431-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 88%]LOG]!><time="20:50:42.684-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 94%]LOG]!><time="20:50:42.954-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging VP20T_A00-00: 100%]LOG]!><time="20:50:43.208-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged VP20T_A00-00 (3 .inf, 17 files, 2.6 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5490\5490\Win11\x64\network\VP20T_A00-00 in 4447 ms.]LOG]!><time="20:50:43.461-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 37 of 44: E1D68x64.inf]LOG]!><time="20:50:43.525-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[TigerlakeSystem.inf matches PCI\VEN_8086&DEV_9A14 at rank 5]LOG]!><time="20:50:43.779-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 4%]LOG]!><time="20:50:44.591-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 9%]LOG]!><time="20:50:44.877-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 14%]LOG]!><time="20:50:45.210-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 19%]LOG]!><time="20:50:45.494-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 24%]LOG]!><time="20:50:45.812-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 29%]LOG]!><time="20:50:46.095-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 34%]LOG]!><time="20:50:46.380-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 39%]LOG]!><time="20:50:46.667-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 44%]LOG]!><time="20:50:46.940-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 49%]LOG]!><time="20:50:47.239-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 54%]LOG]!><time="20:50:47.522-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 59%]LOG]!><time="20:50:47.823-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 64%]LOG]!><time="20:50:48.093-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 69%]LOG]!><time="20:50:48.395-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 74%]LOG]!><time="20:50:48.662-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 79%]LOG]!><time="20:50:48.964-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 84%]LOG]!><time="20:50:49.233-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 89%]LOG]!><time="20:50:49.502-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 94%]LOG]!><time="20:50:49.821-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 99%]LOG]!><time="20:50:50.091-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging 78CDF_A00-00: 100%]LOG]!><time="20:50:50.376-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged 78CDF_A00-00 (99 .inf, 141 files, 1.3 MB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\78CDF_A00-00 in 6787 ms.]LOG]!><time="20:50:50.646-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 38 of 44: TigerlakeSystem.inf]LOG]!><time="20:50:50.693-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[TigerlakeDmaSecExtension.inf matches PCI\VEN_8086&DEV_9A23 at rank 5]LOG]!><time="20:50:50.947-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 39 of 44: TigerlakeDmaSecExtension.inf]LOG]!><time="20:50:51.011-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[TigerlakePCH-LPSystem.inf matches PCI\VEN_8086&DEV_A082 at rank 5]LOG]!><time="20:50:51.248-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 40 of 44: TigerlakePCH-LPSystem.inf]LOG]!><time="20:50:51.328-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[TigerlakePCH-LPDmaSecExtension.inf matches PCI\VEN_8086&DEV_A082 at rank 5]LOG]!><time="20:50:51.598-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 41 of 44: TigerlakePCH-LPDmaSecExtension.inf]LOG]!><time="20:50:51.678-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[dptf_cpu.inf matches PCI\VEN_8086&DEV_9A03 at rank 5]LOG]!><time="20:50:51.932-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 42 of 44: dptf_cpu.inf]LOG]!><time="20:50:51.996-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[ISH.inf matches PCI\VEN_8086&DEV_A0FC at rank 5]LOG]!><time="20:50:52.279-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ISH: 33%]LOG]!><time="20:50:52.407-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ISH: 66%]LOG]!><time="20:50:52.629-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging ISH: 100%]LOG]!><time="20:50:52.914-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged ISH (1 .inf, 3 files, 184.8 KB) to W:\Drivers\Win11\Dell Inc\Latitude 5420 Fallback\Latitude-5420\Win11\x64\chipset\D0JPR_A00-00\WU\SetupISS_TGL\ISH in 824 ms.]LOG]!><time="20:50:53.185-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 43 of 44: ISH.inf]LOG]!><time="20:50:53.267-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[amdacprgmext.inf matches HDAUDIO\FUNC_01&VEN_10EC at rank 10]LOG]!><time="20:50:53.535-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging amdacprgmext: 33%]LOG]!><time="20:50:53.646-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging amdacprgmext: 66%]LOG]!><time="20:50:53.915-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging amdacprgmext: 100%]LOG]!><time="20:50:54.217-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged amdacprgmext (1 .inf, 3 files, 64.8 KB) to W:\Drivers\Win11\Dell Inc\Dell Pro 3 16 P316265\dellprolaptopsep316265\WIN11\x64\Video\FM07F\Drivers\Audio\acpbus2\wt64a\amdacprgmext in 889 ms.]LOG]!><time="20:50:54.487-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staging driver 44 of 44: amdacprgmext.inf]LOG]!><time="20:50:54.550-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[staged 35 driver package(s) (234 .inf, 4.3 GB) to W:\Drivers in 139062 ms. Windows installs them from there during the offlineServicing pass, because the ApplyUnattend step writes that path into the answer file as PnpCustomizationsNonWinPE DriverPaths - staging alone only copies the files.]LOG]!><time="20:50:54.820-180" date="08-30-2026" component="ApplyDrivers" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[step 6 'Inject Drivers' completed]LOG]!><time="20:50:54.932-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ApplyDrivers">
+<![LOG[step 7 'Apply Windows Settings' (ApplyUnattend) starting, attempt 1 of 1]LOG]!><time="20:50:55.043-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 15s]LOG]!><time="20:51:10.516-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 30s]LOG]!><time="20:51:25.980-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 46s]LOG]!><time="20:51:41.462-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 1m 1s]LOG]!><time="20:51:56.897-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 1m 16s]LOG]!><time="20:52:12.259-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 1m 32s]LOG]!><time="20:52:27.658-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 1m 47s]LOG]!><time="20:52:43.041-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 2m 3s]LOG]!><time="20:52:58.435-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 2m 18s]LOG]!><time="20:53:13.811-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applying the answer file, which installs the staged drivers - still running after 2m 33s]LOG]!><time="20:53:29.159-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[applied the unattend to the offline image at W:\, which runs its offlineServicing pass.]LOG]!><time="20:53:41.652-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[staged the unattend at W:\Windows\Panther\unattend.xml (9664 bytes).]LOG]!><time="20:53:41.721-180" date="08-30-2026" component="ApplyUnattend" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[step 7 'Apply Windows Settings' completed]LOG]!><time="20:53:41.801-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ApplyUnattend">
+<![LOG[step 8 'Configure Boot' (ConfigureBoot) starting, attempt 1 of 1]LOG]!><time="20:53:41.897-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[installing UEFI boot files from W:\ to S:]LOG]!><time="20:53:42.149-180" date="08-30-2026" component="ConfigureBoot" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[UEFI boot files were written from W:\ to S:. The Windows Boot Manager is now first in the firmware boot order.]LOG]!><time="20:53:43.033-180" date="08-30-2026" component="ConfigureBoot" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[step 8 'Configure Boot' completed]LOG]!><time="20:53:43.112-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[step 9 'Install Certificates' is skipped: its condition $HDTHasCertificate == True is false]LOG]!><time="20:53:43.191-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="InstallCertificate">
+<![LOG[step 10 'Restart into Windows' (Restart) starting, attempt 1 of 1]LOG]!><time="20:53:43.335-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[a restart was requested]LOG]!><time="20:53:43.654-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[step 10 'Restart into Windows' completed]LOG]!><time="20:53:43.781-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[the resume agent was staged to 'W:\HDT' (36 file(s))]LOG]!><time="20:53:43.962-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[Autologon armed for Administrator for 2 more leg(s)]LOG]!><time="20:53:44.196-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[the log was copied to 'W:\HDT\Logs\LT-D5M1NN3-run-20260830-204613', which survives the restart]LOG]!><time="20:53:44.372-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[logging live to '\\192.168.1.219\HDTShare\Logs\LT-D5M1NN3\run-20260830-204613' as well as this machine]LOG]!><time="20:58:52.958-180" date="08-30-2026" component="Resume" context="" type="1" thread="13" file="Engine">
+<![LOG[progress display: Window ]LOG]!><time="20:58:53.263-180" date="08-30-2026" component="Resume" context="" type="1" thread="13" file="Engine">
+<![LOG[Run run-20260830-204613 starting at step 11 of 15 in the FullOS phase (leg 2)]LOG]!><time="20:58:53.674-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Engine">
+<![LOG[The deployment moved from the WinPE phase to the FullOS phase]LOG]!><time="20:58:53.839-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Engine">
+<![LOG[step 11 'Install Applications' (InstallApplications) starting, attempt 1 of 1]LOG]!><time="20:58:54.256-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[install plan, in order: Acrobat-Acrobat-Reader-DC-2600121771, TightVNC-Software-Tightvnc-2.8.88]LOG]!><time="20:58:55.240-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[[DEBUG] 'Acrobat-Acrobat-Reader-DC-2600121771': no detect rule, so it installs every time (DESIGN 8).]LOG]!><time="20:58:55.339-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installing 1 of 2: Acrobat Acrobat Reader DC 2600121771]LOG]!><time="20:58:55.461-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG['Acrobat-Acrobat-Reader-DC-2600121771' change directory: Z:\Applications\Acrobat-Acrobat-Reader-DC-2600121771\source]LOG]!><time="20:58:55.884-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG['Acrobat-Acrobat-Reader-DC-2600121771' run command: C:\Windows\system32\cmd.exe /c msiexec.exe /i AcroRead.msi PATCH="%CD%\AcroRdrDCUpd2600121771.msp" EULA_ACCEPT=YES /qn /norestart]LOG]!><time="20:58:55.975-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[Acrobat Acrobat Reader DC 2600121771 - still running after 15s]LOG]!><time="20:59:11.390-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[Acrobat Acrobat Reader DC 2600121771 - still running after 30s]LOG]!><time="20:59:26.589-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[Acrobat Acrobat Reader DC 2600121771 - still running after 45s]LOG]!><time="20:59:41.730-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[Acrobat Acrobat Reader DC 2600121771 - still running after 1m 0s]LOG]!><time="20:59:56.743-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[Acrobat Acrobat Reader DC 2600121771 - still running after 1m 16s]LOG]!><time="21:00:12.236-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[Acrobat Acrobat Reader DC 2600121771 - still running after 1m 31s]LOG]!><time="21:00:27.299-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[[DEBUG] 'Acrobat-Acrobat-Reader-DC-2600121771' returned exit code 0 in 95899 ms; successCodes (0, 3010), rebootCodes (3010) - it matched a success code.]LOG]!><time="21:00:32.003-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installed 'Acrobat Acrobat Reader DC 2600121771'; it returned exit code 0 in 95899 ms.]LOG]!><time="21:00:32.083-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installed 1 of 2: Acrobat Acrobat Reader DC 2600121771.]LOG]!><time="21:00:32.162-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[[DEBUG] 'TightVNC-Software-Tightvnc-2.8.88': detection (file: path=C:\Program Files\TightVNC\tvnviewer.exe) did not find it, so it will be installed.]LOG]!><time="21:00:32.497-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installing 2 of 2: TightVNC Software Tightvnc 2.8.88]LOG]!><time="21:00:32.563-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG['TightVNC-Software-Tightvnc-2.8.88' change directory: Z:\Applications\TightVNC-Software-Tightvnc-2.8.88\source]LOG]!><time="21:00:32.848-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG['TightVNC-Software-Tightvnc-2.8.88' run command: C:\Windows\system32\cmd.exe /c msiexec.exe /i "%CD%\tightvnc-2.8.88-gpl-setup-64bit.msi" /qn /norestart]LOG]!><time="21:00:32.914-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[[DEBUG] 'TightVNC-Software-Tightvnc-2.8.88' returned exit code 0 in 2589 ms; successCodes (0, 3010), rebootCodes (3010) - it matched a success code.]LOG]!><time="21:00:35.578-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installed 'TightVNC Software Tightvnc 2.8.88'; it returned exit code 0 in 2589 ms.]LOG]!><time="21:00:35.626-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installed 2 of 2: TightVNC Software Tightvnc 2.8.88.]LOG]!><time="21:00:35.705-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[installed 2 application(s), skipped 0 already present.]LOG]!><time="21:00:36.011-180" date="08-30-2026" component="InstallApplications" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[step 11 'Install Applications' completed]LOG]!><time="21:00:36.091-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="InstallApplications">
+<![LOG[step 12 'Restart before second application pass' (Restart) starting, attempt 1 of 1]LOG]!><time="21:00:36.178-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[a restart was requested]LOG]!><time="21:00:36.542-180" date="08-30-2026" component="Restart" context="" type="1" thread="13" file="Restart">
+<![LOG[step 12 'Restart before second application pass' completed]LOG]!><time="21:00:36.624-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Restart">
+<![LOG[The task sequence stopped: Exception calling "SetValue" with "4" argument(s): "The running command stopped because the preference variable "ErrorActionPreference" or common parameter is set to Stop: Cannot delete a subkey tree because the subkey does not exist."]LOG]!><time="21:00:36.835-180" date="08-30-2026" component="Engine" context="" type="3" thread="13" file="Restart">
+<![LOG[Autologon teardown cleared 6 artifact(s), 0 failed]LOG]!><time="21:00:37.042-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Engine">
+<![LOG[Run run-20260830-204613 ended Failed: 10 completed, 0 failed, 2 skipped]LOG]!><time="21:00:37.133-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="Engine">

@@ -1,0 +1,11 @@
+{
+    "schemaVersion":  1,
+    "runId":  "run-20260830-204613",
+    "phase":  "FullOS",
+    "status":  "Failed",
+    "stepIndex":  12,
+    "stepCount":  15,
+    "stepName":  "Restart before second application pass",
+    "stepType":  "Restart",
+    "updated":  "2026-08-30T18:00:37.1954097Z"
+}

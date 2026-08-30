@@ -1,0 +1,348 @@
+{
+    "schemaVersion":  1,
+    "runId":  "run-20260830-204613",
+    "sequenceId":  "PNP-TEST",
+    "status":  "Failed",
+    "phase":  "FullOS",
+    "leg":  2,
+    "seq":  659,
+    "logLevel":  "Debug",
+    "startedUtc":  "2026-08-30T17:46:20.3237777Z",
+    "updatedUtc":  "2026-08-30T18:00:36.9107798Z",
+    "stepIndex":  13,
+    "pauseOnError":  false,
+    "variable":  {
+                     "HDTKeyboardLocale":  "0409:00000409",
+                     "HDTSystemLocale":  "en-US",
+                     "HDTUILanguage":  "en-US",
+                     "HDTUserLocale":  "en-US",
+                     "HDTComputerName":  "LT-D5M1NN3",
+                     "HDTDriverGroup":  "Dell\\Latitude 5420",
+                     "HDTAssetTag":  "ASSET-D5M1NN3",
+                     "HDTTaskSequenceID":  "PNP-TEST",
+                     "HDTSkipWizard":  true,
+                     "HDTFullName":  "HDT Lab",
+                     "HDTOrgName":  "Hephaestus Deployment Toolkit",
+                     "HDTAdminPassword":  "(set, not shown)",
+                     "HDTApplications":  "TightVNC-Software-Tightvnc-2.8.88",
+                     "HDTTimeZone":  "Israel Standard Time",
+                     "HDTJoinWorkgroup":  "WORKGROUP",
+                     "HDTSLShareDynamicLogging":  "\\\\192.168.1.219\\HDTShare\\Logs\\LT-D5M1NN3",
+                     "HDTMake":  "Dell Inc.",
+                     "HDTModel":  "Latitude 5420",
+                     "HDTProduct":  "0M51J7",
+                     "HDTSerialNumber":  "D5M1NN3",
+                     "HDTUUID":  "4C4C4544-0035-4D10-8031-C4C04F4E4E33",
+                     "HDTSystemSKU":  "0A20",
+                     "HDTMemory":  15761,
+                     "HDTArchitecture":  "x64",
+                     "HDTDeploymentType":  "NEWCOMPUTER",
+                     "HDTIsUEFI":  true,
+                     "HDTSecureBootEnabled":  true,
+                     "HDTTPMVersion":  "2.0",
+                     "HDTIsDesktop":  false,
+                     "HDTIsLaptop":  true,
+                     "HDTIsServer":  false,
+                     "HDTIsVM":  false,
+                     "HDTMacAddress":  "08:92:04:1A:66:19",
+                     "HDTIPAddress":  [
+                                          "192.168.1.201",
+                                          "fe80::4e85:f8bb:1a60:a700",
+                                          "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx",
+                                          "2a0d:6fc0:xxxx:xxxx:xxxx:xxxx:xxxx:xxxx"
+                                      ],
+                     "HDTDefaultGateway":  [
+                                               "192.168.1.1",
+                                               "fe80::d692:5eff:fee9:5e2"
+                                           ],
+                     "HDTDeploymentStart":  "2026-08-30T17:46:18Z",
+                     "HDTHasCertificate":  false,
+                     "HDTOSImage":  "Win11-LTSC-2024",
+                     "HDTOSImageIndex":  1,
+                     "_HDTRunId":  "run-20260830-204613",
+                     "_HDTPhase":  "FullOS",
+                     "_HDTLogPath":  "C:\\HDT\\Logs",
+                     "_HDTDeployRoot":  "\\\\192.168.1.219\\HDTShare",
+                     "_HDTVersion":  "0.10.2",
+                     "HDTTaskSequenceName":  "PnP fallback proof - unrecognised model",
+                     "HDTTaskSequenceVersion":  "",
+                     "_HDTStepName":  "Restart before second application pass",
+                     "_HDTStepType":  "Restart",
+                     "HDTDeploymentEnd":  "2026-08-30T18:00:36Z",
+                     "HDTTargetDisk":  0,
+                     "HDTSystemVolume":  "S",
+                     "HDTOSVolume":  "W",
+                     "HDTRecoveryVolume":  "R",
+                     "HDTImageIndex":  1,
+                     "HDTUnattendPath":  "W:\\Windows\\Panther\\unattend.xml",
+                     "_HDTApplicationInstalled":  [
+                                                      "Acrobat-Acrobat-Reader-DC-2600121771",
+                                                      "TightVNC-Software-Tightvnc-2.8.88"
+                                                  ]
+                 },
+    "step":  [
+                 {
+                     "index":  1,
+                     "name":  "Gather local only",
+                     "type":  "Gather",
+                     "group":  [
+                                   "Initialization"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:46:20.5490318Z",
+                     "endedUtc":  "2026-08-30T17:46:21.7071876Z",
+                     "durationMs":  939,
+                     "exitCode":  0,
+                     "message":  "19 facts from 10 source(s) in 118 ms; none changed since bootstrap; 1 resolved value(s) kept rather than overwritten by a fact the machine could not determine."
+                 },
+                 {
+                     "index":  2,
+                     "name":  "Validate",
+                     "type":  "Validate",
+                     "group":  [
+                                   "Validation"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:46:21.7871593Z",
+                     "endedUtc":  "2026-08-30T17:46:23.4578374Z",
+                     "durationMs":  1558,
+                     "exitCode":  0,
+                     "message":  "pre-flight passed: 8 checks, 0 warnings.\r\ndisk 0 is the deployment target: 238.5 GB, NVMe, GPT, D (NTFS), C (NTFS) - the only disk of 2 that qualified."
+                 },
+                 {
+                     "index":  3,
+                     "name":  "Format and Partition Disk (UEFI)",
+                     "type":  "DiskPartition",
+                     "group":  [
+                                   "Preinstall"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:46:23.5370933Z",
+                     "endedUtc":  "2026-08-30T17:46:34.9973030Z",
+                     "durationMs":  11334,
+                     "exitCode":  0,
+                     "message":  "disk 0 was cleared and repartitioned as authored: System on S:, Windows on W:, Recovery on R:."
+                 },
+                 {
+                     "index":  4,
+                     "name":  "Format and Partition Disk (BIOS)",
+                     "type":  "DiskPartition",
+                     "group":  [
+                                   "Preinstall"
+                               ],
+                     "status":  "Skipped",
+                     "attempt":  0,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  null,
+                     "endedUtc":  null,
+                     "durationMs":  null,
+                     "exitCode":  null,
+                     "message":  "step 4 \u0027Format and Partition Disk (BIOS)\u0027 is skipped: its condition $HDTIsUEFI -eq $false is false"
+                 },
+                 {
+                     "index":  5,
+                     "name":  "Install Operating System",
+                     "type":  "ApplyImage",
+                     "group":  [
+                                   "Install"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:46:35.3340971Z",
+                     "endedUtc":  "2026-08-30T17:48:35.4403265Z",
+                     "durationMs":  119997,
+                     "exitCode":  0,
+                     "message":  "applied Z:\\OperatingSystems\\Win11-LTSC-2024\\sources\\install.wim (index 1) to W:\\ in 119806 ms."
+                 },
+                 {
+                     "index":  6,
+                     "name":  "Inject Drivers",
+                     "type":  "ApplyDrivers",
+                     "group":  [
+                                   "Postinstall"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:48:35.5359183Z",
+                     "endedUtc":  "2026-08-30T17:50:54.9007360Z",
+                     "durationMs":  139221,
+                     "exitCode":  0,
+                     "message":  "staged 35 driver package(s) (234 .inf, 4.3 GB) to W:\\Drivers in 139062 ms."
+                 },
+                 {
+                     "index":  7,
+                     "name":  "Apply Windows Settings",
+                     "type":  "ApplyUnattend",
+                     "group":  [
+                                   "Postinstall"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:50:55.0117656Z",
+                     "endedUtc":  "2026-08-30T17:53:41.7855542Z",
+                     "durationMs":  166488,
+                     "exitCode":  0,
+                     "message":  "staged the unattend at W:\\Windows\\Panther\\unattend.xml (9664 bytes)."
+                 },
+                 {
+                     "index":  8,
+                     "name":  "Configure Boot",
+                     "type":  "ConfigureBoot",
+                     "group":  [
+                                   "Postinstall"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:53:41.8657885Z",
+                     "endedUtc":  "2026-08-30T17:53:43.0810158Z",
+                     "durationMs":  948,
+                     "exitCode":  0,
+                     "message":  "UEFI boot files were written from W:\\ to S:. The Windows Boot Manager is now first in the firmware boot order."
+                 },
+                 {
+                     "index":  9,
+                     "name":  "Install Certificates",
+                     "type":  "InstallCertificate",
+                     "group":  [
+                                   "Postinstall"
+                               ],
+                     "status":  "Skipped",
+                     "attempt":  0,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  null,
+                     "endedUtc":  null,
+                     "durationMs":  null,
+                     "exitCode":  null,
+                     "message":  "step 9 \u0027Install Certificates\u0027 is skipped: its condition $HDTHasCertificate == True is false"
+                 },
+                 {
+                     "index":  10,
+                     "name":  "Restart into Windows",
+                     "type":  "Restart",
+                     "group":  [
+                                   "Postinstall"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  1,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:53:43.2991150Z",
+                     "endedUtc":  "2026-08-30T17:53:43.7501431Z",
+                     "durationMs":  96,
+                     "exitCode":  0,
+                     "message":  "a restart was requested"
+                 },
+                 {
+                     "index":  11,
+                     "name":  "Install Applications",
+                     "type":  "InstallApplications",
+                     "group":  [
+                                   "State Restore"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  2,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T17:58:54.0988510Z",
+                     "endedUtc":  "2026-08-30T18:00:36.0675695Z",
+                     "durationMs":  101177,
+                     "exitCode":  0,
+                     "message":  "installed 2 application(s), skipped 0 already present."
+                 },
+                 {
+                     "index":  12,
+                     "name":  "Restart before second application pass",
+                     "type":  "Restart",
+                     "group":  [
+                                   "State Restore"
+                               ],
+                     "status":  "Completed",
+                     "attempt":  1,
+                     "leg":  2,
+                     "resumable":  false,
+                     "startedUtc":  "2026-08-30T18:00:36.1482581Z",
+                     "endedUtc":  "2026-08-30T18:00:36.6066487Z",
+                     "durationMs":  64,
+                     "exitCode":  0,
+                     "message":  "a restart was requested"
+                 },
+                 {
+                     "index":  13,
+                     "name":  "Install Applications - second pass (idempotency proof)",
+                     "type":  "InstallApplications",
+                     "group":  [
+                                   "State Restore"
+                               ],
+                     "status":  "Pending",
+                     "attempt":  0,
+                     "leg":  null,
+                     "resumable":  false,
+                     "startedUtc":  null,
+                     "endedUtc":  null,
+                     "durationMs":  null,
+                     "exitCode":  null,
+                     "message":  null
+                 },
+                 {
+                     "index":  14,
+                     "name":  "Show all notification area icons",
+                     "type":  "PowerShell",
+                     "group":  [
+                                   "State Restore"
+                               ],
+                     "status":  "Pending",
+                     "attempt":  0,
+                     "leg":  null,
+                     "resumable":  false,
+                     "startedUtc":  null,
+                     "endedUtc":  null,
+                     "durationMs":  null,
+                     "exitCode":  null,
+                     "message":  null
+                 },
+                 {
+                     "index":  15,
+                     "name":  "Tattoo",
+                     "type":  "Tattoo",
+                     "group":  [
+                                   "State Restore"
+                               ],
+                     "status":  "Pending",
+                     "attempt":  0,
+                     "leg":  null,
+                     "resumable":  false,
+                     "startedUtc":  null,
+                     "endedUtc":  null,
+                     "durationMs":  null,
+                     "exitCode":  null,
+                     "message":  null
+                 }
+             ],
+    "autoLogon":  {
+                      "armed":  true,
+                      "userName":  "Administrator",
+                      "domainName":  "",
+                      "countSet":  2,
+                      "secretName":  "DefaultPassword",
+                      "runOnceName":  "HDTResume"
+                  }
+}

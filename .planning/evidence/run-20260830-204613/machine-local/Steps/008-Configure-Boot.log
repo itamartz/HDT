@@ -1,0 +1,4 @@
+<![LOG[step 8 'Configure Boot' (ConfigureBoot) starting, attempt 1 of 1]LOG]!><time="20:53:41.897-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[installing UEFI boot files from W:\ to S:]LOG]!><time="20:53:42.149-180" date="08-30-2026" component="ConfigureBoot" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[UEFI boot files were written from W:\ to S:. The Windows Boot Manager is now first in the firmware boot order.]LOG]!><time="20:53:43.033-180" date="08-30-2026" component="ConfigureBoot" context="" type="1" thread="13" file="ConfigureBoot">
+<![LOG[step 8 'Configure Boot' completed]LOG]!><time="20:53:43.112-180" date="08-30-2026" component="Engine" context="" type="1" thread="13" file="ConfigureBoot">

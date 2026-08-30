@@ -1,0 +1,1835 @@
+{
+    "schemaVersion":  1,
+    "generated":  "2026-08-30T17:46:19.7361013Z",
+    "deviceCount":  105,
+    "device":  [
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C02\\1",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C02",
+                                          "ACPI\\PNP0C02",
+                                          "*PNP0C02"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C02\\2",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C02",
+                                          "ACPI\\PNP0C02",
+                                          "*PNP0C02"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C02\\5",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C02",
+                                          "ACPI\\PNP0C02",
+                                          "*PNP0C02"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Kingston DataTraveler 3.0 USB Device",
+                       "class":  "DiskDrive",
+                       "deviceId":  "USBSTOR\\DISK\u0026VEN_KINGSTON\u0026PROD_DATATRAVELER_3.0\u0026REV_PMAP\\AC220B280C83E231E9511DA3\u00260",
+                       "hardwareId":  [
+                                          "USBSTOR\\DiskKingstonDataTraveler_3.0PMAP",
+                                          "USBSTOR\\DiskKingstonDataTraveler_3.0",
+                                          "USBSTOR\\DiskKingston",
+                                          "USBSTOR\\KingstonDataTraveler_3.0P",
+                                          "KingstonDataTraveler_3.0P",
+                                          "USBSTOR\\GenDisk",
+                                          "GenDisk"
+                                      ],
+                       "compatibleId":  [
+                                            "USBSTOR\\Disk",
+                                            "USBSTOR\\RAW",
+                                            "GenDisk"
+                                        ],
+                       "manufacturer":  "(Standard disk drives)",
+                       "service":  "disk"
+                   },
+                   {
+                       "name":  "Microsoft ACPI-Compliant Embedded Controller",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C09\\0",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C09",
+                                          "ACPI\\PNP0C09",
+                                          "*PNP0C09"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft ACPI-Compliant Control Method Battery",
+                       "class":  "Battery",
+                       "deviceId":  "ACPI\\PNP0C0A\\1",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C0A",
+                                          "ACPI\\PNP0C0A",
+                                          "*PNP0C0A"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "CmBatt"
+                   },
+                   {
+                       "name":  "ACPI Processor Aggregator",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\ACPI000C\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_ACPI\u0026DEV_000C",
+                                          "ACPI\\ACPI000C",
+                                          "*ACPI000C"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "acpipagr"
+                   },
+                   {
+                       "name":  "Intel(R) USB 3.10 eXtensible Host Controller - 1.20 (Microsoft)",
+                       "class":  "USB",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0ED\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026A0",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0ED\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0ED\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0ED\u0026CC_0C0330",
+                                          "PCI\\VEN_8086\u0026DEV_A0ED\u0026CC_0C03"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0ED\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0ED",
+                                            "PCI\\VEN_8086\u0026CC_0C0330",
+                                            "PCI\\VEN_8086\u0026CC_0C03",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C0330",
+                                            "PCI\\CC_0C03"
+                                        ],
+                       "manufacturer":  "Generic USB xHCI Host Controller",
+                       "service":  "USBXHCI"
+                   },
+                   {
+                       "name":  "Audio Device on High Definition Audio Bus",
+                       "class":  "",
+                       "deviceId":  "HDAUDIO\\FUNC_01\u0026VEN_10EC\u0026DEV_0236\u0026SUBSYS_10280A20\u0026REV_1000\\4\u00263036ACFE\u00260\u00260001",
+                       "hardwareId":  [
+                                          "HDAUDIO\\FUNC_01\u0026VEN_10EC\u0026DEV_0236\u0026SUBSYS_10280A20\u0026REV_1000",
+                                          "HDAUDIO\\FUNC_01\u0026VEN_10EC\u0026DEV_0236\u0026SUBSYS_10280A20"
+                                      ],
+                       "compatibleId":  [
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8\u0026VEN_10EC\u0026DEV_0236\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026VEN_10EC\u0026DEV_0236\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01\u0026VEN_10EC\u0026DEV_0236\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8\u0026VEN_10EC\u0026DEV_0236",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026VEN_10EC\u0026DEV_0236",
+                                            "HDAUDIO\\FUNC_01\u0026VEN_10EC\u0026DEV_0236",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8\u0026VEN_10EC",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026VEN_10EC",
+                                            "HDAUDIO\\FUNC_01\u0026VEN_10EC",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086",
+                                            "HDAUDIO\\FUNC_01\u0026GF\u0026VEN_10EC\u0026DEV_0236\u0026SUBSYS_10280A20\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Volume Manager",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\VOLMGR\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\VOLMGR"
+                                      ],
+                       "compatibleId":  [
+                                            "DETECTEDInternal\\volmgr",
+                                            "DETECTED\\volmgr"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "volmgr"
+                   },
+                   {
+                       "name":  "Volume",
+                       "class":  "Volume",
+                       "deviceId":  "STORAGE\\VOLUME\\{075A44BD-A4A3-11F1-BC76-806E6F6E6963}#0000003B5D700000",
+                       "hardwareId":  [
+                                          "STORAGE\\Volume"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "volume"
+                   },
+                   {
+                       "name":  "Trusted Platform Module 2.0",
+                       "class":  "SecurityDevices",
+                       "deviceId":  "ACPI\\STM0125\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_STM\u0026DEV_0125",
+                                          "ACPI\\STM0125",
+                                          "*STM0125"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\MSFT0101",
+                                            "MSFT0101"
+                                        ],
+                       "manufacturer":  "(Standard)",
+                       "service":  "TPM"
+                   },
+                   {
+                       "name":  "PCI Device",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0E9\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026A9",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0E9\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0E9\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0E9\u0026CC_0C8000",
+                                          "PCI\\VEN_8086\u0026DEV_A0E9\u0026CC_0C80"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0E9\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0E9",
+                                            "PCI\\VEN_8086\u0026CC_0C8000",
+                                            "PCI\\VEN_8086\u0026CC_0C80",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C8000",
+                                            "PCI\\CC_0C80"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft Basic Display Driver",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\BASICDISPLAY\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\BasicDisplay"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard display types)",
+                       "service":  "BasicDisplay"
+                   },
+                   {
+                       "name":  "ACPI Sleep Button",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C0E\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C0E",
+                                          "ACPI\\PNP0C0E",
+                                          "*PNP0C0E"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "USB Root Hub (USB 3.0)",
+                       "class":  "USB",
+                       "deviceId":  "USB\\ROOT_HUB30\\4\u0026ECED7C4\u00260\u00260",
+                       "hardwareId":  [
+                                          "USB\\ROOT_HUB30\u0026VID8086\u0026PIDA0ED\u0026REV0020",
+                                          "USB\\ROOT_HUB30\u0026VID8086\u0026PIDA0ED",
+                                          "USB\\ROOT_HUB30"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard USB HUBs)",
+                       "service":  "USBHUB3"
+                   },
+                   {
+                       "name":  "Intel RST VMD Managed Controller 09AB",
+                       "class":  "SCSIAdapter",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_09AB\u0026SUBSYS_00000000\u0026REV_00\\3\u002611583659\u00260\u0026B8",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026SUBSYS_00000000\u0026REV_00",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026SUBSYS_00000000",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026REV_00",
+                                          "PCI\\VEN_8086\u0026DEV_09AB",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026CC_088000",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026CC_0880"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026CC_088000",
+                                            "PCI\\VEN_8086\u0026CC_0880",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_088000",
+                                            "PCI\\CC_0880"
+                                        ],
+                       "manufacturer":  "Intel Corporation",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Intel RST VMD Managed Controller 09AB",
+                       "class":  "SCSIAdapter",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_09AB\u0026SUBSYS_00000000\u0026REV_00\\3\u002611583659\u00260\u0026E8",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026SUBSYS_00000000\u0026REV_00",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026SUBSYS_00000000",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026REV_00",
+                                          "PCI\\VEN_8086\u0026DEV_09AB",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026CC_088000",
+                                          "PCI\\VEN_8086\u0026DEV_09AB\u0026CC_0880"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026CC_088000",
+                                            "PCI\\VEN_8086\u0026CC_0880",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_088000",
+                                            "PCI\\CC_0880"
+                                        ],
+                       "manufacturer":  "Intel Corporation",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "NVMe KBG50ZNS256G NVMe KIOXIA 256GB",
+                       "class":  "DiskDrive",
+                       "deviceId":  "SCSI\\DISK\u0026VEN_NVME\u0026PROD_KBG50ZNS256G_NVM\\4\u00261BA05A4E\u00260\u0026020000",
+                       "hardwareId":  [
+                                          "SCSI\\DiskNVMe______________KBG50ZNS256G_NVMe_KIOXIA_256GB11200109",
+                                          "SCSI\\DiskNVMe______________KBG50ZNS256G_NVMe_KIOXIA_256GB",
+                                          "SCSI\\DiskNVMe____KBG50ZNS256G_NVM0109",
+                                          "SCSI\\DiskNVMe____KBG50ZNS256G_NVM",
+                                          "SCSI\\DiskNVMe____",
+                                          "SCSI\\NVMe____KBG50ZNS256G_NVM0",
+                                          "NVMe____KBG50ZNS256G_NVM0",
+                                          "GenDisk"
+                                      ],
+                       "compatibleId":  [
+                                            "SCSI\\Disk",
+                                            "SCSI\\RAW"
+                                        ],
+                       "manufacturer":  "(Standard disk drives)",
+                       "service":  "disk"
+                   },
+                   {
+                       "name":  "PS/2 Compatible Mouse",
+                       "class":  "Mouse",
+                       "deviceId":  "ACPI\\DLL0A20\\4\u00262102DC63\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_DLL\u0026DEV_0A20",
+                                          "ACPI\\DLL0A20",
+                                          "*DLL0A20"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0F13"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "i8042prt"
+                   },
+                   {
+                       "name":  "PCI Express Root Port",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0BC\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026E0",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0BC\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0BC\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0BC\u0026CC_060400",
+                                          "PCI\\VEN_8086\u0026DEV_A0BC\u0026CC_0604"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0BC\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0BC",
+                                            "PCI\\VEN_8086\u0026CC_060400",
+                                            "PCI\\VEN_8086\u0026CC_0604",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_060400\u0026DT_4",
+                                            "PCI\\CC_060400",
+                                            "PCI\\CC_0604\u0026DT_4",
+                                            "PCI\\CC_0604"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "pci"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\0",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\USBC000\\1",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_USB\u0026DEV_C000",
+                                          "ACPI\\USBC000",
+                                          "*USBC000"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0CA0"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Integrated Webcam",
+                       "class":  "",
+                       "deviceId":  "USB\\VID_0C45\u0026PID_6A09\u0026MI_00\\6\u00262382CD66\u00260\u00260000",
+                       "hardwareId":  [
+                                          "USB\\VID_0C45\u0026PID_6A09\u0026REV_8262\u0026MI_00",
+                                          "USB\\VID_0C45\u0026PID_6A09\u0026MI_00"
+                                      ],
+                       "compatibleId":  [
+                                            "USB\\COMPAT_VID_0c45\u0026Class_0e\u0026SubClass_03\u0026Prot_00",
+                                            "USB\\COMPAT_VID_0c45\u0026Class_0e\u0026SubClass_03",
+                                            "USB\\COMPAT_VID_0c45\u0026Class_0e",
+                                            "USB\\Class_0e\u0026SubClass_03\u0026Prot_00",
+                                            "USB\\Class_0e\u0026SubClass_03",
+                                            "USB\\Class_0e"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "USB Mass Storage Device",
+                       "class":  "USB",
+                       "deviceId":  "USB\\VID_0951\u0026PID_1666\\AC220B280C83E231E9511DA3",
+                       "hardwareId":  [
+                                          "USB\\VID_0951\u0026PID_1666\u0026REV_0110",
+                                          "USB\\VID_0951\u0026PID_1666"
+                                      ],
+                       "compatibleId":  [
+                                            "USB\\COMPAT_VID_0951\u0026Class_08\u0026SubClass_06\u0026Prot_50",
+                                            "USB\\COMPAT_VID_0951\u0026Class_08\u0026SubClass_06",
+                                            "USB\\COMPAT_VID_0951\u0026Class_08",
+                                            "USB\\Class_08\u0026SubClass_06\u0026Prot_50",
+                                            "USB\\Class_08\u0026SubClass_06",
+                                            "USB\\Class_08"
+                                        ],
+                       "manufacturer":  "Compatible USB storage device",
+                       "service":  "USBSTOR"
+                   },
+                   {
+                       "name":  "High precision event timer",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0103\\0",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0103",
+                                          "ACPI\\PNP0103",
+                                          "*PNP0103"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "USB\\VID_8087\u0026PID_0026\\5\u0026D714B9\u00260\u002610",
+                       "hardwareId":  [
+                                          "USB\\VID_8087\u0026PID_0026\u0026REV_0002",
+                                          "USB\\VID_8087\u0026PID_0026"
+                                      ],
+                       "compatibleId":  [
+                                            "USB\\COMPAT_VID_8087\u0026Class_E0\u0026SubClass_01\u0026Prot_01",
+                                            "USB\\COMPAT_VID_8087\u0026Class_E0\u0026SubClass_01",
+                                            "USB\\COMPAT_VID_8087\u0026Class_E0",
+                                            "USB\\Class_E0\u0026SubClass_01\u0026Prot_01",
+                                            "USB\\Class_E0\u0026SubClass_01",
+                                            "USB\\Class_E0"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft Virtual Drive Enumerator",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\VDRVROOT\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\vdrvroot"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "vdrvroot"
+                   },
+                   {
+                       "name":  "Audio Device on High Definition Audio Bus",
+                       "class":  "",
+                       "deviceId":  "HDAUDIO\\FUNC_01\u0026VEN_8086\u0026DEV_2812\u0026SUBSYS_80860101\u0026REV_1000\\4\u00263036ACFE\u00260\u00260201",
+                       "hardwareId":  [
+                                          "HDAUDIO\\FUNC_01\u0026VEN_8086\u0026DEV_2812\u0026SUBSYS_80860101\u0026REV_1000",
+                                          "HDAUDIO\\FUNC_01\u0026VEN_8086\u0026DEV_2812\u0026SUBSYS_80860101"
+                                      ],
+                       "compatibleId":  [
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8\u0026VEN_8086\u0026DEV_2812\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026VEN_8086\u0026DEV_2812\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01\u0026VEN_8086\u0026DEV_2812\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8\u0026VEN_8086\u0026DEV_2812",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026VEN_8086\u0026DEV_2812",
+                                            "HDAUDIO\\FUNC_01\u0026VEN_8086\u0026DEV_2812",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8\u0026VEN_8086",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026VEN_8086",
+                                            "HDAUDIO\\FUNC_01\u0026VEN_8086",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086\u0026CTLR_DEV_A0C8",
+                                            "HDAUDIO\\FUNC_01\u0026CTLR_VEN_8086",
+                                            "HDAUDIO\\FUNC_01\u0026GF\u0026VEN_8086\u0026DEV_2812\u0026SUBSYS_80860101\u0026REV_1000",
+                                            "HDAUDIO\\FUNC_01"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft AC Adapter",
+                       "class":  "Battery",
+                       "deviceId":  "ACPI\\ACPI0003\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_ACPI\u0026DEV_0003",
+                                          "ACPI\\ACPI0003",
+                                          "*ACPI0003"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "CmBatt"
+                   },
+                   {
+                       "name":  "Microsoft Storage Spaces Controller",
+                       "class":  "SCSIAdapter",
+                       "deviceId":  "ROOT\\SPACEPORT\\0000",
+                       "hardwareId":  [
+                                          "Root\\Spaceport"
+                                      ],
+                       "compatibleId":  [
+                                            "DETECTEDInternal\\spaceport",
+                                            "DETECTED\\spaceport"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "spaceport"
+                   },
+                   {
+                       "name":  "System timer",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0100\\4\u00262102DC63\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0100",
+                                          "ACPI\\PNP0100",
+                                          "*PNP0100"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft Kernel Debug Network Adapter",
+                       "class":  "Net",
+                       "deviceId":  "ROOT\\KDNIC\\0000",
+                       "hardwareId":  [
+                                          "root\\kdnic"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "kdnic"
+                   },
+                   {
+                       "name":  "PCI Express Root Port",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A23\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u002638",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A23\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A23\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A23\u0026CC_060400",
+                                          "PCI\\VEN_8086\u0026DEV_9A23\u0026CC_0604"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A23\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A23",
+                                            "PCI\\VEN_8086\u0026CC_060400",
+                                            "PCI\\VEN_8086\u0026CC_0604",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_060400\u0026DT_4",
+                                            "PCI\\CC_060400",
+                                            "PCI\\CC_0604\u0026DT_4",
+                                            "PCI\\CC_0604"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "pci"
+                   },
+                   {
+                       "name":  "PCI standard RAM Controller",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0EF\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026A2",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0EF\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0EF\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0EF\u0026CC_050000",
+                                          "PCI\\VEN_8086\u0026DEV_A0EF\u0026CC_0500"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0EF\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0EF",
+                                            "PCI\\VEN_8086\u0026CC_050000",
+                                            "PCI\\VEN_8086\u0026CC_0500",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_050000",
+                                            "PCI\\CC_0500"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "PCI Device",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0A4\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026FD",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0A4\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0A4\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0A4\u0026CC_0C8000",
+                                          "PCI\\VEN_8086\u0026DEV_A0A4\u0026CC_0C80"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0A4\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0A4",
+                                            "PCI\\VEN_8086\u0026CC_0C8000",
+                                            "PCI\\VEN_8086\u0026CC_0C80",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C8000",
+                                            "PCI\\CC_0C80"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "ACPI Lid",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C0D\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C0D",
+                                          "ACPI\\PNP0C0D",
+                                          "*PNP0C0D"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Network Controller",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0F0\u0026SUBSYS_40708086\u0026REV_20\\3\u002611583659\u00260\u0026A3",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0F0\u0026SUBSYS_40708086\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0F0\u0026SUBSYS_40708086",
+                                          "PCI\\VEN_8086\u0026DEV_A0F0\u0026CC_028000",
+                                          "PCI\\VEN_8086\u0026DEV_A0F0\u0026CC_0280"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0F0\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0F0",
+                                            "PCI\\VEN_8086\u0026CC_028000",
+                                            "PCI\\VEN_8086\u0026CC_0280",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_028000\u0026DT_9",
+                                            "PCI\\CC_028000",
+                                            "PCI\\CC_0280\u0026DT_9",
+                                            "PCI\\CC_0280"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C02\\PCHRESV",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C02",
+                                          "ACPI\\PNP0C02",
+                                          "*PNP0C02"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "PCI standard ISA bridge",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A082\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026F8",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A082\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A082\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A082\u0026CC_060100",
+                                          "PCI\\VEN_8086\u0026DEV_A082\u0026CC_0601"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A082\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A082",
+                                            "PCI\\VEN_8086\u0026CC_060100",
+                                            "PCI\\VEN_8086\u0026CC_0601",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_060100",
+                                            "PCI\\CC_0601"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "msisadrv"
+                   },
+                   {
+                       "name":  "Universal Serial Bus (USB) Controller",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A1B\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u00266A",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A1B\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A1B\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A1B\u0026CC_0C0340",
+                                          "PCI\\VEN_8086\u0026DEV_9A1B\u0026CC_0C03"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A1B\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A1B",
+                                            "PCI\\VEN_8086\u0026CC_0C0340",
+                                            "PCI\\VEN_8086\u0026CC_0C03",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C0340",
+                                            "PCI\\CC_0C03"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Generic Monitor",
+                       "class":  "",
+                       "deviceId":  "DISPLAY\\BOE0A95\\1\u00268713BCA\u00260\u0026UID0",
+                       "hardwareId":  [
+                                          "MONITOR\\BOE0A95"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP09FF"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "RamDisk",
+                       "class":  "Ramdisk",
+                       "deviceId":  "RAMDISK\\RAMVOLUME\\{D9B257FC-684E-4DCB-AB79-03CFA2F6B750}",
+                       "hardwareId":  [
+                                          "Ramdisk\\RamVolume"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_0",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_1",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_2",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_3",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_4",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_5",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_6",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "11th Gen Intel(R) Core(TM) i5-1145G7 @ 2.60GHz",
+                       "class":  "Processor",
+                       "deviceId":  "ACPI\\GENUINEINTEL_-_INTEL64_FAMILY_6_MODEL_140_-_11TH_GEN_INTEL(R)_CORE(TM)_I5-1145G7_@_2.60GHZ\\_7",
+                       "hardwareId":  [
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "*GenuineIntel_-_Intel64_Family_6_Model_140",
+                                          "ACPI\\GenuineIntel_-_Intel64_Family_6",
+                                          "*GenuineIntel_-_Intel64_Family_6",
+                                          "ACPI\\GenuineIntel_-_Intel64",
+                                          "*GenuineIntel_-_Intel64"
+                                      ],
+                       "compatibleId":  [
+                                            "ACPI\\Processor"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "intelppm"
+                   },
+                   {
+                       "name":  "UMBus Root Bus Enumerator",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\UMBUS\\0000",
+                       "hardwareId":  [
+                                          "root\\umbus"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "umbus"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\SAMPLEDEV",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\WAPW",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\WBAT",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\WBIQ",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "PCI Express Root Port",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0BE\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026E6",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0BE\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0BE\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0BE\u0026CC_060400",
+                                          "PCI\\VEN_8086\u0026DEV_A0BE\u0026CC_0604"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0BE\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0BE",
+                                            "PCI\\VEN_8086\u0026CC_060400",
+                                            "PCI\\VEN_8086\u0026CC_0604",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_060400\u0026DT_4",
+                                            "PCI\\CC_060400",
+                                            "PCI\\CC_0604\u0026DT_4",
+                                            "PCI\\CC_0604"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "pci"
+                   },
+                   {
+                       "name":  "Intel(R) Ethernet Connection (13) I219-LM",
+                       "class":  "Net",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_15FB\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026FE",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_15FB\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_15FB\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_15FB\u0026CC_020000",
+                                          "PCI\\VEN_8086\u0026DEV_15FB\u0026CC_0200"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_15FB\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_15FB",
+                                            "PCI\\VEN_8086\u0026CC_020000",
+                                            "PCI\\VEN_8086\u0026CC_0200",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_020000",
+                                            "PCI\\CC_0200"
+                                        ],
+                       "manufacturer":  "Intel",
+                       "service":  "e1dexpress"
+                   },
+                   {
+                       "name":  "PCI Simple Communications Controller",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0E0\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026B0",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0E0\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0E0\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0E0\u0026CC_078000",
+                                          "PCI\\VEN_8086\u0026DEV_A0E0\u0026CC_0780"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0E0\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0E0",
+                                            "PCI\\VEN_8086\u0026CC_078000",
+                                            "PCI\\VEN_8086\u0026CC_0780",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_078000",
+                                            "PCI\\CC_0780"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "ACPI x64-based PC",
+                       "class":  "Computer",
+                       "deviceId":  "ROOT\\ACPI_HAL\\0000",
+                       "hardwareId":  [
+                                          "acpiapic"
+                                      ],
+                       "compatibleId":  [
+                                            "DETECTEDInternal\\ACPI_HAL",
+                                            "DETECTED\\ACPI_HAL"
+                                        ],
+                       "manufacturer":  "(Standard computers)",
+                       "service":  "\\Driver\\ACPI_HAL"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\WMDG",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "Microsoft Windows Management Interface for ACPI",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C14\\TESTDEV",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C14",
+                                          "ACPI\\PNP0C14",
+                                          "*PNP0C14"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "WmiAcpi"
+                   },
+                   {
+                       "name":  "PCI Express Root Complex",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0A08\\0",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0A08",
+                                          "ACPI\\PNP0A08",
+                                          "*PNP0A08"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0A03"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "pci"
+                   },
+                   {
+                       "name":  "PCI Data Acquisition and Signal Processing Controller",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A03\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u002620",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A03\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A03\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A03\u0026CC_118000",
+                                          "PCI\\VEN_8086\u0026DEV_9A03\u0026CC_1180"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A03\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A03",
+                                            "PCI\\VEN_8086\u0026CC_118000",
+                                            "PCI\\VEN_8086\u0026CC_1180",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_118000",
+                                            "PCI\\CC_1180"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "System Firmware",
+                       "class":  "Firmware",
+                       "deviceId":  "UEFI\\RES_{E81E58BC-A7B7-412E-A4DB-7AE762E21091}\\0",
+                       "hardwareId":  [
+                                          "UEFI\\RES_{e81e58bc-a7b7-412e-a4db-7ae762e21091}\u0026REV_13700",
+                                          "UEFI\\RES_{e81e58bc-a7b7-412e-a4db-7ae762e21091}"
+                                      ],
+                       "compatibleId":  [
+                                            "UEFI\\CC_00010001",
+                                            "GenFirmwareResource"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "PCI Device",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0E8\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026A8",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0E8\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0E8\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0E8\u0026CC_0C8000",
+                                          "PCI\\VEN_8086\u0026DEV_A0E8\u0026CC_0C80"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0E8\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0E8",
+                                            "PCI\\VEN_8086\u0026CC_0C8000",
+                                            "PCI\\VEN_8086\u0026CC_0C80",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C8000",
+                                            "PCI\\CC_0C80"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "PCI Device",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_10EC\u0026DEV_525A\u0026SUBSYS_0A201028\u0026REV_01\\00000001004CE00000",
+                       "hardwareId":  [
+                                          "PCI\\VEN_10EC\u0026DEV_525A\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_10EC\u0026DEV_525A\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_10EC\u0026DEV_525A\u0026CC_FF0000",
+                                          "PCI\\VEN_10EC\u0026DEV_525A\u0026CC_FF00"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_10EC\u0026DEV_525A\u0026REV_01",
+                                            "PCI\\VEN_10EC\u0026DEV_525A",
+                                            "PCI\\VEN_10EC\u0026CC_FF0000",
+                                            "PCI\\VEN_10EC\u0026CC_FF00",
+                                            "PCI\\VEN_10EC",
+                                            "PCI\\CC_FF0000\u0026DT_0",
+                                            "PCI\\CC_FF0000",
+                                            "PCI\\CC_FF00\u0026DT_0",
+                                            "PCI\\CC_FF00"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "PCI standard host CPU bridge",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A14\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u002600",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A14\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A14\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A14\u0026CC_060000",
+                                          "PCI\\VEN_8086\u0026DEV_9A14\u0026CC_0600"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A14\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A14",
+                                            "PCI\\VEN_8086\u0026CC_060000",
+                                            "PCI\\VEN_8086\u0026CC_0600",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_060000",
+                                            "PCI\\CC_0600"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Volume",
+                       "class":  "Volume",
+                       "deviceId":  "STORAGE\\VOLUME\\{075A44BE-A4A3-11F1-BC76-806E6F6E6963}#0000000000100000",
+                       "hardwareId":  [
+                                          "STORAGE\\Volume"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "volume"
+                   },
+                   {
+                       "name":  "ACPI Power Button",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C0C\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C0C",
+                                          "ACPI\\PNP0C0C",
+                                          "*PNP0C0C"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft ACPI-Compliant System",
+                       "class":  "System",
+                       "deviceId":  "ACPI_HAL\\PNP0C08\\0",
+                       "hardwareId":  [
+                                          "ACPI_HAL\\PNP0C08",
+                                          "*PNP0C08"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "ACPI"
+                   },
+                   {
+                       "name":  "Microsoft Basic Render Driver",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\BASICRENDER\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\BasicRender"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "BasicRender"
+                   },
+                   {
+                       "name":  "Microsoft UEFI-Compliant System",
+                       "class":  "System",
+                       "deviceId":  "ACPI_HAL\\UEFI\\0",
+                       "hardwareId":  [
+                                          "ACPI_HAL\\UEFI"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "UEFI"
+                   },
+                   {
+                       "name":  "PCI Express Root Port",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A25\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u002639",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A25\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A25\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A25\u0026CC_060400",
+                                          "PCI\\VEN_8086\u0026DEV_9A25\u0026CC_0604"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A25\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A25",
+                                            "PCI\\VEN_8086\u0026CC_060400",
+                                            "PCI\\VEN_8086\u0026CC_0604",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_060400\u0026DT_4",
+                                            "PCI\\CC_060400",
+                                            "PCI\\CC_0604\u0026DT_4",
+                                            "PCI\\CC_0604"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "pci"
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\INT34C5\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INT\u0026DEV_34C5",
+                                          "ACPI\\INT34C5",
+                                          "*INT34C5"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "RAID Controller",
+                       "class":  "SCSIAdapter",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A0B\u0026SUBSYS_0A201028\u0026REV_00\\3\u002611583659\u00260\u002670",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A0B\u0026SUBSYS_0A201028\u0026REV_00",
+                                          "PCI\\VEN_8086\u0026DEV_9A0B\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A0B\u0026CC_010400",
+                                          "PCI\\VEN_8086\u0026DEV_9A0B\u0026CC_0104"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A0B\u0026REV_00",
+                                            "PCI\\VEN_8086\u0026DEV_9A0B",
+                                            "PCI\\VEN_8086\u0026CC_010400",
+                                            "PCI\\VEN_8086\u0026CC_0104",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_010400\u0026DT_9",
+                                            "PCI\\CC_010400",
+                                            "PCI\\CC_0104\u0026DT_9",
+                                            "PCI\\CC_0104"
+                                        ],
+                       "manufacturer":  "Intel Corporation",
+                       "service":  "iaStorVD"
+                   },
+                   {
+                       "name":  "USB Composite Device",
+                       "class":  "USB",
+                       "deviceId":  "USB\\VID_0C45\u0026PID_6A09\\5\u0026D714B9\u00260\u00266",
+                       "hardwareId":  [
+                                          "USB\\VID_0C45\u0026PID_6A09\u0026REV_8262",
+                                          "USB\\VID_0C45\u0026PID_6A09"
+                                      ],
+                       "compatibleId":  [
+                                            "USB\\COMPAT_VID_0C45\u0026DevClass_00\u0026SubClass_00\u0026Prot00",
+                                            "USB\\COMPAT_VID_0C45\u0026DevClass_00\u0026SubClass_00",
+                                            "USB\\COMPAT_VID_0C45\u0026DevClass_00",
+                                            "USB\\DevClass_00\u0026SubClass_00\u0026Prot_00",
+                                            "USB\\DevClass_00\u0026SubClass_00",
+                                            "USB\\DevClass_00",
+                                            "USB\\COMPOSITE"
+                                        ],
+                       "manufacturer":  "(Standard USB Host Controller)",
+                       "service":  "usbccgp"
+                   },
+                   {
+                       "name":  "ACPI Wake Alarm",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\ACPI000E\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_ACPI\u0026DEV_000E",
+                                          "ACPI\\ACPI000E",
+                                          "*ACPI000E"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "acpitime"
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\INTC1040\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INTC\u0026DEV_1040",
+                                          "ACPI\\INTC1040",
+                                          "*INTC1040"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "High Definition Audio Controller",
+                       "class":  "System",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0C8\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026FB",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0C8\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0C8\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0C8\u0026CC_040380",
+                                          "PCI\\VEN_8086\u0026DEV_A0C8\u0026CC_0403"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0C8\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0C8",
+                                            "PCI\\VEN_8086\u0026CC_040380",
+                                            "PCI\\VEN_8086\u0026CC_0403",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_040380",
+                                            "PCI\\CC_0403"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "HDAudBus"
+                   },
+                   {
+                       "name":  "Standard Power Management Controller",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\INT33A1\\1",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INT\u0026DEV_33A1",
+                                          "ACPI\\INT33A1",
+                                          "*INT33A1"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0D80"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "System CMOS/real time clock",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0B00\\4\u00262102DC63\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0B00",
+                                          "ACPI\\PNP0B00",
+                                          "*PNP0B00"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Standard PS/2 Keyboard",
+                       "class":  "Keyboard",
+                       "deviceId":  "ACPI\\DLLK0A20\\4\u00262102DC63\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_DLLK\u0026DEV_0A20",
+                                          "ACPI\\DLLK0A20",
+                                          "*DLLK0A20"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0303"
+                                        ],
+                       "manufacturer":  "(Standard keyboards)",
+                       "service":  "i8042prt"
+                   },
+                   {
+                       "name":  "SM Bus Controller",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0A3\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u0026FC",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0A3\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0A3\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0A3\u0026CC_0C0500",
+                                          "PCI\\VEN_8086\u0026DEV_A0A3\u0026CC_0C05"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0A3\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0A3",
+                                            "PCI\\VEN_8086\u0026CC_0C0500",
+                                            "PCI\\VEN_8086\u0026CC_0C05",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C0500",
+                                            "PCI\\CC_0C05"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0C02\\IOTRAPS",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0C02",
+                                          "ACPI\\PNP0C02",
+                                          "*PNP0C02"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Programmable interrupt controller",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\PNP0000\\4\u00262102DC63\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_PNP\u0026DEV_0000",
+                                          "ACPI\\PNP0000",
+                                          "*PNP0000"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Volume",
+                       "class":  "Volume",
+                       "deviceId":  "STORAGE\\VOLUME\\{075A44BD-A4A3-11F1-BC76-806E6F6E6963}#0000000010500000",
+                       "hardwareId":  [
+                                          "STORAGE\\Volume"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "volume"
+                   },
+                   {
+                       "name":  "Volume",
+                       "class":  "Volume",
+                       "deviceId":  "STORAGE\\VOLUME\\{075A44BD-A4A3-11F1-BC76-806E6F6E6963}#0000000000100000",
+                       "hardwareId":  [
+                                          "STORAGE\\Volume"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "volume"
+                   },
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\INT3F0D\\4\u00262102DC63\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INT\u0026DEV_3F0D",
+                                          "ACPI\\INT3F0D",
+                                          "*INT3F0D"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0C02"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "NDIS Virtual Network Adapter Enumerator",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\NDISVIRTUALBUS\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\NdisVirtualBus"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  "NdisVirtualBus"
+                   },
+                   {
+                       "name":  "Dell Inc. Latitude 5420",
+                       "class":  "Computer",
+                       "deviceId":  "SWD\\COMPUTER\\MFG_DELL_INC.\u0026FAM_LATITUDE\u0026PROD_LATITUDE_5420\u0026SKU_0A20",
+                       "hardwareId":  [
+                                          "COMPUTER\\{A86C7CC3-9655-522E-BA9C-5B4BEC4C5900}",
+                                          "COMPUTER\\{D02A9FE6-6B77-5D0F-B22F-95AF6F0987D9}",
+                                          "COMPUTER\\{2A8C3571-F7AE-5143-9E74-70D3FD04B570}",
+                                          "COMPUTER\\{2C5525F3-328F-5DF2-A006-32F8AB32D1D7}",
+                                          "COMPUTER\\{F039FD94-585C-5640-8830-B40EE2B727C0}",
+                                          "COMPUTER\\{60D5EA07-3865-570F-8D9F-A250CC65CAC7}",
+                                          "COMPUTER\\{02C0E13B-06EC-5EF5-B76B-72F9CFC47AE8}",
+                                          "COMPUTER\\{FC9C97F8-A91F-56DE-AFDA-716554E8EFFF}",
+                                          "COMPUTER\\{E5B616E5-B19C-564E-96CB-6F9023E688EC}",
+                                          "COMPUTER\\{054A9A50-AFC8-5F50-B5A3-9057BED049C4}",
+                                          "COMPUTER\\{9AF55468-52A4-5AB8-871D-BB311F78D119}",
+                                          "COMPUTER\\{41B0B5D7-AD12-5D86-9A3D-826F9B20ADCC}"
+                                      ],
+                       "compatibleId":  [
+                                            "COMPUTER\\Generic",
+                                            "SWD\\GenericRaw",
+                                            "SWD\\Generic"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\INTC1043\\NGFF",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INTC\u0026DEV_1043",
+                                          "ACPI\\INTC1043",
+                                          "*INTC1043"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "PCI Serial Port",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_A0FC\u0026SUBSYS_0A201028\u0026REV_20\\3\u002611583659\u00260\u002690",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_A0FC\u0026SUBSYS_0A201028\u0026REV_20",
+                                          "PCI\\VEN_8086\u0026DEV_A0FC\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_A0FC\u0026CC_070000",
+                                          "PCI\\VEN_8086\u0026DEV_A0FC\u0026CC_0700"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_A0FC\u0026REV_20",
+                                            "PCI\\VEN_8086\u0026DEV_A0FC",
+                                            "PCI\\VEN_8086\u0026CC_070000",
+                                            "PCI\\VEN_8086\u0026CC_0700",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_070000",
+                                            "PCI\\CC_0700"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "USB Root Hub (USB 3.0)",
+                       "class":  "USB",
+                       "deviceId":  "USB\\ROOT_HUB30\\4\u00262E6F93A8\u00260\u00260",
+                       "hardwareId":  [
+                                          "USB\\ROOT_HUB30\u0026VID8086\u0026PID9A13\u0026REV0001",
+                                          "USB\\ROOT_HUB30\u0026VID8086\u0026PID9A13",
+                                          "USB\\ROOT_HUB30"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard USB HUBs)",
+                       "service":  "USBHUB3"
+                   },
+                   {
+                       "name":  "PCI Device",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_7360\u0026SUBSYS_58201028\u0026REV_01\\4\u0026FC173A\u00260\u002600E0",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_7360\u0026SUBSYS_58201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_7360\u0026SUBSYS_58201028",
+                                          "PCI\\VEN_8086\u0026DEV_7360\u0026CC_0D4000",
+                                          "PCI\\VEN_8086\u0026DEV_7360\u0026CC_0D40"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_7360\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_7360",
+                                            "PCI\\VEN_8086\u0026CC_0D4000",
+                                            "PCI\\VEN_8086\u0026CC_0D40",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0D4000\u0026DT_0",
+                                            "PCI\\CC_0D4000",
+                                            "PCI\\CC_0D40\u0026DT_0",
+                                            "PCI\\CC_0D40"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Microsoft System Management BIOS Driver",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\MSSMBIOS\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\mssmbios"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "mssmbios"
+                   },
+                   {
+                       "name":  "Motherboard resources",
+                       "class":  "System",
+                       "deviceId":  "ACPI\\INT340E\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INT\u0026DEV_340E",
+                                          "ACPI\\INT340E",
+                                          "*INT340E"
+                                      ],
+                       "compatibleId":  [
+                                            "*PNP0C02"
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Intel(R) USB 3.10 eXtensible Host Controller - 1.20 (Microsoft)",
+                       "class":  "USB",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A13\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u002668",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A13\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A13\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A13\u0026CC_0C0330",
+                                          "PCI\\VEN_8086\u0026DEV_9A13\u0026CC_0C03"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A13\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A13",
+                                            "PCI\\VEN_8086\u0026CC_0C0330",
+                                            "PCI\\VEN_8086\u0026CC_0C03",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_0C0330",
+                                            "PCI\\CC_0C03"
+                                        ],
+                       "manufacturer":  "Generic USB xHCI Host Controller",
+                       "service":  "USBXHCI"
+                   },
+                   {
+                       "name":  "Device Firmware",
+                       "class":  "Firmware",
+                       "deviceId":  "UEFI\\RES_{AAC4A8CC-A312-11EB-BCBC-0242AC130002}\\0",
+                       "hardwareId":  [
+                                          "UEFI\\RES_{aac4a8cc-a312-11eb-bcbc-0242ac130002}\u0026REV_11200109",
+                                          "UEFI\\RES_{aac4a8cc-a312-11eb-bcbc-0242ac130002}"
+                                      ],
+                       "compatibleId":  [
+                                            "UEFI\\CC_00010002",
+                                            "GenFirmwareResource"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\INTC1051\\2\u0026DABA3FF\u00260",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INTC\u0026DEV_1051",
+                                          "ACPI\\INTC1051",
+                                          "*INTC1051"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Device Firmware",
+                       "class":  "Firmware",
+                       "deviceId":  "UEFI\\RES_{176E090D-0DDB-495E-8173-BC998CCFECD0}\\0",
+                       "hardwareId":  [
+                                          "UEFI\\RES_{176e090d-0ddb-495e-8173-bc998ccfecd0}\u0026REV_BE",
+                                          "UEFI\\RES_{176e090d-0ddb-495e-8173-bc998ccfecd0}"
+                                      ],
+                       "compatibleId":  [
+                                            "UEFI\\CC_00010002",
+                                            "GenFirmwareResource"
+                                        ],
+                       "manufacturer":  "Microsoft",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Video Controller (VGA Compatible)",
+                       "class":  "",
+                       "deviceId":  "PCI\\VEN_8086\u0026DEV_9A49\u0026SUBSYS_0A201028\u0026REV_01\\3\u002611583659\u00260\u002610",
+                       "hardwareId":  [
+                                          "PCI\\VEN_8086\u0026DEV_9A49\u0026SUBSYS_0A201028\u0026REV_01",
+                                          "PCI\\VEN_8086\u0026DEV_9A49\u0026SUBSYS_0A201028",
+                                          "PCI\\VEN_8086\u0026DEV_9A49\u0026CC_030000",
+                                          "PCI\\VEN_8086\u0026DEV_9A49\u0026CC_0300"
+                                      ],
+                       "compatibleId":  [
+                                            "PCI\\VEN_8086\u0026DEV_9A49\u0026REV_01",
+                                            "PCI\\VEN_8086\u0026DEV_9A49",
+                                            "PCI\\VEN_8086\u0026CC_030000",
+                                            "PCI\\VEN_8086\u0026CC_0300",
+                                            "PCI\\VEN_8086",
+                                            "PCI\\CC_030000\u0026DT_9",
+                                            "PCI\\CC_030000",
+                                            "PCI\\CC_0300\u0026DT_9",
+                                            "PCI\\CC_0300"
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "Plug and Play Software Device Enumerator",
+                       "class":  "System",
+                       "deviceId":  "ROOT\\SYSTEM\\0000",
+                       "hardwareId":  [
+                                          "ROOT\\SWENUM"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "(Standard system devices)",
+                       "service":  "swenum"
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\INTC1043\\TMEM",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INTC\u0026DEV_1043",
+                                          "ACPI\\INTC1043",
+                                          "*INTC1043"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   },
+                   {
+                       "name":  "",
+                       "class":  "",
+                       "deviceId":  "ACPI\\INTC1043\\TSKN",
+                       "hardwareId":  [
+                                          "ACPI\\VEN_INTC\u0026DEV_1043",
+                                          "ACPI\\INTC1043",
+                                          "*INTC1043"
+                                      ],
+                       "compatibleId":  [
+
+                                        ],
+                       "manufacturer":  "",
+                       "service":  ""
+                   }
+               ]
+}
