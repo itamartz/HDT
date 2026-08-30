@@ -535,7 +535,14 @@ declared**, and an app declaring none installing every time; reboot mid-list
 resuming at the next app, not restarting the list; success vs. reboot vs. failure
 code classification.
 
-**Exit:** a sequence installs a dependency chain across a reboot, idempotently.
+**Exit:** a sequence installs a dependency chain across a reboot.
+
+~~**and** idempotently.~~
+**CUT by the user on 2026-08-30.** Proving it needs a second
+`InstallApplications` step, and the step's completion checkpoint
+`_HDTApplicationInstalled` is run-scoped, so a second step short-circuits before
+detection is evaluated — the user chose to cut the clause rather than change that
+behaviour.
 
 ---
 

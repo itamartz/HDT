@@ -305,7 +305,11 @@ and with dependencies, plus `InstallRoles`, `EnableBitLocker`, and the
 password is clear text, as in MDT). `WindowsUpdate` is **deferred to
 v2** (2026-08-16), and no Server VM joins the E2E matrix — `InstallRoles` still
 ships with a server sample sequence.
-*Exit:* a dependency chain installs across a reboot, idempotently.
+*Exit:* a dependency chain installs across a reboot. ~~idempotently~~ — **cut by
+the user on 2026-08-30**: proving it needs a second `InstallApplications` step,
+and the step's completion checkpoint `_HDTApplicationInstalled` is run-scoped, so
+a second step short-circuits before detection is evaluated. The user chose to cut
+the clause rather than change that behaviour.
 
 **Plans:** 6 plans in 6 waves.
 
