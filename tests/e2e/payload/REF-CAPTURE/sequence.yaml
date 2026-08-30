@@ -1,0 +1,179 @@
+# HDT STANDARD REFERENCE-IMAGE TASK SEQUENCE
+#
+# The other half of MDT's pair. Its Client.xml deploys a machine; its
+# "Sysprep and Capture" template turns a machine somebody has finished
+# preparing into a WIM the share can deploy. This is that, in HDT's shape, and
+# it closes DESIGN 9.3's loop: HDT builds its own reference images rather than
+# depending on another tool to make them.
+#
+# THE WHOLE SEQUENCE IS THE FLOW IN ONE LINE:
+#
+#   deploy -> customize -> Sysprep -> Restart -> boot the media -> CaptureImage
+#
+# AND THE ONE THING THAT MAKES IT WORK IS setBootOrder: false.
+#
+# A deployment wants the machine to stop booting the media and start booting
+# Windows, so ConfigureBoot puts the Windows Boot Manager first in the firmware
+# order (SPIKES S6). A REFERENCE BUILD WANTS PRECISELY THE OPPOSITE. Between
+# the Sysprep step and the capture there is exactly one legal next boot and it
+# is the boot media; booting the generalized installation instead runs OOBE,
+# consumes one of the three rearms, and leaves an image that is no longer in
+# the state it was sysprepped into - and nothing about it looks wrong
+# afterwards. The switch that serves a deployment is the switch that ruins a
+# capture, so this template turns it off deliberately (DESIGN 9.3 note 4).
+#
+# THE CUSTOMIZE GROUP IS DELIBERATELY EMPTY OF WORK. It is the reason this
+# sequence exists - it is where an administrator puts the applications, the
+# settings and the updates that are supposed to end up inside the image - and a
+# template that guessed at any of them would be guessing at somebody's build
+# standard. The group is there so there is one obvious place to put it, which
+# is what MDT's empty groups are for.
+#
+# WHAT IS NOT HERE. No BitLocker: an encrypted volume cannot be captured.
+# No Tattoo: the stamp belongs to a deployed machine, not to an image every
+# machine will be built from. No Install Certificates: the same reasoning, and
+# a reference image carrying one site's certificates is a reference image that
+# belongs to that site.
+#
+# %Variable% AND $Variable ARE THE SAME THING to the engine. This file uses the
+# PowerShell spelling in conditions and %Name% inside quoted values, exactly as
+# client.yaml does.
+
+schemaVersion: 1
+id: REF-CAPTURE
+name: Deploy and capture in one WinPE leg (M7 capture proof)
+description: >
+  Builds a reference image: deploy Windows to a scratch machine, customize it,
+  generalize it with sysprep, restart into the boot media, and capture the
+  volume into a WIM under Captures\ on the share.
+
+variables:
+  # WHAT AN AUTHOR IS EXPECTED TO CHANGE. The capture is named after the
+  # sequence's own id, so a share that builds three reference images gets three
+  # differently named WIMs without anybody typing a name, and a second run of
+  # the same sequence overwrites its own output rather than somebody else's.
+  HDTOSImage: Win11-LTSC-2024
+  HDTOSImageIndex: 1
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  #
+  # A REFERENCE BUILD NEEDS MORE DISK THAN A DEPLOYMENT DOES, because the WIM
+  # it writes has to fit somewhere while it is being written and the capture
+  # keeps its scratch on the same volume.
+  - group: Validation
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 80
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE PAIR, AND ONLY ONE OF THEM RUNS - client.yaml's reasoning verbatim, and
+  # for the same reason: a GPT disk on a BIOS machine fails after the image has
+  # been applied.
+  #
+  # NO RECOVERY PARTITION ON THE UEFI LAYOUT. A reference machine is torn down
+  # the moment its image has been captured; a recovery partition on it is a
+  # gigabyte of disk that never recovers anything, and Recovery is not on the
+  # volume being captured anyway.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+      - name: Format and Partition Disk (BIOS)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # ------------------------------------------------- Stamp and Capture
+  #
+  # ONE LEG, NO REBOOT, AND THAT IS THE WHOLE POINT OF THIS SEQUENCE.
+  #
+  # REF-BUILD is the real reference build - deploy, customize, sysprep, restart,
+  # capture - and it CANNOT COMPLETE on HDT as it stands, because the capture
+  # leg has to resume in WinPE after the restart and nothing in HDT can do that:
+  # Start-HDTResume.ps1 is hardcoded to the full OS and Start-HDTDeployment.ps1
+  # mints a NEW run at step 1 every time WinPE boots. A machine that rebooted
+  # after sysprep would be repartitioned and redeployed, destroying the image it
+  # was supposed to hand over. Proved on 2026-08-31.
+  #
+  # SO THIS SEQUENCE PROVES THE HALF THAT IS REACHABLE, and proves it against
+  # real dism on real hardware: apply an image, stamp the volume, and capture it
+  # without ever leaving WinPE. Everything Invoke-HDTCaptureImageStep does is
+  # exercised - the Local-provider refusal, the Captures\ write probe, the
+  # resolved exclusion list, dism /Capture-Image, the progress meter and the
+  # published HDTCapturePath.
+  #
+  # WHAT IT DELIBERATELY DOES NOT PROVE is that the captured machine was
+  # GENERALIZED. There is no sysprep here, so the WIM is a deployed machine
+  # rather than a reference image. That half is REF-BUILD's, and it is blocked.
+  - group: Stamp and Capture
+    runIn: WinPE
+    steps:
+      # THE MARKER, WRITTEN ONTO THE APPLIED VOLUME AND NOT ONTO X:. The script
+      # reads _HDTPhase and stamps %HDTOSVolume% in WinPE, because X: is the RAM
+      # disk and a marker there would be invisible to the capture - which would
+      # then succeed and prove nothing.
+      - name: Stamp the reference build marker
+        type: PowerShell
+        script: TaskSequences\REF-CAPTURE\Set-ReferenceMarker.ps1
+
+      # AND THE CAPTURE. Same step, same defaults, same exclusion list as
+      # REF-BUILD's - only the leg it runs in differs.
+      #
+      # compress: fast RATHER THAN max, and only because this is a proof rather
+      # than an image anybody will store for years. max roughly doubles the time
+      # for a file that is going to be deleted; the step's own default is max and
+      # REF-BUILD keeps it.
+      - name: Capture Image
+        type: CaptureImage
+        image: '%HDTTaskSequenceID%.wim'
+        description: 'Capture-step proof built by HDT'
+        compress: fast
+        timeoutMinutes: 120
