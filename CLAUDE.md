@@ -364,6 +364,30 @@ tests/fixtures/     Real .inf headers, captured CIM shapes, sample workspaces
 .claude/workflows/  hdt-phase.js — the per-phase build pipeline
 ```
 
+## Logging: write too much, never too little
+
+**Every log this engine writes is as detailed as it can be made.** A hundred
+lines beats two. Size and run time are not a reason to leave something out —
+a deployment log is read once, at the worst possible moment, by someone who
+was not there when it ran.
+
+So: log the decision *and the reason for it*, the value *and where it came
+from*, the command *and its exit code and what that code means*, the thing that
+was skipped *and the condition that skipped it*. An error record carries the
+exception type, the file, the line, the stack and the innermost message — never
+one flattened sentence. Anything derived — an install plan, a driver match, a
+resolved variable — says what produced it, the way `rules.yaml` resolution
+already prints `HDTApplications = '…' (Rule)`.
+
+The test is whether an administrator reading the log a week later, on a machine
+they cannot touch, can tell **what happened and why** without asking anyone.
+`Debug` is for volume, not for importance: something an admin needs in order to
+understand an outcome belongs at `Info`, where they will see it without
+re-running anything.
+
+This says nothing about answers in chat — those stay short. It is the log that
+is verbose.
+
 ## Conventions
 
 - Fixtures come from **real captured data** (`Get-CimInstance` on actual
@@ -380,6 +404,13 @@ tests/fixtures/     Real .inf headers, captured CIM shapes, sample workspaces
 - **Keep answers short.** Relevant data only. If I want details, I will ask.
   A few lines, not a report. No preamble, no summary of what you just did unless
   it changes what I do next. No tables or bullet lists for a two-fact answer.
+
+  **A subagent's report is raw material, not an answer.** They come back long
+  because I asked them to be thorough. Relay the finding and the number that
+  proves it — not the write-up, not its headings, not every quoted log line.
+  Three lines beats thirty, and the detail is still in the transcript if I want
+  it. Same for a fix: what it was and whether it is green, not a tour of the
+  diff. Lead with the answer; the caveat goes after it, or nowhere.
 - **Don't ask me for details.** Make the call yourself from `docs/DESIGN.md`,
   `.planning/`, and the code, and say the assumption in one line as you go. Ask
   only when proceeding either way would be unsafe or would waste the work — not
