@@ -235,13 +235,39 @@ function New-HDTTaskSequence {
     # only way here is a folder holding an unattend and no sequence.
     # $answerSource is the MODULE's own path and always exists, so Join-Path is
     # safe there; $answerPath is the caller's, and is not.
-    $answerSource = Join-Path -Path $TemplatePath -ChildPath 'unattend.xml'
-    $answerPath = [System.IO.Path]::Combine($folder, 'unattend.xml')
-
+    # EVERY ANSWER FILE THE NEW SEQUENCE NAMES, NOT A LIST WRITTEN DOWN HERE.
+    #
+    # It used to copy 'unattend.xml' by name, which was right while there was
+    # one. The reference template names TWO - unattend.xml for the deployment
+    # and unattend-sysprep.xml for the generalize pass - and a second literal
+    # here would be a second thing to remember for the third one. So the
+    # template directory is asked what answer files it has, and the sequence
+    # just written is asked which of them it mentions.
+    #
+    # WHICH IS ALSO WHAT KEEPS unattend-winpe.xml OUT. That document belongs to
+    # the boot image, one per share; no sequence names it, so no sequence gets a
+    # copy of it - the same outcome the old literal produced, for a reason
+    # rather than by omission.
+    #
+    # IT NEVER OVERWRITES ONE THAT IS THERE. Somebody's answer file is not this
+    # command's to replace, and an existing sequence is refused above - so the
+    # only way here is a folder holding an unattend and no sequence.
+    # $TemplatePath is the MODULE's own and always exists, so Join-Path is safe
+    # there; the destination is the caller's, and is not.
     $moduleFileSystem = New-HDTFileSystem
+    $sequenceText = @($written) -join [System.Environment]::NewLine
 
-    if ($moduleFileSystem.TestPath($answerSource) -and -not $FileSystem.TestPath($answerPath)) {
-        $FileSystem.WriteAllText($answerPath, [string] $moduleFileSystem.ReadAllText($answerSource))
+    foreach ($candidate in @($moduleFileSystem.GetChildItem($TemplatePath))) {
+        $leaf = [System.IO.Path]::GetFileName([string] $candidate)
+
+        if ([System.IO.Path]::GetExtension($leaf) -ne '.xml') { continue }
+        if ($sequenceText -notlike ('*{0}*' -f $leaf)) { continue }
+
+        $answerPath = [System.IO.Path]::Combine($folder, $leaf)
+
+        if (-not $FileSystem.TestPath($answerPath)) {
+            $FileSystem.WriteAllText($answerPath, [string] $moduleFileSystem.ReadAllText([string] $candidate))
+        }
     }
 
     # READ BACK THROUGH THE ENGINE, which is the only honest way to report what

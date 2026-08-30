@@ -192,6 +192,73 @@ Describe 'the client template in particular' {
     }
 }
 
+Describe 'the reference template in particular' {
+
+    # THE SEQUENCE AN e2e RUN DRIVES: deploy a VM, customize it, sysprep it,
+    # reboot into WinPE, capture. Everything asserted here is something that
+    # would otherwise be found by running it on a real machine for an hour.
+
+    BeforeAll {
+        $script:referenceLine = @(Get-HDTSequenceTemplate -Id reference -Line)
+
+        $fileSystem = New-HDTFakeFileSystem -File @{ 'C:\ws\sequence.yaml' = ($script:referenceLine -join "`n") }
+        $script:reference = Import-HDTSequenceDocument -Path 'C:\ws\sequence.yaml' -FileSystem $fileSystem
+    }
+
+    It 'is offered as a template at all' {
+        @(Get-HDTSequenceTemplate | ForEach-Object { $_.Id }) | Should -Contain 'reference'
+    }
+
+    It 'syspreps, restarts and captures, in that order' {
+        # THE ORDER IS THE FEATURE. A capture before the sysprep is a copy of one
+        # machine; a capture before the restart reads a volume Windows is
+        # running on.
+        $order = @($script:reference.Step | ForEach-Object { $_.Type })
+
+        $sysprep = [array]::IndexOf($order, 'Sysprep')
+        $capture = [array]::IndexOf($order, 'CaptureImage')
+
+        $sysprep | Should -BeGreaterThan -1
+        $capture | Should -BeGreaterThan $sysprep
+
+        # And a Restart BETWEEN them, not merely somewhere in the sequence.
+        @($order[($sysprep + 1)..($capture - 1)]) | Should -Contain 'Restart'
+    }
+
+    It 'turns the firmware boot order off, which is what lets the machine come back to WinPE' {
+        # DESIGN 9.3 note 4, and the one line that distinguishes this template
+        # from client.yaml. With setBootOrder left at its default the machine
+        # boots the generalized installation, runs OOBE and burns a rearm - and
+        # nothing about the image looks wrong afterwards.
+        $boot = @($script:reference.Step | Where-Object { $_.Type -eq 'ConfigureBoot' })
+
+        @($boot).Count | Should -Be 1
+        [string] $boot[0].Property['setBootOrder'] | Should -BeExactly 'False'
+    }
+
+    It 'generalizes in the full OS, where sysprep.exe actually exists' {
+        [string] @($script:reference.Step | Where-Object { $_.Type -eq 'Sysprep' })[0].RunIn |
+            Should -BeExactly 'FullOS'
+    }
+
+    It 'captures from WinPE, where the volume is not in use' {
+        [string] @($script:reference.Step | Where-Object { $_.Type -eq 'CaptureImage' })[0].RunIn |
+            Should -BeExactly 'WinPE'
+    }
+
+    It 'names a sysprep answer file that is not the deployment one' {
+        # TWO DOCUMENTS, TWO PASSES, AND THEY ARE NOT INTERCHANGEABLE. The
+        # deployment's unattend.xml answers specialize and oobeSystem on the
+        # machines built FROM the image; this one answers generalize, once, on
+        # the reference machine.
+        $sysprep = @($script:reference.Step | Where-Object { $_.Type -eq 'Sysprep' })[0]
+        $unattend = @($script:reference.Step | Where-Object { $_.Type -eq 'ApplyUnattend' })[0]
+
+        [string] $sysprep.Property['unattend'] | Should -Not -BeNullOrEmpty
+        [string] $sysprep.Property['unattend'] | Should -Not -BeExactly ([string] $unattend.Property['template'])
+    }
+}
+
 Describe 'New-HDTTaskSequence' {
 
     BeforeEach {
@@ -555,6 +622,47 @@ Describe "the boot image's own answer file" {
         # which is smaller than the deployment wizard was laid out for.
         $script:winpeText | Should -BeLike '*<HorizontalResolution>1024<*'
         $script:winpeText | Should -BeLike '*<VerticalResolution>768<*'
+    }
+
+    It 'copies every answer file the new sequence names, not just the first one' {
+        # THE REFERENCE TEMPLATE NAMES TWO - unattend.xml for the deployment and
+        # unattend-sysprep.xml for the generalize pass - and this used to copy
+        # one, by name. A sequence referencing a file nobody supplied fails at
+        # the machine, which is the exact defect the single copy was added for.
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\ws\workspace.yaml' = "schemaVersion: 1`nid: LAB`nname: lab share`ndeployRoot: \host\share"
+        }
+
+        [void] (New-HDTTaskSequence -Workspace 'C:\ws' -Id 'REF01' -Name 'Reference' `
+                -Template 'reference' -FileSystem $fs -Confirm:$false)
+
+        $document = Import-HDTSequenceDocument -Path 'C:\ws\TaskSequences\REF01\sequence.yaml' -FileSystem $fs
+
+        $named = @(
+            [string] @($document.Step | Where-Object { $_.Type -eq 'ApplyUnattend' })[0].Property['template']
+            [string] @($document.Step | Where-Object { $_.Type -eq 'Sysprep' })[0].Property['unattend']
+        )
+
+        @($named).Count | Should -Be 2
+
+        foreach ($leaf in $named) {
+            $fs.TestPath(('C:\ws\TaskSequences\REF01\{0}' -f $leaf)) |
+                Should -BeTrue -Because "the sequence names '$leaf' and nothing else supplies it"
+        }
+    }
+
+    It 'copies no answer file the sequence does not name' {
+        # unattend-sysprep.xml belongs to a capture sequence. A client one that
+        # got a copy would carry a document nothing reads, in a folder an
+        # administrator is expected to be able to make sense of.
+        $fs = New-HDTFakeFileSystem -File @{
+            'C:\ws\workspace.yaml' = "schemaVersion: 1`nid: LAB`nname: lab share`ndeployRoot: \host\share"
+        }
+
+        [void] (New-HDTTaskSequence -Workspace 'C:\ws' -Id 'WIN11' -Name 'Windows 11' `
+                -FileSystem $fs -Confirm:$false)
+
+        $fs.TestPath('C:\ws\TaskSequences\WIN11\unattend-sysprep.xml') | Should -BeFalse
     }
 
     It 'is not copied into a task sequence' {

@@ -98,6 +98,22 @@ BeforeAll {
         # and offlineServicing. NOT specialize, which is where a driver-staging
         # commit put it on 2026-08-28.
         'Microsoft-Windows-PnpCustomizationsNonWinPE' = @('auditSystem', 'offlineServicing')
+
+        # -- THE GENERALIZE PASS, WHICH ONLY THE SYSPREP ANSWER FILE REACHES ---
+        #
+        # Neither of these appears in the deployment's unattend.xml and neither
+        # can: generalize runs on the REFERENCE machine while sysprep turns it
+        # back into an image, and Setup never runs that pass on a deployed one.
+        #
+        # microsoft-windows-security-spp - "This component is applied during the
+        # generalize configuration pass", and SkipRearm is its only setting.
+        'Microsoft-Windows-Security-SPP'              = @('generalize')
+
+        # microsoft-windows-pnpsysprep - generalize alone. Its two settings
+        # decide whether the captured image keeps the reference machine's driver
+        # bindings and non-present devices, which is a question that exists only
+        # at the moment of generalizing.
+        'Microsoft-Windows-PnpSysprep'                = @('generalize')
     }
 
     # -- the settings, keyed Component/Element/Path -------------------------------
@@ -173,6 +189,22 @@ BeforeAll {
         'Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials'             = @('auditSystem', 'offlineServicing')
         'Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials/Path'        = @('auditSystem', 'offlineServicing')
         'Microsoft-Windows-PnpCustomizationsNonWinPE/DriverPaths/PathAndCredentials/Credentials' = @('auditSystem', 'offlineServicing')
+
+        # -- Microsoft-Windows-Security-SPP, generalize --------------------------
+        # microsoft-windows-security-spp-skiprearm. generalize alone, and the
+        # reason it is set is that a Windows installation may be rearmed three
+        # times: every /generalize without it spends one, so the fourth capture
+        # of a monthly reference image fails, months later, as an activation
+        # problem on the deployed fleet.
+        'Microsoft-Windows-Security-SPP/SkipRearm'                              = @('generalize')
+
+        # -- Microsoft-Windows-PnpSysprep, generalize ----------------------------
+        # microsoft-windows-pnpsysprep-persistalldeviceinstalls and
+        # microsoft-windows-pnpsysprep-donotcleanupnonpresentdevices. Both
+        # generalize alone; both false, which is what makes a captured image
+        # hardware-independent rather than a copy of one machine's device tree.
+        'Microsoft-Windows-PnpSysprep/PersistAllDeviceInstalls'                 = @('generalize')
+        'Microsoft-Windows-PnpSysprep/DoNotCleanUpNonPresentDevices'            = @('generalize')
     }
 
     # -- things that LOOK like settings and are not -------------------------------

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    THE GENERALIZE-PASS ANSWER FILE, AND IT IS NOT unattend.xml.
+
+    unattend.xml beside a task sequence is the DEPLOYMENT's answer file: Setup
+    reads it on the deployed machine and it answers specialize and oobeSystem.
+    This one is read by SYSPREP, once, on the reference machine, and it answers
+    the generalize pass - the pass that only exists while a machine is being
+    turned back into an image. The two documents are consumed by different
+    programs at different moments and share nothing but a file extension.
+
+    IT IS THE Sysprep STEP'S `unattend:` PROPERTY, staged to
+    %SystemRoot%\system32\sysprep\unattend.xml, passed as /unattend:, and
+    DELETED AFTERWARDS so it does not travel inside the captured image (MDT's
+    LTISysprep.wsf does exactly this).
+
+    THREE SETTINGS, AND EACH ONE IS A DECISION SOMEBODY WOULD OTHERWISE MAKE BY
+    ACCIDENT. Everything else a reference build might want belongs in the
+    deployment's answer file, where it applies to the machines built FROM this
+    image rather than to the image.
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+
+  <settings pass="generalize">
+
+    <!--
+        SkipRearm=1, AND IT IS THE REASON THIS FILE SHIPS AT ALL.
+
+        A Windows installation may be rearmed three times. Every /generalize
+        without this consumes one, so the third capture of a reference image
+        that is rebuilt monthly is the last one that will ever work - and the
+        failure arrives as an activation problem on the deployed fleet, months
+        later, with nothing pointing back at the capture that caused it.
+
+        SETTING IT DOES NOT SKIP ACTIVATION; it skips the RESET of the
+        activation clock. The deployed machine's grace period starts from its
+        own first boot either way. MDT sets it in its own sysprep answer file.
+    -->
+    <component name="Microsoft-Windows-Security-SPP"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <SkipRearm>1</SkipRearm>
+    </component>
+
+    <!--
+        A REFERENCE IMAGE IS HARDWARE-INDEPENDENT, WHICH IS THE WHOLE POINT OF
+        ONE, so both of these are false.
+
+        PersistAllDeviceInstalls=false lets generalize strip the driver bindings
+        the reference machine acquired. true would keep them - correct only for
+        an image captured and deployed on identical hardware, which is a
+        narrower promise than a reference image makes, and an image built that
+        way boots to a stop error on anything else.
+
+        DoNotCleanUpNonPresentDevices=false lets it remove the devices the
+        reference machine had and the target will not. Left behind, they are
+        ghost devices in every machine built from the image.
+
+        BOTH ARE THE DEFAULTS. They are written out because they are the two
+        settings that make a reference image portable, and a file that stated
+        neither would leave the next person to open it unable to tell whether
+        the question had been considered.
+    -->
+    <component name="Microsoft-Windows-PnpSysprep"
+               processorArchitecture="amd64"
+               publicKeyToken="31bf3856ad364e35"
+               language="neutral"
+               versionScope="nonSxS"
+               xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <PersistAllDeviceInstalls>false</PersistAllDeviceInstalls>
+      <DoNotCleanUpNonPresentDevices>false</DoNotCleanUpNonPresentDevices>
+    </component>
+
+  </settings>
+
+</unattend>

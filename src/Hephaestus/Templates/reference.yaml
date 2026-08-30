@@ -1,0 +1,247 @@
+﻿# HDT STANDARD REFERENCE-IMAGE TASK SEQUENCE
+#
+# The other half of MDT's pair. Its Client.xml deploys a machine; its
+# "Sysprep and Capture" template turns a machine somebody has finished
+# preparing into a WIM the share can deploy. This is that, in HDT's shape, and
+# it closes DESIGN 9.3's loop: HDT builds its own reference images rather than
+# depending on another tool to make them.
+#
+# THE WHOLE SEQUENCE IS THE FLOW IN ONE LINE:
+#
+#   deploy -> customize -> Sysprep -> Restart -> boot the media -> CaptureImage
+#
+# AND THE ONE THING THAT MAKES IT WORK IS setBootOrder: false.
+#
+# A deployment wants the machine to stop booting the media and start booting
+# Windows, so ConfigureBoot puts the Windows Boot Manager first in the firmware
+# order (SPIKES S6). A REFERENCE BUILD WANTS PRECISELY THE OPPOSITE. Between
+# the Sysprep step and the capture there is exactly one legal next boot and it
+# is the boot media; booting the generalized installation instead runs OOBE,
+# consumes one of the three rearms, and leaves an image that is no longer in
+# the state it was sysprepped into - and nothing about it looks wrong
+# afterwards. The switch that serves a deployment is the switch that ruins a
+# capture, so this template turns it off deliberately (DESIGN 9.3 note 4).
+#
+# THE CUSTOMIZE GROUP IS DELIBERATELY EMPTY OF WORK. It is the reason this
+# sequence exists - it is where an administrator puts the applications, the
+# settings and the updates that are supposed to end up inside the image - and a
+# template that guessed at any of them would be guessing at somebody's build
+# standard. The group is there so there is one obvious place to put it, which
+# is what MDT's empty groups are for.
+#
+# WHAT IS NOT HERE. No BitLocker: an encrypted volume cannot be captured.
+# No Tattoo: the stamp belongs to a deployed machine, not to an image every
+# machine will be built from. No Install Certificates: the same reasoning, and
+# a reference image carrying one site's certificates is a reference image that
+# belongs to that site.
+#
+# %Variable% AND $Variable ARE THE SAME THING to the engine. This file uses the
+# PowerShell spelling in conditions and %Name% inside quoted values, exactly as
+# client.yaml does.
+
+schemaVersion: 1
+id: REFERENCE
+name: Sysprep and Capture Reference Image
+description: >
+  Builds a reference image: deploy Windows to a scratch machine, customize it,
+  generalize it with sysprep, restart into the boot media, and capture the
+  volume into a WIM under Captures\ on the share.
+
+variables:
+  # WHAT AN AUTHOR IS EXPECTED TO CHANGE. The capture is named after the
+  # sequence's own id, so a share that builds three reference images gets three
+  # differently named WIMs without anybody typing a name, and a second run of
+  # the same sequence overwrites its own output rather than somebody else's.
+  HDTOSImage: Win11-LTSC-2024
+  HDTOSImageIndex: 1
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  #
+  # A REFERENCE BUILD NEEDS MORE DISK THAN A DEPLOYMENT DOES, because the WIM
+  # it writes has to fit somewhere while it is being written and the capture
+  # keeps its scratch on the same volume.
+  - group: Validation
+    runIn: WinPE
+    steps:
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 80
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE PAIR, AND ONLY ONE OF THEM RUNS - client.yaml's reasoning verbatim, and
+  # for the same reason: a GPT disk on a BIOS machine fails after the image has
+  # been applied.
+  #
+  # NO RECOVERY PARTITION ON THE UEFI LAYOUT. A reference machine is torn down
+  # the moment its image has been captured; a recovery partition on it is a
+  # gigabyte of disk that never recovers anything, and Recovery is not on the
+  # volume being captured anyway.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+      - name: Format and Partition Disk (BIOS)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      # NO DRIVER INJECTION, AND THAT IS THE POINT OF A REFERENCE IMAGE. Drivers
+      # belong to the machine they are for, and one baked into an image is one
+      # every machine built from it carries whether it has the hardware or not.
+      # The DEPLOYMENT injects them - client.yaml's Inject Drivers step - which
+      # is MDT's model and the reason a reference image is hardware-independent
+      # in the first place.
+
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      # setBootOrder: false IS THE ONE LINE THAT MAKES THIS A CAPTURE SEQUENCE.
+      # See the header. bcdboot still runs, so the installation is bootable and
+      # will start when a technician chooses it - the machine simply is not
+      # made to prefer it, so the restart after sysprep lands on the boot media
+      # and the capture below can run.
+      #
+      # recovery: false FOLLOWS THE LAYOUT ABOVE. There is no recovery partition
+      # on a reference machine, so registering one would name a volume that does
+      # not exist.
+      - name: Configure Boot
+        type: ConfigureBoot
+        setBootOrder: false
+        recovery: false
+
+      - name: Restart into Windows
+        type: Restart
+
+  # -------------------------------------------------------------- Customize
+  #
+  # THE REASON THIS SEQUENCE EXISTS, AND IT IS YOURS TO FILL IN.
+  #
+  # Everything that is supposed to end up INSIDE the image goes here:
+  # applications, settings, updates, a script of your own. It runs in the full
+  # OS on a machine that is not yet generalized, which is the only window in
+  # which any of it can be installed.
+  #
+  # THE ONE STEP IN IT IS A PLACEHOLDER AND SAYS SO. A group with no steps is
+  # legal and invisible; a group with a NoOp in it appears in the editor, in the
+  # log and on the progress card, so the place to put the work is somewhere a
+  # person actually sees.
+  - group: Customize
+    runIn: FullOS
+    steps:
+      - name: Customize the reference image
+        type: NoOp
+        message: >
+          Nothing has been customized. Replace this step with the applications,
+          settings and updates that belong inside the reference image.
+
+  # -------------------------------------------------------------- Sysprep and Capture
+  #
+  # MDT'S OWN GROUP NAME, because an administrator arriving from Workbench is
+  # looking for those words.
+  #
+  # THREE STEPS AND A REBOOT BETWEEN THEM, which is why this is not one step.
+  # Sysprep runs in the full OS - sysprep.exe is not in WinPE at all - and the
+  # capture runs in WinPE, because a volume with Windows running on it is a
+  # volume being written while it is read.
+  - group: Sysprep and Capture
+    steps:
+      # /quiet /generalize /oobe /quit, never /shutdown: the restart below is
+      # what takes the machine down, through the checkpoint the WinPE leg
+      # resumes from (DESIGN 9.3 note 1).
+      #
+      # AND IT CHECKS WHAT SYSPREP DID. ImageState has to read
+      # IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE afterwards or the step fails,
+      # because sysprep can exit 0 having declined to generalize.
+      #
+      # THE ANSWER FILE IS THE GENERALIZE PASS'S, NOT THE DEPLOYMENT'S. It sets
+      # SkipRearm, which is what stops the third rebuild of a monthly reference
+      # image being the last one that ever works, and it is staged where sysprep
+      # looks and deleted afterwards so it does not travel inside the image.
+      # New-HDTTaskSequence copies it in beside unattend.xml because this
+      # sequence names it.
+      - name: Sysprep
+        type: Sysprep
+        runIn: FullOS
+        unattend: unattend-sysprep.xml
+        timeoutMinutes: 60
+
+      # THE ONE LEGAL NEXT BOOT, AND IT IS THE MEDIA. ConfigureBoot above left
+      # the firmware order alone precisely so this lands back in WinPE. A
+      # machine that booted the generalized installation instead would run OOBE
+      # and burn a rearm, and the image would no longer be in the state it was
+      # sysprepped into.
+      - name: Restart into the boot media
+        type: Restart
+        runIn: FullOS
+        message: restarting into the boot media to capture this machine
+
+      # AND THE CAPTURE, WHICH IS WHERE THE SEQUENCE HAS BEEN GOING ALL ALONG.
+      #
+      # It reads %HDTOSVolume% - the volume the partition step published, which
+      # WinPE has mounted again after the restart - and writes into Captures\ on
+      # the share, excluding what the share's Control\wimscript.ini names or,
+      # failing that, what HDT ships. Never nothing: a capture with no exclusion
+      # list swallows pagefile.sys and HDT's own working folder, and dism
+      # reports that as success.
+      #
+      # max COMPRESSION, because a reference image is written once and then
+      # stored, copied and read for years. A lab turning one round quickly can
+      # change it to fast and roughly halve the time this step takes.
+      - name: Capture Image
+        type: CaptureImage
+        runIn: WinPE
+        image: '%HDTTaskSequenceID%.wim'
+        description: 'Reference image built by HDT'
+        compress: max
+        timeoutMinutes: 120
