@@ -35,6 +35,16 @@ $script:HDTStepTypeCase = @(Get-HDTStepType | ForEach-Object {
 # Get-HDTStepType may be showing a module created in memory by another test file.
 $script:HDTOwnStepTypeCase = @($script:HDTStepTypeCase | Where-Object { $_.Source -eq 'Hephaestus' })
 
+# THE HAND-WRITTEN LIST. See 'the registry itself' at the foot of this file for
+# why it is written out rather than enumerated, and for the assertion that stops
+# it rotting. It lives at file scope because -ForEach binds during discovery.
+$script:HDTExpectedStepType = @(
+    'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
+    'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ApplyDrivers',
+    'ConfigureBoot', 'InstallApplications', 'InstallRoles', 'InstallCertificate',
+    'EnableBitLocker', 'Tattoo', 'Gather'
+)
+
 Describe 'the step contract' {
 
     BeforeAll {
@@ -205,12 +215,39 @@ Describe 'the step contract' {
         # Get-HDTStepType happens to return, so a type that quietly stopped being
         # discovered would take its own tests with it and nothing would go red.
         # This list is what notices.
-        It 'discovered <_>' -ForEach @(
-            'NoOp', 'SetVariable', 'PowerShell', 'CommandLine', 'Restart',
-            'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ConfigureBoot',
-            'InstallApplications', 'InstallRoles', 'EnableBitLocker', 'Tattoo') {
+        It 'discovered <_>' -ForEach $script:HDTExpectedStepType {
 
             @(Get-HDTStepType -Name $_).Count | Should -Be 1
+        }
+
+        # AND THIS IS THE TRIPWIRE ON THE TRIPWIRE. A hand-written list rots:
+        # this one named fourteen types while Public\Steps held seventeen, so
+        # ApplyDrivers, Gather and InstallCertificate could have stopped being
+        # discovered and every assertion in this file would still have been
+        # green. A list nobody is made to update is not a tripwire.
+        #
+        # IT COMPARES AGAINST THE FILES ON DISK, NOT AGAINST Get-HDTStepType.
+        # Deriving the other side from the registry would check the list against
+        # the very thing the list exists to check, and pass for ever. The step
+        # files are an independent witness: one per type, named for it.
+        #
+        # SET EQUALITY, NOT A COUNT, AND BOTH DIRECTIONS. A count says a number
+        # is wrong; this names the type and says which way it went - a new step
+        # file nobody listed, or a listed type whose file was deleted.
+        #
+        # The list arrives through -ForEach rather than being read off the script
+        # scope, for the reason the $forbiddenCall comment above gives: a
+        # variable set at discovery scope is not certainly in scope at run time.
+        It 'names exactly the step files under Public/Steps' -ForEach @(@{ Expected = $script:HDTExpectedStepType }) {
+
+            $onDisk = @(Get-ChildItem -LiteralPath $script:stepFileRoot -Filter 'Invoke-HDT*Step.ps1' -File |
+                    ForEach-Object { $_.BaseName -replace '^Invoke-HDT', '' -replace 'Step$', '' })
+
+            @($onDisk | Where-Object { $Expected -notcontains $_ }) |
+                Should -BeNullOrEmpty -Because 'a step file with no entry in the list above is a step type nothing in this file is watching'
+
+            @($Expected | Where-Object { $onDisk -notcontains $_ }) |
+                Should -BeNullOrEmpty -Because 'the list above names a step type with no file under Public/Steps'
         }
     }
 }
