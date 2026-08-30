@@ -498,6 +498,12 @@ try {
     # or a cleanup line lands in the run's log rather than the boot log.
     $failLog = $log
 
+    # THE REGISTRY ADAPTER TOO, and this is the leg where it matters most: the
+    # full OS is where arming autologon touches a live Winlogon key rather than
+    # WinPE's throwaway copy. See the note beside the same line in
+    # Start-HDTDeployment.
+    $registry.LogContext = $log
+
     # THE BAG FIRST, BECAUSE THE BOARD IS DECIDED FROM IT. HDTSkipProgress
     # lives here, and Start-HDTProgressDisplay reads it to answer whether there
     # should be a window at all.

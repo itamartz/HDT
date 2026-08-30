@@ -9,7 +9,7 @@ function New-HDTRegistryService {
             Get-HDTMachineFact receives this object and can be swapped for
             New-HDTFakeRegistryService in a test.
 
-            Six methods. TestPath and GetValue are the read subset the fact
+            Six IRegistryService methods, plus EnsureKey. TestPath and GetValue are the read subset the fact
             gatherer needs, which today is the SecureBoot state key.
             NewKey, SetValue, RemoveValue and RemoveKey are the write half
             the autologon lifecycle runs on.
@@ -22,10 +22,17 @@ function New-HDTRegistryService {
             cleared.
 
             SetValue creates the key first because New-ItemProperty fails on a
-            key that does not exist. RemoveKey goes through Get-Item so that an
-            absent key is a no-op while a key with children and no Recurse still
-            throws - the same two behaviours the fake has, expressed as a
-            pipeline rather than as a branch.
+            key that does not exist - through EnsureKey, which builds the path a
+            level at a time. It does NOT use `New-Item -Force`: on the registry
+            provider that means "delete this key tree and make an empty one", and
+            using it here wiped a live Winlogon key mid-deployment. The comment
+            above EnsureKey has the run and the failure.
+
+            RemoveKey goes through Get-Item so that an absent key is a no-op, and
+            counts children first so that a key with children and no Recurse is
+            refused rather than PROMPTED FOR - which is what Remove-Item does
+            there, and what hung. That count is the only branch in this adapter,
+            and it is here because a prompt cannot be expressed as a pipeline.
 
             GetValue returns $null for a missing key and for a missing value
             name, and never throws. That is the contract, not a branch on data:
@@ -86,6 +93,31 @@ function New-HDTRegistryService {
         Operations  = [System.Collections.ArrayList]::new()
         Journal     = $Journal
         ServiceName = 'RegistryService'
+
+        # SET BY THE PAYLOAD ONCE THERE IS A LOG TO SET IT TO. The adapters are
+        # built before the log context exists - see Start-HDTDeployment and
+        # Start-HDTResume - so this is assigned afterwards rather than passed to
+        # the factory. $null until then, and Note writes nothing while it is.
+        LogContext  = $null
+    }
+
+    # WHAT IT TOLERATED, SAID OUT LOUD. This adapter's whole contract is that
+    # absence is not an error: a key that is already there, a value that is
+    # already gone. Every one of those used to be a silent no-op, and a silently
+    # tolerated condition is the next mystery - the run that failed on
+    # 2026-08-30 spent its last minute in exactly these calls and the log has not
+    # one line about what any of them found.
+    #
+    # Info, not Debug: an administrator reading this a week later needs it to
+    # explain the outcome, and Debug is for volume rather than for importance.
+    $service | Add-Member -MemberType ScriptMethod -Name Note -Value {
+        param([string] $Message, [System.Collections.IDictionary] $Data)
+
+        if ($null -eq $this.LogContext) {
+            return
+        }
+
+        Write-HDTLog -Context $this.LogContext -Component 'Registry' -Message $Message -Data $Data
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name Record -Value {
@@ -149,14 +181,83 @@ function New-HDTRegistryService {
         return $property.Value
     }
 
+    # NOT PART OF IRegistryService. It is the create-if-missing primitive that
+    # NewKey and SetValue both need, and it is one method so the two cannot drift
+    # apart again.
+    #
+    # `New-Item -Force` ON THE REGISTRY PROVIDER MEANS DELETE, NOT CREATE.
+    # On the file system -Force means "and don't complain if it is already
+    # there". On the registry provider it means "DELETE THIS KEY TREE AND MAKE AN
+    # EMPTY ONE": the provider sees the key, sees Force, and calls
+    # RegistryKey.DeleteSubKeyTree before recreating it. Every value and every
+    # subkey under it is gone.
+    #
+    # BOTH WRITERS USED IT, so every SetValue silently emptied the key it was
+    # writing to. Nothing noticed while the only keys involved were HDT's own
+    # empty ones - and then run-20260830-204613 armed autologon a second time,
+    # in the full OS, and aimed it at a live
+    # HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon: Shell,
+    # Userinit, Notify, GPExtensions, the lot. It did not even finish, throwing
+    # ArgumentException "Cannot delete a subkey tree because the subkey does not
+    # exist" part-way down a tree it had no business walking - which reached the
+    # log as "Exception calling SetValue with 4 argument(s)", a set that was
+    # really a delete. The WinPE leg had survived the same call minutes earlier
+    # because WinPE's Winlogon is a shallow RAM-hive copy that deletes cleanly.
+    #
+    # SO IT IS BUILT ANCESTOR BY ANCESTOR INSTEAD. New-Item WITHOUT -Force never
+    # deletes, but it also refuses a path whose parent is missing and does not
+    # create the chain - which is the one thing -Force was genuinely wanted for.
+    # Walking the path creates each level that is absent and no-ops on each level
+    # that is present.
+    $service | Add-Member -MemberType ScriptMethod -Name EnsureKey -Value {
+        param([string] $Path)
+
+        $full = $this.NormalizePath($Path)
+        $part = $full.Split('\')
+
+        $level = [System.Collections.ArrayList]::new()
+        for ($depth = 1; $depth -lt $part.Count; $depth++) {
+            [void] $level.Add((($part[0..$depth]) -join '\'))
+        }
+
+        # READ BEFORE WRITING, so the log can say which levels this call actually
+        # created and which were already there. That is the difference between
+        # "HDT made this key" and "HDT found it", and it is the question asked of
+        # a machine that came back wrong.
+        $absent = @($level | Where-Object { -not (Test-Path -LiteralPath $_) })
+
+        # SilentlyContinue COVERS EXACTLY ONE CONDITION - "this level is already
+        # there", which New-Item reports as a non-terminating error and which is
+        # the normal case for every level but the last.
+        foreach ($each in $level) {
+            New-Item -Path $each -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+        }
+
+        # AND IT IS NOT ALLOWED TO HIDE ANYTHING ELSE. A denied write or a hive
+        # that is not mounted is swallowed by the line above, so the key is read
+        # back: the failure then reaches the caller here, naming the key, rather
+        # than as a confusing New-ItemProperty error one line later.
+        Get-Item -LiteralPath $full -ErrorAction Stop | Out-Null
+
+        $this.Note(
+            ("registry key '{0}' is present; {1} of its {2} level(s) had to be created ({3})" -f
+                $full, $absent.Count, $level.Count,
+                (@($absent) -join ', ')),
+            ([ordered] @{
+                    path         = $full
+                    levelCount   = [int] $level.Count
+                    createdCount = [int] $absent.Count
+                    created      = [string[]] @($absent)
+                    alreadyThere = [string[]] @($level | Where-Object { $absent -notcontains $_ })
+                }))
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name NewKey -Value {
         param([string] $Path)
 
         $this.Record('NewKey', @($Path))
 
-        # -Force is what makes this idempotent and what creates intermediate
-        # keys, so there is no "does it exist" branch to get wrong.
-        New-Item -Path $this.NormalizePath($Path) -Force -ErrorAction Stop | Out-Null
+        $this.EnsureKey($Path)
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name SetValue -Value {
@@ -165,8 +266,34 @@ function New-HDTRegistryService {
         $this.Record('SetValue', @($Path, $Name, $Value, $Type))
 
         $full = $this.NormalizePath($Path)
-        New-Item -Path $full -Force -ErrorAction Stop | Out-Null
+        $this.EnsureKey($full)
+
+        # READ BEFORE THE WRITE, so the log can say whether this was a new value
+        # or an overwrite - which is the difference between HDT configuring a
+        # machine and HDT changing something that was already set.
+        $before = $null -ne (Get-ItemProperty -LiteralPath $full -Name $Name -ErrorAction SilentlyContinue)
+
+        # -Force HERE IS THE FILE-SYSTEM MEANING AND IS CORRECT: on a VALUE it
+        # overwrites, and it deletes no key.
         New-ItemProperty -LiteralPath $full -Name $Name -Value $Value -PropertyType $Type -Force -ErrorAction Stop | Out-Null
+
+        # THE NAME, THE TYPE AND THE LENGTH - NEVER THE VALUE. Everything else
+        # this adapter logs is said in full, and this one thing is not: any
+        # caller may put a secret through SetValue, and DESIGN 4.5.2's guarantee
+        # that the deployment password reaches no log must not depend on every
+        # future caller remembering. The type is what actually goes wrong here
+        # anyway - Winlogon ignores AutoLogonCount written as a String.
+        $this.Note(
+            ("registry value '{0}' under '{1}' was written as {2} ({3} character(s)), {4}" -f
+                $Name, $full, $Type, ([string] $Value).Length,
+                @('which is a new value', 'overwriting a value that was already there')[[int] $before]),
+            ([ordered] @{
+                    path        = $full
+                    name        = $Name
+                    type        = $Type
+                    valueLength = ([string] $Value).Length
+                    overwrote   = [bool] $before
+                }))
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name RemoveValue -Value {
@@ -174,8 +301,30 @@ function New-HDTRegistryService {
 
         $this.Record('RemoveValue', @($Path, $Name))
 
-        # Absent is not an error: teardown runs on machines in unknown states.
-        Remove-ItemProperty -LiteralPath $this.NormalizePath($Path) -Name $Name -Force -ErrorAction SilentlyContinue
+        $full = $this.NormalizePath($Path)
+
+        # READ FIRST, SO THE TOLERATED CASE IS VISIBLE. Absent is not an error -
+        # teardown runs on machines in unknown states - but "there was nothing to
+        # remove" and "it was removed" are different facts about the machine, and
+        # a teardown that reports six cleared artifacts should be able to say
+        # which of them were already gone before it started.
+        $keyThere = [bool] (Test-Path -LiteralPath $full)
+        $valueThere = [bool] ($null -ne (Get-ItemProperty -LiteralPath $full -Name $Name -ErrorAction SilentlyContinue))
+
+        Remove-ItemProperty -LiteralPath $full -Name $Name -Force -ErrorAction SilentlyContinue
+
+        $this.Note(
+            ("registry value '{0}' under '{1}': the key was {2} and the value was {3}" -f
+                $Name, $full,
+                @('not there', 'there')[[int] $keyThere],
+                @('already absent, so the remove was a no-op', 'present, and has been removed')[[int] $valueThere]),
+            ([ordered] @{
+                    path       = $full
+                    name       = $Name
+                    keyExisted = $keyThere
+                    existed    = $valueThere
+                    removed    = $valueThere
+                }))
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name RemoveKey -Value {
@@ -183,11 +332,49 @@ function New-HDTRegistryService {
 
         $this.Record('RemoveKey', @($Path, $Recurse))
 
+        $full = $this.NormalizePath($Path)
+
+        # A KEY WITH CHILDREN AND NO Recurse DID NOT THROW - IT ASKED, AND WAITED.
+        # This line used to read "still reaches Remove-Item and still throws",
+        # which is what the file system does and not what the registry provider
+        # does. `Remove-Item -Recurse:$false` on a key that has subkeys calls
+        # ShouldContinue, and NEITHER -Force NOR -Confirm:$false answers it. In
+        # WinPE's interactive host that is a teardown stopped dead on a question
+        # nobody is standing there to answer; under -NonInteractive it is a
+        # PSInvalidOperationException naming the HOST rather than the key.
+        #
+        # Counting first makes the refusal deterministic and names the key, which
+        # is the behaviour the fake has always had and the contract now pins.
+        # THE ONE BRANCH IN THIS ADAPTER, and it is here because a prompt cannot
+        # be expressed as a pipeline - see the note on branch-free adapters in
+        # the description.
+        $child = @(Get-ChildItem -LiteralPath $full -ErrorAction SilentlyContinue)
+
+        if ($child.Count -gt 0 -and -not $Recurse) {
+            throw [System.InvalidOperationException]::new(
+                ("The registry key '{0}' has {1} child key(s) and Recurse was not requested." -f $Path, $child.Count))
+        }
+
+        $existed = [bool] (Test-Path -LiteralPath $full)
+
         # Get-Item yields nothing for an absent key, so the pipeline is a no-op
-        # there; a key with children and no Recurse still reaches Remove-Item and
-        # still throws. One pipeline, both behaviours, no branch on data.
-        Get-Item -LiteralPath $this.NormalizePath($Path) -ErrorAction SilentlyContinue |
+        # there - removing something that is not there is not an error.
+        Get-Item -LiteralPath $full -ErrorAction SilentlyContinue |
             Remove-Item -Recurse:$Recurse -Force -Confirm:$false -ErrorAction Stop
+
+        $this.Note(
+            ("registry key '{0}' was {1}; it had {2} child key(s) and recurse was {3}" -f
+                $full,
+                @('already absent, so the remove was a no-op', 'present, and has been removed')[[int] $existed],
+                $child.Count,
+                @('not asked for', 'asked for')[[int] $Recurse]),
+            ([ordered] @{
+                    path       = $full
+                    existed    = $existed
+                    removed    = $existed
+                    childCount = [int] $child.Count
+                    recurse    = $Recurse
+                }))
     }
 
     return $service

@@ -432,6 +432,13 @@ try {
     $log = New-HDTLogContext -RunId $runId -Phase WinPE -LogPath $logDirectory `
         -FileSystem $fileSystem -Clock $clock -Level Debug
 
+    # AND THE REGISTRY ADAPTER GETS IT, now that there is one to give. It is
+    # built above, before any log exists, so it is told afterwards rather than at
+    # construction. Without this every key it created, found, overwrote or found
+    # already gone is a silent no-op - which is how a set that was really a
+    # delete reached a log with nothing in it but the exception.
+    $registry.LogContext = $log
+
     $result['logPath'] = $logDirectory
 
     & $say ("powershell-yaml {0} loaded from {1}" -f $yaml.Version, $yaml.ModuleBase)
