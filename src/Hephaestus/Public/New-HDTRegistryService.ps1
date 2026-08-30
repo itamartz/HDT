@@ -21,6 +21,16 @@ function New-HDTRegistryService {
             does not finish, leaving a machine armed with six of nine artifacts
             cleared.
 
+            SetValue LOGS THE VALUE IT WROTE, and takes an optional fifth
+            argument - Sensitive - for a caller that is writing a secret under a
+            name no classifier would recognise. It used to log the name, the
+            type and the length and never the value, which protected DESIGN
+            4.5.2's one password by making every registry write in the engine
+            unreadable. Format-HDTRegistryLogValue now decides: the values
+            Test-HDTSecretRegistryValue names, and the ones a caller marks, are
+            replaced by a VISIBLE "<redacted, n character(s)>", and everything
+            else is printed.
+
             SetValue creates the key first because New-ItemProperty fails on a
             key that does not exist - through EnsureKey, which builds the path a
             level at a time. It does NOT use `New-Item -Force`: on the registry
@@ -260,8 +270,12 @@ function New-HDTRegistryService {
         $this.EnsureKey($Path)
     }
 
+    # THE FIFTH ARGUMENT IS OPTIONAL AND MEANS "THIS IS A SECRET WHATEVER IT IS
+    # CALLED". Four-argument calls are every existing caller and are unchanged;
+    # the fake carries the same overload so a caller that marks a value works
+    # against either implementation.
     $service | Add-Member -MemberType ScriptMethod -Name SetValue -Value {
-        param([string] $Path, [string] $Name, [object] $Value, [string] $Type)
+        param([string] $Path, [string] $Name, [object] $Value, [string] $Type, [bool] $Sensitive)
 
         $this.Record('SetValue', @($Path, $Name, $Value, $Type))
 
@@ -277,21 +291,41 @@ function New-HDTRegistryService {
         # overwrites, and it deletes no key.
         New-ItemProperty -LiteralPath $full -Name $Name -Value $Value -PropertyType $Type -Force -ErrorAction Stop | Out-Null
 
-        # THE NAME, THE TYPE AND THE LENGTH - NEVER THE VALUE. Everything else
-        # this adapter logs is said in full, and this one thing is not: any
-        # caller may put a secret through SetValue, and DESIGN 4.5.2's guarantee
-        # that the deployment password reaches no log must not depend on every
-        # future caller remembering. The type is what actually goes wrong here
-        # anyway - Winlogon ignores AutoLogonCount written as a String.
+        # THE NAME, THE TYPE, THE LENGTH AND THE VALUE. This line used to say
+        # everything except the value - "written as String (9 character(s))" -
+        # on the reasoning that any caller may put a secret through SetValue and
+        # DESIGN 4.5.2's guarantee that the deployment password reaches no log
+        # must not depend on every future caller remembering.
+        #
+        # THE REASONING WAS RIGHT AND THE TRADE WAS WRONG. It made every
+        # registry write in the engine unreadable in order to protect one value,
+        # and "Make = Dell Inc." has no secret in it. Blanket silence is now an
+        # enforced guarantee instead: Format-HDTRegistryLogValue withholds the
+        # values Test-HDTSecretRegistryValue names and the ones a caller marks
+        # with the fifth argument, VISIBLY - "<redacted, 12 character(s)>", so a
+        # reader can tell a value withheld on purpose from one that was never
+        # set - and truncates anything long enough to swamp the record.
+        #
+        # NO BRANCH HERE, DELIBERATELY. The decision is one call to a helper
+        # that IS unit tested (RegistryLogValue.Tests.ps1); this adapter stays
+        # what CLAUDE.md rule 1 requires of a thing no unit test can reach.
+        #
+        # The type is still named, because it is what actually goes wrong here -
+        # Winlogon ignores AutoLogonCount written as a String.
+        $shown = Format-HDTRegistryLogValue -Name $Name -Value $Value -Sensitive:$Sensitive
+
         $this.Note(
-            ("registry value '{0}' under '{1}' was written as {2} ({3} character(s)), {4}" -f
-                $Name, $full, $Type, ([string] $Value).Length,
+            ("registry value '{0}' under '{1}' was written as {2} = {3}, {4}" -f
+                $Name, $full, $Type, $shown.Sentence,
                 @('which is a new value', 'overwriting a value that was already there')[[int] $before]),
             ([ordered] @{
                     path        = $full
                     name        = $Name
                     type        = $Type
-                    valueLength = ([string] $Value).Length
+                    value       = [string] $shown.Display
+                    valueLength = [int] $shown.Length
+                    redacted    = [bool] $shown.Redacted
+                    truncated   = [bool] $shown.Truncated
                     overwrote   = [bool] $before
                 }))
     }

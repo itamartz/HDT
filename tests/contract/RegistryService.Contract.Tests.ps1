@@ -43,6 +43,7 @@ $script:HDTImplementation = @(
         KnownName    = 'ProductName'
         MissingPath  = 'HKLM:\SOFTWARE\HDTNoSuchKey'
         WriteRoot    = $script:HDTWriteRoot
+        Logs         = $false
         Skip         = $false
     }
     @{
@@ -53,6 +54,12 @@ $script:HDTImplementation = @(
         KnownName    = 'ProductName'
         MissingPath  = 'HKLM:\SOFTWARE\HDTNoSuchKey'
         WriteRoot    = $script:HDTWriteRoot
+
+        # Only the real adapter writes a log at all - the fake records
+        # Operations and nothing else - so the assertions about what a log line
+        # SAYS are marked here rather than assumed. The assertion about what it
+        # must NEVER say runs against both.
+        Logs         = $true
         Skip         = -not ([System.Environment]::OSVersion.Platform -eq 'Win32NT')
     }
 )
@@ -342,6 +349,109 @@ Describe 'IRegistryService contract: <Name>' -ForEach $script:HDTImplementation 
 
         It 'names itself in ServiceName' {
             $script:registry.ServiceName | Should -BeExactly 'RegistryService'
+        }
+    }
+
+    # WHAT A WRITE IS ALLOWED TO SAY ABOUT ITSELF.
+    #
+    # The adapter used to log the name, the type and the LENGTH of every value
+    # and never the value, so that DESIGN 4.5.2's guarantee about the deployment
+    # password could not depend on a future caller remembering. That protected
+    # one value by making every registry write in the engine unreadable - a real
+    # run's tattoo reads "registry value 'Make' ... was written as String (9
+    # character(s))", which answers nothing.
+    #
+    # The silence is now an enforced guarantee, and this is where the guarantee
+    # is asserted rather than the mechanism: what a secret-named value may never
+    # put in a log is asked of EVERY implementation, and what an ordinary value
+    # must put there is asked of the ones that write a log at all.
+    Context 'what a write says about itself' -Skip:$Skip {
+
+        BeforeEach {
+            $script:registry = & $Factory $script:repoRoot
+            $script:key = '{0}\{1}' -f $WriteRoot, ([guid]::NewGuid().ToString('N'))
+
+            $script:logFileSystem = New-HDTFakeFileSystem
+            $script:logContext = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $script:logFileSystem -Clock (New-HDTFakeClock -UtcNow ([datetime]::new(
+                        2026, 8, 30, 22, 19, 34, [System.DateTimeKind]::Utc))) -Level Debug
+
+            # The fake has no LogContext to set, which is the whole reason the
+            # Logs column exists. Asking the object rather than the row name
+            # keeps a third implementation from having to be listed here.
+            if ($null -ne $script:registry.PSObject.Properties['LogContext']) {
+                $script:registry.LogContext = $script:logContext
+            }
+
+            # THE MARKER IS SYNTHETIC ON PURPOSE. A fixture that looks like a
+            # password is a password as far as the next person grepping this
+            # repository is concerned.
+            $script:marker = 'MARKER-{0}' -f [guid]::NewGuid().ToString('N').Substring(0, 12)
+
+            $script:logText = {
+                $all = ''
+                foreach ($leaf in @('HDT.jsonl', 'HDT.log')) {
+                    $path = 'X:\HDT\Logs\{0}' -f $leaf
+                    if ($script:logFileSystem.TestPath($path)) {
+                        $all += [string] $script:logFileSystem.ReadAllText($path)
+                    }
+                }
+
+                return $all
+            }
+        }
+
+        AfterAll {
+            Remove-Item -LiteralPath $WriteRoot -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'writes no cleartext of a value whose name says it is a secret' {
+            # DefaultPassword is the name Winlogon reads the autologon password
+            # from, written here into the suite's own HKCU scratch key rather
+            # than into a real Winlogon - see the note at the top of this file.
+            $script:registry.SetValue($script:key, 'DefaultPassword', $script:marker, 'String')
+
+            (& $script:logText) | Should -Not -BeLike ('*{0}*' -f $script:marker)
+        }
+
+        It 'writes no cleartext of a value the caller marked, whatever it is called' {
+            $script:registry.SetValue($script:key, 'Blob', $script:marker, 'String', $true)
+
+            (& $script:logText) | Should -Not -BeLike ('*{0}*' -f $script:marker)
+        }
+
+        It 'stores the value it was asked to store, marked or not' {
+            # A REDACTION IS ABOUT THE LOG AND NOTHING ELSE. An implementation
+            # that protected the log by not writing the value would disarm
+            # autologon rather than protect it.
+            $script:registry.SetValue($script:key, 'Blob', $script:marker, 'String', $true)
+
+            $script:registry.GetValue($script:key, 'Blob') | Should -BeExactly $script:marker
+        }
+
+        It 'says the value it wrote' -Skip:(-not $Logs) {
+            $script:registry.SetValue($script:key, 'Make', 'Dell Inc.', 'String')
+
+            (& $script:logText) | Should -BeLike "*'Dell Inc.'*"
+        }
+
+        It 'says out loud that it withheld a secret, rather than leaving a blank' -Skip:(-not $Logs) {
+            # VISIBLE, NEVER SILENT: a reader has to be able to tell a value
+            # withheld on purpose from one that was never set. The LENGTH stays,
+            # because a password of the wrong length is a different fault from
+            # no password at all.
+            $script:registry.SetValue($script:key, 'DefaultPassword', $script:marker, 'String')
+
+            (& $script:logText) | Should -BeLike ('*<redacted, {0} character(s)>*' -f $script:marker.Length)
+        }
+
+        It 'still names the value, its key and its type when it withholds one' -Skip:(-not $Logs) {
+            $script:registry.SetValue($script:key, 'DefaultPassword', $script:marker, 'String')
+
+            $text = & $script:logText
+            $text | Should -BeLike '*DefaultPassword*'
+            $text | Should -BeLike ('*{0}*' -f $script:key)
+            $text | Should -BeLike '*String*'
         }
     }
 }

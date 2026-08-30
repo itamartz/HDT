@@ -1159,6 +1159,17 @@ class HDTFakeRegistryService {
         $this.SeedKey($Path)
     }
 
+    # THE FIFTH ARGUMENT THE REAL ADAPTER TAKES, and it is here because a fake
+    # that refuses a call the real one accepts is the fake being wrong rather
+    # than the caller. New-HDTRegistryService.SetValue takes an optional
+    # Sensitive flag for a caller writing a secret under a name no classifier
+    # would recognise; it changes what the REAL adapter logs and nothing about
+    # what either implementation stores, so this overload forwards and the
+    # in-memory behaviour is identical.
+    [void] SetValue([string] $Path, [string] $Name, [object] $Value, [string] $Type, [bool] $Sensitive) {
+        $this.SetValue($Path, $Name, $Value, $Type)
+    }
+
     [void] SetValue([string] $Path, [string] $Name, [object] $Value, [string] $Type) {
         # Recorded before it can throw: query order is evidence about what the
         # code under test tried, not only about what succeeded.

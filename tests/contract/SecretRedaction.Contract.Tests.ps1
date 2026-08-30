@@ -157,6 +157,54 @@ BeforeAll {
     $script:artefact['facts.json'] = [string] $factFileSystem.ReadAllText('C:\HDT\Logs\Gather\facts.json')
 
     $script:artefactName = @($script:artefact.Keys)
+
+    # -- AND THE ONE SECRET THAT IS NOT A VARIABLE ----------------------------
+    #
+    # DESIGN 4.5.2's deployment password never appears in the variable bag on
+    # the leg that arms autologon: Set-HDTAutoLogon takes it as a parameter,
+    # stores it in an LSA secret, and REMOVES the registry DefaultPassword
+    # unconditionally. So none of the machinery above sees it, and it is the
+    # value whose disclosure is a privilege ESCALATION rather than a leak - the
+    # logs a run produces end up on the deployment share and then in
+    # C:\Windows\Logs\HDT, which authenticated users can read.
+    #
+    # WHY THIS ARTEFACT EXISTS NOW. New-HDTRegistryService used to log the name,
+    # the type and the LENGTH of every value it wrote and never the value, on
+    # exactly this reasoning - and that traded every readable registry write in
+    # the engine for it. The adapter now prints values and withholds the ones
+    # Test-HDTSecretRegistryValue names, which is only safe if something asserts
+    # the guarantee end to end rather than one function at a time. This is that
+    # assertion, driven through the REAL arming path with a realistic password.
+    #
+    # THE REGISTRY HERE IS THE FAKE, and deliberately: Set-HDTAutoLogon writes
+    # to HKLM's live Winlogon key, which no contract test may touch. The REAL
+    # adapter's half of the same guarantee is asserted in
+    # RegistryService.Contract.Tests.ps1, which writes the DefaultPassword value
+    # name into the suite's own HKCU scratch key against both implementations.
+    $armFileSystem = New-HDTFakeFileSystem
+    $armLog = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'X:\HDT\Arm' `
+        -FileSystem $armFileSystem -Clock $clock -Level Debug
+
+    $armRegistry = New-HDTFakeRegistryService
+    $armRegistry.SeedValue('HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon', 'DefaultPassword', 'left over')
+
+    $armLsa = New-HDTFakeLsaService
+
+    # Realistic in SHAPE - length, character classes, the thing a generator
+    # produces - and obviously synthetic in CONTENT, for the reason the header
+    # gives. A marker nothing else in this file uses, so a hit is unambiguous.
+    $script:deploymentPassword = 'MARKER-ARM-{0}-Aa1!' -f [guid]::NewGuid().ToString('N').Substring(0, 16)
+
+    Set-HDTAutoLogon -Registry $armRegistry -Lsa $armLsa -UserName 'Administrator' `
+        -Password $script:deploymentPassword -RemainingLeg 3 -LogContext $armLog -Confirm:$false
+
+    $script:armArtefact = [ordered] @{
+        'autologon HDT.jsonl' = [string] $armFileSystem.ReadAllText('X:\HDT\Arm\HDT.jsonl')
+        'autologon HDT.log'   = [string] $armFileSystem.ReadAllText('X:\HDT\Arm\HDT.log')
+    }
+
+    $script:armRegistryService = $armRegistry
+    $script:armLsaService = $armLsa
 }
 
 Describe 'The secrets and the artefacts this contract is asserted over' {
@@ -345,5 +393,54 @@ Describe 'Every redacting writer of the Gather folder is driven by this file' {
 
         ($unscanned -join ', ') | Should -BeExactly '' `
             -Because 'a run leaves it behind and this file must prove it carries no secret'
+    }
+}
+
+Describe 'The deployment password survives no artefact of the leg that armed it' {
+
+    # NON-VACUITY FIRST. An arming path that wrote nothing would pass every
+    # assertion below while proving nothing at all.
+    It 'wrote something to <_>' -ForEach @('autologon HDT.jsonl', 'autologon HDT.log') {
+        [string] $script:armArtefact[$PSItem] | Should -Not -BeNullOrEmpty
+    }
+
+    It 'armed the machine, so there was a password to leak' {
+        [string] $script:armLsaService.GetSecret('DefaultPassword') | Should -BeExactly $script:deploymentPassword
+    }
+
+    It 'writes the password nowhere in <_>' -ForEach @('autologon HDT.jsonl', 'autologon HDT.log') {
+        [string] $script:armArtefact[$PSItem] | Should -Not -BeLike ('*{0}*' -f $script:deploymentPassword)
+    }
+
+    # AND IT STILL ANSWERS THE QUESTIONS IT EXISTS TO ANSWER. A log that went
+    # quiet to avoid leaking would leave an admin unable to tell an armed
+    # machine from an unarmed one, which is the failure the whole autologon
+    # lifecycle is diagnosed by.
+    It 'still says the machine was armed, and for whom, in <_>' -ForEach @('autologon HDT.jsonl', 'autologon HDT.log') {
+        [string] $script:armArtefact[$PSItem] | Should -BeLike '*Administrator*'
+    }
+
+    It 'still says how many legs it was armed for' {
+        [string] $script:armArtefact['autologon HDT.jsonl'] | Should -BeLike '*3 more leg(s)*'
+    }
+
+    # AND IT NAMES THE SECRET WITHOUT CARRYING IT, which is the shape every
+    # redaction in this file takes: the name, the store and the provenance
+    # survive and only the value goes. An admin can see that a DefaultPassword
+    # secret was written without being handed it.
+    #
+    # The JSONL only: CMTrace's format carries the message and not the data
+    # bag, which is a fact about that format rather than about the redaction.
+    It 'names the secret it stored' {
+        [string] $script:armArtefact['autologon HDT.jsonl'] | Should -BeLike '*DefaultPassword*'
+    }
+
+    # AND THE REGISTRY PASSWORD IS GONE FROM THE MACHINE, not merely from the
+    # log. The key was seeded with a leftover DefaultPassword above, exactly as
+    # an image that already carried one would be.
+    It 'leaves no DefaultPassword in the registry at all' {
+        $script:armRegistryService.GetValue(
+            'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon', 'DefaultPassword') |
+            Should -BeNullOrEmpty
     }
 }

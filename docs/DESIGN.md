@@ -1113,6 +1113,44 @@ These are the reasons to reimplement rather than copy:
   "password" with `<Message containing password has been suppressed>`, losing
   the line rather than the value.
 
+  **The registry adapter answers the same question, with its own classifier and
+  the same visible substitution.** `New-HDTRegistryService.SetValue` logs the
+  value it wrote. It did not, once: it logged the name, the type and the length
+  and never the value, so that this guarantee could not depend on a future
+  caller remembering — and that bought one password at the price of every
+  readable registry write in the engine. A real run's tattoo said
+  `registry value 'Make' ... was written as String (9 character(s))`, which
+  answers nothing about a machine that came back wrong.
+
+  So the blanket silence is an enforced guarantee instead, in three parts:
+
+  - `Test-HDTSecretRegistryValue` classifies the **value name**. An explicit
+    deny-list — `DefaultPassword`, `DefaultPasswordEncrypted` — unioned with
+    `Test-HDTSecretVariable`'s pattern, so a name a site invents through a
+    Tattoo step's `values:` block is caught on the first run. The deny-list does
+    not depend on §4.5.2's LSA storage staying correct: a guarantee that holds
+    only while the code around it is right is not a guarantee.
+  - `SetValue` takes an optional fifth argument, **`Sensitive`**, so a caller
+    writing a secret under a name no classifier would recognise can say so. It
+    marks a value; nothing un-marks one the classifier refused. The fake carries
+    the same overload, because a double that rejects a call the adapter accepts
+    is the double being wrong.
+  - `Format-HDTRegistryLogValue` substitutes, and **the redaction is visible** —
+    `<redacted, 12 character(s)>`, never a blank, because a blank cannot be told
+    from a value that was empty or never set, and those mean opposite things
+    about the machine. The length survives: a password of the wrong length is a
+    different fault from no password at all. A value over 512 characters is
+    truncated with its full length reported, and redaction happens *before*
+    truncation so no prefix of a long secret is ever shown.
+
+  The decision lives in those two helpers rather than in the adapter, which
+  stays branch-free because nothing unit-tests it (CLAUDE.md rule 1). The
+  guarantee is asserted end to end: a realistic deployment password driven
+  through the real `Set-HDTAutoLogon` arming path must appear in neither
+  `HDT.jsonl` nor the CMTrace `HDT.log`, and the `DefaultPassword` value name
+  is written through both the real adapter and the fake in
+  `RegistryService.Contract.Tests.ps1`.
+
   **A consequence, and it is load-bearing.** A leg that resumes after a reboot
   rehydrates its variable bag from `state.json`, so it sees the redaction where
   a secret was. `HDTAdminPassword` is recovered from the autologon LSA secret,
