@@ -358,7 +358,23 @@
         # the document while leaving the footer silent.
         # tests/contract/ConsoleBootImageField.Contract.Tests.ps1 asserts that
         # $book.Dirty is set true in exactly one place.
+        #
+        # AND IT IS THE PLAIN BOXES TOO, NOT ONLY THE LISTS. Boot image name,
+        # architecture, language, scratch space, prompt-for-key, unattend,
+        # background, time zone, client certificate and driver profile used to
+        # raise the rebuild banner and nothing else, so typing a new boot image
+        # name and closing the window prompted for nothing and threw the edit
+        # away. They come through here now - see $noticeChange, below.
+        #
+        # WHICH IS WHY THE FILLING GUARD IS HERE AND NOT ONLY IN $noteRebuild.
+        # $fillBoxes reassigns every one of those controls - on the way up,
+        # after Save, after a build - and a ComboBox handed a fresh ItemsSource
+        # raises SelectionChanged on the way past. Without this, a window would
+        # be unsaved the moment it opened and would ask on every close, which is
+        # the dialog nobody reads.
         $markDirty = {
+            if ($rebuild.Filling) { return }
+
             $book.Dirty = $true
             & $noteRebuild
         }.GetNewClosure()
@@ -1247,7 +1263,14 @@
             # the last control does not end up owning all of them.
             $watched = $one
 
-            $noticeChange = { & $noteRebuild }.GetNewClosure()
+            # THE DOCUMENT AS WELL AS THE BANNER. These controls are read at
+            # Save and nowhere else, so an edit to one of them lives in the
+            # control until Save gathers it - and the window used to close on
+            # that without a word, because only the rebuild notice was raised
+            # here and nothing ever marked the document unsaved.
+            # tests/unit/ConsoleBootImageClose.Tests.ps1 sweeps the whole
+            # watched set for it; $markDirty raises the banner too.
+            $noticeChange = { & $markDirty }.GetNewClosure()
 
             if ($watched.Control -is [System.Windows.Controls.TextBox]) {
                 $watched.Control.Add_TextChanged($noticeChange)
@@ -1284,14 +1307,34 @@
         # time. Set-HDTWindowText has already run, so what is read here is the
         # label the administrator can see; renaming the button in en-us.psd1
         # renames it in the prompt with no second edit.
+        #
+        # AND THE BUTTON ITSELF TRAVELS WITH IT, which is what lets Yes on the
+        # close prompt write every unsaved file rather than the first one. Yes
+        # PRESSES THE BUTTONS - it does not reach past them to a Save-HDT*
+        # command - so each document is written by the one handler that knows
+        # how, and a file whose Save gathers boxes cannot be written half-read.
         $documentSet = @(
-            [pscustomobject] @{ Path = [string] $Path; State = $book; SaveWith = [string] $save.Content }
-            [pscustomobject] @{ Path = [string] $rulesTab.Path; State = $rulesTab.State; SaveWith = [string] $rulesSaveButton.Content }
-            [pscustomobject] @{ Path = [string] $bootstrapRulesTab.Path; State = $bootstrapRulesTab.State; SaveWith = [string] $bootstrapRulesSaveButton.Content }
+            [pscustomobject] @{ Path = [string] $Path; State = $book; Button = $save }
+            [pscustomobject] @{ Path = [string] $rulesTab.Path; State = $rulesTab.State; Button = $rulesSaveButton }
+            [pscustomobject] @{ Path = [string] $bootstrapRulesTab.Path; State = $bootstrapRulesTab.State; Button = $bootstrapRulesSaveButton }
         )
 
         foreach ($one in $documentSet) {
             $one | Add-Member -MemberType ScriptProperty -Name 'Dirty' -Value { [bool] $this.State.Dirty } -Force
+            $one | Add-Member -MemberType ScriptProperty -Name 'SaveWith' -Value { [string] $this.Button.Content } -Force
+
+            # THE BUTTON'S OWN GATE, ASKED RATHER THAN GUESSED. A rules tab's
+            # Save goes dark the moment its document will not parse; a Yes that
+            # wrote it anyway would put a broken rules.yaml on the share, and
+            # one that skipped it would be the same silence this window has
+            # already lost work to. Get-HDTConsoleClosePrompt reads this and
+            # refuses to close instead.
+            $one | Add-Member -MemberType ScriptProperty -Name 'CanSave' -Value { [bool] $this.Button.IsEnabled } -Force
+
+            $one | Add-Member -MemberType ScriptMethod -Name 'Save' -Value {
+                $this.Button.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                            -ArgumentList ([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)))
+            } -Force
         }
 
         # ON THE WINDOW, because that is what a test holds and what the closing
@@ -1434,6 +1477,21 @@
         # window without a word - the same defect, in the same window, one file
         # along. The whole registered set goes over, live, and the prompt
         # decides which of them are worth stopping for.
+        #
+        # THE MESSAGE BOX IS A PROPERTY, AND THAT IS THE ONLY REASON ANY OF THIS
+        # IS TESTED. It is the one part of closing that needs a desktop:
+        # MessageBox::Show raised inside Add_Closing during a Pester run is a
+        # modal dialog on a window nobody is looking at, and the suite stops
+        # there. Everything else below is ordinary code, and
+        # tests/unit/ConsoleBootImageClose.Tests.ps1 answers through here.
+        $window | Add-Member -NotePropertyName 'HDTAsk' -NotePropertyValue ({
+                param($Message, $Title, $Button, $Icon)
+
+                return [string] [System.Windows.MessageBox]::Show($window, [string] $Message, [string] $Title,
+                    ([System.Windows.MessageBoxButton] $Button),
+                    ([System.Windows.MessageBoxImage] $Icon))
+            }.GetNewClosure()) -Force
+
         $window.Add_Closing({
                 param($closingWindow, $closing)
 
@@ -1441,9 +1499,11 @@
 
                 if (-not $prompt.Ask) { return }
 
-                $answer = [System.Windows.MessageBox]::Show($window, $prompt.Message, $prompt.Title,
-                    ([System.Windows.MessageBoxButton] $prompt.Button),
-                    ([System.Windows.MessageBoxImage] $prompt.Icon))
+                # THROUGH THE PROPERTY, READ AT PRESS TIME. Capturing the
+                # scriptblock into this closure instead would freeze whatever
+                # was there when the window was built, and nothing could answer
+                # it.
+                $answer = & $window.HDTAsk $prompt.Message $prompt.Title $prompt.Button $prompt.Icon
 
                 $decision = & $call 'Resolve-HDTConsoleCloseAnswer' -Answer ([string] $answer)
 
@@ -1452,21 +1512,42 @@
                     return
                 }
 
-                # YES IS THE BOTTOM Save, AND ONLY THAT, which is what the
-                # prompt says it is. It does NOT write the rules files: each of
-                # those has its own Save, dark while its document will not
-                # parse, and a message box has no way to be dark - so a Yes that
-                # wrote them would either put an unparseable rules.yaml on the
-                # share or skip it silently. The prompt names the button beside
-                # each file instead, and Cancel is the answer that keeps them.
+                if (-not $decision.Save) { return }
+
+                # ALL OF THEM OR NONE OF THEM. Yes used to write workspace.yaml
+                # and only workspace.yaml, because the branch here was gated on
+                # $book.Dirty - so an administrator who edited a rule, read a
+                # prompt naming rules.yaml and pressed the button that says it
+                # keeps the work lost it anyway, on the one press meant to save
+                # it.
                 #
-                # AND ONLY WHEN THERE IS SOMETHING TO WRITE. Re-serialising an
-                # untouched workspace.yaml because Yes was the nearest button is
-                # a write nobody asked for.
-                if ($decision.Save -and $book.Dirty) {
-                    [void] (Save-HDTWorkspaceDocument -Path $Path -Line $book.Line `
-                            -FileSystem (New-HDTFileSystem) -Confirm:$false)
-                    $book.Dirty = $false
+                # A DOCUMENT WHOSE SAVE IS DARK STOPS THE WHOLE CLOSE. Writing
+                # it anyway would put a broken rules.yaml on the share; skipping
+                # it would be the same silence again; and writing the others
+                # first would leave a half-saved window with nothing on the
+                # screen saying which half. So: nothing is written, the window
+                # stays open, and it says which file and why.
+                if (@($prompt.Refused).Count -gt 0) {
+                    $closing.Cancel = $true
+
+                    [void] (& $window.HDTAsk $prompt.RefusedMessage $prompt.Title 'OK' 'Warning')
+                    return
+                }
+
+                # YES PRESSES THE BUTTONS. Each document's own handler is what
+                # knows how to write it - the bottom one gathers ten boxes
+                # through Get-HDTConsoleBootImageEdit before it saves a line -
+                # so reaching past them to Save-HDTWorkspaceDocument here would
+                # write the document as it was when the window opened and throw
+                # away every field the administrator had typed. It did exactly
+                # that.
+                #
+                # AND ONLY WHAT IS UNSAVED. Re-writing an untouched file because
+                # Yes was the nearest button is a write nobody asked for.
+                foreach ($one in $documentSet) {
+                    if (-not $one.Dirty) { continue }
+
+                    $one.Save()
                 }
             }.GetNewClosure())
         return $window
