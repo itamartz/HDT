@@ -374,8 +374,8 @@ A milestone is not done until its exit criteria are met with a green suite.
 | **M2** — task sequence engine | met |
 | **M3** — imaging | met |
 | **M4** — boot image, ISO and PXE | met, as scoped in the roadmap |
-| **M5** — drivers | **built** — group match, the catalog, the `ApplyDrivers` step, the PnP fallback, the class filter and `Get-HDTDriverCoverage`. The exit criterion is a real unrecognised model deployed end to end with a working network card, and that deployment has not been run: **built, not yet proven on hardware** |
-| **M6** — applications and full-OS steps | the step types ship — `InstallApplications`, `InstallRoles`, `InstallCertificate`, `EnableBitLocker`, `PowerShell`, `Tattoo` — and the roadmap records no exit for it yet |
+| **M5** — drivers | **met** — group match, the catalog, the `ApplyDrivers` step, the PnP fallback, the class filter and `Get-HDTDriverCoverage`. Proven on 2026-08-30 on a physical Latitude 5420 with its driver group renamed out from under it: 105 devices, 44 `.inf` matched, 4.3 GB staged, and the machine came back over SMB on the NIC the fallback matched |
+| **M6** — applications and full-OS steps | **met** — the step types ship: `InstallApplications`, `InstallRoles`, `InstallCertificate`, `EnableBitLocker`, `PowerShell`, `Tattoo`. Proven on the same 2026-08-30 run: a rule naming one application produced a two-application plan with the dependency first, both installed after the reboot |
 | **M7** — capture and standalone media | **deferred to v2**, at the author's direction. Scheduled out, not cut |
 | **M8** — console (WPF) | met |
 

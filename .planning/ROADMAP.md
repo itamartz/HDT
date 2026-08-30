@@ -14,8 +14,8 @@ Milestone → phase directory mapping:
 | 04 | M3 — Imaging | `.planning/phases/04-imaging/` | 03 |
 | 05 | M4 — Boot image, ISO, PXE | `.planning/phases/05-bootimage/` | 03, 04 |
 | 05.5 | **M4.5 — Technician UI (WinPE wizard + progress)** | `.planning/phases/05.5-technician-ui/` | 04, 05 |
-| 06 | M5 — Drivers — **built 2026-08-27; exit not yet proven on hardware** | `.planning/phases/06-drivers/` | 04 |
-| 07 | M6 — Applications and full-OS steps | `.planning/phases/07-apps-fullos/` | 03, 04 |
+| 06 | M5 — Drivers — **met 2026-08-30 on hardware** | `.planning/phases/06-drivers/` | 04 |
+| 07 | M6 — Applications and full-OS steps — **met 2026-08-30** | `.planning/phases/07-apps-fullos/` | 03, 04 |
 | ~~08~~ | ~~M7 — Capture and standalone media~~ **DEFERRED TO v2** | `.planning/phases/08-capture-media/` | 04, 05, 07 |
 | 09 | M8 — Admin console (WPF) | `.planning/phases/09-console/` | 02–05, 05.5, 07 |
 
@@ -30,11 +30,15 @@ step out of 07, and — added 2026-08-25 — **PXE boot from WDS out of 05**. Al
 keep their full design and roadmap entries below; they are scheduled out, not
 cut, and nothing in v1 was built in a way that assumes they are absent.
 
-**06 drivers came BACK from v2 on 2026-08-27** and is built — the `ApplyDrivers`
-step, the PnP fallback, the class filter and `Get-HDTDriverCoverage`. Its exit
-criterion is a real unrecognised model deployed end to end with a working
-network card, and that deployment has not been run: built, not yet proven on
-hardware.
+**06 drivers came BACK from v2 on 2026-08-27** — the `ApplyDrivers` step, the
+PnP fallback, the class filter and `Get-HDTDriverCoverage` — **and its exit was
+proven on hardware on 2026-08-30**: a physical Latitude 5420 whose driver group
+had been renamed out from under it deployed through the PnP fallback and came
+back on the NIC that fallback matched. **07 applications met the same day and on
+the same run**, a single-entry rule producing a two-application plan with the
+dependency first. `docs/ROADMAP.md` holds both blocks; the logs are preserved in
+`.planning/evidence/run-20260830-204613/`, because the share's `Logs\` has been
+pruned twice and took two earlier proofs with it.
 
 What deferring the rest actually costs, stated so it is not discovered later:
 

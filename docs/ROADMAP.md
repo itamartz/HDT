@@ -369,17 +369,17 @@ run for real. Neither is built, and neither may be built on `Default Switch`.
 
 ---
 
-## M5 — Drivers  ·  **BUILT · EXIT NOT YET PROVEN ON HARDWARE**
+## M5 — Drivers
 
-> **All of it is built as of 2026-08-27.** The group-match path — MDT's PRIMARY
-> one — shipped first, with the catalog: drivers go on the share, are named by a
-> selection profile, are read out of their own `.inf` files, can be turned off
-> one at a time, and are injected into a boot image. The PnP FALLBACK, the
-> `ApplyDrivers` step, the class filter and the coverage report followed.
+> **All of it is built as of 2026-08-27, and proven on hardware on 2026-08-30.**
+> The group-match path — MDT's PRIMARY one — shipped first, with the catalog:
+> drivers go on the share, are named by a selection profile, are read out of
+> their own `.inf` files, can be turned off one at a time, and are injected into
+> a boot image. The PnP FALLBACK, the `ApplyDrivers` step, the class filter and
+> the coverage report followed.
 >
-> **What is left is the proof, not the code.** The exit criterion is a real
-> unrecognised model deployed end to end with a working network card, and that
-> deployment has not been run. See "Exit" below.
+> **The proof is a physical Latitude 5420 with its driver group renamed out from
+> under it.** See "Exit" below.
 
 ### Shipped
 
@@ -448,13 +448,88 @@ on and what S1 never tested: `Win32_PnPEntity` answers 44 devices with populated
 hardware ids in 498 ms. `PNPClass` is populated on 32 of 44, so nothing may
 assume a class is present.
 
-**Exit — built, not yet proven on hardware.** The criterion is *an unrecognised
-model deploys with working network and storage via PnP fallback*, and that means
-a real machine no rule matches, deployed end to end, with a working NIC
-afterwards. Every piece is in place and unit-tested against captured devices and
-real vendor `.inf` files; what has not happened is the deployment. Recorded as
-built rather than met, because the difference between those two is exactly what
-this section exists to keep honest.
+**Exit:** an unrecognised model deploys with working network and storage via PnP
+fallback.
+
+**✅ Met on 2026-08-30**, on a physical Dell Latitude 5420 — `HDTIsVM: false`,
+serial `••••••N3` — run `run-20260830-204613`. Both copies of its log tree are
+preserved at `.planning/evidence/run-20260830-204613/`, because the share's
+`Logs\` has been pruned twice and took two earlier proofs with it.
+
+**The model was made unrecognised by renaming a folder, not by finding a machine
+nobody had drivers for.** `Drivers\Win11\Dell Inc.\Latitude 5420` became
+`Latitude 5420 Fallback` immediately before the run, so the group path the rule
+builds — `Win11\%HDTMake%\%HDTModel%` — resolved to a folder that is not there
+while its contents stayed on the share for the PnP match to find. That is the
+right shape for this test: a model with no group and a store that still holds
+drivers for it is exactly the machine the fallback exists for, and it is
+reproducible in a way that waiting for an unknown laptop is not. The share still
+carries the renamed folder.
+
+**The miss is logged at Warning and says what happens instead**, which is the
+half a log usually leaves out:
+
+> driver group 'Win11\Dell Inc.\Latitude 5420' not found under
+> \\…\HDTShare\Drivers. No drivers will be staged from a group; this machine is
+> matched against the store by its hardware ids instead.
+
+— `driver.group`, `"found": false`. The fallback then announces itself rather
+than being inferred from what did not happen: `driver.fallback`, *falling back to
+PnP match: the group folder '…' is not on the share*.
+
+| What the fallback did | |
+|---|---|
+| Devices reporting hardware ids | **105** |
+| `.inf` files matched, one `driver.match` record each | **44** |
+| Staged to `W:\Drivers` | **35 packages, 234 `.inf`, 4.3 GB** |
+| Step 6 `Inject Drivers`, wall clock | **139 062 ms** |
+
+**Network and storage, which is what the criterion names, each matched by their
+own id:**
+
+| Device | Matched | Rank |
+|---|---|---|
+| `Intel(R) Ethernet Connection (13) I219-LM`, `PCI\VEN_8086&DEV_15FB&SUBSYS_0A201028` | `e1d.inf` | **1** |
+| `Intel RST VMD Managed Controller 09AB`, `PCI\VEN_8086&DEV_09AB` | `iaStorVD.inf` | 3 |
+| `RAID Controller`, `PCI\VEN_8086&DEV_9A0B` | `iaStorHsa_Ext.inf` | 5 |
+
+The rank is the index of the match in the id list Windows itself publishes
+most-specific-first, not a score HDT invents — and the NIC is where that shows
+its work: the same `e1d.inf` also matches the bare `PCI\VEN_8086&DEV_15FB` at
+rank 5, and the subsystem-exact hit at rank 1 is the one that ordered it.
+
+**And then the machine came back on that card, unaided.** Staging alone would
+have proved a file copy. What proves the driver: leg 1 restarted at 20:53:43,
+Windows brought itself up and logged the autologon Administrator in, and the
+resumed engine reconnected to the share over the NIC PnP had just matched —
+
+> connected to '\\…\HDTShare' over Smb
+
+— at 20:58:51 local, five minutes after the reboot, with no technician at the
+keyboard. It then read both applications from `Z:\Applications\…` over that same
+card. Storage is proven by the same fact from the other side: the volume the
+machine booted from sits behind the VMD controller above, and a machine whose
+storage driver had not been staged would not have reached Windows to reconnect
+from.
+
+**The run later failed, and it is recorded here rather than left out.** At
+21:00:36, immediately after step 12 `Restart before second application pass`
+reported complete, the engine stopped with *Cannot delete a subkey tree because
+the subkey does not exist* while re-arming autologon for a third leg — a registry
+defect in `New-Item -Force` over a key that already exists, unrelated to drivers.
+`Run run-20260830-204613 ended Failed: 10 completed, 0 failed, 2 skipped`. **It
+does not bear on this criterion.** Every element of it — the group miss, the
+fallback, the match, the staging, the offline injection through the answer file,
+the boot into Windows and the SMB reconnect on the matched NIC — completed
+between 20:48 and 20:58, and the two skipped steps are the ones after the
+failure. Recording M5 met on a run that ended Failed is uncomfortable, which is
+the reason to say so in the block rather than in a footnote.
+
+**One thing the log does not carry, by design.** The "classes that can strand a
+machine" coverage summary is gated to `$groupFound -and $mode -eq 'all'`, so a
+fallback run never emits it — its absence here is the gate working, not a gap.
+The evidence for coverage on this path is the 44 per-device `driver.match`
+records, which say which `.inf` answered which id and at what rank.
 
 ---
 
@@ -543,6 +618,69 @@ code classification.
 `_HDTApplicationInstalled` is run-scoped, so a second step short-circuits before
 detection is evaluated — the user chose to cut the clause rather than change that
 behaviour.
+
+**✅ Met on 2026-08-30**, by the same run as M5 — `run-20260830-204613`, the
+physical Latitude 5420, preserved at `.planning/evidence/run-20260830-204613/`.
+**Measured against the reduced criterion above**, the idempotency clause having
+been cut that morning; the second `InstallApplications` pass the old wording
+needed is steps 13–15 of `PNP-TEST`, and this run never reached them.
+
+**The chain is real, and the proof is that the rule asked for one application and
+two installed.** `rules.yaml` sets a single id, and the run's provenance records
+where it came from:
+
+> `HDTApplications` = `TightVNC-Software-Tightvnc-2.8.88`, source `Rule`, rule
+> *Lab, by gateway - zero touch*
+
+TightVNC's `app.yaml` declares — the key is `dependencies:`, not `dependsOn:` —
+`dependencies: [Acrobat-Acrobat-Reader-DC-2600121771]`, and nothing else on the
+share names Acrobat at all. The plan that came out of it:
+
+> install plan, in order: Acrobat-Acrobat-Reader-DC-2600121771,
+> TightVNC-Software-Tightvnc-2.8.88
+
+and the JSONL record behind that line carries both halves side by side —
+`"selected":["TightVNC-…"]`, `"planned":["Acrobat-…","TightVNC-…"]`. So
+`Resolve-HDTApplicationOrder` did two separable things and both are visible: a
+**transitive closure**, pulling in an application no rule, no wizard page and no
+sequence property ever named, and a **topological sort**, placing the dependency
+ahead of the dependent rather than in the order the closure happened to find
+them. A flat list could not have produced that plan, because the flat list had
+one entry in it.
+
+**And it happened after a reboot, in a process that did not exist when the plan's
+inputs were written.** Leg 1 ran in WinPE, armed autologon — *Autologon armed for
+Administrator for 2 more leg(s)* — staged the resume agent and restarted at
+20:53:43. Leg 2 came up in full Windows, reconnected to the share over SMB at
+20:58:51 and resumed at step 11 of 15 in the FullOS phase. Everything above then
+happened there: the closure, the sort and both installs, reading their sources
+from `Z:\Applications\…` over the NIC M5's fallback had matched.
+
+| Leg 2 | |
+|---|---|
+| `Acrobat-Acrobat-Reader-DC-2600121771` | exit **0** in **95 899 ms** |
+| `TightVNC-Software-Tightvnc-2.8.88` | exit **0** in **2 589 ms** |
+| Step 11 summary | `installed 2 application(s), skipped 0 already present.` |
+
+`skipped 0` is the honest reading of a first pass on a clean machine, not a
+detection result: Acrobat declares no `detect:` and installs every time by
+design, and TightVNC's file rule found nothing there yet.
+
+**The same run then failed at step 12**, on the registry defect described in M5's
+block — `New-Item -Force` over an existing key while re-arming autologon for a
+third leg. **It does not bear on this criterion either.** The reboot, the
+resume, the closure, the sort and both installs all completed before it, and the
+step it failed on is the one that exists to serve the idempotency clause that is
+no longer part of the exit.
+
+**What this does not claim.** The chain is one edge deep and the sort had one
+constraint to satisfy; depth, breadth and **cycle detection remain proven against
+fakes only** — no share here authors a cycle. And the chain resolved and
+installed entirely within leg 2: the sequence spans a reboot and the chain
+installs on the far side of it, which is what the criterion asks, but no single
+dependency edge was itself interrupted by a restart. A `3010` mid-list, resuming
+at the next application rather than restarting the list, is still unit-test
+evidence.
 
 ---
 
