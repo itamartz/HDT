@@ -707,7 +707,7 @@ function New-HDTImageService {
         foreach ($entry in @($Command)) {
             $argument = [string[]] @($entry.Argument)
 
-            $output = @(& "$env:SystemRoot\System32cdedit.exe" @argument 2>&1)
+            $output = @(& "$env:SystemRoot\System32\bcdedit.exe" @argument 2>&1)
 
             # THE ONE BRANCH, AND IT IS ON DATA RATHER THAN ON A DEPLOYMENT.
             # Exactly one command in the whole transport is allowed to fail -
