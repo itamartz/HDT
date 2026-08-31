@@ -214,7 +214,7 @@ function Get-HDTBcdCommand {
         # MDT's four-line AdjustBCDDefaults, and the three it does not run are
         # the three that stop it being a one-shot.
         [void] $command.Add((& $add ([string[]] @('/bootsequence', $Id)) $false))
-        return , ([pscustomobject[]] @($command))
+        return ([pscustomobject[]] @($command))
     }
 
     if ($Action -eq 'Remove') {
@@ -223,7 +223,7 @@ function Get-HDTBcdCommand {
         # at it, and deleting it would break Reset This PC on a machine HDT was
         # only asked to reboot.
         [void] $command.Add((& $add ([string[]] @('/delete', $Id, '/cleanup')) $false))
-        return , ([pscustomobject[]] @($command))
+        return ([pscustomobject[]] @($command))
     }
 
     # -- Create -------------------------------------------------------------
@@ -262,7 +262,35 @@ function Get-HDTBcdCommand {
     [void] $command.Add((& $add ([string[]] @('/set', $Id, 'detecthal', 'yes')) $false))
     [void] $command.Add((& $add ([string[]] @('/set', $Id, 'winpe', 'yes')) $false))
 
-    # The unary comma is mandatory: a one-element array would otherwise collapse
-    # to a scalar on the way out, and Arm and Remove both return one.
-    return , ([pscustomobject[]] @($command))
+    # NO UNARY COMMA, AND IT COST FOUR STRANDED REFERENCE BUILDS.
+    #
+    # Everywhere else in this module the comma stops a one-element array
+    # collapsing to a scalar on the way out. Here it stopped the TEN-element one
+    # being collected, because of what the caller is: New-HDTImageService writes
+    #
+    #     $this.RunBcdEdit(@(Get-HDTBcdCommand -Action Create ...))
+    #
+    # and a method argument is an EXPRESSION, not a pipeline. `return ,$array`
+    # protects the array from the unroll, so the @() there wraps it rather than
+    # collecting it - and the adapter's loop received ONE element holding all ten
+    # commands. MEASURED inside the deployed guest on 2026-08-31 (SPIKES S23.11):
+    #
+    #     RunBcdEdit got: type=System.Object[] Count=1
+    #     entry[1] type=PSObject[] argCount=42
+    #     entry[1] Tolerate type=System.Object[] truthy=True
+    #
+    # $entry.Argument member-enumerated into 42 tokens fired at a single bcdedit,
+    # and $entry.Tolerate became an array - which is TRUTHY, so the loop's one
+    # branch skipped the exit-code check for the whole list. Ten commands became
+    # one malformed invocation reported as success, which is why /bootsequence
+    # persisted and both /creates did not: Arm is a ONE-command list, and one
+    # command flattens to a correct command line by accident.
+    #
+    # Without the comma the collapse the comma was guarding against is harmless:
+    # every caller wraps in @() already, and @(<one object>) is a one-element
+    # array. Reinstating it reinstates the defect, and
+    # tests/unit/BcdCommand.Tests.ps1 'the shape the adapter consumes' asserts
+    # the count the adapter sees for all three actions rather than for Create
+    # alone.
+    return ([pscustomobject[]] @($command))
 }

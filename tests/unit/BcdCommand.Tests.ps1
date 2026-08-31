@@ -357,6 +357,95 @@ Describe 'Get-HDTBcdCommand' {
         }
     }
 
+    # THE SHAPE THE ADAPTER CONSUMES, WHICH IS NOT THE SHAPE EVERY TEST ABOVE
+    # MEASURES - AND THE DIFFERENCE COST FOUR STRANDED REFERENCE BUILDS.
+    #
+    # Every assertion above reaches this function through $script:command, which
+    # ASSIGNS the result and so collects it correctly. New-HDTImageService does
+    # not assign. It writes
+    #
+    #     $this.RunBcdEdit(@(Get-HDTBcdCommand -Action Create ...))
+    #
+    # and a method argument is an expression, not a pipeline. A `return ,$array`
+    # protects the array from being unrolled on the way out, so @() there WRAPS
+    # it instead of collecting it: the adapter received ONE element holding all
+    # ten commands.
+    #
+    # MEASURED on 2026-08-31 inside the deployed guest (SPIKES S23.11):
+    #
+    #     RunBcdEdit got: type=System.Object[] Count=1
+    #     entry[1] type=PSObject[] argCount=42
+    #     entry[1] Tolerate type=System.Object[] truthy=True
+    #
+    # $entry.Argument member-enumerated into 42 tokens fired at a single
+    # bcdedit, and $entry.Tolerate became a ten-element array - which is TRUTHY,
+    # so the loop's `continue` fired and the exit code was never checked. One
+    # malformed invocation, reported as success. The arm survived only because a
+    # one-command list flattens to a correct command line by accident.
+    #
+    # ASSERTED OVER ALL THREE ACTIONS, not just Create: a test that named only
+    # the ten-command case would pass for Create and fail nobody after it
+    # (CLAUDE.md 8).
+    Context 'the shape the adapter consumes' {
+
+        # The count is computed INSIDE the module scope, in the same expression
+        # form the adapter uses. Measuring it outside would let InModuleScope's
+        # own pipeline unroll the wrapper and hide the defect.
+        It 'gives <Action> as <Count> separate commands when wrapped the way the adapter wraps it' -ForEach @(
+            @{ Action = 'Create'; Count = 10 }
+            @{ Action = 'Arm'; Count = 1 }
+            @{ Action = 'Remove'; Count = 1 }
+        ) {
+            $argument = @{ Action = $Action; Store = ''; Id = $script:id }
+            if ($Action -eq 'Create') { $argument = & $script:createArgument '' }
+
+            $actual = InModuleScope Hephaestus -Parameters @{ Argument = $argument } {
+                param($Argument)
+
+                @(Get-HDTBcdCommand @Argument).Count
+            }
+
+            $actual | Should -Be $Count
+        }
+
+        # THE SECOND HALF OF THE DEFECT. Tolerate has to be a scalar Boolean on
+        # every element: an ARRAY of Booleans is truthy whatever it contains, and
+        # the adapter's one branch is `if ($entry.Tolerate) { continue }` - so an
+        # array there skips the exit-code check for every command in the list.
+        It 'gives <Action> a scalar Boolean Tolerate on every command the adapter sees' -ForEach @(
+            @{ Action = 'Create' }
+            @{ Action = 'Arm' }
+            @{ Action = 'Remove' }
+        ) {
+            $argument = @{ Action = $Action; Store = ''; Id = $script:id }
+            if ($Action -eq 'Create') { $argument = & $script:createArgument '' }
+
+            $type = InModuleScope Hephaestus -Parameters @{ Argument = $argument } {
+                param($Argument)
+
+                @(Get-HDTBcdCommand @Argument) | ForEach-Object { $_.Tolerate.GetType().FullName }
+            }
+
+            @($type) | Should -Not -BeNullOrEmpty
+            foreach ($name in @($type)) { $name | Should -BeExactly 'System.Boolean' }
+        }
+
+        # AND NO COMMAND LINE IS A CONCATENATION OF THE OTHERS. Forty-two tokens
+        # in one invocation is what the defect looked like from bcdedit's side;
+        # the longest legitimate command is /store <path> /create <id> -d <text>
+        # -application OSLOADER, which is eight.
+        It 'never hands the adapter a command line longer than eight tokens' {
+            $longest = InModuleScope Hephaestus -Parameters @{ Argument = (& $script:createArgument 'S:\EFI\Microsoft\Boot\BCD') } {
+                param($Argument)
+
+                (@(Get-HDTBcdCommand @Argument) | ForEach-Object { @($_.Argument).Count } |
+                    Measure-Object -Maximum).Maximum
+            }
+
+            $longest | Should -Be 8
+        }
+    }
+
     Context 'what it refuses' {
 
         It 'refuses an action it does not know' {
