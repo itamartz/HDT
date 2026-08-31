@@ -2519,49 +2519,188 @@ object that no longer exists.
 It also means a stale `bootsequence` from a previous reference build is cleared
 by the same call the step already makes before it creates the entry.
 
-### S23.5 — the one thing still UNVERIFIED: does sysprep object to an armed `/bootsequence`? ⚠
+### S23.5 — sysprep is INDIFFERENT to an armed `/bootsequence`, both orderings measured ✅
 
-**NOT MEASURED. THE PROBE BELOW WAS NOT RUN**, and everything in this
-sub-section is inference. S23.1-S23.4 above are execution results; this one is
-not, and it is the one the shipped `reference.yaml` step order rests on.
+**MEASURED on 2026-08-31** on `HDT-M7-RefApp`, twice, by running a real
+`sysprep /generalize` with `/bootsequence` armed and reading the machine's own
+engine log off its disk afterwards. This sub-section used to say NOT MEASURED and
+everything in it was inference.
 
-It needs a machine that can be generalized and thrown away. At the time of
-writing the only `HDT-*` VM on this host belonged to another session, and the CI
-VM and the development laptop are neither of them sacrificeable.
+**THE ANSWER IS THAT SYSPREP DOES NOT CARE.** Both orderings were run:
 
-MDT stages before sysprep (`Client.xml:463`, `LTIApply /PE /STAGE`) and arms
-after it (`:472`, `/PE /BCD`), with a comment at `LTIApply.wsf:347-350` saying the
-BCD work is deferred "so that Sysprep doesn't complain". Somebody once hit
-something; the comment does not say what.
+| ordering | run | what sysprep did |
+|---|---|---|
+| arm **before** `Sysprep` (HDT's) | `run-20260831-093444` | exit 0, `ImageState` = `IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE` |
+| arm **after** `Sysprep` (MDT's) | `run-20260831-094740` | exit 0, same, and the arm then succeeded on the generalized machine |
 
-**HDT arms BEFORE sysprep**, because the alternative leaves the hole the whole
-fail-safe rule exists to close: if the arm fails after the seal, the machine is
-generalized and cannot come back, and there is no leg left that could fix it.
+The second run's log, read off the disk:
 
-**The reasoning for why MDT's problem should not apply here** is that
-`AdjustBCDDefaults` sets `/default`, which repoints the DEFAULT OS entry at a
-WinPE ramdisk — exactly the sort of thing a generalize-time validation would
-look at. S23.3 proves that is what MDT does. HDT sets `/bootsequence` alone and
-`{default}` goes on naming Windows, so there should be nothing for sysprep to
-see. **That is reasoning, not a measurement.**
+```
+sysprep generalized this machine in 36199 ms; ImageState is IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE.
+step 12 'Sysprep' completed
+step 13 'Boot into WinPE after sysprep' (BootToWinPE) starting, attempt 1 of 1
+creating the UEFI boot entry {7f1b6e18-...} for C:\HDT\Boot\boot.wim
+The next boot will be the WinPE staged at C:\HDT\Boot\boot.wim. The firmware boot order is unchanged.
+step 13 'Boot into WinPE after sysprep' completed
+step 14 'Restart into WinPE' completed
+```
 
-**The probe, when there is a machine for it:**
+**Nothing complained, in either order.** MDT's comment at `LTIApply.wsf:347-350`
+about deferring the BCD work "so that Sysprep doesn't complain" does not
+reproduce on Windows 11 LTSC 2024 under Hyper-V. `reference.yaml` therefore keeps
+arming **before** the seal, which is the ordering with the better fail-safe: a
+machine that cannot be brought back is never generalized.
 
-1. Deploy Windows to a throwaway `HDT-*` Generation 2 VM.
-2. `bcdedit /create ... -application OSLOADER` and `bcdedit /bootsequence <id>`,
-   the ten-and-one commands above, against the system store.
-3. `sysprep /generalize /oobe /quit` — not `/shutdown`, so the machine survives
-   to be read.
-4. Three questions: does it exit non-zero; does
-   `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State\ImageState`
-   read `IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE`; and does
-   `bcdedit /enum {bootmgr}` still show the `bootsequence` element afterwards.
-   `%WINDIR%\System32\Sysprep\Panther\setupact.log` carries the reason for any
-   refusal.
+**AN EARLIER READING OF THIS EVIDENCE WAS WRONG AND IS RECORDED HERE SO IT IS
+NOT REPEATED.** After the first run, the offline store showed `{bootmgr}` still
+carrying `bootsequence {7f1b6e18-...}` while the object itself enumerated as
+"There are no matching objects", and that was written up as "sysprep deletes the
+OSLOADER object". The second run disproves it: the object is **equally absent
+after an arm that ran *after* generalize**, when there was no generalize left to
+delete anything. Whatever removes it is not sysprep. See S23.7.
 
-**If it objects or silently clears the entry**, the fix is a template edit and
-not a rewrite: move the `action: arm` step in `reference.yaml` from before
-`Sysprep` to between `Sysprep` and the restart. The `action: stage` step stays
-where it is, so "nothing is generalized until we know it can come back" survives
-either way — which is why the step has three actions rather than one.
+**A SEPARATE, REAL FINDING FROM THE SAME RUNS:** once a machine has been
+generalized it can no longer reach the deployment share — `"The network location
+cannot be reached"` — so the engine's status mirror to
+`Logs\_active\<run>.json` fails for every step after `Sysprep`. The run
+continues correctly against `C:\HDT\Logs\status.json`, and the failure is
+logged rather than fatal, which is right. **But a console watching the share
+sees the run frozen at `Sysprep` for the rest of its life**, and anyone
+diagnosing from the share alone will conclude the machine hung in sysprep when it
+did not. The local log is the source of truth after the seal.
 
+### S23.6 — the first real attempt never reached sysprep: `bcdedit` was called through a corrupted path ✅
+
+**MEASURED on 2026-08-31, run `run-20260831-091544`, on `HDT-M7-RefApp`.** The
+first time anything ran `BootToWinPE action: arm` on a machine, it failed — and
+**not for any reason S23.5 is about**.
+
+```
+step 12 'Boot into WinPE after sysprep' failed: could not create the boot entry
+that reaches the staged WinPE: ... "The term 'C:\Windows\System32cdedit.exe'
+is not recognized as the name of a cmdlet, function, script file, or operable
+program."
+```
+
+`New-HDTImageService.ps1`'s `RunBcdEdit` invoked
+
+```powershell
+& "$env:SystemRoot\System32<0x08>cdedit.exe" @argument
+```
+
+where `<0x08>` is a **literal backspace byte** standing where `\b` was meant to
+be — written into the file by an edit that let something interpret `\b` as an
+escape before the bytes landed. So **every** `bcdedit` call the transport made
+died: the create, the arm, and the teardown. The sibling call twelve lines above
+it, written as a normal string, was correct, which is why nothing else noticed.
+
+**WHY NOTHING CAUGHT IT, AND THIS IS THE PART WORTH KEEPING.** Adapters over
+external tools are branch-free and deliberately not unit tested (CLAUDE.md rule
+1) — there is nothing in them to test but the call itself. 12822 passing tests
+therefore said nothing whatever about whether that call names a program that
+exists. It could only surface on a real machine, and it did: at step 12 of 16,
+in the full OS, after Windows had been deployed and Acrobat installed.
+
+**IT IS INVISIBLE THREE WAYS.** It renders as
+`$env:SystemRoot\System32\bcdedit.exe` in an editor, because a terminal drawing a
+backspace erases the character before it. `grep System32.bcdedit` does not match
+it. `grep System32cdedit` does not match it either, because the byte is still
+between them. Only a byte-level scan finds it.
+
+**AND IT WAS NOT ALONE — SIX MORE, EVERY ONE A `\b` OR A `\3` IN A PATH.** A
+repository-wide byte scan found `scratch\bootimage`,
+`Share\bootstrap-rules.yaml`, two PCI device ids, and — worst —
+`New-HDTFakeImageService.Tests.ps1` asserting `\HDT\Boot<0x08>oot.wim`,
+`\HDT\Boot<0x08>oot.sdi` and `\windows\system32<0x08>oot\winload.efi` in three
+places. **Those are the exact ramdisk paths the BootToWinPE mechanism is built
+on**, so the fake agreed with itself about a corrupted string while the real path
+was wrong — CLAUDE.md's "the fake was wrong, not the caller" happening in the
+one place it could do most damage.
+
+`tests/contract/NoControlCharacter.Contract.Tests.ps1` now refuses any byte below
+0x20 other than tab, CR and LF, and 0x7F, across every authored text file. It
+found the seventh occurrence on its first run.
+
+**THE FAIL-SAFE ORDERING PAID FOR ITSELF ON ITS FIRST OUTING.** Both
+`BootToWinPE` steps run *before* `Sysprep` and both fail the sequence rather than
+warning, precisely so that a machine which cannot reach WinPE has not yet been
+sealed. That is exactly what happened: the arm failed, the run stopped, and the
+machine was left un-generalized with Windows and Acrobat on it — recoverable,
+rearm count untouched, nothing stranded. Had the arm sat after sysprep as MDT
+orders it, this defect would have surfaced on a generalized machine with no leg
+left to fix it.
+
+### S23.7 — the armed boot is taken and then DECLINED: the machine falls back to Windows ⚠ OPEN
+
+**THIS IS THE REMAINING BLOCKER FOR THE REFERENCE LOOP**, measured on
+2026-08-31 across three runs on `HDT-M7-RefApp` - `run-20260831-093444`,
+`run-20260831-094740` and `run-20260831-100741` - and it is **not** sysprep
+(S23.5), **not** the corrupted `bcdedit` path (S23.6, fixed) and **not** Secure
+Boot (ruled out below).
+
+**WHAT HAPPENS.** Everything up to the reboot is clean and the machine's own log
+says so: the WinPE is staged to `C:\HDT\Boot\boot.wim`, the ramdisk entry is
+created, `/bootsequence` is set, `bcdedit` exits 0 for all ten commands, and the
+restart is issued. The machine then boots **Windows** and runs OOBE.
+
+**WHAT THE STORE LOOKS LIKE AFTERWARDS**, read offline with the VHDX mounted
+read-only, on a 17-object store:
+
+```
+{bootmgr}
+  displayorder            {default}
+  bootsequence            {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}   <-- present
+bcdedit /enum {7f1b6e18-...}
+  There are no matching objects or the store is empty.             <-- absent
+bcdedit /enum all | findstr 7f1b6e18
+  bootsequence            {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}   <-- the ONLY hit
+```
+
+There is no `{ramdiskoptions}` object either. So the `/set {bootmgr}
+bootsequence` persisted and **the `/create` of the OSLOADER did not** — even in
+the run where the arm happened *after* generalize, with nothing left that could
+have stripped it.
+
+**SECURE BOOT WAS THE LEADING HYPOTHESIS AND IT IS NOW RULED OUT**, which was
+worth one run to establish. S20 records that the ADK's WinPE bootloader is below
+the Secure Boot SVN floor, and the VM is Generation 2 with `SecureBoot: On`,
+template `MicrosoftWindows` - so a boot manager refusing the staged
+`winload.efi` and falling back to `{default}` would have explained everything.
+
+**`run-20260831-100741` was run with `Set-VMFirmware -EnableSecureBoot Off` and
+behaved IDENTICALLY**: Acrobat installed, WinPE staged, entry armed, sysprep
+generalized, and the machine came back in Windows OOBE. The store afterwards is
+the same pair - `bootsequence` present on `{bootmgr}`, the object it names
+absent. **Secure Boot is not the blocker.**
+
+**SO THE FAULT IS IN THE ENTRY, NOT IN THE TRUST DECISION.** Two readings remain
+and they have different fixes:
+
+  a. the `/create` never persists to the system store, even though `bcdedit`
+     exits 0 for it, while the `/set {bootmgr} bootsequence` in the same
+     transport does; or
+  b. it persists, the boot manager cannot use it and falls back, and Windows
+     Setup's own BCD maintenance during OOBE tidies away the orphaned custom
+     objects afterwards - leaving the `bootsequence` element behind.
+
+Every run so far ends in OOBE, so every offline read happens *after* a Windows
+Setup pass, and the two are indistinguishable from the evidence gathered.
+
+**THE PROBE THAT SEPARATES THEM, and it needs no reference build at all:** on a
+deployed machine, run `BootToWinPE action: stage` then `action: arm`, and
+**enumerate the store immediately, before any reboot**. If the object is there,
+it is (b) and the question becomes why the boot manager declines it. If it is
+not, it is (a) and the suspect is `/create <explicit-guid> -application OSLOADER`
+against the system store - compare with MDT's `/create /d "..." /application
+OSLOADER`, which lets bcdedit mint the GUID and then reads it back.
+
+Worth noting against (a): **S23.1 ran these exact ten commands against a
+standalone scratch store and the entry enumerated correctly afterwards.** So the
+command shape is good and the difference is the store, the machine, or the
+Windows Setup pass that follows.
+
+**WHAT IS PROVEN AND SHOULD NOT BE RE-DERIVED**: staging works, the ten bcdedit
+commands all return 0 (S23.1), sysprep is indifferent to the arm (S23.5), the
+`InstallApplications` step installs a real vendor MSI inside the reference build
+in ~95 s, and `Sysprep` genuinely generalizes. The loop fails at exactly one
+place: the boot that the one-shot was supposed to redirect.
