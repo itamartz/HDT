@@ -3868,11 +3868,24 @@ class HDTFakeImageService {
     # stages a boot image and arms a one-shot boot entry is provable here with
     # no bcdedit, no boot image and no machine to strand.
 
+    # THE PROBE THAT DECIDES WHETHER {ramdiskoptions} BELONGS TO SOMEBODY ELSE.
+    # False by default, which is the machine that has never registered a WinRE.
+    # Set RamdiskOptionsPresent to model the machine that has one: HDT must then
+    # leave the object alone entirely rather than repointing WinRE's ramdisk
+    # options at its own staged boot.sdi (SPIKES S23.8).
+    [bool] $RamdiskOptionsPresent = $false
+
+    [bool] TestRamdiskOptions([string] $Store) {
+        $this.Record('TestRamdiskOptions', @($Store))
+        $this.AssertNoFailure('TestRamdiskOptions')
+        return $this.RamdiskOptionsPresent
+    }
+
     [void] AddRamdiskBootEntry([string] $Store, [string] $Id, [string] $Description,
         [string] $RamdiskVolume, [string] $WimDevicePath, [string] $SdiDevicePath,
-        [string] $LoaderPath) {
+        [string] $LoaderPath, [bool] $RamdiskOptionsPresent) {
         $this.Record('AddRamdiskBootEntry', @($Store, $Id, $Description, $RamdiskVolume,
-                $WimDevicePath, $SdiDevicePath, $LoaderPath))
+                $WimDevicePath, $SdiDevicePath, $LoaderPath, $RamdiskOptionsPresent))
         $this.AssertNoFailure('AddRamdiskBootEntry')
     }
 
@@ -3900,7 +3913,7 @@ function New-HDTFakeImageService {
             ConfigureBoot and their failure paths provable in seconds, against
             no media and with nothing written to a disk.
 
-            Eleven methods:
+            Twelve methods:
 
               GetImageInfo(imagePath) -> Index, Name, Description, Edition,
                                          SizeBytes, Architecture, Version
@@ -3913,12 +3926,14 @@ function New-HDTFakeImageService {
               InstallBootFile(osRoot, systemVolume, firmware)
               SetRecoveryImage(osRoot, recoveryPath)
               SetBootOrderFirst()
+              TestRamdiskOptions(store) -> bool
               AddRamdiskBootEntry(store, id, description, ramdiskVolume,
-                                  wimDevicePath, sdiDevicePath, loaderPath)
+                                  wimDevicePath, sdiDevicePath, loaderPath,
+                                  ramdiskOptionsPresent)
               SetBootSequenceOnce(store, id)
               RemoveBootEntry(store, id)
 
-            THE LAST THREE ARE THE FullOS -> WinPE TRANSPORT, and they are what
+            THE LAST FOUR ARE THE FullOS -> WinPE TRANSPORT, and they are what
             makes a reference build provable without a machine: a step that
             stages a WinPE and arms a one-shot boot into it can be asserted here
             as an ordered operation list, and a seeded Failure on any of them is

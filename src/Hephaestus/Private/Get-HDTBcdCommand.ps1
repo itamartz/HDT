@@ -73,6 +73,34 @@ function Get-HDTBcdCommand {
             to reboot. So the create carries Tolerate, and the two /set calls
             after it are what prove the object is really there.
 
+            AND TOLERATING THE CREATE WAS NOT ENOUGH, WHICH IS WHAT
+            RamdiskOptionsPresent IS FOR. Letting the create fail keeps the
+            object; setting its two elements afterwards HIJACKS it. On a machine
+            with a registered WinRE that repoints WinRE's own ramdisksdidevice
+            and ramdisksdipath at HDT's staged boot.sdi - and the remove action
+            then DELETES that file, leaving a WinRE aimed at something that is no
+            longer on the disk. MEASURED on 2026-08-31, SPIKES S23.8: reagentc
+            reported "Windows RE status: Enabled" on a machine whose
+            {ramdiskoptions} read `ramdisksdipath \HDT\Boot\boot.sdi`. The
+            paragraph above refuses to DELETE the object for exactly this reason
+            and the code then overwrote it, which is the same harm by a quieter
+            route.
+
+            MDT DOES NOT DO THIS, and its guard is the fix. ZTIBCDUtility.vbs
+            CreateRamDiskEntryEx (:86-89) opens with
+
+              If BCDObjectExists("{ramdiskoptions}") then exit Function
+
+            so MDT writes to the object only when it is absent, and an entry on a
+            machine that already had one simply uses the one that is there. That
+            is safe because a machine with {ramdiskoptions} has a WORKING one:
+            boot.sdi is a generic ramdisk descriptor, not a per-image file, which
+            is why MDT can boot a WinPE through WinRE's copy of it.
+
+            The caller decides, because deciding needs a read of the store and
+            this function composes rather than measures. Invoke-HDTBootToWinPEStep
+            asks IImageService.TestRamdiskOptions and passes the answer here.
+
         .PARAMETER Action
             Create, Arm or Remove.
 
@@ -100,6 +128,12 @@ function Get-HDTBcdCommand {
 
         .PARAMETER SdiDevicePath
             The staged boot.sdi, relative to RamdiskVolume. Create only.
+
+        .PARAMETER RamdiskOptionsPresent
+            The machine already has a {ramdiskoptions} object, so leave it
+            entirely alone: no /create and neither /set. Create only. MDT's own
+            guard, and the difference between using a machine's ramdisk options
+            and taking them over. See the header.
 
         .PARAMETER LoaderPath
             \windows\system32\boot\winload.efi or winload.exe. Chosen by
@@ -148,19 +182,21 @@ function Get-HDTBcdCommand {
 
         [Parameter()]
         [AllowEmptyString()]
-        [string] $LoaderPath = ''
+        [string] $LoaderPath = '',
+
+        [Parameter()]
+        [switch] $RamdiskOptionsPresent
     )
 
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    # The /store prefix, applied once here so neither the adapter nor any caller
-    # has to remember it. An empty store means the system store, which bcdedit
-    # selects by taking no /store argument at all.
-    $prefix = [string[]] @()
-    if (-not [string]::IsNullOrWhiteSpace($Store)) {
-        $prefix = [string[]] @('/store', $Store)
-    }
+    # The /store prefix, applied once here so no caller has to remember it. The
+    # decision itself lives in Get-HDTBcdStoreArgument, because the adapter's
+    # TestRamdiskOptions probe has to make the same one and a probe that reads a
+    # different store from the one the create writes to is undiagnosable from a
+    # log (SPIKES S23.7).
+    $prefix = [string[]] @(Get-HDTBcdStoreArgument -Store $Store)
 
     $add = {
         param([string[]] $Argument, [bool] $Tolerate)
@@ -199,9 +235,17 @@ function Get-HDTBcdCommand {
     # containing a space itself; a pair of quotes written in here would be
     # escaped as literal characters and bcdedit would name the entry
     # "HDT Windows PE" with the quotation marks in it.
-    [void] $command.Add((& $add ([string[]] @('/create', '{ramdiskoptions}', '-d', 'Ramdisk Device Options')) $true))
-    [void] $command.Add((& $add ([string[]] @('/set', '{ramdiskoptions}', 'ramdisksdidevice', ('partition={0}' -f $RamdiskVolume))) $false))
-    [void] $command.Add((& $add ([string[]] @('/set', '{ramdiskoptions}', 'ramdisksdipath', $SdiDevicePath)) $false))
+    #
+    # UNLESS THE MACHINE ALREADY HAS ONE, in which case none of the three run.
+    # See the header: writing to a {ramdiskoptions} somebody else owns takes
+    # WinRE's ramdisk options away from it, and the teardown then deletes the
+    # file they were repointed at. MDT's CreateRamDiskEntryEx guards the same
+    # way, and the entry below names {ramdiskoptions} either way.
+    if (-not $RamdiskOptionsPresent) {
+        [void] $command.Add((& $add ([string[]] @('/create', '{ramdiskoptions}', '-d', 'Ramdisk Device Options')) $true))
+        [void] $command.Add((& $add ([string[]] @('/set', '{ramdiskoptions}', 'ramdisksdidevice', ('partition={0}' -f $RamdiskVolume))) $false))
+        [void] $command.Add((& $add ([string[]] @('/set', '{ramdiskoptions}', 'ramdisksdipath', $SdiDevicePath)) $false))
+    }
 
     [void] $command.Add((& $add ([string[]] @('/create', $Id, '-d', $Description, '-application', 'OSLOADER')) $false))
 

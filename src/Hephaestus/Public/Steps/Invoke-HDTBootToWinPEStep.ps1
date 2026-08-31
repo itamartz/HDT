@@ -348,12 +348,46 @@
                 -Message ('there was no previous boot entry {0} to clear: {1}' -f $plan.EntryId, [string] $_.Exception.Message)
         }
 
+        # DOES THIS MACHINE ALREADY OWN ITS {ramdiskoptions}? ASK BEFORE WRITING.
+        #
+        # {ramdiskoptions} is a WELL-KNOWN, SHARED object, and a machine with a
+        # registered WinRE has one that WinRE depends on. HDT used to tolerate
+        # the failing /create and then set both of its elements anyway, which
+        # repointed WinRE's ramdisk options at HDT's staged boot.sdi - and the
+        # remove action below DELETES that file, so a machine HDT was asked only
+        # to build a reference image on was left with a WinRE aimed at nothing.
+        # MEASURED on 2026-08-31 (SPIKES S23.8): reagentc reported WinRE Enabled
+        # on a machine whose {ramdiskoptions} named HDT's staged file.
+        #
+        # MDT ASKS THE SAME QUESTION (ZTIBCDUtility.vbs CreateRamDiskEntryEx
+        # :86-89) and skips the whole object when the answer is yes. The entry
+        # still NAMES {ramdiskoptions} either way: a machine that has one has a
+        # working one, because boot.sdi is a generic ramdisk descriptor rather
+        # than a per-image file.
+        #
+        # A PROBE THAT CANNOT READ THE STORE ANSWERS "NO", which is the behaviour
+        # HDT already had - create tolerated, elements set. That is the wrong
+        # answer but not a new failure, and failing the arm here would strand a
+        # reference build over a question about somebody else's WinRE.
+        $ramdiskOptionsPresent = $false
+        try {
+            $ramdiskOptionsPresent = [bool] $imageService.TestRamdiskOptions($plan.StorePath)
+        } catch {
+            Write-HDTLog -Context $Context.Log -Severity Debug -Component $component `
+                -Message ('could not read {0} to see whether this machine already has ramdisk options: {1}' -f
+                    $(if ([string]::IsNullOrWhiteSpace($plan.StorePath)) { 'this machine''s own system store' } else { $plan.StorePath }),
+                    [string] $_.Exception.Message)
+        }
+
+        $data['ramdiskOptionsPresent'] = $ramdiskOptionsPresent
+
         Write-HDTLog -Context $Context.Log -Event 'native.exec' -Component $component `
             -Message ('creating the {0} boot entry {1} for {2}' -f $firmware, $plan.EntryId, $plan.WimPath) -Data $data
 
         try {
             $imageService.AddRamdiskBootEntry($plan.StorePath, $plan.EntryId, $plan.Description,
-                $plan.RamdiskVolume, $plan.WimDevicePath, $plan.SdiDevicePath, $plan.LoaderPath)
+                $plan.RamdiskVolume, $plan.WimDevicePath, $plan.SdiDevicePath, $plan.LoaderPath,
+                $ramdiskOptionsPresent)
         } catch {
             return (& $fail ("step '{0}' could not create the boot entry that reaches the staged WinPE: {1}. The sequence stops here rather than generalizing a machine it cannot bring back." -f
                     $Step.Name, [string] $_.Exception.Message) '')

@@ -155,12 +155,31 @@ Describe 'New-HDTFakeImageService' {
 
         It 'records AddRamdiskBootEntry with every argument the BCD entry needs' {
             $script:image.AddRamdiskBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}', 'HDT Windows PE',
-                'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi', '\windows\system32\boot\winload.efi')
+                'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi', '\windows\system32\boot\winload.efi', $false)
 
             @($script:image.GetOperationName()) | Should -Be @('AddRamdiskBootEntry')
             @($script:image.Operations[0].Arguments) | Should -Be @('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}',
                 'HDT Windows PE', 'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi',
-                '\windows\system32\boot\winload.efi')
+                '\windows\system32\boot\winload.efi', $false)
+        }
+
+        # THE PROBE THAT KEEPS HDT OUT OF WinRE'S RAMDISK OPTIONS.
+        # {ramdiskoptions} is a well-known, shared object; a machine with a
+        # registered WinRE owns one, and writing to it repoints WinRE at HDT's
+        # staged boot.sdi - which the teardown then deletes (SPIKES S23.8). The
+        # fake answers "no" by default, which is the machine that has none.
+        It 'records TestRamdiskOptions and answers no until it is told otherwise' {
+            $script:image.TestRamdiskOptions('') | Should -BeFalse
+
+            @($script:image.GetOperationName()) | Should -Be @('TestRamdiskOptions')
+            @($script:image.Operations[0].Arguments) | Should -Be @('')
+        }
+
+        It 'answers yes once it is seeded with a machine that already has them' {
+            $script:image.RamdiskOptionsPresent = $true
+
+            $script:image.TestRamdiskOptions('S:\EFI\Microsoft\Boot\BCD') | Should -BeTrue
+            @($script:image.Operations[0].Arguments) | Should -Be @('S:\EFI\Microsoft\Boot\BCD')
         }
 
         It 'records SetBootSequenceOnce with the store and the entry' {
@@ -184,7 +203,7 @@ Describe 'New-HDTFakeImageService' {
         # round would arm a boot into an entry that does not exist yet.
         It 'records the transport in the order that makes it work' {
             $script:image.AddRamdiskBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}', 'HDT Windows PE',
-                'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi', '\windows\system32\boot\winload.efi')
+                'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi', '\windows\system32\boot\winload.efi', $false)
             $script:image.SetBootSequenceOnce('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
 
             @($script:image.GetOperationName()) | Should -Be @('AddRamdiskBootEntry', 'SetBootSequenceOnce')

@@ -28,6 +28,11 @@ BeforeAll {
 
     $script:id = '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}'
 
+    # The ramdisk device string, spelled once. It is the same whether HDT
+    # created {ramdiskoptions} or found one already there, which is the
+    # assertion the guarded path turns on.
+    $script:device = 'ramdisk=[C:]\HDT\Boot\boot.wim,{ramdiskoptions}'
+
     $script:command = {
         param([hashtable] $Argument)
 
@@ -93,11 +98,69 @@ Describe 'Get-HDTBcdCommand' {
         # machine HDT was only supposed to reboot. So the create is allowed to
         # fail, and the two /set calls after it are what prove the object is
         # there.
+        #
+        # THAT TOLERATION IS THE UNGUARDED PATH ONLY - see the block below. It
+        # survives because a probe that cannot read the store leaves HDT in
+        # exactly the position it was in before, rather than failing an arm.
         It 'tolerates the ramdisk options object already existing, and nothing else' {
             $command = & $script:command (& $script:createArgument '')
 
             @($command | Where-Object { $_.Tolerate }).Count | Should -Be 1
             $command[0].Tolerate | Should -BeTrue
+        }
+
+        # MDT'S GUARD, WHICH HDT SHIPPED WITHOUT.
+        #
+        # ZTIBCDUtility.vbs CreateRamDiskEntryEx (:86-89) opens with
+        #
+        #   If BCDObjectExists("{ramdiskoptions}") then exit Function
+        #
+        # so MDT writes to the object ONLY when it is absent. HDT tolerated the
+        # failing /create and then set both elements anyway, which on any machine
+        # with a registered WinRE repoints WinRE's OWN ramdisk options at the
+        # staged HDT boot.sdi. MEASURED on 2026-08-31 (SPIKES S23.8): reagentc
+        # reported WinRE Enabled on a machine whose {ramdiskoptions} named HDT's
+        # staged file.
+        #
+        # AND THE TEARDOWN THEN DELETES THAT FILE. The remove action removes the
+        # staged boot.sdi by name, so a machine HDT was asked only to build a
+        # reference image on is left with a WinRE pointing at a file that is no
+        # longer there. Get-HDTBcdCommand's header already refuses to DELETE
+        # {ramdiskoptions} for precisely this reason; overwriting its two
+        # elements is the same harm reached another way.
+        It 'writes nothing to the ramdisk options object when the machine already has one' {
+            $line = & $script:line (& $script:command ((& $script:createArgument '') + @{ RamdiskOptionsPresent = $true }))
+
+            @($line | Where-Object { $_ -like '/create {ramdiskoptions}*' }) | Should -BeNullOrEmpty
+            @($line | Where-Object { $_ -like '/set {ramdiskoptions}*' }) | Should -BeNullOrEmpty
+            @($line | Where-Object { $_ -like '*ramdisksdidevice*' }) | Should -BeNullOrEmpty
+            @($line | Where-Object { $_ -like '*ramdisksdipath*' }) | Should -BeNullOrEmpty
+        }
+
+        # THE ENTRY STILL NAMES IT. Not creating the object is not the same as
+        # not using it: a machine that already has {ramdiskoptions} has a working
+        # one, which is the whole reason MDT leaves it alone.
+        It 'still points the entry at the ramdisk options it did not create' {
+            $line = & $script:line (& $script:command ((& $script:createArgument '') + @{ RamdiskOptionsPresent = $true }))
+
+            $line[1] | Should -BeExactly ('/set {0} device {1}' -f $script:id, $script:device)
+            $line[2] | Should -BeExactly ('/set {0} osdevice {1}' -f $script:id, $script:device)
+        }
+
+        It 'runs seven commands when the ramdisk options object is already there' {
+            $command = & $script:command ((& $script:createArgument '') + @{ RamdiskOptionsPresent = $true })
+
+            $command.Count | Should -Be 7
+            ($command[0].Argument -join ' ') | Should -BeExactly ('/create {0} -d HDT Windows PE -application OSLOADER' -f $script:id)
+        }
+
+        # NOTHING IS TOLERATED ON THE GUARDED PATH, and that is the point of
+        # guarding rather than tolerating: every command that runs is one whose
+        # failure means something.
+        It 'tolerates nothing once the ramdisk options object is not created' {
+            $command = & $script:command ((& $script:createArgument '') + @{ RamdiskOptionsPresent = $true })
+
+            @($command | Where-Object { $_.Tolerate }) | Should -BeNullOrEmpty
         }
 
         # THE DESCRIPTION IS ONE BARE TOKEN, NOT A QUOTED ONE. These arguments
@@ -155,6 +218,78 @@ Describe 'Get-HDTBcdCommand' {
             $joined | Should -Not -Match 'displayorder'
             $joined | Should -Not -Match '/default'
             $joined | Should -Not -Match 'timeout'
+        }
+    }
+
+    # THE RULE THE {ramdiskoptions} DEFECT BROKE, ASSERTED OVER THE WHOLE SET.
+    #
+    # A braced name that is not a GUID - {ramdiskoptions}, {bootmgr}, {default},
+    # {current}, {fwbootmgr}, {globalsettings} - is a WELL-KNOWN object, which
+    # means something other than HDT owns it and depends on what it says. HDT
+    # took WinRE's {ramdiskoptions} by setting two elements on it and then
+    # deleted the file it had repointed them at (SPIKES S23.8.6).
+    #
+    # THIS TEST IS WRITTEN AGAINST THE SET RATHER THAN AGAINST THAT ONE OBJECT
+    # (CLAUDE.md 8), so the next element written to somebody else's well-known
+    # object fails here rather than on a machine. Exactly two writes to a
+    # well-known object are legitimate and both are listed below with a reason;
+    # a third has to earn its place by being added here on purpose.
+    Context 'what it may write to a well-known object' {
+
+        $script:everyAction = @(
+            @{ Name = 'Create'; Argument = @{ Action = 'Create'; Store = ''; Id = '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}'
+                    Description = 'HDT Windows PE'; RamdiskVolume = 'C:'; WimDevicePath = '\HDT\Boot\boot.wim'
+                    SdiDevicePath = '\HDT\Boot\boot.sdi'; LoaderPath = '\windows\system32\boot\winload.efi'
+                }
+            }
+            @{ Name = 'Create, guarded'; Argument = @{ Action = 'Create'; Store = ''; Id = '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}'
+                    Description = 'HDT Windows PE'; RamdiskVolume = 'C:'; WimDevicePath = '\HDT\Boot\boot.wim'
+                    SdiDevicePath = '\HDT\Boot\boot.sdi'; LoaderPath = '\windows\system32\boot\winload.efi'
+                    RamdiskOptionsPresent = $true
+                }
+            }
+            @{ Name = 'Arm'; Argument = @{ Action = 'Arm'; Store = ''; Id = '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}' } }
+            @{ Name = 'Remove'; Argument = @{ Action = 'Remove'; Store = ''; Id = '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}' } }
+        )
+
+        # THE OBJECT A COMMAND WRITES TO IS ITS SECOND TOKEN, not anything the
+        # line happens to mention. `/set <id> device ramdisk=...,{ramdiskoptions}`
+        # NAMES the well-known object and writes to HDT's own entry, which is the
+        # whole design; asserting on the raw text would flag it and teach the next
+        # reader the wrong rule.
+        It 'writes to no well-known object beyond the two that are allowed: <Name>' -ForEach $script:everyAction {
+
+            $guid = '^\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}$'
+
+            $written = foreach ($entry in @(& $script:command $Argument)) {
+                $token = [string[]] @($entry.Argument)
+
+                # /bootsequence <id> writes an element on {bootmgr} implicitly.
+                # It is allowed: it is the one-shot itself, it is consumed by the
+                # boot it causes, and it takes nothing permanent from the machine.
+                if ($token[0] -eq '/bootsequence') { continue }
+
+                $token[1]
+            }
+
+            # The only well-known object HDT may create or set, and only on a
+            # machine that has none - RamdiskOptionsPresent removes even these,
+            # which is what the guarded row proves.
+            $offender = @(@($written) | Where-Object {
+                    $_ -notmatch $guid -and $_ -ne '{ramdiskoptions}'
+                })
+
+            $offender | Should -BeNullOrEmpty -Because 'a well-known object belongs to something other than HDT - see SPIKES S23.8.6'
+        }
+
+        It 'writes to {ramdiskoptions} only when the machine has none: <Name>' -ForEach $script:everyAction {
+
+            $written = @(@(& $script:command $Argument) | ForEach-Object { @($_.Argument)[1] })
+            $guarded = $Argument.ContainsKey('RamdiskOptionsPresent') -and $Argument['RamdiskOptionsPresent']
+
+            if ($guarded) {
+                @($written | Where-Object { $_ -eq '{ramdiskoptions}' }) | Should -BeNullOrEmpty
+            }
         }
     }
 

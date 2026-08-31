@@ -12,7 +12,7 @@ function New-HDTImageService {
             New-HDTFakeImageService in a test with no media, no disk and no
             reboot.
 
-            ELEVEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:
+            TWELVE METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
               GetImageInfo(imagePath)
                   Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
@@ -76,12 +76,19 @@ function New-HDTImageService {
               SetBootOrderFirst()
                   bcdedit.exe /set "{fwbootmgr}" displayorder "{bootmgr}" /addfirst
 
+              TestRamdiskOptions(store) -> bool
               AddRamdiskBootEntry(store, id, description, ramdiskVolume,
-                                  wimDevicePath, sdiDevicePath, loaderPath)
+                                  wimDevicePath, sdiDevicePath, loaderPath,
+                                  ramdiskOptionsPresent)
               SetBootSequenceOnce(store, id)
               RemoveBootEntry(store, id)
                   bcdedit.exe, driven from the ordered list Get-HDTBcdCommand
-                  returns. THE FullOS -> WinPE TRANSPORT: a reference build has
+                  returns. TestRamdiskOptions is the one that READS: it answers
+                  whether this machine already owns a {ramdiskoptions}, so the
+                  create can leave a registered WinRE's ramdisk options alone
+                  instead of repointing them at HDT's staged boot.sdi and then
+                  deleting that file in the teardown (SPIKES S23.8).
+                  THE FullOS -> WinPE TRANSPORT: a reference build has
                   to reach WinPE after sysprep to capture itself, and the
                   firmware boot order cannot serve that AND the restart before it
                   that must reach Windows. So a WinPE is staged on the local disk
@@ -721,17 +728,47 @@ function New-HDTImageService {
         }
     }
 
+    # DOES THIS MACHINE ALREADY HAVE A {ramdiskoptions}, AND THEREFORE AN OWNER
+    # FOR IT? A registered WinRE has one, and writing to it would take WinRE's
+    # ramdisk options away - see Get-HDTBcdCommand's header and SPIKES S23.8.
+    #
+    # THE EXIT CODE IS USELESS HERE AND THAT IS MEASURED, NOT ASSUMED. bcdedit
+    # /enum on an object that is not in the store prints "There are no matching
+    # objects or the store is empty" and exits 0 (S23.8). MDT's BCDObjectExists
+    # reads the output for the same reason. So does this.
+    $service | Add-Member -MemberType ScriptMethod -Name TestRamdiskOptions -Value {
+        param([string] $Store)
+
+        $this.Record('TestRamdiskOptions', @($Store))
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its output
+        # is ever consulted (SPIKES S13.5). Local to this method scope.
+        $ErrorActionPreference = 'Continue'
+
+        $argument = [string[]] @(Get-HDTBcdStoreArgument -Store $Store) + [string[]] @('/enum', '{ramdiskoptions}')
+
+        $output = @(& "$env:SystemRoot\System32\bcdedit.exe" @argument 2>&1)
+
+        # The identifier line is what an object that is really there prints, and
+        # it is the line the "no matching objects" sentence does not have.
+        return [bool] @(@($output) -match 'ramdiskoptions').Count
+    }
+
     $service | Add-Member -MemberType ScriptMethod -Name AddRamdiskBootEntry -Value {
         param([string] $Store, [string] $Id, [string] $Description, [string] $RamdiskVolume,
-            [string] $WimDevicePath, [string] $SdiDevicePath, [string] $LoaderPath)
+            [string] $WimDevicePath, [string] $SdiDevicePath, [string] $LoaderPath,
+            [bool] $RamdiskOptionsPresent)
 
         $this.Record('AddRamdiskBootEntry', @($Store, $Id, $Description, $RamdiskVolume,
-                $WimDevicePath, $SdiDevicePath, $LoaderPath))
+                $WimDevicePath, $SdiDevicePath, $LoaderPath, $RamdiskOptionsPresent))
 
         $this.RunBcdEdit(@(Get-HDTBcdCommand -Action Create -Store $Store -Id $Id `
                     -Description $Description -RamdiskVolume $RamdiskVolume `
                     -WimDevicePath $WimDevicePath -SdiDevicePath $SdiDevicePath `
-                    -LoaderPath $LoaderPath))
+                    -LoaderPath $LoaderPath -RamdiskOptionsPresent:$RamdiskOptionsPresent))
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name SetBootSequenceOnce -Value {

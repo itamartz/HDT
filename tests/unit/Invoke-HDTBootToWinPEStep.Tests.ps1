@@ -201,7 +201,62 @@ Describe 'Invoke-HDTBootToWinPEStep' {
 
             $result.Status | Should -BeExactly 'Completed'
             @($script:image.GetOperationName()) |
-                Should -Be @('RemoveBootEntry', 'AddRamdiskBootEntry', 'SetBootSequenceOnce')
+                Should -Be @('RemoveBootEntry', 'TestRamdiskOptions', 'AddRamdiskBootEntry', 'SetBootSequenceOnce')
+        }
+
+        # {ramdiskoptions} IS SHARED, AND WinRE IS THE OTHER OWNER.
+        #
+        # A machine with a registered WinRE already has one, and HDT used to
+        # tolerate the failing /create and then set both of its elements anyway -
+        # repointing WinRE's ramdisk options at HDT's staged boot.sdi, which the
+        # remove action then DELETES. MEASURED on 2026-08-31 (SPIKES S23.8):
+        # reagentc reported WinRE Enabled on a machine whose {ramdiskoptions}
+        # named HDT's staged file.
+        #
+        # So the step ASKS FIRST, the way MDT's CreateRamDiskEntryEx (:86-89)
+        # does, and passes the answer down to the command composer.
+        It 'asks whether this machine already has ramdisk options, against the store it is about to write' {
+            $null = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $script:context
+
+            $probe = @($script:image.Operations | Where-Object { $_.Operation -eq 'TestRamdiskOptions' })
+            $probe.Count | Should -Be 1
+
+            $add = @($script:image.Operations | Where-Object { $_.Operation -eq 'AddRamdiskBootEntry' })[0]
+            @($probe[0].Arguments)[0] | Should -BeExactly (@($add.Arguments)[0])
+        }
+
+        It 'tells the create to leave the ramdisk options alone when the machine already has some' {
+            $image = New-HDTFakeImageService
+            $image.RamdiskOptionsPresent = $true
+            $context = & $script:newContext 'FullOS' $image $script:fileSystem $null
+
+            $result = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            $add = @($image.Operations | Where-Object { $_.Operation -eq 'AddRamdiskBootEntry' })[0]
+            @($add.Arguments)[7] | Should -BeTrue
+            $result.Data['ramdiskOptionsPresent'] | Should -BeTrue
+        }
+
+        It 'creates the ramdisk options when the machine has none' {
+            $null = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $script:context
+
+            $add = @($script:image.Operations | Where-Object { $_.Operation -eq 'AddRamdiskBootEntry' })[0]
+            @($add.Arguments)[7] | Should -BeFalse
+        }
+
+        # A PROBE THAT CANNOT READ THE STORE MUST NOT STRAND A REFERENCE BUILD.
+        # Answering "no" is the behaviour HDT already had, and failing the arm
+        # over a question about somebody else's WinRE would cost the whole build.
+        It 'arms anyway when the store cannot be read to answer the question' {
+            $image = New-HDTFakeImageService -Failure @{ TestRamdiskOptions = 'The boot configuration data store could not be opened.' }
+            $context = & $script:newContext 'FullOS' $image $script:fileSystem $null
+
+            $result = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            $add = @($image.Operations | Where-Object { $_.Operation -eq 'AddRamdiskBootEntry' })[0]
+            @($add.Arguments)[7] | Should -BeFalse
         }
 
         # A MACHINE THAT HAS NEVER BEEN ARMED HAS NO ENTRY TO DELETE, and bcdedit
