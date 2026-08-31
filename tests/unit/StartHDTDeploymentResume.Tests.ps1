@@ -154,6 +154,63 @@ Describe 'Start-HDTDeployment.ps1 and a run already in progress' {
         It 'keeps the run id from the state document' {
             $script:text | Should -Match '\$resume\.State\.runId'
         }
+
+        # THE BAG COMES BACK, AND THE ENGINE WILL NOT DO IT FOR THE CALLER.
+        #
+        # Invoke-HDTTaskSequence copies the LIVE dictionary into the document at
+        # every checkpoint and never the other way round - the live bag is the
+        # truth while a leg runs, the document is the truth across a reboot, and
+        # restoring it is the caller's job. Start-HDTResume.ps1 has always done
+        # it; this path had to learn to.
+        #
+        # WITHOUT IT THE CAPTURE STEP HAS NO VOLUME TO CAPTURE. HDTOSVolume is
+        # published by the partition step on leg one and lives in the document
+        # ever after, and %HDTOSVolume% is what CaptureImage reads. A resumed leg
+        # rebuilt from rules alone would resolve it to nothing and fail at the
+        # LAST step of a reference build - after the sysprep, which is the
+        # expensive half.
+        It 'restores the variable bag from the state document' {
+            $script:text | Should -Match '\$resumedState\.variable\.Keys'
+        }
+
+        # AND IT RESTORES IT AFTER the rules-derived bag is built, not before,
+        # or the rules would overwrite what the run already decided. A rule
+        # re-read on this boot is a guess about a machine that has already been
+        # deployed.
+        It 'lets the document win over a rule re-read on this boot' {
+            $script:text | Should -Match '(?s)\$resolved\.Variable\.Keys.{0,2200}\$resumedState\.variable\.Keys'
+        }
+
+        # DESIGN 4.4.2's MONOTONIC COUNTER. A capture leg that opened its log at
+        # seq 1 would reissue every number the three legs before it had already
+        # used, which is exactly the ambiguity the counter exists to prevent.
+        It 'carries the seq counter across the reboot' {
+            $script:text | Should -Match '\$resumedState\.seq'
+        }
+
+        # THE SEQUENCE IS THE ONE THE RUN IS ALREADY RUNNING, and this overrules
+        # all three of -SequenceId, bootstrap.json and the rules - the opposite
+        # of the precedence everywhere else in the file.
+        #
+        # A STATE DOCUMENT IS A LIST OF STEPS BY INDEX. Resumed against a
+        # DIFFERENT sequence document, stepIndex 9 means step 9 of the wrong
+        # sequence: a capture leg that runs somebody else's step, or skips nine
+        # steps that never ran because the document says they are done. Nothing
+        # throws - the machine quietly does the wrong thing, which is the worst
+        # failure shape there is. And all three sources can disagree with it
+        # legitimately: bootstrap.json is baked into an image that may be newer
+        # than this run, and the rules are re-read on this boot.
+        It 'runs the sequence the state document names, not the one this boot would have started' {
+            $script:text | Should -Match '\$resumedState\.sequenceId'
+        }
+
+        # AND THE VERBOSITY, for the reason 4.4.5 gives: the share is not
+        # readable at the moment the log context is built, so the level travels
+        # in the document or it is lost. A run started at Debug that went silent
+        # on its capture leg would lose the log of the only step that leg runs.
+        It 'carries the log level across the reboot' {
+            $script:text | Should -Match '\$resumedState\.logLevel'
+        }
     }
 
     Context 'the ordinary path' {

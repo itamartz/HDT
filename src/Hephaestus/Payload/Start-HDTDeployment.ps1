@@ -479,8 +479,25 @@ try {
 
     $fileSystem.CreateDirectory($logDirectory)
 
+    # AND ON A RESUMED LEG THE COUNTER CARRIES ON RATHER THAN RESTARTING.
+    # DESIGN 4.4.2 makes seq monotonic across a whole run precisely so a
+    # multi-leg deployment can be sorted into its true order when WinPE's clock
+    # has skewed. A capture leg that opened at 1 would reissue every number the
+    # legs before it had already used, which is the one thing the counter exists
+    # to prevent.
+    # NAMED RATHER THAN SPLATTED, for the reason the loop call below is: a
+    # contract test reads -Level off this call site to prove the context starts
+    # at Debug, and a splat turns that into "it passed something".
+    $bootSeq = [long] 0
+    $bootLevel = 'Debug'
+
+    if ($null -ne $resumedState) {
+        $bootSeq = [long] $resumedState.seq
+        $bootLevel = [string] $resumedState.logLevel
+    }
+
     $log = New-HDTLogContext -RunId $runId -Phase WinPE -LogPath $logDirectory `
-        -FileSystem $fileSystem -Clock $clock -Level Debug
+        -FileSystem $fileSystem -Clock $clock -Level $bootLevel -Seq $bootSeq
 
     # AND THE REGISTRY ADAPTER GETS IT, now that there is one to give. It is
     # built above, before any log exists, so it is told afterwards rather than at
@@ -1682,6 +1699,37 @@ try {
         }
     }
 
+    # A RESUMED LEG TAKES THE BAG THE RUN ALREADY HAD, AND THE ENGINE WILL NOT
+    # DO IT FOR IT.
+    #
+    # Invoke-HDTTaskSequence copies the LIVE dictionary into the state document
+    # at every checkpoint and never the other way: the live bag is the truth
+    # while a leg runs, the document is the truth across a reboot, and putting
+    # the document back is the CALLER's job. Start-HDTResume.ps1 has always done
+    # it - it is the first thing that file does after building its log - and
+    # this path did not, because until now this path never resumed anything.
+    #
+    # WITHOUT IT THE CAPTURE STEP HAS NO VOLUME TO CAPTURE. HDTOSVolume is
+    # published by the partition step on leg one and lives in the document ever
+    # after; %HDTOSVolume% is what CaptureImage reads. A resumed leg rebuilt
+    # from rules alone would resolve it to nothing and fail at the last step of
+    # a reference build - after the sysprep, which is the expensive half. The
+    # same is true of HDTComputerName, of every wizard answer a technician
+    # typed hours earlier, and of _HDTApplicationInstalled, which is how an
+    # InstallApplications step knows where it got to.
+    #
+    # THE DOCUMENT WINS OVER THE RULES, and that is the point rather than a
+    # collision. A rule re-read on this boot is a guess about a machine that has
+    # already been deployed; the document is what that deployment actually
+    # decided.
+    if ($null -ne $resumedState) {
+        foreach ($name in @($resumedState.variable.Keys)) {
+            $variable[[string] $name] = $resumedState.variable[$name]
+        }
+
+        & $say ("{0} variable(s) restored from the state document" -f @($resumedState.variable.Keys).Count)
+    }
+
     # WHEN THIS RUN STARTED, IN UTC. A tattoo step subtracts it from a matching
     # end value to say how long the deployment took, and UTC is the decision
     # rather than a detail: WinPE runs on the hardware clock and the deployed OS
@@ -1834,6 +1882,32 @@ try {
     $wantedSequence = $SequenceId
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) { $wantedSequence = [string] $bootstrap.SequenceId }
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) { $wantedSequence = [string] $variable['HDTTaskSequenceID'] }
+
+    # A RESUMED LEG RUNS THE SEQUENCE IT IS ALREADY RUNNING, AND NOTHING GETS A
+    # VOTE. This overrules all three above, which is the opposite of the
+    # precedence everywhere else in this file and is the only defensible order
+    # here.
+    #
+    # THE STATE DOCUMENT IS A LIST OF STEPS BY INDEX. Resume it against a
+    # DIFFERENT sequence document and stepIndex 9 means step 9 of the wrong
+    # sequence - a capture leg that runs somebody else's step 9, or skips nine
+    # steps that never ran because the document says they are done. Nothing
+    # would throw; the machine would just do the wrong thing quietly, which is
+    # the worst failure shape there is.
+    #
+    # AND ALL THREE SOURCES ABOVE CAN DISAGREE WITH IT LEGITIMATELY.
+    # bootstrap.json is baked into a boot image that may be newer than this run;
+    # the rules are re-read on this boot and may have been edited since it
+    # started; -SequenceId is whatever the last person to type a command line
+    # meant. None of them knows what this machine is halfway through.
+    if ($null -ne $resumedState -and -not [string]::IsNullOrWhiteSpace([string] $resumedState.sequenceId)) {
+        if ($wantedSequence -ne [string] $resumedState.sequenceId) {
+            & $say ("the run in progress is sequence '{0}'; ignoring '{1}', which this boot would otherwise have started" -f
+                [string] $resumedState.sequenceId, $wantedSequence) 'Warning'
+        }
+
+        $wantedSequence = [string] $resumedState.sequenceId
+    }
 
     if ([string]::IsNullOrWhiteSpace($wantedSequence)) {
         throw ("HDTConfigurationError: no task sequence was named. -SequenceId was not given, bootstrap.json at '{0}' carries an empty sequenceId, and nothing in the rules resolved HDTTaskSequenceID for this machine." -f $BootstrapPath)
