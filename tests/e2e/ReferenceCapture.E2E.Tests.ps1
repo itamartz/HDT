@@ -388,9 +388,22 @@ variables:
         # media - and one firmware-order switch cannot serve both. MDT never
         # fights the firmware order at all; it stages WinPE onto the local disk
         # and gives that entry ONE boot with bcdedit /bootsequence
-        # (ZTIBCDUtility.vbs:167). HDT has no equivalent, which is one of the two
-        # reasons the full loop is blocked - the other being that nothing
-        # resumes a run in WinPE.
+        # (ZTIBCDUtility.vbs:167).
+        #
+        # BOTH REASONS THIS COMMENT USED TO GIVE FOR THE LOOP BEING BLOCKED ARE
+        # NOW FALSE, and they are corrected rather than deleted because the shape
+        # of this file still follows from them. It said HDT had no equivalent of
+        # /bootsequence and that nothing resumed a run in WinPE. HDT now has
+        # both - Invoke-HDTBootToWinPEStep stages and arms, Get-HDTResumeCandidate
+        # resumes - and tests/e2e/ApplicationRoundTrip.E2E.Tests.ps1 is the file
+        # that drives them on a machine.
+        #
+        # WHAT IS STILL OPEN IS NARROWER AND IS NOT ABOUT THIS FILE: on a
+        # deployed machine bcdedit exits 0 for a /create whose object is not in
+        # the store afterwards (SPIKES S23.10). The arm now reads the entry back
+        # and fails before the seal, so a reference build stops unsealed instead
+        # of stranding itself - but the loop does not close until that create
+        # does. THIS sequence is unaffected either way, because it never reboots.
         #
         # THIS SEQUENCE SIDESTEPS ALL OF IT by never rebooting. The payload
         # powers the machine off when the sequence ends, whatever the outcome, so

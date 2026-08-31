@@ -1,4 +1,4 @@
-# Verified environment findings
+﻿# Verified environment findings
 
 Empirical results from spikes run on this machine. **These are verified by
 execution, not assumed.** Where one contradicts an assumption in `docs/DESIGN.md`,
@@ -2866,7 +2866,16 @@ written up as "bootmgr requires the well-known object", which is not measured.
 **Do not arm a BCD store on a mounted VHDX and expect the machine to boot it.**
 Arm from the running machine, which is what the step does.
 
-#### What S23.8 leaves open
+#### What S23.8 leaves open — ANSWERED BY S23.10, AND THE ANSWER IS NO
+
+> **⚠ THE HYPOTHESIS BELOW WAS MEASURED AND IS WRONG.** S23.10 ran a real
+> reference build with S23.8.6's fix in place. A deployed machine's WinRE is
+> registered under **private GUIDs**, not the well-known `{ramdiskoptions}`; the
+> arm logged `ramdiskOptionsPresent: false`, so HDT created that object itself;
+> and it is **absent from the ESP store afterwards** on a machine where
+> `generalize` never ran at all. `reagentc` was never an owner and generalize
+> was never the remover. **Read S23.10.**
+
 
 Three reference builds ended in Windows OOBE with `bootsequence` present on
 `{bootmgr}` and the object it named absent. Nothing measured here reproduces
@@ -2878,3 +2887,126 @@ step before the arm**, so its `{ramdiskoptions}` belongs to `reagentc` — and
 S23.8.4. That is the next thing to measure, and S23.8.6's fix is a prerequisite
 for measuring it cleanly, because until now HDT was writing to that object
 itself.
+
+### S23.9 — sysprep can fail in 34 seconds on Appx and still exit 0, and the run never reaches the reboot ⚠
+
+Date: 2026-08-31, `run-20260831-171421` on `HDT-M7-RefApp`. Read offline from the
+machine's own `C:\HDT\Logs\HDT.log` and `Windows\System32\Sysprep\Panther\`.
+
+**EVERYTHING UP TO THE SEAL WORKED, AND IT IS WORTH SAYING SO.** Acrobat Reader
+installed in the full OS, `\ReferenceBuild\marker.txt` was stamped, and the
+WinPE was staged - `C:\HDT\Boot\boot.wim` and `boot.sdi` were both on the disk
+afterwards. Eleven steps completed.
+
+**SYSPREP THEN FAILED 34 SECONDS IN, AND EXITED 0 DOING IT:**
+
+```
+SYSPRP Failed while deleting per user keys under
+       'Software\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore': 0x800703fa
+SYSPRP ActionPlatform::LaunchModule: Failure occurred while executing
+       'SysprepGeneralize' from C:\Windows\System32\AppxSysprep.dll; dwRet = 0x3fa
+SYSPRP RunDlls:An error occurred while running registry sysprep DLLs, halting sysprep execution
+```
+
+`0x800703fa` is `ERROR_KEY_DELETED`. **THE Sysprep STEP CAUGHT IT**, which is the
+check earning its place:
+
+```
+sysprep returned 0 but this machine reports ImageState 'IMAGE_STATE_UNDEPLOYABLE',
+not IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE, so it was not generalized.
+```
+
+The run ended `Failed at step 13 of 16` at 17:20:50 — **eleven completed, one
+failed, one skipped** — a minute after it started sysprep. So this run says
+NOTHING about the capture boot: there was no restart 2 to observe, and any
+reading of it as "came back in OOBE" or "came back in WinPE" would be inventing a
+measurement that did not happen.
+
+**THREE THINGS THIS COST AN HOUR TO LEARN, AND THEY ARE OPERATIONAL:**
+
+1. **THE MACHINE WAS LEFT RUNNING.** The run ended Failed at 17:20:50 and the VM
+   was still `Running`, idle at under 1% guest CPU, an hour later. Anything
+   waiting for `Off` as its "the sequence ended" signal — which
+   `tests/e2e/ApplicationRoundTrip.E2E.Tests.ps1` does — reads a fast FullOS
+   failure as a **75 minute timeout**.
+
+2. **THE SHARE LOG STOPS AT THE FAILURE AND LOOKS LIKE A HANG.** Sysprep tears
+   the network down as it goes, so the last three records — the failure, the
+   status write and the log copy — could not be mirrored:
+   `The network location cannot be reached`. From the share the run appears to
+   stop mid-sysprep and stay there. **`Get-SmbSession` on the host showing no
+   session from the guest is the cheap discriminator**, and the machine's own
+   `C:\HDT\Logs\HDT.log` has what the share never received.
+
+3. **Appx generalize failures are not deterministic.** The three runs of S23.7
+   generalized the same image successfully hours earlier. Nothing in HDT changed
+   between them and this one that touches Appx.
+
+### S23.10 — `bcdedit` exits 0 for a `/create` whose object is NOT in the store, and HDT never read it back ⚠ FIXED
+
+Date: 2026-08-31, same run as S23.9, read offline from the VHDX with the VM off:
+the ESP store `S:\EFI\Microsoft\Boot\BCD`, 17 objects.
+
+**THE S23.7 SIGNATURE REPRODUCED, ON A MACHINE THAT NEVER GENERALIZED AND NEVER
+RAN OOBE.**
+
+```
+{bootmgr}  bootsequence  {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}   <-- present
+bcdedit /store <esp> /enum {7f1b6e18-...}   There are no matching objects       <-- absent
+bcdedit /store <esp> /enum {ramdiskoptions} There are no matching objects       <-- absent
+bcdedit /store <esp> /enum all | findstr 7f1b6e18   -> the bootsequence line, and nothing else
+```
+
+**THAT KILLS S23.7'S READING (b).** (b) was "the object persists, the boot manager
+declines it, and Windows Setup's own BCD maintenance during OOBE tidies away the
+orphan afterwards". There was no OOBE pass on this machine and no successful
+generalize — sysprep died 34 seconds in (S23.9) and the machine sat idle until it
+was powered off. Nothing ran that could have tidied anything. **The object was
+never in the ESP store.**
+
+**AND IT IS NOT THE `{ramdiskoptions}` GUARD.** The arm step logged
+`"ramdiskOptionsPresent": false`, so S23.8.6's guard skipped nothing and HDT
+created the object itself — and it is absent too. **Both `/create`s failed to
+persist while the `/set {bootmgr} bootsequence` from the same transport
+persisted.** The guard is right and stays, but it was not the cause of the OOBE
+runs, and S23.8's closing hypothesis — that a `reagentc`-owned
+`{ramdiskoptions}` torn down by generalize was taking HDT's entry with it — does
+not survive this either: this machine's WinRE is registered under **private
+GUIDs** (`{7fc36b73-...}` "Windows Recovery Environment", `{7fc36b74-...}`
+"Windows Recovery"), not the well-known object, and generalize never ran.
+
+**SO S23.8.1 AND THIS DISAGREE, AND THE DIFFERENCE IS THE MACHINE.** S23.8.1
+measured a `/create` persisting immediately, on a throwaway VM built by applying
+media to a VHDX by hand. This is an **HDT deployment** — partitioned by
+`DiskPartition`, imaged by `ApplyImage`, booted through `ConfigureBoot`'s
+`bcdboot` — and the arm runs in the resumed full-OS leg. Something about that
+machine or that process context is the variable, and it is the next thing to
+measure. **It is not the store file, not the seal, not the boot manager and not
+Secure Boot**, all of which are already ruled out.
+
+#### S23.10.1 — the defect that made this expensive: nothing read the entry back ⚠ FIXED
+
+`Invoke-HDTBootToWinPEStep`'s arm branch called `AddRamdiskBootEntry`, then
+`SetBootSequenceOnce`, and **reported success** — resting the one guarantee the
+whole reference template is built on ("nothing is sealed until we know it can
+come back") on a `bcdedit` exit code. S23.1 records that `bcdedit` validates no
+paths; S23.8.7 records that it exits 0 reading an object that is not there. It
+also, now, exits 0 **creating** one that does not end up there.
+
+**Four reference builds were generalized on that unverified success**, and every
+one of them was stranded — which is the entire cost of this defect, because the
+step runs while the machine is still a Windows somebody can log into.
+
+**Fixed** by `IImageService.TestBootEntry(store, id)`: after the create and
+**before the arm**, the entry is asked for by identifier, and the step fails when
+the store does not have it. A store that cannot be READ fails the step too —
+the opposite of `TestRamdiskOptions`, deliberately, and the reasoning is in the
+code: that probe answers "no" when it cannot read, because failing an arm over a
+question about somebody else's WinRE would strand a build for nothing, while
+this probe IS the fail-safe and an unconfirmed guarantee before the seal is worth
+a rerun.
+
+**This does not fix the create.** It converts a reference build that seals a
+machine it cannot bring back into one that stops, unsealed, with a message naming
+the store — and it is what will make the next run of S23.10 report the fault in
+one minute instead of ninety.
