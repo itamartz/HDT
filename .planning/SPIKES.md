@@ -3353,3 +3353,50 @@ image: the capture reads the OS volume and the entry sits on the EFI system
 partition, so nothing of it travels into the WIM, and the step's own message is
 correct that the machine still boots Windows. It matters for a machine that is
 KEPT rather than discarded, which a reference machine is not. Left as it is.
+
+#### The end-to-end proof, and one assertion that was measuring the wrong thing
+
+`DEPLOY-ACROBAT` deployed `Captures\REF-ACROBAT.wim` to `HDT-ACR-DEP01` in
+4m36s, with **no `InstallApplications` step in the sequence** — zero mentions of
+it across all eleven step logs. Asked over PowerShell Direct, that machine says:
+
+```
+acrobatUninstallKey : {AC76BA86-7AD7-1033-7B44-AC0F074E4100} = Adobe Acrobat Reader [26.001.21771]
+acrobatExe          : C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AcroRd32.exe
+hdtAppsInstalled    : 0 InstallApplications mention(s) in this machine's own HDT log
+referenceMarker     : RunId=run-20260831-194337 TS=REF-ACROBAT
+acrobatAppx         : ABSENT
+```
+
+Two run ids on one machine: `DEPLOY-ACROBAT / run-20260831-200433` in the
+tattoo, and `REF-ACROBAT / run-20260831-194337` in the marker that travelled
+inside the WIM. Acrobat has nowhere else it could have come from. The Appx
+package removed before the seal is absent here too, so the mitigation is carried
+by the image rather than being a property of the reference machine.
+
+**AND `MachineGuid` ABSENT / `InstallDate` 0 IS NOT WHAT A GENERALIZED IMAGE
+LOOKS LIKE.** That pair was the expected assertion, taken from
+`REF-CAPTURE.wim` — and *that* image was never sysprepped at all. Its sequence
+deployed and captured in a single WinPE leg, so it read an installation that had
+**never booted**, and nothing had ever run specialize to write either value. It
+is the signature of a fresh apply, not of a generalize.
+
+A genuinely generalized image carries both, because the reference machine booted:
+
+```
+WIM   MachineGuid f62f5e6f-...   InstallDate 1788194800   (19:46:40)
+VHDX  MachineGuid 2d3014a6-...   InstallDate 1788196065   (20:07:45)
+```
+
+What proves the seal is that they **differ**. The deployed machine did not
+inherit the image's `MachineGuid`; specialize minted a new one, which only
+happens on a generalized image. Its `InstallDate` is 1265 seconds later - it
+stamped its own rather than carrying the reference machine's forward. And the
+image reads `IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE` while the machine built from
+it reads `IMAGE_STATE_COMPLETE`, so it went *through* OOBE rather than skipping
+it.
+
+**So the assertion to make on a capture is `ImageState`, plus a comparison
+against the machine deployed from it — never an absent `MachineGuid`.** The
+absent one would pass for an image nobody had generalized and fail for every
+image anybody had.
