@@ -225,15 +225,67 @@ Describe 'the reference template in particular' {
         @($order[($sysprep + 1)..($capture - 1)]) | Should -Contain 'Restart'
     }
 
-    It 'turns the firmware boot order off, which is what lets the machine come back to WinPE' {
-        # DESIGN 9.3 note 4, and the one line that distinguishes this template
-        # from client.yaml. With setBootOrder left at its default the machine
-        # boots the generalized installation, runs OOBE and burns a rearm - and
-        # nothing about the image looks wrong afterwards.
+    It 'leaves the firmware boot order alone to change, because that is not the mechanism any more' {
+        # THIS USED TO ASSERT False, AND ASSERTING False IS WHAT KEPT THE DEFECT
+        # GREEN. setBootOrder: false did send the restart after Sysprep back to
+        # the media - and it sent the restart BEFORE it back there too, so the
+        # Customize group and the Sysprep step never ran at all. Measured on
+        # 2026-08-31: the build stopped at step 8 of 12.
+        #
+        # ONE FIRMWARE-ORDER SWITCH CANNOT SERVE TWO RESTARTS THAT WANT OPPOSITE
+        # THINGS. The capture boot is BootToWinPE's job now, which frees this one
+        # to do what every other sequence does.
         $boot = @($script:reference.Step | Where-Object { $_.Type -eq 'ConfigureBoot' })
 
         @($boot).Count | Should -Be 1
-        [string] $boot[0].Property['setBootOrder'] | Should -BeExactly 'False'
+        [string] $boot[0].Property['setBootOrder'] | Should -BeExactly 'True'
+    }
+
+    It 'stages a WinPE and arms the capture boot BEFORE it generalizes anything' {
+        # THE FAIL-SAFE RULE, ASSERTED ON THE SHIPPED TEMPLATE RATHER THAN ONLY
+        # ON THE STEP. A machine sealed by sysprep that cannot reach WinPE is
+        # stranded: there is no leg left that could fix it. So both the staging
+        # and the arming have to sit before Sysprep, where a failure costs a
+        # stopped sequence on a machine somebody can still log into.
+        #
+        # MDT PUTS THE ARM AFTER SYSPREP (Client.xml:472) and carries exactly
+        # that hole. If it turns out sysprep objects to an armed /bootsequence
+        # (SPIKES S23.5, unmeasured), the arm moves after Sysprep and the STAGE
+        # stays here - so this test splits into two rather than being deleted.
+        $order = @($script:reference.Step | ForEach-Object { $_.Type })
+        $sysprep = [array]::IndexOf($order, 'Sysprep')
+
+        $sysprep | Should -BeGreaterThan -1
+
+        $before = @($script:reference.Step[0..($sysprep - 1)] |
+                Where-Object { $_.Type -eq 'BootToWinPE' } |
+                ForEach-Object { [string] $_.Property['action'] })
+
+        $before | Should -Be @('stage', 'arm')
+    }
+
+    It 'tears the boot entry down in WinPE before it captures the volume' {
+        # /bootsequence is consumed by the boot it caused, but the OSLOADER
+        # object it named stays in the store for ever and the staged WinPE stays
+        # on the disk (SPIKES S23.4). A captured machine that carried either is a
+        # machine handed over with a boot entry nobody asked for.
+        $order = @($script:reference.Step | ForEach-Object { $_.Type })
+        $capture = [array]::IndexOf($order, 'CaptureImage')
+
+        $capture | Should -BeGreaterThan -1
+
+        $remove = @($script:reference.Step[0..($capture - 1)] |
+                Where-Object { $_.Type -eq 'BootToWinPE' -and [string] $_.Property['action'] -eq 'remove' })
+
+        @($remove).Count | Should -Be 1
+        [string] $remove[0].RunIn | Should -BeExactly 'WinPE'
+    }
+
+    It 'runs the staging and the arming in the full OS, where the share and the boot store both exist' {
+        foreach ($step in @($script:reference.Step |
+                    Where-Object { $_.Type -eq 'BootToWinPE' -and [string] $_.Property['action'] -ne 'remove' })) {
+            [string] $step.RunIn | Should -BeExactly 'FullOS'
+        }
     }
 
     It 'generalizes in the full OS, where sysprep.exe actually exists' {

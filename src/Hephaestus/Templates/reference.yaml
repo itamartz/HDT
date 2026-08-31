@@ -10,23 +10,39 @@
 #
 #   deploy -> customize -> Sysprep -> Restart -> boot the media -> CaptureImage
 #
-# TWO THINGS MAKE THAT LAST ARROW WORK, AND THEY ARE NOT THE SAME THING.
+# THREE THINGS MAKE THAT LAST ARROW WORK, AND THEY ARE NOT THE SAME THING.
 #
-# 1. setBootOrder: false GETS THE MACHINE BACK INTO WinPE.
+# 1. BootToWinPE STAGES A WinPE ON THIS MACHINE AND ARMS ONE BOOT INTO IT.
 #
 # A deployment wants the machine to stop booting the media and start booting
 # Windows, so ConfigureBoot puts the Windows Boot Manager first in the firmware
-# order (SPIKES S6). A REFERENCE BUILD WANTS PRECISELY THE OPPOSITE. Between
-# the Sysprep step and the capture there is exactly one legal next boot and it
-# is the boot media; booting the generalized installation instead runs OOBE,
-# consumes one of the three rearms, and leaves an image that is no longer in
-# the state it was sysprepped into - and nothing about it looks wrong
-# afterwards. The switch that serves a deployment is the switch that ruins a
-# capture, so this template turns it off deliberately (DESIGN 9.3 note 4).
+# order (SPIKES S6). A reference build needs BOTH: restart 1 must reach Windows,
+# because that is the only window in which applications install and Sysprep can
+# run at all, and restart 2 must reach WinPE, because a volume with Windows
+# running on it is a volume being written while it is read.
+#
+# ONE FIRMWARE-ORDER SWITCH CANNOT SERVE BOTH, which is why this template used
+# to turn setBootOrder off and stop at step 8 of 12. Measured on 2026-08-31:
+# with it false the machine restarted at restart 1 straight back into WinPE and
+# the run stopped - SPIKES S6's fourth finding word for word. No
+# Windows\Panther\setupact.log on the disk afterwards, so Windows had never started.
+#
+# SO THE FIRMWARE ORDER IS LEFT ALONE ENTIRELY AND THE WINDOWS BOOT MANAGER DOES
+# THE WORK, which is MDT's answer (LTIApply.wsf /PE /STAGE and /PE /BCD, driven
+# by ZTIBCDUtility.vbs). A copy of the share's boot image is staged to
+# <volume>\HDT\Boot, a ramdisk BCD entry points at it, and bcdedit /bootsequence
+# hands that entry the NEXT boot and only the next boot. setBootOrder is back to
+# true, so restart 1 reaches Windows; the one-shot fires at restart 2, so that
+# one reaches WinPE.
+#
+# AND NOTHING IS SEALED UNTIL WE KNOW IT CAN COME BACK. Both BootToWinPE steps
+# run BEFORE Sysprep and both FAIL the sequence rather than warning. A machine
+# that has been generalized and cannot reach WinPE is stranded: there is no leg
+# left that could fix it, and OOBE on the next boot burns one of three rearms.
 #
 # 2. Get-HDTResumeCandidate STOPS THAT BOOT WIPING THE DISK.
 #
-# AND UNTIL IT EXISTED, THE LINE ABOVE WAS THE ONLY THING BETWEEN THIS TEMPLATE
+# AND UNTIL IT EXISTED, THE BOOT ORDER WAS THE ONLY THING BETWEEN THIS TEMPLATE
 # AND A DESTROYED MACHINE, which is the frightening part in hindsight. The WinPE
 # entry point minted a NEW run at step 1 on every boot, so the capture boot
 # arrived, found no run in progress, and started this sequence again - at the
@@ -35,57 +51,49 @@
 # document before it mints anything, resumes the run it finds, and refuses
 # outright the step types that would destroy the installation (DESIGN 4.3.1).
 #
-# THE TWO ARE INDEPENDENT ON PURPOSE. The first decides WHERE the machine boots
-# and is a property of this template; the second decides WHAT THE ENGINE DOES
-# when it gets there and holds however the machine arrived - one-shot boot
-# entry, PXE, an ISO left in the drive, or a technician pressing F12.
+# THE TWO ARE INDEPENDENT ON PURPOSE. The first decides WHERE the machine boots;
+# the second decides WHAT THE ENGINE DOES when it gets there, and holds however
+# the machine arrived - one-shot boot entry, PXE, an ISO left in the drive, or a
+# technician pressing F12. A check keyed to the transport would answer correctly
+# for one of those and mint a fresh run - which formats the disk - for the rest.
 #
-# ⚠ AND THE TENSION IS REAL AND UNRESOLVED. THERE ARE TWO RESTARTS.
+# 3. THE ENTRY IS TORN DOWN AGAIN, IN WinPE, BEFORE THE CAPTURE.
 #
-#   restart 1, after ConfigureBoot, must reach WINDOWS - it is the only way
-#              the Customize group and the Sysprep step ever run
-#   restart 2, after Sysprep, must reach THE BOOT MEDIA
+# /bootsequence is consumed by the boot it caused, but the OSLOADER object it
+# named stays in the store for ever, and half a gigabyte of staged WinPE stays
+# on the disk. The third BootToWinPE step removes both. It WARNS rather than
+# failing, because by then the capture is the only thing left that matters.
 #
-# ONE FIRMWARE-ORDER SWITCH CANNOT SERVE BOTH, and setBootOrder: false serves
-# the second at the cost of the first. Measured on 2026-08-31: with it false the
-# machine restarted at restart 1 straight back into WinPE and the run stopped -
-# SPIKES S6's fourth finding word for word. No Windows\Panther\setupact.log on
-# the disk afterwards, so Windows had never started.
+# The staged WinPE could not have reached the image in any case:
+# Templates\Capture\wimscript.ini excludes \HDT as a tree, which is exactly why
+# the staging goes there and nowhere else.
 #
-# SO THIS TEMPLATE DOES NOT YET RUN END TO END UNATTENDED, and saying otherwise
-# would be the kind of claim a green test suite is very good at supporting. What
-# HAS changed is the failure: a machine that lands back in WinPE here now stops
-# and says which boot went wrong, instead of resuming past every full-OS step
-# and capturing a machine that was never prepared (DESIGN 4.3.1). A stall you
-# can read beats a WIM that looks fine and is not.
+# WHAT IS BUILT AND WHAT IS STILL UNPROVEN, BECAUSE A GREEN TEST SUITE IS VERY
+# GOOD AT SUPPORTING A CLAIM NOBODY HAS CHECKED ON A MACHINE.
 #
-# WHAT WOULD FIX IT, AND IT IS MDT'S ANSWER. MDT never fights the firmware order:
-# LTIApply.wsf /PE /BCD stages a boot.wim onto the LOCAL DISK, adds a ramdisk BCD
-# entry for it, and points `bcdedit /bootsequence` at that entry
-# (ZTIBCDUtility.vbs). The firmware goes on preferring Windows - so restart 1
-# works - and the Windows Boot Manager itself hands the one boot after sysprep to
-# WinPE. With that, setBootOrder goes back to true and this whole section is
-# deleted. Until then, tests/e2e drives restart 2 by demoting the boot order from
-# the HOST, which is exactly where a missing product mechanism shows up.
+# BUILT AND PROVEN AGAINST FAKES: the staging, the ramdisk entry, the one-shot,
+# the teardown, and every refusal - including that a failure to stage or to arm
+# stops the sequence BEFORE Sysprep rather than sealing a machine it cannot
+# bring back.
 #
-# THE CUSTOMIZE GROUP NAMES NOTHING. It is the reason this sequence exists - it
-# is where an administrator puts the applications, the settings and the updates
-# that are supposed to end up inside the image - and a template that guessed at
-# any of them would be guessing at somebody's build standard.
+# NOT YET PROVEN ON A MACHINE, and it is one question: WHETHER SYSPREP OBJECTS
+# TO AN ARMED /bootsequence. MDT defers its BCD work past sysprep and says in a
+# comment that it must, so somebody once hit something; the reasoning for why it
+# does not apply here is in Invoke-HDTBootToWinPEStep's header and it is
+# reasoning, not a measurement. If sysprep does object, the arm step above moves
+# to just after Sysprep and the staging step stays where it is - the rule that
+# nothing is sealed until we know it can come back survives either way.
 #
-# SO IT SHIPS THE STEP AND NOT THE CONTENT. Install Applications is there, wired
-# to %HDTApplications%, which is the variable a rule or a wizard answer sets: a
-# share that names no applications installs none and the step costs a line in
-# the log. What is NOT there is a single application id, because that is the
-# part that would be somebody else's build standard. The group is otherwise
-# there so there is one obvious place to put the rest, which is what MDT's empty
-# groups are for.
+# SO THIS TEMPLATE STILL DOES NOT YET RUN END TO END UNATTENDED, and that
+# sentence stays here until a real reference build has done it on a machine. The
+# tests being green is not that proof and cannot be: every one of them runs
+# against hand-written fakes, and the open question is what a real sysprep.exe
+# does, which no fake can answer.
 #
-# WHAT IS NOT HERE. No BitLocker: an encrypted volume cannot be captured.
-# No Tattoo: the stamp belongs to a deployed machine, not to an image every
-# machine will be built from. No Install Certificates: the same reasoning, and
-# a reference image carrying one site's certificates is a reference image that
-# belongs to that site.
+# What HAS changed is that the mechanism exists at all. This template used to
+# stop at step 8 of 12 with no product answer, and tests/e2e drove restart 2 by
+# demoting the boot order from the HOST - which is exactly where a missing
+# product mechanism shows up.
 #
 # %Variable% AND $Variable ARE THE SAME THING to the engine. This file uses the
 # PowerShell spelling in conditions and %Name% inside quoted values, exactly as
@@ -96,8 +104,8 @@ id: REFERENCE
 name: Sysprep and Capture Reference Image
 description: >
   Builds a reference image: deploy Windows to a scratch machine, customize it,
-  generalize it with sysprep, restart into the boot media, and capture the
-  volume into a WIM under Captures\ on the share.
+  generalize it with sysprep, restart into a WinPE staged on its own disk, and
+  capture the volume into a WIM under Captures\ on the share.
 
 variables:
   # WHAT AN AUTHOR IS EXPECTED TO CHANGE. The capture is named after the
@@ -198,21 +206,20 @@ steps:
         type: ApplyUnattend
         template: unattend.xml
 
-      # setBootOrder: false IS WHAT SENDS THE RESTART AFTER SYSPREP TO THE MEDIA.
-      # bcdboot still runs, so the installation is bootable and will start when
-      # a technician chooses it - the machine simply is not made to prefer it.
-      #
-      # AND IT IS ALSO WHY THE RESTART BELOW DOES NOT REACH WINDOWS. Read the
-      # header before changing this either way: one firmware-order switch has to
-      # serve two restarts that want opposite things, and this value picks the
-      # second. It is not a free choice and it is not settled.
+      # setBootOrder: true, AS ON ANY DEPLOYMENT, AND THAT IS THE CHANGE.
+      # This used to be false, because the restart after Sysprep had to reach the
+      # boot media and the firmware order was the only lever there was. It was
+      # the wrong lever: it also sent the restart BELOW back into WinPE, so the
+      # Customize group and the Sysprep step never ran at all. The capture boot
+      # is now BootToWinPE's job, which leaves this one free to do what every
+      # other sequence does - stop the machine booting the media.
       #
       # recovery: false FOLLOWS THE LAYOUT ABOVE. There is no recovery partition
       # on a reference machine, so registering one would name a volume that does
       # not exist.
       - name: Configure Boot
         type: ConfigureBoot
-        setBootOrder: false
+        setBootOrder: true
         recovery: false
 
       - name: Restart into Windows
@@ -284,21 +291,48 @@ steps:
       # looks and deleted afterwards so it does not travel inside the image.
       # New-HDTTaskSequence copies it in beside unattend.xml because this
       # sequence names it.
+      # BOTH OF THESE RUN BEFORE THE SEAL, AND THAT IS THE WHOLE POINT OF THE
+      # ORDER. A machine that has been generalized and cannot reach WinPE is
+      # stranded - there is no leg left that could fix it - so everything that
+      # could fail is done while this is still a Windows somebody can log into.
+      #
+      # MDT PUTS THE ARM AFTER SYSPREP (Client.xml:472, LTIApply /PE /BCD) with a
+      # comment saying the BCD work is deferred "so that Sysprep doesn't
+      # complain". That ordering leaves exactly the hole above. The reason MDT's
+      # would upset sysprep is almost certainly AdjustBCDDefaults' /default,
+      # which repoints the DEFAULT OS entry at a WinPE ramdisk; this sets
+      # /bootsequence alone and leaves {default} naming Windows. If sysprep
+      # objects anyway the step FAILS, on an unsealed machine - and moving this
+      # step to just after Sysprep is then a two-line edit, with the staging
+      # above still proving the machine can come back before anything is sealed.
+      - name: Stage WinPE for the capture boot
+        type: BootToWinPE
+        runIn: FullOS
+        action: stage
+
+      - name: Boot into WinPE after sysprep
+        type: BootToWinPE
+        runIn: FullOS
+        action: arm
+
       - name: Sysprep
         type: Sysprep
         runIn: FullOS
         unattend: unattend-sysprep.xml
         timeoutMinutes: 60
 
-      # THE ONE LEGAL NEXT BOOT, AND IT IS THE MEDIA. ConfigureBoot above left
-      # the firmware order alone precisely so this lands back in WinPE. A
-      # machine that booted the generalized installation instead would run OOBE
+      # THE ONE LEGAL NEXT BOOT, AND IT IS THE STAGED WinPE. The BootToWinPE arm
+      # step above pointed bcdedit /bootsequence at it, so the Windows Boot
+      # Manager hands this boot - and only this boot - to WinPE, while the
+      # firmware order goes on preferring Windows for every boot after it.
+      #
+      # A machine that booted the generalized installation instead would run OOBE
       # and burn a rearm, and the image would no longer be in the state it was
       # sysprepped into.
-      - name: Restart into the boot media
+      - name: Restart into WinPE
         type: Restart
         runIn: FullOS
-        message: restarting into the boot media to capture this machine
+        message: restarting into the staged WinPE to capture this machine
 
       # AND THE CAPTURE, WHICH IS WHERE THE SEQUENCE HAS BEEN GOING ALL ALONG.
       #
@@ -312,6 +346,23 @@ steps:
       # max COMPRESSION, because a reference image is written once and then
       # stored, copied and read for years. A lab turning one round quickly can
       # change it to fast and roughly halve the time this step takes.
+      # THE TEARDOWN, BEFORE THE CAPTURE READS THE VOLUME.
+      #
+      # /bootsequence is consumed by the boot it caused, but the OSLOADER object
+      # it named stays in the store for ever and the staged WinPE stays on the
+      # disk. This removes both.
+      #
+      # IT WARNS RATHER THAN FAILING, which is the opposite of the two steps
+      # before Sysprep and right for the same reason they are not: by here the
+      # capture is the only thing left that matters, and a cleanup that failed
+      # would cost the whole build. The staged WinPE cannot reach the image
+      # either way - wimscript.ini excludes \HDT as a tree, which is exactly why
+      # it was staged there.
+      - name: Remove the local WinPE
+        type: BootToWinPE
+        runIn: WinPE
+        action: remove
+
       - name: Capture Image
         type: CaptureImage
         runIn: WinPE
