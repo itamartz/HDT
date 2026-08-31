@@ -68,12 +68,18 @@
 # deleted. Until then, tests/e2e drives restart 2 by demoting the boot order from
 # the HOST, which is exactly where a missing product mechanism shows up.
 #
-# THE CUSTOMIZE GROUP IS DELIBERATELY EMPTY OF WORK. It is the reason this
-# sequence exists - it is where an administrator puts the applications, the
-# settings and the updates that are supposed to end up inside the image - and a
-# template that guessed at any of them would be guessing at somebody's build
-# standard. The group is there so there is one obvious place to put it, which
-# is what MDT's empty groups are for.
+# THE CUSTOMIZE GROUP NAMES NOTHING. It is the reason this sequence exists - it
+# is where an administrator puts the applications, the settings and the updates
+# that are supposed to end up inside the image - and a template that guessed at
+# any of them would be guessing at somebody's build standard.
+#
+# SO IT SHIPS THE STEP AND NOT THE CONTENT. Install Applications is there, wired
+# to %HDTApplications%, which is the variable a rule or a wizard answer sets: a
+# share that names no applications installs none and the step costs a line in
+# the log. What is NOT there is a single application id, because that is the
+# part that would be somebody else's build standard. The group is otherwise
+# there so there is one obvious place to put the rest, which is what MDT's empty
+# groups are for.
 #
 # WHAT IS NOT HERE. No BitLocker: an encrypted volume cannot be captured.
 # No Tattoo: the stamp belongs to a deployed machine, not to an image every
@@ -192,11 +198,14 @@ steps:
         type: ApplyUnattend
         template: unattend.xml
 
-      # setBootOrder: false IS THE ONE LINE THAT MAKES THIS A CAPTURE SEQUENCE.
-      # See the header. bcdboot still runs, so the installation is bootable and
-      # will start when a technician chooses it - the machine simply is not
-      # made to prefer it, so the restart after sysprep lands on the boot media
-      # and the capture below can run.
+      # setBootOrder: false IS WHAT SENDS THE RESTART AFTER SYSPREP TO THE MEDIA.
+      # bcdboot still runs, so the installation is bootable and will start when
+      # a technician chooses it - the machine simply is not made to prefer it.
+      #
+      # AND IT IS ALSO WHY THE RESTART BELOW DOES NOT REACH WINDOWS. Read the
+      # header before changing this either way: one firmware-order switch has to
+      # serve two restarts that want opposite things, and this value picks the
+      # second. It is not a free choice and it is not settled.
       #
       # recovery: false FOLLOWS THE LAYOUT ABOVE. There is no recovery partition
       # on a reference machine, so registering one would name a volume that does
