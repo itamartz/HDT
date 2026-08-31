@@ -241,7 +241,7 @@ try {
     <div class="brand">
       <span class="mark">Hephaestus Deployment Toolkit</span>
       <h1>Command Reference</h1>
-      <span class="sub">Hephaestus 0.12.0 &middot; PowerShell 5.1</span>
+      <span class="sub">Hephaestus 0.13.0 &middot; PowerShell 5.1</span>
     </div>
     <div class="search">
       <label class="sr-only" for="q" style="position:absolute;left:-9999px">Filter commands</label>
@@ -2750,9 +2750,16 @@ $result.Data.imagePath</pre><p>Where the WIM was written. It is also published a
 <p class="syn">Stages a WinPE on the local disk and arms exactly one boot into it, so a sysprepped machine can capture itself.</p>
 <div class="sig-wrap"><pre class="sig">Invoke-HDTBootToWinPEStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
 <section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry Image, FileSystem and Environment services.</p></td></tr></table></div></section>
-<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;BootToWinPE&#x27; })[0]
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock `
+    -Image (New-HDTImageService) -Environment (New-HDTEnvironmentProvider)
+$log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase FullOS -LogPath &#x27;C:\HDT\Logs&#x27; -Clock $clock
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase FullOS `
+    -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Variable ([ordered] @{}) -Service $service -Log $log
+$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REFERENCE\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;BootToWinPE&#x27; })[0]
 Invoke-HDTBootToWinPEStep -Step $step -Context $context</pre><p>One step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTBootToWinPEStep -Step $step -Context $context
-$result.Data[&#x27;entry&#x27;]</pre><p>The BCD identifier the teardown leg will delete.</p></div></section>
+$result.Data[&#x27;entry&#x27;]</pre><p>The BCD identifier the teardown leg will delete. $step and $context are the ones built in the example above.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>THE TRANSPORT HALF OF THE FullOS -&gt; WinPE REBOOT. Get-HDTResumeCandidate already answers &quot;is a run in progress&quot; when a machine arrives in WinPE, and is deliberately transport-independent. This is how it gets there.</p>
 <pre class="block">  - name: Boot into WinPE
     type: BootToWinPE
@@ -2769,9 +2776,12 @@ $result.Data[&#x27;entry&#x27;]</pre><p>The BCD identifier the teardown leg will
            /bootsequence at it.
   remove   delete the entry and the staged files.</pre>
 <p>NOTHING IS GENERALIZED UNTIL WE KNOW IT CAN COME BACK, and the split into three is what makes that enforceable. stage and arm both run BEFORE Sysprep and both FAIL the step rather than warning, because a machine sealed by sysprep that cannot reach WinPE is stranded: there is no leg left that could fix it, and the installation on the disk has already been generalized. remove is the mirror image and warns instead - it runs after the capture boot has happened, so a cleanup that fails costs nothing anybody needs, while failing there would cost the capture the whole build exists to produce.</p>
-<p>AND IT ARMS BEFORE SYSPREP, WHICH IS THE ONE PLACE THIS DIVERGES FROM MDT&#x27;S ORDERING. MDT stages before (/PE /STAGE) and arms after (/PE /BCD), with a comment at LTIApply.wsf:347-350 saying the BCD work is deferred &quot;so that Sysprep doesn&#x27;t complain&quot;. That ordering leaves the hole this rule exists to close: if the arm fails, the machine has already been sealed. The reason MDT&#x27;s arm would upset sysprep is almost certainly AdjustBCDDefaults&#x27; /default, which repoints the DEFAULT OS entry at a WinPE ramdisk; HDT sets /bootsequence alone and leaves {default} naming Windows, so there should be nothing for sysprep to object to. If it objects anyway the step FAILS, on an unsealed machine, which is the right direction to be wrong in - and moving the arm to after the Sysprep step is then a template edit rather than a rewrite, with stage still proving reachability first.</p>
+<p>AND IT ARMS BEFORE SYSPREP, WHICH IS THE ONE PLACE THIS DIVERGES FROM MDT&#x27;S ORDERING - AND THE ONE PLACE THIS FILE IS REASONING RATHER THAN REPORTING. MDT stages before (/PE /STAGE) and arms after (/PE /BCD), with a comment at LTIApply.wsf:347-350 saying the BCD work is deferred &quot;so that Sysprep doesn&#x27;t complain&quot;. That ordering leaves the hole this step&#x27;s fail-safe rule exists to close: if the arm fails, the machine has already been sealed and nothing downstream can fix it.</p>
+<p>âš NOT OBSERVED. NOBODY HAS RUN sysprep /generalize ON A MACHINE WITH AN ARMED /bootsequence AND WATCHED WHAT HAPPENS. The argument for why MDT&#x27;s problem should not apply here is that AdjustBCDDefaults also sets /default, repointing the DEFAULT OS entry at a WinPE ramdisk - exactly the sort of thing a generalize-time validation would look at - while this sets /bootsequence alone and leaves {default} naming Windows. SPIKES S23.3 proves that IS what MDT does; it proves nothing about what sysprep thinks of it. MDT&#x27;s comment is evidence somebody once hit something, and what they hit is not written down.</p>
+<p>SO TREAT THE ORDER AS PROVISIONAL. If sysprep objects, or silently clears the entry, the fix is a template edit and not a rewrite: move the action: arm step in reference.yaml to sit after Sysprep. The action: stage step stays where it is, so &quot;nothing is generalized until we know it can come back&quot; holds either way - which is why this step has three actions rather than one. SPIKES S23.5 carries the probe to run when there is a machine to run it on.</p>
 <p>THE VOLUME COMES FROM THE PHASE, NOT FROM %HDTOSVolume%. In the full OS it is the running system drive, read through IEnvironmentProvider: HDTOSVolume carries the WinPE letter (W:) across the reboot in state.json, and bcdedit resolves a drive letter to a partition at the moment it runs, so arming with W: would write an entry naming a volume that is not there. In WinPE it is %HDTOSVolume%, because SystemDrive there is X: - the RAM disk - and a teardown pointed at X:\HDT\Boot would delete nothing and report success.</p>
 <p>THE STORE COMES FROM THE PHASE TOO. In the full OS the machine booted through the store bcdboot wrote, so bare bcdedit already targets it and the EFI System Partition needs no drive letter. In WinPE the running store is the RAM disk&#x27;s and is not the one the machine boots from, so the teardown names %HDTSystemVolume%&#x27;s store explicitly.</p>
+<p>PROVEN AGAINST REAL bcdedit, NOT ONLY AGAINST A FAKE (SPIKES S23). The ten create commands were run against a standalone scratch store and all returned 0, with the entry enumerating exactly as MDT&#x27;s does. The same probe measured the thing this step&#x27;s whole shape rests on: after MDT&#x27;s four-command AdjustBCDDefaults, {bootmgr} carries default, displayorder AND bootsequence pointing at the WinPE entry, and `timeout 0` survives even the teardown. MDT&#x27;s &quot;boot into WinPE once&quot; is therefore permanent, and HDT&#x27;s single /bootsequence is not.</p>
 <p>NOTHING HERE COPIES A BOOT LOADER. MDT&#x27;s InstallPE robocopies the ADK&#x27;s efi\ and Boot\ trees over the boot drive and renames bootx64.efi to BootMgFW.efi - it replaces the machine&#x27;s boot manager with the ADK&#x27;s. SPIKES S20 measured that exact file at SVN 3.0 against an enforced Secure Boot floor of 7.0, so copying MDT more faithfully here would DOWNGRADE the one binary the firmware already refuses. The ramdisk entry is loaded BY the boot manager bcdboot installed from the applied image, as an OSLOADER application, so the Secure Boot chain gains nothing new and this path is no worse than booting the media.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries action, volume, wim, entry and store.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
@@ -6620,7 +6630,7 @@ $image.ApplyImage(&#x27;Z:\OperatingSystems\Win11\sources\install.wim&#x27;, 1, 
 $image.InstallBootFile(&#x27;W:\&#x27;, &#x27;S:&#x27;, &#x27;UEFI&#x27;)
 $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by hand, as three calls.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The one place in HDT that names Get-WindowsImage, dism.exe, bcdboot.exe, bcdedit.exe or Reagentc.exe. PROJECT constraint 4 forbids a step from touching hardware directly, so ApplyImage and ConfigureBoot receive this object and can be swapped for New-HDTFakeImageService in a test with no media, no disk and no reboot.</p>
-<p>ELEVEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
+<p>TWELVE METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
 <pre class="block">  GetImageInfo(imagePath)
       Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
       index for EditionId, Architecture and Version, which the
@@ -6672,12 +6682,24 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
           /path &lt;recoveryPath&gt; /target &lt;OsRoot&gt;\Windows</pre>
 <pre class="block">  SetBootOrderFirst()
       bcdedit.exe /set &quot;{fwbootmgr}&quot; displayorder &quot;{bootmgr}&quot; /addfirst</pre>
-<pre class="block">  AddRamdiskBootEntry(store, id, description, ramdiskVolume,
-                      wimDevicePath, sdiDevicePath, loaderPath)
+<pre class="block">  TestRamdiskOptions(store) -&gt; bool
+  AddRamdiskBootEntry(store, id, description, ramdiskVolume,
+                      wimDevicePath, sdiDevicePath, loaderPath,
+                      ramdiskOptionsPresent)
+  TestBootEntry(store, id) -&gt; bool
   SetBootSequenceOnce(store, id)
   RemoveBootEntry(store, id)
       bcdedit.exe, driven from the ordered list Get-HDTBcdCommand
-      returns. THE FullOS -&gt; WinPE TRANSPORT: a reference build has
+      returns. TestBootEntry is the read-back the arm&#x27;s fail-safe
+      rests on: bcdedit exited 0 for a create whose object was not in
+      the store afterwards, on a real machine (SPIKES S23.10), so the
+      entry is asked for by identifier before anything is sealed.
+      TestRamdiskOptions is the other one that READS: it answers
+      whether this machine already owns a {ramdiskoptions}, so the
+      create can leave a registered WinRE&#x27;s ramdisk options alone
+      instead of repointing them at HDT&#x27;s staged boot.sdi and then
+      deleting that file in the teardown (SPIKES S23.8).
+      THE FullOS -&gt; WinPE TRANSPORT: a reference build has
       to reach WinPE after sysprep to capture itself, and the
       firmware boot order cannot serve that AND the restart before it
       that must reach Windows. So a WinPE is staged on the local disk
