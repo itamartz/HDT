@@ -14,6 +14,8 @@
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTTestTools/HDTTestTools.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') -Force -ErrorAction Stop
+    Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Hephaestus.psd1') -Force -ErrorAction Stop
 
     $script:payloadPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Payload/Start-HDTResume.ps1'
 
@@ -156,6 +158,59 @@ Describe 'Start-HDTResume.ps1' {
             $catalog | Should -Not -BeNullOrEmpty
             @($catalog.CommandElements | ForEach-Object { [string] $_.Extent.Text }) |
                 Should -Contain '-Progress'
+        }
+
+        It 'hands the catalog every service the shipped templates need in the full OS' {
+            # ASSERTED AGAINST THE SET, NOT AGAINST ONE SERVICE (CLAUDE.md 8).
+            #
+            # THIS TEST EXISTS BECAUSE THE CATALOG WAS MISSING ONE AND EVERY UNIT
+            # TEST IN THE SUITE WAS GREEN. A step is unit tested against a
+            # hand-built catalog carrying exactly what that test decided to put
+            # in it, so nothing in tests/unit ever asks what THIS PAYLOAD builds.
+            # BootToWinPE needs an Image service - it runs bcdedit in the full OS,
+            # because the boot store WinPE finds is the RAM disk's - and this
+            # payload passed no -Image at all. The step would have failed at
+            # GetRequired on a real machine, having passed here a thousand times.
+            #
+            # SO THE EXPECTATION IS COMPUTED RATHER THAN LISTED. It walks the
+            # shipped templates, takes every step type that can run in the full
+            # OS, reads the services those step files actually require, and
+            # demands the payload pass each one. A step type added next year is
+            # covered by construction.
+            $stepRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Public/Steps'
+
+            $needed = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            foreach ($id in @(Get-HDTSequenceTemplate | ForEach-Object { $_.Id })) {
+                $line = @(Get-HDTSequenceTemplate -Id $id -Line)
+
+                $fileSystem = New-HDTFakeFileSystem -File @{ 'C:\ws\sequence.yaml' = ($line -join "`n") }
+                $document = Import-HDTSequenceDocument -Path 'C:\ws\sequence.yaml' -FileSystem $fileSystem
+
+                foreach ($step in @($document.Step)) {
+                    # WinPE-only steps are not this payload's problem; anything
+                    # else can be reached by a full-OS leg.
+                    if (([string] $step.RunIn) -eq 'WinPE') { continue }
+
+                    $path = Join-Path -Path $stepRoot -ChildPath ('Invoke-HDT{0}Step.ps1' -f $step.Type)
+                    if (-not (Test-Path -LiteralPath $path)) { continue }
+
+                    $text = [System.IO.File]::ReadAllText($path)
+                    foreach ($match in ([regex]::Matches($text, "GetRequired\(\s*'(?<name>[A-Za-z]+)'"))) {
+                        [void] $needed.Add($match.Groups['name'].Value)
+                    }
+                }
+            }
+
+            $needed.Count | Should -BeGreaterThan 0 -Because 'the templates must name some steps'
+
+            $catalog = @(& $script:commandNamed 'New-HDTServiceCatalog')[0]
+            $passed = @($catalog.CommandElements | ForEach-Object { [string] $_.Extent.Text })
+
+            foreach ($service in @($needed)) {
+                $passed | Should -Contain ('-{0}' -f $service) `
+                    -Because "a full-OS step in a shipped template calls GetRequired('$service'), and a catalog without it fails at the machine rather than here"
+            }
         }
 
         It 'builds the variable bag before it opens the window' {

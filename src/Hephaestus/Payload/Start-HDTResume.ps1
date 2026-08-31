@@ -631,9 +631,43 @@ try {
         $shellHidden = [bool] (Hide-HDTShellWindow)
     }
 
+    # AN IMAGE SERVICE IN THE FULL OS, WHICH THIS LEG HAD NO REASON TO CARRY
+    # UNTIL THE FullOS -> WinPE TRANSPORT EXISTED.
+    #
+    # Every other IImageService method writes an operating system to a disk from
+    # WinPE, so a full-OS leg that offered one would have been offering a way to
+    # overwrite the machine it is running on. BootToWinPE is the exception and it
+    # is why this line is here: it runs bcdedit in the full OS, against the boot
+    # store this machine booted through, because that is the only place the
+    # capture boot can be armed. WinPE cannot do it - the store bcdedit finds
+    # there is the RAM disk's.
+    #
+    # WITHOUT IT THE STEP FAILS AT GetRequired('Image'), and it fails on the
+    # RIGHT side of the seal - before Sysprep, on a machine somebody can still
+    # log into - which is the only reason this was a stopped sequence rather
+    # than a stranded machine. It was still a defect: a green suite against
+    # fakes proved nothing about which services this payload actually builds.
+    $imageService = New-HDTImageService
+
+    # AND A BitLocker SERVICE, WHICH THIS LEG HAS NEEDED SINCE THE WIZARD GREW A
+    # BitLocker PAGE AND NOBODY NOTICED.
+    #
+    # client.yaml's Enable BitLocker step is in State Restore, runs in the full
+    # OS, and is switched on by ticking a box on the wizard - so the FIRST person
+    # to tick that box would have got GetRequired('BitLocker') failing at their
+    # machine, on the step that encrypts the disk, at the end of a deployment.
+    # Every unit test passed, because a step is tested against a catalog the test
+    # itself builds.
+    #
+    # Found by the set test in tests/unit/StartHDTResumePayload.Tests.ps1, which
+    # walks the shipped templates rather than naming services one at a time. It
+    # was written for the Image service above and caught this on its first run.
+    $bitLocker = New-HDTBitLockerService
+
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
-        -Environment $environment -Content $content -Progress $display.DisplayHost
+        -Environment $environment -Image $imageService -BitLocker $bitLocker `
+        -Content $content -Progress $display.DisplayHost
 
     $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase FullOS `
         -WorkspaceRoot $workspaceRoot -Variable $variable -Service $catalog -Log $log -State $state
