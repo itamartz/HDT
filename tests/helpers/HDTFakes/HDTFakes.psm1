@@ -3149,19 +3149,29 @@ class HDTFakeDiskService {
     #
     # They record too: query order is evidence about what the code under test
     # tried, and 04-02's disk selection is judged on what it looked at.
+    #
+    # AND THEY FAIL, LIKE THE SIX BELOW. Get-Disk, Get-Partition and Get-Volume
+    # all throw when the Storage stack does not answer, so a fake that could
+    # only ever succeed made the failure branch of every reader untestable.
+    # Get-HDTResumeCandidate is the one that made this matter: it must answer
+    # Ambiguous when the volumes cannot be listed, because answering "no run in
+    # progress" there formats a disk on the strength of a failed query.
 
     [object[]] GetDisk() {
         $this.Record('GetDisk', @())
+        $this.AssertNoFailure('GetDisk')
         return [object[]] @($this.Disk)
     }
 
     [object[]] GetPartition() {
         $this.Record('GetPartition', @())
+        $this.AssertNoFailure('GetPartition')
         return [object[]] @($this.Partition)
     }
 
     [object[]] GetVolume() {
         $this.Record('GetVolume', @())
+        $this.AssertNoFailure('GetVolume')
         return [object[]] @($this.Volume)
     }
 

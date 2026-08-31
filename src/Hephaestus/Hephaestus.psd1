@@ -84,6 +84,7 @@
         'Get-HDTModuleVersion',
         'Get-HDTNetworkConfiguration',
         'Get-HDTOperatingSystem',
+        'Get-HDTResumeCandidate',
         'Get-HDTRunLogRecord',
         'Get-HDTShareAccessRule',
         'Get-HDTShareCredential',
