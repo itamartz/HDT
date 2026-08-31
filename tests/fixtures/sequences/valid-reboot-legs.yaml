@@ -1,12 +1,18 @@
-# Three legs and two reboots - the shape ROADMAP M2 exits on: "a multi-group
+﻿# Three legs and two reboots - the shape ROADMAP M2 exits on: "a multi-group
 # sequence with reboots runs to completion in a Pester run, having touched
 # nothing real".
 #
 # Leg 1 runs in WinPE and ends at a Restart.
 # Leg 2 runs in the full OS and ends at a second Restart.
 # Leg 3 finishes, with one FullOS-only step that runs and one WinPE-only step
-#       that must be skipped - because nothing in HDT boots back into WinPE, and
-#       the loop has to say so rather than run it against the wrong phase.
+#       that must be skipped - because THIS leg is a full-OS one, and the loop
+#       has to say so rather than run it against the wrong phase.
+#
+# THE REASON USED TO BE "nothing in HDT boots back into WinPE", AND THAT IS NO
+# LONGER TRUE. A reference build restarts into the boot media after sysprep and
+# captures itself in WinPE; valid-capture-legs.yaml is that shape. What is still
+# true, and what this fixture tests, is that a step declaring runIn: WinPE does
+# not run on a leg whose phase is FullOS.
 #
 # The SetVariable step in leg 1 is what proves a variable survives a reboot: the
 # condition on 'Confirm the first leg' reads it two legs later, and it can only

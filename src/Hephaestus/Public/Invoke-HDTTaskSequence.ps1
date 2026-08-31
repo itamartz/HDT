@@ -200,6 +200,21 @@
         [ValidateNotNullOrEmpty()]
         [string] $MirrorStatePath,
 
+        # THIS LEG IS CONTINUING A RUN, NOT STARTING ONE.
+        #
+        # Set by Start-HDTDeployment.ps1 when Get-HDTResumeCandidate has found a
+        # task sequence already in progress on this machine's disk. It turns on
+        # the guard at the top of the loop, which refuses the step types that
+        # would destroy the installation the run exists to finish.
+        #
+        # NOT INFERRED FROM state.leg, DELIBERATELY. A leg number greater than
+        # one says the run has rebooted, which is true of the ordinary full-OS
+        # leg as well - and that leg legitimately runs steps this refuses on a
+        # WinPE one. The caller knows which discovery got it here; the loop
+        # should not have to guess.
+        [Parameter()]
+        [switch] $Resumed,
+
         [Parameter()]
         [AllowNull()]
         [object[]] $StepType,
@@ -453,6 +468,54 @@
 
             $Context.Attempt = 1
             $Context.SetStep($index, $stepName, $stepTypeName, $stepLogPath)
+
+            # 0. A RESUMED LEG MAY NOT DESTROY THE MACHINE IT RESUMED ONTO.
+            #
+            #    THE STRUCTURAL HALF OF THE WinPE-SIDE RESUME (DESIGN 4.5.3).
+            #    Get-HDTResumeCandidate decides that a run is in progress; this
+            #    is what stops the leg it hands over formatting the disk anyway.
+            #
+            #    BEFORE THE ALREADY-DONE CHECK, AND THAT ORDER IS THE WHOLE
+            #    POINT. On a real capture leg this never fires: the loop starts
+            #    at state.stepIndex, which is past the partition step, so the
+            #    step is not even visited. It fires only when stepIndex has come
+            #    back WRONG - and the very next check below would look that step
+            #    up in the same state document, find it recorded Completed, and
+            #    skip it. A guard placed after that check is dead code in
+            #    precisely the case it exists for, because it would be trusting
+            #    the document it is there to disbelieve.
+            #
+            #    IT FAILS RATHER THAN SKIPS. A skip is quieter and lets the run
+            #    go on to capture whatever happens to be on the disk. A resumed
+            #    leg that reaches one of these has a defect in it, and this is
+            #    how anybody finds out.
+            if ($Resumed -and (Test-HDTResumeStepForbidden -Step $step)) {
+                $reason = "step {0} '{1}' is a {2} step and this leg is RESUMING a task sequence that is already in progress. A resumed leg runs on a machine that has already been deployed, so a step that formats a disk or overwrites the Windows volume would destroy the installation this run exists to finish. HDT refuses rather than skipping, because a resumed leg that reaches this step means its state document is wrong about where the run had got to - and that is worth stopping for. If this machine really should be deployed from the beginning, delete its state document and boot it again." -f $index, $stepName, $stepTypeName
+
+                Update-HDTRunStateStep -State $state -Index $index -Status Failed -Message $reason -Leg ([int] $state.leg) | Out-Null
+                & $saveState
+
+                Write-HDTLog -Context $log -Severity Error -Event 'step.fail' -Message $reason `
+                    -Data ([ordered] @{ index = $index; name = $stepName; type = $stepTypeName; resumed = $true })
+
+                [void] $outcome.Add([pscustomobject] ([ordered] @{
+                            Index        = $index
+                            Name         = $stepName
+                            Type         = $stepTypeName
+                            Status       = 'Failed'
+                            ExitCode     = 0
+                            Message      = $reason
+                            Attempt      = 0
+                            DurationMs   = [long] 0
+                            TimedOut     = $false
+                            FailureClass = 'Configuration'
+                            Reason       = $reason
+                        }))
+
+                $failedStep = $step
+                $runStatus = 'Failed'
+                break
+            }
 
             $found = @(@($state.step) | Where-Object { [int] $_.index -eq $index })
             $recorded = $null

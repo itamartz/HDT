@@ -1,0 +1,61 @@
+# A reference build in miniature: deploy in WinPE, customize in the full OS,
+# generalize, restart, and CAPTURE IN WinPE. It is the shape reference.yaml has,
+# reduced to the steps the resume guard is judged on.
+#
+# THE POINT OF IT IS THE LAST LEG. That leg runs in WinPE with a state document
+# already on the disk, and the two steps at the top of this file - the ones that
+# format a disk and overwrite a volume - are the ones it must not be able to
+# reach. Every other fixture's WinPE leg is leg ONE, where partitioning is
+# exactly right; this is the only one where a WinPE leg is a RESUMED leg.
+schemaVersion: 1
+id: CAPTURE-LEGS
+name: Deploy, customize, sysprep, capture
+description: A four-leg reference build, for the resumed-leg guard tests.
+steps:
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  - group: Install
+    runIn: WinPE
+    steps:
+      - name: Install Operating System
+        type: ApplyImage
+        os: Win11-LTSC-2024
+        index: 1
+        target: "%HDTOSVolume%"
+
+      - name: Restart into Windows
+        type: Restart
+
+  - group: Customize
+    runIn: FullOS
+    steps:
+      - name: Customize the reference image
+        type: NoOp
+        message: pretending to install applications
+
+  - group: Sysprep and Capture
+    steps:
+      - name: Restart into the boot media
+        type: Restart
+        runIn: FullOS
+
+      - name: Capture Image
+        type: CaptureImage
+        runIn: WinPE
+        image: 'CAPTURE-LEGS.wim'
+        description: 'Reference image built by HDT'
