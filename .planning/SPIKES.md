@@ -2401,3 +2401,167 @@ go missing", and that is still true — but a build-time write can still write o
 *half* of what it claims. What a tool documents itself as writing is not
 evidence; read the key back out of the artefact. Both defects here were found by
 reading the image, and neither was visible from a green build.
+
+---
+
+## S23 — MDT's "boot into WinPE once" is not a one-shot, and `/cleanup` is what undoes it ✅⚠
+
+Date: 2026-08-31. **The first time this repository has ever run `bcdedit` against
+a ramdisk boot entry.** Everything about the FullOS → WinPE transport up to here
+was read out of MDT's VBScript; this is where it was checked against the tool.
+
+**Run against a STANDALONE SCRATCH STORE**, `bcdedit /createstore` into the
+scratchpad, every command aimed at it with `/store`. Nothing here touched this
+laptop's own boot configuration, and the store file was deleted afterwards.
+
+### S23.1 — the ten create commands are accepted exactly as composed ✅
+
+`Get-HDTBcdCommand -Action Create` emits ten invocations. All ten returned
+**exit 0**, and the entry enumerates as:
+
+```
+identifier              {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+device                  ramdisk=[C:]\HDT\Boot\boot.wim,{ae5534e0-a924-466c-b836-758539a3ee3a}
+path                    \windows\system32\boot\winload.efi
+description             HDT Windows PE
+osdevice                ramdisk=[C:]\HDT\Boot\boot.wim,{ae5534e0-a924-466c-b836-758539a3ee3a}
+systemroot              \windows
+detecthal               Yes
+winpe                   Yes
+```
+
+Three things that were guesses before and are facts now:
+
+- **`{ramdiskoptions}` is an alias for `{ae5534e0-a924-466c-b836-758539a3ee3a}`**
+  and bcdedit resolves it inside the `device` string. The comma-separated
+  `ramdisk=[<drive>]<path>,{ramdiskoptions}` syntax MDT uses is accepted verbatim.
+- **The description must be a BARE token, not a quoted one.** These arguments are
+  splatted at `bcdedit.exe` as an array and Windows PowerShell quotes what needs
+  quoting; the enum shows `description  HDT Windows PE` with no stray quotation
+  marks. Writing `'"{0}"' -f $Description` into the token — which is what MDT's
+  string-concatenated command line needs — would have named the entry with the
+  quotes in it.
+- **`bcdedit` never validates the paths.** `\HDT\Boot\boot.wim` does not exist on
+  this laptop and every command still returned 0. That is the silent failure the
+  step's own guard exists for: arming a boot into a file that is not there is
+  accepted here and arrives as an `0xc000000f` on a machine that has already been
+  generalized.
+
+### S23.2 — `/bootsequence` needs a `{bootmgr}` in the store ⚠
+
+Against a bare `/createstore` store the arm **failed**:
+
+```
+/bootsequence {7f1b6e18-...}
+    exit=1
+    An error has occurred setting the element data.
+    The system cannot find the file specified.
+```
+
+`bootsequence` is an **element on `{bootmgr}`**, and `/createstore` produces a
+store with no boot manager object in it. Adding one and asking again returned
+**exit 0**, with the element where it belongs:
+
+```
+Windows Boot Manager
+identifier              {9dea862c-5cdd-4e70-acc1-f32b344d4795}
+bootsequence            {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+```
+
+**Why it matters to the code rather than to the probe.** Every store HDT arms
+against has a `{bootmgr}` — the full OS uses the system store it booted through,
+and the WinPE teardown names the ESP store `bcdboot` wrote. But the error text is
+the least helpful sentence bcdedit produces, and anybody who meets it while
+pointing at the wrong store will read "The system cannot find the file specified"
+as a missing `boot.wim`. It is a missing `{bootmgr}`.
+
+### S23.3 — MDT's four commands are all PERMANENT, measured ✅
+
+`AdjustBCDDefaults` was run in full against the same store, one command at a
+time. After all four, `{bootmgr}` reads:
+
+```
+default                 {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+displayorder            {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+bootsequence            {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+timeout                 0
+```
+
+**So "MDT's is not a one-shot" is no longer an inference from reading the
+VBScript.** `/bootsequence` alone is consumed by the boot it causes; `/default`
+and `/displayorder` are not, and a machine that never reaches `LTICleanup.wsf`
+has WinPE as its default OS for ever. HDT runs `/bootsequence` and nothing else,
+which leaves `{default}` naming Windows — so the same abandoned machine degrades
+to "boots Windows" instead.
+
+**And `timeout 0` survives the teardown.** After `/delete <id> /cleanup` the boot
+manager still reads `timeout 0`: MDT permanently sets the machine's boot menu
+timeout to zero as a side effect of a capture and never puts it back. One more
+reason the arm is one command.
+
+### S23.4 — `/cleanup` is what makes the teardown complete ✅
+
+`/delete {7f1b6e18-...} /cleanup` returned 0, and the boot manager afterwards:
+
+```
+Windows Boot Manager
+identifier              {9dea862c-5cdd-4e70-acc1-f32b344d4795}
+description             Windows Boot Manager
+timeout                 0
+```
+
+**All three references went with the entry** — `default`, `displayorder` and
+`bootsequence` — in one command. That is what `/cleanup` does and it is the one
+part of MDT's BCD handling that is unambiguously right
+(`LTICleanup.wsf:119-121`). Without it the store keeps a `displayorder` naming an
+object that no longer exists.
+
+It also means a stale `bootsequence` from a previous reference build is cleared
+by the same call the step already makes before it creates the entry.
+
+### S23.5 — the one thing still UNVERIFIED: does sysprep object to an armed `/bootsequence`? ⚠
+
+**NOT MEASURED. THE PROBE BELOW WAS NOT RUN**, and everything in this
+sub-section is inference. S23.1-S23.4 above are execution results; this one is
+not, and it is the one the shipped `reference.yaml` step order rests on.
+
+It needs a machine that can be generalized and thrown away. At the time of
+writing the only `HDT-*` VM on this host belonged to another session, and the CI
+VM and the development laptop are neither of them sacrificeable.
+
+MDT stages before sysprep (`Client.xml:463`, `LTIApply /PE /STAGE`) and arms
+after it (`:472`, `/PE /BCD`), with a comment at `LTIApply.wsf:347-350` saying the
+BCD work is deferred "so that Sysprep doesn't complain". Somebody once hit
+something; the comment does not say what.
+
+**HDT arms BEFORE sysprep**, because the alternative leaves the hole the whole
+fail-safe rule exists to close: if the arm fails after the seal, the machine is
+generalized and cannot come back, and there is no leg left that could fix it.
+
+**The reasoning for why MDT's problem should not apply here** is that
+`AdjustBCDDefaults` sets `/default`, which repoints the DEFAULT OS entry at a
+WinPE ramdisk — exactly the sort of thing a generalize-time validation would
+look at. S23.3 proves that is what MDT does. HDT sets `/bootsequence` alone and
+`{default}` goes on naming Windows, so there should be nothing for sysprep to
+see. **That is reasoning, not a measurement.**
+
+**The probe, when there is a machine for it:**
+
+1. Deploy Windows to a throwaway `HDT-*` Generation 2 VM.
+2. `bcdedit /create ... -application OSLOADER` and `bcdedit /bootsequence <id>`,
+   the ten-and-one commands above, against the system store.
+3. `sysprep /generalize /oobe /quit` — not `/shutdown`, so the machine survives
+   to be read.
+4. Three questions: does it exit non-zero; does
+   `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State\ImageState`
+   read `IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE`; and does
+   `bcdedit /enum {bootmgr}` still show the `bootsequence` element afterwards.
+   `%WINDIR%\System32\Sysprep\Panther\setupact.log` carries the reason for any
+   refusal.
+
+**If it objects or silently clears the entry**, the fix is a template edit and
+not a rewrite: move the `action: arm` step in `reference.yaml` from before
+`Sysprep` to between `Sysprep` and the restart. The `action: stage` step stays
+where it is, so "nothing is generalized until we know it can come back" survives
+either way — which is why the step has three actions rather than one.
+
