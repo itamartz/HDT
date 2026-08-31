@@ -7,14 +7,16 @@ Where HDT stops being asserted and starts being demonstrated.
 ./build.ps1 -Task e2e
 ```
 
-Three files. The first makes the others' failures legible; the last is the
-current exit criterion.
+The first makes the others' failures legible; the M4 file is the current exit
+criterion; the last two are the two halves of the reference-image loop.
 
 | File | Runs | Proves |
 |---|---|---|
 | `WinPeSmoke.E2E.Tests.ps1` | ~4 min | the engine loads and works **inside WinPE** — PowerShell 5.1, `powershell-yaml`, `Get-HDTMachineFact`, and the real `DEMO-M3` sequence parsing |
 | `Deployment.E2E.Tests.ps1` | ~35 min | **ROADMAP M3's exit criterion**: a Generation 2 VM partitioned, imaged, unattended and boot-configured by a sequence run through `Invoke-HDTTaskSequence`, booting into Windows 11 |
 | `UnattendedDeployment.E2E.Tests.ps1` | ~30 min | **ROADMAP M4's exit criterion, and the current one**: the same deployment, on a boot image **HDT built**, started by that image's own `startnet.cmd` — **with zero keystrokes sent to the machine** |
+| `ReferenceCapture.E2E.Tests.ps1` | ~25 min | **M7's capture step against real dism**: a deployed volume stamped with this run's id and captured into `Captures\REF-CAPTURE.wim` on the real share, then mounted and read back |
+| `CapturedImageDeployment.E2E.Tests.ps1` | ~40 min | **the other end of that loop**: `Captures\REF-CAPTURE.wim` promoted into the catalog with `Import-HDTOperatingSystem` and deployed by `TaskSequences\REF-DEPLOY` — and **booted**, which is the one thing a mount cannot prove |
 
 ## Nothing in this folder types into a virtual machine
 
@@ -196,6 +198,8 @@ deployment.
 | `C:\HDTLab\scratch\e2e-m4\RESULT.json` | the M4 run's own account of itself — `launchedBy`, `deployRootSource`, `resolvedDeployRoot`, `endedWith` — copied off the content disk **before** the VM is destroyed |
 | `C:\HDTLab\scratch\e2e-m4\HDT.jsonl`, `state.json`, `LAUNCHER.log` | the evidence every M4 assertion rests on, persisted because the `AfterAll` destroys the disk it came from |
 | `C:\HDTLab\scratch\wizard-e2e-artifacts\` | the W2 wizard screenshots and `WIZARDPROBE-*.json`, one set per path |
+| `C:\HDTLab\scratch\e2e-m7\` | the capture proof: `HDT.jsonl` and `m7-0*.png` |
+| `C:\HDTLab\scratch\e2e-refdeploy\` | the captured-image deployment: `HDT.jsonl`, `refdeploy-0*.png`, and `DEPLOYED-MARKER.txt` — the marker read off the **deployed** disk, which is the evidence that the machine came from our image |
 
 Those roots are the ones that **stay**. The build roots each suite mounts and
 stages into — `e2e-m3-bootimage`, `e2e-bootimage`, `e2e-probeimage`,

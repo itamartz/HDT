@@ -45,6 +45,7 @@ BeforeAll {
         'C:\HDTLab\scratch\e2e-m4'               # M4 RESULT.json, HDT.jsonl, state.json, LAUNCHER.log, m4-*.png
         'C:\HDTLab\scratch\wizard-e2e-artifacts' # W2 wizard screenshots and WIZARDPROBE-*.json
         'C:\HDTLab\scratch\e2e-m7'               # M7 capture proof: HDT.jsonl and m7-*.png
+        'C:\HDTLab\scratch\e2e-refdeploy'        # M7 captured-image deployment: HDT.jsonl, DEPLOYED-MARKER.txt, refdeploy-*.png
     )
 }
 
