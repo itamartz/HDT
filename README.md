@@ -19,13 +19,17 @@ Two recordings from a real Hyper-V run, two seconds a frame from power-on.
 **Build the reference image** — one 19-step sequence: deploy Windows 11, install
 Acrobat Reader, `Sysprep`, one-shot boot into WinPE, `CaptureImage`.
 
-<video src="https://github.com/itamartz/HDT/releases/download/v0.12.0/hdt-01-reference-build.mp4" controls muted width="900"><a href="https://github.com/itamartz/HDT/releases/download/v0.12.0/hdt-01-reference-build.mp4">hdt-01-reference-build.mp4</a></video>
+![Building the reference image](docs/images/hdt-01-reference-build.gif)
+
+<sub>Full resolution: [hdt-01-reference-build.mp4](https://github.com/itamartz/HDT/releases/download/v0.12.0/hdt-01-reference-build.mp4)</sub>
 
 **Deploy what it captured** — that WIM onto a second machine, by an 11-step
 sequence with *no application install step at all*. Acrobat is on the desktop at
 the end, because it came inside the image.
 
-<video src="https://github.com/itamartz/HDT/releases/download/v0.12.0/hdt-02-deploy-capture.mp4" controls muted width="900"><a href="https://github.com/itamartz/HDT/releases/download/v0.12.0/hdt-02-deploy-capture.mp4">hdt-02-deploy-capture.mp4</a></video>
+![Deploying the captured image](docs/images/hdt-02-deploy-capture.gif)
+
+<sub>Full resolution: [hdt-02-deploy-capture.mp4](https://github.com/itamartz/HDT/releases/download/v0.12.0/hdt-02-deploy-capture.mp4)</sub>
 
 ![The HDT console, open on a deployment share](docs/images/console.png)
 
