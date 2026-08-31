@@ -1,4 +1,4 @@
-# WinPE-side resume discovery (DESIGN 4.5.3).
+﻿# WinPE-side resume discovery (DESIGN 4.3.1).
 #
 # THE ONE THAT STOPS A CAPTURE LEG REPARTITIONING THE DISK IT JUST SEALED.
 #

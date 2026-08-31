@@ -242,7 +242,18 @@ Describe 'Invoke-HDTTaskSequence -Resumed' {
         It 'lets a capture leg resume at a WinPE step' {
             $run = & $script:atStep 6 'WinPE'
 
-            [string] $run.Result.Message | Should -Not -Match 'booted into'
+            # PROPERTY-EXISTENCE CHECKED, NOT ASSUMED. The wrong-phase refusal
+            # returns early with a Message; a run that got past it returns the
+            # loop's ordinary shape, which has none - and under
+            # Set-StrictMode -Version Latest reading an absent property is a
+            # terminating error rather than a null. This passed in a direct run
+            # and failed the gate, which is the gate being right.
+            $message = ''
+            if ($null -ne $run.Result.PSObject.Properties['Message']) {
+                $message = [string] $run.Result.Message
+            }
+
+            $message | Should -Not -Match 'booted into'
         }
     }
 

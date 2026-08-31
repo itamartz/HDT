@@ -1,4 +1,4 @@
-function Get-HDTResumeCandidate {
+﻿function Get-HDTResumeCandidate {
     <#
         .SYNOPSIS
             Decides, on a WinPE boot, whether a task sequence is already in progress.
@@ -111,10 +111,6 @@ function Get-HDTResumeCandidate {
             How stale a Running state may be before it stops counting as live.
             Defaults to 12, matching Invoke-HDTBootReconciliation.
 
-        .PARAMETER LogContext
-            Optional. Without it the decision is still made and returned;
-            nothing is written.
-
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Action
             ('None', 'Resume' or 'Ambiguous'), Reason, State, Path and Candidate.
@@ -154,11 +150,7 @@ function Get-HDTResumeCandidate {
 
         [Parameter()]
         [ValidateRange(0, [int]::MaxValue)]
-        [int] $MaxAgeHour = 12,
-
-        [Parameter()]
-        [AllowNull()]
-        [object] $LogContext
+        [int] $MaxAgeHour = 12
     )
 
     Set-StrictMode -Version Latest
@@ -166,21 +158,22 @@ function Get-HDTResumeCandidate {
 
     if ($null -eq $FileSystem) { $FileSystem = New-HDTFileSystem }
 
+    # IT WRITES NO LOG, AND THAT IS STRUCTURAL RATHER THAN AN OMISSION.
+    #
+    # This runs BEFORE the log context exists - it has to, because a resumed leg
+    # keeps the run id that is already on the disk and the log is opened with
+    # that id. So there is nothing to write to, by construction.
+    #
+    # AN EARLIER VERSION TOOK A -LogContext ANYWAY and emitted a
+    # 'reboot.discover' record. That event name is not in DESIGN 4.4.2's
+    # controlled vocabulary, so the call would have thrown on Write-HDTLog's
+    # ValidateSet the first time anybody passed one - and nothing ever did, so it
+    # was a latent throw rather than a working feature. The parameter is gone
+    # instead of the vocabulary being widened for something no caller wants: the
+    # decision is returned, and Start-HDTDeployment.ps1 records it a few lines
+    # later, once there IS somewhere to record it.
     $answer = {
         param([string] $Action, [string] $Reason, [object] $State, [string] $Path, [string[]] $Candidate)
-
-        if ($null -ne $LogContext) {
-            $severity = 'Info'
-            if ($Action -eq 'Ambiguous') { $severity = 'Warning' }
-
-            Write-HDTLog -Context $LogContext -Event 'reboot.discover' -Severity $severity `
-                -Message ("WinPE resume discovery: {0} - {1}" -f $Action, $Reason) `
-                -Data ([ordered] @{
-                    action    = $Action
-                    path      = $Path
-                    candidate = [string[]] @($Candidate)
-                })
-        }
 
         return [pscustomobject] ([ordered] @{
                 Action    = [string] $Action

@@ -526,7 +526,7 @@
 
             # 0. A RESUMED LEG MAY NOT DESTROY THE MACHINE IT RESUMED ONTO.
             #
-            #    THE STRUCTURAL HALF OF THE WinPE-SIDE RESUME (DESIGN 4.5.3).
+            #    THE STRUCTURAL HALF OF THE WinPE-SIDE RESUME (DESIGN 4.3.1).
             #    Get-HDTResumeCandidate decides that a run is in progress; this
             #    is what stops the leg it hands over formatting the disk anyway.
             #

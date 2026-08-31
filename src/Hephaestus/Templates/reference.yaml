@@ -33,7 +33,7 @@
 # DiskPartition step, against the volume it had just sealed. It is now asked
 # rather than assumed: the entry point scans the lettered volumes for a state
 # document before it mints anything, resumes the run it finds, and refuses
-# outright the step types that would destroy the installation (DESIGN 4.5.3).
+# outright the step types that would destroy the installation (DESIGN 4.3.1).
 #
 # THE TWO ARE INDEPENDENT ON PURPOSE. The first decides WHERE the machine boots
 # and is a property of this template; the second decides WHAT THE ENGINE DOES
