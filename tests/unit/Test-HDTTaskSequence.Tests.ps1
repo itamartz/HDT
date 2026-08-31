@@ -392,3 +392,100 @@ steps:
         @($finding).Count | Should -Be 1
     }
 }
+
+# THE WARNING THAT WENT STALE WHEN BootToWinPE ARRIVED.
+#
+# "runIn: WinPE after a Restart can only be skipped" was true of every sequence
+# HDT could run when it was written, and a reference build has made it false:
+# BootToWinPE stages a WinPE onto the machine's own system partition and points
+# exactly one boot at it, so the leg after that Restart IS a WinPE leg and the
+# capture step on it runs. REF-ACROBAT is that shape and drew two warnings for
+# the two steps that are the entire point of the sequence.
+#
+# A WARNING THAT IS ALWAYS WRONG IS WORSE THAN NO WARNING - the file says so
+# fifty lines above the check itself - so the condition is now "a Restart with
+# nothing arming a boot back into WinPE" rather than "a Restart".
+Describe 'a Restart that boots back into WinPE' {
+
+    BeforeAll {
+        $script:armedSequence = & $script:import @'
+schemaVersion: 1
+id: LINT-ARMED
+name: Sysprep and capture
+steps:
+  - name: Stage WinPE
+    type: BootToWinPE
+    runIn: FullOS
+    action: stage
+  - name: Arm the capture boot
+    type: BootToWinPE
+    runIn: FullOS
+    action: arm
+  - name: Restart into WinPE
+    type: Restart
+  - name: Capture
+    type: CaptureImage
+    runIn: WinPE
+    image: REF.wim
+'@
+        $script:armedFinding = @(Test-HDTTaskSequence -Sequence $script:armedSequence)
+    }
+
+    It 'says nothing about the WinPE step a BootToWinPE arm precedes' {
+        @($script:armedFinding | Where-Object { $_.Message -like '*comes after a Restart step*' }) |
+            Should -BeNullOrEmpty
+    }
+
+    It 'still warns when only a stage step precedes the Restart' {
+        # stage COPIES a WinPE onto the disk and nothing more. Without the arm
+        # the firmware boots the installation as usual, so the leg after the
+        # Restart is a full-OS leg and the warning is correct.
+        $sequence = & $script:import @'
+schemaVersion: 1
+id: LINT-STAGED-ONLY
+name: Staged and never armed
+steps:
+  - name: Stage WinPE
+    type: BootToWinPE
+    runIn: FullOS
+    action: stage
+  - name: Restart
+    type: Restart
+  - name: Capture
+    type: CaptureImage
+    runIn: WinPE
+    image: REF.wim
+'@
+
+        $finding = @(Test-HDTTaskSequence -Sequence $sequence |
+                Where-Object { $_.Message -like '*comes after a Restart step*' })
+
+        $finding.Count | Should -Be 1
+        $finding[0].Step | Should -BeExactly 'Capture'
+    }
+
+    It 'still warns when the arm comes after the Restart it was meant to steer' {
+        # An arm that runs after the reboot it was supposed to redirect has
+        # already missed it, so the WinPE step is unreachable exactly as before.
+        $sequence = & $script:import @'
+schemaVersion: 1
+id: LINT-ARMED-LATE
+name: Armed too late
+steps:
+  - name: Restart
+    type: Restart
+  - name: Arm the capture boot
+    type: BootToWinPE
+    runIn: FullOS
+    action: arm
+  - name: Capture
+    type: CaptureImage
+    runIn: WinPE
+    image: REF.wim
+'@
+
+        @(Test-HDTTaskSequence -Sequence $sequence |
+                Where-Object { $_.Message -like '*comes after a Restart step*' }) |
+            Should -Not -BeNullOrEmpty
+    }
+}

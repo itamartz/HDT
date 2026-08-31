@@ -144,6 +144,29 @@
 
     $restartSeen = $false
 
+    # HAS ANYTHING ARMED A BOOT BACK INTO WinPE, and the answer decides whether
+    # the warning below is true at all.
+    #
+    # "nothing in HDT boots back into WinPE" was a fact about the engine when
+    # this check was written, and BootToWinPE made it false: action: stage puts
+    # a WinPE on the machine's own system partition and action: arm points
+    # exactly one boot at it, so the leg after that Restart is a WinPE leg and a
+    # capture step on it runs. A reference build is precisely that shape, and it
+    # drew the warning on the two steps that are the whole reason it exists.
+    #
+    # STAGE ALONE IS NOT ENOUGH, AND AN ARM AFTER THE RESTART IS TOO LATE. Only
+    # an arm that has already run when the reboot happens redirects it, which is
+    # why this is a running flag read at the Restart rather than a scan of the
+    # document.
+    #
+    # TWO FLAGS AND NOT ONE. $winPeArmPending is what an arm step sets and what
+    # the next Restart SPENDS; $legIsWinPE is what the Restart leaves behind for
+    # the steps that follow it. Collapsing them into one loses the distinction
+    # between "armed, about to reboot" and "rebooted into the WinPE that was
+    # armed", which is the only thing the warning needs to know.
+    $winPeArmPending = $false
+    $legIsWinPE = $false
+
     foreach ($step in @($Sequence.Step)) {
 
         $index = [int] $step.Index
@@ -158,8 +181,8 @@
             & $add 'Warning' $index $name 'continueOnError: true on a Restart step means a failed reboot is tolerated, which continues the sequence in the phase it was trying to leave.'
         }
 
-        if ($restartSeen -and [string] $step.RunIn -eq 'WinPE') {
-            & $add 'Warning' $index $name ("runIn: WinPE on step {0} comes after a Restart step, and nothing in HDT boots back into WinPE, so this step can only be skipped at run time." -f $index)
+        if ($restartSeen -and -not $legIsWinPE -and [string] $step.RunIn -eq 'WinPE') {
+            & $add 'Warning' $index $name ("runIn: WinPE on step {0} comes after a Restart step that nothing armed a boot back into WinPE for, so this step can only be skipped at run time. A BootToWinPE step with action: stage and one with action: arm, both before the Restart, are what make the next leg a WinPE leg." -f $index)
         }
 
         # Every %Var% this step could read: its own condition, the conditions of
@@ -202,8 +225,21 @@
             }
         }
 
+        if ($type -eq 'BootToWinPE' -and $step.Property.Contains('action') -and
+            ([string] $step.Property['action']).Trim().ToLowerInvariant() -eq 'arm') {
+
+            $winPeArmPending = $true
+        }
+
         if ($type -eq 'Restart') {
+            # THE ARM IS SPENT BY THE REBOOT IT STEERED. bcdedit /bootsequence
+            # is a ONE-SHOT: the entry is consumed by the next boot and the one
+            # after that goes wherever the firmware order says. So a second
+            # Restart with no second arm is back to being a full-OS leg, and the
+            # warning is right about everything after it.
             $restartSeen = $true
+            $legIsWinPE = $winPeArmPending
+            $winPeArmPending = $false
         }
     }
 
