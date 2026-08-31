@@ -196,12 +196,72 @@ Describe 'Invoke-HDTBootToWinPEStep' {
         # build carries the same fixed id, and bcdedit /create on an id that
         # exists fails - so the removal comes first, and only then the create and
         # the one-shot it points at.
-        It 'clears any stale entry, creates the entry, then arms one boot' {
+        It 'clears any stale entry, creates the entry, reads it back, then arms one boot' {
             $result = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $script:context
 
             $result.Status | Should -BeExactly 'Completed'
             @($script:image.GetOperationName()) |
-                Should -Be @('RemoveBootEntry', 'TestRamdiskOptions', 'AddRamdiskBootEntry', 'SetBootSequenceOnce')
+                Should -Be @('RemoveBootEntry', 'TestRamdiskOptions', 'AddRamdiskBootEntry',
+                    'TestBootEntry', 'SetBootSequenceOnce')
+        }
+
+        # THE READ-BACK, AND IT IS THE ONLY THING THAT MAKES THE FAIL-SAFE REAL.
+        #
+        # MEASURED on 2026-08-31 (SPIKES S23.10): on a real reference machine
+        # every bcdedit in the create exited 0, this step reported success, and
+        # the object was NOT IN THE STORE afterwards - while the
+        # /set {bootmgr} bootsequence from the same transport WAS. bcdedit
+        # validates almost nothing and reports success for work it did not do
+        # (S23.1, S23.8.7), so its exit code cannot carry the one guarantee this
+        # template is built on: that nothing is generalized until the machine is
+        # known to be able to come back.
+        #
+        # Four reference builds were sealed on that unverified success and every
+        # one of them was stranded. So the entry is ASKED FOR by identifier
+        # after it is created, and the step fails - on a machine that is still a
+        # Windows somebody can log into - when the answer is no.
+        It 'reads the entry back by identifier, against the store it wrote to' {
+            $null = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $script:context
+
+            $probe = @($script:image.Operations | Where-Object { $_.Operation -eq 'TestBootEntry' })
+            $probe.Count | Should -Be 1
+
+            $add = @($script:image.Operations | Where-Object { $_.Operation -eq 'AddRamdiskBootEntry' })[0]
+            @($probe[0].Arguments)[0] | Should -BeExactly (@($add.Arguments)[0])
+            @($probe[0].Arguments)[1] | Should -BeExactly (@($add.Arguments)[1])
+        }
+
+        It 'FAILS, before anything is sealed, when bcdedit said yes and the entry is not in the store' {
+            $image = New-HDTFakeImageService
+            $image.BootEntryPresent = $false
+            $context = & $script:newContext 'FullOS' $image $script:fileSystem $null
+
+            $result = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+            $result.Message | Should -BeLike '*not in the store*'
+
+            # AND IT NEVER ARMED. Pointing {bootmgr} at an object that is not
+            # there is what left a machine booting Windows into OOBE with a
+            # bootsequence naming nothing (S23.7).
+            @($image.GetOperationName()) | Should -Not -Contain 'SetBootSequenceOnce'
+        }
+
+        # THE OPPOSITE CHOICE FROM TestRamdiskOptions, DELIBERATELY. That probe
+        # answers "no" when it cannot read the store, because failing an arm over
+        # a question about somebody else's WinRE would strand a build for nothing.
+        # THIS probe is the fail-safe itself: an unreadable store means the one
+        # guarantee before the seal is unconfirmed, and this step runs while the
+        # machine is still recoverable. Failing here costs a rerun; a false
+        # success costs the whole build and the machine with it.
+        It 'FAILS when the store cannot be read to confirm the entry' {
+            $image = New-HDTFakeImageService -Failure @{ TestBootEntry = 'The boot configuration data store could not be opened.' }
+            $context = & $script:newContext 'FullOS' $image $script:fileSystem $null
+
+            $result = Invoke-HDTBootToWinPEStep -Step (& $script:newStep @{ action = 'arm' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+            @($image.GetOperationName()) | Should -Not -Contain 'SetBootSequenceOnce'
         }
 
         # {ramdiskoptions} IS SHARED, AND WinRE IS THE OTHER OWNER.

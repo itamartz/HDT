@@ -3881,6 +3881,18 @@ class HDTFakeImageService {
         return $this.RamdiskOptionsPresent
     }
 
+    # THE READ-BACK THAT THE ARM'S FAIL-SAFE RESTS ON. True by default, which is
+    # the machine where bcdedit did what it said. Set it false to model the one
+    # measured on 2026-08-31 (SPIKES S23.10): every bcdedit in the create exited
+    # 0 and the object was not in the store afterwards.
+    [bool] $BootEntryPresent = $true
+
+    [bool] TestBootEntry([string] $Store, [string] $Id) {
+        $this.Record('TestBootEntry', @($Store, $Id))
+        $this.AssertNoFailure('TestBootEntry')
+        return $this.BootEntryPresent
+    }
+
     [void] AddRamdiskBootEntry([string] $Store, [string] $Id, [string] $Description,
         [string] $RamdiskVolume, [string] $WimDevicePath, [string] $SdiDevicePath,
         [string] $LoaderPath, [bool] $RamdiskOptionsPresent) {
@@ -3930,10 +3942,11 @@ function New-HDTFakeImageService {
               AddRamdiskBootEntry(store, id, description, ramdiskVolume,
                                   wimDevicePath, sdiDevicePath, loaderPath,
                                   ramdiskOptionsPresent)
+              TestBootEntry(store, id) -> bool
               SetBootSequenceOnce(store, id)
               RemoveBootEntry(store, id)
 
-            THE LAST FOUR ARE THE FullOS -> WinPE TRANSPORT, and they are what
+            THE LAST FIVE ARE THE FullOS -> WinPE TRANSPORT, and they are what
             makes a reference build provable without a machine: a step that
             stages a WinPE and arms a one-shot boot into it can be asserted here
             as an ordered operation list, and a seeded Failure on any of them is

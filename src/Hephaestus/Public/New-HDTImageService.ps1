@@ -80,10 +80,15 @@ function New-HDTImageService {
               AddRamdiskBootEntry(store, id, description, ramdiskVolume,
                                   wimDevicePath, sdiDevicePath, loaderPath,
                                   ramdiskOptionsPresent)
+              TestBootEntry(store, id) -> bool
               SetBootSequenceOnce(store, id)
               RemoveBootEntry(store, id)
                   bcdedit.exe, driven from the ordered list Get-HDTBcdCommand
-                  returns. TestRamdiskOptions is the one that READS: it answers
+                  returns. TestBootEntry is the read-back the arm's fail-safe
+                  rests on: bcdedit exited 0 for a create whose object was not in
+                  the store afterwards, on a real machine (SPIKES S23.10), so the
+                  entry is asked for by identifier before anything is sealed.
+                  TestRamdiskOptions is the other one that READS: it answers
                   whether this machine already owns a {ramdiskoptions}, so the
                   create can leave a registered WinRE's ramdisk options alone
                   instead of repointing them at HDT's staged boot.sdi and then
@@ -769,6 +774,38 @@ function New-HDTImageService {
                     -Description $Description -RamdiskVolume $RamdiskVolume `
                     -WimDevicePath $WimDevicePath -SdiDevicePath $SdiDevicePath `
                     -LoaderPath $LoaderPath -RamdiskOptionsPresent:$RamdiskOptionsPresent))
+    }
+
+    # IS THE ENTRY WE JUST CREATED ACTUALLY IN THE STORE?
+    #
+    # MEASURED on 2026-08-31 (SPIKES S23.10) and it is why this exists: on a real
+    # reference machine every bcdedit in the create exited 0, and afterwards the
+    # object was NOT in the store - while the /set {bootmgr} bootsequence from
+    # the same transport WAS. A 0 from bcdedit means almost nothing on its own
+    # (S23.1 for paths, S23.8.7 for reads), so the arm cannot rest on it.
+    #
+    # SAME READING RULE AS TestRamdiskOptions: /enum on an object that is not
+    # there prints "There are no matching objects or the store is empty" and
+    # exits 0, so this reads the OUTPUT. It matches the identifier rather than a
+    # fixed word, because unlike {ramdiskoptions} this object's id is HDT's own.
+    $service | Add-Member -MemberType ScriptMethod -Name TestBootEntry -Value {
+        param([string] $Store, [string] $Id)
+
+        $this.Record('TestBootEntry', @($Store, $Id))
+
+        # 5.1 TRAP, NOT TIDINESS - see RunBcdEdit. Local to this method scope.
+        $ErrorActionPreference = 'Continue'
+
+        $argument = [string[]] @(Get-HDTBcdStoreArgument -Store $Store) + [string[]] @('/enum', $Id)
+
+        $output = @(& "$env:SystemRoot\System32\bcdedit.exe" @argument 2>&1)
+
+        # The identifier without its braces, so the match does not depend on how
+        # bcdedit chose to render them.
+        $bare = [string] $Id
+        $bare = $bare.Trim('{', '}')
+
+        return [bool] @(@($output) -match [regex]::Escape($bare)).Count
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name SetBootSequenceOnce -Value {

@@ -182,6 +182,24 @@ Describe 'New-HDTFakeImageService' {
             @($script:image.Operations[0].Arguments) | Should -Be @('S:\EFI\Microsoft\Boot\BCD')
         }
 
+        # THE READ-BACK PROBE, AND ITS DEFAULT IS THE OPPOSITE WAY ROUND.
+        # TestRamdiskOptions defaults to "no" because that is the ordinary
+        # machine; this defaults to YES because the ordinary machine is one where
+        # bcdedit did what it said. False models the machine measured in SPIKES
+        # S23.10, where every command exited 0 and the object was not there.
+        It 'records TestBootEntry and answers yes until it is told otherwise' {
+            $script:image.TestBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}') | Should -BeTrue
+
+            @($script:image.GetOperationName()) | Should -Be @('TestBootEntry')
+            @($script:image.Operations[0].Arguments) | Should -Be @('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
+        }
+
+        It 'answers no once it is seeded with the store that lost the entry' {
+            $script:image.BootEntryPresent = $false
+
+            $script:image.TestBootEntry('S:\EFI\Microsoft\Boot\BCD', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}') | Should -BeFalse
+        }
+
         It 'records SetBootSequenceOnce with the store and the entry' {
             $script:image.SetBootSequenceOnce('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
 

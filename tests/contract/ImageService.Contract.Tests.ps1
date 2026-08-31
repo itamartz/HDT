@@ -1,4 +1,4 @@
-# The IImageService contract (PROJECT constraint 4, DESIGN 9.2, DESIGN 12.2.1).
+﻿# The IImageService contract (PROJECT constraint 4, DESIGN 9.2, DESIGN 12.2.1).
 #
 # Eleven methods:
 #
@@ -13,6 +13,7 @@
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
 #   TestRamdiskOptions(store) -> bool
+#   TestBootEntry(store, id) -> bool
 #   AddRamdiskBootEntry(store, id, description, ramdiskVolume, wimDevicePath,
 #                       sdiDevicePath, loaderPath)
 #   SetBootSequenceOnce(store, id)
@@ -122,8 +123,8 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
 
             foreach ($name in @('GetImageInfo', 'ApplyImage', 'CaptureImage', 'ApplyUnattend', 'AddDriver',
                     'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst',
-                    'TestRamdiskOptions', 'AddRamdiskBootEntry', 'SetBootSequenceOnce',
-                    'RemoveBootEntry')) {
+                    'TestRamdiskOptions', 'AddRamdiskBootEntry', 'TestBootEntry',
+                    'SetBootSequenceOnce', 'RemoveBootEntry')) {
                 $method | Should -Contain $name -Because "IImageService requires $name"
             }
         }

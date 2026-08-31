@@ -393,6 +393,52 @@
                     $Step.Name, [string] $_.Exception.Message) '')
         }
 
+        # AND NOW ASK THE STORE WHETHER ANY OF THAT HAPPENED.
+        #
+        # bcdedit EXITED 0 FOR A CREATE WHOSE OBJECT WAS NOT THERE AFTERWARDS.
+        # Measured on a real reference machine on 2026-08-31 (SPIKES S23.10):
+        # all ten commands returned 0, this step reported success, and an offline
+        # read of that machine's ESP store found {bootmgr} carrying a bootsequence
+        # that named an object the store did not contain - and no {ramdiskoptions}
+        # either, on a run where HDT had created both. Four reference builds were
+        # generalized on that unverified success and every one was stranded.
+        #
+        # SO THE EXIT CODE IS NOT THE GUARANTEE; THE READ-BACK IS. bcdedit
+        # validates almost nothing and reports success for work it did not do -
+        # S23.1 for paths it never checks, S23.8.7 for reads that exit 0 on a
+        # missing object - so the one promise this whole template rests on
+        # ("nothing is sealed until we know it can come back") cannot be built on
+        # it.
+        #
+        # THIS IS THE OPPOSITE CHOICE FROM TestRamdiskOptions ABOVE, ON PURPOSE.
+        # That probe answers "no" when the store cannot be read, because failing
+        # an arm over a question about somebody else's WinRE would strand a build
+        # for nothing. This probe IS the fail-safe: a store it cannot read leaves
+        # the guarantee unconfirmed, and this step still runs on a machine that
+        # is a Windows somebody can log into. Failing here costs a rerun; a false
+        # success costs the build, the machine and the hours spent watching it.
+        $entryPresent = $false
+        $probeError = ''
+        try {
+            $entryPresent = [bool] $imageService.TestBootEntry($plan.StorePath, $plan.EntryId)
+        } catch {
+            $probeError = [string] $_.Exception.Message
+        }
+
+        $data['bootEntryPresent'] = $entryPresent
+
+        if (-not $entryPresent) {
+            $storeName = $(if ([string]::IsNullOrWhiteSpace($plan.StorePath)) { 'this machine''s own system store' } else { $plan.StorePath })
+
+            if (-not [string]::IsNullOrWhiteSpace($probeError)) {
+                return (& $fail ("step '{0}' created the boot entry {1} but could not read {2} back to confirm it is there: {3}. The sequence stops here rather than generalizing a machine it cannot bring back." -f
+                        $Step.Name, $plan.EntryId, $storeName, $probeError) '')
+            }
+
+            return (& $fail ("step '{0}' created the boot entry {1} and bcdedit reported success, but the entry is not in the store afterwards - {2} does not contain it. bcdedit exits 0 for work it did not do, so the entry is read back rather than trusted (SPIKES S23.10). The sequence stops here rather than generalizing a machine it cannot bring back." -f
+                    $Step.Name, $plan.EntryId, $storeName) '')
+        }
+
         try {
             # /bootsequence AND NOTHING ELSE. {default} goes on naming Windows,
             # so a machine that never comes back to be torn down boots Windows
