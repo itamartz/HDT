@@ -1,6 +1,6 @@
 # The IImageService contract (PROJECT constraint 4, DESIGN 9.2, DESIGN 12.2.1).
 #
-# Eight methods:
+# Eleven methods:
 #
 #   GetImageInfo(imagePath) -> object[]  Index, Name, Description, Edition,
 #                                        SizeBytes, Architecture, Version
@@ -12,6 +12,25 @@
 #   InstallBootFile(osRoot, systemVolume, firmware)
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
+#   AddRamdiskBootEntry(store, id, description, ramdiskVolume, wimDevicePath,
+#                       sdiDevicePath, loaderPath)
+#   SetBootSequenceOnce(store, id)
+#   RemoveBootEntry(store, id)
+#
+# THE LAST THREE ARE THE FullOS -> WinPE TRANSPORT, and they exist because one
+# firmware-order switch cannot serve two restarts that want opposite things. A
+# reference build restarts once into Windows (to install applications and run
+# Sysprep) and once into WinPE (to capture), and SetBootOrderFirst can only
+# satisfy one of them. So MDT's answer is copied instead: a WinPE is staged on
+# the local disk, a ramdisk BCD entry points at it, and the Windows Boot Manager
+# hands that entry exactly ONE boot - leaving the firmware order alone, so the
+# restart before it still reaches Windows.
+#
+# THEY DIVERGE FROM MDT IN ONE MEASURED WAY. AdjustBCDDefaults sets /bootsequence
+# AND /default AND /displayorder /addfirst AND /timeout 0, so MDT's is not a
+# one-shot and LTICleanup.wsf has to undo it or the machine boots WinPE for ever.
+# SetBootSequenceOnce sets /bootsequence and nothing else, so a machine that
+# never comes back to be torn down degrades to booting Windows.
 #
 # CaptureImage IS ApplyImage RUN BACKWARDS, and it is the half of M7 that turns
 # a sysprepped machine into a WIM the share can deploy. Its image path is the
@@ -28,9 +47,11 @@
 # THE REAL ROW CALLS GetImageInfo AND NOTHING ELSE.
 #
 # The others write to a disk: dism /Apply-Image lays 4 GB of Windows down
-# somewhere, bcdboot writes boot files, reagentc registers a recovery image and
-# bcdedit reorders this machine's own firmware boot entries. None of those is
-# something a contract test gets to do on a developer's box. THEY ARE PROVEN IN
+# somewhere, bcdboot writes boot files, reagentc registers a recovery image, and
+# bcdedit reorders this machine's own firmware boot entries or adds a boot entry
+# to its store. None of those is something a contract test gets to do on a
+# developer's box - least of all the three transport methods, which on this
+# laptop would arm it to boot a WinPE that is not there. THEY ARE PROVEN IN
 # tests/integration (04-04), AGAINST A MOUNTED SCRATCH VHDX - and until that
 # plan runs, none of those four tools has ever been executed by this repository.
 #
@@ -98,7 +119,9 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
             # real adapter is a pscustomobject carrying ScriptMethod members.
             $method = @($script:image | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
-            foreach ($name in @('GetImageInfo', 'ApplyImage', 'CaptureImage', 'ApplyUnattend', 'AddDriver', 'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst')) {
+            foreach ($name in @('GetImageInfo', 'ApplyImage', 'CaptureImage', 'ApplyUnattend', 'AddDriver',
+                    'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst',
+                    'AddRamdiskBootEntry', 'SetBootSequenceOnce', 'RemoveBootEntry')) {
                 $method | Should -Contain $name -Because "IImageService requires $name"
             }
         }

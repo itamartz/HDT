@@ -11,6 +11,10 @@
 #   InstallBootFile(osRoot, systemVolume, firmware)
 #   SetRecoveryImage(osRoot, recoveryPath)
 #   SetBootOrderFirst()
+#   AddRamdiskBootEntry(store, id, description, ramdiskVolume, wimDevicePath,
+#                       sdiDevicePath, loaderPath)
+#   SetBootSequenceOnce(store, id)
+#   RemoveBootEntry(store, id)
 #
 # SetBootOrderFirst is SPIKES.md S6's fourth finding as an API: after apply, a
 # machine that still has the boot media first in the firmware order simply
@@ -147,6 +151,43 @@ Describe 'New-HDTFakeImageService' {
             $script:image.SetBootOrderFirst()
 
             @($script:image.GetOperationName()) | Should -Be @('SetBootOrderFirst')
+        }
+
+        It 'records AddRamdiskBootEntry with every argument the BCD entry needs' {
+            $script:image.AddRamdiskBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}', 'HDT Windows PE',
+                'C:', '\HDT\Bootoot.wim', '\HDT\Bootoot.sdi', '\windows\system32oot\winload.efi')
+
+            @($script:image.GetOperationName()) | Should -Be @('AddRamdiskBootEntry')
+            @($script:image.Operations[0].Arguments) | Should -Be @('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}',
+                'HDT Windows PE', 'C:', '\HDT\Bootoot.wim', '\HDT\Bootoot.sdi',
+                '\windows\system32oot\winload.efi')
+        }
+
+        It 'records SetBootSequenceOnce with the store and the entry' {
+            $script:image.SetBootSequenceOnce('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
+
+            @($script:image.GetOperationName()) | Should -Be @('SetBootSequenceOnce')
+            @($script:image.Operations[0].Arguments) | Should -Be @('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
+        }
+
+        It 'records RemoveBootEntry with the store the teardown leg has to name' {
+            $script:image.RemoveBootEntry('S:\EFI\Microsoft\Boot\BCD', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
+
+            @($script:image.GetOperationName()) | Should -Be @('RemoveBootEntry')
+            @($script:image.Operations[0].Arguments) |
+                Should -Be @('S:\EFI\Microsoft\Boot\BCD', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
+        }
+
+        # THE ORDER IS THE MECHANISM. Creating the entry and pointing
+        # /bootsequence at it are two bcdedit invocations and the second is
+        # meaningless without the first, so a step that ran them the other way
+        # round would arm a boot into an entry that does not exist yet.
+        It 'records the transport in the order that makes it work' {
+            $script:image.AddRamdiskBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}', 'HDT Windows PE',
+                'C:', '\HDT\Bootoot.wim', '\HDT\Bootoot.sdi', '\windows\system32oot\winload.efi')
+            $script:image.SetBootSequenceOnce('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
+
+            @($script:image.GetOperationName()) | Should -Be @('AddRamdiskBootEntry', 'SetBootSequenceOnce')
         }
 
         It 'records the whole apply ceremony in order' {

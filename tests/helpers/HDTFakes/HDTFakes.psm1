@@ -3855,6 +3855,36 @@ class HDTFakeImageService {
         $this.Record('SetBootOrderFirst', @())
         $this.AssertNoFailure('SetBootOrderFirst')
     }
+
+    # -- the FullOS -> WinPE transport -------------------------------------
+    #
+    # THE THREE THAT GET A SYSPREPPED MACHINE BACK INTO WinPE. A reference build
+    # generalizes a machine in the full OS and captures it from WinPE, and the
+    # firmware boot order cannot serve both that restart and the one before it
+    # that has to reach Windows. So a WinPE is staged on the local disk and the
+    # Windows Boot Manager hands it exactly one boot.
+    #
+    # THEY RECORD AND DO NOTHING ELSE, which is the whole point: a step that
+    # stages a boot image and arms a one-shot boot entry is provable here with
+    # no bcdedit, no boot image and no machine to strand.
+
+    [void] AddRamdiskBootEntry([string] $Store, [string] $Id, [string] $Description,
+        [string] $RamdiskVolume, [string] $WimDevicePath, [string] $SdiDevicePath,
+        [string] $LoaderPath) {
+        $this.Record('AddRamdiskBootEntry', @($Store, $Id, $Description, $RamdiskVolume,
+                $WimDevicePath, $SdiDevicePath, $LoaderPath))
+        $this.AssertNoFailure('AddRamdiskBootEntry')
+    }
+
+    [void] SetBootSequenceOnce([string] $Store, [string] $Id) {
+        $this.Record('SetBootSequenceOnce', @($Store, $Id))
+        $this.AssertNoFailure('SetBootSequenceOnce')
+    }
+
+    [void] RemoveBootEntry([string] $Store, [string] $Id) {
+        $this.Record('RemoveBootEntry', @($Store, $Id))
+        $this.AssertNoFailure('RemoveBootEntry')
+    }
 }
 
 function New-HDTFakeImageService {
@@ -3870,7 +3900,7 @@ function New-HDTFakeImageService {
             ConfigureBoot and their failure paths provable in seconds, against
             no media and with nothing written to a disk.
 
-            Eight methods:
+            Eleven methods:
 
               GetImageInfo(imagePath) -> Index, Name, Description, Edition,
                                          SizeBytes, Architecture, Version
@@ -3883,6 +3913,17 @@ function New-HDTFakeImageService {
               InstallBootFile(osRoot, systemVolume, firmware)
               SetRecoveryImage(osRoot, recoveryPath)
               SetBootOrderFirst()
+              AddRamdiskBootEntry(store, id, description, ramdiskVolume,
+                                  wimDevicePath, sdiDevicePath, loaderPath)
+              SetBootSequenceOnce(store, id)
+              RemoveBootEntry(store, id)
+
+            THE LAST THREE ARE THE FullOS -> WinPE TRANSPORT, and they are what
+            makes a reference build provable without a machine: a step that
+            stages a WinPE and arms a one-shot boot into it can be asserted here
+            as an ordered operation list, and a seeded Failure on any of them is
+            how "staging failed, so the sequence stopped BEFORE sysprep" gets a
+            test at all.
 
             CaptureImage's SECOND argument is the WIM it writes, not one it
             reads, so an unseeded path is not an error for it the way it is for

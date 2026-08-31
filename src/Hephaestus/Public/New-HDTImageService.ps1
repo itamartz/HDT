@@ -12,7 +12,7 @@ function New-HDTImageService {
             New-HDTFakeImageService in a test with no media, no disk and no
             reboot.
 
-            EIGHT METHODS, AND THE EXACT MECHANISM EACH WRAPS:
+            ELEVEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:
 
               GetImageInfo(imagePath)
                   Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
@@ -76,6 +76,17 @@ function New-HDTImageService {
               SetBootOrderFirst()
                   bcdedit.exe /set "{fwbootmgr}" displayorder "{bootmgr}" /addfirst
 
+              AddRamdiskBootEntry(store, id, description, ramdiskVolume,
+                                  wimDevicePath, sdiDevicePath, loaderPath)
+              SetBootSequenceOnce(store, id)
+              RemoveBootEntry(store, id)
+                  bcdedit.exe, driven from the ordered list Get-HDTBcdCommand
+                  returns. THE FullOS -> WinPE TRANSPORT: a reference build has
+                  to reach WinPE after sysprep to capture itself, and the
+                  firmware boot order cannot serve that AND the restart before it
+                  that must reach Windows. So a WinPE is staged on the local disk
+                  and the Windows Boot Manager hands it exactly one boot.
+
             SetBootOrderFirst IS SPIKES.md S6's FOURTH FINDING AS AN API. After
             apply, a machine that still has the boot media first in the firmware
             order simply reboots into WinPE and the deployment loops. Putting
@@ -132,7 +143,7 @@ function New-HDTImageService {
             globally across services.
 
         .OUTPUTS
-            System.Management.Automation.PSCustomObject with the eight
+            System.Management.Automation.PSCustomObject with the eleven
             IImageService ScriptMethods. Note that Get-Member -MemberType Method
             does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.
 
@@ -657,6 +668,86 @@ function New-HDTImageService {
 
         $this.AssertExitCode($LASTEXITCODE, 'bcdedit.exe',
             'bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst', $output)
+    }
+
+    # -- the FullOS -> WinPE transport -------------------------------------
+    #
+    # DERIVED FROM MDT: ZTIBCDUtility.vbs CreateNewBCDEntryEx / AdjustBCDDefaults,
+    # reached from LTIApply.wsf InstallPE. MIT licensed; see NOTICE.md. PSD has
+    # no FullOS -> WinPE mechanism at all, so there is no PowerShell prior art.
+    #
+    # THE THREE METHODS ARE ONE LOOP EACH, AND EVERY DECISION IS SOMEWHERE ELSE.
+    # Get-HDTBcdCommand composes the ordered argument lists and is unit tested
+    # character by character; Get-HDTLocalWinPePlan decides winload.efi versus
+    # winload.exe, which store, and where the files go. This adapter runs what it
+    # is handed, which is what keeps rule 1 true of a file nothing executes in a
+    # test.
+    #
+    # NOTHING HERE COPIES A BOOT LOADER, AND THAT IS DELIBERATE. MDT's InstallPE
+    # robocopies the ADK's efi\ and Boot\ trees over the boot drive and renames
+    # bootx64.efi to BootMgFW.efi - it replaces the machine's boot manager with
+    # the ADK's copy. SPIKES S20 measured that exact file at SVN 3.0 against an
+    # enforced floor of 7.0, so copying MDT more faithfully here would DOWNGRADE
+    # the one binary Secure Boot already refuses. The ramdisk entry these methods
+    # create is loaded BY the boot manager bcdboot already installed, as an
+    # OSLOADER application, so the Secure Boot chain gains nothing new.
+
+    $service | Add-Member -MemberType ScriptMethod -Name RunBcdEdit -Value {
+        param([object[]] $Command)
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a progress meter kills the call before its exit code
+        # is ever consulted. That is exactly how oscdimg's "0% complete" killed the
+        # first integration run under powershell.exe (SPIKES S13.5). Local to this
+        # method scope, so nothing outside it changes.
+        $ErrorActionPreference = 'Continue'
+
+        foreach ($entry in @($Command)) {
+            $argument = [string[]] @($entry.Argument)
+
+            $output = @(& "$env:SystemRoot\System32cdedit.exe" @argument 2>&1)
+
+            # THE ONE BRANCH, AND IT IS ON DATA RATHER THAN ON A DEPLOYMENT.
+            # Exactly one command in the whole transport is allowed to fail -
+            # /create {ramdiskoptions} on a machine that already has one, which
+            # a registered WinRE guarantees. Get-HDTBcdCommand marks it and a
+            # unit test asserts that it marks only it.
+            if ($entry.Tolerate) { continue }
+
+            $this.AssertExitCode($LASTEXITCODE, 'bcdedit.exe',
+                ('bcdedit {0}' -f ($argument -join ' ')), $output)
+        }
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name AddRamdiskBootEntry -Value {
+        param([string] $Store, [string] $Id, [string] $Description, [string] $RamdiskVolume,
+            [string] $WimDevicePath, [string] $SdiDevicePath, [string] $LoaderPath)
+
+        $this.Record('AddRamdiskBootEntry', @($Store, $Id, $Description, $RamdiskVolume,
+                $WimDevicePath, $SdiDevicePath, $LoaderPath))
+
+        $this.RunBcdEdit(@(Get-HDTBcdCommand -Action Create -Store $Store -Id $Id `
+                    -Description $Description -RamdiskVolume $RamdiskVolume `
+                    -WimDevicePath $WimDevicePath -SdiDevicePath $SdiDevicePath `
+                    -LoaderPath $LoaderPath))
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name SetBootSequenceOnce -Value {
+        param([string] $Store, [string] $Id)
+
+        $this.Record('SetBootSequenceOnce', @($Store, $Id))
+
+        $this.RunBcdEdit(@(Get-HDTBcdCommand -Action Arm -Store $Store -Id $Id))
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name RemoveBootEntry -Value {
+        param([string] $Store, [string] $Id)
+
+        $this.Record('RemoveBootEntry', @($Store, $Id))
+
+        $this.RunBcdEdit(@(Get-HDTBcdCommand -Action Remove -Store $Store -Id $Id))
     }
 
     return $service
