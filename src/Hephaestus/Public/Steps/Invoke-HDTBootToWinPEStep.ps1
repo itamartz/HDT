@@ -1,4 +1,4 @@
-function Invoke-HDTBootToWinPEStep {
+﻿function Invoke-HDTBootToWinPEStep {
     <#
         .SYNOPSIS
             Stages a WinPE on the local disk and arms exactly one boot into it,
