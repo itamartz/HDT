@@ -148,6 +148,14 @@
         # item would author one step for something that is three (DESIGN 9.3).
         'Sysprep'       = @{ Text = 'Sysprep'; Category = 'Images'; Order = 6 }
         'CaptureImage'  = @{ Text = 'Capture Image'; Category = 'Images'; Order = 7 }
+
+        # THE THIRD OF THE CAPTURE SEQUENCE, AND THE ONE MDT SPELLS OUT TWICE.
+        # Client.xml carries 'Apply Windows PE' and 'Apply Windows PE (BCD)'
+        # either side of Execute Sysprep, because a reference build cannot reach
+        # WinPE to capture itself without them. It is offered once here and its
+        # action property says which half - the console would otherwise need
+        # three menu items for one step type.
+        'BootToWinPE'   = @{ Text = 'Boot into WinPE'; Category = 'Images'; Order = 8 }
     }
 
     # Workbench's order, and Custom last because it is whatever this particular

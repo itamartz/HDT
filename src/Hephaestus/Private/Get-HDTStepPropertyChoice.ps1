@@ -92,6 +92,15 @@ function Get-HDTStepPropertyChoice {
         'CaptureImage' = @{
             'compress' = @('max', 'fast', 'none')
         }
+
+        # THE THREE HALVES OF THE FullOS -> WinPE TRANSPORT, in the order a
+        # reference build performs them. THIS LIST IS ALSO THE STEP'S OWN
+        # REFUSAL - Invoke-HDTBootToWinPEStep reads it rather than spelling the
+        # set again, so the console cannot offer an action the step would reject
+        # and neither can drift from the other.
+        'BootToWinPE' = @{
+            'action' = @('stage', 'arm', 'remove')
+        }
     }
 
     if (-not $table.ContainsKey($Type)) { return [string[]] @() }

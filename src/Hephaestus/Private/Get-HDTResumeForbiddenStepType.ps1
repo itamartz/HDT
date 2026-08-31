@@ -33,6 +33,18 @@ function Get-HDTResumeForbiddenStepType {
             a state document whose stepIndex is lying, most likely - and a step
             failing is how anybody finds out.
 
+            BootToWinPE IS DELIBERATELY NOT HERE EITHER, and it is the one that
+            looks like it should be. It is the step that CAUSED this leg: its
+            arm action, back in the full OS, is what pointed the firmware at the
+            staged WinPE this engine is running from. Its remove action then
+            runs ON the resumed leg, before the capture, to take the entry and
+            the staged image away again - so forbidding the type would refuse
+            the teardown of the very mechanism that got the machine here, and
+            leave every captured machine carrying a boot entry it does not need.
+            It writes to no volume the capture reads: two bcdedit calls and the
+            deletion of two files it staged itself, both under \HDT, which the
+            capture excludes.
+
             WHAT IS DELIBERATELY NOT HERE. ApplyUnattend, ApplyDrivers and
             Tattoo all write to the OS volume too, and all of them are wrong to
             run on a capture leg - but they are wrong the way a misordered

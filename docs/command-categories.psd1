@@ -152,6 +152,8 @@
                 'Get-HDTSysprepStepDescription'
                 'Get-HDTCaptureImageStepTemplate'
                 'Get-HDTCaptureImageStepDescription'
+                'Get-HDTBootToWinPEStepTemplate'
+                'Get-HDTBootToWinPEStepDescription'
             )
         }
         @{
@@ -166,6 +168,7 @@
                 'Invoke-HDTDiskPartitionStep'
                 'Invoke-HDTApplyImageStep'
                 'Invoke-HDTCaptureImageStep'
+                'Invoke-HDTBootToWinPEStep'
                 'Invoke-HDTApplyUnattendStep'
                 'Invoke-HDTConfigureBootStep'
                 'Invoke-HDTInstallApplicationsStep'

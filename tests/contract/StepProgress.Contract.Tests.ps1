@@ -79,6 +79,16 @@ $script:HDTQuietStep = [ordered] @{
     'PowerShell'         = "the same: an operator's script, whose progress is theirs to report and not the engine's to guess."
     'InstallRoles'       = "one Install-WindowsFeature call for the whole set, and that cmdlet reports on PowerShell's progress STREAM, which is a console bar and not data - the same reason New-HDTImageService shells dism.exe rather than calling Expand-WindowsImage. Reporting would mean a new output channel on IFeatureService."
     'ConfigureBoot'      = "bcdboot and bcdedit, and both return in seconds."
+
+    # THE HONEST ANSWER IS "IT CANNOT", AND IT IS NOT THE SECONDS SHAPE.
+    # Two of its three actions are bcdedit and return at once, but the third
+    # copies a ~500 MB boot image off the share and that is a minute or two
+    # of real time. It stays quiet for InstallRoles' reason rather than for
+    # ConfigureBoot's: IFileSystem.CopyItem is one call that returns when it
+    # is done and says nothing while it runs, so reporting would mean a new
+    # output channel on the file system service - and a percentage invented
+    # from elapsed time would be a bar that lied.
+    'BootToWinPE'        = "two of its actions are bcdedit and return at once; the third is one IFileSystem.CopyItem, which reports nothing while it runs. A bar would mean a new output channel on IFileSystem."
     'DiskPartition'      = "partitioning and a quick format, seconds on any disk this deploys to."
     'Gather'             = "reads CIM and the rules, in seconds."
     'InstallCertificate' = "writes a certificate to a store; effectively instant."

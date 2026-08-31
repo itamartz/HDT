@@ -157,6 +157,14 @@
             & $new 'configFile' 'Exclusion list' 'Text' '' 'What to leave out of the image. Empty uses the share''s Control\wimscript.ini if it has one, otherwise the list HDT ships - never nothing.'
         }
 
+        # ROW ORDER IS THE TEMPLATE'S KEY ORDER: action, then the boot image
+        # the template deliberately leaves out because one name serves almost
+        # every share.
+        'BootToWinPE' {
+            & $new 'action' 'Action' 'Choice' 'stage' 'stage copies a WinPE onto this disk, arm makes the next restart boot it, remove takes both away. stage and arm run before Sysprep; remove runs in WinPE.'
+            & $new 'bootImage' 'Boot image' 'Text' 'HDTPE_x64' 'Which Boot\<name>.wim on the share to stage. Empty uses the one Update-HDTBootImage builds by default.'
+        }
+
         'ConfigureBoot' {
             & $new 'firmware' 'Firmware' 'Choice' 'auto' 'auto reads the machine rather than trusting what the sequence assumed, and is right unless a lab is deliberately testing the other path.'
             & $new 'recovery' 'Register recovery' 'Check' 'true' 'Points the recovery environment at the WinRE image on the recovery partition. Off leaves a machine with no recovery entry.'

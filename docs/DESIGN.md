@@ -423,9 +423,19 @@ file that imports and validates today.
 ### 4.2 Step types (v1)
 
 `Validate`, `DiskPartition`, `ApplyImage`, `CaptureImage`, `ApplyDrivers`,
-`ApplyUnattend`, `ConfigureBoot`, `Restart`, `PowerShell`, `CommandLine`,
-`InstallApplications`, `InstallRoles`, `JoinDomain`, `SetVariable`,
-`WindowsUpdate`, `Sysprep`, `EnableBitLocker`.
+`ApplyUnattend`, `ConfigureBoot`, `BootToWinPE`, `Restart`, `PowerShell`,
+`CommandLine`, `InstallApplications`, `InstallRoles`, `JoinDomain`,
+`SetVariable`, `WindowsUpdate`, `Sysprep`, `EnableBitLocker`.
+
+`BootToWinPE` is the FullOS -> WinPE transport, and it exists because one
+firmware-order switch cannot serve two restarts that want opposite things. A
+reference build restarts once into Windows and once into WinPE;
+`ConfigureBoot`'s `setBootOrder` can only satisfy one. It stages a WinPE onto
+the local disk under \HDT\Boot, adds a ramdisk BCD entry for it and arms
+`bcdedit /bootsequence` - so the firmware order is left alone and the Windows
+Boot Manager hands out exactly one boot. Its `action` is `stage`, `arm` or
+`remove`; the first two run before `Sysprep` and fail the sequence rather than
+sealing a machine that cannot come back.
 
 Each step type is a set of functions discovered **by name**. Third-party step
 types can be dropped into `Modules\` — the engine discovers them by convention,

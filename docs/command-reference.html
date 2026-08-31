@@ -253,8 +253,8 @@ try {
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
-<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">42</span></a></li>
-<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">23</span></a></li>
+<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">44</span></a></li>
+<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">24</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers &amp; selection profiles</span><span class="nav-n">21</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">6</span></a></li>
@@ -285,9 +285,9 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">282</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">285</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">282</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">285</div><div class="l">carry examples</div></div>
         <div class="stat"><div class="n">81</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
@@ -1760,7 +1760,7 @@ Save-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\seque
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">42 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
+    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">44 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTStepType" data-name="get-hdtsteptype" data-hay="get-hdtsteptype discovers every step type in the session, by convention. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTStepType">Get-HDTStepType</a></h3>
@@ -2438,8 +2438,41 @@ Get-HDTCaptureImageStepDescription -Step $step</pre><p>The one line the log and 
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
+<article class="fn" id="Get-HDTBootToWinPEStepTemplate" data-name="get-hdtboottowinpesteptemplate" data-hay="get-hdtboottowinpesteptemplate the yaml for a new boottowinpe step. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTBootToWinPEStepTemplate">Get-HDTBootToWinPEStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML for a new BootToWinPE step.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTBootToWinPEStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to the name this type is offered under.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTBootToWinPEStepTemplate</pre><p>The YAML lines for a new BootToWinPE step, named after its type.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTBootToWinPEStepTemplate -Name &#x27;Stage WinPE for the capture&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under a name of your own. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>runIn: FullOS IS WRITTEN OUT AND IS NOT OPTIONAL for the two actions an author adds by hand. Staging reads the share and the running Windows&#x27; own boot.sdi, and arming edits the boot store this machine booted through - neither of which exists in WinPE the way this step needs them. The teardown is the exception and runs in WinPE, which is why the action is a property rather than three step types.</p>
+<p>action: stage IS THE DEFAULT BECAUSE IT IS THE HARMLESS ONE. A step added to a sequence and then left alone copies two files onto the local disk and changes nothing about how the machine boots; the same step defaulted to arm would point the next boot somewhere before anybody had put anything there.</p>
+<p>bootImage: IS NOT WRITTEN OUT. HDTPE_x64 is the workspace convention and the overwhelming majority of shares have exactly one boot image, so the key would be a setting that looks like a decision.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTBootToWinPEStepDescription" data-name="get-hdtboottowinpestepdescription" data-hay="get-hdtboottowinpestepdescription describes a boottowinpe step by which half of the transport it does. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTBootToWinPEStepDescription">Get-HDTBootToWinPEStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a BootToWinPE step by which half of the transport it does.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTBootToWinPEStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\REFERENCE\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;BootToWinPE&#x27; })[0]
+Get-HDTBootToWinPEStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple.</p>
+<p>THE THREE ACTIONS DO VERY DIFFERENT THINGS TO A MACHINE, and one line saying &quot;BootToWinPE&quot; for all of them would be the log entry that wastes an hour: staging copies half a gigabyte and changes nothing about how the machine boots, arming changes what the next boot is, and removing undoes both. So each says which it is, in the terms a technician reading a log at three in the morning needs - what the machine will do next, not which command was run.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
 </div></section>
-    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">23 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
+    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">24 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
 <article class="fn" id="Invoke-HDTStep" data-name="invoke-hdtstep" data-hay="invoke-hdtstep dispatches one step to the invoke-hdt&lt;type&gt;step function that implements it. step context steptype">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTStep">Invoke-HDTStep</a></h3>
@@ -2707,6 +2740,40 @@ $result.Data.imagePath</pre><p>Where the WIM was written. It is also published a
 <p>max COMPRESSION BY DEFAULT, because a reference image is stored, copied and read for years and is written once. none and fast are offered for a lab turning one round quickly, and a fourth value is refused here rather than by dism four hours in - the closed set is Get-HDTStepPropertyChoice&#x27;s, which is the same list the console offers.</p>
 <p>THE METER IS dism&#x27;s OWN. /Capture-Image prints a percentage on stdout exactly as /Apply-Image does, the adapter hands every line to this step as it arrives, and ConvertFrom-HDTDismProgressLine turns it into a step.progress every five points and always at a hundred.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries capturePath, imagePath, name, compress, configFile and durationMs, or errorId on a refusal.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Invoke-HDTBootToWinPEStep" data-name="invoke-hdtboottowinpestep" data-hay="invoke-hdtboottowinpestep stages a winpe on the local disk and arms exactly one boot into it, so a sysprepped machine can capture itself. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTBootToWinPEStep">Invoke-HDTBootToWinPEStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Stages a WinPE on the local disk and arms exactly one boot into it, so a sysprepped machine can capture itself.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTBootToWinPEStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry Image, FileSystem and Environment services.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;BootToWinPE&#x27; })[0]
+Invoke-HDTBootToWinPEStep -Step $step -Context $context</pre><p>One step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTBootToWinPEStep -Step $step -Context $context
+$result.Data[&#x27;entry&#x27;]</pre><p>The BCD identifier the teardown leg will delete.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE TRANSPORT HALF OF THE FullOS -&gt; WinPE REBOOT. Get-HDTResumeCandidate already answers &quot;is a run in progress&quot; when a machine arrives in WinPE, and is deliberately transport-independent. This is how it gets there.</p>
+<pre class="block">  - name: Boot into WinPE
+    type: BootToWinPE
+    runIn: FullOS
+    action: arm          # stage | arm | remove
+    bootImage: HDTPE_x64 # optional; the share&#x27;s Boot\&lt;name&gt;.wim</pre>
+<p>ONE FIRMWARE-ORDER SWITCH CANNOT SERVE TWO RESTARTS THAT WANT OPPOSITE THINGS, and that is the defect this ends. A reference build restarts once into WINDOWS - the only window in which applications install and Sysprep runs - and once into WinPE, to capture. ConfigureBoot&#x27;s setBootOrder picks one and ruins the other. Measured on 2026-08-31: with it false the machine went straight back into WinPE at restart 1 and the run stopped at step 8 of 12.</p>
+<p>SO THE FIRMWARE ORDER IS LEFT ALONE AND THE WINDOWS BOOT MANAGER DOES THE WORK. A WinPE is staged on the local disk, a ramdisk BCD entry points at it, and bcdedit /bootsequence hands that entry the next boot and only the next boot. setBootOrder goes back to true, restart 1 reaches Windows, and restart 2 reaches WinPE.</p>
+<p>DERIVED FROM MDT: LTIApply.wsf InstallPE (:159-410) and ZTIBCDUtility.vbs, wired into Client.xml as two task-sequence steps either side of LTISysprep.wsf (:463 and :472). MIT licensed; see NOTICE.md. PSD has no FullOS -&gt; WinPE mechanism at all - PSDTBA.ps1 /capture is an explicit stub - so MDT&#x27;s VBScript is the only prior art there is.</p>
+<p>THREE ACTIONS, WHICH ARE MDT&#x27;S OWN THREE HALVES:</p>
+<pre class="block">  stage    copy Boot\&lt;name&gt;.wim off the share and boot.sdi out of the
+           running Windows, into &lt;volume&gt;\HDT\Boot.
+  arm      clear any stale entry, create the ramdisk entry, and point
+           /bootsequence at it.
+  remove   delete the entry and the staged files.</pre>
+<p>NOTHING IS GENERALIZED UNTIL WE KNOW IT CAN COME BACK, and the split into three is what makes that enforceable. stage and arm both run BEFORE Sysprep and both FAIL the step rather than warning, because a machine sealed by sysprep that cannot reach WinPE is stranded: there is no leg left that could fix it, and the installation on the disk has already been generalized. remove is the mirror image and warns instead - it runs after the capture boot has happened, so a cleanup that fails costs nothing anybody needs, while failing there would cost the capture the whole build exists to produce.</p>
+<p>AND IT ARMS BEFORE SYSPREP, WHICH IS THE ONE PLACE THIS DIVERGES FROM MDT&#x27;S ORDERING. MDT stages before (/PE /STAGE) and arms after (/PE /BCD), with a comment at LTIApply.wsf:347-350 saying the BCD work is deferred &quot;so that Sysprep doesn&#x27;t complain&quot;. That ordering leaves the hole this rule exists to close: if the arm fails, the machine has already been sealed. The reason MDT&#x27;s arm would upset sysprep is almost certainly AdjustBCDDefaults&#x27; /default, which repoints the DEFAULT OS entry at a WinPE ramdisk; HDT sets /bootsequence alone and leaves {default} naming Windows, so there should be nothing for sysprep to object to. If it objects anyway the step FAILS, on an unsealed machine, which is the right direction to be wrong in - and moving the arm to after the Sysprep step is then a template edit rather than a rewrite, with stage still proving reachability first.</p>
+<p>THE VOLUME COMES FROM THE PHASE, NOT FROM %HDTOSVolume%. In the full OS it is the running system drive, read through IEnvironmentProvider: HDTOSVolume carries the WinPE letter (W:) across the reboot in state.json, and bcdedit resolves a drive letter to a partition at the moment it runs, so arming with W: would write an entry naming a volume that is not there. In WinPE it is %HDTOSVolume%, because SystemDrive there is X: - the RAM disk - and a teardown pointed at X:\HDT\Boot would delete nothing and report success.</p>
+<p>THE STORE COMES FROM THE PHASE TOO. In the full OS the machine booted through the store bcdboot wrote, so bare bcdedit already targets it and the EFI System Partition needs no drive letter. In WinPE the running store is the RAM disk&#x27;s and is not the one the machine boots from, so the teardown names %HDTSystemVolume%&#x27;s store explicitly.</p>
+<p>NOTHING HERE COPIES A BOOT LOADER. MDT&#x27;s InstallPE robocopies the ADK&#x27;s efi\ and Boot\ trees over the boot drive and renames bootx64.efi to BootMgFW.efi - it replaces the machine&#x27;s boot manager with the ADK&#x27;s. SPIKES S20 measured that exact file at SVN 3.0 against an enforced Secure Boot floor of 7.0, so copying MDT more faithfully here would DOWNGRADE the one binary the firmware already refuses. The ramdisk entry is loaded BY the boot manager bcdboot installed from the applied image, as an OSLOADER application, so the Secure Boot chain gains nothing new and this path is no worse than booting the media.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries action, volume, wim, entry and store.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Invoke-HDTApplyUnattendStep" data-name="invoke-hdtapplyunattendstep" data-hay="invoke-hdtapplyunattendstep stages the unattend where windows setup consumes it. step context">
@@ -6553,7 +6620,7 @@ $image.ApplyImage(&#x27;Z:\OperatingSystems\Win11\sources\install.wim&#x27;, 1, 
 $image.InstallBootFile(&#x27;W:\&#x27;, &#x27;S:&#x27;, &#x27;UEFI&#x27;)
 $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by hand, as three calls.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The one place in HDT that names Get-WindowsImage, dism.exe, bcdboot.exe, bcdedit.exe or Reagentc.exe. PROJECT constraint 4 forbids a step from touching hardware directly, so ApplyImage and ConfigureBoot receive this object and can be swapped for New-HDTFakeImageService in a test with no media, no disk and no reboot.</p>
-<p>EIGHT METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
+<p>ELEVEN METHODS, AND THE EXACT MECHANISM EACH WRAPS:</p>
 <pre class="block">  GetImageInfo(imagePath)
       Get-WindowsImage -ImagePath, then Get-WindowsImage -Index per
       index for EditionId, Architecture and Version, which the
@@ -6605,13 +6672,23 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
           /path &lt;recoveryPath&gt; /target &lt;OsRoot&gt;\Windows</pre>
 <pre class="block">  SetBootOrderFirst()
       bcdedit.exe /set &quot;{fwbootmgr}&quot; displayorder &quot;{bootmgr}&quot; /addfirst</pre>
+<pre class="block">  AddRamdiskBootEntry(store, id, description, ramdiskVolume,
+                      wimDevicePath, sdiDevicePath, loaderPath)
+  SetBootSequenceOnce(store, id)
+  RemoveBootEntry(store, id)
+      bcdedit.exe, driven from the ordered list Get-HDTBcdCommand
+      returns. THE FullOS -&gt; WinPE TRANSPORT: a reference build has
+      to reach WinPE after sysprep to capture itself, and the
+      firmware boot order cannot serve that AND the restart before it
+      that must reach Windows. So a WinPE is staged on the local disk
+      and the Windows Boot Manager hands it exactly one boot.</pre>
 <p>SetBootOrderFirst IS SPIKES.md S6&#x27;s FOURTH FINDING AS AN API. After apply, a machine that still has the boot media first in the firmware order simply reboots into WinPE and the deployment loops. Putting the Windows Boot Manager first is what ends the loop; ConfigureBoot owns deciding when to call it.</p>
 <p>SetRecoveryImage CALLS THE APPLIED IMAGE&#x27;S OWN Reagentc.exe, BY FULL PATH, AND USES /setreimage. Two reasons, both checked on this machine rather than remembered. First, THE VERB THIS WAS FIRST WRITTEN AGAINST DOES NOT EXIST: reagentc on Windows 11 24H2 lists /info, /setreimage, /enable, /disable, /boottore, /setbootshelllink and the quick-machine-recovery verbs, and nothing else. The tool wins and 04-03 corrects the document. Second, THERE IS NO WinPE-Recovery OPTIONAL COMPONENT: reagentc.exe is not in WinPE, and WinPE is the only environment this method is ever called from, so a bare &#x27;reagentc.exe&#x27; would be command-not-found. Microsoft&#x27;s own offline WinRE procedure runs the target image&#x27;s copy, which exists as soon as ApplyImage has finished and is the same 26100 build as the WinPE hosting it. Building the path from $OsRoot is argument construction, not a branch, so the adapter stays dumb.</p>
 <p>THIS IS AN UNTESTED ADAPTER, and deliberately so: all but one of its methods write to a disk or reorder this machine&#x27;s firmware boot entries. Its contract row calls GetImageInfo and nothing else; the rest is proven in tests/integration (04-04) against a scratch VHDX. The price of not testing it is that it must stay dumb. THE ONLY BRANCHES BELOW ARE TWO EXISTENCE GUARDS, SIX EXIT-CODE CHECKS AND ApplyUnattend&#x27;s POLL LOOP, each commented as such. Every decision about WHICH index to apply or WHETHER a recovery partition exists lives in the steps, which are tested against the fake. Do not add logic here.</p>
 <p>THE POLL LOOP IS THE ONE DELIBERATE EXCEPTION TO &quot;BRANCH-FREE&quot;, and it is the same exception New-HDTProcessService.Start already carries. A loop that waits in slices is not a decision about the deployment - it takes no branch on an argument, a machine or a result - and there is no way to tick a callback while an external tool is silent without one. Everything that IS a decision was pushed out to a pure, unit-tested function: ConvertTo-HDTNativeArgument for the command line, ConvertFrom-HDTDismProgressLine for what a line means, and New-HDTStepHeartbeat for when a tick is worth a log record.</p>
 <p>EVERY NATIVE FAILURE CARRIES THE TOOL&#x27;S OWN OUTPUT. &quot;bcdboot failed&quot; without bcdboot&#x27;s own sentence is the log entry that wastes an hour at three in the morning in front of a machine that will not boot.</p>
 <p>It is a [pscustomobject] carrying ScriptMethod members rather than a PowerShell class: classes dot-sourced into the module are the known flaky path across -Force re-imports (see 01-03).</p></div></details>
-<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with the eight IImageService ScriptMethods. Note that Get-Member -MemberType Method does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>Architecture comes back from Get-WindowsImage as a NUMERIC DISM code, not a string: the staged media reports 9, which is amd64. The captured fixtures record it as it arrives rather than prettified, because a fixture that improved on the tool would be a fixture that lied about it.</p></div></div></div>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with the eleven IImageService ScriptMethods. Note that Get-Member -MemberType Method does NOT list a ScriptMethod - use -MemberType Method, ScriptMethod.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>Architecture comes back from Get-WindowsImage as a NUMERIC DISM code, not a string: the staged media reports 9, which is amd64. The captured fixtures record it as it arrives rather than prettified, because a fixture that improved on the tool would be a fixture that lied about it.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="New-HDTBootImageService" data-name="new-hdtbootimageservice" data-hay="new-hdtbootimageservice creates the real ibootimageservice adapter over the dism image cmdlets, dism.exe and oscdimg.exe. oscdimgpath journal">
