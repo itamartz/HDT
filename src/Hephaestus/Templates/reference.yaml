@@ -40,12 +40,33 @@
 # when it gets there and holds however the machine arrived - one-shot boot
 # entry, PXE, an ISO left in the drive, or a technician pressing F12.
 #
-# WHAT WOULD LET setBootOrder GO BACK TO true. MDT does not rely on the firmware
-# order at all: LTIApply.wsf /PE /BCD stages a boot.wim onto the local disk and
-# points a one-shot `bcdedit /bootsequence` at it, so the machine returns to
-# WinPE once without the persistent order ever changing. HDT does not stage a
-# local WinPE yet, so the tension is real and this line is still load-bearing.
-# It is the follow-on for machines with no media attached.
+# ⚠ AND THE TENSION IS REAL AND UNRESOLVED. THERE ARE TWO RESTARTS.
+#
+#   restart 1, after ConfigureBoot, must reach WINDOWS - it is the only way
+#              the Customize group and the Sysprep step ever run
+#   restart 2, after Sysprep, must reach THE BOOT MEDIA
+#
+# ONE FIRMWARE-ORDER SWITCH CANNOT SERVE BOTH, and setBootOrder: false serves
+# the second at the cost of the first. Measured on 2026-08-31: with it false the
+# machine restarted at restart 1 straight back into WinPE and the run stopped -
+# SPIKES S6's fourth finding word for word. No Windows\Panther\setupact.log on
+# the disk afterwards, so Windows had never started.
+#
+# SO THIS TEMPLATE DOES NOT YET RUN END TO END UNATTENDED, and saying otherwise
+# would be the kind of claim a green test suite is very good at supporting. What
+# HAS changed is the failure: a machine that lands back in WinPE here now stops
+# and says which boot went wrong, instead of resuming past every full-OS step
+# and capturing a machine that was never prepared (DESIGN 4.3.1). A stall you
+# can read beats a WIM that looks fine and is not.
+#
+# WHAT WOULD FIX IT, AND IT IS MDT'S ANSWER. MDT never fights the firmware order:
+# LTIApply.wsf /PE /BCD stages a boot.wim onto the LOCAL DISK, adds a ramdisk BCD
+# entry for it, and points `bcdedit /bootsequence` at that entry
+# (ZTIBCDUtility.vbs). The firmware goes on preferring Windows - so restart 1
+# works - and the Windows Boot Manager itself hands the one boot after sysprep to
+# WinPE. With that, setBootOrder goes back to true and this whole section is
+# deleted. Until then, tests/e2e drives restart 2 by demoting the boot order from
+# the HOST, which is exactly where a missing product mechanism shows up.
 #
 # THE CUSTOMIZE GROUP IS DELIBERATELY EMPTY OF WORK. It is the reason this
 # sequence exists - it is where an administrator puts the applications, the

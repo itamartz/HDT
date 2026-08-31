@@ -1,4 +1,4 @@
-# THE GUARD THAT MAKES "A RESUMED WinPE LEG NEVER PARTITIONS" STRUCTURAL.
+﻿# THE GUARD THAT MAKES "A RESUMED WinPE LEG NEVER PARTITIONS" STRUCTURAL.
 #
 # Get-HDTResumeCandidate decides that a run is in progress; this is what stops
 # the leg it hands over doing damage anyway.
@@ -52,6 +52,25 @@ BeforeAll {
             Harness = $harness
             Result  = $result
         }
+    }
+
+    # A resumed leg that picks up at a named index, which is how the wrong-phase
+    # boot is reproduced: the state says step N, the leg runs in a phase, and
+    # the question is whether step N can be done there.
+    $script:atStep = {
+        param([int] $Index, [string] $Phase)
+
+        $harness = New-HDTSequenceTestHarness -Yaml $script:captureYaml -Phase $Phase
+
+        $harness.State.stepIndex = $Index
+        for ($i = 1; $i -lt $Index; $i++) {
+            Update-HDTRunStateStep -State $harness.State -Index $i -Status Completed -Leg 1 | Out-Null
+        }
+
+        $result = Invoke-HDTTaskSequence -Sequence $harness.Sequence -Context $harness.Context `
+            -State $harness.State -Resumed
+
+        return [pscustomobject] @{ Harness = $harness; Result = $result }
     }
 
     # The step the loop reported for a given name.
@@ -172,6 +191,58 @@ Describe 'Invoke-HDTTaskSequence -Resumed' {
                     Test-HDTResumeStepForbidden -Step $Step | Should -BeFalse
                 }
             }
+        }
+    }
+
+    Context 'a resumed leg that landed in the wrong phase' {
+
+        # THE SILENT ONE, AND THE WORST FAILURE SHAPE OF THE THREE.
+        #
+        # reference.yaml restarts into Windows after ConfigureBoot, and with
+        # setBootOrder: false it does not get there - measured on real hardware
+        # on 2026-08-31, the machine comes straight back into WinPE. Before the
+        # WinPE-side resume existed that was a VISIBLE stall: a new run, the
+        # Welcome wizard, and a deployment that stopped at step 8 of 12.
+        #
+        # WITH RESUME AND WITHOUT THIS GUARD IT BECOMES SILENT AND WRONG. The
+        # boot finds the state document and resumes at the Install Applications
+        # step - which is FullOS, as are Customize, Sysprep and the second
+        # Restart, so the phase filter skips all four - and then reaches
+        # CaptureImage, which IS WinPE, and captures a machine that was never
+        # customized and never generalized. The run reports success. The WIM
+        # looks like a WIM.
+        #
+        # RESUMING AT STEP N MEANS STEP N IS THE NEXT THING TO DO. If it cannot
+        # be done in this phase, the machine booted into the wrong environment,
+        # and that is a fact about the machine rather than a step to skip past.
+        It 'refuses rather than skipping forward to the capture' {
+            $run = & $script:atStep 5 'WinPE'
+
+            $run.Result.Status | Should -BeExactly 'Failed'
+        }
+
+        It 'does not run the capture step' {
+            $run = & $script:atStep 5 'WinPE'
+
+            @($run.Result.Result | Where-Object { [string] $_.Name -eq 'Capture Image' -and [string] $_.Status -eq 'Completed' }) |
+                Should -BeNullOrEmpty
+        }
+
+        It 'names both phases, so the cause is readable without the source' {
+            $run = & $script:atStep 5 'WinPE'
+            $message = [string] $run.Result.Message
+
+            $message | Should -Match 'FullOS'
+            $message | Should -Match 'WinPE'
+        }
+
+        # AND IT STILL RESUMES THE BOOT THAT IS CORRECT. The capture leg proper
+        # resumes at a WinPE step on a WinPE leg, which is the whole point of
+        # the feature and must not be caught by the guard protecting it.
+        It 'lets a capture leg resume at a WinPE step' {
+            $run = & $script:atStep 6 'WinPE'
+
+            [string] $run.Result.Message | Should -Not -Match 'booted into'
         }
     }
 

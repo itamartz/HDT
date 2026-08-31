@@ -575,14 +575,26 @@ recorded `Completed`, skip it, and be dead code in exactly the case it exists
 for. It **fails** rather than skipping, because a resumed leg that reaches one of
 these has a defect in it and a skip is how that stays invisible.
 
+**A resumed leg also refuses to run in the wrong phase.** If the step at
+`stepIndex` cannot run in this leg's phase, the machine booted into the wrong
+environment and the run stops rather than skipping forward. Narrow on purpose —
+a phase skip in the *middle* of a sequence is legitimate — and it closes a
+failure that resume itself creates: a reference build whose restart 1 lands back
+in WinPE would otherwise skip `Customize`, `Sysprep` and the second restart by
+phase filter, go straight to `CaptureImage`, capture a machine that was never
+prepared, and report success.
+
 **Not yet built:** a locally staged WinPE plus a one-shot boot entry, MDT's
 transport. Today the reference template gets back to WinPE with
-`setBootOrder: false` (§9.3), which relies on the media staying first in the
-firmware order. That works for a VM with an ISO attached and for PXE; it is the
-reason `setBootOrder` cannot simply be `true` in that template. Staging a local
-`boot.wim` would dissolve that tension — and it is the follow-on for machines
-with no media attached. Discovery is deliberately independent of it, so building
-it later changes nothing above.
+`setBootOrder: false` (§9.3), and **one firmware-order switch cannot serve both
+restarts** — restart 1 must reach Windows, restart 2 must reach the media.
+Measured 2026-08-31: with `false`, restart 1 goes back into WinPE and the build
+stops there. So the reference sequence does **not** yet run end to end
+unattended, and the `setBootOrder` tension does **not** dissolve; it dissolves
+only once the machine stops depending on the firmware order to return to WinPE,
+which is what staging a local `boot.wim` and pointing `/bootsequence` at it buys.
+Discovery is deliberately independent of the transport, so building it later
+changes nothing above.
 
 ### 4.4 Logging
 

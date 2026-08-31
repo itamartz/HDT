@@ -426,6 +426,61 @@
             leg        = [int] $state.leg
         })
 
+    # DID THIS MACHINE BOOT INTO THE ENVIRONMENT ITS NEXT STEP NEEDS?
+    #
+    # THE SILENT FAILURE, AND THE WORST SHAPE OF THE THREE THIS FILE GUARDS.
+    #
+    # Resuming AT step N means step N is the next thing to do. If it cannot be
+    # done in this phase, the machine has booted into the wrong environment -
+    # and that is a fact about the machine, not a step to skip past.
+    #
+    # WHAT IT CATCHES, MEASURED ON REAL HARDWARE ON 2026-08-31. A reference
+    # build restarts into Windows after ConfigureBoot, and with
+    # setBootOrder: false it does not get there: the media is still first in the
+    # firmware order and the machine comes straight back into WinPE. Before the
+    # WinPE-side resume existed that was a VISIBLE stall - a new run, the Welcome
+    # wizard, a deployment stopped at step 8 of 12.
+    #
+    # WITH RESUME AND WITHOUT THIS IT BECOMES SILENT AND WRONG, which is worse.
+    # The boot finds the state document and resumes at the first full-OS step;
+    # that step and the three after it - Customize, Sysprep, the second Restart -
+    # are all FullOS, so the PHASE FILTER SKIPS EVERY ONE. Then it reaches
+    # CaptureImage, which is WinPE, and captures a machine that was never
+    # customized and never generalized. The run reports success and the WIM
+    # looks like a WIM.
+    #
+    # NARROW ON PURPOSE: THE RESUME POINT ONLY. A phase skip in the MIDDLE of a
+    # sequence is legitimate and is tested - a full-OS leg passing over a
+    # WinPE-only step is how valid-reboot-legs.yaml ends. What cannot be right is
+    # the very step the run stopped at being undoable here.
+    if ($Resumed -and [int] $state.stepIndex -ge 1 -and [int] $state.stepIndex -le $stepList.Count) {
+        $resumeStep = $stepList[[int] $state.stepIndex - 1]
+
+        if (-not (Test-HDTStepRunInPhase -RunIn ([string] $resumeStep.RunIn) -Phase ([string] $Context.Phase))) {
+            $reason = "this machine resumed a task sequence at step {0} '{1}', which must run in the {2} phase - but it has booted into {3}. The run has NOT been continued and nothing has been changed on this disk. A reference build reaches this when the restart before it was meant to land in Windows and landed back on the boot media instead, which is what the firmware boot order decides: check the ConfigureBoot step's setBootOrder property and which device this machine prefers to boot. Continuing would silently skip every {2} step and run only the ones this phase can reach, which on a capture sequence means capturing a machine that was never prepared." -f
+                [int] $state.stepIndex, [string] $resumeStep.Name, [string] $resumeStep.RunIn, [string] $Context.Phase
+
+            # run.end AND NOT A NEW EVENT NAME. The vocabulary is a closed set
+            # (LogEventVocabulary.Contract), and this IS the end of the run -
+            # the earliest possible one, before a single step is attempted.
+            Write-HDTLog -Context $log -Severity Error -Event 'run.end' -Message $reason `
+                -Data ([ordered] @{
+                    stepIndex = [int] $state.stepIndex
+                    name      = [string] $resumeStep.Name
+                    runIn     = [string] $resumeStep.RunIn
+                    phase     = [string] $Context.Phase
+                })
+
+            return [pscustomobject] ([ordered] @{
+                    Status  = 'Failed'
+                    RunId   = [string] $Context.RunId
+                    Message = $reason
+                    Result  = [pscustomobject[]] @()
+                    State   = $state
+                })
+        }
+    }
+
     # HOW MANY STEPS THIS RUN HAS, set once and carried by every heartbeat from
     # here on. The console tailing Logs\_active\ shows "step 7 of 12", and it
     # cannot count them itself - it is reading a share, not running a sequence.
