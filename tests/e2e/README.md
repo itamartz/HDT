@@ -17,6 +17,7 @@ criterion; the last two are the two halves of the reference-image loop.
 | `UnattendedDeployment.E2E.Tests.ps1` | ~30 min | **ROADMAP M4's exit criterion, and the current one**: the same deployment, on a boot image **HDT built**, started by that image's own `startnet.cmd` — **with zero keystrokes sent to the machine** |
 | `ReferenceCapture.E2E.Tests.ps1` | ~25 min | **M7's capture step against real dism**: a deployed volume stamped with this run's id and captured into `Captures\REF-CAPTURE.wim` on the real share, then mounted and read back |
 | `CapturedImageDeployment.E2E.Tests.ps1` | ~40 min | **the other end of that loop**: `Captures\REF-CAPTURE.wim` promoted into the catalog with `Import-HDTOperatingSystem` and deployed by `TaskSequences\REF-DEPLOY` — and **booted**, which is the one thing a mount cannot prove |
+| `ApplicationRoundTrip.E2E.Tests.ps1` | ~45 min | **⚠ OPT-IN, and it does not pass yet — SPIKES S23.7.** The reference loop with software in it: `REF-BUILD` deploys, **installs Acrobat Reader**, stages a WinPE onto its own disk, arms one boot into it, syspreps, and should come back in that WinPE to capture — then `REF-DEPLOY-APP`, which **has no application step at all**, deploys the result to a second machine, so Acrobat being there could only have come from the image. Everything up to the capture boot is proven on a machine; **that boot falls back to Windows** and is the open blocker. Set `HDT_RUN_APP_ROUND_TRIP=1` to run it. Two VMs, **one after the other**, never at once |
 
 ## Nothing in this folder types into a virtual machine
 

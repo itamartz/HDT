@@ -220,6 +220,26 @@ steps:
   - group: Customize
     runIn: FullOS
     steps:
+      # APPLICATIONS FIRST, BECAUSE THAT IS WHAT A REFERENCE IMAGE IS FOR - and
+      # this one names its application OUTRIGHT rather than reading
+      # %HDTApplications%.
+      #
+      # The shipped template reads the variable, deliberately: a template that
+      # named an application would be guessing at somebody's build standard.
+      # THIS SEQUENCE IS NOT A TEMPLATE, it is the lab's own proof that the
+      # reference loop carries software across a capture, and it has to be
+      # SELF-CONTAINED to be that proof. %HDTApplications% is set by rules.yaml,
+      # which PNP-TEST also depends on; a run that read the variable would prove
+      # whatever rules.yaml happened to say that day, and changing rules.yaml to
+      # make this run work would break the other sequence.
+      #
+      # WHAT IT PROVES IS ON THE SECOND MACHINE, NOT THIS ONE. The deploy
+      # sequence built from this capture has NO application step at all, so
+      # Acrobat being present there can only have arrived inside the WIM.
+      - name: Install Applications
+        type: InstallApplications
+        selection: [Acrobat-Acrobat-Reader-DC-2600121771]
+
       - name: Stamp the reference build marker
         type: PowerShell
         script: TaskSequences\REF-BUILD\Set-ReferenceMarker.ps1
@@ -249,21 +269,52 @@ steps:
       # looks and deleted afterwards so it does not travel inside the image.
       # New-HDTTaskSequence copies it in beside unattend.xml because this
       # sequence names it.
+      # BOTH OF THESE RUN BEFORE THE SEAL, AND THAT IS THE WHOLE POINT OF THE
+      # ORDER. A machine that has been generalized and cannot reach WinPE is
+      # stranded - there is no leg left that could fix it - so everything that
+      # could fail is done while this is still a Windows somebody can log into.
+      #
+      # AND SYSPREP IS INDIFFERENT TO THE ARMED ENTRY, WHICH IS NOW MEASURED
+      # RATHER THAN ASSUMED. Both orderings were run on a machine on 2026-08-31
+      # (SPIKES S23.5): arming before the seal and arming after it behave
+      # identically - sysprep exits 0, ImageState reads
+      # IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE, and the arm succeeds either way.
+      # MDT's comment about deferring the BCD work "so that Sysprep doesn't
+      # complain" does not reproduce here, so this file keeps the ordering with
+      # the better fail-safe.
+      #
+      # WHAT DOES NOT WORK YET IS THE BOOT ITSELF, and it is not this ordering's
+      # fault. See S23.7: the machine takes the armed one-shot, declines to boot
+      # the staged WinPE, and falls back to Windows.
+      - name: Stage WinPE for the capture boot
+        type: BootToWinPE
+        runIn: FullOS
+        action: stage
+
+      - name: Boot into WinPE after sysprep
+        type: BootToWinPE
+        runIn: FullOS
+        action: arm
+
       - name: Sysprep
         type: Sysprep
         runIn: FullOS
         unattend: unattend-sysprep.xml
         timeoutMinutes: 60
 
-      # THE ONE LEGAL NEXT BOOT, AND IT IS THE MEDIA. ConfigureBoot above left
-      # the firmware order alone precisely so this lands back in WinPE. A
-      # machine that booted the generalized installation instead would run OOBE
-      # and burn a rearm, and the image would no longer be in the state it was
-      # sysprepped into.
-      - name: Restart into the boot media
+      # THE ONE LEGAL NEXT BOOT, AND IT IS THE STAGED WinPE - not the media, and
+      # not the firmware order.
+      #
+      # The BootToWinPE arm step above pointed bcdedit /bootsequence at the
+      # ramdisk entry, so the Windows Boot Manager hands THIS boot, and only
+      # this boot, to WinPE, while the firmware order goes on preferring
+      # Windows. A machine that booted the generalized installation instead
+      # would run OOBE and burn a rearm, and the image would no longer be in the
+      # state it was sysprepped into.
+      - name: Restart into WinPE
         type: Restart
         runIn: FullOS
-        message: restarting into the boot media to capture this machine
+        message: restarting into the staged WinPE to capture this machine
 
       # AND THE CAPTURE, WHICH IS WHERE THE SEQUENCE HAS BEEN GOING ALL ALONG.
       #
@@ -277,6 +328,23 @@ steps:
       # max COMPRESSION, because a reference image is written once and then
       # stored, copied and read for years. A lab turning one round quickly can
       # change it to fast and roughly halve the time this step takes.
+      # THE TEARDOWN, BEFORE THE CAPTURE READS THE VOLUME.
+      #
+      # /bootsequence is consumed by the boot it caused, but the OSLOADER object
+      # it named stays in the store for ever and the staged WinPE stays on the
+      # disk. This removes both.
+      #
+      # IT WARNS RATHER THAN FAILING, which is the opposite of the two steps
+      # before Sysprep and right for the same reason they are not: by here the
+      # capture is the only thing left that matters, and a cleanup that failed
+      # would cost the whole build. The staged WinPE cannot reach the image
+      # either way - wimscript.ini excludes \HDT as a tree, which is exactly why
+      # it was staged there.
+      - name: Remove the local WinPE
+        type: BootToWinPE
+        runIn: WinPE
+        action: remove
+
       - name: Capture Image
         type: CaptureImage
         runIn: WinPE

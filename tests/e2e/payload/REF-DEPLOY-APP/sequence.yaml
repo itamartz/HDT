@@ -1,0 +1,178 @@
+# DEPLOY THE IMAGE HDT BUILT, AND PROVE THE SOFTWARE CAME WITH IT.
+#
+# REF-BUILD deployed Windows, INSTALLED ACROBAT READER, sysprepped, booted its
+# own staged WinPE and captured the volume. This is the other end of that loop:
+# it applies the resulting WIM to a bare machine and boots it.
+#
+# THE WHOLE PROOF IS AN ABSENCE. There is NO InstallApplications step in this
+# file - not one naming Acrobat, not one reading %HDTApplications%, not a
+# commented-out one. Nothing here installs software, nothing here can. So if
+# Acrobat Reader is on the second machine, the only route it can have taken is
+# INSIDE the WIM, which is the single claim a reference-image loop exists to
+# support. An application step here, however harmless, would destroy the
+# argument entirely.
+#
+# WHAT ELSE IS NOT HERE, AND WHY.
+#
+#   No CaptureImage, no Sysprep, no marker script, no BootToWinPE. Those are
+#   REF-BUILD's. This sequence CONSUMES what that one produced.
+#
+# THE MARKER TRAVELS BY ITSELF, exactly as it does for REF-DEPLOY.
+# Set-ReferenceMarker.ps1 wrote \ReferenceBuild\marker.txt onto the volume
+# REF-BUILD captured, so it is inside this WIM. Nothing here stamps it and
+# nothing here has to: finding it on the deployed machine says the machine came
+# from OUR image and not from the LTSC media sitting beside it in the catalog.
+#
+# THIS IS REF-DEPLOY'S SHAPE WITH ONE LINE CHANGED - HDTOSImage - deliberately,
+# so that a failure here is a failure of THE IMAGE and not of a sequence nobody
+# has run before.
+#
+# %Variable% AND $Variable ARE THE SAME THING to the engine, exactly as in
+# client.yaml: the PowerShell spelling in conditions, %Name% inside quoted
+# values.
+
+schemaVersion: 1
+id: REF-DEPLOY-APP
+name: Deploy the reference image, applications and all
+version: 1.0.0
+description: >
+  Deploys Captures\REF-BUILD.wim - promoted into the catalog as the REF-BUILD
+  operating system - to a bare machine and boots it into Windows. Installs
+  nothing: every application on the deployed machine arrived inside the image.
+
+variables:
+  # THE ONE LINE THAT MAKES THIS SEQUENCE WHAT IT IS.
+  HDTOSImage: REF-BUILD
+  HDTOSImageIndex: 1
+
+steps:
+
+  # ------------------------------------------------------------ Initialization
+  - group: Initialization
+    runIn: WinPE
+    steps:
+      - name: Gather local only
+        type: Gather
+
+  # ---------------------------------------------------------------- Validation
+  - group: Validation
+    runIn: WinPE
+    steps:
+      # client.yaml's numbers verbatim. minRamMB is 2048 rather than 4096
+      # because a 4 GB machine reports slightly under 4096 - the firmware keeps
+      # some of it.
+      - name: Validate
+        type: Validate
+        minRamMB: 2048
+        minDiskGB: 60
+
+  # ---------------------------------------------------------------- Preinstall
+  #
+  # THE PAIR, AND ONLY ONE OF THEM RUNS - client.yaml's reasoning verbatim. A
+  # GPT disk on a BIOS machine fails after the image has been applied, which is
+  # late, expensive, and looks like a working deployment until the restart.
+  - group: Preinstall
+    runIn: WinPE
+    steps:
+      - name: Format and Partition Disk (UEFI)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $true'
+        partition:
+          - name: System
+            type: EFI
+            size: 260MB
+            filesystem: FAT32
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+          - name: Recovery
+            type: Recovery
+            size: 1GB
+            filesystem: NTFS
+
+      - name: Format and Partition Disk (BIOS)
+        type: DiskPartition
+        diskNumber: 0
+        wipe: true
+        condition: '$HDTIsUEFI -eq $false'
+        partition:
+          - name: System
+            type: Primary
+            size: 500MB
+            filesystem: NTFS
+          - name: Windows
+            type: Primary
+            size: remainder
+            filesystem: NTFS
+
+  # ------------------------------------------------------------------- Install
+  - group: Install
+    runIn: WinPE
+    steps:
+      # THE CAPTURED IMAGE, APPLIED BY THE SAME STEP THAT APPLIES VENDOR MEDIA.
+      # ApplyImage does not know or care where a catalog entry came from, which
+      # is the point being tested: a WIM HDT captured is an ordinary catalog
+      # entry, not a special case.
+      - name: Install Operating System
+        type: ApplyImage
+        os: "%HDTOSImage%"
+        index: "%HDTOSImageIndex%"
+        target: "%HDTOSVolume%"
+        timeoutMinutes: 60
+
+  # --------------------------------------------------------------- Postinstall
+  - group: Postinstall
+    runIn: WinPE
+    steps:
+      # BEFORE Apply Windows Settings, and that order is client.yaml's, for
+      # client.yaml's reason: unattend.xml's DriverPaths are processed in the
+      # offlineServicing pass the moment ApplyUnattend applies the file, so the
+      # drivers have to be on the volume first (HDT 0.10.1).
+      #
+      # A Hyper-V guest reports 'Microsoft Corporation' / 'Virtual Machine', so
+      # this group matches nothing on this share. That is a completed step with
+      # a warning, not a failure, and it is exactly the behaviour a share with
+      # no drivers at all relies on.
+      - name: Inject Drivers
+        type: ApplyDrivers
+        group: 'Win11\%HDTMake%\%HDTModel%'
+        mode: all
+
+      # AND THIS IS WHAT GIVES THE DEPLOYED MACHINE ITS OWN IDENTITY. The image
+      # was captured from a volume sysprep had generalized, so it carries no
+      # machine SID, no MachineGuid and no computer name of its own; specialize
+      # runs on first boot and mints all of them from this file. The
+      # verification reads them back off the disk and compares them with the
+      # reference machine's - a second machine that inherited the first one's
+      # identity is a generalize that did not take.
+      - name: Apply Windows Settings
+        type: ApplyUnattend
+        template: unattend.xml
+
+      - name: Configure Boot
+        type: ConfigureBoot
+
+      - name: Install Certificates
+        type: InstallCertificate
+        target: "%HDTOSVolume%"
+        condition: "$HDTHasCertificate == True"
+
+      # THE HANDOVER. Everything above ran in WinPE; everything below runs in
+      # the Windows that is about to start for the first time - which, for this
+      # sequence, IS the assertion.
+      - name: Restart into Windows
+        type: Restart
+
+  # ------------------------------------------------------------- State Restore
+  - group: State Restore
+    runIn: FullOS
+    steps:
+      # THE ONLY FULL-OS WORK, AND IT IS THE ONE THAT PROVES THE LEG RAN AT ALL.
+      # Tattoo stamps what built the machine into its own registry, so a run
+      # that reached here reached Windows, autologged on, resumed the sequence
+      # and wrote to a live hive. A deployment that never booted cannot fake it.
+      - name: Tattoo
+        type: Tattoo
