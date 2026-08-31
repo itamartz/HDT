@@ -2942,7 +2942,7 @@ measurement that did not happen.
    generalized the same image successfully hours earlier. Nothing in HDT changed
    between them and this one that touches Appx.
 
-### S23.10 — `bcdedit` exits 0 for a `/create` whose object is NOT in the store, and HDT never read it back ⚠ FIXED
+### S23.10 — `bcdedit` exits 0 for a `/create` whose object is NOT in the store, and HDT never read it back ⚠ FIXED, CAUSE FOUND IN S23.11
 
 Date: 2026-08-31, same run as S23.9, read offline from the VHDX with the VM off:
 the ESP store `S:\EFI\Microsoft\Boot\BCD`, 17 objects.
@@ -2974,6 +2974,12 @@ runs, and S23.8's closing hypothesis — that a `reagentc`-owned
 not survive this either: this machine's WinRE is registered under **private
 GUIDs** (`{7fc36b73-...}` "Windows Recovery Environment", `{7fc36b74-...}`
 "Windows Recovery"), not the well-known object, and generalize never ran.
+
+> **⚠ THE PARAGRAPH BELOW WAS MEASURED AND IS WRONG.** The machine was never
+> the variable. S23.11 ran the same ten commands by hand on a clone of THIS
+> machine and every one of them persisted; the difference is that HDT handed the
+> adapter its ten commands as ONE element, so a single malformed `bcdedit` ran
+> and its exit code was never read. **Read S23.11.**
 
 **SO S23.8.1 AND THIS DISAGREE, AND THE DIFFERENCE IS THE MACHINE.** S23.8.1
 measured a `/create` persisting immediately, on a throwaway VM built by applying
@@ -3010,3 +3016,232 @@ a rerun.
 machine it cannot bring back into one that stops, unsealed, with a message naming
 the store — and it is what will make the next run of S23.10 report the fault in
 one minute instead of ninety.
+
+### S23.11 — the create was never ten commands: `@()` around a comma-protected return handed the adapter ONE ✅ FIXED
+
+Date: 2026-08-31. **Every line of this section was executed on a copy of the
+machine that failed**, `HDT-M7-RefApp`'s VHDX cloned into a throwaway VM
+(`HDT-S23-BCD2`, Generation 2, `HDT External` with the adapter **disconnected**
+so it could not reach the share, deleted afterwards). S23.10 named the machine as
+the variable and asked which store bare `bcdedit` writes there. **It is the same
+store, and the machine was never the variable.**
+
+#### S23.11.1 — three hypotheses died in the first ten minutes ✅
+
+Read offline from the mounted clone, before booting anything:
+
+| Asked | Measured | Verdict |
+|---|---|---|
+| Is the ESP full? | 256 MB FAT32, **222.5 MB free** | no |
+| Are there two stores? | one, `S:\EFI\Microsoft\Boot\BCD`; `\EFI\Microsoft\Recovery\BCD` is WinRE's and holds no HDT object | no |
+| Did the store refuse the write? | see S23.11.2 — `bcdedit` run by hand there is flawless | no |
+
+The disk `DiskPartition` built is **two partitions**, ESP + Windows: no MSR, no
+recovery partition, WinRE registered from `\Recovery\WindowsRE` on the OS volume
+under the private GUIDs S23.10 named.
+
+**One instrument note, because it wasted a step.** The registry hive header's
+FILETIME at offset 12 does **not** move when `bcdedit` writes — calibrated
+against a copy of that store, where a `/create` left the timestamp at
+`17:16:03.47` while the file grew 28672 -> 32768 bytes. The **sequence numbers**
+at offsets 4 and 8 are the instrument that works; they move on every invocation,
+a read included.
+
+#### S23.11.2 — every one of the ten commands persists on that machine, by hand ✅
+
+The exact ten `Get-HDTBcdCommand -Action Create` emits, run one at a time in the
+full OS as the autologon Administrator, with the ESP store's length, hive
+sequence number and SHA-256 taken around each, and the entry read back through
+**both** the system store and the ESP file after every command:
+
+```
+BASELINE                          len=28672 seq=34/34   17 objects both ways
+create OSLOADER      exit 0       -> present in system store AND file store
+set device/osdevice  exit 0       -> both stores show it
+...
+ARM /bootsequence    exit 0
+FINAL                             len=32768             19 objects both ways
+```
+
+**So S23.8.1 and S23.10 never disagreed about the machine.** The hand-run
+transport works identically on a hand-built VM and on an HDT-deployed one.
+
+#### S23.11.3 — THE DEFECT: `$this.RunBcdEdit(@(Get-HDTBcdCommand ...))` passes ONE element ⚠ FIXED
+
+The real adapter, run on that same machine against the same store, reproduced the
+failure in 164 ms:
+
+```
+AddRamdiskBootEntry: returned, no exception  [164 ms]
+after : id present (system store) = False
+```
+
+Instrumenting the loop shows what it received:
+
+```
+RunBcdEdit got: type=System.Object[] Count=1
+entry[1] type=System.Management.Automation.PSObject[] argCount=42
+  args= </create> <{ramdiskoptions}> <-d> <Ramdisk Device Options>
+        </set> <{ramdiskoptions}> <ramdisksdidevice> <partition=C:> ...
+        </create> <{7f1b6e18-...}> <-d> <HDT Windows PE> <-application> <OSLOADER>
+        ... </set> <{7f1b6e18-...}> <winpe> <yes>
+entry[1] Tolerate type=System.Object[] truthy=True
+```
+
+`Get-HDTBcdCommand` returned `, ([pscustomobject[]] @($command))`. **The unary
+comma protects the array from the pipeline unroll, and the caller is a METHOD
+ARGUMENT, which is an expression rather than a pipeline** — so the `@()` there
+*wrapped* the array instead of collecting it. Two consequences, and it takes both
+to make the failure silent:
+
+1. `$entry.Argument` **member-enumerated** across all ten commands and flattened
+   into **42 tokens fired at a single `bcdedit`** (62 with a `/store` prefix).
+   bcdedit parsed the front of that and created nothing.
+2. `$entry.Tolerate` became a **ten-element array**, and a non-empty array is
+   **truthy**, so `RunBcdEdit`'s one branch — `if ($entry.Tolerate) { continue }`
+   — fired and **`AssertExitCode` was never called at all**.
+
+**AND THAT IS THE WHOLE ASYMMETRY S23.10 COULD NOT EXPLAIN.** `Arm` is a
+**one**-command list, so the same wrapping flattens to `/bootsequence <id>` — a
+correct command line by accident — and its `Tolerate` unrolls to a real `$false`,
+so its exit code *was* checked. One command that worked, ten that never ran.
+`Remove` is one command too, which is why `/delete`'s exit 1 was reported
+correctly in every log.
+
+**The 94 ms was the tell, and it was in the log the whole time.** Step 12 of
+`run-20260831-171421` logged the create at 17:20:14.237 and success at
+17:20:14.331 — 94 ms for what should have been eleven `bcdedit` launches, on a
+machine where the preceding `/delete` alone took 853 ms. It was one process, not
+eleven.
+
+#### S23.11.4 — the fix is in the COMPOSER, and the test is on the shape the adapter consumes ✅
+
+`Get-HDTBcdCommand` drops the unary comma from all three returns. Every caller
+already wraps in `@()`, and `@(<one object>)` is a one-element array, so the
+collapse the comma guarded against is harmless — while the comma itself was the
+thing that made ten commands arrive as one.
+
+**Not the adapter, deliberately.** `New-HDTImageService` is untested by design
+(CLAUDE.md rule 1) and its line is ordinary PowerShell; the composer was the one
+telling a lie about its own shape, and it is the file a unit test can hold.
+
+**AND THE TEST HAD TO CHANGE SHAPE TOO, WHICH IS THE REAL LESSON.** Thirty-three
+assertions covered this function character by character and every one of them
+passed while it was broken, because they all reach it through a helper that
+**assigns** the result — and assignment collects correctly. The new
+`Context 'the shape the adapter consumes'` computes the count **inside** the
+module scope in the adapter's own expression form, and asserts it for
+**Create, Arm and Remove**, plus that `Tolerate` is a scalar `[bool]` on every
+element and that no command line exceeds eight tokens. It fails 3 of 3 before the
+fix (`Expected 10, but got 1`; `Expected 8, but got 62`) and passes after.
+
+#### S23.11.5 — verified on the machine, offline, after a power-off ✅
+
+The fixed module imported on the clone, `AddRamdiskBootEntry` + `TestBootEntry` +
+`SetBootSequenceOnce` run as the step runs them, the VM powered off, and the ESP
+store read from the host:
+
+```
+ramdiskOptionsPresent=True TestBootEntry=True armed
+
+identifier   {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+device       ramdisk=[D:]\HDT\Boot\boot.wim,{ae5534e0-a924-466c-b836-758539a3ee3a}
+path         \windows\system32\boot\winload.efi
+description  HDT Windows PE
+osdevice     ramdisk=[D:]\HDT\Boot\boot.wim,{ae5534e0-a924-466c-b836-758539a3ee3a}
+systemroot   \windows
+detecthal    Yes
+winpe        Yes
+
+{bootmgr} bootsequence {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+```
+
+The `[D:]` is the host's letter for that volume while the VHDX is mounted, not
+the guest's; `{ramdiskoptions}` renders as its well-known GUID because S23.8's
+guard was active — the machine already had one by then, from the earlier probe —
+which is the guard doing its job.
+
+#### S23.11.6 — the sweep: which other callers were affected ✅
+
+`RunBcdEdit` has exactly three callers, and `bcdedit` is reached from two other
+methods that do not use it at all:
+
+| Method | Commands | Was it broken? |
+|---|---|---|
+| `AddRamdiskBootEntry` | 7 or 10 | **yes** — the whole defect |
+| `SetBootSequenceOnce` | 1 | no, by the accident of being one |
+| `RemoveBootEntry` | 1 | no, same accident |
+| `InstallBootFile` | `bcdboot`, direct `&` | not affected |
+| `SetBootOrderFirst` | one `bcdedit`, direct `&` | not affected |
+
+So the store resolution was never wrong anywhere — `Get-HDTBcdStoreArgument` is
+correct and S23.8.2 stands. **Only a multi-command list was affected, and
+`AddRamdiskBootEntry` is the only one there is.**
+
+#### What this closes, and what stays
+
+`TestBootEntry` **stays**, and S23.10.1's reasoning is unchanged: it is the guard
+that turns an unverifiable arm into a build that stops unsealed. It is now the
+thing that would have found this in one run instead of four.
+
+S23.7's readings (a) and (b) are both dead, and so is S23.8's closing hypothesis
+about `reagentc`. The transport works, the store works, the seal is indifferent,
+the boot manager takes the one-shot (S23.8.3, S23.8.5) — and the create now
+reaches the store on the machine that failed four times.
+
+### S23.12 — the sysprep Appx failure has a NAME, and Acrobat is in it ✅
+
+Date: 2026-08-31, read from `HDT-M7-RefApp`'s own
+`Windows\System32\Sysprep\Panther\setupact.log` and its offline `SOFTWARE` hive.
+**Recorded, not mitigated** — S23.9 says the failure is non-deterministic and
+nothing here changes HDT's behaviour.
+
+The generalize pass got **further than "Appx is flaky" suggests**, and removed
+three packages cleanly first:
+
+```
+17:20:47 SYSPRP All appx packages were verified to be inbox or alluser installed.
+17:20:48 SYSPRP Package Microsoft.SecHealthUI_1000.26100.1.0_x64__8wekyb3d8bbwe was removed
+17:20:49 SYSPRP Package Microsoft.MicrosoftEdge.Stable_152.0.4191.53_neutral__8wekyb3d8bbwe was removed
+17:20:49 SYSPRP Package AdobeAcrobatReaderCoreApp_26.0.0.1_x64__pc75e8sa7ep4e was removed
+17:20:49 SYSPRP Failed while deleting per user keys under
+                'Software\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\': 0x800703fa
+```
+
+**THE THIRD ONE IS ACROBAT'S, AND `InstallApplications` PUT IT THERE FOUR
+MINUTES EARLIER.** Adobe Acrobat Reader's installer registers a companion Appx
+package, `AdobeAcrobatReaderCoreApp`, and the offline `SOFTWARE` hive shows it in
+**both** places:
+
+```
+...\Appx\AppxAllUserStore\Applications\AdobeAcrobatReaderCoreApp_26.0.0.1_x64__pc75e8sa7ep4e
+...\Appx\AppxAllUserStore\S-1-5-21-...-500\AdobeAcrobatReaderCoreApp_26.0.0.1_x64__pc75e8sa7ep4e
+```
+
+`S-1-5-21-…-500` is the built-in Administrator — **the account HDT's own
+autologon runs the full-OS leg as**, and the only per-user SID key under
+`AppxAllUserStore` on that machine. Sysprep removed the all-user registration and
+then failed sweeping the per-user records with `0x800703fa`
+(`ERROR_KEY_DELETED`, `gle=ERROR_FILE_NOT_FOUND`), and **both Acrobat records
+were still in the hive afterwards**.
+
+**So the cheap answer is yes:** `Remove-AppxPackage -AllUsers -Package
+AdobeAcrobatReaderCoreApp_26.0.0.1_x64__pc75e8sa7ep4e` before `Sysprep` takes out
+the record the sweep tripped on. HDT ships no such mitigation today, and the
+general shape is worth more than the one package: *an application installed in
+the full-OS leg registers an Appx for the autologon account, and generalize's
+per-user sweep races its own all-user removal*. It is unmitigated in MDT and in
+PSD alike.
+
+`sysprep` has **no BCD module at all** in `Generalize.xml` — the full module list
+was read and there is nothing boot-related in it, which independently confirms
+S23.5 and S23.8.4: sysprep is not what removes a BCD entry, and never was.
+
+**One operational note, and it cost two cycles.** A machine left in
+`IMAGE_STATE_UNDEPLOYABLE` runs `sysprep /respecialize /quiet` on its next boot,
+fails it with `0x8007001f`, and **the built-in Administrator does not autologon
+and will not accept its password** — so a failed reference build cannot simply be
+logged into to look at. Getting into one means an offline plant: a boot-time
+service under `ControlSet001\Services` whose `ImagePath` is a `cmd.exe /c net
+user ...`. `powershell.exe -File` in the same slot started and produced nothing;
+`cmd.exe` worked first time.
