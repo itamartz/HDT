@@ -1,4 +1,4 @@
-<#
+﻿<#
     The command reference's table of contents: which group each exported command
     is listed under on docs/command-reference.html, and in what order.
 
@@ -305,6 +305,7 @@
                 'Copy-HDTResumeAgent'
                 'Remove-HDTResumeAgent'
                 'Invoke-HDTBootReconciliation'
+                'Get-HDTResumeCandidate'
                 'Get-HDTFinishAction'
                 'Get-HDTMachineEnding'
                 'Resolve-HDTErrorMessage'

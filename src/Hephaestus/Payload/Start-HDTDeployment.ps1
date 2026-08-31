@@ -420,6 +420,56 @@ try {
     # a Restart step a command that does not exist.
     $power = New-HDTPowerService -Environment WinPE
 
+    # -- 3a. IS A TASK SEQUENCE ALREADY RUNNING ON THIS MACHINE? -------------
+    #
+    # THE QUESTION THIS FILE NEVER ASKED, AND THE DISK IT COST.
+    #
+    # Every WinPE boot used to mint a NEW run at step 1. That is right for every
+    # boot but one: the boot a reference build does AFTER SYSPREP, when it comes
+    # back into WinPE to capture itself (reference.yaml, DESIGN 9.3). On that
+    # boot the old behaviour reached the sequence's own DiskPartition step and
+    # would have formatted the volume it had just generalized - and nothing
+    # about it would have looked wrong, because a machine deploying is what a
+    # machine deploying looks like.
+    #
+    # BEFORE THE LOG, SO THE LOG BELONGS TO THE RIGHT RUN. A resumed leg keeps
+    # the run id that is already on the disk: minting a fresh one would split one
+    # deployment into two runs in the log, and the monotonic seq that exists to
+    # order them across a reboot would restart at 1 (DESIGN 4.4.2). So the
+    # discovery runs here, with no log context of its own, and its decision is
+    # written a few lines below once there is somewhere to write it.
+    #
+    # AND BEFORE EVERYTHING ELSE THAT COSTS ANYTHING - the network, the share,
+    # the credential, the wizard. A resumed leg has a technician's answers
+    # already, carried in the state document's variable bag; opening the wizard
+    # again on the capture boot would stop a reference build dead waiting for
+    # somebody who went home hours ago.
+    $resume = Get-HDTResumeCandidate -Disk $diskService -FileSystem $fileSystem -Clock $clock
+
+    # AMBIGUOUS STOPS THE DEPLOYMENT. It means "there may be a run in progress
+    # and I cannot tell" - a half-written state document, two volumes carrying
+    # one, a run gone stale, or a Storage stack that did not answer. The only
+    # safe act is to refuse, because the alternative to stopping is minting a run
+    # and reaching a partition step. A warning would be a warning printed onto a
+    # screen nobody is watching while the disk is being formatted.
+    #
+    # THE MESSAGE IS THE DISCOVERY'S OWN, because it is the one that knows which
+    # file it found - and the operator's way out is to delete that file, which is
+    # an explicit act of consent in a way that "it started a new deployment"
+    # never is.
+    if ([string] $resume.Action -eq 'Ambiguous') {
+        throw ("HDTStateAmbiguous: {0}" -f [string] $resume.Reason)
+    }
+
+    # NULL UNLESS THERE IS ONE, so every test below reads as "is this a resumed
+    # leg" rather than comparing a string in six places.
+    $resumedState = $null
+
+    if ([string] $resume.Action -eq 'Resume') {
+        $resumedState = $resume.State
+        $runId = [string] $resume.State.runId
+    }
+
     # -- 4. the log, before anything else can fail ---------------------------
 
     $logDirectory = $LogRoot
@@ -444,6 +494,19 @@ try {
     & $say ("powershell-yaml {0} loaded from {1}" -f $yaml.Version, $yaml.ModuleBase)
     & $say ("Hephaestus {0} loaded from {1}" -f $engine.Version, $engine.ModuleBase)
     & $say ("PowerShell {0}; launched by '{1}'" -f $PSVersionTable.PSVersion, $result['launchedBy'])
+
+    # THE DECISION TAKEN ABOVE, RECORDED NOW THAT THERE IS SOMEWHERE TO RECORD
+    # IT. Both answers are worth a line: "resuming" is the unusual one, and "no
+    # run in progress" is the sentence that explains why this machine is about
+    # to be partitioned.
+    if ($null -ne $resumedState) {
+        $result['resumed'] = $true
+
+        & $say ("RESUMING a task sequence already in progress: {0}" -f [string] $resume.Reason) 'Warning'
+        & $say ("this leg will not partition or re-image this machine; the steps that would are refused outright")
+    } else {
+        & $say ([string] $resume.Reason)
+    }
 
     # -- 4a. the overlay goes up and the console goes away -------------------
     #
@@ -1396,10 +1459,25 @@ try {
     # to deploy with or only the first resolution.
     $wizardVariable = $null
 
-    $wizard = Import-HDTWizardDocument -Provider $content
+    # A RESUMED LEG ASKS NOBODY ANYTHING, AND THAT IS NOT AN OPTIMISATION.
+    #
+    # The wizard exists to collect what the rules could not supply, and on a
+    # resumed leg that collection ALREADY HAPPENED - hours ago, on the WinPE leg
+    # that started this run, and its answers are in the state document's
+    # variable bag. Asking again would overwrite a technician's answers with a
+    # second set, and on the capture boot of a reference build it would stop the
+    # machine dead at a screen waiting for somebody who went home.
+    $wizard = $null
+    if ($null -eq $resumedState) {
+        $wizard = Import-HDTWizardDocument -Provider $content
+    } else {
+        & $say 'this leg is resuming a run in progress, so nothing is asked: the answers are the ones already in the state document.'
+    }
 
     if ($null -eq $wizard) {
-        & $say 'no Scripts\UI\wizard.yaml on this share; nothing is asked and nothing waits.'
+        if ($null -eq $resumedState) {
+            & $say 'no Scripts\UI\wizard.yaml on this share; nothing is asked and nothing waits.'
+        }
     } else {
         $ask = Get-HDTWizardPage -Page $wizard.Page -Variable $resolved.Variable
 
@@ -1831,8 +1909,24 @@ try {
     # -LogLevel IS WHAT THE SECOND LEG WILL LOG AT. The share is not reachable
     # when Start-HDTResume.ps1 builds its context, so the level travels in the
     # document rather than being looked up again.
-    $state = New-HDTRunState -SequenceId $sequence.Id -RunId $runId -Phase WinPE `
-        -Clock $clock -Variable $variable -Step $sequence.Step -LogLevel ([string] $log.Level)
+    # A RESUMED LEG CONTINUES THE DOCUMENT IT FOUND; IT DOES NOT MINT ONE.
+    #
+    # New-HDTRunState builds a document with every step Pending and stepIndex 1,
+    # which is exactly the "start from the beginning" this whole feature exists
+    # to prevent. The document on the disk already knows which steps ran, on
+    # which leg, and where the run had got to.
+    #
+    # THE LEG NUMBER GOES UP HERE, as Invoke-HDTBootReconciliation does it for
+    # the full-OS direction. A leg that did not increment would record its work
+    # against the leg before it, and "step 9 completed on leg 3" is the only way
+    # to read a four-leg reference build afterwards.
+    if ($null -ne $resumedState) {
+        $state = $resumedState
+        $state.leg = [int] $state.leg + 1
+    } else {
+        $state = New-HDTRunState -SequenceId $sequence.Id -RunId $runId -Phase WinPE `
+            -Clock $clock -Variable $variable -Step $sequence.Step -LogLevel ([string] $log.Level)
+    }
 
     $context = New-HDTExecutionContext -RunId $runId -Phase WinPE -WorkspaceRoot $workspaceRoot `
         -Variable $variable -Service $catalog -Log $log -State $state
@@ -1850,9 +1944,31 @@ try {
 
     & $say 'running the task sequence'
 
+    # -Resumed IS THE GUARD, AND -StatePath IS WHERE THE ANSWER LIVES.
+    #
+    # -Resumed refuses the step types that would destroy the installation this
+    # run exists to finish - a resumed leg runs on a machine that has already
+    # been deployed, so a partition step reaching the disk is a defect, not a
+    # deployment.
+    #
+    # AND THE CHECKPOINT GOES BACK TO THE DOCUMENT IT RESUMED FROM. A leg that
+    # read W:\HDT\state.json and then checkpointed to X:\HDT\Logs\state.json
+    # would leave the durable copy FROZEN at the moment of the resume, and
+    # Copy-HDTLog would ship the frozen one to the share - which is the stale-
+    # state failure 05-03 already cost a full lab run, arrived at from the other
+    # end.
+    # NAMED RATHER THAN SPLATTED, DELIBERATELY. This is the one call to the
+    # engine the whole file exists to make, and a contract test reads the
+    # arguments off the call site to prove it is made properly. A splat hides
+    # them behind a hashtable and the assertion becomes "it passed something".
+    $statePath = [System.IO.Path]::Combine($logDirectory, 'state.json')
+    if ($null -ne $resumedState) {
+        $statePath = [string] $resume.Path
+    }
+
     $run = Invoke-HDTTaskSequence -Sequence $sequence -Context $context -State $state `
-        -StatePath ([System.IO.Path]::Combine($logDirectory, 'state.json')) `
-        -LogDestination $logDestination
+        -StatePath $statePath -LogDestination $logDestination `
+        -Resumed:($null -ne $resumedState)
 
     $result['status'] = [string] $run.Status
     & $say ("sequence finished: {0}" -f $run.Status)
