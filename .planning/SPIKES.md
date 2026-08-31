@@ -3245,3 +3245,111 @@ logged into to look at. Getting into one means an offline plant: a boot-time
 service under `ControlSet001\Services` whose `ImagePath` is a `cmd.exe /c net
 user ...`. `powershell.exe -File` in the same slot started and produced nothing;
 `cmd.exe` worked first time.
+
+### S23.13 — the Appx mitigation works, and the capture leg was reading a dead drive letter ✅
+
+Date: 2026-08-31, two runs of `REF-ACROBAT` on `HDT-ACR-REF01`
+(`run-20260831-193211` and `run-20260831-194337`), against a boot image rebuilt
+from the bundle carrying 62a1ccd's fix.
+
+#### The one-shot works, end to end, for the first time
+
+S23.11's unary comma was the whole of it. With it fixed:
+
+```
+step 12: creating the UEFI boot entry {7f1b6e18-...} for C:\HDT\Boot\boot.wim
+step 12: The next boot will be the WinPE staged at C:\HDT\Boot\boot.wim.
+         The firmware boot order is unchanged.
+```
+
+and the reboot after `Sysprep` **landed in WinPE**, on the leg the engine
+expected, with no host-side boot-order flip and no boot media in the drive.
+`TestBootEntry` passed, which is what four earlier builds could not make it do.
+
+#### The Acrobat Appx package, removed before the seal
+
+S23.12 named it; this ran the mitigation. A `PowerShell` step ahead of `Sysprep`:
+
+```
+pre-sysprep: removing Appx AdobeAcrobatReaderCoreApp_26.0.0.1_x64__pc75e8sa7ep4e
+pre-sysprep cleanup: 2 task(s) defined, 2 completed, 0 failed
+pre-sysprep: 52 Appx package(s) still registered for all users
+```
+
+The package is absent from those 52, and `sysprep /generalize` completed.
+
+**It is written as a LIST of pre-seal tasks, not as one removal.** The user's own
+framing is the general case — "some application like NPP needs a command line to
+reset before we can sysprep" — and the shape a site extends is an entry in
+`$preSysprepTask` with a name, a reason and a script block. A failing entry is
+logged and the build continues, deliberately: `Sysprep` is the step that gets to
+say whether the machine can be sealed, and a cleanup that could not run must not
+throw away an hour of installing before it gets the chance.
+
+#### And then step 17 of 17 failed on a drive letter from a previous boot
+
+`run-20260831-193211` reached the capture with the machine already generalized
+and lost it:
+
+```
+step 16: bcdedit /store S:\EFI\Microsoft\Boot\BCD /delete ...
+         The boot configuration data store could not be opened.
+step 17: Could not find the directory to capture, 'W:\'
+```
+
+**`S:` and `W:` are the DEPLOYMENT WinPE's letters.** `Invoke-HDTDiskPartitionStep`
+publishes `HDTSystemVolume` and `HDTOSVolume` from the letters it assigns, and
+the engine carries them across reboots in `state.json` — correct for every
+deployment, because the full-OS leg never reads them again.
+
+A reference build breaks that assumption by going *back* into WinPE. The WinPE
+that captures is a second boot of a **different image** — the one `BootToWinPE`
+staged onto the local disk — and it mounts the same partitions under its own
+letters. Step 16 tolerated the miss and left a boot entry behind; step 17 failed
+the run outright, at the single most expensive point a reference build has.
+
+**This is an engine gap, not a template one.** MDT does not have it because
+`ZTIBackup` determines the drive to capture *at capture time* rather than
+trusting a variable set before a reboot. The template answers it today with a
+`PowerShell` step first in the capture leg
+(`TaskSequences\REF-ACROBAT\Resolve-CaptureVolume.ps1`) that asks every lettered
+volume two questions — does it carry `Windows\System32\ntoskrnl.exe`, does it
+carry `\EFI\Microsoft\Boot\BCD` — and republishes both variables. Missing the OS
+volume is a refusal naming what was looked for; missing the BCD store is a note,
+because `BootToWinPE remove` already survives it.
+
+**The engine should do this itself**, in `Invoke-HDTCaptureImageStep` or on entry
+to a resumed WinPE leg: a `HDTOSVolume` inherited across a reboot into a
+different WinPE is not evidence, and the failure it produces arrives four steps
+and one generalize too late to recover from.
+
+`run-20260831-194337` measured the drift exactly, and **both** letters had moved:
+
+```
+inherited HDTOSVolume     : W        <- the deployment WinPE's letters
+inherited HDTSystemVolume : S
+found an operating system on C:      <- the capture WinPE's
+found a BCD store on D:
+HDTOSVolume is now C
+HDTSystemVolume is now D
+```
+
+`capturing C:\ into ...\Captures\REF-ACROBAT.wim` then ran, and the reference
+build completed all eighteen steps.
+
+#### A residue, recorded and not fixed
+
+With the store finally *found*, `BootToWinPE remove` still cannot delete the
+one-shot entry from inside the WinPE that entry booted:
+
+```
+bcdedit /store D:\EFI\Microsoft\Boot\BCD /delete {7f1b6e18-...} /cleanup
+  The boot configuration data store could not be opened. Access is denied.
+```
+
+`Access is denied` and no longer `cannot find the file` — the path was wrong
+before and the permission is wrong now. It is **not** a defect in the captured
+image: the capture reads the OS volume and the entry sits on the EFI system
+partition, so nothing of it travels into the WIM, and the step's own message is
+correct that the machine still boots Windows. It matters for a machine that is
+KEPT rather than discarded, which a reference machine is not. Left as it is.
