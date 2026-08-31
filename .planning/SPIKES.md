@@ -2630,7 +2630,17 @@ rearm count untouched, nothing stranded. Had the arm sat after sysprep as MDT
 orders it, this defect would have surfaced on a generalized machine with no leg
 left to fix it.
 
-### S23.7 — the armed boot is taken and then DECLINED: the machine falls back to Windows ⚠ OPEN
+### S23.7 — the armed boot is taken and then DECLINED: the machine falls back to Windows ⚠ SUPERSEDED BY S23.8
+
+> **⚠ THE TITLE OF THIS SECTION IS WRONG AND THE READING BELOW IS WRONG.**
+> S23.8 ran the probe this section asks for, on a machine, and measured the
+> opposite: the entry **does** persist to the system store, the one-shot **is**
+> taken, and a machine boots the staged WinPE — including after
+> `sysprep /generalize`. Reading (a) is dead. So is "the boot manager declines
+> it". What is left of this section is the observation that three reference
+> builds ended in OOBE with a `bootsequence` element pointing at an object that
+> was gone, and that remains unexplained — but it is not the transport, and
+> nothing here should be used to reason about the transport. **Read S23.8.**
 
 **THIS IS THE REMAINING BLOCKER FOR THE REFERENCE LOOP**, measured on
 2026-08-31 across three runs on `HDT-M7-RefApp` - `run-20260831-093444`,
@@ -2704,3 +2714,167 @@ commands all return 0 (S23.1), sysprep is indifferent to the arm (S23.5), the
 `InstallApplications` step installs a real vendor MSI inside the reference build
 in ~95 s, and `Sysprep` genuinely generalizes. The loop fails at exactly one
 place: the boot that the one-shot was supposed to redirect.
+
+### S23.8 — the transport WORKS: (a) is dead, and the real defect is that HDT takes WinRE's ramdisk options ✅
+
+Date: 2026-08-31. **Every line of this section was executed, not reasoned.** The
+probe S23.7 asked for — stage, arm, then enumerate *before any reboot* — was run
+on a throwaway Windows 11 LTSC VM (`HDT-S23-BCD`, Generation 2, `HDT External`,
+built by applying the staged media to a VHDX; no deployment, no share, no HDT
+engine on it) and then followed through a real reboot. The VM was deleted
+afterwards.
+
+**S23.7 offered two readings and they are no longer indistinguishable.**
+
+#### S23.8.1 — `/create` persists to the SYSTEM store, immediately ✅
+
+The exact ten commands `Get-HDTBcdCommand -Action Create` emits, run with **no
+`/store`** on a running machine, all returned 0, and `bcdedit /enum <id>` in the
+same session, before any reboot, printed the entry in full:
+
+```
+identifier              {7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}
+device                  ramdisk=[C:]\HDT\Boot\boot.wim,{ramdiskoptions}
+winpe                   Yes
+```
+
+**Reading (a) — "the create never persists to the system store" — is FALSE.**
+
+#### S23.8.2 — the running system store IS the ESP file, measured ✅
+
+Asked of both in the same session, `bcdedit` with no `/store` and
+`bcdedit /store S:\EFI\Microsoft\Boot\BCD` reported **18 objects each**, both
+carried the newly created entry, and both showed the `bootsequence` element on
+`{bootmgr}`. There is no second store, and the "which store is written versus
+which is read" hypothesis is closed. (The two renderings differ cosmetically:
+the system store prints `default {current}` where the file store prints
+`{default}`. Same object.)
+
+#### S23.8.3 — the armed one-shot IS taken ✅
+
+With a real `HDTPE_x64.wim` staged at `C:\HDT\Boot\boot.wim`, the machine
+rebooted **into the staged WinPE** — HDT's own boot image, its wizard, its
+bootstrap, which then started a deployment and failed pre-flight on the 40 GB
+disk (`run-20260831-073229`). Afterwards, back in Windows:
+
+```
+{bootmgr}   bootsequence   -- GONE, consumed by the boot it caused
+{7f1b6e18-...}             -- still there
+```
+
+**That is the exact INVERSE of S23.7's signature** (bootsequence present, object
+absent), which is the clearest evidence that whatever happened in those three
+reference builds is not this mechanism.
+
+#### S23.8.4 — sysprep does not touch the entry, read BEFORE the reboot ✅
+
+`sysprep /generalize /oobe /quit` was run with the entry armed, the VM was then
+powered off **without rebooting**, and the ESP store was read offline — so no
+Windows Setup pass ever ran between the seal and the read. Everything survived:
+
+```
+objects: 18 -> 16          (WinRE's own entries, via generalize's reagentc teardown)
+{bootmgr} bootsequence     -- present
+{7f1b6e18-...}             -- present
+{ramdiskoptions}           -- present
+```
+
+S23.5's conclusion ("whatever removes it is not sysprep") is now confirmed by a
+direct pre-reboot measurement rather than inferred from two runs.
+
+#### S23.8.5 — a GENERALIZED machine still boots the armed WinPE ✅
+
+The same VM, generalized and armed, was booted: it reached the staged WinPE
+again (`run-20260831-075301`). **So the transport is not defeated by the seal.**
+
+#### S23.8.6 — THE REAL DEFECT: HDT was taking WinRE's `{ramdiskoptions}` ⚠ FIXED
+
+`reagentc /info` on the probe machine, with HDT's entry in place:
+
+```
+Windows RE status:         Enabled
+Windows RE location:       \\?\GLOBALROOT\device\harddisk0\partition4\Recovery\WindowsRE
+
+bcdedit /enum {ramdiskoptions}
+  ramdisksdidevice        partition=C:
+  ramdisksdipath          \HDT\Boot\boot.sdi        <-- HDT's staged file
+```
+
+`{ramdiskoptions}` is a **well-known, shared** object. HDT tolerated the failing
+`/create` on a machine that already had one — and then set both of its elements
+anyway, repointing that machine's WinRE at HDT's staged `boot.sdi`. **And the
+`remove` action deletes that file by name**, so a machine HDT was asked only to
+build a reference image on is left with a WinRE aimed at a file that is no longer
+on the disk.
+
+`Get-HDTBcdCommand`'s own header refuses to *delete* `{ramdiskoptions}` for
+precisely this reason, and the code then overwrote it — the same harm reached
+more quietly.
+
+**MDT DOES NOT DO THIS.** `ZTIBCDUtility.vbs` `CreateRamDiskEntryEx` (:86-89):
+
+```vbs
+If BCDObjectExists("{ramdiskoptions}") then
+    oLogging.CreateEntry "{ramdiskoptions} already present.", LogTypeInfo
+    exit Function
+End if
+```
+
+MDT writes to the object only when it is absent, and an entry on a machine that
+already has one simply uses the one that is there. That is safe because
+`boot.sdi` is a generic ramdisk descriptor rather than a per-image file.
+
+**Fixed** by `IImageService.TestRamdiskOptions(store)` plus
+`Get-HDTBcdCommand -RamdiskOptionsPresent`: the step asks first, and the three
+`{ramdiskoptions}` commands are skipped entirely when the machine already owns
+one. A probe that cannot read the store answers "no", which is the behaviour HDT
+already had — failing an arm over a question about somebody else's WinRE would
+strand a reference build.
+
+#### S23.8.7 — `bcdedit /enum` on a missing object exits **0** ✅
+
+```
+bcdedit /store <store> /enum {ramdiskoptions}
+  There are no matching objects or the store is empty.
+  exit=0
+```
+
+So the existence probe **must read the output**, not the exit code. MDT's
+`BCDObjectExists` parses output for the same reason, and so does
+`TestRamdiskOptions`. This extends S23.1's "bcdedit validates no paths" to
+reads: a 0 from `bcdedit` means almost nothing on its own.
+
+#### S23.8.8 — `bcdedit /delete {ramdiskoptions} /cleanup` REFUSES ✅
+
+Measured against a real store: the command runs, and the object is still there
+afterwards. bcdedit protects the well-known object. So "delete it and recreate
+it" was never available as a way out of S23.8.6, even setting WinRE aside.
+
+#### S23.8.9 — arming a store OFFLINE does not work, and it wasted a probe ⚠
+
+A private device-options object (`bcdedit /create <guid> ... -device`) was tried
+as an alternative to sharing `{ramdiskoptions}`. It composes and enumerates
+correctly against a file store. **Booted, it failed** — and so did the CONTROL,
+the identical arm written to the same store, offline, with the well-known
+`{ramdiskoptions}`. Both offline arms failed; both online arms (S23.8.3,
+S23.8.5) succeeded.
+
+**So the variable was the offline edit, not the identifier, and the private-GUID
+result is VOID — it proves nothing either way.** It is recorded because the
+control is the only reason that is known: without it, this would have been
+written up as "bootmgr requires the well-known object", which is not measured.
+**Do not arm a BCD store on a mounted VHDX and expect the machine to boot it.**
+Arm from the running machine, which is what the step does.
+
+#### What S23.8 leaves open
+
+Three reference builds ended in Windows OOBE with `bootsequence` present on
+`{bootmgr}` and the object it named absent. Nothing measured here reproduces
+that, and the pieces S23.7 blamed are all cleared: the store, the create, the
+seal, the boot manager. The one difference this probe could not carry is that a
+real reference machine has a **WinRE registered by HDT's own `SetRecoveryImage`
+step before the arm**, so its `{ramdiskoptions}` belongs to `reagentc` — and
+`sysprep /generalize` disables WinRE, which is what removed two objects in
+S23.8.4. That is the next thing to measure, and S23.8.6's fix is a prerequisite
+for measuring it cleanly, because until now HDT was writing to that object
+itself.
