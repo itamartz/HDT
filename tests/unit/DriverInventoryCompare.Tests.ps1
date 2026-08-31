@@ -225,7 +225,7 @@ Describe 'Compare-HDTDriverInventory' {
         It 'still counts a real card on the PCI bus' {
             $card = [pscustomobject] @{
                 Name = 'Intel(R) Ethernet Connection I219-LM'; Class = 'Net'
-                DeviceId = 'PCI\VEN_8086&DEV_15D7&SUBSYS_08161028&REV_21&11583659&0&FE'
+                DeviceId = 'PCI\VEN_8086&DEV_15D7&SUBSYS_08161028&REV_21\3&11583659&0&FE'
                 HardwareID = [string[]] @('PCI\VEN_8086&DEV_15D7&SUBSYS_08161028&REV_21')
                 CompatibleID = [string[]] @(); Manufacturer = 'Intel'; Service = 'e1dexpress'
             }
@@ -239,7 +239,7 @@ Describe 'Compare-HDTDriverInventory' {
 
         It 'counts a dock network adapter on USB, which is how a laptop loses its network' {
             $dock = [pscustomobject] @{
-                Name = 'Dell Dock Ethernet'; Class = 'Net'; DeviceId = 'USB\VID_0BDA&PID_8153'
+                Name = 'Dell Dock Ethernet'; Class = 'Net'; DeviceId = 'USB\VID_0BDA&PID_8153\1'
                 HardwareID = [string[]] @('USB\VID_0BDA&PID_8153'); CompatibleID = [string[]] @()
                 Manufacturer = 'Realtek'; Service = 'RtkUsbClient'
             }
@@ -258,7 +258,7 @@ Describe 'Compare-HDTDriverInventory' {
             # administrator to ignore the two entries that mattered.
             $chipset = [pscustomobject] @{
                 Name = 'Intel(R) Host Bridge'; Class = 'System'
-                DeviceId = 'PCI\VEN_8086&DEV_9B33&11583659&0&00'
+                DeviceId = 'PCI\VEN_8086&DEV_9B33\3&11583659&0&00'
                 HardwareID = [string[]] @('PCI\VEN_8086&DEV_9B33'); CompatibleID = [string[]] @()
                 Manufacturer = 'Intel'; Service = ''
             }

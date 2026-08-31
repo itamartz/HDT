@@ -139,7 +139,7 @@ Describe 'Get-HDTConsoleRuleSetting -Bootstrap' {
     # rather than a second opinion the window invented.
 
     BeforeAll {
-        $script:bootstrapPath = 'C:\HDTLab\Shareootstrap-rules.yaml'
+        $script:bootstrapPath = 'C:\HDTLab\Share\bootstrap-rules.yaml'
 
         $script:bootstrapLine = [string[]] @(
             'schemaVersion: 1'

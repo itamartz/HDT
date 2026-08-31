@@ -155,12 +155,12 @@ Describe 'New-HDTFakeImageService' {
 
         It 'records AddRamdiskBootEntry with every argument the BCD entry needs' {
             $script:image.AddRamdiskBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}', 'HDT Windows PE',
-                'C:', '\HDT\Bootoot.wim', '\HDT\Bootoot.sdi', '\windows\system32oot\winload.efi')
+                'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi', '\windows\system32\boot\winload.efi')
 
             @($script:image.GetOperationName()) | Should -Be @('AddRamdiskBootEntry')
             @($script:image.Operations[0].Arguments) | Should -Be @('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}',
-                'HDT Windows PE', 'C:', '\HDT\Bootoot.wim', '\HDT\Bootoot.sdi',
-                '\windows\system32oot\winload.efi')
+                'HDT Windows PE', 'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi',
+                '\windows\system32\boot\winload.efi')
         }
 
         It 'records SetBootSequenceOnce with the store and the entry' {
@@ -184,7 +184,7 @@ Describe 'New-HDTFakeImageService' {
         # round would arm a boot into an entry that does not exist yet.
         It 'records the transport in the order that makes it work' {
             $script:image.AddRamdiskBootEntry('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}', 'HDT Windows PE',
-                'C:', '\HDT\Bootoot.wim', '\HDT\Bootoot.sdi', '\windows\system32oot\winload.efi')
+                'C:', '\HDT\Boot\boot.wim', '\HDT\Boot\boot.sdi', '\windows\system32\boot\winload.efi')
             $script:image.SetBootSequenceOnce('', '{7f1b6e18-3e9a-4a1e-9a1d-2f6c4b8d5e30}')
 
             @($script:image.GetOperationName()) | Should -Be @('AddRamdiskBootEntry', 'SetBootSequenceOnce')

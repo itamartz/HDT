@@ -623,7 +623,7 @@ root, another volume, a relative path, and anything **deeper** than the first
 level, because a deeper path is how somebody eventually names a `mount\` folder
 and takes a live build out from under itself.
 
-`C:\HDTLab\scratchootimage` is refused **by name**, and so is anything inside
+`C:\HDTLab\scratch\bootimage` is refused **by name**, and so is anything inside
 it. It is the user's live build scratch: bounded already, because
 `Update-HDTBootImage` empties it at the start of every run, and read afterwards
 by the tests that answer "what actually went into my image?".
