@@ -3400,3 +3400,36 @@ it.
 against the machine deployed from it — never an absent `MachineGuid`.** The
 absent one would pass for an image nobody had generalized and fail for every
 image anybody had.
+
+### S23.14 — the VM thumbnail is not mis-paletted, it is four bytes too long ✅
+
+Date: 2026-08-31, filming two full runs of `REF-ACROBAT` and `DEPLOY-ACROBAT`
+from the host at one frame every two seconds (620 frames, 114 MB).
+
+S15 records that `Save-HDTLabVmScreen` "decodes the thumbnail palette wrongly"
+and that it was never fixed. **It is not a palette problem.** Writing a fresh
+grabber against the same WMI call reproduced it twice and named it:
+
+1. **Hyper-V clamps the size you ask for.** `GetVirtualSystemThumbnailImage`
+   treats `WidthPixels`/`HeightPixels` as a REQUEST; 800x600 is the ceiling.
+   Ask for 1024x768 and the buffer that comes back is smaller than the bitmap
+   sized from the request.
+
+2. **And the buffer is four bytes longer than its pixels.** At 800x600 the call
+   returns **960004** bytes where RGB565 needs exactly 960000.
+
+Copy `$bytes.Length` into a bitmap sized for the pixels and you read past the
+end of the array. .NET does not throw for this - it raised an
+`AccessViolationException` that killed the whole PowerShell process on the first
+frame. Size the bitmap from the request and copy `Width * Height * 2` and the
+frames are perfect: full colour, HDT's progress window legible down to
+`applying Z:\OperatingSystems\...\install.wim (index 1) to W:\, 10%`.
+
+A decoder that ignored the overrun but shifted every row by two pixels would
+produce exactly the diagonal smear that gets described as "wrong palette", which
+is presumably what S15 saw. **`Save-HDTLabVmScreen` should be fixed to match**;
+it is worth having, because this is the only capture method that works in WinPE,
+in Windows Setup and at the firmware screen alike, sends no keystrokes, and
+needs nothing installed in the guest.
+
+`ffmpeg -framerate 15 -i ref-%04d.png out.mp4` turns a reel into a film.
