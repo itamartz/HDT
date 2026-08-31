@@ -467,6 +467,8 @@ one where the OS changes out from under you.
 - **Resume in the full OS** uses **autologon as the local Administrator**, the
   MDT model, so the sequence continues in a real interactive session. See §4.5
   for the mechanism and its lifecycle.
+- **Resume back in WinPE** is a *scan*, not a boot flag — see §4.3.1. It is what
+  lets one sequence deploy, customize in the full OS, sysprep, and capture.
 - Every step is **idempotent or checkpointed**. On resume the engine skips
   completed steps by index and re-runs the interrupted one only if the step
   declares `resumable: true`.
@@ -500,6 +502,87 @@ one where the OS changes out from under you.
   run is paused, writes the heartbeat and returns with the state loaded and
   saved; dropping to a live prompt belongs to the caller (`Start-HDTDeployment`).
   An engine that blocked on input could not be unit tested and would hang CI.
+
+#### 4.3.1 Resuming back into WinPE
+
+The full-OS→WinPE direction is what a reference build needs between `Sysprep`
+and `CaptureImage`, and it is a *different problem* from the WinPE→full-OS one.
+Going forward, the engine arms the machine to come back to it. Coming back,
+nothing was armed: the WinPE entry point simply ran, and it used to mint a new
+run at step 1 every time — so the capture boot started the sequence again, at
+the `DiskPartition` step, against the volume it had just sealed.
+
+**Two questions, and conflating them is the trap:**
+
+| | |
+|---|---|
+| **Transport** | how the machine ends up running WinPE |
+| **Discovery** | how the engine learns a run is already in progress |
+
+MDT answers transport with `bcdedit /bootsequence` pointing at a `boot.wim`
+staged on the local disk (`ZTIBCDUtility.vbs` → `AdjustBCDDefaults`, called from
+`LTIApply.wsf /PE /BCD`). That is **not** discovery: `/bootsequence` is consumed
+by the boot manager before any deployment code runs, so the booted image cannot
+ask whether it arrived that way. MDT knows this — which is why it *also* stages
+`C:\MININT` and looks for it. (Nor is it self-cleaning, despite the name:
+`AdjustBCDDefaults` sets `/bootsequence` **and** `/default` **and**
+`/displayorder /addfirst`, and `LTICleanup.wsf` has to delete the entry
+explicitly afterwards. PSD has no equivalent at all — its capture path is an
+acknowledged stub.)
+
+**HDT keys discovery to the disk, not the transport.** `Get-HDTResumeCandidate`
+scans the lettered volumes through `IDiskService` for `\HDT\state.json` — the
+document §4.3 already mirrors onto the OS volume. A machine that reached WinPE by
+a one-shot boot entry, by PXE, by an ISO left in the drive, or because somebody
+pressed F12 gets the same, correct answer; a transport-keyed check would answer
+correctly for one of those four and format the disk for the other three. It reads
+the state document rather than a marker of its own, because a separate marker is
+a second source of truth about whether a run is live, and the case where the two
+disagree is a wiped disk.
+
+**It answers three ways, where the full-OS reconcile (§4.5.4) answers two.** That
+asymmetry is the whole safety property. `Invoke-HDTBootReconciliation` collapses
+"cannot tell" into *Teardown*, which is right in the full OS — the worst case of
+being wrong is a machine that does not log itself on. Here, "there is no run"
+means "mint one and start at step 1", and step 1 of a deployment sequence formats
+a disk.
+
+| Found | Answer |
+|---|---|
+| no state document on any volume | `None` — deploy normally |
+| one, readable, `Running`, fresh | `Resume` |
+| one, `Succeeded`/`Failed` | `None` — the run is over, this is a new deployment |
+| unreadable, or not valid JSON | **`Ambiguous` — refuse** |
+| two or more volumes carry one | **`Ambiguous` — refuse** |
+| `Running` but stale past `MaxAgeHour` | **`Ambiguous` — refuse** |
+| the volumes cannot be listed | **`Ambiguous` — refuse** |
+
+A **half-written state document is a crashed run, not an absent one**, and is
+never read as "start from the beginning". The stale case is the one deliberate
+divergence from §4.5.4, which tears a stale run down: an abandoned run and a live
+one are indistinguishable to a clock that has skewed, and WinPE's does. Every
+refusal names the file, because the operator's way out is to delete it — an
+explicit act of consent in a way that "it started a new deployment" is not.
+`X:` is never scanned: it is the RAM disk, new on every boot, so it cannot carry
+a run across one.
+
+**And a resumed leg cannot reach a destructive step.** `Invoke-HDTTaskSequence
+-Resumed` refuses `DiskPartition` and `ApplyImage` outright — the step types that
+would destroy the installation the run exists to finish. The guard runs *before*
+the already-completed check, deliberately: that check consults the same state
+document, so a guard placed after it would find a corrupt `stepIndex`'s step
+recorded `Completed`, skip it, and be dead code in exactly the case it exists
+for. It **fails** rather than skipping, because a resumed leg that reaches one of
+these has a defect in it and a skip is how that stays invisible.
+
+**Not yet built:** a locally staged WinPE plus a one-shot boot entry, MDT's
+transport. Today the reference template gets back to WinPE with
+`setBootOrder: false` (§9.3), which relies on the media staying first in the
+firmware order. That works for a VM with an ISO attached and for PXE; it is the
+reason `setBootOrder` cannot simply be `true` in that template. Staging a local
+`boot.wim` would dissolve that tension — and it is the follow-on for machines
+with no media attached. Discovery is deliberately independent of it, so building
+it later changes nothing above.
 
 ### 4.4 Logging
 

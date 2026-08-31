@@ -10,7 +10,9 @@
 #
 #   deploy -> customize -> Sysprep -> Restart -> boot the media -> CaptureImage
 #
-# AND THE ONE THING THAT MAKES IT WORK IS setBootOrder: false.
+# TWO THINGS MAKE THAT LAST ARROW WORK, AND THEY ARE NOT THE SAME THING.
+#
+# 1. setBootOrder: false GETS THE MACHINE BACK INTO WinPE.
 #
 # A deployment wants the machine to stop booting the media and start booting
 # Windows, so ConfigureBoot puts the Windows Boot Manager first in the firmware
@@ -21,6 +23,29 @@
 # the state it was sysprepped into - and nothing about it looks wrong
 # afterwards. The switch that serves a deployment is the switch that ruins a
 # capture, so this template turns it off deliberately (DESIGN 9.3 note 4).
+#
+# 2. Get-HDTResumeCandidate STOPS THAT BOOT WIPING THE DISK.
+#
+# AND UNTIL IT EXISTED, THE LINE ABOVE WAS THE ONLY THING BETWEEN THIS TEMPLATE
+# AND A DESTROYED MACHINE, which is the frightening part in hindsight. The WinPE
+# entry point minted a NEW run at step 1 on every boot, so the capture boot
+# arrived, found no run in progress, and started this sequence again - at the
+# DiskPartition step, against the volume it had just sealed. It is now asked
+# rather than assumed: the entry point scans the lettered volumes for a state
+# document before it mints anything, resumes the run it finds, and refuses
+# outright the step types that would destroy the installation (DESIGN 4.5.3).
+#
+# THE TWO ARE INDEPENDENT ON PURPOSE. The first decides WHERE the machine boots
+# and is a property of this template; the second decides WHAT THE ENGINE DOES
+# when it gets there and holds however the machine arrived - one-shot boot
+# entry, PXE, an ISO left in the drive, or a technician pressing F12.
+#
+# WHAT WOULD LET setBootOrder GO BACK TO true. MDT does not rely on the firmware
+# order at all: LTIApply.wsf /PE /BCD stages a boot.wim onto the local disk and
+# points a one-shot `bcdedit /bootsequence` at it, so the machine returns to
+# WinPE once without the persistent order ever changing. HDT does not stage a
+# local WinPE yet, so the tension is real and this line is still load-bearing.
+# It is the follow-on for machines with no media attached.
 #
 # THE CUSTOMIZE GROUP IS DELIBERATELY EMPTY OF WORK. It is the reason this
 # sequence exists - it is where an administrator puts the applications, the
@@ -179,11 +204,30 @@ steps:
   - group: Customize
     runIn: FullOS
     steps:
+      # APPLICATIONS FIRST, BECAUSE THAT IS WHAT A REFERENCE IMAGE IS FOR.
+      #
+      # It names NOTHING, deliberately. selection reads %HDTApplications% - the
+      # variable a rule or a wizard answer sets - so a share that names no
+      # applications installs none and this step costs a line in the log, while
+      # a share that names some gets them INSIDE the image rather than onto
+      # every machine built from it afterwards. Naming any here would be
+      # guessing at somebody's build standard, which is the one thing this
+      # template must not do.
+      #
+      # AND IT SURVIVES A REBOOT THAT AN INSTALLER ASKS FOR. A 3010 returns
+      # RebootRequested -Reenter, the run checkpoints what it has installed and
+      # the next full-OS leg resumes at the NEXT application - so a reference
+      # build with a service pack in it does not have to be split into two
+      # sequences by hand.
+      - name: Install Applications
+        type: InstallApplications
+        selection: "%HDTApplications%"
+
       - name: Customize the reference image
         type: NoOp
         message: >
-          Nothing has been customized. Replace this step with the applications,
-          settings and updates that belong inside the reference image.
+          Nothing further has been customized. Replace this step with the
+          settings, updates and scripts that belong inside the reference image.
 
   # -------------------------------------------------------------- Sysprep and Capture
   #
