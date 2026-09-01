@@ -413,6 +413,30 @@
                         <MenuItem x:Name="HDTRenameDriverFolderMenuItem" />
                         <MenuItem x:Name="HDTRemoveDriverFolderMenuItem" />
 
+                        <!-- MDT'S Packages NODE, AND ITS Import OS Packages
+                             WIZARD. Import hangs off the category and off every
+                             release group, on the driver store's rule and for
+                             its reason: the row you right-click is the release
+                             you meant, and -Release is mandatory because no
+                             .msu says which operating system it is for.
+
+                             THERE IS NO New Folder HERE and the absence is the
+                             decision. The update store is flat -
+                             WindowsUpdates\<id>\update.yaml with the .msu
+                             beside it - and the release rows are computed from
+                             what the updates say rather than from a folder
+                             anybody made. An item leading nowhere is worse
+                             than no item. -->
+                        <MenuItem x:Name="HDTImportWindowsUpdateMenuItem" />
+
+                        <!-- ON THE UPDATE, NEVER ON THE RELEASE ABOVE IT. A
+                             release is drawn from what the updates under it
+                             say and is not a thing on disk, so removing one
+                             could only mean removing every update in it - a
+                             different press from the one somebody thinks they
+                             are making. -->
+                        <MenuItem x:Name="HDTRemoveWindowsUpdateMenuItem" />
+
                         <!-- WORKBENCH'S Monitoring NODE, AND THE THING IT
                              ALWAYS NEEDED. The engine writes a heartbeat per
                              deployment under Logs\_active\ and nothing ever

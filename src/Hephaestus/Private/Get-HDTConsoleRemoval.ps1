@@ -83,7 +83,8 @@
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true, Position = 0)]
-        [ValidateSet('TaskSequence', 'OperatingSystem', 'Application', 'DriverFolder', 'MonitorRun')]
+        [ValidateSet('TaskSequence', 'OperatingSystem', 'Application', 'DriverFolder', 'MonitorRun',
+            'WindowsUpdate')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -153,6 +154,27 @@
                 Goes      = 'the heartbeat file this row is drawn from, and nothing else'
                 IdName    = 'RunId'
                 UsedFormat = ''
+            }
+        }
+        'WindowsUpdate' {
+            @{
+                Noun      = 'Windows update'
+                Title     = 'Remove Windows Update'
+                Command   = 'Remove-HDTWindowsUpdate'
+                Parameter = 'WorkspaceRoot'
+                # THE .msu IS NAMED BECAUSE IT IS WHAT IS ACTUALLY BEING LOST.
+                # update.yaml is a few lines somebody can retype; the package is
+                # most of a gigabyte they downloaded, and it is the half of this
+                # folder that cannot be reconstructed from the console.
+                Goes      = 'update.yaml and the .msu copied beside it'
+                IdName    = 'Id'
+                # NOTHING FAILS, AND THE SENTENCE MUST NOT SAY IT DOES. An
+                # ApplyUpdates step names a RELEASE and never an update id, so
+                # no sequence points at this folder and none breaks - the
+                # machine simply arrives without this update. The operating
+                # system's wording next door would inflate that into a
+                # deployment that stops on the machine in front of somebody.
+                UsedFormat = 'These task sequences apply this release and will deploy without it: {0}.'
             }
         }
         'OperatingSystem' {

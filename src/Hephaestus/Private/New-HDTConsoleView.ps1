@@ -60,6 +60,9 @@
         .PARAMETER ImportApplicationXaml
             Markup for the Import Application dialog.
 
+        .PARAMETER ImportWindowsUpdateXaml
+            Markup for the Import Windows Update dialog.
+
         .PARAMETER ApplicationDependencyXaml
             Markup for the application dependency picker.
 
@@ -106,6 +109,7 @@
         [Parameter()] [AllowEmptyString()] [string] $NewSequenceXaml = '',
         [Parameter()] [AllowEmptyString()] [string] $ImportOperatingSystemXaml = '',
         [Parameter()] [AllowEmptyString()] [string] $ImportApplicationXaml = '',
+        [Parameter()] [AllowEmptyString()] [string] $ImportWindowsUpdateXaml = '',
         [Parameter()] [AllowEmptyString()] [string] $ApplicationDependencyXaml = '',
         [Parameter()] [AllowEmptyString()] [string] $ApplicationDetectionXaml = '',
         [Parameter()] [AllowNull()] [object] $Fill = $null,
@@ -1089,6 +1093,8 @@
         $renameDriverFolderItem = $window.FindName('HDTRenameDriverFolderMenuItem')
         $removeDriverFolderItem = $window.FindName('HDTRemoveDriverFolderMenuItem')
         $removeMonitorRunItem = $window.FindName('HDTRemoveMonitorRunMenuItem')
+        $importWindowsUpdateItem = $window.FindName('HDTImportWindowsUpdateMenuItem')
+        $removeWindowsUpdateItem = $window.FindName('HDTRemoveWindowsUpdateMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1366,6 +1372,28 @@
                     $selectionProfileItem.Header = [string] $menuRow.SelectionProfileHeader
                 }
 
+                # MDT'S Packages NODE. This whole surface shipped without a
+                # single item on it: the tree node, the detail pane, the import
+                # dialog markup and the host method that opens it all existed,
+                # and right-clicking any of it did nothing - because
+                # Get-HDTConsoleTreeMenuRow cancelled the menu for kinds it had
+                # never been told about. See tests/unit/ConsoleTreeMenu.Tests.ps1,
+                # which now walks the whole SET of kinds the tree can emit rather
+                # than the one that was last found broken.
+                $importWindowsUpdateItem.Visibility = [System.Windows.Visibility]::Collapsed
+                $removeWindowsUpdateItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                # NO MARKUP, NO ITEM, as everywhere else on this menu. An item
+                # that cannot open its window is one somebody presses to find out
+                # nothing happens.
+                if ($menuRow.IsUpdateRow -and -not [string]::IsNullOrWhiteSpace($ImportWindowsUpdateXaml)) {
+                    $importWindowsUpdateItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
+                if ($menuRow.IsWindowsUpdate) {
+                    $removeWindowsUpdateItem.Visibility = [System.Windows.Visibility]::Visible
+                }
+
                 if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
                     $folderSeparator.Visibility = [System.Windows.Visibility]::Visible
                 }
@@ -1552,6 +1580,107 @@
                     [void] (Remove-HDTOperatingSystem -Workspace $where -Id $which -Confirm:$false)
                     $command.Text = [string] $ask.Command
                 } catch {
+                    $command.Text = [string] $_.Exception.Message
+                }
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # MDT'S Import OS Packages, REACHABLE AT LAST. The dialog and
+        # the host method that shows it were both written and nothing on
+        # this window opened either of them.
+        $importWindowsUpdateItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+
+                # AND IT SAYS SO RATHER THAN DOING NOTHING, as every other
+                # item here does: a menu item that returns quietly is one
+                # somebody presses twice and then reports as broken.
+                if ([string]::IsNullOrWhiteSpace($where)) {
+                    $command.Text = 'that row does not name a share, so there is nowhere to import an update to.'
+                    return
+                }
+
+                # THE RELEASE THE ROW IS FOR, AND ONLY FROM A RELEASE ROW.
+                # The dialog preselects nothing when it is opened from the
+                # category, deliberately - -Release is mandatory because no
+                # .msu says which operating system it is for, and defaulting
+                # to the first row is how a Windows Server update gets filed
+                # under a client release. Right-clicking 'Windows Server
+                # 2025' is not a default: it is the administrator naming the
+                # release, so that one row arrives preselected.
+                #
+                # ASKED AGAIN RATHER THAN CARRIED FROM THE OPENING HANDLER.
+                # The same command answers both, so the item and the press
+                # cannot disagree about which release the row is for - and
+                # there is no shared mutable holder between two closures to
+                # get stale.
+                $menuRow = & $call 'Get-HDTConsoleTreeMenuRow' `
+                    -Kind ([string] $chosen.Kind) -Name ([string] $chosen.Name)
+
+                $made = [string] $consoleHost.ShowImportWindowsUpdate(
+                    $ImportWindowsUpdateXaml, $where, [string] $menuRow.UpdateRelease, $Theme, $window)
+
+                if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                $command.Text = "Import-HDTWindowsUpdate -WorkspaceRoot '{0}' -Id '{1}' -Release ... -Path ..." -f
+                    $where, $made
+
+                & $rebuildTree
+            }.GetNewClosure())
+
+        # REMOVING AN UPDATE IS MILDER THAN REMOVING MEDIA, AND THE
+        # DIALOG SAYS SO. An ApplyUpdates step names a RELEASE and never
+        # an update id, so nothing points at this folder by name and no
+        # sequence fails - the machine simply arrives without it. The
+        # .msu is still most of a gigabyte somebody downloaded, which is
+        # why this asks at all.
+        $removeWindowsUpdateItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                $which = [string] $chosen.Name
+
+                $refusal = & $call 'Get-HDTConsoleRemoval' -Kind 'WindowsUpdate' -Root $where -Id $which
+                if (-not $refusal.CanRemove) {
+                    $command.Text = [string] $refusal.Refusal
+                    return
+                }
+
+                # ASKED FOR WITHOUT REMOVING ANYTHING: -WhatIf returns
+                # UsedBy, so the dialog can name the sequences before
+                # anybody agrees to anything.
+                $using = @()
+
+                try {
+                    $using = @((Remove-HDTWindowsUpdate -WorkspaceRoot $where -Id $which -WhatIf).UsedBy)
+                } catch {
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $ask = & $call 'Get-HDTConsoleRemoval' -Kind 'WindowsUpdate' -Root $where -Id $which `
+                    -UsedBy ([string[]] @($using))
+
+                $asked = [System.Windows.MessageBox]::Show($window,
+                    [string] $ask.Question,
+                    [string] $ask.Title,
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning,
+                    [System.Windows.MessageBoxResult]::No)
+
+                if ($asked -ne [System.Windows.MessageBoxResult]::Yes) { return }
+
+                try {
+                    [void] (Remove-HDTWindowsUpdate -WorkspaceRoot $where -Id $which -Confirm:$false)
+                    $command.Text = [string] $ask.Command
+                } catch {
+                    # THE REFUSAL IS THE ANSWER, and this command's
+                    # refusals are the ones worth reading: a folder that
+                    # holds no update.yaml, an id that is a path.
                     $command.Text = [string] $_.Exception.Message
                 }
 

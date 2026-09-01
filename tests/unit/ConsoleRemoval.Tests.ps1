@@ -218,6 +218,55 @@ Describe 'Get-HDTConsoleRemoval' {
         }
     }
 
+    Context 'a Windows update' {
+
+        BeforeAll {
+            $script:updateAsk = Get-HDTConsoleRemoval -Kind 'WindowsUpdate' `
+                -Root 'C:\HDTLab\Share' -Id 'KB5094126-x64' -UsedBy @('DEMO-M4')
+        }
+
+        It 'can be removed' {
+            $script:updateAsk.CanRemove | Should -BeTrue
+        }
+
+        It 'is titled for the thing it removes' {
+            $script:updateAsk.Title | Should -BeExactly 'Remove Windows Update'
+        }
+
+        It 'names the update and the share in the question' {
+            $script:updateAsk.Question | Should -BeLike '*KB5094126-x64*'
+            $script:updateAsk.Question | Should -BeLike '*C:\HDTLab\Share*'
+        }
+
+        # THE DOCUMENT AND THE PACKAGE GO TOGETHER, and the sentence says so,
+        # because what is about to go is most of a gigabyte somebody downloaded.
+        It 'says the .msu goes with the catalog entry' {
+            $script:updateAsk.Question | Should -BeLike '*.msu*'
+        }
+
+        # A MILDER SENTENCE THAN AN OPERATING SYSTEM'S, ON PURPOSE. An
+        # ApplyUpdates step names a RELEASE and never an update id, so nothing
+        # points at this folder by name and no sequence fails - the machine
+        # simply arrives without this update. Wording it like the OS warning
+        # would inflate an inconvenience into a failure.
+        It 'warns without claiming a sequence will fail' {
+            $script:updateAsk.Warning | Should -BeLike '*DEMO-M4*'
+            $script:updateAsk.Warning | Should -Not -BeLike '*fail*'
+        }
+
+        # THE ECHOED LINE IS MEANT TO BE RETYPED, so it has to be the parameter
+        # that binds - Remove-HDTWindowsUpdate takes -WorkspaceRoot, as
+        # Get-HDTWindowsUpdate and Import-HDTWindowsUpdate do.
+        It 'offers the command with the parameters that command actually has' {
+            $script:updateAsk.Command |
+                Should -BeExactly "Remove-HDTWindowsUpdate -WorkspaceRoot 'C:\HDTLab\Share' -Id 'KB5094126-x64'"
+        }
+
+        It 'refuses a row that names no update' {
+            (Get-HDTConsoleRemoval -Kind 'WindowsUpdate' -Root 'C:\ws' -Id '').CanRemove | Should -BeFalse
+        }
+    }
+
     It 'has comment-based help with a synopsis' {
         $help = Get-Help -Name Get-HDTConsoleRemoval -ErrorAction Stop
 

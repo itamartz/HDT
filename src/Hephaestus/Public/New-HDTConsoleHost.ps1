@@ -89,7 +89,8 @@
             [int] $RefreshSecond = 10, [string] $NewSequenceXaml = '',
             [string] $ImportOperatingSystemXaml = '', [string] $ImportApplicationXaml = '',
             [string] $ApplicationDependencyXaml = '', [string] $ApplicationDetectionXaml = '',
-            [object] $Fill = $null, [string] $NewWorkspaceXaml = '')
+            [object] $Fill = $null, [string] $NewWorkspaceXaml = '',
+            [string] $ImportWindowsUpdateXaml = '')
 
         # BUILDING THE WINDOW AND SHOWING IT ARE TWO DIFFERENT JOBS, and only
         # the second one needs a desktop. New-HDTConsoleView loads the markup,
@@ -103,7 +104,8 @@
             -ImportApplicationXaml $ImportApplicationXaml `
             -ApplicationDependencyXaml $ApplicationDependencyXaml `
             -ApplicationDetectionXaml $ApplicationDetectionXaml `
-            -Fill $Fill -NewWorkspaceXaml $NewWorkspaceXaml
+            -Fill $Fill -NewWorkspaceXaml $NewWorkspaceXaml `
+            -ImportWindowsUpdateXaml $ImportWindowsUpdateXaml
 
         [void] $window.ShowDialog()
 
@@ -300,12 +302,18 @@
     # Windows 11 24H2 and Windows Server 2025 cumulative updates share a file
     # name shape, an architecture, a baseline and the build 26100.
     #
-    # NOTHING IS PRESELECTED. Defaulting to the first row would let an
-    # administrator who did not read the field file a server update under a
-    # client release, which is precisely the mistake nothing downstream can
-    # catch.
+    # NOTHING IS PRESELECTED, UNLESS THE ROW SAID SO. Defaulting to the first
+    # row would let an administrator who did not read the field file a server
+    # update under a client release, which is precisely the mistake nothing
+    # downstream can catch.
+    #
+    # RIGHT-CLICKING A RELEASE GROUP IS NOT A DEFAULT. -Release arrives filled
+    # only when the console opened this from the 'Windows Server 2025' row
+    # itself, which is the administrator naming the release rather than the
+    # dialog guessing it - the same thing -DriverPath does for a driver folder.
+    # An empty -Release leaves the list on nothing chosen, exactly as before.
     $service | Add-Member -MemberType ScriptMethod -Name ShowImportWindowsUpdate -Value {
-        param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
+        param([string] $Xaml, [string] $Workspace, [string] $Release, [object] $Theme, [object] $Owner)
 
         Add-Type -AssemblyName PresentationFramework
 
@@ -358,6 +366,13 @@
 
             [void] $releaseBox.Items.Add($label)
             [void] $releaseId.Add([string] $release.Id)
+        }
+
+        # SELECTED BY ID, NOT BY LABEL. The label carries the build and whether
+        # it was verified, and both change when somebody measures a release - so
+        # matching on it would silently stop preselecting anything.
+        if (-not [string]::IsNullOrWhiteSpace($Release)) {
+            $releaseBox.SelectedIndex = $releaseId.IndexOf([string] $Release)
         }
 
         $chosenRelease = {

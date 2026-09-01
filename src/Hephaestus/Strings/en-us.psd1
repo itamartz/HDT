@@ -92,6 +92,12 @@
         # Windows convention for "this asks you something first", which it does.
         'HDTRenameDriverFolderMenuItem.Header' = 'Rename Driver Folder...'
         'HDTRemoveDriverFolderMenuItem.Header' = 'Delete Driver Folder'
+        # MDT CALLS THE NODE Packages AND THE WIZARD Import OS Packages. HDT
+        # calls the node Windows Updates, because that is what a .msu is and
+        # 'package' means four other things in this console - so the item says
+        # the same word the node does rather than MDT's.
+        'HDTImportWindowsUpdateMenuItem.Header' = 'Import Windows Update'
+        'HDTRemoveWindowsUpdateMenuItem.Header' = 'Remove Windows Update'
         # CLEAR, NOT DELETE. Nothing on the share reads a heartbeat, so this is
         # the one item on this menu that costs a record rather than a component.
         'HDTRemoveMonitorRunMenuItem.Header' = 'Clear Run'

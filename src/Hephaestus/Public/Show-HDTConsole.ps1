@@ -156,6 +156,10 @@
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
+        [string] $ImportWindowsUpdateXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTImportWindowsUpdate.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [string] $ApplicationDependencyXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTApplicationDependency.xaml'),
 
         [Parameter()]
@@ -339,6 +343,15 @@
         $importApplicationXaml = [System.IO.File]::ReadAllText($ImportApplicationXamlPath)
     }
 
+    # NO MARKUP, NO ITEM. The Import Windows Update item hides itself rather
+    # than promising a window that cannot open - which is what this whole
+    # surface did for a release: the markup shipped, the host method shipped,
+    # and nothing passed the one to the other.
+    $importWindowsUpdateXaml = ''
+    if (Test-Path -LiteralPath $ImportWindowsUpdateXamlPath) {
+        $importWindowsUpdateXaml = [System.IO.File]::ReadAllText($ImportWindowsUpdateXamlPath)
+    }
+
     $applicationDependencyXaml = ''
     if (Test-Path -LiteralPath $ApplicationDependencyXamlPath) {
         $applicationDependencyXaml = [System.IO.File]::ReadAllText($ApplicationDependencyXamlPath)
@@ -378,7 +391,7 @@
         $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
             (Get-HDTConsoleTheme), $size, $RefreshSecond, $newSequenceXaml,
             $importOperatingSystemXaml, $importApplicationXaml, $applicationDependencyXaml,
-            $applicationDetectionXaml, $fill, $newWorkspaceXaml)
+            $applicationDetectionXaml, $fill, $newWorkspaceXaml, $importWindowsUpdateXaml)
     } finally {
         Stop-HDTConsoleLog
     }
