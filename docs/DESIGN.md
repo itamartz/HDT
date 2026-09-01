@@ -594,17 +594,19 @@ in WinPE would otherwise skip `Customize`, `Sysprep` and the second restart by
 phase filter, go straight to `CaptureImage`, capture a machine that was never
 prepared, and report success.
 
-**Not yet built:** a locally staged WinPE plus a one-shot boot entry, MDT's
-transport. Today the reference template gets back to WinPE with
-`setBootOrder: false` (§9.3), and **one firmware-order switch cannot serve both
-restarts** — restart 1 must reach Windows, restart 2 must reach the media.
-Measured 2026-08-31: with `false`, restart 1 goes back into WinPE and the build
-stops there. So the reference sequence does **not** yet run end to end
-unattended, and the `setBootOrder` tension does **not** dissolve; it dissolves
-only once the machine stops depending on the firmware order to return to WinPE,
-which is what staging a local `boot.wim` and pointing `/bootsequence` at it buys.
-Discovery is deliberately independent of the transport, so building it later
-changes nothing above.
+*Revised 2026-08-31. This paragraph previously said the transport below was "not
+yet built" and that the reference template got back to WinPE with
+`setBootOrder: false`.* Both are now wrong. `setBootOrder: false` was measured on
+2026-08-31 to send restart 1 back into WinPE, stopping the build there, and the
+transport that replaced it is `BootToWinPE` (§4.2, §9.3): a locally staged WinPE
+plus a one-shot boot entry, MDT's own answer. **One firmware-order switch cannot
+serve both restarts** — restart 1 must reach Windows, restart 2 must reach WinPE
+— and that tension does not dissolve by choosing a side; it dissolves by the
+machine no longer depending on the firmware order to return to WinPE. Staging a
+local `boot.wim` and pointing `bcdedit /bootsequence` at it is what buys that, so
+`setBootOrder` is back to `true` on the reference sequence like every other.
+Discovery is deliberately independent of the transport, so this changed nothing
+above.
 
 ### 4.4 Logging
 
@@ -2250,16 +2252,37 @@ another tool.
    the state it was sysprepped into - and nothing about it looks wrong
    afterwards.
 
-   So a reference-build sequence keeps the boot media first in the firmware
-   order and sets **`setBootOrder: false`** on its `ConfigureBoot` step.
-   `New-HDTImageService`'s `SetBootOrderFirst` runs
-   `bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst` for the SPIKES S6
-   reason recorded on it - after an apply, a machine whose firmware still has the
-   boot media first simply reboots into WinPE and the deployment loops. **A
-   reference build wants precisely that loop**, so the finding and the capture
-   flow are inverses of one another, and the switch that serves a deployment is
-   the switch that ruins a capture. `setBootOrder` defaults to `true`; a capture
-   sequence has to turn it off deliberately.
+   *Revised 2026-08-31. This section previously prescribed
+   **`setBootOrder: false`** on the reference sequence's `ConfigureBoot` step.
+   That was measured wrong on the same day: with it false the machine restarted
+   at restart 1 straight back into WinPE and the run stopped at step 8 of 12 —
+   SPIKES S6's fourth finding word for word, with no
+   `Windows\Panther\setupact.log` on the disk afterwards, so Windows had never
+   started at all. Both `Templates/reference.yaml` and the lab sequences now
+   carry `setBootOrder: true` and reject the old value.*
+
+   The mistake was reaching for the firmware order at all. A reference build
+   needs **two** different next boots — restart 1 must reach Windows, because
+   that is the only window in which applications install and `Sysprep` can run;
+   restart 2 must reach WinPE, because a volume with Windows running on it is a
+   volume being written while it is read — and one firmware-order switch cannot
+   serve both. `New-HDTImageService`'s `SetBootOrderFirst`
+   (`bcdedit /set {fwbootmgr} displayorder {bootmgr} /addfirst`) exists for the
+   SPIKES S6 reason recorded on it, and turning it off to buy the second boot
+   silently cost the first.
+
+   So the firmware order is left alone entirely and the **Windows boot manager**
+   does the work, which is MDT's answer (`LTIApply.wsf /PE /STAGE` and `/PE
+   /BCD`, driven by `ZTIBCDUtility.vbs`). The `BootToWinPE` step stages a copy of
+   the share's boot image to `<volume>\HDT\Boot`, points a ramdisk BCD entry at
+   it, and hands that entry the **next boot and only the next boot** through
+   `bcdedit /bootsequence`. `setBootOrder` goes back to `true`, so restart 1
+   reaches Windows and the one-shot fires at restart 2.
+
+   **Nothing is sealed until we know it can come back.** The `BootToWinPE` steps
+   run *before* `Sysprep` and fail the sequence rather than warning: a machine
+   that has been generalized and cannot reach WinPE is stranded, with no leg left
+   that could fix it, and OOBE on the next boot burns one of the three rearms.
 
 5. **`Captures\` is one of only two folders the deployment account may write,
    and the write is proved before sysprep runs.** §2.1 makes the workspace

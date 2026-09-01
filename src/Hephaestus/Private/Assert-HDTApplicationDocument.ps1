@@ -16,7 +16,7 @@
 
             The authoring rules, in the order they are checked:
 
-              document     not empty; a mapping; only the eleven known keys;
+              document     not empty; a mapping; only the fourteen known keys;
                            schemaVersion present, an integer, and not newer than
                            this engine
               identity     id present and matching ^[A-Za-z0-9][A-Za-z0-9_.-]*$;
