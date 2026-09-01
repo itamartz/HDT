@@ -203,6 +203,7 @@
                 'Get-HDTOsRelease'
                 'Get-HDTWindowsUpdate'
                 'Import-HDTWindowsUpdate'
+                'Remove-HDTWindowsUpdate'
                 'Set-HDTOperatingSystemProperty'
                 'Save-HDTOperatingSystemDocument'
                 'Remove-HDTOperatingSystem'

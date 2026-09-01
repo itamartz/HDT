@@ -167,6 +167,7 @@
         'Import-HDTBootImageToWds',
         'Import-HDTOperatingSystem',
         'Import-HDTWindowsUpdate',
+        'Remove-HDTWindowsUpdate',
         'Import-HDTRuleDocument',
         'Import-HDTBootstrapRuleDocument',
         'Import-HDTRunState',
