@@ -350,22 +350,44 @@
         # a package claims and must not look like the rows that can.
         $releaseId = New-Object -TypeName System.Collections.ArrayList
 
-        foreach ($release in @(& $call 'Get-HDTOsRelease' -WorkspaceRoot $Workspace)) {
+        # $releaseRow AND NOT $release, AND THE RENAME IS THE WHOLE FIX FOR A
+        # DIALOG THAT COULD NOT OPEN.
+        #
+        # This loop was written before the method had a -Release parameter, and
+        # PowerShell variable names are case-insensitive - so the moment
+        # '[string] $Release' was added above, the loop variable and the
+        # parameter became ONE variable, and the parameter's type constraint
+        # does not go away when a loop assigns to it. Every release object was
+        # converted to its string form on the way in, the next line asked a
+        # string for '.Name', and StrictMode threw "The property 'Name' cannot
+        # be found on this object". The Import Windows Update dialog did not
+        # open at all, and the suite that shipped it was green: a ShowDialog
+        # method is the one place in this module Pester cannot reach.
+        #
+        # THE SECOND HALF WAS AS BAD AS THE FIRST. Below this loop $Release
+        # would have held the LAST release in the list rather than the one the
+        # administrator right-clicked, so the preselection this parameter exists
+        # for would have landed on the wrong row - silently, with no exception
+        # to notice.
+        #
+        # tests/contract/TypedParameterShadow.Contract.Tests.ps1 now holds the
+        # rule for every script block in the module, not for this one loop.
+        foreach ($releaseRow in @(& $call 'Get-HDTOsRelease' -WorkspaceRoot $Workspace)) {
 
-            $label = '{0}  ({1})' -f [string] $release.Name, [string] $release.Id
+            $label = '{0}  ({1})' -f [string] $releaseRow.Name, [string] $releaseRow.Id
 
-            if ($release.HasBuild) {
-                $label = '{0}  -  build {1}' -f $label, [int] $release.Build
+            if ($releaseRow.HasBuild) {
+                $label = '{0}  -  build {1}' -f $label, [int] $releaseRow.Build
             } else {
                 $label = '{0}  -  build not recorded' -f $label
             }
 
-            if (-not $release.Verified) {
+            if (-not $releaseRow.Verified) {
                 $label = '{0}, not verified' -f $label
             }
 
             [void] $releaseBox.Items.Add($label)
-            [void] $releaseId.Add([string] $release.Id)
+            [void] $releaseId.Add([string] $releaseRow.Id)
         }
 
         # SELECTED BY ID, NOT BY LABEL. The label carries the build and whether
