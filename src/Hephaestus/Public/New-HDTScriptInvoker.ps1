@@ -73,6 +73,14 @@
     #>
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
         Justification = 'Builds a stateless service adapter object; it changes no state.')]
+    # $result is assigned inside a ForEach-Object block and returned after it.
+    # ForEach-Object does not open a new scope, so that is one variable and not
+    # two - but the analyzer reads the block in isolation and sees a write with
+    # no read. The contract tests 'returns the object the script emitted' and
+    # 'does not return the host line as the result' both execute this path
+    # against the REAL adapter, so the read is proven rather than argued.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', 'result',
+        Justification = 'Assigned inside a ForEach-Object block, which shares the enclosing scope, and returned by the caller.')]
     [CmdletBinding()]
     [OutputType([object])]
     param(
@@ -129,22 +137,53 @@
         $transcript = New-Object -TypeName System.Collections.ArrayList
         $result = $null
 
-        foreach ($item in @(& $resolved -Variable $Variable *>&1)) {
-            if (($item -is [System.Management.Automation.InformationRecord]) -or
-                ($item -is [System.Management.Automation.ErrorRecord]) -or
-                ($item -is [System.Management.Automation.WarningRecord]) -or
-                ($item -is [System.Management.Automation.VerboseRecord]) -or
-                ($item -is [System.Management.Automation.DebugRecord])) {
+        # THE finally IS THE WHOLE POINT, NOT TIDINESS. This used to assign
+        # $LastTranscript after the loop, on the success path only - so a script
+        # that threw skipped the assignment and GetTranscript() handed back the
+        # PREVIOUS invoke's lines, which on a fresh invoker is nothing at all.
+        #
+        # Invoke-HDTPowerShellStep reads the transcript on the FAILURE path
+        # specifically, so that a step which died still says what it was doing.
+        # It was reading an empty array every time, and a failed PowerShell step
+        # reached the log carrying its exception and not one line more.
+        #
+        # Found on a real Server 2025 WSUS build: an eight-hour catalogue sync
+        # failed and its step log held exactly one line. The script had written
+        # three attempts' worth of progress and every one of them was discarded
+        # here; the actual cause had to be dug out of WSUS's own log over a
+        # PowerShell Direct session.
+        #
+        # A step that succeeded can be read from its result. A step that threw
+        # can only be read from what it printed on the way down.
+        # ForEach-Object, NOT foreach over @(...), AND THE DIFFERENCE IS THE BUG.
+        # An array subexpression COLLECTS the whole pipeline before the loop body
+        # runs even once, so a script that threw on its last line threw out of
+        # @() itself with $transcript still empty - the finally below then
+        # faithfully saved nothing. ForEach-Object streams: every line the script
+        # emitted before it failed is already in $transcript by the time the
+        # exception reaches here.
+        #
+        # ForEach-Object does not open a new scope, so $result assigned inside the
+        # block is the $result declared above.
+        try {
+            & $resolved -Variable $Variable *>&1 | ForEach-Object {
+                $item = $_
 
-                [void] $transcript.Add([string] $item)
-                continue
+                if (($item -is [System.Management.Automation.InformationRecord]) -or
+                    ($item -is [System.Management.Automation.ErrorRecord]) -or
+                    ($item -is [System.Management.Automation.WarningRecord]) -or
+                    ($item -is [System.Management.Automation.VerboseRecord]) -or
+                    ($item -is [System.Management.Automation.DebugRecord])) {
+
+                    [void] $transcript.Add([string] $item)
+                } else {
+                    [void] $transcript.Add(($item | Out-String).Trim())
+                    $result = $item
+                }
             }
-
-            [void] $transcript.Add(($item | Out-String).Trim())
-            $result = $item
+        } finally {
+            $this.LastTranscript = [string[]] @($transcript)
         }
-
-        $this.LastTranscript = [string[]] @($transcript)
 
         return $result
     }

@@ -29,8 +29,12 @@ $script:HDTImplementation = @(
                 'tests/fixtures/scripts/Get-ComputerName.ps1'    = [pscustomobject] @{ HDTComputerName = 'PC-FIXTURE-SERIAL-0001' }
                 'tests/fixtures/scripts/Get-Nothing.ps1'         = $null
                 'tests/fixtures/scripts/Write-HostAndObject.ps1' = [pscustomobject] @{ HDTBiosBaseline = 'ok' }
+                'tests/fixtures/scripts/Write-HostAndThrow.ps1'  = $null
             } -Transcript @{
                 'tests/fixtures/scripts/Write-HostAndObject.ps1' = @('checking vendor BIOS level')
+                'tests/fixtures/scripts/Write-HostAndThrow.ps1'  = @('checking vendor BIOS level', 'contacting the vendor service')
+            } -Failure @{
+                'tests/fixtures/scripts/Write-HostAndThrow.ps1'  = 'the vendor service refused the request'
             } }
         Skip    = $false
     }
@@ -58,6 +62,9 @@ Describe 'IScriptInvoker contract: <Name>' -ForEach $script:HDTImplementation {
         # log. This fixture writes one host line AND emits one object, so the two
         # can be told apart.
         $script:hostAndObjectScript = 'tests/fixtures/scripts/Write-HostAndObject.ps1'
+
+        # The same idea for the failing case: it prints, then it throws.
+        $script:hostAndThrowScript = 'tests/fixtures/scripts/Write-HostAndThrow.ps1'
     }
 
     Context 'implementation' -Skip:$Skip {
@@ -168,6 +175,29 @@ Describe 'IScriptInvoker contract: <Name>' -ForEach $script:HDTImplementation {
             $script:invoker.Invoke($script:nothingScript, @{}) | Out-Null
 
             @($script:invoker.GetTranscript()).Count | Should -Be 0
+        }
+
+        It 'keeps the transcript of a script that threw' {
+            # THE CASE THE TRANSCRIPT EXISTS FOR, AND THE ONE IT USED TO LOSE.
+            #
+            # The real adapter assigned $LastTranscript AFTER enumerating the
+            # script's output, so an exception anywhere in the script skipped the
+            # assignment and GetTranscript() returned the PREVIOUS invoke's value
+            # - empty, on a fresh invoker. Invoke-HDTPowerShellStep calls
+            # GetTranscript() on the failure path precisely so a failed step can
+            # be read, and it got nothing.
+            #
+            # Found on a real Server 2025 WSUS build: the catalogue sync failed
+            # and step 16's log contained one line - the exception - with none of
+            # the per-attempt progress the script had written before it. The
+            # cause was three lines further down in WSUS's own log, and only a
+            # PowerShell Direct session into the VM found it.
+            #
+            # A step that SUCCEEDS can be diagnosed from its result. A step that
+            # THREW can only be diagnosed from what it printed on the way.
+            try { $script:invoker.Invoke($script:hostAndThrowScript, @{}) } catch { $null = $_ }
+
+            @($script:invoker.GetTranscript()) -join ' ' | Should -BeLike '*contacting the vendor service*'
         }
 
         It 'returns an array from GetTranscript even for one line' {
