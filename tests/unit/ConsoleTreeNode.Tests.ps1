@@ -271,11 +271,11 @@ Describe 'Get-HDTConsoleTreeNode' {
             $script:node = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleNodeTestModel))
         }
 
-        It 'opens with the Deployment Shares root, then the share, then the seven categories' {
+        It 'opens with the Deployment Shares root, then the share, then the eight categories' {
             # Workbench's shape: the root is there with one share as well as with
             # six, so the console does not change layout as shares are added.
             @($script:node | Where-Object { $_.Depth -le 2 } | ForEach-Object { $_.Kind }) |
-                Should -Be @('Root', 'Share', 'Category', 'Category', 'Category', 'Category', 'Category', 'Category', 'MonitorCategory')
+                Should -Be @('Root', 'Share', 'Category', 'Category', 'Category', 'Category', 'Category', 'Category', 'Category', 'MonitorCategory')
         }
 
         It 'orders the categories the way a share is built, not alphabetically' {
@@ -289,7 +289,7 @@ Describe 'Get-HDTConsoleTreeNode' {
             # written once, and the application list moves every time somebody
             # ships a new version.
             @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' } | ForEach-Object { $_.Text }) |
-                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (2)', 'Monitoring')
+                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Windows Updates (0)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (2)', 'Monitoring')
         }
 
         It 'counts the shares on the root row' {
@@ -384,12 +384,15 @@ Describe 'Get-HDTConsoleTreeNode' {
 
             $share.Kind | Should -BeExactly 'Share'
             @($share.Children | ForEach-Object { $_.Text }) |
-                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (2)', 'Monitoring')
+                Should -Be @('Boot Image', 'Applications (0)', 'Operating Systems (1)', 'Windows Updates (0)', 'Drivers', 'Task Sequences (1)', 'Selection Profiles (2)', 'Monitoring')
 
+            # THE INDICES MOVED ON 2026-09-01, when Windows Updates went in at
+            # position 3 - between Operating Systems and Drivers, where the order
+            # a share is built puts it.
             @($share.Children)[0].Children[0].Kind | Should -BeExactly 'BootImage'
-            @($share.Children)[4].Children[0].Kind | Should -BeExactly 'TaskSequence'
-            @($share.Children)[5].Children[0].Kind | Should -BeExactly 'SelectionProfile'
-            @($share.Children)[6].Children[0].Kind | Should -BeExactly 'Empty'          # Monitoring, with nothing running
+            @($share.Children)[5].Children[0].Kind | Should -BeExactly 'TaskSequence'
+            @($share.Children)[6].Children[0].Kind | Should -BeExactly 'SelectionProfile'
+            @($share.Children)[7].Children[0].Kind | Should -BeExactly 'Empty'          # Monitoring, with nothing running
         }
 
         It 'opens every branch that has one, because C1 is one screen and not a search' {
@@ -639,15 +642,16 @@ Describe 'Get-HDTConsoleTreeNode' {
             $script:node = @(Get-HDTConsoleTreeNode -Workspace (New-HDTConsoleNodeTestModel -Empty))
         }
 
-        It 'still shows the share and all seven categories' {
-            @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' }).Count | Should -Be 7
+        It 'still shows the share and all eight categories' {
+            @($script:node | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' }).Count | Should -Be 8
         }
 
         It 'says a category is empty rather than showing nothing under it' {
-            # Three '(none)' rows for the three catalogs, plus the drivers row
+            # Four '(none)' rows for the four catalogs - applications, operating
+            # systems, Windows updates and task sequences - plus the drivers row
             # that says why there is nothing there at all.
-            @($script:node | Where-Object { $_.Kind -eq 'Empty' }).Count | Should -Be 5
-            @($script:node | Where-Object { $_.Text -eq '(none)' }).Count | Should -Be 3
+            @($script:node | Where-Object { $_.Kind -eq 'Empty' }).Count | Should -Be 6
+            @($script:node | Where-Object { $_.Text -eq '(none)' }).Count | Should -Be 4
         }
 
         It 'says the boot image has never been built, and says what to run' {
@@ -686,7 +690,7 @@ Describe 'Get-HDTConsoleTreeNode' {
         }
 
         It 'gives each share its own categories rather than merging them' {
-            @($script:many | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' }).Count | Should -Be 14
+            @($script:many | Where-Object { $_.Kind -in 'Category', 'MonitorCategory' }).Count | Should -Be 16
         }
 
         It 'banners each row with ITS OWN share, which is the point of carrying it on the row' {

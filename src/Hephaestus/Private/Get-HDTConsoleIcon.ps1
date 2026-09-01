@@ -60,7 +60,8 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory',
+            'WindowsUpdate', 'UpdateRelease')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -126,6 +127,22 @@
         # category the machine glyph too would put the same picture on a parent
         # and its child, which is the thing this table stopped doing.
         MonitorCategory = [char]::ConvertFromUtf32(0x1F4CA)   # bar chart - what every machine is doing
+        # A SHIELD, WHICH IS WHAT WINDOWS ITSELF PUTS ON AN UPDATE. Windows
+        # Update, Security and every elevation prompt use it, so it is the one
+        # glyph an administrator already reads as "patch" without being taught.
+        # NOT a wrench (that is Tools in every browser) and not a download arrow
+        # (these are already downloaded - the arrow would say the row does the
+        # fetching, which is the deferred ONLINE step's job, not this one).
+        # ConvertFromUtf32, NOT [char]: 0x1F6E1 is above the basic multilingual
+        # plane and does not fit in a [char] at all - the cast is a compile-time
+        # overflow, not a wrong-looking glyph.
+        WindowsUpdate   = [char]::ConvertFromUtf32(0x1F6E1)   # shield
+        # THE RELEASE GROUPING ROW IS A DISC, MATCHING OperatingSystem, because
+        # that is what it names: "Windows 11 24H2" is an operating system, and
+        # the updates under it are for that. A folder glyph here would say the
+        # row is somewhere to put things, and it is not - it is computed from
+        # what the updates declare and cannot be created or renamed.
+        UpdateRelease   = [char]::ConvertFromUtf32(0x1F4BF)   # optical disc - the release these updates are for
         Empty           = [string] ([char] 0x25AB)            # small white square
     }
 

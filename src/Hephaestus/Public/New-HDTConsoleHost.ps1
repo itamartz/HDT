@@ -288,6 +288,171 @@
         return [string] $this.ImportedOperatingSystemId
     }
 
+    # MDT'S Import OS Packages WIZARD, as one dialog. The same adapter as the one
+    # above it: load markup, fill text from the string table, ask
+    # Test-HDTConsoleImportWindowsUpdate on every keystroke, call one cmdlet on
+    # the press.
+    #
+    # THE RELEASE LIST IS THE ONE THING THIS DIALOG HAS THAT THE OTHERS DO NOT,
+    # and it is filled from Get-HDTOsRelease - the share's own
+    # Control\os-releases.yaml when it has one, the module's copy otherwise. It
+    # exists because a .msu does not say which operating system it is for: the
+    # Windows 11 24H2 and Windows Server 2025 cumulative updates share a file
+    # name shape, an architecture, a baseline and the build 26100.
+    #
+    # NOTHING IS PRESELECTED. Defaulting to the first row would let an
+    # administrator who did not read the field file a server update under a
+    # client release, which is precisely the mistake nothing downstream can
+    # catch.
+    $service | Add-Member -MemberType ScriptMethod -Name ShowImportWindowsUpdate -Value {
+        param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        $call = Get-HDTHandlerCall
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'ImportWindowsUpdate'))
+
+        $rootText = $dialog.FindName('HDTImportUpdateRootText')
+        $sourceBox = $dialog.FindName('HDTImportUpdateSourceBox')
+        $sourceBrowse = $dialog.FindName('HDTImportUpdateSourceBrowseButton')
+        $releaseBox = $dialog.FindName('HDTImportUpdateReleaseBox')
+        $idBox = $dialog.FindName('HDTImportUpdateIdBox')
+        $nameBox = $dialog.FindName('HDTImportUpdateNameBox')
+        $descriptionBox = $dialog.FindName('HDTImportUpdateDescriptionBox')
+        $messageText = $dialog.FindName('HDTImportUpdateMessageText')
+        $commandText = $dialog.FindName('HDTImportUpdateCommandText')
+        $import = $dialog.FindName('HDTImportUpdateImportButton')
+
+        $rootText.Text = $Workspace
+
+        # THE RELEASES THIS SHARE OFFERS. A row whose build was never read off
+        # real media says so on the row itself, because it cannot check anything
+        # a package claims and must not look like the rows that can.
+        $releaseId = New-Object -TypeName System.Collections.ArrayList
+
+        foreach ($release in @(& $call 'Get-HDTOsRelease' -WorkspaceRoot $Workspace)) {
+
+            $label = '{0}  ({1})' -f [string] $release.Name, [string] $release.Id
+
+            if ($release.HasBuild) {
+                $label = '{0}  -  build {1}' -f $label, [int] $release.Build
+            } else {
+                $label = '{0}  -  build not recorded' -f $label
+            }
+
+            if (-not $release.Verified) {
+                $label = '{0}, not verified' -f $label
+            }
+
+            [void] $releaseBox.Items.Add($label)
+            [void] $releaseId.Add([string] $release.Id)
+        }
+
+        $chosenRelease = {
+            if ($releaseBox.SelectedIndex -lt 0) { return '' }
+            return [string] $releaseId[$releaseBox.SelectedIndex]
+        }.GetNewClosure()
+
+        $filled = @{ Id = $false }
+
+        $check = {
+            $answer = & $call 'Test-HDTConsoleImportWindowsUpdate' -Workspace $Workspace `
+                -Path ([string] $sourceBox.Text) -Release (& $chosenRelease) -Id ([string] $idBox.Text)
+
+            if (-not $filled.Id -and [string]::IsNullOrWhiteSpace([string] $idBox.Text) -and
+                -not [string]::IsNullOrWhiteSpace([string] $answer.SuggestedId)) {
+
+                $filled.Id = $true
+                $idBox.Text = [string] $answer.SuggestedId
+                return
+            }
+
+            $import.IsEnabled = [bool] $answer.CanImport
+            $messageText.Text = [string] $answer.Message
+
+            $commandText.Text = "Import-HDTWindowsUpdate -WorkspaceRoot '{0}' -Path '{1}' -Release '{2}'" -f
+                $Workspace, [string] $sourceBox.Text, (& $chosenRelease)
+        }.GetNewClosure()
+
+        $sourceBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $releaseBox.Add_SelectionChanged({ & $check }.GetNewClosure())
+
+        & $check
+
+        $sourceBrowse.Add_Click({
+                $picker = New-Object -TypeName Microsoft.Win32.OpenFileDialog
+                $picker.Title = 'Choose the update package to import'
+                $picker.Filter = 'Windows update packages (*.msu;*.cab)|*.msu;*.cab|All files (*.*)|*.*'
+                $picker.CheckFileExists = $true
+
+                if ($picker.ShowDialog() -ne $true) { return }
+
+                $sourceBox.Text = [string] $picker.FileName
+            }.GetNewClosure())
+
+        $this.ImportedWindowsUpdateId = ''
+        $dialogHost = $this
+
+        $import.Add_Click({
+                try {
+                    $splat = @{
+                        WorkspaceRoot = $Workspace
+                        Path          = [string] $sourceBox.Text
+                        Release       = (& $chosenRelease)
+                        FileSystem    = New-HDTFileSystem
+                        Process       = New-HDTProcessService
+                        Confirm       = $false
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $idBox.Text)) {
+                        $splat['Id'] = [string] $idBox.Text
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $nameBox.Text)) {
+                        $splat['Name'] = [string] $nameBox.Text
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $descriptionBox.Text)) {
+                        $splat['Description'] = [string] $descriptionBox.Text
+                    }
+
+                    # COPYING FIVE GIGABYTES TAKES A MOMENT, and reading the
+                    # package's metadata takes a tenth of a second. The wait
+                    # cursor covers both; neither is long enough for the progress
+                    # window.
+                    $dialog.Cursor = [System.Windows.Input.Cursors]::Wait
+
+                    $made = Import-HDTWindowsUpdate @splat
+
+                    $dialogHost.ImportedWindowsUpdateId = [string] $made.Id
+                    $dialog.DialogResult = $true
+                } catch {
+                    $messageText.Text = [string] $_.Exception.Message
+                } finally {
+                    $dialog.Cursor = $null
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return [string] $this.ImportedWindowsUpdateId
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name ImportedWindowsUpdateId -Value ''
+
     $service | Add-Member -MemberType NoteProperty -Name ImportedOperatingSystemId -Value ''
 
     # MDT'S New Application WIZARD, as one dialog. The same adapter as the one

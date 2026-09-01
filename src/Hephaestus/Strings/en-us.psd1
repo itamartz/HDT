@@ -597,6 +597,21 @@
         'HDTImportAppImportButton.Content' = 'Add'
     }
 
+    ImportWindowsUpdate = @{
+
+        'HDTImportUpdateTitleText.Text' = 'Import Windows Update'
+        'HDTImportUpdateSourceLabel.Text' = 'Update package'
+        'HDTImportUpdateSourceBrowseButton.Content' = 'Browse'
+        'HDTImportUpdateSourceHint.Text' = 'The .msu itself. Its KB, architecture and the build it produces are read out of the package, not off its name - two updates for different products ship under the same file name.'
+        'HDTImportUpdateReleaseLabel.Text' = 'For release'
+        'HDTImportUpdateReleaseHint.Text' = 'Which operating system this update is for. A .msu does not say, so this is the one thing HDT cannot work out for you. Edit Control\os-releases.yaml to add a release.'
+        'HDTImportUpdateIdLabel.Text' = 'Id'
+        'HDTImportUpdateIdHint.Text' = 'The folder name under WindowsUpdates. Composed from the KB and the architecture once the package is read; it cannot be changed afterwards from here.'
+        'HDTImportUpdateNameLabel.Text' = 'Name'
+        'HDTImportUpdateDescriptionLabel.Text' = 'Description'
+        'HDTImportUpdateImportButton.Content' = 'Import'
+    }
+
     ImportOperatingSystem = @{
 
         'HDTImportOsTitleText.Text' = 'Import Operating System'

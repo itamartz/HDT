@@ -280,6 +280,74 @@
         [void] $osRow.Add($row)
     }
 
+    # -- windows updates ---------------------------------------------------
+    #
+    # THE SAME SHAPE AS THE APPLICATIONS BELOW: one folder per update holding its
+    # update.yaml, so the rows are an enumeration and a read. Get-HDTWindowsUpdate
+    # is the command an administrator would type, and it is the one used here -
+    # which also means the rows arrive in APPLY ORDER rather than in whatever
+    # order the file system enumerated them, so the pane shows what would happen.
+    #
+    # A ROW THAT WOULD NOT PARSE IS STILL A ROW, with Status 'Error' and the
+    # engine's message on it, because an update silently missing from this list
+    # is an update an administrator believes is deployed.
+
+    $updateRow = New-Object -TypeName System.Collections.ArrayList
+
+    try {
+        foreach ($update in @(Get-HDTWindowsUpdate -WorkspaceRoot $root -FileSystem $FileSystem)) {
+            [void] $updateRow.Add([pscustomobject] @{
+                    Id                = [string] $update.Id
+                    Kb                = [string] $update.Kb
+                    Name              = [string] $update.Name
+                    Description       = [string] $update.Description
+                    Release           = [string] $update.Release
+                    Kind              = [string] $update.Kind
+                    Architecture      = [string] $update.Architecture
+                    FileName          = [string] $update.FileName
+                    SizeBytes         = [long] $update.SizeBytes
+                    BaselineVersion   = [string] $update.BaselineVersion
+                    TargetVersion     = [string] $update.TargetVersion
+                    Build             = [int] $update.Build
+                    Revision          = [int] $update.Revision
+                    PackageId         = [string] $update.PackageId
+                    SourceBranch      = [string] $update.SourceBranch
+                    BundledSsuKb      = [string] $update.BundledSsuKb
+                    BundledSsuVersion = [string] $update.BundledSsuVersion
+                    CreatedUtc        = [string] $update.CreatedUtc
+                    ImportedUtc       = [string] $update.ImportedUtc
+                    Enabled           = [bool] $update.Enabled
+                    Note              = [string] $update.Note
+                    Folder            = [string] $update.Folder
+                    PackagePath       = [string] $update.PackagePath
+                    Path              = [string] $update.CatalogPath
+                    Status            = 'Ok'
+                    Error             = ''
+                })
+        }
+    } catch {
+        [void] $updateRow.Add([pscustomobject] @{
+                Id = '(unreadable)'; Kb = ''; Name = ''; Description = ''; Release = ''
+                Kind = ''; Architecture = ''; FileName = ''; SizeBytes = [long] 0
+                BaselineVersion = ''; TargetVersion = ''; Build = 0; Revision = 0
+                PackageId = ''; SourceBranch = ''; BundledSsuKb = ''; BundledSsuVersion = ''
+                CreatedUtc = ''; ImportedUtc = ''; Enabled = $true; Note = ''
+                Folder = ''; PackagePath = ''; Path = ''
+                Status = 'Error'; Error = [string] $_.Exception.Message
+            })
+    }
+
+    # THE RELEASES THIS SHARE OFFERS, read here rather than in the tree builder
+    # so the import dialog and the tree see the same list - and so a share with
+    # its own Control\os-releases.yaml and one falling back to the module's copy
+    # are indistinguishable to everything downstream.
+    $osRelease = [pscustomobject[]] @()
+    try {
+        $osRelease = [pscustomobject[]] @(Get-HDTOsRelease -WorkspaceRoot $root -FileSystem $FileSystem)
+    } catch {
+        $osRelease = [pscustomobject[]] @()
+    }
+
     # -- applications ------------------------------------------------------
     #
     # THE CATALOG IS THE DIRECTORY (DESIGN 2.1): one folder per application
@@ -451,6 +519,8 @@
         TaskSequence    = [pscustomobject[]] @($sequenceRow)
         OperatingSystem = [pscustomobject[]] @($osRow)
         Application     = [pscustomobject[]] @($appRow)
+        WindowsUpdate   = [pscustomobject[]] @($updateRow)
+        OsRelease       = [pscustomobject[]] @($osRelease)
         Driver          = $driver
         SelectionProfile = [object[]] @($selectionProfile)
         SelectionProfileFailure = $selectionProfileFailure

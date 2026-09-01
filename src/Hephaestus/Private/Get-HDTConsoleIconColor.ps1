@@ -58,7 +58,8 @@
     param(
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateSet('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem', 'Application', 'BootImage', 'Empty',
-            'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory')]
+            'DriverStore', 'SelectionProfile', 'DriverFolder', 'Folder', 'StepGroup', 'Step', 'MonitorRun', 'MonitorCategory',
+            'WindowsUpdate', 'UpdateRelease')]
         [string] $Kind,
 
         [Parameter(Mandatory = $true, Position = 1)]
@@ -90,6 +91,13 @@
         TaskSequence    = '#FF8764B8'   # violet - the thing an administrator authors
         OperatingSystem = '#FF0F7B8A'   # teal - content brought in from outside
         Application     = '#FF0F7B8A'   # teal too: a package is brought in, like media
+        # TEAL, LIKE THE OTHER TWO THINGS BROUGHT IN FROM OUTSIDE. An update is
+        # content an administrator downloaded and imported, exactly as an image
+        # and an application are, so it takes the same colour rather than a new
+        # one - the palette says WHERE a thing came from, and inventing a fourth
+        # hue would say this row is a fourth kind of origin. It is not.
+        WindowsUpdate   = '#FF0F7B8A'   # teal - imported content, like an image or an application
+        UpdateRelease   = '#FF0F7B8A'   # teal - it names an operating system release
         BootImage       = '#FF0F7B8A'
         DriverStore     = '#FF0F7B8A'
 

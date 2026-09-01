@@ -1,0 +1,204 @@
+<!--
+    MDT'S Import OS Packages WIZARD, on one page and asking one more question.
+
+    MDT'S VERSION POINTS AT A FOLDER AND IMPORTS EVERY .cab IN IT. This one takes
+    one .msu, because the question below it - which operating system release is
+    this for - has to be answered per package, and a folder import would answer it
+    once for a folder somebody may have mixed.
+
+    THE RELEASE IS THE FIELD THAT MAKES THIS DIALOG NECESSARY AT ALL, and it is
+    worth saying why it is not derived. A .msu does not say what it is for. The
+    2026-06 cumulative update for Windows 11 24H2 and the one for Windows Server
+    2025 both arrive as windows11.0-kb50941xx-x64_<sha>.msu, both describe
+    themselves internally as Product="Desktop", both are amd64, both target build
+    26100 and both expect the baseline 10.0.26100.1742. Read on 2026-09-01 from
+    the two real packages: there is nothing in either file that separates them.
+
+    So the administrator says, and the list they choose from is
+    Control\os-releases.yaml - the share's own if it has one, the module's
+    otherwise. The KB, the architecture, the kind and the builds are NOT asked
+    for: those the package does state, and they are read out of it.
+
+    THE RELEASE LIST SHOWS WHICH BUILDS WERE MEASURED. A release whose build was
+    never read off real media cannot check anything a package claims, and its row
+    says so rather than looking like the ones that can.
+
+    NO x:Class AND NO CODE-BEHIND, as every other window here. Handlers are
+    attached in PowerShell, by name.
+
+    NAMED CONTROLS ARE THE CONTRACT with New-HDTConsoleHost:
+    HDTImportUpdateTitleText, HDTImportUpdateRootText, HDTImportUpdateSourceBox,
+    HDTImportUpdateSourceBrowseButton, HDTImportUpdateReleaseBox,
+    HDTImportUpdateIdBox, HDTImportUpdateNameBox, HDTImportUpdateDescriptionBox,
+    HDTImportUpdateMessageText, HDTImportUpdateCommandText,
+    HDTImportUpdateImportButton and HDTCancelButton.
+-->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Import Windows Update"
+        Width="680" Height="560"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource HDTWindowBrush}"
+        FontFamily="Segoe UI" FontSize="12">
+
+    <Window.Resources>
+        <SolidColorBrush x:Key="HDTWindowBrush"      Color="#FFF3F3F3" />
+        <SolidColorBrush x:Key="HDTBannerBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTBannerTextBrush"  Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTBannerLabelBrush" Color="#FFD6E9F5" />
+        <SolidColorBrush x:Key="HDTPanelBrush"       Color="#FFFFFFFF" />
+        <SolidColorBrush x:Key="HDTPanelTextBrush"   Color="#FF1B1B1B" />
+        <SolidColorBrush x:Key="HDTBorderBrush"      Color="#FFC8C8C8" />
+        <SolidColorBrush x:Key="HDTHintTextBrush"    Color="#FF6B6B6B" />
+        <SolidColorBrush x:Key="HDTErrorBrush"       Color="#FFA31515" />
+        <SolidColorBrush x:Key="HDTCommandTextBrush" Color="#FF0A3069" />
+        <SolidColorBrush x:Key="HDTFooterBrush"      Color="#FFE8E8E8" />
+        <SolidColorBrush x:Key="HDTButtonBrush"      Color="#FF0E639C" />
+        <SolidColorBrush x:Key="HDTButtonTextBrush"  Color="#FFFFFFFF" />
+
+        <Style TargetType="TextBlock" x:Key="HDTFieldLabel">
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,10,10" />
+        </Style>
+
+        <Style TargetType="TextBlock" x:Key="HDTFieldHint">
+            <Setter Property="Foreground" Value="{DynamicResource HDTHintTextBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,-6,0,10" />
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,5,6,5" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{DynamicResource HDTPanelBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTPanelTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HDTBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,5,6,5" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource HDTButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource HDTButtonTextBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6,14,6" />
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- The console's banner, so this reads as part of the same tool. -->
+        <Border Grid.Row="0" Background="{DynamicResource HDTBannerBrush}" Padding="16,12,16,12">
+            <StackPanel>
+                <TextBlock x:Name="HDTImportUpdateTitleText"
+                           Foreground="{DynamicResource HDTBannerTextBrush}"
+                           FontSize="18" FontWeight="SemiBold" />
+                <TextBlock x:Name="HDTImportUpdateRootText"
+                           Foreground="{DynamicResource HDTBannerLabelBrush}"
+                           FontFamily="Consolas, Courier New" FontSize="11"
+                           Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="16,14,16,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="130" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- THE PACKAGE COMES FIRST because everything else follows from it:
+                 the KB, the architecture and the builds are read out of the file,
+                 and the id is composed from what they turn out to be. -->
+            <TextBlock Grid.Row="0" Grid.Column="0" x:Name="HDTImportUpdateSourceLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="HDTImportUpdateSourceBox"
+                     FontFamily="Consolas, Courier New" />
+            <Button Grid.Row="0" Grid.Column="2" x:Name="HDTImportUpdateSourceBrowseButton"
+                    Margin="8,0,0,10" />
+
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+                       x:Name="HDTImportUpdateSourceHint" Style="{StaticResource HDTFieldHint}" />
+
+            <!-- THE ONE QUESTION THE PACKAGE CANNOT ANSWER. -->
+            <TextBlock Grid.Row="2" Grid.Column="0" x:Name="HDTImportUpdateReleaseLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <ComboBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                      x:Name="HDTImportUpdateReleaseBox" />
+
+            <TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2"
+                       x:Name="HDTImportUpdateReleaseHint" Style="{StaticResource HDTFieldHint}" />
+
+            <TextBlock Grid.Row="4" Grid.Column="0" x:Name="HDTImportUpdateIdLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportUpdateIdBox"
+                     FontFamily="Consolas, Courier New" />
+
+            <TextBlock Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2"
+                       x:Name="HDTImportUpdateIdHint" Style="{StaticResource HDTFieldHint}" />
+
+            <TextBlock Grid.Row="6" Grid.Column="0" x:Name="HDTImportUpdateNameLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportUpdateNameBox" />
+
+            <TextBlock Grid.Row="7" Grid.Column="0" x:Name="HDTImportUpdateDescriptionLabel"
+                       Style="{StaticResource HDTFieldLabel}" />
+            <TextBox Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" x:Name="HDTImportUpdateDescriptionBox" />
+
+            <!-- WHAT IS WRONG WITH THE ANSWERS, said as they are typed rather
+                 than on the last press. Test-HDTConsoleImportWindowsUpdate
+                 decides it; this shows it. -->
+            <TextBlock Grid.Row="8" Grid.ColumnSpan="3" x:Name="HDTImportUpdateMessageText"
+                       Foreground="{DynamicResource HDTErrorBrush}"
+                       TextWrapping="Wrap" Margin="0,4,0,0" />
+        </Grid>
+
+        <Border Grid.Row="2" Margin="16,0,16,0" Padding="0,8,0,8">
+            <TextBlock x:Name="HDTImportUpdateCommandText"
+                       Foreground="{DynamicResource HDTCommandTextBrush}"
+                       FontFamily="Consolas, Courier New" FontSize="11"
+                       TextWrapping="Wrap" />
+        </Border>
+
+        <Border Grid.Row="3" Background="{DynamicResource HDTFooterBrush}" Padding="16,12,16,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="HDTImportUpdateImportButton" MinWidth="96" IsDefault="True" />
+                <Button x:Name="HDTCancelButton" MinWidth="96" Margin="8,0,0,0" IsCancel="True" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

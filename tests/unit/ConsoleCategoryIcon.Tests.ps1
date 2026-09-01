@@ -54,9 +54,9 @@ InModuleScope -ModuleName Hephaestus {
 
     Describe 'the icons on a share''s category rows' {
 
-        It 'draws all seven categories' {
+        It 'draws all eight categories' {
             # If this drops, the assertion below stops covering what it names.
-            @($script:category).Count | Should -Be 7
+            @($script:category).Count | Should -Be 8
         }
 
         It 'gives every category a glyph of some kind' {
