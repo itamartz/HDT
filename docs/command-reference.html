@@ -253,8 +253,8 @@ try {
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
-<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">44</span></a></li>
-<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">24</span></a></li>
+<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">46</span></a></li>
+<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">25</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers &amp; selection profiles</span><span class="nav-n">21</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">6</span></a></li>
@@ -264,7 +264,7 @@ try {
 <li><a href="#logging-and-reporting"><span class="nav-t">Logging &amp; reporting</span><span class="nav-n">10</span></a></li>
 <li><a href="#technician-ui"><span class="nav-t">Technician UI in WinPE</span><span class="nav-n">25</span></a></li>
 <li><a href="#admin-console"><span class="nav-t">Admin console</span><span class="nav-n">6</span></a></li>
-<li><a href="#services-and-module"><span class="nav-t">Injected services, hosts &amp; module plumbing</span><span class="nav-n">28</span></a></li>
+<li><a href="#services-and-module"><span class="nav-t">Injected services, hosts &amp; module plumbing</span><span class="nav-n">29</span></a></li>
 <li><a href="#other"><span class="nav-t">Other</span><span class="nav-n">1</span></a></li></ul></nav>
     <div class="rail-foot">
       Every function in <code>FunctionsToExport</code>, taken from the module's own
@@ -285,9 +285,9 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">285</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">289</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">285</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">289</div><div class="l">carry examples</div></div>
         <div class="stat"><div class="n">81</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
@@ -1760,7 +1760,7 @@ Save-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\seque
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">44 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
+    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">46 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTStepType" data-name="get-hdtsteptype" data-hay="get-hdtsteptype discovers every step type in the session, by convention. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTStepType">Get-HDTStepType</a></h3>
@@ -2158,6 +2158,42 @@ Get-HDTEnableBitLockerStepDescription -Step $step</pre><p>The one line the log a
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
+<article class="fn" id="Get-HDTJoinDomainStepTemplate" data-name="get-hdtjoindomainsteptemplate" data-hay="get-hdtjoindomainsteptemplate the yaml for a new joindomain step. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTJoinDomainStepTemplate">Get-HDTJoinDomainStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML for a new JoinDomain step.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTJoinDomainStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step&#x27;s name. Defaults to the name this type is offered under.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTJoinDomainStepTemplate</pre><p>The YAML lines for a new JoinDomain step, named after its type.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$line = Get-HDTJoinDomainStepTemplate -Name &#x27;Join the corp domain&#x27;
+$line -join [System.Environment]::NewLine</pre><p>The same lines under a name of your own. They are lines, not a document: Add-HDTStep splices them into a sequence.yaml so the comments and the order of everything already in it survive.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional fourth of the step contract: what a NEW step of this type looks like on disk. See Get-HDTNoOpStepTemplate for the shape all of them share.</p>
+<p>EVERY KEY IS A WIZARD VARIABLE, WRITTEN OUT RATHER THAN LEFT IMPLICIT, and that is the point of this template rather than a stylistic choice. The Computer Details page has collected these five names since the wizard shipped and nothing consumed them; an administrator adding this step in the console needs to see, in the step itself, that the page they already fill in is what feeds it. A template naming only the domain would leave the OU and the join account looking like things they had to invent.</p>
+<p>THERE IS NO PASSWORD KEY, AND THERE MUST NOT BE. sequence.yaml is printed into a text box in the console, quoted back in refusals and stored on a share every machine being deployed can read. The password comes from HDTDomainAdminPassword in the variable bag, which is redacted out of every log, checkpoint and report by Test-HDTSecretVariable.</p>
+<p>runIn: FullOS BECAUSE A DOMAIN JOIN NEEDS A RUNNING WINDOWS. This is an online join through Add-Computer, not an offline one written into an answer file - see Invoke-HDTJoinDomainStep for why - so it belongs in the State Restore group after the machine has booted, which is where DESIGN 4.1&#x27;s example sequence and MDT&#x27;s own Client.xml both put it.</p>
+<p>retry: BECAUSE A CONTROLLER IS NOT ALWAYS THERE YET. The commonest failure of a first join attempt is a machine whose network came up seconds ago and whose DNS has not settled. MDT counts its own attempts and reboots between them; HDT has retry: on every step, so this declares one rather than growing a second retry mechanism inside a step. Two retries thirty seconds apart is three attempts over a minute, which is the shape of the problem.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[] - the YAML lines, unindented.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTJoinDomainStepDescription" data-name="get-hdtjoindomainstepdescription" data-hay="get-hdtjoindomainstepdescription describes a joindomain step by what the machine is about to join. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTJoinDomainStepDescription">Get-HDTJoinDomainStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Describes a JoinDomain step by what the machine is about to join.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTJoinDomainStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\STD-CLIENT\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;JoinDomain&#x27; })[0]
+Get-HDTJoinDomainStepDescription -Step $step</pre><p>The one line the log and the progress display carry for this step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTStepDescription -Step $step</pre><p>The same line through the dispatcher, which is how the engine asks. It finds this function by name; a step type that declares none gets &#x27;&lt;Type&gt;: &lt;name&gt;&#x27; instead.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The optional third of the step contract&#x27;s triple. This string goes to the progress display and to the master log at Info.</p>
+<p>IT NAMES THE DOMAIN, because that is the fact a technician watching a deployment wants confirmed: a machine joining the wrong domain looks exactly like a machine joining the right one until somebody goes looking for it in the directory.</p>
+<p>IT SHOWS THE TOKEN WHEN THAT IS WHAT THE STEP SAYS. This runs before the step does, off the authored document rather than the resolved variables, so &#x27;%HDTJoinDomain%&#x27; is the honest answer for a step that takes its domain from the wizard - and it tells an administrator reading the log which variable to go and look at.</p>
+<p>THE DOMAIN WINS OVER THE WORKGROUP HERE TOO, for the reason Invoke-HDTJoinDomainStep gives at length: a share seeds HDTJoinWorkgroup in its Fallback rule, so nearly every step carries both and only one of them is what the machine is getting. A description that named the workgroup would contradict the step directly above it in the same log.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
 <article class="fn" id="Get-HDTCommandLineStepTemplate" data-name="get-hdtcommandlinesteptemplate" data-hay="get-hdtcommandlinesteptemplate the yaml for a new commandline step. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTCommandLineStepTemplate">Get-HDTCommandLineStepTemplate</a></h3>
@@ -2472,7 +2508,7 @@ Get-HDTBootToWinPEStepDescription -Step $step</pre><p>The one line the log and t
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">24 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
+    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">25 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
 <article class="fn" id="Invoke-HDTStep" data-name="invoke-hdtstep" data-hay="invoke-hdtstep dispatches one step to the invoke-hdt&lt;type&gt;step function that implements it. step context steptype">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTStep">Invoke-HDTStep</a></h3>
@@ -3011,6 +3047,60 @@ $result.Status</pre><p>Failed rather than thrown when the key cannot be escrowed
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries drive, method, scope, protector, escrow and the escrowed protector&#x27;s id - never the key.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
+<article class="fn" id="Invoke-HDTJoinDomainStep" data-name="invoke-hdtjoindomainstep" data-hay="invoke-hdtjoindomainstep joins the deployed machine to a domain, or to a workgroup. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTJoinDomainStep">Invoke-HDTJoinDomainStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Joins the deployed machine to a domain, or to a workgroup.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTJoinDomainStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A flattened step from Import-HDTSequenceDocument.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>A New-HDTExecutionContext context. Its Service catalog must carry a Domain service.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
+$service = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock $clock `
+    -Domain (New-HDTDomainService)
+$log = New-HDTLogContext -RunId &#x27;run-0001&#x27; -Phase FullOS -LogPath &#x27;C:\HDT\Logs&#x27; -Clock $clock
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase FullOS `
+    -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Variable ([ordered] @{}) -Service $service -Log $log
+$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\STD-CLIENT\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;JoinDomain&#x27; })[0]
+Invoke-HDTJoinDomainStep -Step $step -Context $context</pre><p>Runs one step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTJoinDomainStep -Step $step -Context $context
+$result.Message</pre><p>What the directory actually said. A refused join reports the domain&#x27;s own sentence, because &quot;join failed&quot; sends an administrator to look at DNS when the account was wrong.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>DESIGN 4.2&#x27;s JoinDomain step, behind IDomainService so the whole step runs under Pester against a fake rather than against the developer&#x27;s own machine and somebody&#x27;s directory.</p>
+<pre class="block">  - name: Join Domain
+    type: JoinDomain
+    domain: &#x27;%HDTJoinDomain%&#x27;
+    ou: &#x27;%HDTMachineObjectOU%&#x27;
+    workgroup: &#x27;%HDTJoinWorkgroup%&#x27;
+    userName: &#x27;%HDTDomainAdmin%&#x27;
+    userDomain: &#x27;%HDTDomainAdminDomain%&#x27;
+    runIn: FullOS</pre>
+<p>IT HAS NEVER JOINED A REAL DOMAIN. There is no domain controller in this lab and the isolated switch is isolated by design (ROADMAP M3), so every assertion about this step is made against a hand-written fake. That is stated here rather than left to be discovered: the logic is tested, the wire is not.</p>
+<p>THE VARIABLES ARE THE WIZARD&#x27;S, NOT NEW ONES. The shipped Computer Details page has collected HDTJoinDomain, HDTMachineObjectOU, HDTJoinWorkgroup, HDTDomainAdmin, HDTDomainAdminDomain and HDTDomainAdminPassword since the wizard shipped, and until this step existed nothing consumed any of them - a technician filled that page in and the answers went nowhere. This step reads exactly those names.</p>
+<p>IT JOINS ONLINE, IN THE FULL OS, AND THAT IS THE SECURITY DECISION. The other real option is an offline join written into the answer file&#x27;s Microsoft-Windows-UnattendedJoin component, which is MDT&#x27;s primary mechanism and PSD&#x27;s only one. Three reasons not to:</p>
+<pre class="block">  * THE CREDENTIAL WOULD BE ON THE DISK IN CLEAR. MDT&#x27;s
+    ZTIConfigure.wsf writes the password into the answer file&#x27;s
+    &lt;Credentials&gt; block and sets the parallel &lt;PlainText&gt; element to
+    true. The file lands in Windows\Panther on the deployed machine,
+    and MDT&#x27;s own capture path strips AutoLogon, FirstLogonCommands
+    and LocalAccounts out of it without stripping UnattendedJoin - so
+    a reference image captured from a machine whose sequence set
+    JoinDomain carries the domain password inside the .wim.
+  * A FAILED OFFLINE JOIN IS SILENT. Windows writes it to
+    NetSetup.LOG and boots anyway, so the deployment reports success
+    and the machine is simply not a member. A step has a result.
+  * DESIGN 4.5.3 NEEDS THE JOIN TO BE OBSERVABLE. The autologon
+    identity is rewritten AFTER the join succeeds and before the next
+    restart; an unattend join has no &quot;after it succeeded&quot;.</pre>
+<p>The tradeoff, stated plainly: an online join needs a reachable controller at the moment the step runs, and the machine has already booted as a workgroup member by then. A failure therefore leaves a WORKING, reachable, unjoined machine somebody can log on to and fix, which is the outcome to prefer over a half-configured one.</p>
+<p>THE DOMAIN WINS OVER THE WORKGROUP, WHICH IS THE OPPOSITE OF MDT. ZTIDomainJoin.wsf checks JoinWorkgroup first and declines to join a domain when it is set, because in MDT nothing sets it unless somebody asked for a workgroup. IN HDT SOMETHING ALWAYS DOES: New-HDTWorkspace seeds HDTJoinWorkgroup: WORKGROUP into rules.yaml&#x27;s Fallback rule, and the wizard&#x27;s domain answer does not remove it - a Fallback rule and a wizard answer are different sources, and the wizard writes only what the technician touched. So every real domain deployment arrives here with both set, and MDT&#x27;s precedence would mean HDT never joined a domain at all. The workgroup is what a machine gets when no domain was asked for, and the log says so when both were.</p>
+<p>THERE IS NO PASSWORD PROPERTY, AND THAT IS DELIBERATE. sequence.yaml is printed into a text box in the console, quoted back in refusals, and stored on a share every machine being deployed can read. The password comes from HDTDomainAdminPassword in the variable bag, which Test-HDTSecretVariable has classified secret since the secret contract landed - so every log, checkpoint and report redacts it without this step having to ask.</p>
+<p>A REDACTED PASSWORD IS REFUSED WITHOUT BEING TRIED, and this is the most important refusal in the file. Save-HDTRunState writes &#x27;(set, not shown)&#x27; in place of every secret, and the leg after a restart rehydrates its whole variable bag from that file - so a JoinDomain step in a State Restore group, which is where DESIGN 4.1 and MDT both put it, is handed that literal string. Trying it is a wrong-password attempt against a privileged account, once per machine, on every machine being built: a lab of forty overnight is a lockout policy tripped forty times on the one account that can join anything to the directory. DESIGN 4.5.2 already names this as open and names the durable answer - an LSA-carried secret bag written alongside each checkpoint - which is not built. Until it is, the password has to be set in the leg that uses it, and the refusal says so in words an administrator can act on.</p>
+<p>MDT&#x27;S OU RECOVERY IS DERIVED. A refused join is retried once with no OU, because a pre-staged computer account already living in a container the sequence does not name is the ordinary case in a managed directory and it fails the first attempt every time. ZTIDomainJoin.wsf does the same and says why: &quot;The account *may* already exist in a different OU.&quot;</p>
+<p>RETRYING THE STEP IS THE ENGINE&#x27;S JOB, NOT THIS FILE&#x27;S. MDT counts its own attempts in a task sequence variable and reboots between them; HDT already has retry: on every step, so the template declares one rather than growing a second retry mechanism inside a step.</p>
+<p>SYSPREP AND CAPTURE: DO NOT JOIN A REFERENCE BUILD. MDT refuses to sysprep a domain-joined machine outright - LTISysprep.wsf reports failure 7002 on a DomainRole of 1, 3, 4 or 5 - and the shipped reference sequence here declares no JoinDomain step at all, which tests/contract/JoinCredential.Contract.Tests.ps1 asserts over every shipped sequence that captures.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries the domain, the OU, the account and the workgroup - never the password.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
 <article class="fn" id="Invoke-HDTCommandLineStep" data-name="invoke-hdtcommandlinestep" data-hay="invoke-hdtcommandlinestep runs a native command and classifies its exit code. step context">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTCommandLineStep">Invoke-HDTCommandLineStep</a></h3>
@@ -3064,7 +3154,7 @@ $context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase WinPE `
 $sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\sequence.yaml&#x27;
 $step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;PowerShell&#x27; })[0]
 Invoke-HDTPowerShellStep -Step $step -Context $context</pre><p>Runs one step out of a real sequence. Building the context is what the engine does before the first step; a step cannot be run without one.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTPowerShellStep -Step $step -Context $context
-$result.Data.ExitCode</pre><p>The script&#x27;s exit code. The script runs from the workspace&#x27;s Scripts\ folder, which is why the engine&#x27;s own commands are in scope for it.</p></div></section>
+$result.Data</pre><p>Whatever OBJECT the script emitted, passed through as it was. A script is not a process here - it is invoked in-session through IScriptInvoker - so there is no exit code to read, and a script that wants to report one returns it as part of the object it emits.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>The extensibility point:</p>
 <pre class="block">  - name: Vendor BIOS Update
     type: PowerShell
@@ -6534,15 +6624,15 @@ if ($answer.Answer -eq &#x27;saved&#x27;) { Update-HDTBootImage -WorkspaceRoot &
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="services-and-module" data-cat="services-and-module"><header class="cat-head"><div class="cat-eyebrow">28 commands</div><h2>Injected services, hosts &amp; module plumbing</h2><p class="cat-blurb">The thin adapters a step reaches hardware through, the UI hosts, and the module&#x27;s own build helpers.</p></header><div class="cat-body">
-<article class="fn" id="New-HDTServiceCatalog" data-name="new-hdtservicecatalog" data-hay="new-hdtservicecatalog builds the injected service catalog a step reaches the outside world through. filesystem clock registry lsa process power scriptinvoker cim environment disk image feature bitlocker content progress">
+    <section class="cat" id="services-and-module" data-cat="services-and-module"><header class="cat-head"><div class="cat-eyebrow">29 commands</div><h2>Injected services, hosts &amp; module plumbing</h2><p class="cat-blurb">The thin adapters a step reaches hardware through, the UI hosts, and the module&#x27;s own build helpers.</p></header><div class="cat-body">
+<article class="fn" id="New-HDTServiceCatalog" data-name="new-hdtservicecatalog" data-hay="new-hdtservicecatalog builds the injected service catalog a step reaches the outside world through. filesystem clock registry lsa process power scriptinvoker cim environment disk image feature bitlocker domain content progress">
 <header class="fn-head">
 <h3><a class="anchor" href="#New-HDTServiceCatalog">New-HDTServiceCatalog</a></h3>
 <div class="tags"><span class="chip v-make">New</span>
 </div></header>
 <p class="syn">Builds the injected service catalog a step reaches the outside world through.</p>
-<div class="sig-wrap"><pre class="sig">New-HDTServiceCatalog [-FileSystem] &lt;Object&gt; [-Clock] &lt;Object&gt; [[-Registry] &lt;Object&gt;] [[-Lsa] &lt;Object&gt;] [[-Process] &lt;Object&gt;] [[-Power] &lt;Object&gt;] [[-ScriptInvoker] &lt;Object&gt;] [[-Cim] &lt;Object&gt;] [[-Environment] &lt;Object&gt;] [[-Disk] &lt;Object&gt;] [[-Image] &lt;Object&gt;] [[-Feature] &lt;Object&gt;] [[-BitLocker] &lt;Object&gt;] [[-Content] &lt;Object&gt;] [[-Progress] &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
-<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-FileSystem</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Mandatory.</p></td></tr><tr><td class="p-name"><code>-Clock</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IClock. Mandatory.</p></td></tr><tr><td class="p-name"><code>-Registry</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IRegistryService, or nothing.</p></td></tr><tr><td class="p-name"><code>-Lsa</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An ILsaService, or nothing.</p></td></tr><tr><td class="p-name"><code>-Process</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IProcessService, or nothing.</p></td></tr><tr><td class="p-name"><code>-Power</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IPowerService, or nothing.</p></td></tr><tr><td class="p-name"><code>-ScriptInvoker</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IScriptInvoker, or nothing.</p></td></tr><tr><td class="p-name"><code>-Cim</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An ICimProvider, or nothing.</p></td></tr><tr><td class="p-name"><code>-Environment</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IEnvironmentProvider, or nothing.</p></td></tr><tr><td class="p-name"><code>-Disk</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IDiskService, or nothing. DiskPartition asks for it by name.</p></td></tr><tr><td class="p-name"><code>-Image</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IImageService, or nothing. ApplyImage and ConfigureBoot ask for it by name.</p></td></tr><tr><td class="p-name"><code>-Feature</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFeatureService, or nothing. InstallRoles asks for it by name.</p></td></tr><tr><td class="p-name"><code>-BitLocker</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IBitLockerService, or nothing. EnableBitLocker asks for it by name.</p></td></tr><tr><td class="p-name"><code>-Content</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IContentProvider, or nothing - New-HDTLocalContentProvider or New-HDTSmbContentProvider. ApplyImage resolves the catalog&#x27;s image through it when the run was started with one, which is the whole of &quot;a provider swap, not a parallel code path&quot; as far as a step is concerned.</p></td></tr><tr><td class="p-name"><code>-Progress</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>NULL IS THE NORMAL CASE, AND IT COSTS NOTHING. A run with no progress display never reads its own log to draw one - see Update-HDTProgressDisplay. DESIGN 11.1&#x27;s HDTSkipProgress and every sequence test in the suite arrive here as $null.</p></td></tr></table></div></section>
+<div class="sig-wrap"><pre class="sig">New-HDTServiceCatalog [-FileSystem] &lt;Object&gt; [-Clock] &lt;Object&gt; [[-Registry] &lt;Object&gt;] [[-Lsa] &lt;Object&gt;] [[-Process] &lt;Object&gt;] [[-Power] &lt;Object&gt;] [[-ScriptInvoker] &lt;Object&gt;] [[-Cim] &lt;Object&gt;] [[-Environment] &lt;Object&gt;] [[-Disk] &lt;Object&gt;] [[-Image] &lt;Object&gt;] [[-Feature] &lt;Object&gt;] [[-BitLocker] &lt;Object&gt;] [[-Domain] &lt;Object&gt;] [[-Content] &lt;Object&gt;] [[-Progress] &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-FileSystem</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Mandatory.</p></td></tr><tr><td class="p-name"><code>-Clock</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IClock. Mandatory.</p></td></tr><tr><td class="p-name"><code>-Registry</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IRegistryService, or nothing.</p></td></tr><tr><td class="p-name"><code>-Lsa</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An ILsaService, or nothing.</p></td></tr><tr><td class="p-name"><code>-Process</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IProcessService, or nothing.</p></td></tr><tr><td class="p-name"><code>-Power</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IPowerService, or nothing.</p></td></tr><tr><td class="p-name"><code>-ScriptInvoker</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IScriptInvoker, or nothing.</p></td></tr><tr><td class="p-name"><code>-Cim</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An ICimProvider, or nothing.</p></td></tr><tr><td class="p-name"><code>-Environment</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IEnvironmentProvider, or nothing.</p></td></tr><tr><td class="p-name"><code>-Disk</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IDiskService, or nothing. DiskPartition asks for it by name.</p></td></tr><tr><td class="p-name"><code>-Image</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IImageService, or nothing. ApplyImage and ConfigureBoot ask for it by name.</p></td></tr><tr><td class="p-name"><code>-Feature</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFeatureService, or nothing. InstallRoles asks for it by name.</p></td></tr><tr><td class="p-name"><code>-BitLocker</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IBitLockerService, or nothing. EnableBitLocker asks for it by name.</p></td></tr><tr><td class="p-name"><code>-Domain</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IDomainService, or nothing. JoinDomain asks for it by name. It is the port for Add-Computer, which is why the join password never reaches a command line.</p></td></tr><tr><td class="p-name"><code>-Content</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IContentProvider, or nothing - New-HDTLocalContentProvider or New-HDTSmbContentProvider. ApplyImage resolves the catalog&#x27;s image through it when the run was started with one, which is the whole of &quot;a provider swap, not a parallel code path&quot; as far as a step is concerned.</p></td></tr><tr><td class="p-name"><code>-Progress</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>NULL IS THE NORMAL CASE, AND IT COSTS NOTHING. A run with no progress display never reads its own log to draw one - see Update-HDTProgressDisplay. DESIGN 11.1&#x27;s HDTSkipProgress and every sequence test in the suite arrive here as $null.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$clock = New-HDTClock
 $fs = New-HDTFileSystem
 $catalog = New-HDTServiceCatalog -FileSystem (New-HDTFileSystem) -Clock (New-HDTClock)</pre><p>The smallest catalog that runs a NoOp sequence.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$catalog = New-HDTServiceCatalog -FileSystem $fs -Clock $clock -Process (New-HDTProcessService)
@@ -6561,6 +6651,7 @@ $catalog.GetRequired(&#x27;Process&#x27;, &#x27;CommandLine&#x27;)</pre></div></
   Image          IImageService
   Feature        IFeatureService
   BitLocker      IBitLockerService
+  Domain         IDomainService
   Content        IContentProvider</pre>
 <p>EVERY PROPERTY IS DEFINED EVEN WHERE IT IS $null. Engine code runs under Set-StrictMode -Version Latest, where reading a property that was never defined throws &quot;The property &#x27;Process&#x27; cannot be found on this object&quot; - an error that says nothing about which step wanted what.</p>
 <p>GetRequired REPLACES THAT WITH A SENTENCE.</p>
@@ -6799,6 +6890,26 @@ $bitLocker.GetVolume(&#x27;C:&#x27;)</pre><p>The volume&#x27;s protection state,
 <p>Every decision - which protector, whether escrow succeeded, whether to encrypt at all - is made by the step. This projects four cmdlets and nothing else.</p>
 <p>THE PROTECTOR TYPE IS A STRING THE STEP CHOOSES, mapping to the switch Add-BitLockerKeyProtector wants. The mapping is here rather than in the step because it is the adapter&#x27;s job to know the cmdlet&#x27;s shape, and the step&#x27;s job to know DESIGN 10.3&#x27;s vocabulary.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject carrying GetVolume, AddProtector, BackupProtector and Enable, plus Operations, GetOperationName and ServiceName.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="New-HDTDomainService" data-name="new-hdtdomainservice" data-hay="new-hdtdomainservice the real idomainservice: a thin adapter over add-computer and win32_computersystem. journal">
+<header class="fn-head">
+<h3><a class="anchor" href="#New-HDTDomainService">New-HDTDomainService</a></h3>
+<div class="tags"><span class="chip v-make">New</span>
+</div></header>
+<p class="syn">The real IDomainService: a thin adapter over Add-Computer and Win32_ComputerSystem.</p>
+<div class="sig-wrap"><pre class="sig">New-HDTDomainService [[-Journal] &lt;ArrayList&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Journal</code></td><td class="p-type"><code>ArrayList</code></td><td class="p-desc"><p>The shared cross-service operation journal. When supplied, every call is appended to it as well as to $Operations.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$domain = New-HDTDomainService
+$domain.GetMembership()</pre><p>What the machine says about itself, read before anything is changed.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">@($domain.GetOperationName())</pre><p>The order it was asked to work in. A membership read with no join after it is the step deciding the machine was already where it belongs.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The join port for the JoinDomain step (DESIGN 4.2). Rule 5 forbids engine logic from calling Add-Computer directly, so the step receives this object and can be handed New-HDTFakeDomainService in a test.</p>
+<p>IT IS BRANCH-LIGHT, WHICH IS WHY IT IS NOT UNIT TESTED (rule 1&#x27;s adapter exception) - AND THERE IS NO SAFE WAY TO TEST IT ANYWAY. Two of its three methods change the domain membership of the machine they run on, and the machine in front of this code during development is a developer&#x27;s own laptop. There is also no domain controller in this lab (ROADMAP M3), so THIS ADAPTER HAS NEVER JOINED A REAL DOMAIN. Every behavioural assertion about the interface lives on the fake.</p>
+<p>Every decision - which domain, whether the machine is already a member, whether to retry without the OU, whether there is a usable password at all - is made by the step. This projects two cmdlets.</p>
+<p>THE PASSWORD IS NEVER ON A COMMAND LINE, and that is the reason this file calls Add-Computer in-process rather than shelling out to one of the external join tools. Nothing redacts Win32_Process.CommandLine: every local account on the machine can read it while the process lives, and the account this password belongs to can create computer objects in the directory. MDT reached the same answer by a different route - ZTIDomainJoin.wsf passes the password as an argument to Win32_ComputerSystem.JoinDomainOrWorkgroup and shells nothing.</p>
+<p>tests/contract/JoinCredential.Contract.Tests.ps1 SCANS THIS FILE AS RAW TEXT for the names of those tools, comments included, which is the same crude and permanent shape StepContract.Tests.ps1 uses for the step files - so this comment names none of them. That is the cost of a grep nobody can argue their way past, and it is worth paying.</p>
+<p>THE SECURESTRING CONVERSION HAPPENS HERE, AT THE LAST POSSIBLE MOMENT, and the interface does not pretend the value was ever secret: it arrives from the variable bag as a string, exactly as HDTAdminPassword does (DESIGN 4.5.2). Add-Computer requires a PSCredential, so the conversion is the adapter&#x27;s business rather than a fiction maintained up the call stack.</p>
+<p>ADD-COMPUTER ALWAYS SETS NETSETUP_ACCT_CREATE, which is MDT&#x27;s first attempt (JoinDomainOrWorkgroup with options 3 - &quot;(1)Join Domain + (2)Create&quot;). MDT&#x27;s second attempt drops that bit as well as the OU; Add-Computer offers no way to drop it, and it does not need to - the join reuses an existing computer account rather than failing on one. The half that matters is dropping the OU, and the STEP does that by calling this method a second time with an empty one.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject carrying GetMembership, JoinDomain and JoinWorkgroup, plus Operations, GetOperationName and ServiceName.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="New-HDTFeatureService" data-name="new-hdtfeatureservice" data-hay="new-hdtfeatureservice the real ifeatureservice: a thin adapter over get-windowsfeature and install-windowsfeature. journal">

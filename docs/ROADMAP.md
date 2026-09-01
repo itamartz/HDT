@@ -210,6 +210,11 @@ about (SPIKES S9):
   lab, and the `HDT Lab` switch is isolated by design. `JoinDomain` is verified
   against a fake only (PROJECT.md says so explicitly).
 
+  **The step exists as of 2026-09-01** and is still fake-verified only: it has
+  never joined a real domain, and nothing in this repository has. The logic is
+  tested — the wire is not. See M6 below for what it does and what it does not
+  answer, and Post-v1 for the hardware proof it is still owed.
+
 ---
 
 ## M4 — Boot image, ISO, and PXE
@@ -596,6 +601,38 @@ records, which say which `.inf` answered which id and at what rank.
   keeps it. `rotate`, `laps` and `disable` were a local-account service and
   three more end states to test, for a policy MDT never had — a site that wants
   LAPS installs LAPS. DESIGN §4.5.4 records the decision.
+- **`JoinDomain`** (DESIGN §4.2, §4.5.3), built 2026-09-01. An **online** join
+  in the full OS through `Add-Computer` behind an injected `IDomainService` —
+  not an offline join written into the answer file, which is MDT's mechanism and
+  PSD's only one. Three reasons, recorded here because the choice looks
+  arbitrary from outside: an unattend join puts the join account's password in
+  clear on the deployed disk and inside any image captured from it; a failed
+  unattend join is silent, so the deployment reports success on a machine that
+  is simply not a member; and DESIGN §4.5.3 rewrites the autologon identity
+  *after the join succeeds*, which needs a join that has a result.
+
+  It consumes exactly the six variables the shipped wizard page has collected
+  since the wizard shipped and nothing consumed — `HDTJoinDomain`,
+  `HDTMachineObjectOU`, `HDTJoinWorkgroup`, `HDTDomainAdmin`,
+  `HDTDomainAdminDomain` and `HDTDomainAdminPassword`. Closing that gap is the
+  reason it was built.
+
+  **It has never joined a real domain, and it cannot be proven here.** There is
+  no domain controller on this host and the isolated switch is isolated by
+  design (M3, above; PROJECT.md says so explicitly). Every assertion about it is
+  made against a hand-written fake. Said plainly rather than left to be
+  discovered: the logic is tested and the wire is not.
+
+  **One thing it surfaces rather than solves.** `state.json` redacts every
+  secret and the leg after a restart rehydrates its variables from it, so a
+  `JoinDomain` step in State Restore — where DESIGN §4.1 and MDT both put it —
+  is handed `(set, not shown)` where the password was. The step refuses rather
+  than attempting the join, because one wrong-password attempt per machine locks
+  out the account that joins every machine in the estate. DESIGN §4.5.2 already
+  named the durable answer, an LSA-carried secret bag written alongside each
+  checkpoint, and recorded that it is not built; that is still true. Until it
+  is, an unattended domain join needs `HDTDomainAdminPassword` set in the leg
+  that runs the step.
 - Server task sequence in `samples/`.
 - **`WindowsUpdate` is deferred to v2** — see below.
 
@@ -945,6 +982,19 @@ Ordered by likely value, all pending the open questions in DESIGN §14:
 - SQL or REST per-machine settings provider.
 - Reference image build pipeline (scheduled patch-and-capture).
 - Server OS roles and features.
+- **`JoinDomain` against a real domain controller.** The step ships fake-verified
+  only and always has been (M3, M6): there is no DC on this host, and the one
+  switch isolated enough to carry a PXE responder is also isolated enough to have
+  nothing to join. Proving it needs a domain controller VM on `HDT Lab` and a
+  machine deployed onto that segment, which is a lab build rather than a code
+  change — and it is the last v1 step type with no hardware evidence behind it.
+- **A secret bag that survives a reboot** (DESIGN §4.5.2, named there and not
+  built). `HDTAdminPassword` is recovered from the autologon LSA secret because
+  it happens to be the same value; every other secret a full-OS step reads after
+  a restart gets the checkpoint's redaction instead. `JoinDomain` is the first
+  step to hit it and it refuses loudly, which is the right behaviour and not a
+  fix. The mechanism is an LSA-carried bag written alongside each checkpoint —
+  the same store §4.5.2 already chose for the autologon password.
 
 ---
 

@@ -1267,13 +1267,31 @@ These are the reasons to reimplement rather than copy:
 
   **Open, and named here rather than left to be rediscovered.**
   `HDTBitLockerPin`, `HDTProductKey` and `HDTDomainAdminPassword` are read from
-  the variable bag by their steps. None of the shipped sequences consume one in
-  a full-OS group *after* a reboot — the unattend is applied in WinPE, and the
+  the variable bag by their steps. The unattend is applied in WinPE and the
   EnableBitLocker step's PIN is authored in the sequence rather than resolved
-  across a leg — so nothing regresses today. A sequence that did so would get
-  the redaction. The durable answer is an LSA-carried secret bag written
-  alongside each checkpoint, which is the same mechanism §4.5.2 already chose
-  for the autologon password; it is not built.
+  across a leg, so neither of the first two regresses today. The durable answer
+  is an LSA-carried secret bag written alongside each checkpoint, which is the
+  same mechanism this section already chose for the autologon password; it is
+  not built.
+
+  **`JoinDomain` reached it first, on 2026-09-01, and it is no longer
+  hypothetical.** The step joins online in the full OS — §4.2, and §4.1's own
+  example sequence puts it in State Restore — so it runs in the leg *after* a
+  restart and is handed `(set, not shown)` where the password was. **It refuses
+  rather than attempting the join**, and that refusal is not a nicety: trying a
+  redacted value is one wrong-password attempt per machine against the one
+  account that can join anything to the directory, so a lab of forty deployed
+  overnight would trip a lockout policy forty times on it. Until the secret bag
+  exists, an unattended domain join needs `HDTDomainAdminPassword` set in the
+  leg that runs the step.
+
+  It is worth saying why the obvious escape is not one: **the join is not moved
+  into the unattend to dodge this.** MDT's `Microsoft-Windows-UnattendedJoin`
+  component would have the password available in WinPE where the wizard
+  collected it — and would write it in clear into a file that stays on the
+  deployed disk and rides inside any image captured from it, while turning a
+  failed join into a silent one. The redaction is a problem to solve; a
+  credential in an answer file is a problem to avoid.
 - **It is stored as an LSA secret, not registry cleartext.** Winlogon reads
   `DefaultPassword` from LSA private data as well as from the registry; this is
   the mechanism Sysinternals' `Autologon.exe` uses. Same behavior, no plaintext
