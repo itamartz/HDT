@@ -3620,6 +3620,24 @@ class HDTFakeImageService {
     # and shaped as IBootImageService's, because it is the same DISM verb.
     [object[]] $Driver
 
+    # WHAT AddPackage ANSWERS WITH, per package path. The real adapter returns
+    # dism's exit code WITHOUT asserting it, because dism exited 0xC0000409 on a
+    # successful Windows 11 apply and 0 on a successful Server one - so a step
+    # that judged by the number would be wrong on one machine and right on the
+    # next. A test seeds whichever number it wants to prove the step ignores.
+    [hashtable] $PackageResult
+
+    # WHAT GetPackage REPORTS, which is how a step PROVES an apply landed rather
+    # than trusting an exit code. Keyed by image path; the default is an empty
+    # list, standing for an image nothing has been applied to yet.
+    [hashtable] $ImagePackage
+
+    # The package identities AddPackage adds to $ImagePackage when it is called.
+    # Seeded per package path, so a test can say "this .msu installs
+    # Package_for_RollupFix~...~26100.8655.1.20" and the step's verification has
+    # something true to find.
+    [hashtable] $PackageInstalls
+
     HDTFakeImageService() {
         $this.Image = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -3630,6 +3648,9 @@ class HDTFakeImageService {
         $this.CaptureOutput = [string[]] @()
         $this.UnattendTick = 0
         $this.Driver = [object[]] @()
+        $this.PackageResult = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.ImagePackage = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.PackageInstalls = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
     }
 
     # -- recording ---------------------------------------------------------
@@ -3807,6 +3828,67 @@ class HDTFakeImageService {
         }
 
         $this.AssertNoFailure('CaptureImage')
+    }
+
+    # OFFLINE PACKAGE INJECTION INTO THE APPLIED OS - a .msu handed to dism as
+    # it was downloaded. The real adapter REPORTS the exit code instead of
+    # asserting it, and so does this: dism exited 0xC0000409 after a successful
+    # Windows 11 apply and 0 after a successful Server one, so a step that
+    # judged by the number alone would be wrong on one machine and right on the
+    # next. A test seeds either.
+    [object] AddPackage([string] $ImagePath, [string] $PackagePath) {
+        $this.Record('AddPackage', @($ImagePath, $PackagePath))
+        $this.AssertNoFailure('AddPackage')
+
+        $key = $this.Normalize($PackagePath)
+
+        $exitCode = 0
+        $output = [string[]] @()
+
+        if ($this.PackageResult.ContainsKey($key)) {
+            $seed = $this.PackageResult[$key]
+            if ($seed.Contains('ExitCode')) { $exitCode = [int] $seed['ExitCode'] }
+            if ($seed.Contains('Output')) { $output = [string[]] @($seed['Output']) }
+        }
+
+        # WHAT THE APPLY PUT ON THE IMAGE, so the step's verification read has
+        # something true to find. A package with nothing seeded installs
+        # nothing, which is how "dism said it worked and the package is not
+        # there" gets a test at all.
+        if ($this.PackageInstalls.ContainsKey($key)) {
+            $imageKey = $this.Normalize($ImagePath)
+
+            if (-not $this.ImagePackage.ContainsKey($imageKey)) {
+                $this.ImagePackage[$imageKey] = [object[]] @()
+            }
+
+            $existing = [object[]] @($this.ImagePackage[$imageKey])
+
+            foreach ($name in @($this.PackageInstalls[$key])) {
+                $existing += [pscustomobject] @{ Name = [string] $name; State = 'Installed' }
+            }
+
+            $this.ImagePackage[$imageKey] = $existing
+        }
+
+        return [pscustomobject] @{
+            ExitCode = $exitCode
+            Output   = $output
+        }
+    }
+
+    # WHAT THE IMAGE HAS, which is how an apply is proved rather than assumed.
+    [object[]] GetPackage([string] $ImagePath) {
+        $this.Record('GetPackage', @($ImagePath))
+        $this.AssertNoFailure('GetPackage')
+
+        $key = $this.Normalize($ImagePath)
+
+        if (-not $this.ImagePackage.ContainsKey($key)) {
+            return [object[]] @()
+        }
+
+        return [object[]] @($this.ImagePackage[$key])
     }
 
     # Offline injection into the applied OS. The real adapter returns what
@@ -4114,6 +4196,15 @@ function New-HDTFakeImageService {
         [object[]] $Driver = @(),
 
         [Parameter()]
+        [hashtable] $PackageResult,
+
+        [Parameter()]
+        [hashtable] $PackageInstalls,
+
+        [Parameter()]
+        [hashtable] $ImagePackage,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
@@ -4149,6 +4240,24 @@ function New-HDTFakeImageService {
     if ($PSBoundParameters.ContainsKey('Failure')) {
         foreach ($operation in @($Failure.Keys)) {
             $fake.SeedFailure([string] $operation, [string] $Failure[$operation])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('PackageResult')) {
+        foreach ($path in @($PackageResult.Keys)) {
+            $fake.PackageResult[$fake.Normalize([string] $path)] = $PackageResult[$path]
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('PackageInstalls')) {
+        foreach ($path in @($PackageInstalls.Keys)) {
+            $fake.PackageInstalls[$fake.Normalize([string] $path)] = [string[]] @($PackageInstalls[$path])
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('ImagePackage')) {
+        foreach ($path in @($ImagePackage.Keys)) {
+            $fake.ImagePackage[$fake.Normalize([string] $path)] = [object[]] @($ImagePackage[$path])
         }
     }
 

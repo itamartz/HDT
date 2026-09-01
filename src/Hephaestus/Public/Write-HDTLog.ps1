@@ -1,4 +1,4 @@
-function Write-HDTLog {
+﻿function Write-HDTLog {
     <#
         .SYNOPSIS
             Writes one log entry in both formats, from one call.
@@ -175,6 +175,14 @@ function Write-HDTLog {
             # rows with no name, no value and no source into
             # ConvertTo-HDTReport's Variables table, which reads exactly those
             # three fields out of data.
+            # ONE RECORD PER PACKAGE, WHICH IS WHY THIS IS ITS OWN NAME AND
+            # NOT A step.progress. Twenty .msu files applied in one pass is
+            # twenty outcomes an administrator has to be able to filter - which
+            # one was already in the image, which one needed a prerequisite,
+            # which one actually failed - and a single summary line at the end
+            # of the step answers none of those. It is driver.staged's reasoning
+            # applied to the same shape of work.
+            'update.apply',
             'var.resolve',
             'var.unresolved')]
         [string] $Event = 'message',

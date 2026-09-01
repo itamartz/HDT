@@ -43,7 +43,7 @@ $script:HDTExpectedStepType = @(
     'Validate', 'DiskPartition', 'ApplyImage', 'ApplyUnattend', 'ApplyDrivers',
     'ConfigureBoot', 'InstallApplications', 'InstallRoles', 'InstallCertificate',
     'EnableBitLocker', 'Tattoo', 'Gather', 'Sysprep', 'CaptureImage', 'BootToWinPE',
-    'JoinDomain'
+    'JoinDomain', 'ApplyUpdates'
 )
 
 Describe 'the step contract' {

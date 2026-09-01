@@ -1,4 +1,4 @@
-function New-HDTImageService {
+﻿function New-HDTImageService {
     <#
         .SYNOPSIS
             Creates the real IImageService adapter over Get-WindowsImage,
@@ -49,6 +49,8 @@ function New-HDTImageService {
                   first boot runs specialize and oobeSystem and not that one.
                   MDT LTIApply.wsf:1021-1043; see NOTICE.md.
 
+              AddPackage(imagePath, packagePath) -> ExitCode, Output
+              GetPackage(imagePath) -> Name, State
               AddDriver(imagePath, driverPath, recurse)
                   Add-WindowsDriver -Path <imagePath> -Driver <driverPath>
                       -Recurse:<recurse>
@@ -609,6 +611,81 @@ function New-HDTImageService {
         # collapses a one-element array to a scalar without it, and one driver
         # is the ordinary case for a matched injection (tests/helpers/README.md
         # F3).
+        return , ([object[]] @($row))
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name AddPackage -Value {
+        param([string] $ImagePath, [string] $PackagePath)
+
+        $this.Record('AddPackage', @($ImagePath, $PackagePath))
+
+        # THE .msu ITSELF, NOT THE .wim INSIDE IT, AND THAT WAS MEASURED RATHER
+        # THAN ASSUMED. A modern .msu is a WIM container holding an express
+        # package - Windows11.0-KB<n>-x64.wim beside a .psf carrying the deltas -
+        # and pointing /Add-Package at that inner .wim fails with 0x80070057,
+        # "An error occurred trying to open", on both packages tried on
+        # 2026-09-01. Handing dism the .msu works: a mounted Windows 11 LTSC
+        # image went from 10.0.26100.1742 to 10.0.26100.8655 in 8m35s, and a
+        # Server 2025 image from 10.0.26100.1742 to 10.0.26100.32995 in 12m24s.
+        #
+        # SO NOTHING IS EXTRACTED AT IMPORT OR AT APPLY. The store keeps the
+        # package as downloaded, which is both the smaller option and the one
+        # that works - the 4.76 GB unpack the extract-first design would have
+        # cost on every deployment buys nothing.
+
+        # 5.1 TRAP, NOT TIDINESS. Under Windows PowerShell 5.1 the 2>&1 below
+        # wraps every stderr line in an ErrorRecord, and the ErrorActionPreference
+        # Stop that engine code sets makes the FIRST one terminating - so a tool
+        # that merely printed a meter kills the call before its exit code is ever
+        # consulted. Local to this method scope, so nothing outside it changes.
+        $ErrorActionPreference = 'Continue'
+
+        $argument = @(
+            ('/Image:{0}' -f $ImagePath),
+            '/Add-Package',
+            ('/PackagePath:{0}' -f $PackagePath)
+        )
+
+        $output = @(& "$env:SystemRoot\System32\dism.exe" @argument 2>&1 |
+                ForEach-Object { [string] $_ })
+
+        # THE EXIT CODE IS REPORTED, NOT ASSERTED, AND THAT IS THE WHOLE POINT
+        # OF THIS METHOD'S SHAPE. dism exited 0xC0000409 - STATUS_STACK_BUFFER_
+        # OVERRUN - on the Windows 11 apply AFTER printing "The operation
+        # completed successfully", with the image correctly serviced: 85 packages
+        # became 159 and ntoskrnl.exe read 10.0.26100.8655. The same command on
+        # the Server image exited 0. An AssertExitCode here would have failed a
+        # perfectly good deployment on one machine and passed on the next.
+        #
+        # So the caller decides, and Invoke-HDTApplyUpdatesStep decides by
+        # RE-READING THE IMAGE'S PACKAGE LIST rather than by trusting either the
+        # number or dism's prose - which is also localisation-proof, since
+        # nothing here passes /English.
+        return [pscustomobject] @{
+            ExitCode = [int] $LASTEXITCODE
+            Output   = [string[]] @($output)
+        }
+    }
+
+    $service | Add-Member -MemberType ScriptMethod -Name GetPackage -Value {
+        param([string] $ImagePath)
+
+        $this.Record('GetPackage', @($ImagePath))
+
+        # WHAT THE IMAGE ACTUALLY HAS, WHICH IS HOW AN APPLY IS PROVED. Named and
+        # shaped as IBootImageService.GetPackage, because it is the same DISM
+        # verb against a different kind of path: a mounted WIM there, the applied
+        # OS volume here.
+        $row = foreach ($item in @(Get-WindowsPackage -Path $ImagePath)) {
+            [pscustomobject] @{
+                Name  = [string] $item.PackageName
+                State = [string] $item.PackageState
+            }
+        }
+
+        # The unary comma is mandatory: a ScriptMethod returning an array
+        # collapses a one-element array to a scalar without it
+        # (tests/helpers/README.md F3).
         return , ([object[]] @($row))
     }
 

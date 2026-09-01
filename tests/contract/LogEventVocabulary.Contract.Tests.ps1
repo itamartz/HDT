@@ -1,4 +1,4 @@
-# DESIGN 4.4.2 calls the JSONL `event` field "a controlled vocabulary", and a
+﻿# DESIGN 4.4.2 calls the JSONL `event` field "a controlled vocabulary", and a
 # controlled vocabulary that the design document and the engine disagree about is
 # not controlled - it is two lists.
 #
@@ -36,7 +36,7 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         $script:documented.Count | Should -BeGreaterThan 0 -Because 'DESIGN 4.4.2 has to list the vocabulary somewhere this test can read'
     }
 
-    It 'has twenty-three names in the engine' {
+    It 'has twenty-four names in the engine' {
         # Fourteen until 2026-08-27, when ApplyDrivers added five driver.* events
         # and the console - which until that day wrote no log at all - added
         # three console.* ones. The number is asserted rather than derived on
@@ -55,6 +55,13 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         # row of the report's Variables table - drew a blank row for every one of
         # them.
         #
+        # THE TWENTY-FOURTH IS update.apply, ADDED 2026-09-01 WITH THE
+        # WINDOWS UPDATES NODE. It is its own name rather than a step.progress
+        # for driver.staged's reason: a pass that applies twenty .msu files
+        # produces twenty outcomes worth filtering - applied, already present,
+        # prerequisite missing, failed - and one summary line at the end of the
+        # step answers none of the questions asked afterwards.
+        #
         # ONE NAME WAS ADDED AND NOT THREE. A rule resolution, a SetVariable step
         # and a gathered fact all claim "this variable took this value", so they
         # keep var.resolve, one grammar and data.source as the discriminator -
@@ -71,7 +78,7 @@ Describe 'the DESIGN 4.4.2 event vocabulary' {
         # The number belongs HERE because this is the only file that also reads
         # DESIGN 4.4.2's table, so the count and the document that defines it are
         # checked in one place and cannot disagree.
-        $script:accepted.Count | Should -Be 23
+        $script:accepted.Count | Should -Be 24
     }
 
     It 'documents every name the engine accepts' {

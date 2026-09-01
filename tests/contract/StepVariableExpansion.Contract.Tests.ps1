@@ -59,6 +59,12 @@ $script:HDTExpansionProbe = @(
     @{ Type = 'ApplyImage'; Key = 'os'; Value = 'Win11-LTSC-2024'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'ApplyImage'; Key = 'target'; Value = 'S:'; Phase = 'WinPE'; Extra = @{ os = 'Win11-LTSC-2024' } }
     @{ Type = 'ApplyUnattend'; Key = 'template'; Value = 'Unattend\unattend.xml'; Phase = 'WinPE'; Extra = @{} }
+    # THE RELEASE IS THE WHOLE POINT OF THE STEP BEING A VARIABLE. The same
+    # sequence deploys more than one operating system, and which updates apply
+    # depends on which one was just laid down - so a literal here would apply
+    # client updates to every server the share ever builds.
+    @{ Type = 'ApplyUpdates'; Key = 'release'; Value = 'Win11-24H2'; Phase = 'WinPE'; Extra = @{} }
+    @{ Type = 'ApplyUpdates'; Key = 'target'; Value = 'S:'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'BootToWinPE'; Key = 'bootImage'; Value = 'HDTPE_x64'; Phase = 'FullOS'; Extra = @{ action = 'stage' } }
     @{ Type = 'CaptureImage'; Key = 'image'; Value = 'CONTOSO-REF.wim'; Phase = 'WinPE'; Extra = @{ source = 'C:' } }
     @{ Type = 'CaptureImage'; Key = 'source'; Value = 'D:'; Phase = 'WinPE'; Extra = @{ image = 'CONTOSO-REF.wim' } }

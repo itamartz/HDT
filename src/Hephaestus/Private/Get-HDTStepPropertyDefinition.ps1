@@ -139,6 +139,14 @@
             & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the drivers are injected into. Empty uses the volume the partition step published.'
         }
 
+        # ROW ORDER MATCHES THE TEMPLATE'S KEY ORDER - release, then target -
+        # so the sheet reads in the order the YAML is written and a technician
+        # comparing the two is not translating between two layouts.
+        'ApplyUpdates' {
+            & $new 'release' 'Release' 'Text' '%HDTOSRelease%' 'Which release''s updates to apply, from Control\os-releases.yaml. Empty applies every update imported on this share.'
+            & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the updates are injected into, offline, before first boot. Empty uses the volume the partition step published.'
+        }
+
         'ApplyUnattend' {
             & $new 'template' 'Answer file' 'Text' '' 'The unattend.xml this step stages, relative to the sequence folder or rooted. It is copied into the image, not applied to the running machine.'
             & $new 'expand' 'Expand variables' 'Check' 'true' 'Replace %HDTComputerName% and the rest inside the answer file as it is copied. Off writes the file through untouched.'

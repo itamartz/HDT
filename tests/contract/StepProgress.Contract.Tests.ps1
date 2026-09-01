@@ -68,6 +68,15 @@ $script:HDTReportingStep = [ordered] @{
     # So the step beats a heartbeat, which is ApplyUnattend's answer to the same
     # problem on the same evidence.
     'Sysprep'             = "sysprep.exe prints no meter and is silent for minutes, so the step writes a first frame and then beats a heartbeat with the elapsed time."
+
+    # A CUMULATIVE UPDATE IS EIGHT TO TWELVE MINUTES PER PACKAGE, MEASURED.
+    # KB5094126 into a mounted Windows 11 image took 8m35s and KB5094125 into
+    # a Server one took 12m24s on 2026-09-01, and dism prints its percentage
+    # meter to a pipe this step does not read - it takes the exit code and
+    # then re-reads the image. But the step knows the whole ordered list
+    # BEFORE it starts, so it can say it is on 1 of 3, which is
+    # InstallApplications' answer to the same shape of problem.
+    'ApplyUpdates'        = "it resolves the whole ordered list of updates before it starts, so it knows it is on 1 of 3 - and a single cumulative update is eight to twelve minutes."
 }
 
 # THE STEPS THAT DO NOT, EACH WITH THE REASON IT CANNOT RATHER THAN A BLANK

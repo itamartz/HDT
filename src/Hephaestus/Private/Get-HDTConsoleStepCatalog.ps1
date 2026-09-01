@@ -137,6 +137,16 @@
         # volume the image was just applied to, so it must come after the apply
         # and before the machine boots off it.
         'ApplyDrivers'  = @{ Text = 'Inject Drivers'; Category = 'Images'; Order = 3 }
+        # AFTER Inject Drivers AND BEFORE Apply Answer File, which is the order
+        # a sequence needs: servicing the image and then running the answer file
+        # leaves the offlineServicing pass with everything to work from. The
+        # reverse ordering on drivers is what cost 0.10.1 a rebuild.
+        #
+        # NAMED 'Apply Windows Updates', NOT 'Packages'. MDT's node is called
+        # Packages and the muscle memory is real, but the thing an administrator
+        # is adding here is a step that applies updates - and 'Packages' beside
+        # 'Install Applications' in one menu reads as two words for one idea.
+        'ApplyUpdates'  = @{ Text = 'Apply Windows Updates'; Category = 'Images'; Order = 4 }
         'ConfigureBoot' = @{ Text = 'Configure Boot'; Category = 'Images'; Order = 4 }
         'EnableBitLocker' = @{ Text = 'Enable BitLocker'; Category = 'Disks'; Order = 2 }
         'InstallRoles'  = @{ Text = 'Install Roles and Features'; Category = 'Roles'; Order = 1 }

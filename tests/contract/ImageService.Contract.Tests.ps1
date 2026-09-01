@@ -7,6 +7,8 @@
 #   ApplyImage(imagePath, index, applyPath)
 #   CaptureImage(capturePath, imagePath, name, description, compress, scratchPath)
 #   ApplyUnattend(imagePath, unattendPath, scratchPath)
+#   AddPackage(imagePath, packagePath) -> ExitCode, Output
+#   GetPackage(imagePath) -> object[]  Name, State
 #   AddDriver(imagePath, driverPath, recurse) -> object[]  Inf, Provider,
 #                                                          Version, Date
 #   InstallBootFile(osRoot, systemVolume, firmware)
@@ -122,6 +124,7 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
             $method = @($script:image | Get-Member -MemberType Method, ScriptMethod | ForEach-Object { $_.Name })
 
             foreach ($name in @('GetImageInfo', 'ApplyImage', 'CaptureImage', 'ApplyUnattend', 'AddDriver',
+                    'AddPackage', 'GetPackage',
                     'InstallBootFile', 'SetRecoveryImage', 'SetBootOrderFirst',
                     'TestRamdiskOptions', 'AddRamdiskBootEntry', 'TestBootEntry',
                     'SetBootSequenceOnce', 'RemoveBootEntry')) {

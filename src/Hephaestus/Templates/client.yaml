@@ -1,4 +1,4 @@
-# HDT STANDARD CLIENT TASK SEQUENCE
+﻿# HDT STANDARD CLIENT TASK SEQUENCE
 #
 # The equivalent of MDT's Templates\Client.xml, which is what its New Task
 # Sequence wizard copies into a new sequence's Control folder. This is the same
@@ -219,6 +219,32 @@ steps:
         type: ApplyDrivers
         group: 'Win11\%HDTMake%\%HDTModel%'
         mode: all
+
+      # MDT'S "Apply Patches", WHICH ITS STANDARD CLIENT SEQUENCE ALSO PUTS IN
+      # PREINSTALL. Every update imported under the release this machine is
+      # getting, injected into the applied volume before it has ever booted, so
+      # it leaves the bench patched rather than spending its first hour on
+      # Windows Update.
+      #
+      # AND A SHARE WITH NOTHING IMPORTED STILL DEPLOYS, which is what makes this
+      # line safe in a template that ships to every new share. No updates for the
+      # release is a completed step that applied nothing, not a failed
+      # deployment - the same reasoning as the Inject Drivers step above, and for
+      # the same reason: a template that only works once somebody has filled a
+      # folder is a template that breaks every share on the day it is created.
+      #
+      # BEFORE Apply Windows Settings, NOT AFTER. Servicing the image and then
+      # running the answer file leaves the offlineServicing pass with everything
+      # to work from. Getting this order wrong on DRIVERS is what cost 0.10.1 a
+      # rebuild, and the same trap is here.
+      #
+      # %HDTOSRelease% IS A RULE'S TO SET. Empty applies everything imported,
+      # which is right for a share deploying one operating system; a share
+      # deploying both a client and a server needs the rule, or the server gets
+      # the client's updates offered to it and dism refuses them one by one.
+      - name: Apply Patches
+        type: ApplyUpdates
+        release: '%HDTOSRelease%'
 
       # Staged at <os volume>\Windows\Panther\unattend.xml, which is where Setup
       # consumes it.
