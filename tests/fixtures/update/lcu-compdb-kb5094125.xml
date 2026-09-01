@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CompDB xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" CreatedDate="2026-06-06T18:18:46.8230245Z" Revision="1" SchemaVersion="1.2" Product="Desktop" BuildID="00000000-0000-0000-0000-000000000000" BuildInfo="ge_release_upr.26100.1742.240905-1741" OSVersion="10.0.26100.1742" BuildArch="amd64" Type="BuildUpdate" TargetBuildID="00000000-0000-0000-0000-000000000000" TargetBuildInfo="lt_release_svc_prod1.26100.32995.260605-1857" TargetOSVersion="10.0.26100.32995" xmlns="http://schemas.microsoft.com/embedded/2004/10/ImageUpdate">
+  <Tags Type="PSFXv2">
+    <Tag Name="UpdateType" Value="Canonical" />
+  </Tags>
+  <Features>
+    <Feature Type="CumulativeUpdate" FeatureID="CumulativeUpdate_KB5094125" FMID="MSDN" Group="Microsoft">
+      <Packages>
+        <Package ID="Package_for_RollupFix~~amd64~~26100.32995.1.21" PackageType="FeaturePackage" />
+      </Packages>
+    </Feature>
+  </Features>
+  <MSConditionalFeatures>
+    <ConditionalFeature UpdateAction="Add" FeatureID="CumulativeUpdate_KB5094125" FMID="MSDN">
+      <Condition Type="PackageAnyVersion" Status="NotInstalled" Name="WinPE-Rejuv-Package~31bf3856ad364e35~amd64~~" />
+    </ConditionalFeature>
+  </MSConditionalFeatures>
+  <Packages>
+    <Package ID="Package_for_RollupFix~~amd64~~26100.32995.1.21" InstalledSize="9999999999" Version="26100.32995.1.21">
+      <Payload>
+        <PayloadItem PayloadHash="zuADJ/+hBsF2Y/vSsQTwqL6UQWmROqf0S3yvQMlO5ms=" PayloadSize="187678084" Path="Windows11.0-KB5094125-x64.wim" PayloadType="ExpressCab" />
+        <PayloadItem PayloadHash="bLYev07IVXwaDV3SgMSActZfRUZHfAgy/+dlOR4X/0Q=" PayloadSize="1797546860" Path="Windows11.0-KB5094125-x64.psf" PayloadType="ExpressPSF" />
+      </Payload>
+      <CustomInformation>
+        <PayloadIntentItem PayloadIntent="PSFX_V2" />
+      </CustomInformation>
+    </Package>
+  </Packages>
+</CompDB>

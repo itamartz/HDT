@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CompDB xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" CreatedDate="2026-06-03T05:22:19.1432879Z" Revision="1" SchemaVersion="1.2" Product="Desktop" BuildID="00000000-0000-0000-0000-000000000000" BuildInfo="ge_release.26100.1.240331-1435" OSVersion="10.0.26100.1" BuildArch="amd64" Type="BuildUpdate" TargetBuildID="00000000-0000-0000-0000-000000000000" TargetBuildInfo="lt_release_svc_prod1.26100.32985.260602-1715" TargetOSVersion="10.0.26100.32985" xmlns="http://schemas.microsoft.com/embedded/2004/10/ImageUpdate">
+  <Tags Type="CumulativeUpdate">
+    <Tag Name="UpdateType" Value="Canonical" />
+  </Tags>
+  <Features>
+    <Feature Type="ServicingStackUpdate" FeatureID="ServicingStackUpdate_KB5094137" FMID="MSDN" Group="Microsoft">
+      <Packages>
+        <Package ID="Package_for_ServicingStack_32985" PackageType="FeaturePackage" />
+      </Packages>
+    </Feature>
+  </Features>
+  <MSConditionalFeatures>
+    <ConditionalFeature UpdateAction="Add" FeatureID="ServicingStackUpdate_KB5094137" FMID="MSDN">
+      <Condition Type="NameValuePair" Operator="LT" Name="ServicingStackRevision" Value="32985" />
+    </ConditionalFeature>
+  </MSConditionalFeatures>
+  <Packages>
+    <Package ID="Package_for_ServicingStack_32985" InstalledSize="71570650" Version="26100.32985.1.4">
+      <Payload>
+        <PayloadItem PayloadHash="2/UwwIJnrNC9SQdcTajStpEKbt0wvWDbOHeSE00Wj40=" PayloadSize="20049011" Path="SSU-26100.32985-x64.cab" PayloadType="Canonical" />
+      </Payload>
+    </Package>
+  </Packages>
+</CompDB>
