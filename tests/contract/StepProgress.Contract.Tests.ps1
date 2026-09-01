@@ -92,6 +92,13 @@ $script:HDTQuietStep = [ordered] @{
     'DiskPartition'      = "partitioning and a quick format, seconds on any disk this deploys to."
     'Gather'             = "reads CIM and the rules, in seconds."
     'InstallCertificate' = "writes a certificate to a store; effectively instant."
+
+    # ONE NetJoinDomain CALL, AND IT IS BOUNDED BY THE CALL ITSELF. A join that
+    # is slow is a DNS lookup or a controller that is not answering, and the
+    # cmdlet gives up on its own rather than sitting there - so there is no
+    # window in which this step is working and silent for minutes. The step's
+    # own retry: is the engine's, and the engine logs each attempt.
+    'JoinDomain'         = "one in-process join call, bounded by the call itself; a slow one is a name lookup timing out, not work in progress."
     'NoOp'               = "does nothing, at length."
     'Restart'            = "it arms a reboot and returns; the machine is gone before there is anything to report."
     'SetVariable'        = "assigns a variable; effectively instant."

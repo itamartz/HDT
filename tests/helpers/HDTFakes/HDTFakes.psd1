@@ -1,4 +1,4 @@
-@{
+﻿@{
     RootModule           = 'HDTFakes.psm1'
     ModuleVersion        = '0.1.0'
     GUID                 = 'a1f5c0f6-6d54-4a2e-9a67-0f4c1c9b7e21'
@@ -18,6 +18,7 @@
         'New-HDTFakeClock',
         'New-HDTFakeContentProvider',
         'New-HDTFakeDiskService',
+    'New-HDTFakeDomainService',
         'New-HDTFakeFeatureService',
         'New-HDTFakeEnvironmentProvider',
         'New-HDTFakeFileSystem',

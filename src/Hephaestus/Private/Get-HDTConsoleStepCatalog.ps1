@@ -95,9 +95,19 @@
         'NoOp'          = @{ Text = 'Do Nothing'; Category = 'General'; Order = 6 }
         'InstallApplications' = @{ Text = 'Install Applications'; Category = 'General'; Order = 7 }
 
+        # 'Join Domain', AND NOT MDT'S OWN NAME FOR ITS STEP, WHICH IS THE ONE
+        # DEVIATION ON THIS SHELF. Workbench offers 'Recover From Domain',
+        # because in MDT the join itself is the answer file's job and
+        # ZTIDomainJoin.wsf only checks afterwards and recovers if it did not
+        # take. HDT has no unattend join at all - this step IS the join - so
+        # calling it Recover would name a thing it does not do, and an
+        # administrator looking for the step that joins a domain would find a
+        # word that says it does not.
+        'JoinDomain'    = @{ Text = 'Join Domain'; Category = 'General'; Order = 8 }
+
         # MDT PUTS Tattoo IN State Restore AND CALLS IT Tattoo, so this does
         # too: an MDT administrator looking for it will look for that word.
-        'Tattoo'        = @{ Text = 'Tattoo'; Category = 'General'; Order = 8 }
+        'Tattoo'        = @{ Text = 'Tattoo'; Category = 'General'; Order = 9 }
         # TWO ENTRIES FOR ONE TYPE, AS MDT'S OWN SEQUENCE HAS. Its Standard
         # Client task sequence carries "Format and Partition Disk (BIOS)" and
         # "(UEFI)", each conditioned on the firmware, because the two disks are

@@ -188,6 +188,25 @@
             & $new 'bootstrap' 'Bootstrap document' 'Text' 'X:\HDT\bootstrap.json' 'Where the certificates are read from. A missing file is not an error - the step completes having staged nothing - so a wrong path here is silent.'
         }
 
+        # THE ROW ORDER IS THE TEMPLATE'S KEY ORDER, and every row is a variable
+        # the wizard's Computer Details page already collects - so the sheet
+        # reads as "here is where each box on that page goes" rather than as
+        # five things to invent.
+        #
+        # THERE IS NO PASSWORD ROW, AND THERE MUST NOT BE. A box here writes a
+        # domain admin credential into sequence.yaml, which lives on a share
+        # every machine being deployed can read and which this very console
+        # prints back into a text box. The password comes from
+        # HDTDomainAdminPassword in the variable bag, where every log, checkpoint
+        # and report redacts it.
+        'JoinDomain' {
+            & $new 'domain' 'Domain' 'Text' '%HDTJoinDomain%' 'The domain to join, as the wizard collected it. Empty and with no workgroup either, the step fails rather than guessing.'
+            & $new 'ou' 'Computer account OU' 'Text' '%HDTMachineObjectOU%' 'Where the computer object is created, as a distinguished name. Empty uses the domain''s default container. A refused OU is retried once without it, because the account may already exist somewhere else.'
+            & $new 'workgroup' 'Workgroup' 'Text' '%HDTJoinWorkgroup%' 'The workgroup to join when no domain is set. A share seeds WORKGROUP here, so a machine nobody gave a domain to still gets a decision; the domain wins when both are set.'
+            & $new 'userName' 'Join account' 'Text' '%HDTDomainAdmin%' 'The account that joins the machine. The wizard splits CORP\svc-hdt-join into this and the box below.'
+            & $new 'userDomain' 'Join account domain' 'Text' '%HDTDomainAdminDomain%' 'The domain that account belongs to, when it is not the one being joined. Empty joins as a bare account name.'
+        }
+
         'InstallRoles' {
             & $new 'features' 'Features' 'List' '' 'The Windows features to install, by name, separated by commas. The step refuses a name the target image does not have before it installs anything.'
             & $new 'includeManagementTools' 'Include management tools' 'Check' 'false' 'Install each feature''s management console and cmdlets alongside it.'

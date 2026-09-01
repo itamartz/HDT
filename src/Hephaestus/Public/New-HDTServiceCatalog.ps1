@@ -24,6 +24,7 @@
               Image          IImageService
               Feature        IFeatureService
               BitLocker      IBitLockerService
+              Domain         IDomainService
               Content        IContentProvider
 
             EVERY PROPERTY IS DEFINED EVEN WHERE IT IS $null. Engine code runs
@@ -87,6 +88,11 @@
         .PARAMETER BitLocker
             An IBitLockerService, or nothing. EnableBitLocker asks for it by
             name.
+
+        .PARAMETER Domain
+            An IDomainService, or nothing. JoinDomain asks for it by name. It is
+            the port for Add-Computer, which is why the join password never
+            reaches a command line.
 
         .PARAMETER Content
             An IContentProvider, or nothing - New-HDTLocalContentProvider or
@@ -169,6 +175,10 @@
 
         [Parameter()]
         [AllowNull()]
+        [object] $Domain = $null,
+
+        [Parameter()]
+        [AllowNull()]
         [object] $Content = $null,
 
         # NULL IS THE NORMAL CASE, AND IT COSTS NOTHING. A run with no progress
@@ -197,6 +207,7 @@
         Image         = $Image
         Feature       = $Feature
         BitLocker     = $BitLocker
+        Domain        = $Domain
         Content       = $Content
         Progress      = $Progress
     }

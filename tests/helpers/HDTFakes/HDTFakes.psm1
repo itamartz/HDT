@@ -2728,6 +2728,13 @@ class HDTFakeScriptInvoker {
     # still land in the log.
     [hashtable] $Transcript
 
+    # Normalised script path -> the message Invoke throws for it, AFTER setting
+    # that path's transcript. A script that fails having printed something is
+    # the case the transcript exists for, and a fake that could only fail before
+    # printing could not express it - which is how the real adapter shipped for
+    # months discarding the transcript of every step that threw.
+    [hashtable] $Failure
+
     # The transcript of the LAST Invoke. @() before the first one, and @() for a
     # path seeded without a transcript - "the script wrote nothing" is a
     # different fact from "no script has run yet" only to the caller, and both
@@ -2748,6 +2755,7 @@ class HDTFakeScriptInvoker {
     HDTFakeScriptInvoker() {
         $this.Result = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Transcript = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
         $this.Operations = [System.Collections.ArrayList]::new()
         $this.LastTranscript = [string[]] @()
         $this.ServiceName = 'ScriptInvoker'
@@ -2809,6 +2817,12 @@ class HDTFakeScriptInvoker {
         $this.Transcript[$this.Normalize($Path)] = [string[]] @($Line)
     }
 
+    # Seeded with the same normalised key, so one path can carry a transcript AND
+    # a failure - which is the whole point: it prints, then it throws.
+    [void] SeedFailure([string] $Path, [string] $Message) {
+        $this.Failure[$this.Normalize($Path)] = $Message
+    }
+
     # -- IScriptInvoker ----------------------------------------------------
 
     [object] Invoke([string] $Path, [System.Collections.IDictionary] $Variable) {
@@ -2827,6 +2841,12 @@ class HDTFakeScriptInvoker {
         $this.LastTranscript = [string[]] @()
         if ($this.Transcript.ContainsKey($full)) {
             $this.LastTranscript = [string[]] @($this.Transcript[$full])
+        }
+
+        # AFTER the transcript, never before. The script printed and then failed,
+        # so what it printed is still what it printed.
+        if ($this.Failure.ContainsKey($full)) {
+            throw [string] $this.Failure[$full]
         }
 
         return $this.Result[$full]
@@ -2876,6 +2896,13 @@ function New-HDTFakeScriptInvoker {
             GetTranscript returns after that path is invoked. A path seeded
             without one yields an empty transcript.
 
+        .PARAMETER Failure
+            Seed failures. Keys are script paths - normalised exactly as -Result
+            keys are - and values are the message Invoke throws for that path,
+            AFTER setting that path's transcript. That order is the point: a
+            script that printed and then failed must still have printed, and it
+            is the case the transcript exists for.
+
         .PARAMETER Journal
             The shared cross-service operation journal. When supplied, every
             recorded call is appended to it in addition to $Operations, numbered
@@ -2907,6 +2934,9 @@ function New-HDTFakeScriptInvoker {
         [hashtable] $Transcript,
 
         [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
         [AllowNull()]
         [System.Collections.ArrayList] $Journal
     )
@@ -2923,6 +2953,12 @@ function New-HDTFakeScriptInvoker {
     if ($PSBoundParameters.ContainsKey('Transcript')) {
         foreach ($path in @($Transcript.Keys)) {
             $fake.SeedTranscript([string] $path, [string[]] @($Transcript[$path]))
+        }
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($path in @($Failure.Keys)) {
+            $fake.SeedFailure([string] $path, [string] $Failure[$path])
         }
     }
 
@@ -6105,6 +6141,300 @@ function New-HDTFakeBootStatusHost {
     return $service
 }
 
+class HDTFakeDomainService {
+
+    # What the machine currently says about itself: ComputerName, Domain,
+    # Workgroup, DomainRole, PartOfDomain. Seeded by the test, and UPDATED by a
+    # successful join - so a test can assert that a second run of the step
+    # leaves the machine alone.
+    [object] $Membership
+
+    # The password the last JoinDomain call was handed. IT IS A PROPERTY AND NOT
+    # A JOURNAL ENTRY, deliberately: see the note on JoinDomain below.
+    [string] $LastPassword
+
+    # Operation name -> the message that operation throws. THE CONDITION SEEDED
+    # STATE CANNOT EXPRESS: a domain controller that answers and REFUSES. The
+    # whole point of this step's error handling is to report what the domain
+    # actually said rather than "join failed", and proving that needs a join
+    # that can come back with a sentence.
+    [hashtable] $Failure
+
+    # Operation name -> how many calls still fail before it starts succeeding.
+    # MDT's ZTIDomainJoin retries a refused join once WITHOUT the OU, on the
+    # reasoning that the computer account may already exist somewhere else in
+    # the directory; asserting that recovery needs a first call that fails and
+    # a second that does not.
+    [hashtable] $FailureCount
+
+    # One [pscustomobject] per call: Sequence (1-based), Operation, Arguments.
+    [System.Collections.ArrayList] $Operations
+
+    # The shared cross-service journal, or $null when the test did not ask for
+    # one. Sequence, Service, Operation, Arguments.
+    [System.Collections.ArrayList] $Journal
+
+    # Names this fake in a journal entry, so neither the journal nor a test needs
+    # a class type literal.
+    [string] $ServiceName
+
+    HDTFakeDomainService() {
+        $this.Failure = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.FailureCount = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $this.Operations = [System.Collections.ArrayList]::new()
+        $this.ServiceName = 'DomainService'
+        $this.LastPassword = ''
+
+        $this.Membership = [pscustomobject] @{
+            ComputerName = 'HDT-LAB-01'
+            Domain       = ''
+            Workgroup    = 'WORKGROUP'
+            DomainRole   = 0
+            PartOfDomain = $false
+        }
+    }
+
+    # -- recording ---------------------------------------------------------
+
+    hidden [void] Record([string] $Operation, [object[]] $Argument) {
+        [void] $this.Operations.Add([pscustomobject] @{
+                Sequence  = $this.Operations.Count + 1
+                Operation = $Operation
+                Arguments = $Argument
+            })
+
+        if ($null -ne $this.Journal) {
+            [void] $this.Journal.Add([pscustomobject] @{
+                    Sequence  = $this.Journal.Count + 1
+                    Service   = $this.ServiceName
+                    Operation = $Operation
+                    Arguments = $Argument
+                })
+        }
+    }
+
+    [string[]] GetOperationName() {
+        return [string[]] @($this.Operations | ForEach-Object { $_.Operation })
+    }
+
+    # -- seeding -----------------------------------------------------------
+
+    [void] SeedMembership([hashtable] $State) {
+        $name = [string] $this.Membership.ComputerName
+        if ($State.ContainsKey('ComputerName')) { $name = [string] $State['ComputerName'] }
+
+        $domain = ''
+        if ($State.ContainsKey('Domain')) { $domain = [string] $State['Domain'] }
+
+        $workgroup = ''
+        if ($State.ContainsKey('Workgroup')) { $workgroup = [string] $State['Workgroup'] }
+
+        # THE ROLE IS DERIVED WHEN THE TEST DOES NOT STATE IT, because deriving
+        # it is what a real machine does: Win32_ComputerSystem.PartOfDomain and
+        # DomainRole are two readings of one fact, and a fake that let them
+        # disagree would let the step pass a test no machine can produce.
+        # ZTIDomainJoin.wsf reads DomainRole and treats 0 and 2 as not joined,
+        # 1, 3, 4 and 5 as joined.
+        $partOfDomain = -not [string]::IsNullOrWhiteSpace($domain)
+        if ($State.ContainsKey('PartOfDomain')) { $partOfDomain = [bool] $State['PartOfDomain'] }
+
+        $role = 0
+        if ($partOfDomain) { $role = 1 }
+        if ($State.ContainsKey('DomainRole')) { $role = [int] $State['DomainRole'] }
+
+        $this.Membership = [pscustomobject] @{
+            ComputerName = $name
+            Domain       = $domain
+            Workgroup    = $workgroup
+            DomainRole   = $role
+            PartOfDomain = $partOfDomain
+        }
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message) {
+        $this.Failure[$Operation] = $Message
+    }
+
+    [void] SeedFailure([string] $Operation, [string] $Message, [int] $Times) {
+        $this.Failure[$Operation] = $Message
+        $this.FailureCount[$Operation] = $Times
+    }
+
+    hidden [void] Fail([string] $Operation) {
+        if (-not $this.Failure.ContainsKey($Operation)) { return }
+
+        if ($this.FailureCount.ContainsKey($Operation)) {
+            $remaining = [int] $this.FailureCount[$Operation]
+            if ($remaining -le 0) { return }
+
+            $this.FailureCount[$Operation] = $remaining - 1
+        }
+
+        throw [System.InvalidOperationException]::new([string] $this.Failure[$Operation])
+    }
+
+    # -- IDomainService ----------------------------------------------------
+
+    [object] GetMembership() {
+        $this.Record('GetMembership', @())
+        $this.Fail('GetMembership')
+
+        return $this.Membership
+    }
+
+    # THE PASSWORD IS RECORDED AS A PLACEHOLDER AND NEVER AS ITSELF, which is
+    # the same choice MDT made: ZTIDomainJoin.wsf logs its join call with the
+    # literal "PWD" where the password went. A fake that kept it in the journal
+    # would put a domain credential into every Pester failure message printed
+    # for a test that touches this service, and the journal is written into
+    # more than one artefact.
+    #
+    # A test that needs to prove the password REACHED the service reads
+    # $fake.LastPassword, which is a property rather than a journal entry.
+    # $Secret RATHER THAN $Password, WHICH IS NOT PRUDERY. A class method cannot
+    # carry a SuppressMessageAttribute, so PSAvoidUsingPlainTextForPassword and
+    # PSAvoidUsingUsernameAndPasswordParams fire on the pair of NAMES and the
+    # gate goes red - the real adapter suppresses the same two rules with a
+    # justification instead. HDTFakeSmbService.NewMapping already does this.
+    [void] JoinDomain([string] $Domain, [string] $OrganizationalUnit, [string] $UserName, [string] $Secret) {
+        $this.Record('JoinDomain', @($Domain, $OrganizationalUnit, $UserName, '<password>'))
+        $this.LastPassword = $Secret
+
+        $this.Fail('JoinDomain')
+
+        $this.SeedMembership(@{
+                ComputerName = [string] $this.Membership.ComputerName
+                Domain       = $Domain
+                Workgroup    = ''
+                PartOfDomain = $true
+                DomainRole   = 1
+            })
+    }
+
+    [void] JoinWorkgroup([string] $Workgroup) {
+        $this.Record('JoinWorkgroup', @($Workgroup))
+        $this.Fail('JoinWorkgroup')
+
+        $this.SeedMembership(@{
+                ComputerName = [string] $this.Membership.ComputerName
+                Domain       = ''
+                Workgroup    = $Workgroup
+                PartOfDomain = $false
+                DomainRole   = 0
+            })
+    }
+}
+
+function New-HDTFakeDomainService {
+    <#
+        .SYNOPSIS
+            Creates an in-memory IDomainService that records every call.
+
+        .DESCRIPTION
+            The hand-written double for the JoinDomain step. It carries every
+            behavioural assertion about the interface, because there is no safe
+            way to run the real adapter anywhere in this suite: its two join
+            methods change the domain membership of the machine they run on, and
+            the machine most likely to be in front of this code is a developer's
+            own laptop. There is also no domain controller in this lab at all
+            (ROADMAP M3), so the real adapter has never joined a real domain.
+
+            THE PASSWORD IS THE REASON THIS FAKE IS SHAPED THE WAY IT IS. The
+            operation journal records the literal '<password>' rather than the
+            value, so a domain credential cannot reach a Pester failure message
+            or an artefact a test writes. A test that has to prove the password
+            actually got to the service reads $fake.LastPassword, which is a
+            property rather than a journal entry.
+
+            -Failure seeds a join that comes back REFUSED, which is what makes
+            two behaviours provable: that the step reports what the domain said
+            rather than 'join failed', and MDT's OU recovery - a refused join is
+            retried once without the OU, because the computer account may
+            already exist elsewhere in the directory.
+
+        .PARAMETER Membership
+            Seed what the machine says about itself: ComputerName, Domain,
+            Workgroup, PartOfDomain, DomainRole. Anything not given is derived -
+            a non-empty Domain means PartOfDomain and DomainRole 1, which is how
+            a real Win32_ComputerSystem reads.
+
+        .PARAMETER Failure
+            Seed failures. Keys are operation names - GetMembership, JoinDomain,
+            JoinWorkgroup - and values are the message that operation throws.
+
+        .PARAMETER FailureCount
+            How many times each seeded failure fires before the operation starts
+            succeeding. Absent, it fails for ever.
+
+        .PARAMETER Journal
+            The shared cross-service operation journal. When supplied, every
+            recorded call is appended to it in addition to $Operations, numbered
+            globally across services.
+
+        .OUTPUTS
+            HDTFakeDomainService. Never write the class name as a type literal in
+            a test: it binds to whichever dynamic assembly loaded first and
+            breaks across a module reload. Use this factory.
+
+        .EXAMPLE
+            New-HDTFakeDomainService
+
+            A workgroup machine, ready to be joined.
+
+        .EXAMPLE
+            New-HDTFakeDomainService -Membership @{ Domain = 'corp.contoso.com' }
+
+            A machine already in the domain, which the step must leave alone.
+
+        .EXAMPLE
+            New-HDTFakeDomainService -Failure @{ JoinDomain = 'The specified domain either does not exist or could not be contacted.' }
+
+            The refusal the step has to repeat back rather than swallow.
+    #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '',
+        Justification = 'Builds an in-memory test double; it changes no state.')]
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter()]
+        [hashtable] $Membership,
+
+        [Parameter()]
+        [hashtable] $Failure,
+
+        [Parameter()]
+        [hashtable] $FailureCount,
+
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.ArrayList] $Journal
+    )
+
+    $fake = [HDTFakeDomainService]::new()
+    $fake.Journal = $Journal
+
+    if ($PSBoundParameters.ContainsKey('Membership')) {
+        $fake.SeedMembership($Membership)
+    }
+
+    if ($PSBoundParameters.ContainsKey('Failure')) {
+        foreach ($key in @($Failure.Keys)) {
+            $times = -1
+            if ($PSBoundParameters.ContainsKey('FailureCount') -and $FailureCount.ContainsKey($key)) {
+                $times = [int] $FailureCount[$key]
+            }
+
+            if ($times -lt 0) {
+                $fake.SeedFailure([string] $key, [string] $Failure[$key])
+            } else {
+                $fake.SeedFailure([string] $key, [string] $Failure[$key], $times)
+            }
+        }
+    }
+
+    return $fake
+}
+
 Export-ModuleMember -Function @(
     'New-HDTFakeBootStatusHost',
     'New-HDTFakeProgressHost',
@@ -6115,6 +6445,7 @@ Export-ModuleMember -Function @(
     'New-HDTFakeContentProvider',
     'New-HDTFakeBitLockerService',
     'New-HDTFakeDiskService',
+    'New-HDTFakeDomainService',
     'New-HDTFakeFeatureService',
     'New-HDTFakeEnvironmentProvider',
     'New-HDTFakeFileSystem',

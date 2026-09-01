@@ -258,6 +258,51 @@ steps:
   - group: State Restore
     runIn: FullOS
     steps:
+      # MEMBERSHIP FIRST, BECAUSE EVERYTHING AFTER IT MAY DEPEND ON IT. Group
+      # Policy, a licensing server, an application that wants a domain account -
+      # all of them want the machine to already be where it belongs. MDT puts
+      # its own domain step at the top of State Restore for the same reason.
+      #
+      # ONLINE, IN THE FULL OS, THROUGH A STEP. The other way to join is the
+      # answer file's UnattendedJoin component, which is what MDT uses - and it
+      # writes the join account's password in clear into a file that stays on the
+      # deployed disk and rides inside any image captured from it. HDT does not.
+      #
+      # THE STEP JOINS WHICHEVER OF THE TWO IS SET, and a share seeds
+      # HDTJoinWorkgroup: WORKGROUP in its Fallback rule, so a machine nobody
+      # gave a domain to still gets a decision rather than nothing. The domain
+      # wins when both are there; see Invoke-HDTJoinDomainStep, which says why
+      # at length and logs it when it happens.
+      #
+      # THE PASSWORD IS NOT HERE, AND MUST NOT BE. It comes from
+      # HDTDomainAdminPassword in the variable bag, which every log, checkpoint
+      # and report redacts. This file lives on a share every machine being
+      # deployed can read.
+      #
+      # NOTE, BECAUSE IT WILL COST SOMEBODY AN EVENING OTHERWISE: a secret does
+      # not survive the restart above. The checkpoint redacts it and this leg
+      # rehydrates its variables from the checkpoint, so a wizard-typed password
+      # is '(set, not shown)' by the time this step runs and the step refuses
+      # rather than locking the join account out. Until DESIGN 4.5.2's
+      # LSA-carried secret bag exists, an unattended domain join needs
+      # HDTDomainAdminPassword set in THIS leg - a SetVariable step in this
+      # group is the way to do it.
+      - name: Join Domain
+        type: JoinDomain
+        domain: '%HDTJoinDomain%'
+        ou: '%HDTMachineObjectOU%'
+        workgroup: '%HDTJoinWorkgroup%'
+        userName: '%HDTDomainAdmin%'
+        userDomain: '%HDTDomainAdminDomain%'
+
+        # A CONTROLLER IS NOT ALWAYS THERE THE SECOND THE NETWORK COMES UP, and
+        # a first attempt that fails on DNS is the commonest failure there is.
+        # MDT counts its own attempts and reboots between them; HDT retries the
+        # step, which is a mechanism it already has.
+        retry:
+          count: 2
+          delaySeconds: 30
+
       - name: Install Applications
         type: InstallApplications
 

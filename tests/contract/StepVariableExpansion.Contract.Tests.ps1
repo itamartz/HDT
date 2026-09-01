@@ -1,4 +1,4 @@
-# Every step type expands %Variable% in the properties it reads.
+﻿# Every step type expands %Variable% in the properties it reads.
 #
 # THIS IS A TEST ABOUT THE SET, NOT ABOUT THE STEP THAT WAS BROKEN. Two of the
 # twenty step types - CommandLine and PowerShell - read their own properties
@@ -79,6 +79,26 @@ $script:HDTExpansionProbe = @(
     @{ Type = 'InstallRoles'; Key = 'source'; Value = 'D:\sources\sxs'; Phase = 'FullOS'
         Extra = @{ features = 'Web-Server' }
     }
+    # THE FIVE ROWS THAT REFUSE ON PURPOSE. Four of these run a JoinDomain step
+    # with no HDTDomainAdminPassword, so the step stops before it calls the
+    # service - and that is fine here: the refusal carries the domain, the OU and
+    # the account it was about to use into its log record, which is the
+    # observable this file needs. The probe cannot supply a password (it sets one
+    # variable, HDTExpandProbe), and a row that reached a real join would be
+    # asserting something this file is not about.
+    @{ Type = 'JoinDomain'; Key = 'domain'; Value = 'corp.contoso.com'; Phase = 'FullOS'; Extra = @{} }
+    @{ Type = 'JoinDomain'; Key = 'ou'; Value = 'OU=Probe,DC=corp,DC=contoso,DC=com'; Phase = 'FullOS'
+        Extra = @{ domain = 'corp.contoso.com' }
+    }
+    @{ Type = 'JoinDomain'; Key = 'userName'; Value = 'svc-hdt-join'; Phase = 'FullOS'
+        Extra = @{ domain = 'corp.contoso.com' }
+    }
+    @{ Type = 'JoinDomain'; Key = 'userDomain'; Value = 'PROBEDOM'; Phase = 'FullOS'
+        Extra = @{ domain = 'corp.contoso.com'; userName = 'svc-hdt-join' }
+    }
+    # And the workgroup half, which needs no credential and does reach the
+    # service - so this row is proved against a real call rather than a refusal.
+    @{ Type = 'JoinDomain'; Key = 'workgroup'; Value = 'CONTOSOWG'; Phase = 'FullOS'; Extra = @{} }
     @{ Type = 'NoOp'; Key = 'message'; Value = 'the step said this'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'PowerShell'; Key = 'script'; Value = 'Scripts\Set-ContosoBios.ps1'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'Restart'; Key = 'message'; Value = 'restarting to finish setup'; Phase = 'WinPE'; Extra = @{} }
@@ -180,6 +200,7 @@ Describe 'step property variable expansion' {
                 -Image (New-HDTFakeImageService -Journal $journal) `
                 -Feature (New-HDTFakeFeatureService -Journal $journal -Feature @{ 'Web-Server' = @{ Installed = $false } }) `
                 -BitLocker (New-HDTFakeBitLockerService -Journal $journal) `
+                -Domain (New-HDTFakeDomainService -Journal $journal) `
                 -Content (New-HDTFakeContentProvider -Journal $journal)
 
             # Debug, because the CommandLine step keeps the full command line at

@@ -406,14 +406,33 @@ steps:
 
     Context 'unknown step types' {
 
+        # THE UNIMPLEMENTED TYPE IS FOUND, NOT NAMED, AND THAT IS A REPAIR.
+        # This test used to name JoinDomain as its example of a type the engine
+        # does not implement - which was true when it was written and stopped
+        # being true the day the JoinDomain step shipped, at which point the
+        # test failed for the best possible reason and said nothing useful
+        # about why. WindowsUpdate would rot the same way when it lands.
+        #
+        # So the example is DERIVED from the fixture: whichever of its types has
+        # no Invoke-HDT<Type>Step is the one this property is about, and the
+        # assertion above it fails with a sentence rather than a puzzle if the
+        # fixture ever runs out of them.
         It 'imports a sequence whose type this engine does not implement' {
             # The pluggability property: authoring does not require the step type
             # to be installed on the machine doing the authoring, and an unknown
             # type fails the STEP at execution, not the whole document at import.
             $document = & $script:import 'valid-design-example.yaml'
 
-            @($document.Step | ForEach-Object { $_.Type }) | Should -Contain 'JoinDomain'
-            (Get-Command -Name 'Invoke-HDTJoinDomainStep' -ErrorAction SilentlyContinue) | Should -BeNullOrEmpty
+            $unimplemented = @(@($document.Step | ForEach-Object { [string] $_.Type }) |
+                    Sort-Object -Unique |
+                    Where-Object { $null -eq (Get-Command -Name ('Invoke-HDT{0}Step' -f $_) -ErrorAction SilentlyContinue) })
+
+            @($unimplemented).Count | Should -BeGreaterThan 0 -Because (
+                'this fixture must declare at least one step type the engine does not implement, ' +
+                'or the property has nothing to be true of. Every type it names is now built - add one that is not.')
+
+            # And the document carried it through the import intact.
+            @($document.Step | ForEach-Object { [string] $_.Type }) | Should -Contain $unimplemented[0]
         }
     }
 
