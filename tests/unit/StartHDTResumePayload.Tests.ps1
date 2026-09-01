@@ -160,7 +160,7 @@ Describe 'Start-HDTResume.ps1' {
                 Should -Contain '-Progress'
         }
 
-        It 'hands the catalog every service the shipped templates need in the full OS' {
+        It 'hands the catalog every service any step type can ask for' {
             # ASSERTED AGAINST THE SET, NOT AGAINST ONE SERVICE (CLAUDE.md 8).
             #
             # THIS TEST EXISTS BECAUSE THE CATALOG WAS MISSING ONE AND EVERY UNIT
@@ -172,44 +172,42 @@ Describe 'Start-HDTResume.ps1' {
             # payload passed no -Image at all. The step would have failed at
             # GetRequired on a real machine, having passed here a thousand times.
             #
-            # SO THE EXPECTATION IS COMPUTED RATHER THAN LISTED. It walks the
-            # shipped templates, takes every step type that can run in the full
-            # OS, reads the services those step files actually require, and
-            # demands the payload pass each one. A step type added next year is
-            # covered by construction.
+            # AND THE FIRST VERSION OF THIS TEST WALKED THE SHIPPED TEMPLATES,
+            # WHICH IS THE WRONG SET. A template is one workspace's choice of
+            # steps; the payload has to serve EVERY step type, because a
+            # customer's own sequence.yaml is not in this repository and never
+            # will be. InstallRoles is the proof: no shipped template uses it, so
+            # GetRequired('Feature') was invisible here while a WSUS sequence on a
+            # real share failed on the step that installs the role. The set that
+            # matters is the step FILES, not the templates that happen to name
+            # some of them.
+            #
+            # NO WinPE/FullOS SPLIT, DELIBERATELY. Deciding which types "can" run
+            # in the full OS means writing a list down, and a list is the second
+            # source of truth this rule exists to prevent - runIn is the
+            # sequence author's to set, not this test's to predict. Passing a
+            # service that is never asked for costs one stateless adapter
+            # object; not passing one costs a deployment.
             $stepRoot = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Public/Steps'
 
             $needed = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-            foreach ($id in @(Get-HDTSequenceTemplate | ForEach-Object { $_.Id })) {
-                $line = @(Get-HDTSequenceTemplate -Id $id -Line)
+            foreach ($file in @(Get-ChildItem -LiteralPath $stepRoot -Filter 'Invoke-HDT*Step.ps1' -File)) {
+                $text = [System.IO.File]::ReadAllText($file.FullName)
 
-                $fileSystem = New-HDTFakeFileSystem -File @{ 'C:\ws\sequence.yaml' = ($line -join "`n") }
-                $document = Import-HDTSequenceDocument -Path 'C:\ws\sequence.yaml' -FileSystem $fileSystem
-
-                foreach ($step in @($document.Step)) {
-                    # WinPE-only steps are not this payload's problem; anything
-                    # else can be reached by a full-OS leg.
-                    if (([string] $step.RunIn) -eq 'WinPE') { continue }
-
-                    $path = Join-Path -Path $stepRoot -ChildPath ('Invoke-HDT{0}Step.ps1' -f $step.Type)
-                    if (-not (Test-Path -LiteralPath $path)) { continue }
-
-                    $text = [System.IO.File]::ReadAllText($path)
-                    foreach ($match in ([regex]::Matches($text, "GetRequired\(\s*'(?<name>[A-Za-z]+)'"))) {
-                        [void] $needed.Add($match.Groups['name'].Value)
-                    }
+                foreach ($match in ([regex]::Matches($text, "GetRequired\(\s*'(?<name>[A-Za-z]+)'"))) {
+                    [void] $needed.Add($match.Groups['name'].Value)
                 }
             }
 
-            $needed.Count | Should -BeGreaterThan 0 -Because 'the templates must name some steps'
+            $needed.Count | Should -BeGreaterThan 0 -Because 'the step files must ask for some services'
 
             $catalog = @(& $script:commandNamed 'New-HDTServiceCatalog')[0]
             $passed = @($catalog.CommandElements | ForEach-Object { [string] $_.Extent.Text })
 
             foreach ($service in @($needed)) {
                 $passed | Should -Contain ('-{0}' -f $service) `
-                    -Because "a full-OS step in a shipped template calls GetRequired('$service'), and a catalog without it fails at the machine rather than here"
+                    -Because "a step type calls GetRequired('$service'), and a catalog without it fails at the machine rather than here"
             }
         }
 

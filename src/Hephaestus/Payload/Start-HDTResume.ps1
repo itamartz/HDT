@@ -664,9 +664,40 @@ try {
     # was written for the Image service above and caught this on its first run.
     $bitLocker = New-HDTBitLockerService
 
+    # AND A Feature SERVICE, FOR THE SAME REASON A THIRD TIME.
+    #
+    # InstallRoles is the only step type that asks for it, it is a full-OS step
+    # by nature - ServerManager does not exist in WinPE - and NO SHIPPED TEMPLATE
+    # USES IT. So the set test above, which walked the shipped templates, could
+    # never see it: a server sequence on a real share reached "Install the WSUS
+    # role" and failed at GetRequired('Feature') on the step that is the whole
+    # point of the build. That is why the test now walks the step FILES instead
+    # of the templates - the payload serves every step type, not the subset this
+    # repository happens to ship a sequence for.
+    $feature = New-HDTFeatureService
+
+    # AND A Disk SERVICE, WHICH IS THE SAME GAP AND WAS FOUND WITH IT.
+    #
+    # DiskPartition is a WinPE step in every sequence anyone has written here,
+    # which is not the same as a step the full OS can never reach: runIn belongs
+    # to the sequence author. Building the adapter costs one stateless object
+    # and touches no disk; not building it costs whoever writes that sequence a
+    # deployment.
+    $diskService = New-HDTDiskService
+
+    # AND A Domain SERVICE - THE FOURTH, AND THE ONE THAT PROVED THE TEST WORKS.
+    #
+    # JoinDomain is a full-OS step by nature and this payload passed no -Domain,
+    # so a sequence that joins a domain would have failed at GetRequired on the
+    # step that joins it. It was caught here, before any machine ran it, by the
+    # widened set test above - which is the difference between reading the step
+    # FILES and reading the templates: nothing shipped uses JoinDomain either.
+    $domain = New-HDTDomainService
+
     $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
         -Lsa $lsa -Process $process -Power $power -ScriptInvoker $scriptInvoker -Cim $cim `
         -Environment $environment -Image $imageService -BitLocker $bitLocker `
+        -Disk $diskService -Feature $feature -Domain $domain `
         -Content $content -Progress $display.DisplayHost
 
     $context = New-HDTExecutionContext -RunId ([string] $state.runId) -Phase FullOS `
