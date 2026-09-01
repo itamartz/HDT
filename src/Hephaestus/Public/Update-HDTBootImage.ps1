@@ -476,8 +476,19 @@
     # finds out at the end has already spent three minutes, and it finds out by
     # failing over a half-written pair of artifacts.
     #
-    # A VM HOLDING THE ISO IS THE CASE THIS CATCHES, and it is the common one in
-    # a lab - the machine you are testing the image on has it in its DVD drive.
+    # WHAT IT CATCHES IS A FOLDER THAT CANNOT BE WRITTEN AT ALL - no permission,
+    # no space, a share that went away - and it catches that before the mount.
+    #
+    # WHAT IT DOES NOT CATCH IS A VM HOLDING THE ISO, and this comment used to
+    # say that it did. It writes and removes the STAGING names, and nothing ever
+    # has those open; the file a DVD drive holds is the DESTINATION, which
+    # nothing here touches and nothing here could test without moving an
+    # artifact somebody may be booting from. That case is real - it happened on
+    # this lab on 2026-09-02 - and it is handled where it lands, in the publish
+    # at the bottom of this function, by Get-HDTBootImagePublishRefusal: the
+    # build is finished and intact in the staging files by then, so the answer
+    # is a rename rather than another six minutes.
+    #
     # The probe writes and removes each staging name: same folder, same volume,
     # same permissions as the artifacts themselves.
     # PARENTHESISED, EACH ONE. @($a + '.new', $b + '.new') parses as
@@ -489,7 +500,7 @@
             $FileSystem.RemoveItem($probePath, $false)
         } catch {
             $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $probePath -Category WriteError `
-                        -Message ("'{0}' cannot be written, so this build would mount a WIM for several minutes and then fail with nowhere to put the result: {1}. In a lab the usual cause is a virtual machine holding the ISO in its DVD drive - shut it down, or point -ScratchPath and the share elsewhere." -f
+                        -Message ("'{0}' cannot be written, so this build would mount a WIM for several minutes and then fail with nowhere to put the result: {1}. This is the folder itself refusing a write - permissions, disk space, or a share that is no longer there - so check those rather than what has the boot image open." -f
                             $probePath, $_.Exception.Message)))
         }
     }
@@ -1668,9 +1679,31 @@
     # TWO RENAMES ARE NOT ONE TRANSACTION, and no filesystem offers one across two
     # files. The probe before the mount is what makes this window small rather
     # than what makes it disappear.
-    if (-not $SkipIso) { $FileSystem.MoveItem($isoStagePath, $isoPath) }
+    # AND WHEN A RENAME FAILS, THE MESSAGE IS ABOUT THE BUILD AND NOT ABOUT
+    # Move-Item. Measured here on 2026-09-02: a running VM held
+    # Boot\HDTPE_x64.iso in its DVD drive, Move-Item -Force could not delete the
+    # destination, and what surfaced was 'Cannot create a file when that file
+    # already exists' from the rename that followed - the second symptom of the
+    # first symptom of the cause. Six correct minutes of work, and nothing said
+    # that the finished artifacts were sitting right there under their staging
+    # names. Get-HDTBootImagePublishRefusal is that sentence.
+    if (-not $SkipIso) {
+        try {
+            $FileSystem.MoveItem($isoStagePath, $isoPath)
+        } catch {
+            $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $isoPath -Category WriteError `
+                        -Message (Get-HDTBootImagePublishRefusal -Path $isoPath -Staged $isoStagePath `
+                            -Reason ([string] $_.Exception.Message))))
+        }
+    }
 
-    $FileSystem.MoveItem($wimStagePath, $wimPath)
+    try {
+        $FileSystem.MoveItem($wimStagePath, $wimPath)
+    } catch {
+        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $wimPath -Category WriteError `
+                    -Message (Get-HDTBootImagePublishRefusal -Path $wimPath -Staged $wimStagePath `
+                        -Reason ([string] $_.Exception.Message))))
+    }
 
     $finishedUtc = $Clock.GetUtcNow()
 
