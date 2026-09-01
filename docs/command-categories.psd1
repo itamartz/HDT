@@ -150,6 +150,8 @@
                 'Get-HDTNoOpStepDescription'
                 'Get-HDTApplyDriversStepTemplate'
                 'Get-HDTApplyDriversStepDescription'
+                'Get-HDTApplyUpdatesStepTemplate'
+                'Get-HDTApplyUpdatesStepDescription'
                 'Get-HDTSysprepStepTemplate'
                 'Get-HDTSysprepStepDescription'
                 'Get-HDTCaptureImageStepTemplate'
@@ -188,15 +190,19 @@
                 'Invoke-HDTNoOpStep'
                 'New-HDTStepResult'
                 'Invoke-HDTApplyDriversStep'
+                'Invoke-HDTApplyUpdatesStep'
             )
         }
         @{
             Id      = 'operating-systems-and-drivers'
-            Title   = 'Operating systems, drivers & selection profiles'
-            Blurb   = 'Import operating system sources and vendor driver packs into the share''s catalog, edit them, group the drivers by model, and name the folders a boot image or a driver step draws from.'
+            Title   = 'Operating systems, drivers, updates & selection profiles'
+            Blurb   = 'Import operating system sources, vendor driver packs and Windows updates into the share''s catalog, edit them, group the drivers by model, and name the folders a boot image or a driver step draws from. An update is filed under an operating system release because no .msu says which product it is for.'
             Command = @(
                 'Get-HDTOperatingSystem'
                 'Import-HDTOperatingSystem'
+                'Get-HDTOsRelease'
+                'Get-HDTWindowsUpdate'
+                'Import-HDTWindowsUpdate'
                 'Set-HDTOperatingSystemProperty'
                 'Save-HDTOperatingSystemDocument'
                 'Remove-HDTOperatingSystem'

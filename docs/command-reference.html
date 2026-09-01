@@ -253,9 +253,9 @@ try {
 <li><a href="#rules-and-variables"><span class="nav-t">Rules &amp; variables</span><span class="nav-n">13</span></a></li>
 <li><a href="#machine-facts-and-network"><span class="nav-t">Machine facts, network &amp; host checks</span><span class="nav-n">12</span></a></li>
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
-<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">46</span></a></li>
-<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">25</span></a></li>
-<li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers &amp; selection profiles</span><span class="nav-n">21</span></a></li>
+<li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">48</span></a></li>
+<li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">26</span></a></li>
+<li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">24</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">6</span></a></li>
 <li><a href="#boot-image-and-winpe"><span class="nav-t">Boot image &amp; WinPE</span><span class="nav-n">27</span></a></li>
@@ -285,10 +285,10 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">289</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">295</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">289</div><div class="l">carry examples</div></div>
-        <div class="stat"><div class="n">81</div><div class="l">support -WhatIf</div></div>
+        <div class="stat"><div class="n">295</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">82</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
         <span class="chip v-read">Get &middot; reads</span>
@@ -1760,7 +1760,7 @@ Save-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\DEMO-05\seque
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">46 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
+    <section class="cat" id="step-types-and-templates" data-cat="step-types-and-templates"><header class="cat-head"><div class="cat-eyebrow">48 commands</div><h2>Step types, templates &amp; descriptions</h2><p class="cat-blurb">Discover the step types this engine can run, and get the YAML and the one-line description for each.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTStepType" data-name="get-hdtsteptype" data-hay="get-hdtsteptype discovers every step type in the session, by convention. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTStepType">Get-HDTStepType</a></h3>
@@ -2408,6 +2408,39 @@ Get-HDTApplyDriversStepDescription -Step $step</pre><p>The row the console tree 
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
+<article class="fn" id="Get-HDTApplyUpdatesStepTemplate" data-name="get-hdtapplyupdatessteptemplate" data-hay="get-hdtapplyupdatessteptemplate the yaml an applyupdates step starts life as. name">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTApplyUpdatesStepTemplate">Get-HDTApplyUpdatesStepTemplate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The YAML an ApplyUpdates step starts life as.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTApplyUpdatesStepTemplate [[-Name] &lt;string&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The step name. Defaults to &#x27;Apply Windows Updates&#x27;.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTApplyUpdatesStepTemplate</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTApplyUpdatesStepTemplate -Name &#x27;Patch the image&#x27;</pre></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE RELEASE LINE IS THE ONE THAT TEACHES THE STEP, and it is the reason the default carries a variable rather than a literal. Which updates apply depends on which operating system was just laid down, and %HDTOSRelease% is what a rule or the wizard sets - so a template naming &#x27;Win11-24H2&#x27; would produce a step that quietly applies client updates to every server the share ever deploys.</p>
+<p>AN EMPTY release IS &quot;EVERYTHING IMPORTED&quot;, which is a legitimate setting for a share that deploys one operating system, and the comment says so rather than leaving an administrator to guess what blank means.</p>
+<p>IT RUNS IN WinPE, AFTER THE IMAGE. Injection is offline into the applied volume, so a template that defaulted to FullOS would produce a step that cannot work and a technician who cannot see why - the same trap Get-HDTApplyDriversStepTemplate documents.</p>
+<p>AND IT GOES BEFORE ApplyUnattend, WHICH THE SAMPLE SEQUENCE SHOWS. Servicing an image and then applying the answer file is the order that leaves the offlineServicing pass with everything to work from; the reverse ordering is what cost 0.10.1 a rebuild on drivers.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String[], one line per line of YAML.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTApplyUpdatesStepDescription" data-name="get-hdtapplyupdatesstepdescription" data-hay="get-hdtapplyupdatesstepdescription one line describing an applyupdates step, for the console tree and the log. step">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTApplyUpdatesStepDescription">Get-HDTApplyUpdatesStepDescription</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">One line describing an ApplyUpdates step, for the console tree and the log.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTApplyUpdatesStepDescription [-Step] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>The step to describe.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\PNP-TEST\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;ApplyUpdates&#x27; })[0]
+Get-HDTApplyUpdatesStepDescription -Step $step</pre><p>The row the console tree draws for that step.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">@($sequence.Step | Where-Object { $_.Type -eq &#x27;ApplyUpdates&#x27; }) |
+ForEach-Object { Get-HDTApplyUpdatesStepDescription -Step $_ }</pre><p>Every update step in a sequence, described as the tree describes them - which is how you see at a glance that one of them names no release and is therefore applying everything on the share.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE RELEASE IS SHOWN UNEXPANDED, WHICH IS THE POINT, and it is Get-HDTApplyDriversStepDescription&#x27;s reasoning applied to the same problem. A tree row saying &#x27;ApplyUpdates: %HDTOSRelease%&#x27; tells an administrator what the step will do on EVERY machine; one saying &#x27;ApplyUpdates: Win11-24H2&#x27; would describe whichever release the authoring laptop happened to resolve and mislead about all the rest. The resolved release belongs in the run log, where a machine is actually being deployed - and Invoke-HDTApplyUpdatesStep writes it there.</p>
+<p>A STEP WITH NO RELEASE APPLIES EVERYTHING IMPORTED, and it says so rather than showing an empty value. That configuration is legitimate - it is the &quot;this share deploys one operating system&quot; setting - and a row reading &#x27;ApplyUpdates: &#x27; looks like a step somebody forgot to finish.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
 <article class="fn" id="Get-HDTSysprepStepTemplate" data-name="get-hdtsysprepsteptemplate" data-hay="get-hdtsysprepsteptemplate the yaml for a new sysprep step. name">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTSysprepStepTemplate">Get-HDTSysprepStepTemplate</a></h3>
@@ -2508,7 +2541,7 @@ Get-HDTBootToWinPEStepDescription -Step $step</pre><p>The one line the log and t
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">25 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
+    <section class="cat" id="step-implementations" data-cat="step-implementations"><header class="cat-head"><div class="cat-eyebrow">26 commands</div><h2>Step implementations</h2><p class="cat-blurb">The step types themselves: what each one does to a machine when the engine dispatches it.</p></header><div class="cat-body">
 <article class="fn" id="Invoke-HDTStep" data-name="invoke-hdtstep" data-hay="invoke-hdtstep dispatches one step to the invoke-hdt&lt;type&gt;step function that implements it. step context steptype">
 <header class="fn-head">
 <h3><a class="anchor" href="#Invoke-HDTStep">Invoke-HDTStep</a></h3>
@@ -3434,8 +3467,31 @@ $result.Data.Contains(&#x27;matched&#x27;)</pre><p>WHETHER THE PnP RANKING WAS C
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries group, written, groupFound, mode, target, staged, infCount, byteCount and durationMs - and `matched` ONLY when the PnP ranking actually ran, or errorId on a refusal.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
+<article class="fn" id="Invoke-HDTApplyUpdatesStep" data-name="invoke-hdtapplyupdatesstep" data-hay="invoke-hdtapplyupdatesstep applies imported windows updates to the applied os volume, offline, before the machine first boots. step context">
+<header class="fn-head">
+<h3><a class="anchor" href="#Invoke-HDTApplyUpdatesStep">Invoke-HDTApplyUpdatesStep</a></h3>
+<div class="tags"><span class="chip v-act">Invoke</span>
+</div></header>
+<p class="syn">Applies imported Windows updates to the applied OS volume, offline, before the machine first boots.</p>
+<div class="sig-wrap"><pre class="sig">Invoke-HDTApplyUpdatesStep [-Step] &lt;Object&gt; [-Context] &lt;Object&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Step</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>The step, carrying release and target.</p></td></tr><tr><td class="p-name"><code>-Context</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>The execution context: services, variables and the log.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$sequence = Import-HDTSequenceDocument -Path &#x27;C:\HDTLab\Share\TaskSequences\PNP-TEST\sequence.yaml&#x27;
+$step = @($sequence.Step | Where-Object { $_.Type -eq &#x27;ApplyUpdates&#x27; })[0]
+$context = New-HDTExecutionContext -RunId &#x27;run-0001&#x27; -Phase WinPE -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; `
+    -Variable ([ordered] @{ HDTOSVolume = &#x27;W&#x27; }) -Service (New-HDTServiceCatalog) -Log $log
+Invoke-HDTApplyUpdatesStep -Step $step -Context $context</pre><p>Applies every update filed under the step&#x27;s release to the volume HDTOSVolume names, writing one log record per package.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">$result = Invoke-HDTApplyUpdatesStep -Step $step -Context $context
+$result.Data[&#x27;applied&#x27;]
+$result.Data[&#x27;notApplicable&#x27;]</pre><p>How many landed and how many did not apply to this image. A package that is not applicable is not a failure - importing a broad set and letting a sequence pick from it is the ordinary workflow.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>MDT&#x27;S Packages NODE, IN HDT&#x27;S SHAPE. The updates an administrator imported into WindowsUpdates\ are injected into the volume the image was just laid onto, so the machine boots patched rather than spending its first hour on Windows Update. This is NOT the deferred WindowsUpdate step in DESIGN 10.1: that one is online, full-OS and talks to WSUS. This one is offline servicing in WinPE and shares nothing with it but a subject.</p>
+<p>THE PACKAGE IS HANDED TO DISM AS IT WAS DOWNLOADED, and that was measured rather than assumed. A modern .msu is a WIM container holding an express package - a .wim beside a .psf carrying the deltas - and pointing /Add-Package at that inner .wim fails 0x80070057. Handing dism the .msu works, on both packages, against both a client and a server image. So nothing is unpacked here, at import or at apply, which is also why the store is the size of the downloads.</p>
+<p>THE EXIT CODE IS NOT THE VERDICT. dism exited 0xC0000409 after a Windows 11 apply that had plainly worked - the image went from 10.0.26100.1742 to 10.0.26100.8655 and its package count went from 85 to 159 - and exited 0 after the equivalent Server apply. So this step asks the IMAGE what it has afterwards, through GetPackage, and believes that. It is also the only check immune to dism&#x27;s prose being localised, since nothing in the adapter pins a language.</p>
+<p>EVERY PACKAGE GETS ITS OWN LOG RECORD, never one summary for the pass. Twenty updates in a sequence is twenty questions somebody will ask afterwards - which one was already in the image, which one wanted a prerequisite, which one actually failed - and update.apply carries the KB, the release, dism&#x27;s code and the outcome for each.</p>
+<p>NOT APPLICABLE IS NOT A FAILURE, and this is where the step parts company with a naive reading of DISM&#x27;s exit codes. 0x800F081E means the package does not apply to this image, which is the ORDINARY result of importing a broad set and letting a sequence pick from it. MDT swallows every error here - ZTIPatches logs a non-zero DISM return and still returns Success - and this step keeps the half of that which is right (apply everything, never stop at the first problem) and rejects the half which is not (report success regardless). A package that failed for any other reason fails the step, AFTER every other package has been tried.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries release, target, considered, applied, alreadyPresent, notApplicable and failed.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
 </div></section>
-    <section class="cat" id="operating-systems-and-drivers" data-cat="operating-systems-and-drivers"><header class="cat-head"><div class="cat-eyebrow">21 commands</div><h2>Operating systems, drivers &amp; selection profiles</h2><p class="cat-blurb">Import operating system sources and vendor driver packs into the share&#x27;s catalog, edit them, group the drivers by model, and name the folders a boot image or a driver step draws from.</p></header><div class="cat-body">
+    <section class="cat" id="operating-systems-and-drivers" data-cat="operating-systems-and-drivers"><header class="cat-head"><div class="cat-eyebrow">24 commands</div><h2>Operating systems, drivers, updates &amp; selection profiles</h2><p class="cat-blurb">Import operating system sources, vendor driver packs and Windows updates into the share&#x27;s catalog, edit them, group the drivers by model, and name the folders a boot image or a driver step draws from. An update is filed under an operating system release because no .msu says which product it is for.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTOperatingSystem" data-name="get-hdtoperatingsystem" data-hay="get-hdtoperatingsystem reads an operating system out of the workspace catalog. workspaceroot id filesystem content">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTOperatingSystem">Get-HDTOperatingSystem</a></h3>
@@ -3490,6 +3546,80 @@ Import-HDTOperatingSystem -WorkspaceRoot &#x27;X:\Deploy&#x27; -Id &#x27;Win11-L
 <p>-Copy IS OPT-IN BECAUSE COPYING 4 GB IS A REAL OPERATION. Without it the tree is registered where it stands and sourcePath is recorded as given. With it, the directory holding the image is copied to &lt;os folder&gt;\sources and sourcePath becomes the relative sources\&lt;file&gt;, which is what the workspace layout shows.</p>
 <p>THE CLOCK IS MANDATORY, for the reason it is mandatory everywhere in this engine: the only default is a real clock reading inside engine code, and a timestamp nobody injected is a timestamp no test can assert on.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject - the catalog it wrote, in the shape Get-HDTOperatingSystem returns.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTOsRelease" data-name="get-hdtosrelease" data-hay="get-hdtosrelease the operating system releases a windows update can be filed under. workspaceroot id filesystem">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTOsRelease">Get-HDTOsRelease</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The operating system releases a Windows update can be filed under.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTOsRelease [-WorkspaceRoot] &lt;string&gt; [[-Id] &lt;string&gt;] [-FileSystem &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The workspace root. Its Control\os-releases.yaml is used when it has one; otherwise the module&#x27;s own list is returned.</p></td></tr><tr><td class="p-name"><code>-Id</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>One release id to return. Omit it for the whole list.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real one; a test passes New-HDTFakeFileSystem and the whole reader is provable with no share.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTOsRelease -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; | Format-Table Id, Name, Build, Verified</pre><p>The releases this share offers, and which of their build numbers were measured.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTOsRelease -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Id &#x27;WS2025&#x27;</pre><p>One release, as Import-HDTWindowsUpdate resolves it.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>THE LIST EXISTS BECAUSE A .msu DOES NOT SAY WHAT IT IS FOR. The 2026-06 cumulative update for Windows 11 24H2 and the one for Windows Server 2025 are both delivered as windows11.0-kb50941xx-x64_&lt;sha&gt;.msu, and both describe themselves internally as Product=&quot;Desktop&quot;, BuildArch=&quot;amd64&quot;, baseline 10.0.26100.1742, build 26100. Nothing in either file separates them. So an administrator names the release at import, and this is what they choose from - in the console&#x27;s import dialog, and on the command line.</p>
+<p>SHARE FIRST, MODULE SECOND, WHICH IS wimscript.ini&#x27;s RULE. A share with Control\os-releases.yaml gets its own list; a share without one gets the module&#x27;s Templates\Control\os-releases.yaml. That is what stops feature being invisible on every share created before it existed - the failure mode DESIGN 11.2 and CLAUDE.md both warn about, where a seeded tree is never overwritten and so never gains anything added afterwards.</p>
+<p>IT IS NOT THE OPERATING SYSTEM CATALOG. OperatingSystems\ is what has been imported; a release is what an update TARGETS, and an administrator legitimately imports next month&#x27;s updates before the media lands. Binding an update to an os.yaml would refuse that perfectly ordinary thing.</p>
+<p>Verified IS CARRIED THROUGH RATHER THAN SMOOTHED AWAY. A release is verified only when its build number was read off real media or a real package. An unverified release still matches - the administrator&#x27;s label is the authority and HDT does not refuse an import because this repository has not seen the media - but Import-HDTWindowsUpdate warns, and the console marks the row, so a number somebody typed from memory never passes for one that was measured.</p>
+<p>A RELEASE WITH NO BUILD IS A RELEASE THAT CANNOT BE CHECKED, and HasBuild says so in one boolean rather than making every caller reason about a zero. Windows 11 26H2 ships that way on purpose: its build was not read here, and a guessed number would silently refuse every correct import filed under it.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject, one per release:</p>
+<pre class="block">  Id          the key an update records
+  Name        what the console shows
+  Build       the major build, or 0 when it was never read
+  HasBuild    whether Build is a fact
+  Branch      the expected servicing branch token, or empty
+  Verified    whether Build was read off media or a package
+  Note        why, in one line
+  Source      &#x27;workspace&#x27; or &#x27;module&#x27; - which list answered</pre></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTWindowsUpdate" data-name="get-hdtwindowsupdate" data-hay="get-hdtwindowsupdate the windows updates imported into a workspace. workspaceroot id release filesystem">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTWindowsUpdate">Get-HDTWindowsUpdate</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">The Windows updates imported into a workspace.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTWindowsUpdate [-WorkspaceRoot] &lt;string&gt; [[-Id] &lt;string&gt;] [-Release &lt;string&gt;] [-FileSystem &lt;Object&gt;] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The workspace root - a local path or a UNC share.</p></td></tr><tr><td class="p-name"><code>-Id</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>One update id to return. Omit it for every update in the workspace.</p></td></tr><tr><td class="p-name"><code>-Release</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>Return only updates filed under this release. This is how the console groups its list and how a sequence narrows one.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real one.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTWindowsUpdate -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; | Format-Table Kb, Release, Kind, TargetVersion</pre><p>Everything imported, in the order the step would apply it.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTWindowsUpdate -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Release &#x27;WS2025&#x27;</pre><p>Just the Server 2025 updates.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>Reads WindowsUpdates\&lt;id&gt;\update.yaml through the same validator Import-HDTWindowsUpdate writes through, so an entry that would not load is reported as an error naming the file rather than quietly missing from a list an administrator is reading to decide what is deployed.</p>
+<p>THE PACKAGE PATH IS A CONVENTION, NOT A KEY IN THE FILE, exactly as an application&#x27;s source folder is: the .msu sits beside its update.yaml under the update&#x27;s own folder, and fileName says which file it is. That is what makes a workspace movable - nothing records an absolute path - and it is what the ApplyUpdates step resolves through the content provider at deployment time.</p>
+<p>THE ROWS ARE ORDERED THE WAY THEY MUST BE APPLIED, not the way the file system happened to enumerate them: servicing stack updates first, then by the build each update produces, then by KB. See Get-HDTUpdateApplyOrder for why that is the correct servicing order and where it comes from.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject, one per update, with the document&#x27;s keys plus PackagePath, Folder and WorkspaceRoot.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Import-HDTWindowsUpdate" data-name="import-hdtwindowsupdate" data-hay="import-hdtwindowsupdate promotes a windows update package into the workspace, reading what it is out of the package rather than off its file name. workspaceroot path release id name description filesystem process whatif confirm">
+<header class="fn-head">
+<h3><a class="anchor" href="#Import-HDTWindowsUpdate">Import-HDTWindowsUpdate</a></h3>
+<div class="tags"><span class="chip v-make">Import</span>
+<span class="chip risk" title="Supports -WhatIf and -Confirm">ShouldProcess</span>
+</div></header>
+<p class="syn">Promotes a Windows update package into the workspace, reading what it is out of the package rather than off its file name.</p>
+<div class="sig-wrap"><pre class="sig">Import-HDTWindowsUpdate [-WorkspaceRoot] &lt;string&gt; [-Path] &lt;string&gt; [-Release] &lt;string&gt; [-Id &lt;string&gt;] [-Name &lt;string&gt;] [-Description &lt;string&gt;] [-FileSystem &lt;Object&gt;] [-Process &lt;Object&gt;] [-WhatIf] [-Confirm] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The workspace root - a local path or a UNC share.</p></td></tr><tr><td class="p-name"><code>-Path</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The .msu to import. It is copied into the workspace as it is: DISM is handed this file directly when the update is applied, and the .wim inside it is NOT a substitute - /Add-Package rejects the inner .wim with 0x80070057, measured against both packages on 2026-09-01.</p></td></tr><tr><td class="p-name"><code>-Release</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>Which operating system release this update is for, from Get-HDTOsRelease. MANDATORY, because no .msu says.</p></td></tr><tr><td class="p-name"><code>-Id</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The catalog id. Becomes the folder name under WindowsUpdates\. Defaults to &lt;KB&gt;-&lt;architecture&gt;, e.g. KB5094126-x64.</p></td></tr><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The display name. Defaults to a line composed from the KB, the kind and the release.</p></td></tr><tr><td class="p-name"><code>-Description</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>A free-text note for the console.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real one; a test passes New-HDTFakeFileSystem and the importer is provable with no share.</p></td></tr><tr><td class="p-name"><code>-Process</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IProcessService, used to run dism and expand while reading the package&#x27;s metadata. Defaults to the real one.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Import-HDTWindowsUpdate -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Release &#x27;Win11-24H2&#x27; -Path &#x27;D:\updates\windows11.0-kb5094126-x64_1b7f.msu&#x27;</pre><p>Reads KB5094126 out of the package, files it under Windows 11 24H2 and copies the .msu into the share.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTOsRelease -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; | Format-Table Id, Name, Build, Verified</pre><p>The releases available to -Release, and which of their builds were measured rather than typed.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>Import-HDTWindowsUpdate writes WindowsUpdates\&lt;id&gt;\update.yaml and copies the .msu in beside it, and it is the only writer of that document. It is the twin of Import-HDTApplication, down to the order it works in and to having no -Force.</p>
+<p>THE FILE NAME IS NOT EVIDENCE, WHICH IS THE WHOLE REASON THIS COMMAND READS ANYTHING AT ALL. The 2026-06 cumulative update for Windows 11 24H2 arrives as windows11.0-kb5094126-x64_&lt;sha&gt;.msu and the one for Windows Server 2025 arrives as windows11.0-kb5094125-x64_&lt;sha&gt;.msu. Nothing in either name says which is which, and a catalog built by parsing names would file the server update under the client release and read its own mistake back for ever.</p>
+<p>SO THE PACKAGE IS ASKED. A modern .msu is a WIM holding onepackage.AggregatedMetadata.cab, which holds a CompDB per package inside; three cheap stages get it out (Get-HDTUpdateMetadataCommand), and ConvertFrom-HDTUpdateMetadata says what it means. That yields the KB, the architecture, the kind, the baseline build, the build the update produces, the package identity and the bundled servicing stack update - all of them facts the package states about itself.</p>
+<p>AND THE ONE THING IT CANNOT ASK IS THE ONE THING -Release IS FOR. There is no product family in a .msu. @Product says &quot;Desktop&quot; for the Windows SERVER package exactly as it does for the client one; the two share build 26100, baseline 10.0.26100.1742 and architecture amd64. Read on 2026-09-01 against both real packages, and it is why -Release is mandatory: the administrator&#x27;s label is the only source of that fact, and HDT does not pretend to derive it.</p>
+<p>WHAT IS CHECKED, AND WHAT IS ONLY WARNED ABOUT. The distinction is deliberate and it is the honest line between measurement and guess:</p>
+<pre class="block">  Architecture   REFUSED on mismatch. The package states it.
+  Major build    REFUSED on mismatch, when the release has a build to
+                 check against. This catches a 26200 package filed
+                 under a 26100 release.
+  Servicing      WARNED, never refused. ge_release against lt_release
+  branch         is the only field that differs between the client and
+                 server packages, and it is an undocumented Microsoft
+                 build-branch token seen in three samples. It also
+                 separates a BRANCH rather than a product - Windows 11
+                 LTSC reads lt_release too - so it is worth telling an
+                 administrator and not worth overruling them with.
+  Unverified     WARNED. A release whose build was never read off real
+  release        media cannot check anything, and the import says so
+                 rather than quietly behaving as though it had.</pre>
+<p>A PACKAGE WHOSE METADATA CANNOT BE READ IS STILL IMPORTED, with the KB taken from the file name as a last resort and a note saying that is what happened. The metadata cab is a Microsoft convention rather than a guarantee, and refusing an update because this release changed the container layout would be brittle in the one direction that matters.</p>
+<p>THERE IS NO -Force, on Import-HDTApplication&#x27;s reasoning: an importer that overwrote on a flag is one keystroke away from replacing a working entry - and a multi-gigabyte payload - with a typo.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject - the catalog entry as Get-HDTWindowsUpdate returns it.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Set-HDTOperatingSystemProperty" data-name="set-hdtoperatingsystemproperty" data-hay="set-hdtoperatingsystemproperty renames an imported operating system, or changes its description. line name description folder whatif confirm">
@@ -6752,7 +6882,9 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
       answer file&#x27;s driver paths live - Setup reading Panther on
       first boot runs specialize and oobeSystem and not that one.
       MDT LTIApply.wsf:1021-1043; see NOTICE.md.</pre>
-<pre class="block">  AddDriver(imagePath, driverPath, recurse)
+<pre class="block">  AddPackage(imagePath, packagePath) -&gt; ExitCode, Output
+  GetPackage(imagePath) -&gt; Name, State
+  AddDriver(imagePath, driverPath, recurse)
       Add-WindowsDriver -Path &lt;imagePath&gt; -Driver &lt;driverPath&gt;
           -Recurse:&lt;recurse&gt;</pre>
 <pre class="block">      OFFLINE INJECTION INTO THE APPLIED OS, which is DESIGN 7&#x27;s

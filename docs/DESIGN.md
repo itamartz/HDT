@@ -1,4 +1,4 @@
-# Hephaestus Deployment Toolkit — Design
+﻿# Hephaestus Deployment Toolkit — Design
 
 **Status:** Draft v0.1 — design only, no implementation yet.
 **Date:** 2026-08-12
@@ -137,12 +137,17 @@ Seven concepts. Everything else is a property of one of them.
   Drivers\                    # free-form: any names, any depth, yours to shape
     Win11\Dell inc\Latitude 7450\
       <inf tree>              # no generated index - the .inf files ARE it (§7)
+  WindowsUpdates\             # MDT's Packages node (§7.5)
+    KB5094126-x64\
+      update.yaml             # what the package said about itself
+      windows11.0-kb5094126-x64_<sha>.msu
   Scripts\                    # user extension points (.ps1)
   Modules\                    # engine payload staged to clients
   Logs\                       # per-deployment logs, if logging to share
   Captures\                   # sysprepped WIMs land here
   Control\
     machines\                 # per-machine variable overrides, <UUID>.yaml (optional)
+    os-releases.yaml          # the releases an update can be filed under (§7.5)
 ```
 
 The engine treats the workspace as **read-only during deployment** except for
@@ -425,7 +430,12 @@ file that imports and validates today.
 `Validate`, `DiskPartition`, `ApplyImage`, `CaptureImage`, `ApplyDrivers`,
 `ApplyUnattend`, `ConfigureBoot`, `BootToWinPE`, `Restart`, `PowerShell`,
 `CommandLine`, `InstallApplications`, `InstallRoles`, `JoinDomain`,
-`SetVariable`, `WindowsUpdate`, `Sysprep`, `EnableBitLocker`.
+`SetVariable`, `WindowsUpdate`, `Sysprep`, `EnableBitLocker`, `ApplyUpdates`.
+
+`ApplyUpdates` and `WindowsUpdate` are different steps and the names are close
+enough to be worth separating here too: `ApplyUpdates` injects imported `.msu`
+packages into the applied volume offline, in WinPE (§7.5); `WindowsUpdate` is
+the online full-OS step against WSUS, and is deferred to v2 (§10.1).
 
 `BootToWinPE` is the FullOS -> WinPE transport, and it exists because one
 firmware-order switch cannot serve two restarts that want opposite things. A
@@ -833,6 +843,7 @@ drifts. Count the rows.
 | `driver.enumerate` | how many devices the machine reported hardware ids for |
 | `driver.match` | a driver was chosen, with the id it matched, the rank, and the device |
 | `driver.staged` | a driver package was copied to the machine, with how many files |
+| `update.apply` | one Windows update was applied offline, with its KB, the release it was filed under, dism's exit code and the outcome — one record per package, never one summary for the pass |
 | `console.session` | the admin console opened or closed, with its version |
 | `console.action` | the console invoked a command, with its name, parameter names and duration |
 | `console.error` | a console action threw, with the exception type and stack |
@@ -1860,6 +1871,132 @@ share before any folder on either exists.
 
 ---
 
+### 7.5 Windows updates — offline injection
+
+**Added 2026-09-01.** This is MDT's **Packages** node in HDT's shape: an
+administrator downloads a `.msu`, imports it into the share, and a sequence
+injects it into the applied volume before the machine has ever booted. It
+reverses the "no offline servicing pipeline" half of §15's open question 4 — see
+the note there for what changed and what did not.
+
+**It is not §10.1.** That step is online, full-OS, and talks to WSUS through the
+Windows Update Agent; it is deferred to v2. This one needs no network, no server
+and no reboot loop.
+
+#### 7.5.1 The `.msu` is a WIM, and that killed MDT's mechanism
+
+MDT's `ZTIPatches.wsf` reads a package by running
+`expand <file>.cab -F:update.mum` and parsing the `assemblyIdentity` out of
+`update.mum`. That cannot work on a current package. Both packages this was
+built against begin `4D 53 57 49 4D` — `MSWIM` — and `expand.exe` answers
+"Can't open input file". DISM's own `/Get-PackageInfo` is no better: on these it
+returns `Package Identity : OnePackage~~~~0.0.0.0` with every other field blank.
+
+A modern `.msu` is a WIM holding, among other things,
+`onepackage.AggregatedMetadata.cab`, which holds one **CompDB** XML per package
+inside — the cumulative update, and the servicing stack update bundled with it.
+That is what HDT reads.
+
+**Reading it costs a tenth of a second, not five gigabytes.** DISM has no
+single-file extract, so the naive read unpacks the whole container — 4.76 GB for
+the Windows 11 cumulative update. Instead `/List-Image` enumerates the entries
+and `/Apply-Image` runs with a `/ConfigFile` exclusion list naming every entry
+*except* the metadata cab. Measured 2026-09-01: **0.057 s** for the 1.88 GB
+Server package, **0.123 s** for the 4.76 GB Windows 11 one.
+
+#### 7.5.2 What the package states, and what it cannot
+
+Read out of the CompDB, authoritative:
+
+| Field | Source |
+|---|---|
+| KB | `Feature/@FeatureID` |
+| kind | `Feature/@Type` — `CumulativeUpdate` or `ServicingStackUpdate` |
+| architecture | `@BuildArch` |
+| baseline build | `@OSVersion` — what it expects to find |
+| target build | `@TargetOSVersion` — what it produces |
+| package identity | the `Package/@ID` it installs |
+| bundled SSU | the second CompDB's KB and build |
+
+**And what it cannot: which product it is for.** `@Product` reads `Desktop` for
+the Windows **Server** package exactly as it does for the client one. The
+2026-06 cumulative updates for Windows 11 24H2 (KB5094126) and Windows Server
+2025 (KB5094125) both arrive as `windows11.0-kb50941xx-x64_<sha>.msu`, both are
+`amd64`, both expect baseline `10.0.26100.1742`, and both target build `26100`.
+Nothing in either file separates them.
+
+So **the administrator names the release at import**, choosing from
+`Control\os-releases.yaml` — the share's own if it has one, the module's
+`Templates\os-releases.yaml` otherwise, which is `wimscript.ini`'s fallback rule
+and what stops the feature being invisible on shares created before it existed.
+
+**A release carries `verified`, and an unverified one must not pass for a
+measured one.** `verified: true` means the build number was read off real media
+or a real package. `Win11-24H2` and `WS2025` are verified (both 26100, read off
+the staged media and confirmed against the two packages). `Win11-25H2` is not.
+`Win11-26H2` **ships with no build number at all**, deliberately: a guessed build
+would silently refuse every correct import filed under it. An unverified release
+still matches — the administrator's label is the authority — but the import warns,
+the document records the warning, and the console marks the row.
+
+#### 7.5.3 What is refused, and what is only warned about
+
+| Check | Behaviour |
+|---|---|
+| architecture mismatch | refused — the package states it |
+| major build mismatch | refused, when the release has a build to check against |
+| servicing branch mismatch | **warned, never refused** |
+| unverified release | warned |
+
+The branch token (`ge_release_svc_prod1` against `lt_release_svc_prod1`) is the
+only field that differs between the client and server packages, and it is an
+undocumented Microsoft build-branch string seen in three samples. It also
+separates a *servicing branch* rather than a product — Windows 11 LTSC reads
+`lt_release` too. **For two products sharing a build, the administrator's label
+is the only reliable source, and HDT does not pretend otherwise.**
+
+#### 7.5.4 Applying: the package as downloaded, and the image as the witness
+
+`IImageService.AddPackage` hands dism **the `.msu` itself**. The `.wim` inside it
+is not a substitute — `/Add-Package` on the inner `.wim` fails `0x80070057`,
+tried on both packages. So nothing is unpacked at import or at apply, and the
+store is the size of the downloads.
+
+**The exit code is evidence, not the verdict.** Measured 2026-09-01, the same
+command against two mounted images:
+
+| | result | dism exit |
+|---|---|---|
+| Windows 11 LTSC + KB5094126 | 26100.1742 → **26100.8655**, 85 → 159 packages | **`0xC0000409`** |
+| Server 2025 + KB5094125 | 26100.1742 → **26100.32995**, 69 → 125 packages | `0` |
+
+An `AssertExitCode` would have failed a good deployment on the first and passed
+on the second. Reading dism's prose is no better — nothing pins a language. So
+the step re-reads the image's package list through `GetPackage` and believes
+that. (The two spellings of a package identity differ: the CompDB omits the
+publisher key, DISM includes it, so `Test-HDTUpdatePackageMatch` compares the
+fields that identify a package and drops the one that does not.)
+
+#### 7.5.5 Ordering, and failure
+
+**Ordering is read, not guessed**, and mostly dissolves. `Feature/@Type` says
+exactly whether a package is a servicing stack update, so those sort first;
+everything else sorts by the build it produces, ascending, which puts a
+checkpoint update ahead of the update requiring it. But **both real packages
+bundle their own SSU** — KB5094126 carries KB5094135, KB5094125 carries
+KB5094137 — and dism applies the bundled stack itself. The ordering is for the
+standalone SSU, which Microsoft still ships.
+
+**Failure follows MDT's shape by half.** `ZTIPatches` never stops at a bad
+package; it also never reports one, logging a non-zero DISM return and returning
+`Success` regardless. HDT keeps the first half and rejects the second: every
+package is attempted, each gets its own `update.apply` log record, and the step
+fails at the end naming every package that failed. **`0x800F081E` — not
+applicable to this image — is not a failure**: importing a broad set and letting
+a sequence pick from it is the ordinary workflow, and treating it as an error
+would make the feature unusable for its own purpose.
+
+
 ## 8. Applications
 
 ```yaml
@@ -2364,6 +2501,19 @@ into Windows. All are `runIn: FullOS`.
 
 ### 10.1 Windows Update  ·  **DEFERRED TO v2**
 
+> **Not the same thing as §7.5, and the names are close enough to be worth
+> separating.** This section is the ONLINE step: full-OS, after the machine
+> has rebooted into Windows, talking to WSUS or Windows Update through the
+> Windows Update Agent COM API, looping until nothing more is applicable. It
+> is still deferred.
+>
+> **§7.5 is offline injection** — `.msu` packages an administrator imported,
+> pushed into the applied volume in WinPE before the machine has ever booted.
+> It needs no network, no server and no reboot loop, it is built, and it is
+> what MDT's Packages node did. The two are complementary: §7.5 gets a machine
+> to the last cumulative update somebody downloaded, §10.1 would get it to
+> whatever came out this morning.
+
 > **v2, not cut.** Scheduled out of v1 on 2026-08-16 at the user's direction.
 > The section is kept in full so v2 starts from a written plan rather than a
 > memory, and the step type is additive — bringing it back adds files rather
@@ -2821,7 +2971,28 @@ All resolved except one.
 3. ~~**USMT scope.**~~ **Resolved:** out of scope permanently (§1). Wipe-and-load
    only.
 4. ~~**Windows Update during deployment.**~~ **Resolved:** online, against WSUS
-   or Windows Update, multi-pass (§10.1). No offline servicing pipeline.
+   or Windows Update, multi-pass (§10.1) — **and, since 2026-09-01, offline
+   injection as well (§7.5).**
+
+   > **This reverses a settled decision, and the sentence it reverses is kept
+   > rather than deleted.** Until 2026-09-01 this line ended "No offline
+   > servicing pipeline", and that was the right call for what it was
+   > deciding: HDT was not going to own a *pipeline* — a scheduled
+   > patch-and-recapture workflow that keeps a reference image current (open
+   > question 7). It still does not.
+   >
+   > What changed is that the user asked for MDT's **Packages** node, which is
+   > a smaller thing wearing a similar name: an administrator downloads a
+   > `.msu`, imports it, and the sequence injects it into the applied volume
+   > before first boot. No schedule, no recapture, no server. The online
+   > §10.1 step and this are different features that happen to share a
+   > subject, and §7.5 says which is which.
+   >
+   > The cost of *not* having it was the reason: with the online step deferred
+   > to v2, a machine HDT built left the bench carrying exactly the patches
+   > its source image carried — which for the staged LTSC 2024 media is
+   > 10.0.26100.1742, September 2024. Offline injection closes that without
+   > waiting for v2.
 5. ~~**Server OS support.**~~ **Resolved:** in v1. `InstallRoles` step, server
    sample sequence, server VM in the E2E matrix (§10.2).
 6. ~~**BitLocker.**~~ **Resolved:** in v1 as a full-OS step with selectable
