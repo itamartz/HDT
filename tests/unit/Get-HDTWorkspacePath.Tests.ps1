@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -28,6 +28,7 @@ Describe 'Get-HDTWorkspacePath' {
             @{ Kind = 'Control';          Folder = 'Control' }
             @{ Kind = 'Scripts';          Folder = 'Scripts' }
             @{ Kind = 'Modules';          Folder = 'Modules' }
+            @{ Kind = 'WindowsUpdates';   Folder = 'WindowsUpdates' }
         ) {
             $result = Get-HDTWorkspacePath -Root 'X:\Deploy' -Kind $Kind
             $result | Should -Be ([System.IO.Path]::Combine('X:\Deploy', $Folder))

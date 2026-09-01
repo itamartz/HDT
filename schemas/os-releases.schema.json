@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hephaestus/schemas/os-releases.schema.json",
+  "title": "HDT os-releases.yaml",
+  "description": "The operating system releases a Windows update can be filed under. The list exists because a .msu does not say which product it is for: the Windows 11 24H2 and Windows Server 2025 cumulative updates share a file-name shape, a Product of Desktop, an architecture and the build 26100, so the administrator names the release at import.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "releases"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "releases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/release"
+      }
+    }
+  },
+  "definitions": {
+    "release": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+          "description": "The key an imported update records."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the console shows. Defaults to the id."
+        },
+        "build": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The major build, e.g. 26100. OPTIONAL ON PURPOSE: a release whose build has not been read off real media omits the key rather than guessing, because a wrong build silently refuses every correct import filed under it."
+        },
+        "branch": {
+          "type": "string",
+          "description": "The expected servicing branch token - ge_release for general availability, lt_release for LTSC and Server. Recorded and warned on, never matched: it is an undocumented Microsoft build-branch string."
+        },
+        "verified": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether the build number was read off real media or a real package. A release cannot be verified without a build."
+        },
+        "note": {
+          "type": "string",
+          "description": "Why, in one line - which media or which package the build was read from."
+        }
+      }
+    }
+  }
+}

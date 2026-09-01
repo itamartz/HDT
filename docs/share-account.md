@@ -1,4 +1,4 @@
-# The deployment account, step by step
+﻿# The deployment account, step by step
 
 A PXE-booted machine has no identity of its own to authenticate with, so HDT
 embeds a deployment account's credential in the boot image — the model MDT used,
@@ -88,6 +88,7 @@ of them, so the document and the checker cannot drift apart.
 | `OperatingSystems\` | Read | the images it applies |
 | `Applications\` | Read | installers |
 | `Drivers\` | Read | the driver store |
+| `WindowsUpdates\` | Read | the .msu packages the ApplyUpdates step injects |
 | `Boot\` | Read | boot images and PXE payloads |
 | `Control\` | Read | per-machine overrides, and its own credential file |
 | `Scripts\` | Read | user scripts the engine dot-sources |
@@ -142,8 +143,8 @@ follows it.
 $root = '\\server\HdtShare'
 $accessRule = @{}
 foreach ($folder in @('.', 'TaskSequences', 'OperatingSystems', 'Applications',
-                      'Drivers', 'Boot', 'Control', 'Scripts', 'Modules',
-                      'Logs', 'Captures')) {
+                      'Drivers', 'WindowsUpdates', 'Boot', 'Control', 'Scripts',
+                      'Modules', 'Logs', 'Captures')) {
 
     $path = $root
     if ($folder -ne '.') { $path = Join-Path -Path $root -ChildPath $folder }

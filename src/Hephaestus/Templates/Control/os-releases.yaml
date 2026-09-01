@@ -1,0 +1,84 @@
+# The operating system releases a Windows update can be filed under.
+#
+# WHY THIS FILE EXISTS AT ALL. A .msu does not say which product it is for. Both
+# of the packages this was built against - the 2026-06 cumulative update for
+# Windows 11 24H2 and the one for Windows Server 2025 - are delivered as
+# windows11.0-kb50941xx-x64_<sha>.msu, and both describe themselves internally as
+# Product="Desktop", BuildArch="amd64", baseline 10.0.26100.1742, build 26100.
+# There is nothing in either file that separates them. So the administrator says
+# which release an update is for at import, and this is the list they choose from.
+#
+# IT IS NOT THE OPERATING SYSTEM CATALOG, ON PURPOSE. OperatingSystems\ is what
+# you have imported; a release is what an update targets, and those are not the
+# same set. Next month's updates are legitimately imported before the media
+# lands, and binding an update to an os.yaml would refuse that.
+#
+# SHARE FIRST, MODULE SECOND. Control\os-releases.yaml is used when the share has
+# one; otherwise this copy travels with the module, exactly as
+# Templates\Capture\wimscript.ini does - so a share created before this feature
+# existed still resolves a release list instead of failing.
+#
+# ADD A RELEASE BY ADDING A ROW. Copy this file into your share's Control\ folder
+# and edit it there; nothing in HDT hard-codes a release.
+#
+# ABOUT verified. A release is verified: true only when its build number was read
+# off real media or off a real package, and the note says which. An unverified
+# row still matches - the administrator's label is the authority, and HDT does not
+# refuse an import because this repository has not seen the media - but the import
+# logs a warning, and the console marks the row, so nobody mistakes a row somebody
+# typed from memory for one that was measured.
+#
+# A ROW WITH NO build IS DELIBERATE AND NOT AN OVERSIGHT. It means the release is
+# known to exist and its build number has not been read here. Such a row cannot be
+# checked against a package's own build, so an update filed under it is accepted
+# on the label alone and says so. Fill the build in when you have the media - that
+# is the whole maintenance this file ever needs.
+
+schemaVersion: 1
+
+releases:
+
+  # VERIFIED. 26100 was read from C:\HDTLab\media\Win11-LTSC-2024 on 2026-09-01
+  # (Get-WindowsImage reports 10.0.26100.1742 for both indices) and confirmed
+  # against KB5094126's own CompDB, which targets 10.0.26100.8655.
+  - id: Win11-24H2
+    name: Windows 11 24H2
+    build: 26100
+    branch: ge_release
+    verified: true
+    note: build read from the staged LTSC 2024 media and confirmed against KB5094126
+
+  # VERIFIED, AND IT SHARES THE CLIENT'S BUILD NUMBER. Windows Server 2025 is
+  # also 26100 - read from C:\HDTLab\media\WS2025-Std on 2026-09-01. This is the
+  # collision that makes the branch token below worth recording: KB5094125
+  # (server) reports lt_release_svc_prod1 where KB5094126 (client) reports
+  # ge_release_svc_prod1, and that string is the ONLY thing in either package
+  # that differs. It is undocumented and seen in three samples, so a disagreement
+  # is a warning and never a refusal.
+  - id: WS2025
+    name: Windows Server 2025
+    build: 26100
+    branch: lt_release
+    verified: true
+    note: build read from the staged Server 2025 media and confirmed against KB5094125
+
+  # NOT VERIFIED HERE. 26200 is widely published for Windows 11 25H2, but no
+  # 25H2 media and no 25H2 package has been read by this repository, so the row
+  # says so rather than borrowing someone else's certainty.
+  - id: Win11-25H2
+    name: Windows 11 25H2
+    build: 26200
+    branch: ge_release
+    verified: false
+    note: build not read off media here
+
+  # NO BUILD NUMBER, AND THAT IS THE HONEST ANSWER. Windows 11 26H2's build was
+  # not read off media or off a package by this repository, and inventing one
+  # would be worse than leaving it out: a wrong number would silently refuse
+  # every correct import filed under this release. An update filed here is
+  # accepted on the administrator's label, with a warning saying exactly that.
+  # Fill in build: when you have the media.
+  - id: Win11-26H2
+    name: Windows 11 26H2
+    verified: false
+    note: build not read off media here - fill it in when the media is staged

@@ -60,7 +60,7 @@
         # The set is closed on purpose: an unknown folder is a defect, not a path.
         [Parameter(Mandatory = $true)]
         [ValidateSet('TaskSequences', 'OperatingSystems', 'Applications', 'Drivers',
-            'Boot', 'Logs', 'Captures', 'Control', 'Scripts', 'Modules')]
+            'Boot', 'Logs', 'Captures', 'Control', 'Scripts', 'Modules', 'WindowsUpdates')]
         [string] $Kind,
 
         [Parameter()]
