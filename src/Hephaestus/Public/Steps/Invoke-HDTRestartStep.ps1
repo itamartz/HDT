@@ -71,19 +71,15 @@
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $property = $Step.Property
+    # READ THE WAY EVERY OTHER STEP TYPE READS. `message` is the sentence a
+    # technician watches the machine go down on, so it is the last place a
+    # literal '%HDTComputerName%' should survive to - and reading it raw is
+    # exactly what left it there.
+    $delaySecond = Get-HDTStepProperty -Step $Step -Name 'delaySeconds' -Default 0 `
+        -Context $Context -Expand -As Int
 
-    $delaySecond = 0
-    if ($null -ne $property -and $property.Contains('delaySeconds')) {
-        $delaySecond = [int] $property['delaySeconds']
-    }
-
-    $message = 'a restart was requested'
-    if ($null -ne $property -and $property.Contains('message') -and
-        -not [string]::IsNullOrWhiteSpace([string] $property['message'])) {
-
-        $message = [string] $property['message']
-    }
+    $message = Get-HDTStepProperty -Step $Step -Name 'message' -Default 'a restart was requested' `
+        -Context $Context -Expand -As String
 
     Write-HDTLog -Context $Context.Log -Message $message -Component 'Restart' `
         -Data ([ordered] @{ delaySecond = $delaySecond })

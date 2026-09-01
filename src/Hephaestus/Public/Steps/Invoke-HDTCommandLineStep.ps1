@@ -95,11 +95,24 @@
 
     $property = $Step.Property
 
+    # %VARIABLE% IS EXPANDED, and this step was one of the two that did not.
+    # Every other step type reads its properties through Get-HDTStepProperty
+    # -Expand, so an author who has written a sequence against any of them
+    # reasonably writes `command: echo %HDTOSVolume%` here too - and got the
+    # literal string, sent to a shell, exit 0, no error anywhere. The deployment
+    # variables are not published into the child process environment either, so
+    # cmd.exe did not rescue it.
+    #
+    # A TOKEN NOBODY SET IS STILL LEFT STANDING (Expand-HDTVariableToken), which
+    # is why the refusals below quote what the process service was actually
+    # handed. A blank where %HDTApplicationRoot% should have been would send a
+    # bare `echo` to a shell and call the step a success.
+    $command = Get-HDTStepProperty -Step $Step -Name 'command' -Default '' -Context $Context -Expand -As String
+
     $filePath = ''
     $argument = ''
 
-    if ($null -ne $property -and $property.Contains('command') -and
-        -not [string]::IsNullOrWhiteSpace([string] $property['command'])) {
+    if (-not [string]::IsNullOrWhiteSpace($command)) {
 
         $comSpec = 'cmd.exe'
         if ($null -ne $Context.Service.Environment) {
@@ -110,13 +123,14 @@
         }
 
         $filePath = $comSpec
-        $argument = '/c {0}' -f $property['command']
-    } elseif ($null -ne $property -and $property.Contains('file') -and
-        -not [string]::IsNullOrWhiteSpace([string] $property['file'])) {
+        $argument = '/c {0}' -f $command
+    } else {
+        $file = Get-HDTStepProperty -Step $Step -Name 'file' -Default '' -Context $Context -Expand -As String
 
-        $filePath = [string] $property['file']
-        if ($property.Contains('arguments')) {
-            $argument = [string] $property['arguments']
+        if (-not [string]::IsNullOrWhiteSpace($file)) {
+            $filePath = $file
+            $argument = Get-HDTStepProperty -Step $Step -Name 'arguments' -Default '' `
+                -Context $Context -Expand -As String
         }
     }
 
@@ -128,11 +142,13 @@
         return (New-HDTStepResult -Status Failed -Message $message)
     }
 
-    $workingDirectory = ''
-    if ($null -ne $property -and $property.Contains('workingDirectory')) {
-        $workingDirectory = [string] $property['workingDirectory']
-    }
+    $workingDirectory = Get-HDTStepProperty -Step $Step -Name 'workingDirectory' -Default '' `
+        -Context $Context -Expand -As String
 
+    # successCodes and rebootCodes are LISTS OF NUMBERS and are read raw on
+    # purpose: an exit code is a number the installer's author chose, not
+    # something a deployment variable decides per machine, and [int] of an
+    # expanded string would only turn a typo into a cast error.
     $successCode = @(0)
     if ($null -ne $property -and $property.Contains('successCodes')) {
         $successCode = @(@($property['successCodes']) | ForEach-Object { [int] $_ })

@@ -65,10 +65,12 @@
 
         .EXAMPLE
             $result = Invoke-HDTPowerShellStep -Step $step -Context $context
-            $result.Data.ExitCode
+            $result.Data
 
-            The script's exit code. The script runs from the workspace's Scripts\
-            folder, which is why the engine's own commands are in scope for it.
+            Whatever OBJECT the script emitted, passed through as it was. A
+            script is not a process here - it is invoked in-session through
+            IScriptInvoker - so there is no exit code to read, and a script that
+            wants to report one returns it as part of the object it emits.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
@@ -85,12 +87,17 @@
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $property = $Step.Property
-
-    $scriptPath = ''
-    if ($null -ne $property -and $property.Contains('script')) {
-        $scriptPath = [string] $property['script']
-    }
+    # %VARIABLE% IS EXPANDED, and this step was one of the two that did not.
+    # `script: Scripts\%HDTScriptName%.ps1` - the obvious way to pick a script
+    # per model, and exactly how ApplyDrivers' own template picks a driver
+    # folder - failed with "Could not find script
+    # 'X:\Deploy\Scripts\%HDTScriptName%.ps1'". That message named the file
+    # honestly and the reason not at all.
+    #
+    # A TOKEN NOBODY SET IS STILL LEFT STANDING (Expand-HDTVariableToken), so the
+    # refusal goes on quoting the path that was really looked for rather than
+    # 'Scripts\.ps1', which would name no missing variable at all.
+    $scriptPath = Get-HDTStepProperty -Step $Step -Name 'script' -Default '' -Context $Context -Expand -As String
 
     if ([string]::IsNullOrWhiteSpace($scriptPath)) {
         $message = "step '{0}' declares no script. A PowerShell step names a script relative to the workspace root." -f $Step.Name

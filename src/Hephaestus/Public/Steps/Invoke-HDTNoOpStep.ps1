@@ -84,32 +84,21 @@
     Set-StrictMode -Version Latest
     $ErrorActionPreference = 'Stop'
 
-    $property = $Step.Property
+    # READ THE WAY EVERY OTHER STEP TYPE READS. This step used to cast the bag
+    # itself, which cost it two behaviours the shared reader has: `message:
+    # 'applying %HDTOSImage%'` came out with the token still in it, and
+    # `fail: 'false'` - a quoted no, which YAML hands over as a STRING - was
+    # [bool] cast to $true, because every non-empty string is. A NoOp step that
+    # fails when it was told not to is the one kind of defect this step type
+    # cannot afford: it is what the retry policy is tested against.
+    $message = Get-HDTStepProperty -Step $Step -Name 'message' -Default ([string] $Step.Name) `
+        -Context $Context -Expand -As String
 
-    $message = [string] $Step.Name
-    if ($null -ne $property -and $property.Contains('message')) {
-        $message = [string] $property['message']
-    }
-
-    $exitCode = 0
-    if ($null -ne $property -and $property.Contains('exitCode')) {
-        $exitCode = [int] $property['exitCode']
-    }
-
-    $fail = $false
-    if ($null -ne $property -and $property.Contains('fail')) {
-        $fail = [bool] $property['fail']
-    }
-
-    $failAttempt = 0
-    if ($null -ne $property -and $property.Contains('failAttempt')) {
-        $failAttempt = [int] $property['failAttempt']
-    }
-
-    $requestReboot = $false
-    if ($null -ne $property -and $property.Contains('requestReboot')) {
-        $requestReboot = [bool] $property['requestReboot']
-    }
+    $exitCode = Get-HDTStepProperty -Step $Step -Name 'exitCode' -Default 0 -Context $Context -Expand -As Int
+    $fail = Get-HDTStepProperty -Step $Step -Name 'fail' -Default $false -Context $Context -Expand -As Bool
+    $failAttempt = Get-HDTStepProperty -Step $Step -Name 'failAttempt' -Default 0 -Context $Context -Expand -As Int
+    $requestReboot = Get-HDTStepProperty -Step $Step -Name 'requestReboot' -Default $false `
+        -Context $Context -Expand -As Bool
 
     if ($fail -or ($failAttempt -gt 0 -and [int] $Context.Attempt -le $failAttempt)) {
         Write-HDTLog -Context $Context.Log -Message $message -Severity Error -Event step.fail `

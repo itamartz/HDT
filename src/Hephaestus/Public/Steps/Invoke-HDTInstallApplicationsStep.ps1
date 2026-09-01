@@ -182,8 +182,14 @@
     if ($null -ne $property -and $property.Contains('selection')) {
         $raw = $property['selection']
 
+        # A LIST EXPANDS ELEMENT BY ELEMENT. The flat form below goes through
+        # Get-HDTStepProperty -Expand, so a YAML sequence has to be walked here
+        # or the two ways of writing the same selection behave differently -
+        # `selection: '%HDTApplications%'` resolved and `selection: ['%HDTApp1%']`
+        # looked for an application whose id was a percent sign.
         if ($raw -is [System.Collections.IList] -and -not ($raw -is [string])) {
-            $selection = @(@($raw) | ForEach-Object { ([string] $_).Trim() } |
+            $selection = @(@($raw) |
+                    ForEach-Object { ([string] (Expand-HDTVariableToken -Value ([string] $_) -Scope $Context.Variable)).Trim() } |
                     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         } else {
             try {

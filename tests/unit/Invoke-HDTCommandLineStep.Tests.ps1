@@ -1,4 +1,4 @@
-# The CommandLine step runs a native command, and it is where DESIGN 12.1's
+﻿# The CommandLine step runs a native command, and it is where DESIGN 12.1's
 # "native tool exit codes are checked explicitly; $LASTEXITCODE is never assumed
 # to be zero" actually lives.
 #
@@ -284,6 +284,78 @@ Describe 'Invoke-HDTCommandLineStep' {
             $record | Should -Not -BeNullOrEmpty
             $record.Exception.Message | Should -BeLike '*Process*'
             $record.Exception.Message | Should -BeLike '*CommandLine step*'
+        }
+    }
+
+    Context 'variable expansion' {
+
+        # THE STEP USED TO BE ONE OF TWO THAT DID NOT EXPAND ANYTHING. Every
+        # other step type reads its properties through Get-HDTStepProperty
+        # -Expand, so `command: echo %HDTOSVolume%` was measured reaching the
+        # process service as the literal string - an author who had written a
+        # dozen sequences against the other eighteen step types had no reason to
+        # expect it.
+
+        It 'expands %Var% in command' {
+            $script:context.Variable['HDTOSVolume'] = 'W:'
+            $step = & $script:newStep 'Stamp the volume' ([ordered] @{ command = 'echo %HDTOSVolume%' }) 0
+
+            # The fake refuses a command line nobody seeded, which is what a real
+            # Process.Start does for a missing executable. It records the call
+            # before it throws, and the recorded call is the whole point here.
+            try { Invoke-HDTCommandLineStep -Step $step -Context $script:context } catch { $null = $_ }
+
+            @($script:process.Operations)[0].Arguments[1] | Should -BeExactly '/c echo W:'
+        }
+
+        It 'expands %Var% in file' {
+            $script:context.Variable['HDTApplicationRoot'] = 'D:\Applications'
+            $step = & $script:newStep 'Install the thing' ([ordered] @{ file = '%HDTApplicationRoot%\setup.exe' }) 0
+
+            # The fake refuses a command line nobody seeded, which is what a real
+            # Process.Start does for a missing executable. It records the call
+            # before it throws, and the recorded call is the whole point here.
+            try { Invoke-HDTCommandLineStep -Step $step -Context $script:context } catch { $null = $_ }
+
+            @($script:process.Operations)[0].Arguments[0] | Should -BeExactly 'D:\Applications\setup.exe'
+        }
+
+        It 'expands %Var% in arguments' {
+            $script:context.Variable['HDTComputerName'] = 'PC-0001'
+            $step = & $script:newStep 'Install the thing' `
+                ([ordered] @{ file = 'setup.exe'; arguments = '/name:%HDTComputerName%' }) 0
+
+            # The fake refuses a command line nobody seeded, which is what a real
+            # Process.Start does for a missing executable. It records the call
+            # before it throws, and the recorded call is the whole point here.
+            try { Invoke-HDTCommandLineStep -Step $step -Context $script:context } catch { $null = $_ }
+
+            @($script:process.Operations)[0].Arguments[1] | Should -BeExactly '/name:PC-0001'
+        }
+
+        It 'expands %Var% in workingDirectory' {
+            $script:context.Variable['HDTApplicationRoot'] = 'D:\Applications'
+            $step = & $script:newStep 'Install the thing' `
+                ([ordered] @{ file = 'setup.exe'; workingDirectory = '%HDTApplicationRoot%' }) 0
+
+            # The fake refuses a command line nobody seeded, which is what a real
+            # Process.Start does for a missing executable. It records the call
+            # before it throws, and the recorded call is the whole point here.
+            try { Invoke-HDTCommandLineStep -Step $step -Context $script:context } catch { $null = $_ }
+
+            @($script:process.Operations)[0].Arguments[2] | Should -BeExactly 'D:\Applications'
+        }
+
+        # A TOKEN NOBODY SET STAYS STANDING, and that is the rule this step must
+        # not quietly improve on. Expand-HDTVariableToken leaves it verbatim so
+        # the log names the variable that was never resolved; blanking it would
+        # send `echo ` to a shell and call it success.
+        It 'leaves a token nobody set standing verbatim' {
+            $step = & $script:newStep 'Stamp the volume' ([ordered] @{ command = 'echo %HDTNobodySetThis%' }) 0
+
+            try { Invoke-HDTCommandLineStep -Step $step -Context $script:context } catch { $null = $_ }
+
+            @($script:process.Operations)[0].Arguments[1] | Should -BeExactly '/c echo %HDTNobodySetThis%'
         }
     }
 

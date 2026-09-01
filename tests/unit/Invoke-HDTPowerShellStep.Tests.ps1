@@ -1,4 +1,4 @@
-# The PowerShell step runs a user script from the workspace's Scripts directory.
+﻿# The PowerShell step runs a user script from the workspace's Scripts directory.
 #
 # It is DESIGN 4.4.4's extensibility point, and the two behaviours that matter
 # most are about honesty rather than execution:
@@ -144,6 +144,39 @@ Describe 'Invoke-HDTPowerShellStep' {
         Invoke-HDTPowerShellStep -Step $script:step -Context $script:context | Out-Null
 
         @($script:invoker.Operations).Count | Should -Be 1
+    }
+
+    Context 'variable expansion' {
+
+        # THIS STEP AND CommandLine WERE THE TWO THAT DID NOT EXPAND. A sequence
+        # written as `script: Scripts\%HDTScriptName%.ps1` - the obvious way to
+        # pick a per-model script, and the way ApplyDrivers' own template picks a
+        # driver folder - failed with "Could not find script
+        # 'X:\Deploy\Scripts\%HDTScriptName%.ps1'", which named the file it
+        # looked for honestly and the reason not at all.
+
+        It 'expands %Var% in script' {
+            $script:variable['HDTScriptName'] = 'Set-CorpBaseline'
+            $step = & $script:newStep 'Custom' ([ordered] @{ script = 'Scripts\%HDTScriptName%.ps1' }) $null
+
+            Invoke-HDTPowerShellStep -Step $step -Context $script:context | Out-Null
+
+            @($script:invoker.Operations[0].Arguments)[0] |
+                Should -BeExactly 'X:\Deploy\Scripts\Set-CorpBaseline.ps1'
+        }
+
+        # A TOKEN NOBODY SET STAYS STANDING (Expand-HDTVariableToken), so the
+        # refusal still quotes the path that was actually looked for. Blanking it
+        # would leave a message about 'X:\Deploy\Scripts\.ps1' and no clue
+        # which variable was missing.
+        It 'leaves a token nobody set standing verbatim' {
+            $step = & $script:newStep 'Custom' ([ordered] @{ script = 'Scripts\%HDTNobodySetThis%.ps1' }) $null
+
+            $result = Invoke-HDTPowerShellStep -Step $step -Context $script:context
+
+            $result.Status | Should -BeExactly 'Failed'
+            $result.Message | Should -BeLike '*%HDTNobodySetThis%*'
+        }
     }
 
     Context 'the step contract' {

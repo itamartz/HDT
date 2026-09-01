@@ -111,14 +111,26 @@
     $property = $Step.Property
     $requested = @()
 
+    # BOTH SHAPES EXPAND, and only one of them used to. `source` next to this
+    # already went through Get-HDTStepProperty -Expand while the feature names
+    # beside it did not, so a site whose role set is chosen by a rule -
+    # `features: '%HDTServerRole%'` - was told its feature was not one Windows
+    # knows, quoting the token back at it.
+    #
+    # A LIST EXPANDS ELEMENT BY ELEMENT. The reader expands a string, so a YAML
+    # sequence has to be walked here; expanding only the flat form would leave
+    # the two ways of writing the same thing behaving differently.
     if ($null -ne $property -and $property.Contains('features')) {
         $raw = $property['features']
 
         if ($raw -is [System.Collections.IList] -and -not ($raw -is [string])) {
-            $requested = @(@($raw) | ForEach-Object { ([string] $_).Trim() } |
+            $requested = @(@($raw) |
+                    ForEach-Object { ([string] (Expand-HDTVariableToken -Value ([string] $_) -Scope $Context.Variable)).Trim() } |
                     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         } else {
-            $requested = @(@(([string] $raw) -split '[,;\r\n]') | ForEach-Object { $_.Trim() } |
+            $written = [string] (Expand-HDTVariableToken -Value ([string] $raw) -Scope $Context.Variable)
+
+            $requested = @(@($written -split '[,;\r\n]') | ForEach-Object { $_.Trim() } |
                     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
         }
     }
@@ -209,10 +221,10 @@
 
     # -- the options ----------------------------------------------------------
 
-    $includeManagementTools = $false
-    if ($null -ne $property -and $property.Contains('includeManagementTools')) {
-        $includeManagementTools = [bool] $property['includeManagementTools']
-    }
+    # -As Bool PARSES rather than casts: [bool] 'false' is $true, so a quoted no
+    # in the document used to switch the management tools ON.
+    $includeManagementTools = Get-HDTStepProperty -Step $Step -Name 'includeManagementTools' -Default $false `
+        -Context $Context -Expand -As Bool
 
     $source = ''
     if ($null -ne $property -and $property.Contains('source')) {
