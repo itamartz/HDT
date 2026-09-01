@@ -45,7 +45,8 @@ function Get-HDTConsoleTreeMenuRow {
 
         .OUTPUTS
             System.Management.Automation.PSCustomObject with Opens,
-            IsSelectionProfile and SelectionProfileHeader.
+            IsSelectionProfile, SelectionProfileHeader, IsDriverRow,
+            DriverParent, IsUpdateRow, IsWindowsUpdate and UpdateRelease.
 
         .EXAMPLE
             Get-HDTConsoleTreeMenuRow -Kind 'Category' -Name 'SelectionProfiles'
@@ -93,8 +94,16 @@ function Get-HDTConsoleTreeMenuRow {
     # A MONITORED RUN IS HERE BECAUSE IT CAN BE CLEARED. Nothing ever took a
     # heartbeat off this node, so a share that had deployed fifty machines drew
     # fifty rows and the live one was somewhere among them.
+    # THE WINDOWS UPDATE ROWS ARE HERE BECAUSE THEY WERE NOT, and that is the
+    # second time this exact list has cost the same defect. The Windows Updates
+    # feature shipped its tree node, its detail pane, its import dialog
+    # (HDTImportWindowsUpdate.xaml) and the host method that opens it - and
+    # right-clicking any of it did nothing, because none of its kinds were
+    # written down here. Nothing could see that but a person with a mouse, which
+    # is how it reached one.
     $offers = @('Root', 'Share', 'Category', 'TaskSequence', 'OperatingSystem',
-        'Application', 'BootImage', 'Folder', 'MonitorRun')
+        'Application', 'BootImage', 'Folder', 'MonitorRun',
+        'UpdateRelease', 'WindowsUpdate')
 
     # THE DRIVER STORE'S OWN TWO, on the Drivers category and on every folder in
     # it. MDT hangs New Folder and Import Drivers off both, and for the reason it
@@ -121,6 +130,38 @@ function Get-HDTConsoleTreeMenuRow {
         $under = ($source -replace '^Drivers\\', '')
     }
 
+    # THE UPDATE STORE'S OWN TWO, and they are NOT the driver store's two with
+    # different words on them.
+    #
+    # IMPORT HANGS OFF THE CATEGORY AND OFF EVERY RELEASE, which is the driver
+    # store's rule and it holds here for the driver store's reason: the row you
+    # right-click is the release you meant.
+    #
+    # THERE IS NO NEW FOLDER, AND THE ABSENCE IS THE DECISION. The update store
+    # is FLAT - WindowsUpdates\<id>\update.yaml with the .msu beside it - and the
+    # release rows are computed from what the updates say rather than from a
+    # folder anybody made. Add-HDTWorkspaceFolder takes TaskSequence,
+    # OperatingSystem and Application and nothing else, so a New Folder item here
+    # would be one with no command behind it - which is worse than no menu.
+    $isUpdateCategory = (($Kind -eq 'Category') -and ($Name -eq 'WindowsUpdates'))
+    $isUpdateRelease = ($Kind -eq 'UpdateRelease')
+    $isUpdateRow = ($isUpdateCategory -or $isUpdateRelease)
+
+    # REMOVE IS ON THE UPDATE AND NEVER ON THE RELEASE ABOVE IT. A release is
+    # drawn from what the updates under it say and is not a thing on disk, so
+    # removing one could only mean removing every update in it - a different
+    # press from the one somebody thinks they are making.
+    $isWindowsUpdate = ($Kind -eq 'WindowsUpdate')
+
+    # WHICH RELEASE THE IMPORT DIALOG OPENS ON. The dialog preselects nothing
+    # when it is opened from the category, deliberately: -Release is mandatory
+    # because no .msu says which operating system it is for, and defaulting to
+    # the first row is how a server update gets filed under a client release.
+    # Right-clicking a release row is not that - it is the administrator naming
+    # the release - so that one row, and only that one, arrives preselected.
+    $release = ''
+    if ($isUpdateRelease) { $release = $Name }
+
     $opens = ($offers -contains $Kind) -or $isSelectionProfile -or $isDriverRow -or $HasFolderAction
 
     return [pscustomobject] @{
@@ -129,5 +170,8 @@ function Get-HDTConsoleTreeMenuRow {
         SelectionProfileHeader = [string] $header
         IsDriverRow            = [bool] $isDriverRow
         DriverParent           = [string] $under
+        IsUpdateRow            = [bool] $isUpdateRow
+        IsWindowsUpdate        = [bool] $isWindowsUpdate
+        UpdateRelease          = [string] $release
     }
 }

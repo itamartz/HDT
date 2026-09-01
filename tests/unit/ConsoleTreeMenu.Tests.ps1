@@ -147,3 +147,203 @@ Describe 'Get-HDTConsoleTreeMenuRow' {
         }
     }
 }
+
+# ---------------------------------------------------------------------------
+#
+# THE WINDOWS UPDATES NODE, WHICH SHIPPED WITH NO MENU AT ALL. The feature
+# built its tree node, its detail pane and its import dialog, and the dialog
+# was never reachable: HDTImportWindowsUpdate.xaml and
+# New-HDTConsoleHost.ShowImportWindowsUpdate both existed and nothing on the
+# window opened either. Right-clicking an update did nothing, which is the
+# defect this whole file was written for, a second time.
+
+Describe 'the Windows Updates rows' {
+
+    # MDT'S Packages NODE, and its Import OS Packages wizard hangs off it. The
+    # dialog is written; this is the row that has to offer it.
+    Context 'Import Windows Update' {
+
+        It 'is on the Windows Updates category' {
+            $row = & $script:ask 'Category' 'WindowsUpdates'
+
+            $row.Opens | Should -BeTrue
+            $row.IsUpdateRow | Should -BeTrue
+        }
+
+        # THE ROW YOU RIGHT-CLICK IS THE RELEASE YOU MEANT, which is the driver
+        # store's reason for hanging Import Drivers off every folder as well as
+        # the category.
+        It 'is on a release group too' {
+            $row = & $script:ask 'UpdateRelease' 'Win11-24H2'
+
+            $row.Opens | Should -BeTrue
+            $row.IsUpdateRow | Should -BeTrue
+        }
+
+        # AND IT PRESELECTS THAT RELEASE. -Release is mandatory on
+        # Import-HDTWindowsUpdate because no .msu says which operating system it
+        # is for, and the dialog deliberately preselects nothing when it is
+        # opened from the category - defaulting to the first row is how a server
+        # update gets filed under a client release. Right-clicking Windows
+        # Server 2025 is not that: it is the administrator naming the release.
+        It 'carries the release the row is for' {
+            (& $script:ask 'UpdateRelease' 'WS2025').UpdateRelease |
+                Should -BeExactly 'WS2025'
+        }
+
+        It 'names no release from the category, where nothing has been chosen' {
+            (& $script:ask 'Category' 'WindowsUpdates').UpdateRelease |
+                Should -BeExactly ''
+        }
+
+        # NO New Folder HERE, AND THE ABSENCE IS THE DECISION. The store is flat
+        # - WindowsUpdates\<id>\update.yaml with the .msu beside it - and the
+        # release rows are COMPUTED from what the updates say rather than from a
+        # folder anybody made. Add-HDTWorkspaceFolder takes TaskSequence,
+        # OperatingSystem and Application and nothing else, so a New Folder item
+        # here would be one with no command behind it.
+        It 'offers no folder actions, because the update store has no folders' {
+            (& $script:ask 'Category' 'WindowsUpdates').IsDriverRow | Should -BeFalse
+            (& $script:ask 'UpdateRelease' 'Win11-24H2').IsDriverRow | Should -BeFalse
+        }
+    }
+
+    Context 'Remove Windows Update' {
+
+        It 'is on an individual update, which is a folder on the share' {
+            $row = & $script:ask 'WindowsUpdate' 'KB5094126-x64'
+
+            $row.Opens | Should -BeTrue
+            $row.IsWindowsUpdate | Should -BeTrue
+        }
+
+        # A RELEASE IS NOT A THING ON DISK. It is drawn from what the updates
+        # under it say, so there is nothing to remove and nothing to rename -
+        # removing one would have to mean removing every update in it, which is
+        # a different press from the one somebody thinks they are making.
+        It 'is not on a release group, which nothing created' {
+            (& $script:ask 'UpdateRelease' 'Win11-24H2').IsWindowsUpdate | Should -BeFalse
+        }
+
+        It 'is not on the category' {
+            (& $script:ask 'Category' 'WindowsUpdates').IsWindowsUpdate | Should -BeFalse
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+#
+# THE SET, NOT THE ONE THAT JUST BROKE.
+#
+# The Windows Updates node had no menu because a hand-written list of kinds sat
+# in one file and a new feature did not reach it. A test naming WindowsUpdate
+# would pass for WindowsUpdate and fail nobody after it, so this walks the kinds
+# the tree can actually EMIT - read out of the node builders, not typed here -
+# and makes each one account for itself: it offers a menu, or it is on the list
+# below with a reason.
+#
+# ADDING A KIND FAILS THIS UNTIL SOMEBODY DECIDES. That is the whole point. The
+# decision may perfectly well be "nothing to offer" - write it down and the test
+# goes green.
+
+# READ AT DISCOVERY TIME, AND HANDED TO EACH It THROUGH -ForEach. Pester 5 runs
+# this file once to discover and again to execute, and a $script: variable set
+# out here does not survive into the second pass - so everything the assertions
+# need travels in the -ForEach row rather than being looked up from one.
+$script:privateRoot = Join-Path -Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) `
+    -ChildPath 'src\Hephaestus\Private'
+
+# NEW-HDTCONSOLENODE IS WHAT MAKES A ROW, so -Kind on a call to it is what the
+# tree can draw. Get-HDTConsoleIcon takes a -Kind too and takes several the tree
+# never emits - 'Cab', 'Exe' and 'DriverStore' are glyph names - so the call has
+# to be part of the match rather than the parameter alone.
+$script:emittedKind = @(
+    Get-ChildItem -Path $script:privateRoot -Filter '*.ps1' -File |
+        ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) } |
+        ForEach-Object { [regex]::Matches($_, "New-HDTConsoleNode[^`r`n]*?-Kind\s+'([A-Za-z]+)'") } |
+        ForEach-Object { $_ } |
+        ForEach-Object { $_.Groups[1].Value } |
+        Sort-Object -Unique
+)
+
+# EVERY CATEGORY THE SHARE DRAWS. 'Category' is one Kind and seven rows, and the
+# menu is decided by the NAME - so the kind alone proves nothing about any of
+# them.
+$script:categoryName = @('TaskSequences', 'OperatingSystems', 'Applications',
+    'BootImage', 'SelectionProfiles', 'Drivers', 'WindowsUpdates')
+
+# DELIBERATELY MENU-LESS, AND WHY. Each of these is a decision somebody made,
+# not a kind that was forgotten - which is the difference this file exists to
+# keep visible.
+$script:noMenuReason = @{
+    # A PLACEHOLDER FOR A CATEGORY WITH NOTHING IN IT. It stands for no thing on
+    # the share, so there is nothing to act on; the actions belong to its parent
+    # category, which has its own menu one row up.
+    'Empty'           = 'the (none) placeholder stands for nothing on the share'
+
+    # CLEAR RUN IS ON THE RUN AND NEVER HERE. Clearing this row and clearing
+    # every run on the share are different actions, and one item that means
+    # whichever the mouse happened to be over is how somebody loses the record
+    # of a deployment they were still reading.
+    'MonitorCategory' = 'Clear Run belongs to the run, not to the node above fifty of them'
+
+    # A STEP IS EDITED IN THE SEQUENCE EDITOR, which the task sequence row
+    # opens. The tree draws steps to be read; every action on one is in that
+    # window.
+    'Step'            = 'steps are edited in the sequence editor, opened from the task sequence row'
+    'StepGroup'       = 'groups are edited in the sequence editor, opened from the task sequence row'
+}
+
+Describe 'every kind the tree can emit' {
+
+    It 'found the node builders at all, so the rest of this is testing something' -ForEach @(
+        @{ Emitted = $script:emittedKind }
+    ) {
+        @($Emitted).Count | Should -BeGreaterThan 10
+        $Emitted | Should -Contain 'WindowsUpdate'
+        $Emitted | Should -Contain 'DriverFolder'
+    }
+
+    # THE ONE THAT FAILS FOR THE NEXT FEATURE. A kind the tree draws either
+    # offers something or has a reason written down for offering nothing, and
+    # adding a kind fails this until somebody decides which. That is the whole
+    # point: the decision may perfectly well be "nothing to offer" - write it
+    # down and this goes green.
+    It 'accounts for <Kind> - it offers a menu, or it says why it does not' -ForEach @(
+        $script:emittedKind | ForEach-Object {
+            $reason = ''
+            if ($script:noMenuReason.ContainsKey($_)) { $reason = [string] $script:noMenuReason[$_] }
+
+            @{ Kind = $_; Reason = $reason; Category = $script:categoryName }
+        }
+    ) {
+        # A CATEGORY IS DECIDED BY ITS NAME, never by the kind, so it is asked
+        # once per category the share actually draws.
+        if ($Kind -eq 'Category') {
+            foreach ($category in @($Category)) {
+                (& $script:ask 'Category' $category).Opens |
+                    Should -BeTrue -Because "the $category category has items on its menu"
+            }
+
+            return
+        }
+
+        $opens = (& $script:ask $Kind '').Opens
+
+        if (-not [string]::IsNullOrEmpty($Reason)) {
+            $opens | Should -BeFalse -Because ('{0} is deliberately menu-less: {1}' -f $Kind, $Reason)
+            return
+        }
+
+        $opens | Should -BeTrue -Because ("$Kind is a row the tree draws and nothing says it should have " +
+            'no menu. Give it its items, or list it in $script:noMenuReason with the reason.')
+    }
+
+    # AND THE LIST DOES NOT ROT. A reason left behind for a kind the tree no
+    # longer draws reads as a decision and is a leftover.
+    It 'still draws <Kind>, which is listed as menu-less' -ForEach @(
+        $script:noMenuReason.Keys | ForEach-Object { @{ Kind = $_; Emitted = $script:emittedKind } }
+    ) {
+        $Emitted | Should -Contain $Kind -Because 'a reason for a kind that is gone is a leftover'
+    }
+}
