@@ -323,3 +323,11 @@ a copy of it. The one test that could only go red against pre-change code
 both source files, running it, and restoring them.
 
 No VMs, no Hyper-V, no real media. Everything ran against hand-written fakes.
+
+## Self-Check: PASSED
+
+Both created test files exist on disk; all five commits are reachable from
+`git log --all`. The working tree carries nothing of this plan's: the three
+modified `06-0*-PLAN.md` files and `.planning/RECOMMENDATIONS-2026-09-02.md`
+were already uncommitted when this run started (mtime 22:25, before the first
+commit here) and belong to another session.
