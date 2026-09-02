@@ -47,7 +47,10 @@ NON-NEGOTIABLE CONSTRAINTS (violating any is a defect):
   * Windows PowerShell 5.1 compatible syntax in src/Hephaestus/ — the engine runs
     in WinPE which has no pwsh. FORBIDDEN: ?? , ?. , ternary, -Parallel,
     $PSStyle, 'clean' blocks, ConvertFrom-Json -AsHashtable.
-    Suite must pass under BOTH pwsh 7 and powershell.exe 5.1.
+    Windows PowerShell 5.1 IS THE GATE and the only shell the suite is run
+    under; the pwsh 7 pass is deliberately off, and the two must never be run
+    at the same time - they collide over the same real DISM artefacts, and a
+    lone flake is that collision before it is anything else.
   * EVERY function named Verb-HDTNoun, uppercase HDT, approved verbs, singular
     nouns — public, private, adapters, test helpers, build functions alike.
   * ZERO MDT dependencies. MDT is deprecated. No MicrosoftDeploymentToolkit
@@ -66,8 +69,16 @@ NON-NEGOTIABLE CONSTRAINTS (violating any is a defect):
 HYPER-V LAB SAFETY — the host is the user's own machine:
   * PROTECTED, never touch: EVERY VM not named HDT-*. The protected set is a
     prefix, not a list of names — a name list rots, and this one did.
-  * HDT test VMs are named HDT-* , Generation 2, attached ONLY to the isolated
-    'HDT Lab' switch, files under C:\\HDTLab\\vms\\, under 12 GB combined.
+  * HDT test VMs are named HDT-* , Generation 2, files under C:\\HDTLab\\vms\\,
+    under 12 GB combined, and on ONE OF EXACTLY TWO switches:
+      - 'HDT External' — THE NORMAL ONE. The VM gets DHCP from the real LAN on
+        192.168.1.0/24 and can reach the host there, which is what a deployment
+        over SMB needs. Read the host's address before building a boot image;
+        the octet is a lease, not a fact about HDT.
+      - 'HDT Lab' — the isolated internal one, RESERVED FOR PXE/WDS. A VM here
+        gets no lease and CANNOT REACH A SHARE ON THE HOST (SPIKES S6), so it
+        is the wrong choice for anything that needs the network.
+    Never assign, create or use another subnet without asking the user first.
   * Never run an unfiltered Hyper-V pipeline (no 'Get-VM | Remove-VM').
   * PXE/WDS testing ONLY on 'HDT Lab' — a PXE responder answers every machine on
     its segment, so it goes on the isolated one. 'Default Switch' is Hyper-V's
