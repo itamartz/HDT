@@ -1,4 +1,4 @@
-# Assert-HDTRuleDocument holds the authoring rules for rules.yaml (DESIGN 3.3),
+﻿# Assert-HDTRuleDocument holds the authoring rules for rules.yaml (DESIGN 3.3),
 # and every one of them produces a message an administrator can act on
 # (DESIGN 12.1: a Configuration failure fails fast and points at the file).
 #
@@ -278,6 +278,179 @@ Describe 'Assert-HDTRuleDocument' {
         }
 
         $record.TargetObject | Should -BeExactly 'C:\ws\rules.yaml'
+    }
+
+    # A VARIABLE THE ENGINE OWNS AND AN ADMINISTRATOR MAY NOT DECLARE.
+    #
+    # The _HDT* rule above is a NAMING CONVENTION and it answered this question
+    # for every variable until HDTDeploymentMethod: MDT's name is
+    # DeploymentMethod, a step condition reads %HDTDeploymentMethod%, and it is
+    # a fact about how this machine booted rather than a preference. So the
+    # refusal reads Get-HDTVariableMap's Writable column, and these assertions
+    # are written against that SET rather than against the one name that
+    # motivated it.
+    #
+    # Every probe below is written out in full rather than shared through a
+    # scriptblock: a scriptblock handed to InModuleScope runs in the session
+    # state it was CREATED in, so ConvertFrom-HDTYaml is not visible from it and
+    # every assertion passes or fails on a CommandNotFound instead of on the
+    # validator.
+    Context 'a variable the engine owns' {
+
+        BeforeAll {
+            $script:HDTUnsettableYaml = "schemaVersion: 1`nrules:`n  - name: Force media`n    set:`n      HDTDeploymentMethod: MEDIA`n"
+        }
+
+        It 'refuses a rule that sets HDTDeploymentMethod' {
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $script:HDTUnsettableYaml; Path = 'C:\ws\rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            $record | Should -Not -BeNullOrEmpty
+            $record.Exception.Message | Should -BeLike '*HDTDeploymentMethod*'
+        }
+
+        It 'says WHY, not just that it cannot: a fact about how the machine booted' {
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $script:HDTUnsettableYaml; Path = 'C:\ws\rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            # A refusal that only says no leaves an administrator editing the
+            # file again. The message has to carry the reason and the way out.
+            $record.Exception.Message | Should -BeLike '*booted*'
+            $record.Exception.Message | Should -BeLike '*Get-HDTVariableMap*'
+        }
+
+        It 'names the rule and the file, so an admin can find the line' {
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $script:HDTUnsettableYaml; Path = 'C:\ws\media-rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            $record.Exception.Message | Should -BeLike '*media-rules.yaml*'
+            $record.Exception.Message | Should -BeLike "*rule 1 ('Force media')*"
+            $record.FullyQualifiedErrorId | Should -BeLike 'HDTConfigurationError*'
+        }
+
+        # THE SET-DRIVEN ONE. It passes for _HDTRunId and HDTDeploymentMethod
+        # alike, and it fails for the next unsettable variable somebody adds to
+        # the map without teaching the validator - which is exactly the
+        # half-feature the manifest and the document validators have each
+        # shipped in this repository before.
+        It 'refuses every name Get-HDTVariableMap marks not writable' {
+            $unsettable = @(Get-HDTVariableMap | Where-Object { -not $_.Writable } |
+                    Select-Object -ExpandProperty HDTName)
+
+            $unsettable.Count | Should -BeGreaterThan 1
+
+            $accepted = @()
+            foreach ($name in $unsettable) {
+                $yaml = "schemaVersion: 1`nrules:`n  - name: Overreach`n    set:`n      {0}: anything`n" -f $name
+
+                $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                    param($Yaml, $Path)
+                    $captured = $null
+                    try {
+                        $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                        Assert-HDTRuleDocument -Document $document -Path $Path
+                    } catch { $captured = $_ }
+                    $captured
+                }
+
+                if ($null -eq $record -or $record.Exception.Message -notlike ('*{0}*' -f $name)) {
+                    $accepted += $name
+                }
+            }
+
+            $accepted -join ', ' | Should -BeExactly ''
+        }
+
+        # THE OTHER DIRECTION. A change that quietly refuses everything passes a
+        # test written only for the new refusal.
+        It 'still accepts HDTDeploymentType, which an admin may set' {
+            $yaml = "schemaVersion: 1`nrules:`n  - name: Scenario`n    set:`n      HDTDeploymentType: NEWCOMPUTER`n"
+
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            $record | Should -BeNullOrEmpty
+        }
+
+        It 'still accepts an ordinary HDT name' {
+            $yaml = "schemaVersion: 1`nrules:`n  - name: Lab`n    set:`n      HDTJoinWorkgroup: WORKGROUP`n"
+
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            $record | Should -BeNullOrEmpty
+        }
+
+        It 'still refuses an _HDT name with the message it always gave' {
+            $yaml = "schemaVersion: 1`nrules:`n  - name: Redirect the log`n    set:`n      _HDTLogPath: X:\Logs`n"
+
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            # The _HDT* message names the convention, which is the right thing
+            # to say for that case and the wrong thing to say for a name that
+            # carries no underscore.
+            $record.Exception.Message | Should -BeLike '*_HDT*'
+            $record.Exception.Message | Should -BeLike '*read-only*'
+        }
+
+        It 'still refuses a name with no HDT prefix at all' {
+            $yaml = "schemaVersion: 1`nrules:`n  - name: Wrong namespace`n    set:`n      ComputerName: PC-1`n"
+
+            $record = InModuleScope Hephaestus -Parameters @{ Yaml = $yaml; Path = 'C:\ws\rules.yaml' } {
+                param($Yaml, $Path)
+                $captured = $null
+                try {
+                    $document = ConvertFrom-HDTYaml -Yaml $Yaml -Path $Path
+                    Assert-HDTRuleDocument -Document $document -Path $Path
+                } catch { $captured = $_ }
+                $captured
+            }
+
+            $record.Exception.Message | Should -BeLike '*not an HDT variable name*'
+        }
     }
 
     It 'has comment-based help with a synopsis' {

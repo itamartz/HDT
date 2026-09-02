@@ -402,6 +402,56 @@ rules:
             $result.Variable.Contains('HDTInjected') | Should -BeFalse
         }
 
+        # THE REFUSAL HAS TWO DOORS AND A SCRIPT IS THE SECOND ONE.
+        # Assert-HDTRuleDocument refuses an unsettable name at parse time, and
+        # that is the door an administrator walks through. A setFrom script
+        # returns a name at RESOLVE time, after every validator has run, so the
+        # same refusal belongs here or the rule it enforces has a way round it.
+        It 'refuses a setFrom script that returns a name the map marks not writable' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{
+                'Scripts/Get-ComputerName.ps1' = @{ HDTDeploymentMethod = 'MEDIA' }
+            }
+
+            {
+                Resolve-HDTVariable -RuleDocument $script:setFromRules -Fact $script:fact -ScriptInvoker $invoker
+            } | Should -Throw -ExpectedMessage '*HDTDeploymentMethod*booted*'
+        }
+
+        It 'refuses every name the map marks not writable, whichever door it came through' {
+            $unsettable = @(Get-HDTVariableMap | Where-Object { -not $_.Writable } |
+                    Select-Object -ExpandProperty HDTName)
+
+            $unsettable.Count | Should -BeGreaterThan 1
+
+            $accepted = @()
+            foreach ($name in $unsettable) {
+                $invoker = New-HDTFakeScriptInvoker -Result @{
+                    'Scripts/Get-ComputerName.ps1' = @{ $name = 'anything' }
+                }
+
+                $threw = $false
+                try {
+                    $null = Resolve-HDTVariable -RuleDocument $script:setFromRules -Fact $script:fact -ScriptInvoker $invoker
+                } catch {
+                    if ($_.Exception.Message -like ('*{0}*' -f $name)) { $threw = $true }
+                }
+
+                if (-not $threw) { $accepted += $name }
+            }
+
+            $accepted -join ', ' | Should -BeExactly ''
+        }
+
+        It 'still takes an ordinary name from a setFrom script' {
+            $invoker = New-HDTFakeScriptInvoker -Result @{
+                'Scripts/Get-ComputerName.ps1' = @{ HDTAssetTag = 'ASSET-STILL-FINE' }
+            }
+
+            $result = Resolve-HDTVariable -RuleDocument $script:setFromRules -Fact $script:fact -ScriptInvoker $invoker
+
+            $result.Variable['HDTAssetTag'] | Should -BeExactly 'ASSET-STILL-FINE'
+        }
+
         It 'accepts a hashtable return as well as a pscustomobject' {
             $invoker = New-HDTFakeScriptInvoker -Result @{
                 'Scripts/Get-ComputerName.ps1' = @{ HDTAssetTag = 'ASSET-FROM-HASHTABLE' }

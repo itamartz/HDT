@@ -1,4 +1,4 @@
-function Assert-HDTRuleDocument {
+﻿function Assert-HDTRuleDocument {
     <#
         .SYNOPSIS
             Validates a parsed rules.yaml against the authoring rules.
@@ -141,6 +141,24 @@ and two rules called Fallback make that answer
 
     # -- each rule ------------------------------------------------------------
 
+    # EVERY NAME THE MAP SAYS IS NOT WRITABLE, AND NOT A LIST WRITTEN DOWN HERE.
+    # The _HDT* check below is a naming CONVENTION; this is the actual fact, and
+    # HDTDeploymentMethod is why the two stopped being the same thing - MDT's
+    # name is DeploymentMethod, a step condition reads %HDTDeploymentMethod%,
+    # and it is still not an administrator's to set. Reading Get-HDTVariableMap
+    # means the next engine-published variable is refused the day its row lands
+    # rather than the day somebody remembers this file.
+    #
+    # BUILT ONCE PER DOCUMENT, OUTSIDE THE LOOP. The map is a 168-row literal
+    # table and this validator runs in WinPE; building it per assignment would
+    # walk the whole table once for every variable a rules.yaml sets.
+    $unsettable = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in @(Get-HDTVariableMap)) {
+        if (-not $row.Writable) {
+            $null = $unsettable.Add([string] $row.HDTName)
+        }
+    }
+
     $seenName = New-Object -TypeName System.Collections.ArrayList
     $index = 0
 
@@ -238,6 +256,14 @@ and two rules called Fallback make that answer
                 if ($variable.StartsWith('_')) {
                     $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
                                 -Message ("{0}: '{1}' is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $locator, $variable)))
+                }
+
+                # The specific reason before the generic one: a name that is
+                # spelt correctly and simply is not settable should not be told
+                # it is not an HDT variable name.
+                if ($unsettable.Contains($variable)) {
+                    $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $Path `
+                                -Message ("{0}: '{1}' cannot be set by a rule. It is a fact about how this machine booted, published by the engine from the boot image's own provider - not a preference. A share that declares MEDIA gets a deployment that skips the network it is actually using, and every symptom of that points somewhere else. Run Get-HDTVariableMap to see which variables a rule may set." -f $locator, $variable)))
                 }
 
                 if ($variable -cnotmatch '^HDT[A-Za-z0-9_]*$') {

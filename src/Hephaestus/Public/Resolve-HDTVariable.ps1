@@ -218,6 +218,18 @@
         }
     }
 
+    # THE NAMES A RULE MAY NOT PUBLISH, BUILT ONCE PER RESOLUTION. Read from
+    # Get-HDTVariableMap's Writable column rather than from a list written here,
+    # so a variable made engine-owned is refused the day its row lands. The map
+    # is a 168-row literal table and this runs in WinPE, so it is walked once
+    # rather than once per name a setFrom script returns.
+    $unsettable = New-Object -TypeName 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in @(Get-HDTVariableMap)) {
+        if (-not $row.Writable) {
+            $null = $unsettable.Add([string] $row.HDTName)
+        }
+    }
+
     # -- precedence 3: rules.yaml, top to bottom -------------------------------
 
     if ($null -ne $RuleDocument) {
@@ -279,6 +291,19 @@
                     if ($name.StartsWith('_')) {
                         $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $RuleDocument.Path `
                                     -Message ("{0}: the setFrom script '{1}' returned '{2}', which is engine-owned and cannot be assigned. A variable named _HDT* is set by the engine and is read-only." -f $locator, $rule.SetFrom, $name)))
+                    }
+
+                    # THE SECOND DOOR, AND IT HAS TO REFUSE WHAT THE FIRST ONE
+                    # DOES. Assert-HDTRuleDocument turns an unsettable name away
+                    # at parse time, but a setFrom script produces its names at
+                    # RESOLVE time, after every validator has finished - so a
+                    # rule that could not write HDTDeploymentMethod could call a
+                    # script that did. Same map column, same reason, so a
+                    # deployment cannot be talked out of the network it is
+                    # actually reading from by either route.
+                    if ($unsettable.Contains($name)) {
+                        $PSCmdlet.ThrowTerminatingError((New-HDTErrorRecord -Path $RuleDocument.Path `
+                                    -Message ("{0}: the setFrom script '{1}' returned '{2}', which cannot be set by a rule. It is a fact about how this machine booted, published by the engine from the boot image's own provider - not a preference. A share that declares MEDIA gets a deployment that skips the network it is actually using, and every symptom of that points somewhere else. Run Get-HDTVariableMap to see which variables a rule may set." -f $locator, $rule.SetFrom, $name)))
                     }
 
                     $null = Add-HDTResolvedVariable -Resolution $resolution -Scope $scope `
