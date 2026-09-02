@@ -976,9 +976,20 @@ try {
     # THE ONLY REASON THIS FILE IS ALLOWED ANYWHERE NEAR A DRIVE LETTER, and it
     # still writes none: the volumes are enumerated off the machine and the
     # decision is Resolve-HDTDeployRoot's (SPIKES S9.1).
-
+    #
+    # CDRom IS ON THE LIST BECAUSE AN ISO IS MEDIA. It was not, and the first
+    # offline media deployment ever run here died on it: a Generation 2 VM
+    # booted a 10 GB ISO carrying \Share\rules.yaml, published
+    # HDTDeploymentMethod = MEDIA, and then said the candidate volumes were
+    # 'X:\' - the RAM disk alone. A USB stick is Removable and would have been
+    # found; the disc the machine had booted from seconds earlier was filtered
+    # out before the marker hunt began, and DESIGN 6.1 names the ISO as the form
+    # of media a VM, an iDRAC and a bug report actually use.
+    #
+    # Network STAYS OFF THE LIST. A mapped drive is not where this machine's
+    # content is, and probing one costs a timeout per volume behind it.
     $candidateRoot = [string[]] @([System.IO.DriveInfo]::GetDrives() |
-            Where-Object { $_.IsReady -and @('Fixed', 'Removable') -contains [string] $_.DriveType } |
+            Where-Object { $_.IsReady -and @('Fixed', 'Removable', 'CDRom') -contains [string] $_.DriveType } |
             ForEach-Object { [string] $_.RootDirectory.FullName })
 
     $result['candidateRoot'] = $candidateRoot
