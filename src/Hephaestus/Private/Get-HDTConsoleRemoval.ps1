@@ -168,13 +168,16 @@
                 # folder that cannot be reconstructed from the console.
                 Goes      = 'update.yaml and the .msu copied beside it'
                 IdName    = 'Id'
-                # NOTHING FAILS, AND THE SENTENCE MUST NOT SAY IT DOES. An
-                # ApplyUpdates step names a RELEASE and never an update id, so
-                # no sequence points at this folder and none breaks - the
-                # machine simply arrives without this update. The operating
-                # system's wording next door would inflate that into a
-                # deployment that stops on the machine in front of somebody.
-                UsedFormat = 'These task sequences apply this release and will deploy without it: {0}.'
+                # THE SENTENCE COVERS BOTH WAYS A SEQUENCE CAN REACH THIS
+                # FOLDER, because `updates` added the second one. A step that
+                # names a RELEASE points at nothing by name and deploys without
+                # this update; a step whose `updates` NAMES THIS ID does point
+                # here, and the step refuses an id the share does not have. So
+                # neither the operating system's "will fail" nor the old "will
+                # deploy without it" is true of the whole list, and the line has
+                # to say which sequence is which - it names them and says where
+                # to look, in the space the wording next door uses.
+                UsedFormat = 'These task sequences apply this update: {0}. One that names it under Updates will fail without it; one that only applies its release will deploy without it.'
             }
         }
         'OperatingSystem' {

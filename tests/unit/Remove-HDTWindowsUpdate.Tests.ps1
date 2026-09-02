@@ -1,4 +1,4 @@
-# DELETING AN IMPORTED WINDOWS UPDATE, which MDT does from the right-click menu
+﻿# DELETING AN IMPORTED WINDOWS UPDATE, which MDT does from the right-click menu
 # of its Packages node and HDT could not do at all - an update imported against
 # the wrong release had to be removed with Explorer.
 #
@@ -244,6 +244,99 @@ Describe 'Remove-HDTWindowsUpdate' {
                 -FileSystem $fileSystem -WhatIf
 
             @($result.UsedBy) | Should -Contain 'DEMO-ALL'
+        }
+
+        # AND SINCE A STEP CAN NAME IDS, ONE OF THEM CAN POINT AT THIS FOLDER.
+        # `updates` changed the answer to the question this Context asks. A step
+        # that names two of the five updates filed under a release no longer
+        # applies the other three, and a step that names THIS id does point at
+        # this folder by name - which is the case that will FAIL at the machine
+        # after the folder is gone, rather than deploying without it.
+        It 'reports a sequence that names this update by id' {
+            $fileSystem = & $script:newFileSystem
+            $fileSystem.WriteAllText('C:\ws\TaskSequences\DEMO-ID\sequence.yaml', @'
+schemaVersion: 1
+id: DEMO-ID
+name: Deploy the two we tested
+steps:
+  - name: Apply Updates
+    type: ApplyUpdates
+    release: Win11-24H2
+    updates:
+      - KB5094126-x64
+'@)
+
+            $result = Remove-HDTWindowsUpdate -WorkspaceRoot 'C:\ws' -Id 'KB5094126-x64' `
+                -FileSystem $fileSystem -WhatIf
+
+            @($result.UsedBy) | Should -Contain 'DEMO-ID'
+        }
+
+        It 'does not report a sequence whose named ids do not include this one' {
+            # THE HALF THAT WAS WRONG BEFORE `updates` EXISTED AND IS WRONG
+            # TODAY WITHOUT THIS. Matching on the release alone would name this
+            # sequence for an update it explicitly does not apply, which is a
+            # warning that cries wolf about the one thing it exists to warn
+            # about.
+            $fileSystem = & $script:newFileSystem
+            $fileSystem.WriteAllText('C:\ws\TaskSequences\DEMO-OTHER\sequence.yaml', @'
+schemaVersion: 1
+id: DEMO-OTHER
+name: Deploy the other one
+steps:
+  - name: Apply Updates
+    type: ApplyUpdates
+    release: Win11-24H2
+    updates: KB5121003
+'@)
+
+            $result = Remove-HDTWindowsUpdate -WorkspaceRoot 'C:\ws' -Id 'KB5094126-x64' `
+                -FileSystem $fileSystem -WhatIf
+
+            @($result.UsedBy) | Should -Not -Contain 'DEMO-OTHER'
+        }
+
+        It 'still reports a sequence whose updates list is empty, which narrows nothing' {
+            $fileSystem = & $script:newFileSystem
+            $fileSystem.WriteAllText('C:\ws\TaskSequences\DEMO-EMPTY\sequence.yaml', @'
+schemaVersion: 1
+id: DEMO-EMPTY
+name: Deploy every update for the release
+steps:
+  - name: Apply Updates
+    type: ApplyUpdates
+    release: Win11-24H2
+    updates: []
+'@)
+
+            $result = Remove-HDTWindowsUpdate -WorkspaceRoot 'C:\ws' -Id 'KB5094126-x64' `
+                -FileSystem $fileSystem -WhatIf
+
+            @($result.UsedBy) | Should -Contain 'DEMO-EMPTY'
+        }
+
+        # A LIST OF VARIABLES IS NOT A LIST OF IDS, and the rule is the one the
+        # release half already follows: '%HDTUpdates%' is resolved from the rules
+        # at run time, so what it will name cannot be read from the document.
+        # Falling back to the release is the honest answer - it is what the step
+        # would apply if the variable resolved to nothing.
+        It 'falls back to the release when the named ids are a variable' {
+            $fileSystem = & $script:newFileSystem
+            $fileSystem.WriteAllText('C:\ws\TaskSequences\DEMO-TOKEN\sequence.yaml', @'
+schemaVersion: 1
+id: DEMO-TOKEN
+name: Deploy whatever the rules chose
+steps:
+  - name: Apply Updates
+    type: ApplyUpdates
+    release: Win11-24H2
+    updates: '%HDTUpdates%'
+'@)
+
+            $result = Remove-HDTWindowsUpdate -WorkspaceRoot 'C:\ws' -Id 'KB5094126-x64' `
+                -FileSystem $fileSystem -WhatIf
+
+            @($result.UsedBy) | Should -Contain 'DEMO-TOKEN'
         }
     }
 }

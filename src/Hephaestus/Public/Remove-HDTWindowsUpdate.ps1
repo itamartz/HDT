@@ -1,4 +1,4 @@
-function Remove-HDTWindowsUpdate {
+﻿function Remove-HDTWindowsUpdate {
     <#
         .SYNOPSIS
             Removes an imported Windows update from a deployment share.
@@ -29,13 +29,18 @@ function Remove-HDTWindowsUpdate {
             WindowsUpdates\, and this command must not be the thing that removes
             it.
 
-            WHICH SEQUENCES WOULD HAVE APPLIED IT IS REPORTED, NOT ENFORCED, and
-            the sentence is a milder one than an operating system's for a real
-            reason: an ApplyUpdates step names a RELEASE and never an update id,
-            so nothing points at this folder by name and no sequence breaks. The
-            machine simply arrives without this update - which an administrator
-            still deserves to be told before pressing this, and which is not the
-            same as a deployment that fails.
+            WHICH SEQUENCES WOULD HAVE APPLIED IT IS REPORTED, NOT ENFORCED,
+            and "applied it" is two questions rather than one. A step that names
+            a RELEASE points at no folder by name, so removing this update breaks
+            nothing: the machine simply arrives without it. A step whose
+            `updates` NAMES THIS ID does point here by name, and
+            Invoke-HDTApplyUpdatesStep refuses an id the share does not have -
+            so that one fails at the machine rather than deploying without it.
+
+            BOTH ARE REPORTED AND NEITHER IS ENFORCED. An administrator deleting
+            a superseded update should not be stopped by a sequence they are
+            about to edit; they should be told which sequences to look at, which
+            is what UsedBy is.
 
             ConfirmImpact IS High, so it prompts unless the caller says
             -Confirm:$false. The console says it, having asked in its own dialog.
@@ -170,7 +175,7 @@ function Remove-HDTWindowsUpdate {
             try {
                 $sequence = ConvertFrom-HDTYaml -Yaml ($FileSystem.ReadAllText($sequencePath)) -Path $sequencePath
 
-                if (-not (Test-HDTSequenceAppliesUpdate -Document $sequence -Release $release)) { continue }
+                if (-not (Test-HDTSequenceAppliesUpdate -Document $sequence -Release $release -Id $Id)) { continue }
 
                 $named = [string] $sequence['id']
             } catch {
@@ -187,7 +192,11 @@ function Remove-HDTWindowsUpdate {
 
     $said = "Remove Windows update '{0}' and everything in its folder" -f $Id
     if (@($usedBy).Count -gt 0) {
-        $said = '{0}. These task sequences apply this release: {1}' -f $said, (@($usedBy) -join ', ')
+        # 'apply this update' AND NOT 'apply this release', because the list can
+        # now hold both kinds: a sequence matched on its release and one that
+        # named this id in `updates`. The release wording would describe half of
+        # them wrongly, and it is the half that fails at the machine.
+        $said = '{0}. These task sequences apply this update: {1}' -f $said, (@($usedBy) -join ', ')
     }
 
     if (-not $PSCmdlet.ShouldProcess($folder, $said)) {

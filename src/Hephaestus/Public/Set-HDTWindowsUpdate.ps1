@@ -1,4 +1,4 @@
-function Set-HDTWindowsUpdate {
+﻿function Set-HDTWindowsUpdate {
     <#
         .SYNOPSIS
             Changes the name or description of a Windows update already imported
@@ -21,11 +21,14 @@ function Set-HDTWindowsUpdate {
             Set-HDTTaskSequenceProperty and Set-HDTOperatingSystemProperty.
 
             NAME AND DESCRIPTION ONLY, AND THAT IS SAFE BY CONSTRUCTION rather
-            than by care. The ApplyUpdates step selects updates by RELEASE - see
-            Invoke-HDTApplyUpdatesStep, which reads -Release and never an id or a
-            name - so nothing in a deployment matches on either of these. They
-            are display labels: what the console row reads and what a technician
-            recognises the entry by.
+            than by care. The ApplyUpdates step selects by RELEASE and by ID -
+            see Invoke-HDTApplyUpdatesStep, whose `release` and `updates` read
+            those two and nothing else - so neither of the keys this command
+            writes is one a deployment ever matches on. They are display labels:
+            what the console row reads and what a technician recognises the
+            entry by. The ID IS NOT WRITABLE HERE for exactly that reason: a
+            sequence may name it, and renaming it would break the sequence
+            silently.
 
             THE ID IS NOT SETTABLE, and that is deliberate. It is the FOLDER NAME
             under WindowsUpdates\ as well as a key in the file, so changing it is

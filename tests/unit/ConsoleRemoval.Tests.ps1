@@ -244,14 +244,21 @@ Describe 'Get-HDTConsoleRemoval' {
             $script:updateAsk.Question | Should -BeLike '*.msu*'
         }
 
-        # A MILDER SENTENCE THAN AN OPERATING SYSTEM'S, ON PURPOSE. An
-        # ApplyUpdates step names a RELEASE and never an update id, so nothing
-        # points at this folder by name and no sequence fails - the machine
-        # simply arrives without this update. Wording it like the OS warning
-        # would inflate an inconvenience into a failure.
-        It 'warns without claiming a sequence will fail' {
+        # IT USED TO SAY 'no sequence fails' AND THAT STOPPED BEING TRUE the
+        # day an ApplyUpdates step could name update ids in `updates`. A step
+        # that names only a RELEASE still points at no folder by name and
+        # deploys without this update; a step whose `updates` NAMES THIS ID
+        # points here, and Invoke-HDTApplyUpdatesStep refuses an id the share
+        # does not have.
+        #
+        # SO THE ASSERTION IS THAT IT SAYS WHICH IS WHICH, not that it avoids a
+        # word. Wording the whole list like the operating system's warning would
+        # inflate an inconvenience into a failure; wording it like the old one
+        # would promise safety the engine no longer offers.
+        It 'names the sequences and says which of them would fail' {
             $script:updateAsk.Warning | Should -BeLike '*DEMO-M4*'
-            $script:updateAsk.Warning | Should -Not -BeLike '*fail*'
+            $script:updateAsk.Warning | Should -BeLike '*names it*fail without it*'
+            $script:updateAsk.Warning | Should -BeLike '*applies its release*deploy without it*'
         }
 
         # THE ECHOED LINE IS MEANT TO BE RETYPED, so it has to be the parameter

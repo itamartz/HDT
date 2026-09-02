@@ -1671,12 +1671,14 @@
                 & $rebuildTree
             }.GetNewClosure())
 
-        # REMOVING AN UPDATE IS MILDER THAN REMOVING MEDIA, AND THE
-        # DIALOG SAYS SO. An ApplyUpdates step names a RELEASE and never
-        # an update id, so nothing points at this folder by name and no
-        # sequence fails - the machine simply arrives without it. The
-        # .msu is still most of a gigabyte somebody downloaded, which is
-        # why this asks at all.
+        # REMOVING AN UPDATE IS USUALLY MILDER THAN REMOVING MEDIA, AND
+        # THE DIALOG SAYS WHICH KIND IT IS. An ApplyUpdates step that
+        # names only a RELEASE points at no folder by name, so the
+        # machine simply arrives without this update; a step whose
+        # `updates` NAMES THIS ID does point here and refuses at the
+        # machine once the folder is gone. Get-HDTConsoleRemoval's
+        # sentence carries both halves. The .msu is most of a gigabyte
+        # somebody downloaded either way, which is why this asks at all.
         $removeWindowsUpdateItem.Add_Click({
                 $chosen = $tree.SelectedItem
                 if ($null -eq $chosen) { return }
