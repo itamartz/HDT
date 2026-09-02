@@ -410,6 +410,15 @@
                 drive         = $drive
                 volumeStatus  = [string] $volume.VolumeStatus
                 elapsedMinute = [int] $elapsedMinute
+
+                # THE MARK THAT SAYS THIS IS NOT A MEASUREMENT, and it is the
+                # same field New-HDTStepHeartbeat writes for the same reason.
+                # This record carries no percent deliberately - the encryption
+                # has none to report - but a reader splitting liveness from
+                # measurement cannot test for the ABSENCE of a field, so the
+                # eighty records one twenty-minute encryption writes were
+                # indistinguishable from eighty real measurements.
+                heartbeat     = $true
             })
 
         Update-HDTProgressDisplay -Context $Context

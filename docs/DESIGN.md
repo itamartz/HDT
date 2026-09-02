@@ -831,7 +831,7 @@ drifts. Count the rows.
 | `step.complete` | a step finished successfully |
 | `step.fail` | a step failed, or the loop itself did |
 | `step.skip` | a step was skipped, with the reason |
-| `step.progress` | a long step said how far through itself it is, as a percentage |
+| `step.progress` | a long step said how far through itself it is (`data.percent`), **or** that it is still alive when it has no percentage to give (`data.heartbeat = true`, and no `percent` — so a liveness record cannot drag a bar backwards). Every record carries one mark or the other: the absence of a field is not something a reader can filter on |
 | `var.resolve` | a variable **took** a value, with its source: a rule resolution, a `SetVariable` step, or a gathered fact — one grammar, `Name = 'value' (Source)`, and `data.source` tells them apart |
 | `var.unresolved` | a variable did **not**: a `%Var%` nothing supplied, a fact the machine could not determine, or a resolved value kept because the gather's answer was a non-answer |
 | `native.exec` | an external command line was run |

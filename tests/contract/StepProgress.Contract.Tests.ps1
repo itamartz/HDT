@@ -544,6 +544,7 @@ $script:HDTProgressDriveCase = @(
 
     @{
         Type  = 'ApplyDrivers'
+        Case  = 'ApplyDrivers, the group path'
         Drive = {
             param([string] $RepositoryRoot)
 
@@ -617,11 +618,106 @@ $script:HDTProgressDriveCase = @(
             return $context
         }
     }
+
+    @{
+        Type  = 'ApplyDrivers'
+        Case  = 'ApplyDrivers, the PnP fallback'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # THE SECOND PATH, AND UNTIL NOW THE UNDRIVEN ONE. ApplyDrivers has
+            # two, they report by different mechanisms, and only the group path
+            # above was ever executed here - so the fallback's counter was
+            # covered by a text match for the words "step.progress" and by
+            # nothing that counted what it wrote. It scored twenty on the group
+            # seed and nobody had asked what the other half did.
+            #
+            # AND IT IS THE HALF WITH THE ARITHMETIC IN IT. One package is the
+            # only case in which a package's own meter and the step's are the
+            # same number; the fallback stages a SET, and writing each package's
+            # own 0-100% as the step's number gave the measured sequence
+            # 4 9 ... 100, 33, 4 9 ... 100, 66, 4 9 ... 100 - a bar that ran to
+            # the end and restarted, twice. Three matching folders is the
+            # smallest seed in which that is visible at all.
+            $inf = @(
+                '[version]'
+                'Signature   = "$Windows NT$"'
+                'Class       = Net'
+                'ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}'
+                'Provider    = %Realtek%'
+                'DriverVer   = 11/28/2024,10.74.1128.2024'
+                ''
+                '[Manufacturer]'
+                '%Realtek% = Realtek, NTamd64.10.0'
+                ''
+                '[Realtek.NTamd64.10.0]'
+                '%RTL8168.DeviceDesc% = RTL8168.ndi, PCI\VEN_10EC&DEV_8168&SUBSYS_393917AA&REV_15'
+                ''
+                '[Strings]'
+                'Realtek = "Realtek"'
+                'RTL8168.DeviceDesc = "Realtek PCIe GbE Family Controller"'
+            ) -join "`r`n"
+
+            $file = @{}
+            foreach ($n in 1..3) {
+                $vendor = 'Z:\Deploy\Drivers\Win11\Vendor{0}' -f $n
+                $file[('{0}\net{1}.inf' -f $vendor, $n)] = $inf
+
+                # The payload beside the .inf: a driver is the .inf plus the
+                # .sys, .cat and .dll below it, and it is the whole set that
+                # gets copied.
+                foreach ($i in 1..20) {
+                    $file[('{0}\pay{1}{2:d2}.sys' -f $vendor, $n, $i)] = ('binary payload {0}' -f $i)
+                }
+            }
+
+            $fileSystem = New-HDTFakeFileSystem -File $file
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 27, 9, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 250
+
+            $deviceText = [System.IO.File]::ReadAllText(
+                [IO.Path]::Combine($RepositoryRoot, 'tests', 'fixtures', 'cim', 'Win32_PnPEntity.json'))
+            $captured = ConvertFrom-Json -InputObject $deviceText
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
+                -Image (New-HDTFakeImageService) `
+                -Cim (New-HDTFakeCimProvider -Instance @{ Win32_PnPEntity = [object[]] @($captured) }) `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            # A GROUP NOBODY WROTE, WHICH IS WHAT PUTS THE STEP ON THE FALLBACK.
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['group'] = 'Win11\Acme\Nonesuch'
+
+            $null = Invoke-HDTApplyDriversStep -Context $context -Step ([pscustomobject] @{
+                    Index = 5; Name = 'Inject Drivers'; Type = 'ApplyDrivers'; TimeoutMinutes = 30
+                    Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
 )
 
 # AND THE SET IS WHAT IS CHECKED, NOT THE ONE THAT WAS JUST ADDED. A reporting
 # step with no driver here is a step whose records nothing counts, which is the
 # state ApplyUpdates shipped in.
+# A NAME PER DRIVEN CASE, BECAUSE ONE STEP TYPE CAN HAVE TWO PATHS. ApplyDrivers
+# has a group path and a PnP fallback, they report by different mechanisms, and
+# two tests both called 'ApplyDrivers writes more than a token record' say
+# nothing about which of them moved. Every other step is one path and says
+# nothing extra.
+foreach ($one in $script:HDTProgressDriveCase) {
+    if (-not $one.ContainsKey('Case')) { $one['Case'] = [string] $one.Type }
+}
+
 $script:HDTDrivenType = @($script:HDTProgressDriveCase | ForEach-Object { [string] $_.Type })
 
 $script:HDTDriveCoverageCase = @($script:HDTMustReportCase | ForEach-Object {
@@ -783,7 +879,7 @@ Describe 'the long-step progress contract' {
                 'text match for the word step.progress is all that stands behind the claim.')
         }
 
-        It '<Type> writes more than a token record through one long unit of work' -ForEach $script:HDTProgressDriveCase {
+        It '<Case> writes more than a token record through one long unit of work' -ForEach $script:HDTProgressDriveCase {
             $context = & $Drive $script:repoRoot
             $progress = @(& $script:progressRecordOf $context)
 
@@ -794,7 +890,50 @@ Describe 'the long-step progress contract' {
                 'once in eight minutes.')
         }
 
-        It '<Type> writes records a reader can tell apart, not the same frame repeated' -ForEach $script:HDTProgressDriveCase {
+
+        # A MEASUREMENT OR A SIGN OF LIFE, AND THE RECORD HAS TO SAY WHICH.
+        #
+        # step.progress carries both kinds deliberately - New-HDTStepHeartbeat
+        # spells out why it adds no second event name - and
+        # Get-HDTDeploymentProgress reads `percent` CONDITIONALLY so that a
+        # liveness record leaves the bar where the last real measurement put it
+        # rather than dragging it back to zero.
+        #
+        # BUT THE ABSENCE OF A FIELD IS NOT SOMETHING A FILTER CAN SAY OUT LOUD.
+        # A reader separating "how far through" from "still alive" has nothing to
+        # test against on a record that carries neither, so `heartbeat = $true`
+        # is the mark that makes the second kind readable. EnableBitLocker's
+        # fifteen-second poll and the line Sysprep writes before it starts
+        # generalizing both shipped carrying neither, which put two liveness
+        # records into the measurement stream with no way to tell them apart.
+        It '<Case> marks every record as a measurement or as a sign of life' -ForEach $script:HDTProgressDriveCase {
+            $context = & $Drive $script:repoRoot
+            $progress = @(& $script:progressRecordOf $context)
+
+            $unmarked = @($progress | Where-Object {
+                    $data = $null
+                    if ($null -ne $_.PSObject.Properties['data']) { $data = $_.data }
+
+                    $hasPercent = ($null -ne $data -and $null -ne $data.PSObject.Properties['percent'])
+                    $hasHeartbeat = ($null -ne $data -and $null -ne $data.PSObject.Properties['heartbeat'])
+
+                    return (-not $hasPercent -and -not $hasHeartbeat)
+                })
+
+            # NAMED BEFORE THE ASSERTION, NEVER INSIDE -Because. The reason
+            # string is built whether or not the assertion fails, so reaching
+            # into an empty collection there throws on the PASSING case - which
+            # is the shape that passes in a direct run and fails the gate.
+            $first = ''
+            if ($unmarked.Count -gt 0) { $first = [string] $unmarked[0].message }
+
+            $unmarked.Count | Should -Be 0 -Because (
+                ("$Type wrote {0} step.progress record(s) carrying neither a percent nor heartbeat = true, " -f $unmarked.Count) +
+                ('the first being "{0}". A reader filtering on heartbeat to tell liveness from measurement ' -f $first) +
+                'cannot see them at all, and the absence of a percent is not something a filter can test for.')
+        }
+
+        It '<Case> writes records a reader can tell apart, not the same frame repeated' -ForEach $script:HDTProgressDriveCase {
             $context = & $Drive $script:repoRoot
             $progress = @(& $script:progressRecordOf $context)
 
