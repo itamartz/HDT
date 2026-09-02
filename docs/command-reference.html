@@ -255,7 +255,7 @@ try {
 <li><a href="#task-sequence-authoring"><span class="nav-t">Task sequence authoring</span><span class="nav-n">22</span></a></li>
 <li><a href="#step-types-and-templates"><span class="nav-t">Step types, templates &amp; descriptions</span><span class="nav-n">48</span></a></li>
 <li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">26</span></a></li>
-<li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">25</span></a></li>
+<li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">26</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">6</span></a></li>
 <li><a href="#boot-image-and-winpe"><span class="nav-t">Boot image &amp; WinPE</span><span class="nav-n">27</span></a></li>
@@ -285,10 +285,10 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">296</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">297</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">296</div><div class="l">carry examples</div></div>
-        <div class="stat"><div class="n">83</div><div class="l">support -WhatIf</div></div>
+        <div class="stat"><div class="n">297</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">84</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
         <span class="chip v-read">Get &middot; reads</span>
@@ -3486,13 +3486,15 @@ $result.Data[&#x27;notApplicable&#x27;]</pre><p>How many landed and how many did
 <details class="notes"><summary>How it works</summary><div class="prose"><p>MDT&#x27;S Packages NODE, IN HDT&#x27;S SHAPE. The updates an administrator imported into WindowsUpdates\ are injected into the volume the image was just laid onto, so the machine boots patched rather than spending its first hour on Windows Update. This is NOT the deferred WindowsUpdate step in DESIGN 10.1: that one is online, full-OS and talks to WSUS. This one is offline servicing in WinPE and shares nothing with it but a subject.</p>
 <p>THE PACKAGE IS HANDED TO DISM AS IT WAS DOWNLOADED, and that was measured rather than assumed. A modern .msu is a WIM container holding an express package - a .wim beside a .psf carrying the deltas - and pointing /Add-Package at that inner .wim fails 0x80070057. Handing dism the .msu works, on both packages, against both a client and a server image. So nothing is unpacked here, at import or at apply, which is also why the store is the size of the downloads.</p>
 <p>THE EXIT CODE IS NOT THE VERDICT. dism exited 0xC0000409 after a Windows 11 apply that had plainly worked - the image went from 10.0.26100.1742 to 10.0.26100.8655 and its package count went from 85 to 159 - and exited 0 after the equivalent Server apply. So this step asks the IMAGE what it has afterwards, through GetPackage, and believes that. It is also the only check immune to dism&#x27;s prose being localised, since nothing in the adapter pins a language.</p>
-<p>EVERY PACKAGE GETS ITS OWN LOG RECORD, never one summary for the pass. Twenty updates in a sequence is twenty questions somebody will ask afterwards - which one was already in the image, which one wanted a prerequisite, which one actually failed - and update.apply carries the KB, the release, dism&#x27;s code and the outcome for each.</p>
+<p>EVERY PACKAGE GETS ITS OWN LOG RECORD, never one summary for the pass. Twenty updates in a sequence is twenty questions somebody will ask afterwards - which one was already in the image, which one wanted a prerequisite, which one actually failed - and update.apply carries the KB, the release, dism&#x27;s code and the outcome for each. The updates that were NOT in the pass get one too, at Info, saying which release filed them or that somebody disabled them: &quot;why did this machine not get KB5094125&quot; is the question a broad import guarantees, and a log that mentions only the chosen one cannot answer it.</p>
+<p>AND THE METER IS STREAMED, WHICH IS THE DIFFERENCE BETWEEN A BAR AND A PHOTOGRAPH OF ONE. dism prints a percentage while it services - measured on this machine on 2026-09-02: one WinPE-NetFx.cab printed 124 lines of which 58 were the bar - and the adapter now hands every line to a callback instead of collecting it into an array nobody read. The step that discarded it wrote TWO step.progress records for a 515-second step on HDT-UPD-01 run-20260902-004953, which on the machine itself is a bar that never moves and cannot be told from a hang.</p>
+<p>EACH PACKAGE&#x27;S METER IS A SLICE OF THE STEP, NOT THE WHOLE OF IT. Three cumulative updates each reporting their own 0-100% would send the bar back to zero twice, and a bar that restarts reads as a deployment that restarted - a worse lie than the motionless bar it replaces. So data.percent is the step&#x27;s number, package 2 of 4 at 50% being 37%, while the MESSAGE keeps the package&#x27;s own percentage, because that is what dism printed and what a technician with dism.log open is matching against.</p>
 <p>NOT APPLICABLE IS NOT A FAILURE, and this is where the step parts company with a naive reading of DISM&#x27;s exit codes. 0x800F081E means the package does not apply to this image, which is the ORDINARY result of importing a broad set and letting a sequence pick from it. MDT swallows every error here - ZTIPatches logs a non-zero DISM return and still returns Success - and this step keeps the half of that which is right (apply everything, never stop at the first problem) and rejects the half which is not (report success regardless). A package that failed for any other reason fails the step, AFTER every other package has been tried.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>A New-HDTStepResult. Data carries release, target, considered, applied, alreadyPresent, notApplicable and failed.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="operating-systems-and-drivers" data-cat="operating-systems-and-drivers"><header class="cat-head"><div class="cat-eyebrow">25 commands</div><h2>Operating systems, drivers, updates &amp; selection profiles</h2><p class="cat-blurb">Import operating system sources, vendor driver packs and Windows updates into the share&#x27;s catalog, edit them, group the drivers by model, and name the folders a boot image or a driver step draws from. An update is filed under an operating system release because no .msu says which product it is for.</p></header><div class="cat-body">
+    <section class="cat" id="operating-systems-and-drivers" data-cat="operating-systems-and-drivers"><header class="cat-head"><div class="cat-eyebrow">26 commands</div><h2>Operating systems, drivers, updates &amp; selection profiles</h2><p class="cat-blurb">Import operating system sources, vendor driver packs and Windows updates into the share&#x27;s catalog, edit them, group the drivers by model, and name the folders a boot image or a driver step draws from. An update is filed under an operating system release because no .msu says which product it is for.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTOperatingSystem" data-name="get-hdtoperatingsystem" data-hay="get-hdtoperatingsystem reads an operating system out of the workspace catalog. workspaceroot id filesystem content">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTOperatingSystem">Get-HDTOperatingSystem</a></h3>
@@ -3640,6 +3642,27 @@ Import-HDTOperatingSystem -WorkspaceRoot &#x27;X:\Deploy&#x27; -Id &#x27;Win11-L
 <p>WHICH SEQUENCES WOULD HAVE APPLIED IT IS REPORTED, NOT ENFORCED, and the sentence is a milder one than an operating system&#x27;s for a real reason: an ApplyUpdates step names a RELEASE and never an update id, so nothing points at this folder by name and no sequence breaks. The machine simply arrives without this update - which an administrator still deserves to be told before pressing this, and which is not the same as a deployment that fails.</p>
 <p>ConfirmImpact IS High, so it prompts unless the caller says -Confirm:$false. The console says it, having asked in its own dialog.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Id, Release, Path and UsedBy - the ids of the task sequences that would have applied it.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Set-HDTWindowsUpdate" data-name="set-hdtwindowsupdate" data-hay="set-hdtwindowsupdate changes the name or description of a windows update already imported into the workspace, leaving every other line of its update.yaml byte-identical. workspaceroot id name description filesystem whatif confirm">
+<header class="fn-head">
+<h3><a class="anchor" href="#Set-HDTWindowsUpdate">Set-HDTWindowsUpdate</a></h3>
+<div class="tags"><span class="chip v-write">Set</span>
+<span class="chip risk" title="Supports -WhatIf and -Confirm">ShouldProcess</span>
+</div></header>
+<p class="syn">Changes the name or description of a Windows update already imported into the workspace, leaving every other line of its update.yaml byte-identical.</p>
+<div class="sig-wrap"><pre class="sig">Set-HDTWindowsUpdate [-WorkspaceRoot] &lt;string&gt; [-Id] &lt;string&gt; [-Name &lt;string&gt;] [-Description &lt;string&gt;] [-FileSystem &lt;Object&gt;] [-WhatIf] [-Confirm] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span> <span class="pipe">pipeline</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The workspace root - a local path or a UNC share.</p></td></tr><tr><td class="p-name"><code>-Id</code><div class="p-flags"><span class="req">required</span> <span class="pipe">pipeline</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The update id, which is the folder name under WindowsUpdates\.</p></td></tr><tr><td class="p-name"><code>-Name</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The display name. Cannot be cleared - it is what the console row and the update list read.</p></td></tr><tr><td class="p-name"><code>-Description</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>A free-text note for the console: why this update is here, or which servicing window it is waiting for. An empty string removes it.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real one, which is what an administrator wants; a test passes New-HDTFakeFileSystem instead.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Set-HDTWindowsUpdate -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Id &#x27;KB5094126-x64&#x27; `
+-Name &#x27;2026-06 cumulative update, Windows 11 24H2&#x27;</pre><p>Renames the entry and touches nothing else in the file.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Set-HDTWindowsUpdate -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Id &#x27;KB5094126-x64&#x27; `
+-Description &#x27;Held back until the June servicing window.&#x27;</pre><p>Adds the note under the name, where update.yaml writes it.</p></div><div class="ex"><div class="ex-title">Example 3</div><pre class="code">Set-HDTWindowsUpdate -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Id &#x27;KB5094126-x64&#x27; -Description &#x27;&#x27;</pre><p>Takes the note away.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>The other half of Import-HDTWindowsUpdate. Import registers an entry and refuses to replace one; this changes the two things about an entry that are the ADMINISTRATOR&#x27;S OWN WORDS rather than the package&#x27;s. Everything else in update.yaml - the kb, the kind, the architecture, the builds - was read out of the package&#x27;s own CompDB metadata, and a command that let those be typed over would turn a catalog of measured facts into a catalog of guesses.</p>
+<p>IT SPLICES, IT NEVER RE-SERIALISES. update.yaml is a written document like every other in a share, and a parse-then-write round trip drops every comment in it. Only the key being changed is rewritten, through Set-HDTDocumentHeaderKey - the same splice behind Set-HDTTaskSequenceProperty and Set-HDTOperatingSystemProperty.</p>
+<p>NAME AND DESCRIPTION ONLY, AND THAT IS SAFE BY CONSTRUCTION rather than by care. The ApplyUpdates step selects updates by RELEASE - see Invoke-HDTApplyUpdatesStep, which reads -Release and never an id or a name - so nothing in a deployment matches on either of these. They are display labels: what the console row reads and what a technician recognises the entry by.</p>
+<p>THE ID IS NOT SETTABLE, and that is deliberate. It is the FOLDER NAME under WindowsUpdates\ as well as a key in the file, so changing it is a move rather than an edit: the directory has to be renamed, the .msu beside it carried across, and the document rewritten, with a window in between where the two disagree and Get-HDTWindowsUpdate - which enumerates by folder - reads an entry whose id is not its own. That is a command of its own, when there is a reason for it. Import the update under the id you meant.</p>
+<p>AN EMPTY DESCRIPTION REMOVES THE KEY rather than writing an empty one, which is what &quot;take the note away&quot; has to mean: `description:` with nothing after it is a key whose value is null, and the validator would be right to refuse it. THE NAME CANNOT BE CLEARED - the console row reads &#x27;KB - name&#x27;, and an update with none is a blank row.</p>
+<p>EVERY EDIT IS HELD TO Assert-HDTWindowsUpdateDocument BEFORE ANYTHING IS WRITTEN, so a refused change leaves the file exactly as it was rather than half-edited.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject - the changed update, in the shape Get-HDTWindowsUpdate returns.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Set-HDTOperatingSystemProperty" data-name="set-hdtoperatingsystemproperty" data-hay="set-hdtoperatingsystemproperty renames an imported operating system, or changes its description. line name description folder whatif confirm">
@@ -6902,8 +6925,15 @@ $image.SetBootOrderFirst()</pre><p>The apply ceremony SPIKES.md S6 performed by 
       answer file&#x27;s driver paths live - Setup reading Panther on
       first boot runs specialize and oobeSystem and not that one.
       MDT LTIApply.wsf:1021-1043; see NOTICE.md.</pre>
-<pre class="block">  AddPackage(imagePath, packagePath) -&gt; ExitCode, Output
-  GetPackage(imagePath) -&gt; Name, State
+<pre class="block">  AddPackage(imagePath, packagePath[, onOutput]) -&gt; ExitCode, Output
+      dism.exe /Image: /Add-Package /PackagePath:, run as a pipeline
+      with every line handed to onOutput as it arrives - ApplyImage&#x27;s
+      shape, because /Add-Package prints the same percentage meter
+      and a cumulative update is eight to twelve minutes of it. The
+      transcript is BOTH streamed and returned; the exit code is
+      returned rather than asserted, which is the whole point of this
+      method&#x27;s shape - see it.</pre>
+<pre class="block">  GetPackage(imagePath) -&gt; Name, State
   AddDriver(imagePath, driverPath, recurse)
       Add-WindowsDriver -Path &lt;imagePath&gt; -Driver &lt;driverPath&gt;
           -Recurse:&lt;recurse&gt;</pre>

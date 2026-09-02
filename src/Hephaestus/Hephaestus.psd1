@@ -168,6 +168,7 @@
         'Import-HDTOperatingSystem',
         'Import-HDTWindowsUpdate',
         'Remove-HDTWindowsUpdate',
+        'Set-HDTWindowsUpdate',
         'Import-HDTRuleDocument',
         'Import-HDTBootstrapRuleDocument',
         'Import-HDTRunState',
