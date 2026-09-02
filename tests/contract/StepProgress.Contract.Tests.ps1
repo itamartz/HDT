@@ -147,6 +147,490 @@ $script:HDTClassifiedNameCase = @(
             }
         })
 
+# THE GREP ABOVE IS NOT A MEASUREMENT, AND ApplyUpdates PROVED IT.
+# HDT-UPD-01 run-20260902-004953 step 7 was EIGHT MINUTES of one cumulative
+# update and wrote TWO step.progress records for the whole of it - "considering
+# 1 update(s)" and "applying KB5094126 (1 of 1)". Both strings this file greps
+# for were present in the step's source; the step passed every test in here
+# while showing a technician a bar that did not move once. A text search can
+# only ever prove that somebody typed the words.
+#
+# SO THE STEPS ARE RUN. Each entry below builds that step's fakes, seeds them
+# with ONE unit of work that takes a long time - one image, one package, one
+# application, one volume, one driver pack - executes the step and hands back
+# the context, so the It can read the records the step really wrote. One long
+# unit is the case the grep cannot see: a step given ten fast ones emits ten
+# boundary records and looks healthy while the eight-minute one emits two.
+#
+# THE FAKE SHAPES ARE LIFTED FROM EACH STEP'S OWN UNIT TESTS rather than
+# invented here, so a fake that drifts from its adapter breaks the unit test
+# that owns it rather than being quietly re-guessed in a second place.
+#
+# At file scope, and for the reason the header already gives: -ForEach is
+# expanded while Pester DISCOVERS, so a table built in a BeforeAll yields zero
+# test cases and a green run that asserted nothing.
+$script:HDTProgressDriveCase = @(
+
+    @{
+        Type  = 'ApplyImage'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # 18 GB over SMB, the step MDT users watch for nine minutes. The
+            # meter is the real /Apply-Image transcript, replayed by the fake to
+            # the same callback the adapter hands the real dism's stdout to.
+            $meter = [string[]] [System.IO.File]::ReadAllLines(
+                [IO.Path]::Combine($RepositoryRoot, 'tests', 'fixtures', 'image', 'dism-apply-image-output.txt'))
+
+            $catalogPath = 'Z:\Deploy\OperatingSystems\Win11-LTSC-2024\os.yaml'
+            $catalogYaml = @(
+                'schemaVersion: 1'
+                'id: Win11-LTSC-2024'
+                'name: Windows 11 Enterprise LTSC 2024'
+                'type: wim'
+                'architecture: x64'
+                'sourcePath: sources\install.wim'
+                "importedUtc: '2026-08-13T09:14:22.0000000Z'"
+                'defaultIndex: 1'
+                'images:'
+                '  - index: 1'
+                '    name: Windows 11 Enterprise LTSC'
+                '    edition: EnterpriseS'
+                '    sizeBytes: 18356832906'
+                '    version: 10.0.26100.1742'
+            ) -join "`n"
+
+            $fileSystem = New-HDTFakeFileSystem -File @{ $catalogPath = $catalogYaml }
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 13, 0, 9, 26, [System.DateTimeKind]::Utc)) -TickMillisecond 500
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
+                -Disk (New-HDTFakeDiskService) -Image (New-HDTFakeImageService -ApplyOutput $meter) `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['os'] = 'Win11-LTSC-2024'
+            $property['index'] = 1
+
+            $null = Invoke-HDTApplyImageStep -Context $context -Step ([pscustomobject] @{
+                    Index = 3; Name = 'Apply OS'; Type = 'ApplyImage'; TimeoutMinutes = 60; Log = $null
+                    Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'CaptureImage'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # THE APPLY RUN BACKWARDS, AND THE SAME METER. The fixture is the
+            # apply transcript deliberately: dism prints the identical bar for
+            # /Capture-Image, and the step reuses ApplyImage's parser - so the
+            # fixture that proves one drives the other with nothing invented.
+            $meter = [string[]] [System.IO.File]::ReadAllLines(
+                [IO.Path]::Combine($RepositoryRoot, 'tests', 'fixtures', 'image', 'dism-apply-image-output.txt'))
+
+            # The shipped exclusion list, read off the module the way the step
+            # will build the path to it.
+            $moduleConfig = [IO.Path]::Combine((Get-Module -Name Hephaestus).ModuleBase, 'Templates', 'Capture', 'wimscript.ini')
+
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                $moduleConfig = [string] (Get-Content -LiteralPath $moduleConfig -Raw)
+            }
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 31, 11, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 500
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
+                -Image (New-HDTFakeImageService -CaptureOutput $meter) `
+                -Content (New-HDTFakeContentProvider -Root 'Z:\Deploy' -Kind Smb) `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['image'] = 'REF-WIN11.wim'
+
+            $null = Invoke-HDTCaptureImageStep -Context $context -Step ([pscustomobject] @{
+                    Index = 11; Name = 'Capture the reference image'; Type = 'CaptureImage'
+                    TimeoutMinutes = 0; Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'ApplyUnattend'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # NO METER EXISTS FOR THIS VERB, so there is nothing to replay and
+            # the heartbeat is the whole mechanism. UnattendTick stands for the
+            # half-second slices a polled dism spends saying nothing;
+            # TickMillisecond 16000 makes each of them cross the fifteen-second
+            # ration, which is what a 153-second offlineServicing pass over 260
+            # .inf packages looked like on LT-D5M1NN3 run-20260829-223623.
+            $templatePath = 'Z:\Deploy\TaskSequences\DEMO-M3\unattend.xml'
+
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                $templatePath = [System.IO.File]::ReadAllText(
+                    [IO.Path]::Combine($RepositoryRoot, 'src', 'Hephaestus', 'Templates', 'unattend.xml'))
+            }
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 29, 1, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 16000
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
+                -Image (New-HDTFakeImageService -UnattendTick 15) -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+            $live['HDTComputerName'] = 'HDT-M3-01'
+            $live['HDTTaskSequenceID'] = 'DEMO-M3'
+            $live['HDTAdminPassword'] = 'Fixture-P@ssw0rd'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['template'] = 'unattend.xml'
+
+            $null = Invoke-HDTApplyUnattendStep -Context $context -Step ([pscustomobject] @{
+                    Index = 4; Name = 'Apply Unattend'; Type = 'ApplyUnattend'; TimeoutMinutes = 0
+                    Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'InstallApplications'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # ONE APPLICATION, AND THE SLOW ONE. The Acrobat MSI with a 687 MB
+            # patch over SMB is what wrote four log lines for a whole step on
+            # LT-7FJ45S2 run-20260829-190105, all of them boundaries. TickCount
+            # is how long the fake process takes to return.
+            $appYaml = @(
+                'schemaVersion: 1'
+                'id: Corp-Baseline'
+                'name: Corporate baseline'
+                'install: baseline.cmd'
+            ) -join "`n"
+
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\Deploy\Applications\Corp-Baseline\app.yaml' = $appYaml
+            }
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 16, 9, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 20000
+
+            $process = New-HDTFakeProcessService -Result @{
+                'cmd.exe /c baseline.cmd' = @{ ExitCode = 0; TickCount = 20 }
+            }
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Process $process `
+                -Environment (New-HDTFakeEnvironmentProvider -Variable @{ ComSpec = 'cmd.exe' }) `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Info
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase FullOS -WorkspaceRoot 'C:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+            $context.SetStep(1, 'Install applications', 'InstallApplications', 'C:\HDT\Logs\Steps\001-Install.log')
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['selection'] = @('Corp-Baseline')
+
+            $null = Invoke-HDTInstallApplicationsStep -Context $context -Step ([pscustomobject] @{
+                    Index = 1; Name = 'Install applications'; Type = 'InstallApplications'
+                    TimeoutMinutes = 0; Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'EnableBitLocker'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # ONE VOLUME, ENCRYPTING FOR TWENTY MINUTES, which is an ordinary
+            # figure for a laptop disk. The fake never reaches FullyEncrypted,
+            # so the step polls its fifteen seconds until the bounded wait gives
+            # up - and every one of those polls has to say the disk is alive.
+            # The step FAILS here, deliberately: what is under test is what it
+            # said while it waited, and a technician staring at the timeout is
+            # exactly who needed those records.
+            $fileSystem = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 16, 9, 0, 0, [System.DateTimeKind]::Utc))
+
+            $bitlocker = New-HDTFakeBitLockerService -Volume @{
+                'C:' = @{ VolumeStatus = 'FullyDecrypted'; ProtectionStatus = 'Off' }
+            }
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -BitLocker $bitlocker `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Info
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase FullOS -WorkspaceRoot 'C:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+            $context.SetStep(1, 'Enable BitLocker', 'EnableBitLocker', 'C:\HDT\Logs\Steps\001-BitLocker.log')
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['drive'] = 'C:'
+            $property['escrow'] = 'none'
+            $property['wait'] = $true
+
+            $null = Invoke-HDTEnableBitLockerStep -Context $context -Step ([pscustomobject] @{
+                    Index = 1; Name = 'Enable BitLocker'; Type = 'EnableBitLocker'; TimeoutMinutes = 20
+                    Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'Sysprep'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # SILENT FOR MINUTES AT THE END OF A DAY'S WORK. sysprep prints no
+            # meter and no banner, so the heartbeat is all there is; TickCount
+            # is how many polls the fake spends before the tool returns.
+            $fileSystem = New-HDTFakeFileSystem
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 31, 10, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 20000
+
+            $sysprepCommand = 'C:\Windows\system32\sysprep\sysprep.exe /quiet /generalize /oobe /quit'
+
+            $process = New-HDTFakeProcessService -Result @{
+                $sysprepCommand = @{ ExitCode = 0; StandardOutput = ''; TickCount = 20 }
+            }
+
+            $registry = New-HDTFakeRegistryService -Value @{
+                'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Setup\State' = @{
+                    ImageState = 'IMAGE_STATE_GENERALIZE_RESEAL_TO_OOBE'
+                }
+            }
+
+            # DomainRole 2 is Standalone Server, the only kind sysprep will
+            # generalize; a member machine is refused before the tool runs.
+            $cim = New-HDTFakeCimProvider -Instance @{
+                'Win32_ComputerSystem' = @([pscustomobject] @{
+                        Name = 'REF-BUILD-01'; Domain = 'WORKGROUP'; DomainRole = 2; PartOfDomain = $false
+                    })
+            }
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Registry $registry `
+                -Process $process -Cim $cim -Lsa (New-HDTFakeLsaService) `
+                -Environment (New-HDTFakeEnvironmentProvider -Variable @{ SystemRoot = 'C:\Windows' }) `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase FullOS -LogPath 'C:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase FullOS -WorkspaceRoot 'Z:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+            $null = Invoke-HDTSysprepStep -Context $context -Step ([pscustomobject] @{
+                    Index = 9; Name = 'Sysprep'; Type = 'Sysprep'; TimeoutMinutes = 60
+                    Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'ApplyUpdates'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # THE RUN THIS WHOLE CONTEXT EXISTS FOR. One cumulative update,
+            # eight minutes and thirty-five seconds measured on 2026-09-01, two
+            # step.progress records in the shipped step. The fixture is a real
+            # dism /Add-Package transcript captured on this machine - 124 lines,
+            # 58 of them the bar - replayed to the third argument of AddPackage.
+            $meter = [string[]] [System.IO.File]::ReadAllLines(
+                [IO.Path]::Combine($RepositoryRoot, 'tests', 'fixtures', 'image', 'dism-add-package-output.txt'))
+
+            $updateYaml = @(
+                'schemaVersion: 1'
+                'id: KB5094126-x64'
+                'kb: KB5094126'
+                'name: KB5094126 for Windows 11 24H2'
+                'release: Win11-24H2'
+                'kind: CumulativeUpdate'
+                'architecture: x64'
+                'fileName: windows11.0-kb5094126-x64.msu'
+                'sizeBytes: 5111500010'
+                'baselineVersion: 10.0.26100.1742'
+                'targetVersion: 10.0.26100.8655'
+                'build: 26100'
+                'revision: 8655'
+                'packageId: Package_for_RollupFix~~amd64~~26100.8655.1.20'
+                'enabled: true'
+            ) -join "`n"
+
+            $packagePath = 'C:\Deploy\WindowsUpdates\KB5094126-x64\windows11.0-kb5094126-x64.msu'
+
+            $fileSystem = New-HDTFakeFileSystem -File @{
+                'C:\Deploy\WindowsUpdates\KB5094126-x64\update.yaml' = $updateYaml
+                $packagePath                                        = 'msu'
+            }
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 9, 1, 12, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 500
+
+            # DISM's SPELLING OF THE IDENTITY, WITH THE PUBLISHER KEY, because
+            # the step believes the image rather than the exit code and would
+            # otherwise call a good apply a failure.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $packagePath = @{ Output = $meter } } `
+                -PackageInstalls @{ $packagePath = @('Package_for_RollupFix~31bf3856ad364e35~amd64~~26100.8655.1.20') }
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Image $image `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'C:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['release'] = 'Win11-24H2'
+
+            $null = Invoke-HDTApplyUpdatesStep -Context $context -Step ([pscustomobject] @{
+                    Index = 7; Name = 'Apply Windows Updates'; Type = 'ApplyUpdates'; TimeoutMinutes = 0
+                    Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+
+    @{
+        Type  = 'ApplyDrivers'
+        Drive = {
+            param([string] $RepositoryRoot)
+
+            # ONE PACK, AND THE PACK IS THE UNIT OF WORK. A Latitude 5490 pack
+            # took 670 seconds - eleven minutes of the same frame - and the
+            # group path stages the folder WHOLE, so the only thing that can
+            # move a bar inside it is the file count. Sixty files stands for the
+            # eighty-two-driver pack that surfaced the defect; a pack seeded
+            # with the two .inf files the unit tests use would emit a handful of
+            # records and prove nothing about eleven minutes.
+            $groupPath = 'Z:\Deploy\Drivers\Win11\Dell inc\Dell Pro 3 16 P316265'
+
+            $inf = @(
+                '[version]'
+                'Signature   = "$Windows NT$"'
+                'Class       = Net'
+                'ClassGUID   = {4d36e972-e325-11ce-bfc1-08002be10318}'
+                'Provider    = %Realtek%'
+                'DriverVer   = 11/28/2024,10.74.1128.2024'
+                ''
+                '[Manufacturer]'
+                '%Realtek% = Realtek, NTamd64.10.0'
+                ''
+                '[Realtek.NTamd64.10.0]'
+                '%RTL8168.DeviceDesc% = RTL8168.ndi, PCI\VEN_10EC&DEV_8168&SUBSYS_393917AA&REV_15'
+                ''
+                '[Strings]'
+                'Realtek = "Realtek"'
+                'RTL8168.DeviceDesc = "Realtek PCIe GbE Family Controller"'
+            ) -join "`r`n"
+
+            $file = @{ ('{0}\net-realtek.inf' -f $groupPath) = $inf }
+
+            # The payload beside the .inf: a driver is the .inf plus the .sys,
+            # .cat and .dll below it, and it is the whole set that gets copied.
+            foreach ($i in 1..59) {
+                $file[('{0}\payload{1:d2}.sys' -f $groupPath, $i)] = ('binary payload {0}' -f $i)
+            }
+
+            $fileSystem = New-HDTFakeFileSystem -File $file
+            $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 8, 27, 9, 0, 0, [System.DateTimeKind]::Utc)) -TickMillisecond 250
+
+            $deviceText = [System.IO.File]::ReadAllText(
+                [IO.Path]::Combine($RepositoryRoot, 'tests', 'fixtures', 'cim', 'Win32_PnPEntity.json'))
+            $captured = ConvertFrom-Json -InputObject $deviceText
+
+            $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock `
+                -Image (New-HDTFakeImageService) `
+                -Cim (New-HDTFakeCimProvider -Instance @{ Win32_PnPEntity = [object[]] @($captured) }) `
+                -Progress (New-HDTFakeProgressHost)
+
+            $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                -FileSystem $fileSystem -Clock $clock -Level Debug
+
+            $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $live['HDTOSVolume'] = 'W'
+            $live['HDTMake'] = 'Dell inc'
+            $live['HDTModel'] = 'Dell Pro 3 16 P316265'
+
+            $context = New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot 'Z:\Deploy' `
+                -Variable $live -Service $catalog -Log $log
+
+            $property = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $property['group'] = 'Win11\%HDTMake%\%HDTModel%'
+
+            $null = Invoke-HDTApplyDriversStep -Context $context -Step ([pscustomobject] @{
+                    Index = 5; Name = 'Inject Drivers'; Type = 'ApplyDrivers'; TimeoutMinutes = 30
+                    Log = $null; Property = $property
+                })
+
+            return $context
+        }
+    }
+)
+
+# AND THE SET IS WHAT IS CHECKED, NOT THE ONE THAT WAS JUST ADDED. A reporting
+# step with no driver here is a step whose records nothing counts, which is the
+# state ApplyUpdates shipped in.
+$script:HDTDrivenType = @($script:HDTProgressDriveCase | ForEach-Object { [string] $_.Type })
+
+$script:HDTDriveCoverageCase = @($script:HDTMustReportCase | ForEach-Object {
+        @{
+            Type      = [string] $_.Type
+            IsDriven  = $script:HDTDrivenType -contains [string] $_.Type
+        }
+    })
+
 Describe 'the long-step progress contract' {
 
     BeforeAll {
@@ -218,6 +702,109 @@ Describe 'the long-step progress contract' {
             $text | Should -Not -Match "Service\.Progress" -Because (
                 "$Type must report by writing a record and asking the display to re-read it, never by pushing " +
                 'to the progress host itself (DESIGN 11.1).')
+        }
+    }
+
+    Context 'a step that can run for minutes reports MORE THAN TWICE while it runs' {
+
+        # WHAT THE GREPS ABOVE CANNOT SEE, AND THE RUN THAT PROVED THEY CANNOT.
+        # ApplyUpdates carried both strings the context above searches for and
+        # passed every test in this file while emitting TWO step.progress
+        # records across an eight-minute step - HDT-UPD-01 run-20260902-004953,
+        # step 7. "Reporting" as a text match means somebody typed the words;
+        # what a technician in front of the machine needs is a number that keeps
+        # arriving, and only running the step can tell the two apart.
+        #
+        # SO EVERY REPORTING STEP IS EXECUTED HERE against hand-written fakes,
+        # seeded with ONE unit of work that takes a long time. One long unit is
+        # the case that catches a token record: a step handed ten fast units
+        # emits ten boundary records and looks perfectly healthy while the
+        # eight-minute one emits two.
+
+        BeforeAll {
+            Import-Module -Name (Join-Path -Path $script:repoRoot -ChildPath 'tests/helpers/HDTFakes/HDTFakes.psd1') `
+                -Force -ErrorAction Stop
+
+            # THE FLOOR, AND WHY IT IS TEN. The heartbeat rations itself to one
+            # record every fifteen seconds and the meter steps report every five
+            # points, so ten records is the two-and-a-half minutes of coverage
+            # BOTH mechanisms produce at their slowest. Every step driven here
+            # runs far longer than that on real hardware - eight minutes for one
+            # cumulative update, eleven for a driver pack, twenty for a disk -
+            # so ten is generous to the step and still an order of magnitude
+            # above the two records that shipped.
+            $script:progressFloor = 10
+
+            # A RECORD'S SIGNATURE, SO "NUMEROUS" CAN BE TOLD FROM "MOVING".
+            # Fifty copies of "applying KB5094126 (1 of 1)" would clear a count
+            # and leave the bar exactly as still as two would. The message plus
+            # whichever of the moving fields the record carries is what a reader
+            # actually distinguishes one frame from the next by.
+            #
+            # PROPERTY LOOKUPS GO THROUGH PSObject.Properties and never straight
+            # at the name: these are ConvertFrom-Json objects, the fields are
+            # present on some records and absent on others by design - a
+            # heartbeat carries no percent precisely so it cannot drag a bar
+            # backwards - and a bare $_.data.percent throws under StrictMode.
+            $script:progressSignature = {
+                param([object] $Record)
+
+                $part = New-Object -TypeName System.Collections.ArrayList
+                [void] $part.Add([string] $Record.message)
+
+                if ($null -ne $Record.PSObject.Properties['data'] -and $null -ne $Record.data) {
+                    foreach ($name in @('percent', 'packagePercent', 'elapsedSecond', 'elapsedMinute')) {
+                        $property = $Record.data.PSObject.Properties[$name]
+                        if ($null -ne $property) {
+                            [void] $part.Add(('{0}={1}' -f $name, [string] $property.Value))
+                        }
+                    }
+                }
+
+                return ($part -join '|')
+            }
+
+            $script:progressRecordOf = {
+                param([object] $Context)
+
+                return @(Get-HDTRunLogRecord -Context $Context.Log |
+                        Where-Object { [string] $_.event -eq 'step.progress' })
+            }
+        }
+
+        # THE STEP THAT IS CLASSIFIED AS REPORTING AND DRIVEN BY NOBODY. Without
+        # this, a new reporting step is covered by the greps above and by
+        # nothing that counts its records - which is the exact state
+        # ApplyUpdates shipped in.
+        It 'drives <Type> against fakes, rather than only reading its source' -ForEach $script:HDTDriveCoverageCase {
+            $IsDriven | Should -BeTrue -Because (
+                "'$Type' is classified in this file as a step that reports progress, but no entry in " +
+                'HDTProgressDriveCase executes it - so nothing here counts what it actually writes, and a ' +
+                'text match for the word step.progress is all that stands behind the claim.')
+        }
+
+        It '<Type> writes more than a token record through one long unit of work' -ForEach $script:HDTProgressDriveCase {
+            $context = & $Drive $script:repoRoot
+            $progress = @(& $script:progressRecordOf $context)
+
+            $progress.Count | Should -BeGreaterOrEqual $script:progressFloor -Because (
+                "$Type was driven with ONE unit of work that takes minutes on real hardware and wrote " +
+                "$($progress.Count) step.progress record(s). Fewer than $script:progressFloor is the shipped " +
+                'ApplyUpdates defect: both strings this file greps for present, and a bar that did not move ' +
+                'once in eight minutes.')
+        }
+
+        It '<Type> writes records a reader can tell apart, not the same frame repeated' -ForEach $script:HDTProgressDriveCase {
+            $context = & $Drive $script:repoRoot
+            $progress = @(& $script:progressRecordOf $context)
+
+            $distinct = @($progress | ForEach-Object { & $script:progressSignature $_ } | Sort-Object -Unique)
+
+            $distinct.Count | Should -BeGreaterOrEqual $script:progressFloor -Because (
+                "$Type wrote $($progress.Count) step.progress record(s) but only $($distinct.Count) of them say " +
+                'anything different. A count alone is satisfiable by repeating one frame, which leaves the ' +
+                'screen exactly as still as silence does - what has to move is the percentage, or the elapsed ' +
+                'time on a step that honestly has no percentage to report.')
         }
     }
 }
