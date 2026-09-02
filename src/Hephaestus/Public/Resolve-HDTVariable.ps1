@@ -20,6 +20,13 @@
               4. -Fact             gathered facts             -> GatheredFact
               5. -SequenceDefault  sequence.yaml defaults     -> SequenceDefault
 
+            -EngineVariable IS NOT ONE OF THE FIVE AND HAS NO RANK. Nothing in
+            this function produces it: the caller read it off the boot image and
+            published it, and it is applied BEFORE source 1 so that nothing can
+            outrank it. A reader counting six entries in a five-source ladder is
+            counting a fact in with the preferences - see .PARAMETER
+            EngineVariable.
+
             Precedence is therefore write order rather than a comparison:
             Add-HDTResolvedVariable refuses to overwrite, so applying the sources
             in this order IS the precedence, and a later fallback rule can only
@@ -45,6 +52,20 @@
             script only through -ScriptInvoker. That is what lets the whole engine
             run under Pester against fakes and is why phase 03 can
             swap in the real invoker unchanged.
+
+        .PARAMETER EngineVariable
+            NOT A SIXTH PRECEDENCE SOURCE, AND APPLIED BEFORE ALL FIVE. What the
+            machine did, not what anybody wants: HDTDeploymentMethod is read off
+            the provider Update-HDTBootImage baked into the boot image, so it is
+            a fact about how this machine reached its content rather than a
+            preference to be ranked against other preferences. Recorded with
+            source Engine.
+
+            WHICH IS THE OTHER HALF OF THE RULES REFUSAL. Assert-HDTRuleDocument
+            stops a rules.yaml setting a name Get-HDTVariableMap marks not
+            writable, but the command line and a machine override never pass
+            through that validator - so the guarantee lives here, where
+            first-writer-wins already means the earliest write is the only one.
 
         .PARAMETER CommandLine
             Source 1. Variables the technician supplied.
@@ -82,8 +103,11 @@
               Unresolved  [string[]] the distinct %Var% names nothing supplied,
                           sorted ordinally
 
-            Source is a closed set: CommandLine, MachineOverride, Rule,
-            RuleScript, GatheredFact, SequenceDefault.
+            Source is a closed set: Engine, CommandLine, Wizard,
+            MachineOverride, Rule, RuleScript, GatheredFact, SequenceDefault.
+            (Wizard was added to Add-HDTResolvedVariable's ValidateSet and not
+            to this sentence, which listed six names for a set of seven until
+            Engine made it eight.)
 
             Every parameter is optional. Resolving nothing is a valid, empty
             answer rather than an error - the engine calls this before it
@@ -114,6 +138,22 @@
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
+        # NOT A SIXTH PRECEDENCE SOURCE. WHAT THE MACHINE DID, NOT WHAT ANYBODY
+        # WANTS. HDTDeploymentMethod is a fact about how this machine booted,
+        # published by the caller that read the boot image's own provider. The
+        # five sources below are an administrator's preferences and they are
+        # ranked against each other; this is not ranked at all, because it is
+        # applied FIRST and nothing can outrank it.
+        #
+        # WHICH IS THE OTHER HALF OF THE RULES REFUSAL. Assert-HDTRuleDocument
+        # stops a rules.yaml setting it, but the command line and a machine
+        # override never pass through that validator - so the guarantee lives
+        # here, where first-writer-wins already means the earliest write is the
+        # only write.
+        [Parameter()]
+        [AllowNull()]
+        [System.Collections.IDictionary] $EngineVariable,
+
         [Parameter()]
         [AllowNull()]
         [System.Collections.IDictionary] $CommandLine,
@@ -172,6 +212,18 @@
     if ($null -ne $Fact) {
         foreach ($key in @($Fact.Keys)) {
             $scope[[string] $key] = $Fact[$key]
+        }
+    }
+
+    # -- before precedence 1: what the engine already knows ---------------------
+    #
+    # THROUGH THE SINGLE WRITER LIKE EVERYTHING ELSE, so the value carries a
+    # provenance row, lands in the scope where a rule can match on it and a
+    # %Var% can expand it, and is refused if it names an engine-owned _HDT*.
+    if ($null -ne $EngineVariable) {
+        foreach ($key in @($EngineVariable.Keys)) {
+            $null = Add-HDTResolvedVariable -Resolution $resolution -Scope $scope `
+                -Name ([string] $key) -Value $EngineVariable[$key] -Source 'Engine'
         }
     }
 

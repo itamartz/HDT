@@ -729,6 +729,129 @@ rules:
             { Resolve-HDTVariable } | Should -Not -Throw
         }
     }
+
+    Context 'a value the engine publishes rather than resolves' {
+
+        # NOT A SIXTH PRECEDENCE SOURCE. HDTDeploymentMethod is a fact about how
+        # this machine booted - Get-HDTDeploymentMethod reads it off the
+        # provider Update-HDTBootImage baked into the boot image - and the
+        # payload publishes it here rather than assigning it into the answer
+        # afterwards, so it carries a provenance row like every other value and
+        # survives the wizard's SECOND resolution.
+        #
+        # AND IT IS THE OTHER HALF OF THE RULES REFUSAL. Assert-HDTRuleDocument
+        # turns a rules.yaml that declares the name away at parse time, but the
+        # command line and a machine override never pass through that validator.
+        # Applying the engine's value FIRST is what makes that refusal complete:
+        # first-writer-wins already means the earliest write is the only write.
+
+        It 'accepts -EngineVariable and puts the value in the resolved bag' {
+            $result = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'MEDIA' }
+
+            $result.Variable['HDTDeploymentMethod'] | Should -BeExactly 'MEDIA'
+        }
+
+        It 'records it with source Engine, so the provenance says where it came from' {
+            $result = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'UNC' }
+
+            $result.Provenance['HDTDeploymentMethod'].Source | Should -BeExactly 'Engine'
+            $result.Provenance['HDTDeploymentMethod'].Order | Should -Be 1
+        }
+
+        It 'BEATS a rule that sets the same name, because it is a fact and not a preference' {
+            # THE DOCUMENT IS BUILT BY HAND HERE, AND THAT IS THE FINDING RATHER
+            # THAN A SHORTCUT. New-HDTTestRuleDocument goes through the real
+            # Import-HDTRuleDocument, and Assert-HDTRuleDocument (06-01) now
+            # REFUSES a rules.yaml that declares HDTDeploymentMethod at all - so
+            # this rule cannot be written on a share any more.
+            #
+            # The ordering is still asserted, because the refusal and the
+            # ordering are two different guarantees. A document assembled in
+            # memory, a caller that skipped the validator, a source added later:
+            # none of those pass through Assert-HDTRuleDocument, and the value a
+            # deployment gates on must not depend on which of them was used.
+            $rules = [pscustomobject] @{
+                Path          = 'C:\HDTLab\does-not-exist\ws\rules.yaml'
+                SchemaVersion = 1
+                Rule          = [object[]] @(
+                    [pscustomobject] @{
+                        Index   = 1
+                        Name    = 'A share that thinks it knows better'
+                        When    = $null
+                        Set     = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                        SetFrom = $null
+                    }
+                )
+            }
+            $rules.Rule[0].Set['HDTDeploymentMethod'] = 'UNC'
+
+            $result = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'MEDIA' } -RuleDocument $rules
+
+            $result.Variable['HDTDeploymentMethod'] | Should -BeExactly 'MEDIA'
+            $result.Provenance['HDTDeploymentMethod'].Source | Should -BeExactly 'Engine'
+        }
+
+        It 'beats the command line and a machine override too - neither passes through the rules validator' {
+            $result = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'MEDIA' } `
+                -CommandLine @{ HDTDeploymentMethod = 'UNC' } `
+                -MachineOverride @{ HDTDeploymentMethod = 'UNC' } -MachineOverridePath 'C:\ws\Control\machines\x.yaml'
+
+            $result.Variable['HDTDeploymentMethod'] | Should -BeExactly 'MEDIA'
+            $result.Provenance['HDTDeploymentMethod'].Source | Should -BeExactly 'Engine'
+        }
+
+        It 'beats a wizard page that collected the same name' {
+            $result = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'MEDIA' } `
+                -Wizard @{ HDTDeploymentMethod = 'UNC' }
+
+            $result.Variable['HDTDeploymentMethod'] | Should -BeExactly 'MEDIA'
+            $result.Provenance['HDTDeploymentMethod'].Source | Should -BeExactly 'Engine'
+        }
+
+        It 'is in the scope, so a rule can match on it and a %Var% can expand it' {
+            # A rule may not SET it - Assert-HDTRuleDocument refuses that - but
+            # gating on it is the entire point of publishing it, so `when:` and
+            # %HDTDeploymentMethod% have to work from real YAML.
+            $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: Media only
+    when:
+      HDTDeploymentMethod: "MEDIA"
+    set:
+      HDTSkipNetworkWait: "YES"
+      HDTBanner: "reached over %HDTDeploymentMethod%"
+'@
+
+            $result = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'MEDIA' } -RuleDocument $rules
+
+            $result.Variable['HDTSkipNetworkWait'] | Should -BeExactly 'YES'
+            $result.Variable['HDTBanner'] | Should -BeExactly 'reached over MEDIA'
+        }
+
+        It 'resolves exactly as it does today when -EngineVariable is absent' {
+            $rules = New-HDTTestRuleDocument @'
+schemaVersion: 1
+rules:
+  - name: Default
+    set:
+      HDTTaskSequenceID: "LAB-CLIENT"
+'@
+
+            $withParameter = Resolve-HDTVariable -EngineVariable $null -RuleDocument $rules -Fact @{ HDTModel = 'Latitude 7450' }
+            $without = Resolve-HDTVariable -RuleDocument $rules -Fact @{ HDTModel = 'Latitude 7450' }
+
+            @($withParameter.Variable.Keys) | Should -Be @($without.Variable.Keys)
+            @(@($withParameter.Provenance.Keys) | ForEach-Object { $withParameter.Provenance[$_].Source }) |
+                Should -Be @(@($without.Provenance.Keys) | ForEach-Object { $without.Provenance[$_].Source })
+        }
+
+        It 'refuses an _HDT name there, the way every other source is refused' {
+            { Resolve-HDTVariable -EngineVariable @{ _HDTDeployRoot = 'D:\' } } |
+                Should -Throw -ExpectedMessage '*_HDTDeployRoot*'
+        }
+    }
+
 }
 
 # MDT'S #Left(...)#, THROUGH THE PATH A RULE ACTUALLY TAKES.

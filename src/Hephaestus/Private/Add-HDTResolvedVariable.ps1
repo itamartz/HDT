@@ -51,10 +51,18 @@ function Add-HDTResolvedVariable {
             element; a boolean, a number and anything else pass through untouched.
 
         .PARAMETER Source
-            Which of the five sources supplied the value. A closed set:
-            CommandLine, MachineOverride, Rule, RuleScript, GatheredFact,
-            SequenceDefault. Closed because provenance is machine-readable - the
-            console and ConvertTo-HDTReport switch on it.
+            Which source supplied the value. A closed set: Engine,
+            CommandLine, Wizard, MachineOverride, Rule, RuleScript,
+            GatheredFact, SequenceDefault. Closed because provenance is
+            machine-readable - the console and ConvertTo-HDTReport switch on it.
+
+            SEVEN OF THOSE EIGHT ARE THE PRECEDENCE LADDER, AND Engine IS NOT.
+            The rest are an administrator's preferences, ranked against each
+            other by the order Resolve-HDTVariable applies them in. Engine is a
+            fact about how this machine booted - HDTDeploymentMethod, read from
+            the provider Update-HDTBootImage baked into the image - so it is not
+            ranked at all: the caller applies it before the ladder starts and
+            first-writer-wins makes it the only writer.
 
         .PARAMETER Rule
             The rule name, for a rule or rule-script source.
@@ -106,7 +114,14 @@ function Add-HDTResolvedVariable {
         # bench" and "the media was launched with this on its command line" are
         # different explanations for a machine's name, and DESIGN 3.1 exists so
         # provenance can tell them apart.
-        [ValidateSet('CommandLine', 'Wizard', 'MachineOverride', 'Rule', 'RuleScript', 'GatheredFact', 'SequenceDefault')]
+        #
+        # Engine IS FIRST BECAUSE IT IS APPLIED FIRST, and the set is written in
+        # the order Resolve-HDTVariable writes it in so a reader can follow one
+        # list rather than two. It is NOT a source an administrator can reach:
+        # nothing in rules.yaml, on the command line or on a wizard page
+        # produces it, and Assert-HDTRuleDocument refuses the one name that
+        # carries it.
+        [ValidateSet('Engine', 'CommandLine', 'Wizard', 'MachineOverride', 'Rule', 'RuleScript', 'GatheredFact', 'SequenceDefault')]
         [string] $Source,
 
         [Parameter()]

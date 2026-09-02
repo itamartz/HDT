@@ -203,4 +203,66 @@ Describe 'Add-HDTResolvedVariable' {
                 Should -Throw -ExpectedMessage '*Guesswork*'
         }
     }
+
+    Context 'a value the engine published rather than resolved' {
+
+        # NOT ONE OF THE FIVE PRECEDENCE SOURCES, AND THAT IS THE POINT.
+        # HDTDeploymentMethod is a fact about how this machine booted - read
+        # from the provider baked into the boot image by Update-HDTBootImage -
+        # not a preference an administrator expressed anywhere. It is none of
+        # the seven names already in the set: it is not gathered off the
+        # machine, so GatheredFact would be a lie that Invoke-HDTGatherStep
+        # would then report as "could not be determined" on every Gather step
+        # in every sequence.
+
+        It 'accepts Engine as a source' {
+            InModuleScope Hephaestus {
+                $assigned = Add-HDTResolvedVariable -Resolution $script:resolution -Scope $script:scope `
+                    -Name 'HDTDeploymentMethod' -Value 'MEDIA' -Source 'Engine'
+
+                $assigned | Should -BeTrue
+                $script:resolution.Variable['HDTDeploymentMethod'] | Should -BeExactly 'MEDIA'
+            }
+        }
+
+        It 'records Engine in the provenance the same way it records GatheredFact' {
+            InModuleScope Hephaestus {
+                $null = Add-HDTResolvedVariable -Resolution $script:resolution -Scope $script:scope `
+                    -Name 'HDTDeploymentMethod' -Value 'MEDIA' -Source 'Engine'
+                $null = Add-HDTResolvedVariable -Resolution $script:resolution -Scope $script:scope `
+                    -Name 'HDTModel' -Value 'Latitude 7450' -Source 'GatheredFact'
+
+                $engine = $script:resolution.Provenance['HDTDeploymentMethod']
+                $fact = $script:resolution.Provenance['HDTModel']
+
+                # SAME RECORD SHAPE, so a consumer switching on Source does not
+                # have to know this one is different.
+                @($engine.PSObject.Properties.Name) | Should -Be @($fact.PSObject.Properties.Name)
+
+                $engine.Source | Should -BeExactly 'Engine'
+                $engine.Name | Should -BeExactly 'HDTDeploymentMethod'
+                $engine.Value | Should -BeExactly 'MEDIA'
+                $engine.RawValue | Should -BeExactly 'MEDIA'
+                $engine.Order | Should -Be 1
+            }
+        }
+
+        It 'still refuses a source outside the closed set' {
+            InModuleScope Hephaestus {
+                # Widening a closed set is not opening it. The set is still
+                # closed, and the message still names what was offered.
+                { Add-HDTResolvedVariable -Resolution $script:resolution -Scope $script:scope `
+                        -Name 'HDTDeploymentMethod' -Value 'MEDIA' -Source 'BootImage' } |
+                    Should -Throw -ExpectedMessage '*BootImage*'
+            }
+        }
+
+        It 'refuses an _HDT name from the engine too, because the single writer holds that rule for every source' {
+            InModuleScope Hephaestus {
+                { Add-HDTResolvedVariable -Resolution $script:resolution -Scope $script:scope `
+                        -Name '_HDTDeployRoot' -Value 'D:' -Source 'Engine' } |
+                    Should -Throw -ExpectedMessage '*_HDTDeployRoot*'
+            }
+        }
+    }
 }

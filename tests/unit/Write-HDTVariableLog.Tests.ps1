@@ -1,4 +1,4 @@
-# DESIGN 3.1: "the single biggest debugging pain in MDT is not knowing why
+﻿# DESIGN 3.1: "the single biggest debugging pain in MDT is not knowing why
 # HDTComputerName ended up as it did". Export-HDTVariableProvenance answers that
 # from a file; this puts the same answer into the log STREAM, as one var.resolve
 # record per variable, which is what the console's monitoring view reads.
@@ -78,6 +78,23 @@ Describe 'Write-HDTVariableLog' {
 
         $line = @($script:fs.ReadAllText($script:jsonlPath) -split "`n" | Where-Object { $_ })
         (ConvertFrom-Json -InputObject $line[0]).message | Should -BeLike '*HDTComputerName*'
+    }
+
+    It 'prints an engine-published variable as NAME = ''value'' (Engine)' {
+        # THE EIGHTH SOURCE HAS TO RENDER LIKE THE OTHER SEVEN. Provenance is
+        # machine-readable - the console and ConvertTo-HDTReport switch on the
+        # source name - so a value the engine published rather than resolved
+        # goes through the same one grammar as everything else, and says Engine
+        # where a fact says GatheredFact.
+        $resolution = Resolve-HDTVariable -EngineVariable @{ HDTDeploymentMethod = 'MEDIA' }
+
+        Write-HDTVariableLog -Context $script:context -Resolution $resolution
+
+        $line = @($script:fs.ReadAllText($script:jsonlPath) -split "`n" | Where-Object { $_ })
+        $record = ConvertFrom-Json -InputObject $line[0]
+
+        $record.message | Should -BeExactly "HDTDeploymentMethod = 'MEDIA' (Engine)"
+        $record.data.source | Should -BeExactly 'Engine'
     }
 
     It 'writes nothing for an empty resolution' {
