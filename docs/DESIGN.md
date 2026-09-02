@@ -198,7 +198,7 @@ existing knowledge and runbooks carry over. But every one is **prefixed `HDT`**:
 | Prefix | Meaning | Writable? |
 |---|---|---|
 | `_HDT*` | Set by the engine | **No** — assigning one is a validation error |
-| `HDT*` | Deployment variables: rules, sequences, wizard, per-machine overrides | Yes |
+| `HDT*` | Deployment variables: rules, sequences, wizard, per-machine overrides | Yes, unless its row in `Get-HDTVariableMap` says otherwise |
 
 **Why prefix rather than reuse MDT's exact names.** HDT depends on no MDT
 component (§1). A variable called `HDTComputerName` that looks like MDT's but is
@@ -260,6 +260,36 @@ lists in two loops; `Resolve-HDTApplicationOrder` emits ready applications
 smallest id first precisely so a plan does not depend on the order a selection
 was written in. A site that needs its agent before everything else declares a
 dependency edge.
+
+**`HDTDeploymentType` and `HDTDeploymentMethod` are two questions, not one.**
+MDT declares both in `ZTIGather.xml` and HDT carries both:
+
+| MDT | HDT | Answers | Values |
+|---|---|---|---|
+| `DeploymentType` | `HDTDeploymentType` | *what* is being done | `NEWCOMPUTER` — this engine performs bare-metal installs only |
+| `DeploymentMethod` | `HDTDeploymentMethod` | *how this machine reached its content* | `UNC` from a share, `MEDIA` from the disc or stick it booted from |
+
+They are independent, and the trap is assuming they are not: **a media
+deployment is still `NEWCOMPUTER`**. MDT's `LiteTouch.wsf` decides the method by
+walking every ready drive looking for its media marker and defaulting to `UNC`
+when it finds none; HDT decides it from the provider `bootstrap.json` already
+names, through `Get-HDTDeploymentMethod`, so the value cannot disagree with the
+provider actually in use — a stale marker on a second disk cannot talk a
+deployment out of the network it is really reading from.
+
+MDT also has `OSD` and `SCCM`. HDT has neither: those describe an MECM
+deployment, and §1 takes no dependency on MECM, so **two values is the whole
+set.**
+
+**`HDTDeploymentMethod` is the one writable-looking name that is not writable.**
+It carries no underscore — MDT's name is `DeploymentMethod` and a step condition
+reads `%HDTDeploymentMethod%` — so the `_HDT*` prefix cannot say it and the map
+row does instead, through an explicit `Writable = $false`.
+`Assert-HDTRuleDocument` refuses **every name the map marks not writable**,
+rather than a list of names written into the validator, so the next
+engine-published variable is refused the day its row lands. A `rules.yaml` that
+declared `MEDIA` on a share would produce a deployment that skips the network it
+is using, and every symptom of that points somewhere else.
 
 HDT-specific additions with no MDT equivalent: `HDTSecureBootEnabled`,
 `HDTTPMVersion`, `HDTBootMode` (`PXE` | `Media`), `HDTDiskLayout`,

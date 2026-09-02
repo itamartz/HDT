@@ -134,6 +134,29 @@
         @{ HDTName = 'HDTDeploymentType'; MdtName = 'DeploymentType'; Origin = 'engine'
             Description = 'Which deployment scenario is running. This engine performs bare-metal installs only, so it is always NEWCOMPUTER; MDT also has REFRESH, REPLACE and UPGRADE, and those arrive with the steps that implement them.'
         }
+        # MDT CARRIES TWO VARIABLES HERE AND THEY ARE NOT THE SAME QUESTION.
+        # DeploymentType (above) is WHAT is being done - NEWCOMPUTER, and a
+        # media deployment is still NEWCOMPUTER. This is HOW THE MACHINE GOT ITS
+        # CONTENT, and it is the one every media behaviour reads. ZTIGather.xml
+        # line 10 declares MDT's; LiteTouch.wsf defaults it to UNC and sets
+        # MEDIA when it finds the media marker, and HDT decides the same two
+        # values from the same evidence - except that it reads the provider the
+        # boot image already carries rather than hunting a marker across every
+        # ready drive, so the answer cannot disagree with the provider in use.
+        #
+        # NO OSD AND NO SCCM. MDT lists them because MDT integrates with MECM.
+        # HDT does not, and rule 4 forbids the dependency, so two values is the
+        # whole set - and the description does not offer them, because a
+        # description that names a value this engine can never publish is a
+        # promise the map cannot keep.
+        #
+        # NOT WRITABLE, WITHOUT AN UNDERSCORE. Every other read-only name is
+        # _HDT*, and this one is not, because MDT's name is DeploymentMethod and
+        # a step condition reads %HDTDeploymentMethod%. The row says so instead
+        # of the prefix saying it - see Writable at the projection below.
+        @{ HDTName = 'HDTDeploymentMethod'; MdtName = 'DeploymentMethod'; Origin = 'engine'; Writable = $false
+            Description = 'How this machine reached its content: UNC when it is deploying from a share, MEDIA when it booted from a disc or a stick. Published by the engine from the boot image''s own provider before the first step runs, so it cannot disagree with the provider actually in use. It is NOT settable in rules.yaml - an admin who declares MEDIA on a share gets a run that skips the network it is really using, and every symptom of that points somewhere else.'
+        }
         # THE DEPLOYED MACHINE'S TIME ZONE, and the reason it is not optional in
         # practice: Microsoft derives an unspecified one from the locale, and
         # this toolkit's answer file sets en-US - which is Pacific Standard Time
@@ -427,10 +450,21 @@
         $secret = $false
         if ($entry.ContainsKey('Secret')) { $secret = [bool] $entry['Secret'] }
 
+        # ABSENT MEANS THE PREFIX RULE, which is what all but one row wants:
+        # _HDT* is engine-owned and read-only, everything else is an
+        # administrator's to set. A row that spells it out means it -
+        # HDTDeploymentMethod carries no underscore and is still not settable,
+        # because MDT's name has none and a step condition reads
+        # %HDTDeploymentMethod%. Assert-HDTRuleDocument refuses on this column
+        # rather than on a name, so the next engine-origin variable is refused
+        # the day its row lands.
+        $writable = (-not $entry.HDTName.StartsWith('_'))
+        if ($entry.ContainsKey('Writable')) { $writable = [bool] $entry['Writable'] }
+
         [pscustomobject] @{
             HDTName     = $entry.HDTName
             MdtName     = $entry.MdtName
-            Writable    = (-not $entry.HDTName.StartsWith('_'))
+            Writable    = $writable
             Origin      = $entry.Origin
             IsSecret    = $secret
             Description = $entry.Description

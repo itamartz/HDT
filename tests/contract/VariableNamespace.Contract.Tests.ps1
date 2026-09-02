@@ -18,6 +18,11 @@ BeforeAll {
 
     $script:map = @(Get-HDTVariableMap)
 
+    # Every variable that carries no underscore and is still not an
+    # administrator's to set. One entry today; see the two assertions that
+    # read it for why it is written down rather than derived.
+    $script:declaredUnsettable = @('HDTDeploymentMethod')
+
     # The facts that come out of CIM. Everything else in the gathered set comes
     # from the environment (firmware_type, PROCESSOR_ARCHITECTURE) or from the
     # registry (the Secure Boot state value), so only these carry a
@@ -70,10 +75,80 @@ Describe 'HDT variable namespace contract' {
         ($wrong | ForEach-Object { $_.HDTName }) -join ', ' | Should -BeExactly ''
     }
 
-    It 'marks every non-underscore HDT variable as writable' {
-        $wrong = @($script:map | Where-Object { -not $_.HDTName.StartsWith('_') -and -not $_.Writable })
+    # THE PREFIX RULE IS A DEFAULT NOW, NOT A LAW. It used to be both, and
+    # HDTDeploymentMethod is why it stopped: MDT's name is DeploymentMethod,
+    # a step condition reads %HDTDeploymentMethod%, and it is still not
+    # something an administrator may set. So the row says so, and the pair of
+    # assertions below replace the single one that read the prefix as the
+    # whole truth.
+    It 'marks a non-underscore variable writable unless its row says otherwise' {
+        $wrong = @($script:map |
+                Where-Object { -not $_.HDTName.StartsWith('_') } |
+                Where-Object { -not $_.Writable } |
+                Where-Object { $script:declaredUnsettable -notcontains $_.HDTName })
 
         ($wrong | ForEach-Object { $_.HDTName }) -join ', ' | Should -BeExactly ''
+    }
+
+    # DELIBERATELY A HARD-CODED LIST, AND SET EQUALITY IN BOTH DIRECTIONS.
+    # Making a variable unsettable takes something away from an administrator,
+    # and it should cost an edit to a test that says out loud which ones. A
+    # name added to the map without an edit here fails; a name removed from
+    # the map without an edit here fails too.
+    It 'names every non-writable non-underscore variable, so the list cannot grow by accident' {
+        $actual = @($script:map |
+                Where-Object { -not $_.HDTName.StartsWith('_') -and -not $_.Writable } |
+                Select-Object -ExpandProperty HDTName |
+                Sort-Object)
+
+        ($actual -join ', ') | Should -BeExactly (($script:declaredUnsettable | Sort-Object) -join ', ')
+    }
+
+    It 'carries HDTDeploymentMethod, MDT''s DeploymentMethod, exactly once' {
+        $row = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentMethod' })
+
+        $row.Count | Should -Be 1
+        $row[0].MdtName | Should -BeExactly 'DeploymentMethod'
+    }
+
+    It 'marks HDTDeploymentMethod as engine-origin and not writable' {
+        $row = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentMethod' })
+
+        $row.Count | Should -Be 1
+        $row[0].Origin | Should -BeExactly 'engine'
+        $row[0].Writable | Should -BeFalse
+    }
+
+    # THE GUARD AGAINST THE MERGE. DeploymentType is WHAT is being done and a
+    # media deployment is still NEWCOMPUTER; DeploymentMethod is HOW the
+    # machine got its content. Two rows, two MDT names, and neither
+    # description claiming to be the other.
+    It 'keeps HDTDeploymentType separate, writable, and mapped to MDT''s DeploymentType' {
+        $type = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentType' })
+        $method = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentMethod' })
+
+        $type.Count | Should -Be 1
+        $method.Count | Should -Be 1
+        $type[0].MdtName | Should -BeExactly 'DeploymentType'
+        $type[0].Writable | Should -BeTrue
+        $type[0].Description | Should -Match 'NEWCOMPUTER'
+
+        $method[0].MdtName | Should -Not -BeExactly $type[0].MdtName
+        $method[0].Description | Should -Not -Match 'NEWCOMPUTER'
+    }
+
+    It 'describes HDTDeploymentMethod as UNC or MEDIA and mentions neither OSD nor SCCM' {
+        $row = @($script:map | Where-Object { $_.HDTName -eq 'HDTDeploymentMethod' })
+
+        $row.Count | Should -Be 1
+        $row[0].Description | Should -Match 'UNC'
+        $row[0].Description | Should -Match 'MEDIA'
+
+        # MDT lists OSD and SCCM because MDT integrates with MECM. HDT does
+        # not, so a description that offered them would document a value the
+        # engine can never produce.
+        $row[0].Description | Should -Not -Match '\bOSD\b'
+        $row[0].Description | Should -Not -Match '\bSCCM\b'
     }
 
     It 'includes every engine variable DESIGN 4.4.1 declares' {

@@ -53,6 +53,30 @@ Describe 'Get-HDTVariableMap' {
         @(Get-HDTVariableMap -Name 'HDTNoSuchVariable').Count | Should -Be 0
     }
 
+    # WRITABLE IS A DEFAULT WITH AN OPT-OUT, the way Secret already is. The
+    # underscore answers it for all but one row, and the row that spells it out
+    # means it - HDTDeploymentMethod carries no underscore, because MDT's name
+    # is DeploymentMethod and a step condition reads %HDTDeploymentMethod%, and
+    # it is still not an administrator's to set.
+    It 'defaults Writable from the underscore when the row does not say' {
+        $engine = @(Get-HDTVariableMap -Name '_HDTRunId')
+        $admin = @(Get-HDTVariableMap -Name 'HDTComputerName')
+
+        $engine.Count | Should -Be 1
+        $engine[0].Writable | Should -BeFalse
+
+        $admin.Count | Should -Be 1
+        $admin[0].Writable | Should -BeTrue
+    }
+
+    It 'lets a row set Writable explicitly, the way Secret already opts out' {
+        $row = @(Get-HDTVariableMap -Name 'HDTDeploymentMethod')
+
+        $row.Count | Should -Be 1
+        $row[0].HDTName.StartsWith('_') | Should -BeFalse
+        $row[0].Writable | Should -BeFalse
+    }
+
     It 'reports an engine variable as not writable' {
         $engine = @(Get-HDTVariableMap -Name '_HDTLogPath')
 
