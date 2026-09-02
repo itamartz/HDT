@@ -750,4 +750,216 @@ Describe 'Invoke-HDTApplyDriversStep' {
             [int] $result.Data['staged'] | Should -Be 0
         }
     }
+
+    # THE BAR HAS TO TRACK THE WORK, NOT THE ITEM COUNT.
+    #
+    # Both of these were measured against the shipped step on 2026-09-02, and
+    # both of them passed every test in this file at the time.
+    #
+    #   The group path counted FILES. A pack whose bytes sit in one firmware
+    #   blob - ten trivial .dll files beside one big .bin - reported 9, 18, 27
+    #   ... 90 per cent while three per cent of the bytes had moved, then said
+    #   nothing whatsoever for the whole of the copy that was the entire
+    #   duration, then jumped to 100. A bar that arrives at ninety and stops is
+    #   not a slower bar than one that arrives at three and stops; it is a bar
+    #   that has told somebody the machine is nearly finished, wrongly.
+    #
+    #   The PnP path wrote EACH PACKAGE'S OWN METER as the step's number. Three
+    #   matched packages gave 4 9 ... 100, 33, 4 9 ... 100, 66, 4 9 ... 100 -
+    #   the bar ran to the end and restarted, twice. Invoke-HDTApplyUpdatesStep
+    #   carries the same note for the same reason: a bar that restarts reads as
+    #   a deployment that restarted, which is worse than one that does not move.
+    Context 'the bar, which has to track the work and not the item count' {
+
+        BeforeEach {
+            # ONE PACK, WITH ITS BYTES WHERE A REAL PACK PUTS THEM. A driver
+            # package is not a uniform heap of files: a Dell pack's 4.3 GB is
+            # firmware and .sys images with hundreds of tiny .cat and .dll files
+            # around them. Ten small files and one big one is that shape, small
+            # enough to run in a test.
+            $script:skewRoot = 'Z:\Deploy\Drivers\Win11\Dell inc\Dell Pro 3 16 P316265'
+
+            $skewFile = @{ ('{0}\net-realtek.inf' -f $script:skewRoot) = $script:matchingInf }
+            foreach ($i in 1..10) {
+                $skewFile[('{0}\small{1:d2}.dll' -f $script:skewRoot, $i)] = ('x' * 100)
+            }
+
+            # THE FILE THAT IS THE WHOLE OF THE TIME. Roughly ninety-seven per
+            # cent of the package, in one blocking copy.
+            $skewFile[('{0}\firmware.bin' -f $script:skewRoot)] = ('B' * 40000)
+
+            $script:skewSystem = New-HDTFakeFileSystem -File $skewFile
+
+            $script:newSkewContext = {
+                $catalog = New-HDTServiceCatalog -FileSystem $script:skewSystem -Clock $script:clock `
+                    -Image $script:image -Cim $script:cim
+
+                $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                    -FileSystem $script:skewSystem -Clock $script:clock -Level Debug
+
+                $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                $live['HDTOSVolume'] = 'W'
+                $live['HDTMake'] = 'Dell inc'
+                $live['HDTModel'] = 'Dell Pro 3 16 P316265'
+
+                return (New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:workspaceRoot `
+                        -Variable $live -Service $catalog -Log $log)
+            }
+
+            # THREE FOLDERS THAT EACH MATCH THIS MACHINE, which is what puts the
+            # PnP path on more than one package - and one package is the only
+            # case in which a per-package meter and a step meter agree.
+            $manyFile = @{}
+            foreach ($n in 1..3) {
+                $vendor = 'Z:\Deploy\Drivers\Win11\Vendor{0}' -f $n
+                $manyFile[('{0}\net{1}.inf' -f $vendor, $n)] = $script:matchingInf
+                foreach ($i in 1..20) {
+                    $manyFile[('{0}\pay{1}{2:d2}.sys' -f $vendor, $n, $i)] = ('x' * 500)
+                }
+            }
+
+            $script:manySystem = New-HDTFakeFileSystem -File $manyFile
+
+            $script:newManyContext = {
+                $catalog = New-HDTServiceCatalog -FileSystem $script:manySystem -Clock $script:clock `
+                    -Image $script:image -Cim $script:cim
+
+                $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                    -FileSystem $script:manySystem -Clock $script:clock -Level Debug
+
+                $live = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                $live['HDTOSVolume'] = 'W'
+
+                return (New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:workspaceRoot `
+                        -Variable $live -Service $catalog -Log $log)
+            }
+
+            # PROPERTY LOOKUPS GO THROUGH PSObject.Properties AND NEVER STRAIGHT
+            # AT THE NAME. These are ConvertFrom-Json objects and some of these
+            # fields are absent by design on some records; a bare $_.data.percent
+            # throws under StrictMode, which passes in a direct run and fails the
+            # gate.
+            $script:field = {
+                param([object] $Record, [string] $Name)
+
+                if ($null -eq $Record.PSObject.Properties['data'] -or $null -eq $Record.data) { return $null }
+                $property = $Record.data.PSObject.Properties[$Name]
+                if ($null -eq $property) { return $null }
+                return $property.Value
+            }
+        }
+
+        It 'never claims more of the package than it has actually copied' {
+            $context = & $script:newSkewContext
+
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $context
+
+            $progress = @(Get-HDTLogRecord -FileSystem $script:skewSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress')
+
+            $progress.Count | Should -BeGreaterThan 0
+
+            foreach ($one in $progress) {
+                $doneByte = & $script:field $one 'doneByte'
+                $totalByte = & $script:field $one 'totalByte'
+
+                $doneByte | Should -Not -BeNullOrEmpty -Because (
+                    'a percentage of a copy is only honest against the bytes it has moved, so the record has ' +
+                    ('to carry them: "{0}"' -f [string] $one.message))
+
+                $actual = [int] [System.Math]::Floor(([long] $doneByte / [long] $totalByte) * 100)
+                $claimed = [int] (& $script:field $one 'percent')
+
+                $claimed | Should -BeLessOrEqual ($actual + 1) -Because (
+                    ('"{0}" reported {1}% with {2} of {3} byte(s) copied. Counting FILES puts a pack whose ' -f
+                        [string] $one.message, $claimed, [long] $doneByte, [long] $totalByte) +
+                    'bytes sit in one firmware blob at ninety per cent while three per cent of it has moved, ' +
+                    'and then leaves it there for the whole of the copy that is the entire duration.')
+            }
+        }
+
+        It 'names the file that is about to take the time, before it takes it' {
+            # THE ONLY THING A BLOCKING COPY CAN SAY. One CopyItem of a 2 GB
+            # firmware image cannot be interrupted to report from inside it, so
+            # what stops the record arriving only at the end is saying which file
+            # it is BEFORE the copy starts. A technician then reads "copying
+            # firmware.bin (39 KB)" for the whole of it instead of a frozen
+            # number and no name at all.
+            $context = & $script:newSkewContext
+
+            $null = Invoke-HDTApplyDriversStep -Step $script:groupStep -Context $context
+
+            $progress = @(Get-HDTLogRecord -FileSystem $script:skewSystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress')
+
+            $named = @($progress | Where-Object { [string] $_.message -match 'firmware\.bin' })
+
+            $named.Count | Should -BeGreaterThan 0 -Because (
+                'the file holding ninety-seven per cent of the package is the whole of what the step spends ' +
+                'its time on, and nothing in the log said its name.')
+
+            # BEFORE, NOT AFTER. A record written once the copy has finished
+            # names the thing that has stopped taking the time.
+            [int] (& $script:field $named[0] 'percent') | Should -BeLessThan 100 -Because (
+                'a record naming the file is written before that file is copied, so it cannot already be ' +
+                'reporting the package as finished.')
+        }
+
+        It 'never sends the bar backwards across a set of packages' {
+            # EACH PACKAGE'S METER IS A SLICE OF THE STEP, NOT THE WHOLE OF IT -
+            # the same sentence Invoke-HDTApplyUpdatesStep carries. Three
+            # packages each reporting their own 0-100% sends the bar back to zero
+            # twice.
+            $context = & $script:newManyContext
+            $step = & $script:newStep @{ group = 'Win11\Acme\Nonesuch' }
+
+            $result = Invoke-HDTApplyDriversStep -Step $step -Context $context
+
+            [int] $result.Data['staged'] | Should -Be 3
+
+            $progress = @(Get-HDTLogRecord -FileSystem $script:manySystem -Path 'X:\HDT\Logs\HDT.jsonl' -Event 'step.progress')
+            $percent = @($progress | ForEach-Object { [int] (& $script:field $_ 'percent') })
+
+            $percent.Count | Should -BeGreaterThan 3
+
+            $highest = -1
+            foreach ($one in $percent) {
+                $one | Should -BeGreaterOrEqual $highest -Because (
+                    ('the step reported {0}% after {1}%. The sequence was: {2}. Each package own meter is ' -f
+                        $one, $highest, ($percent -join ' ')) +
+                    'a SLICE of the step, and writing it as the step own number runs the bar to the end ' +
+                    'once per package.')
+
+                if ($one -gt $highest) { $highest = $one }
+            }
+        }
+
+        It 'announces a driver before staging it, rather than only after' {
+            # ONE RECORD PER DRIVER, AFTER THE DRIVER FINISHES. That is fine for
+            # eighty-two fast drivers and degenerate for one slow one: the driver
+            # taking the eleven minutes is the one whose name never appears until
+            # it has stopped taking them.
+            $context = & $script:newManyContext
+            $step = & $script:newStep @{ group = 'Win11\Acme\Nonesuch' }
+
+            $null = Invoke-HDTApplyDriversStep -Step $step -Context $context
+
+            $all = @(Get-HDTLogRecord -FileSystem $script:manySystem -Path 'X:\HDT\Logs\HDT.jsonl')
+
+            $firstStaged = -1
+            for ($i = 0; $i -lt $all.Count; $i++) {
+                if ([string] $all[$i].event -eq 'driver.staged') { $firstStaged = $i; break }
+            }
+
+            $firstStaged | Should -BeGreaterThan -1
+
+            $announced = -1
+            for ($i = 0; $i -lt $firstStaged; $i++) {
+                if ([string] $all[$i].event -ne 'step.progress') { continue }
+                if ([string] $all[$i].message -match 'staging driver 1 of 3') { $announced = $i; break }
+            }
+
+            $announced | Should -BeGreaterThan -1 -Because (
+                'the step wrote nothing naming the first driver until after it had been staged, so the driver ' +
+                'that is taking the time is the one nobody can see.')
+        }
+    }
 }

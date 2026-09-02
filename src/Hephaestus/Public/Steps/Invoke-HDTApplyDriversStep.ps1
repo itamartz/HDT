@@ -302,6 +302,25 @@
     # inside a closure later can fail to resolve while every other assertion
     # still passes.
     $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
+    $writeLog = Get-Command -Name 'Write-HDTLog'
+    $formatByte = Get-Command -Name 'Format-HDTConsoleByteCount'
+
+    # WHERE THIS PACKAGE SITS IN THE STEP, WHICH IS NOT THE SAME NUMBER AS HOW
+    # FAR THROUGH THE PACKAGE IS. Three matched packages each reporting their own
+    # 0-100% gave the sequence 4 9 ... 100, 33, 4 9 ... 100, 66, 4 9 ... 100 on
+    # the PnP path: the bar ran to the end and restarted, twice. A bar that
+    # restarts reads as a deployment that restarted, which is a worse lie than
+    # the motionless bar it replaces - Invoke-HDTApplyUpdatesStep carries the
+    # same note and the same arithmetic.
+    #
+    # A HASHTABLE BECAUSE THE $stage BLOCK IS INVOKED WITH '&' and gets its own
+    # scope; an [int] assigned inside it would be a local thrown away, and the
+    # composition would silently do nothing.
+    #
+    # Total STARTS AT ONE, WHICH IS THE GROUP PATH EXACTLY. The group goes in
+    # whole - one package - so the package's own percentage IS the step's, and
+    # the PnP loop raises Total to the number it matched.
+    $packageState = @{ Done = 0; Total = 1 }
 
     # WHERE THE DRIVERS LAND ON THE MACHINE. MDT's ZTIDrivers puts them under
     # the OS volume and points the answer file's DriverPaths at the folder;
@@ -344,19 +363,39 @@
         #
         # THE DENOMINATOR IS EXACT, so this percentage is counted rather than
         # guessed from elapsed time: Copy-HDTDriverPackage walks the package
-        # before it copies a byte, so it knows the file count up front.
+        # before it copies a byte, so it knows the file count AND the byte count
+        # up front.
         #
-        # EVERY FIVE PERCENT, WHICH IS A MEASURED STRIDE AND NOT A GUESS. 1302
-        # files would be 1302 records, and the JSONL is read back and re-parsed
-        # on every nudge. Every whole percent is a hundred records - still enough
-        # to bury the five Info lines a technician is meant to read at a glance.
-        # ApplyImage wrote 22 progress records for the whole OS apply on
-        # LT-7FJ45S2, so a five percent stride puts this at the same order: about
-        # twenty records over 48 seconds, a bar that moves every two or three
-        # seconds, which is all "it is not hung" requires.
+        # AND IT IS THE BYTE COUNT THAT IS THROTTLED ON, NOT THE FILE COUNT. A
+        # driver package is not a uniform heap of files: a Dell pack's 4.3 GB is
+        # firmware and .sys images with hundreds of tiny .cat and .dll files
+        # around them. Counting files, a pack whose bytes sit in one blob
+        # reported 9, 18, 27 ... 90 per cent while THREE per cent of it had
+        # moved, then said nothing at all for the copy that was the entire
+        # duration, then jumped to 100. A bar that arrives at ninety and stops is
+        # not a slower bar than one that arrives at three and stops - it has told
+        # somebody the machine is nearly finished, and it was not.
         #
-        # AND 100 ALWAYS REPORTS. A package whose file count does not divide into
-        # the stride would otherwise finish on 96% and stay there.
+        # AND THE FILE THAT IS ABOUT TO TAKE THE TIME IS NAMED BEFORE IT TAKES
+        # IT. IFileSystem.CopyItem takes one file and returns when it is
+        # finished; nothing can report from inside a single call. So a file worth
+        # waiting for - a twentieth of the package or more - gets a record of its
+        # own before the copy starts, and the log reads "copying firmware.bin
+        # (2.1 GB)" for the minutes it takes rather than a frozen number with no
+        # name attached to it.
+        #
+        # EVERY FIVE PERCENT OTHERWISE, WHICH IS A MEASURED STRIDE AND NOT A
+        # GUESS. 1302 files would be 1302 records, and the JSONL is read back and
+        # re-parsed on every nudge. Every whole percent is a hundred records -
+        # still enough to bury the five Info lines a technician is meant to read
+        # at a glance. ApplyImage wrote 22 progress records for the whole OS
+        # apply on LT-7FJ45S2, so a five percent stride puts this at the same
+        # order: about twenty records over 48 seconds, a bar that moves every two
+        # or three seconds, which is all "it is not hung" requires.
+        #
+        # AND 100 ALWAYS REPORTS. A package whose bytes do not divide into the
+        # stride would otherwise finish on 96% and stay there.
+        #
         # A HASHTABLE AND NOT AN [int], and this is the same trap Get-HDTDriver's
         # walk carries a note about: Copy-HDTDriverPackage invokes this block
         # with '&', which gives it its own scope, so `$last = 5` inside would
@@ -369,20 +408,51 @@
             -OnProgress {
             param($Progress)
 
-            if ([int] $Progress.Percent -lt ([int] $percentState.Last + 5) -and
-                [int] $Progress.Percent -ne 100) { return }
+            $packagePercent = [int] $Progress.BytePercent
 
-            if ([int] $Progress.Percent -eq [int] $percentState.Last) { return }
+            # A FILE BIG ENOUGH TO BE WORTH NAMING. One twentieth of the package
+            # is the same stride the throttle uses, so a package of equal files
+            # never trips this and a package with a blob in it always does.
+            $worthNaming = ([string] $Progress.Phase -eq 'Starting' -and
+                [long] $Progress.TotalByte -gt 0 -and
+                (([long] $Progress.Length * 20) -ge [long] $Progress.TotalByte))
 
-            $percentState.Last = [int] $Progress.Percent
+            if (-not $worthNaming) {
+                if ([string] $Progress.Phase -ne 'Copied') { return }
+                if ($packagePercent -lt ([int] $percentState.Last + 5) -and $packagePercent -ne 100) { return }
+                if ($packagePercent -eq [int] $percentState.Last) { return }
+            }
 
-            Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyDrivers' `
-                -Message ('staging {0}: {1}%' -f $name, [int] $Progress.Percent) `
+            $percentState.Last = $packagePercent
+
+            # THE STEP'S NUMBER: this package's position plus its own share of
+            # one slice. Monotonic across the set by construction, because the
+            # package's own meter is monotonic and the base only rises.
+            $stepPercent = [int] [System.Math]::Floor(
+                ((([int] $packageState.Done * 100) + $packagePercent) / [int] $packageState.Total))
+
+            # THE PACKAGE'S OWN PERCENTAGE STAYS IN THE MESSAGE, because that is
+            # the number a technician watching one folder copy is matching
+            # against - the same split Invoke-HDTApplyUpdatesStep makes between
+            # dism's meter and the step's.
+            $message = 'staging {0}: {1}%' -f $name, $packagePercent
+            if ($worthNaming) {
+                $message = 'staging {0}: {1}% - copying {2} ({3})' -f $name, $packagePercent,
+                (Split-Path -Path ([string] $Progress.File) -Leaf),
+                (& $formatByte -Byte ([long] $Progress.Length) -Compact)
+            }
+
+            & $writeLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyDrivers' `
+                -Message $message `
                 -Data ([ordered] @{
-                    package = [string] $name
-                    done    = [int] $Progress.Done
-                    total   = [int] $Progress.Total
-                    percent = [int] $Progress.Percent
+                    package        = [string] $name
+                    file           = [string] $Progress.File
+                    done           = [int] $Progress.Done
+                    total          = [int] $Progress.Total
+                    doneByte       = [long] $Progress.DoneByte
+                    totalByte      = [long] $Progress.TotalByte
+                    percent        = $stepPercent
+                    packagePercent = $packagePercent
                 })
 
             # AND THEN TELL THE WINDOW TO LOOK. A record nothing reads back is a
@@ -870,6 +940,13 @@
             # EVERY DRIVER, NOT EVERY FIFTH. ApplyImage throttles because DISM
             # reports a hundred times in a few minutes; this reports 82 times in
             # eleven, and a bar that moves once a driver is the whole point.
+            #
+            # AND BEFORE THE DRIVER AS WELL AS AFTER IT. One record per driver,
+            # written once the driver has finished, is fine for eighty-two fast
+            # drivers and degenerate for one slow one: the package that is taking
+            # the time is precisely the one whose name does not appear until it
+            # has stopped taking it. The pair of records also bounds the silence
+            # to one package rather than to the whole set.
             # NOT $injected: THAT NAME IS ALREADY AN ArrayList declared above,
             # which the $inject closure appends every injected package to and
             # which the step's own result counts at the end. Reusing it as a
@@ -877,6 +954,10 @@
             # the closure's .Add() threw and the step reported Failed - six
             # tests, all of them right.
             $progressAt = 0
+
+            # THE SET IS THE DENOMINATOR NOW, so each package's own meter lands
+            # as a slice of the step rather than as the whole of it.
+            $packageState['Total'] = [System.Math]::Max(1, $matchedCount)
 
             foreach ($one in $match) {
                 Write-HDTLog -Context $Context.Log -Event 'driver.match' -Component 'ApplyDrivers' `
@@ -892,6 +973,29 @@
                         class      = [string] $one.Driver.Class
                     })
 
+                # WHICH PACKAGE THE STEP IS ABOUT TO SPEND ITS TIME ON, SAID
+                # BEFORE IT SPENDS IT. The percentage here is the work already
+                # FINISHED - nothing is claimed for the package about to start -
+                # so this cannot put the bar ahead of the copy.
+                $startPercent = [int] [System.Math]::Floor(($progressAt * 100) / [int] $packageState.Total)
+
+                Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyDrivers' `
+                    -Message ('staging driver {0} of {1}: {2}' -f ($progressAt + 1), $matchedCount, [string] $one.Driver.InfName) `
+                    -Data ([ordered] @{
+                        infName = [string] $one.Driver.InfName
+                        target  = $applyPath
+                        done    = $progressAt
+                        total   = $matchedCount
+                        percent = $startPercent
+                    })
+
+                Update-HDTProgressDisplay -Context $Context
+
+                # AND WHERE THE PACKAGE ABOUT TO BE COPIED SITS IN THE SET, so
+                # its own 0-100% lands as a slice rather than as the step's whole
+                # number. Set before the copy, raised after it.
+                $packageState['Done'] = $progressAt
+
                 # THE PACKAGE, NOT THE .inf. Driver.FullPath is the .inf file
                 # itself; a driver is that file plus the .sys, .cat and .dll
                 # beside and below it, and copying the .inf alone stages
@@ -901,14 +1005,12 @@
                 & $stage (Split-Path -Path ([string] $one.Driver.FullPath) -Parent) ([string] $one.Driver.Folder)
 
                 $progressAt++
+                $packageState['Done'] = $progressAt
 
-                $percent = 100
-                if ($matchedCount -gt 0) {
-                    $percent = [int] [System.Math]::Floor(($progressAt / $matchedCount) * 100)
-                }
+                $percent = [int] [System.Math]::Floor(($progressAt * 100) / [int] $packageState.Total)
 
                 Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyDrivers' `
-                    -Message ('staging driver {0} of {1}: {2}' -f $progressAt, $matchedCount, [string] $one.Driver.InfName) `
+                    -Message ('staged driver {0} of {1}: {2}' -f $progressAt, $matchedCount, [string] $one.Driver.InfName) `
                     -Data ([ordered] @{
                         infName = [string] $one.Driver.InfName
                         target  = $applyPath
