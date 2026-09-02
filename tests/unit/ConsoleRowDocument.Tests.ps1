@@ -124,6 +124,73 @@ Describe 'Get-HDTConsoleRowDocument' {
         }
     }
 
+    # AN IMPORTED UPDATE WRITES ITSELF TOO. Set-HDTWindowsUpdate takes a share
+    # and an id, the way Set-HDTApplication does, and there is no
+    # Save-HDTWindowsUpdateDocument to pair it with.
+    Context 'a Windows update row' {
+
+        BeforeAll {
+            $script:update = Get-HDTConsoleRowDocument -Property 'name' `
+                -Row (New-HDTTestDetailRow -Kind 'WindowsUpdate' -Name 'KB5094126-x64')
+        }
+
+        It 'is a row this pane edits' {
+            $script:update.Supported | Should -BeTrue
+        }
+
+        It 'names its own setter and no saver' {
+            $script:update.Setter | Should -BeExactly 'Set-HDTWindowsUpdate'
+            $script:update.Saver | Should -BeExactly ''
+        }
+
+        It 'carries the share and the id it takes instead of lines' {
+            $script:update.WorkspaceRoot | Should -BeExactly 'C:\HDTLab\Share'
+            $script:update.Id | Should -BeExactly 'KB5094126-x64'
+        }
+
+        # THE TREE ROW READS 'KB - name', so a rename makes it stale and a
+        # description does not.
+        It 'rebuilds the tree for a rename and not for a description' {
+            $script:update.NeedsRebuild | Should -BeTrue
+
+            (Get-HDTConsoleRowDocument -Property 'description' `
+                    -Row (New-HDTTestDetailRow -Kind 'WindowsUpdate' -Name 'KB5094126-x64')).NeedsRebuild |
+                Should -BeFalse
+        }
+
+        It 'echoes the share, the id and the value it was given' {
+            ($script:update.CommandFormat -f '2026-06 cumulative') |
+                Should -BeExactly "Set-HDTWindowsUpdate -WorkspaceRoot 'C:\HDTLab\Share' -Id 'KB5094126-x64' -Name '2026-06 cumulative'"
+        }
+    }
+
+    # THE SET, NOT THE ONE JUST ADDED. Every kind this pane edits writes through
+    # EITHER a setter-and-saver pair against a document path, OR a command that
+    # takes a share and an id - and a kind wired for neither is a row whose boxes
+    # accept typing and drop it. That is the failure this file exists to catch,
+    # so it is asserted over every kind rather than over the newest.
+    Context 'every kind this pane edits' {
+
+        It 'is wired for one of the two ways of writing, and never for neither' {
+            foreach ($kind in @('TaskSequence', 'OperatingSystem', 'Share', 'Application', 'WindowsUpdate')) {
+                $answer = Get-HDTConsoleRowDocument -Property 'name' `
+                    -Row (New-HDTTestDetailRow -Kind $kind -WorkspacePath 'C:\HDTLab\Share\workspace.yaml')
+
+                $answer.Supported | Should -BeTrue -Because ("{0} is a row the pane draws boxes on" -f $kind)
+                $answer.Setter | Should -Not -BeNullOrEmpty -Because ("{0} must name the command that writes it" -f $kind)
+
+                $writesItself = [string]::IsNullOrEmpty([string] $answer.Saver)
+
+                if ($writesItself) {
+                    $answer.WorkspaceRoot | Should -Not -BeNullOrEmpty -Because ("{0} writes itself, so it needs a share" -f $kind)
+                    $answer.Id | Should -Not -BeNullOrEmpty -Because ("{0} writes itself, so it needs an id" -f $kind)
+                } else {
+                    $answer.DocumentPath | Should -Not -BeNullOrEmpty -Because ("{0} is read, spliced and saved, so it needs a path" -f $kind)
+                }
+            }
+        }
+    }
+
     Context 'a row this pane does not edit' {
 
         It 'refuses rather than guessing a document' {

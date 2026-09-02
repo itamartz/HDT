@@ -170,4 +170,171 @@ InModuleScope -ModuleName Hephaestus {
             }
         }
     }
+
+    # THE SAME GESTURE ON AN IMPORTED UPDATE, which had no write path at all: the
+    # pane showed a name it could not change and no description row whatever.
+    #
+    # DRIVEN THROUGH THE WINDOW FOR THE REASON ABOVE. Set-HDTWindowsUpdate can be
+    # right on its own and the pane still write nothing - the row has to reach
+    # Get-HDTConsoleRowDocument, come back naming a command that takes a share
+    # and an id rather than lines, and be called with neither of the two
+    # parameters the read-splice-save path would have handed it.
+    Describe 'a description typed into the details pane of an imported update' {
+
+        BeforeAll {
+            $script:updateRoot = Join-Path -Path $TestDrive -ChildPath 'share'
+            $script:updateFolder = Join-Path -Path $script:updateRoot -ChildPath 'WindowsUpdates\KB5094126-x64'
+
+            [void] (New-Item -Path $script:updateFolder -ItemType Directory -Force)
+
+            [System.IO.File]::WriteAllText(
+                (Join-Path -Path $script:updateRoot -ChildPath 'workspace.yaml'),
+                "schemaVersion: 1`nid: HDT`nname: HDT share`n")
+
+            $script:updatePath = Join-Path -Path $script:updateFolder -ChildPath 'update.yaml'
+
+            [System.IO.File]::WriteAllText($script:updatePath, (@(
+                        '# Imported from the Update Catalogue.'
+                        'schemaVersion: 1'
+                        'id: KB5094126-x64'
+                        'kb: KB5094126'
+                        'name: KB5094126 for Windows 11 24H2'
+                        'release: Win11-24H2'
+                        'kind: CumulativeUpdate'
+                        'architecture: x64'
+                        'fileName: windows11.0-kb5094126-x64.msu'
+                        'enabled: true'
+                    ) -join [System.Environment]::NewLine))
+
+            # THE REAL ROW BUILDERS, so the shape under test is the shape the
+            # console shows. Only the two rows the pane makes typeable, so the
+            # container index below is the row it names.
+            $field = @(
+                New-HDTConsoleField -Label 'Name' -Value 'KB5094126 for Windows 11 24H2' -Property 'name'
+                New-HDTConsoleField -Label 'Description' -Value '' -Property 'description'
+            )
+
+            $script:updateNode = New-HDTConsoleNode -Depth 0 -Kind 'WindowsUpdate' -Status 'Ok' `
+                -Text 'KB5094126 - KB5094126 for Windows 11 24H2' -Name 'KB5094126-x64' -Field $field `
+                -Command "Get-HDTWindowsUpdate -WorkspaceRoot '$script:updateRoot' -Id 'KB5094126-x64'" `
+                -Subject ([pscustomobject] @{ Path = $script:updatePath }) `
+                -Header ([pscustomobject] @{
+                        Title = 'HDT'; Root = $script:updateRoot; DeployRoot = $script:updateRoot
+                    })
+
+            # OpenShare IS ON THE REAL HOST and the rebuild writes to it - what
+            # the window ended up with, for Show-HDTConsole to remember after it
+            # closes. A rename rebuilds the tree, so a double without it fails on
+            # the write rather than on anything under test.
+            $script:updateWindow = New-HDTConsoleView `
+                -ConsoleHost ([pscustomobject] @{
+                        Answer = ''; Width = 0; Height = 0; Window = $null; OpenShare = [string[]] @()
+                    }) `
+                -Xaml $script:consoleXaml -Title 'Hephaestus' -Node ([object[]] @($script:updateNode)) `
+                -Theme (Get-HDTConsoleTheme) `
+                -Size ([pscustomobject] @{ Width = 1800; Height = 900; Left = 0; Top = 0 })
+
+            $content = $script:updateWindow.Content
+            $content.Measure([System.Windows.Size]::new(1800, 900))
+            $content.Arrange([System.Windows.Rect]::new(0, 0, 1800, 900))
+            $content.UpdateLayout()
+
+            $tree = $script:updateWindow.FindName('HDTConsoleTree')
+            $tree.UpdateLayout()
+
+            $item = $tree.ItemContainerGenerator.ContainerFromItem($script:updateNode)
+            $item.IsSelected = $true
+
+            $script:updateWindow.Dispatcher.Invoke([action] {},
+                [System.Windows.Threading.DispatcherPriority]::Background)
+
+            $detail = $script:updateWindow.FindName('HDTDetailList')
+            $detail.UpdateLayout()
+
+            $script:updateNameBox = Get-HDTTestTemplateBox -Root $detail.ItemContainerGenerator.ContainerFromIndex(0)
+            $script:updateDescriptionBox = Get-HDTTestTemplateBox -Root $detail.ItemContainerGenerator.ContainerFromIndex(1)
+        }
+
+        It 'draws a typeable box for each of the two rows' {
+            $script:updateNameBox.DataContext.Property | Should -BeExactly 'name'
+            $script:updateDescriptionBox.DataContext.Property | Should -BeExactly 'description'
+
+            $script:updateNameBox.IsReadOnly | Should -BeFalse
+            $script:updateDescriptionBox.IsReadOnly | Should -BeFalse
+        }
+
+        Context 'and the focus moved off the description' {
+
+            BeforeAll {
+                $script:updateDescriptionBox.Text = 'Held back until the June servicing window.'
+                $script:updateThrew = ''
+
+                try {
+                    $script:updateDescriptionBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                } catch {
+                    $script:updateThrew = [string] $_.Exception.Message
+                }
+
+                $script:updateWritten = [System.IO.File]::ReadAllText($script:updatePath)
+            }
+
+            It 'does not throw out of the handler and onto a message box' {
+                $script:updateThrew | Should -BeNullOrEmpty
+            }
+
+            It 'writes the description into update.yaml on disk' {
+                $script:updateWritten | Should -Match 'description:.*June servicing window'
+            }
+
+            It 'splices rather than re-serialising, so the comment survives' {
+                $script:updateWritten | Should -Match '# Imported from the Update Catalogue\.'
+                $script:updateWritten | Should -Match 'id:\s*KB5094126-x64'
+                $script:updateWritten | Should -Match 'fileName:\s*windows11'
+            }
+
+            It 'echoes the command that did it, which is what DESIGN 12 promises' {
+                [string] $script:updateWindow.FindName('HDTCommandText').Text |
+                    Should -BeExactly ("Set-HDTWindowsUpdate -WorkspaceRoot '{0}' -Id 'KB5094126-x64' -Description 'Held back until the June servicing window.'" -f $script:updateRoot)
+            }
+
+            It 'takes the typed value as the row''s new original' {
+                [string] $script:updateDescriptionBox.DataContext.Original |
+                    Should -BeExactly 'Held back until the June servicing window.'
+            }
+        }
+
+        Context 'and the name is renamed after it' {
+
+            BeforeAll {
+                $script:updateNameBox.Text = '2026-06 cumulative update, Windows 11 24H2'
+                $script:renameThrew = ''
+
+                try {
+                    $script:updateNameBox.RaiseEvent((New-Object -TypeName System.Windows.RoutedEventArgs `
+                                -ArgumentList ([System.Windows.Controls.TextBox]::LostFocusEvent)))
+                } catch {
+                    $script:renameThrew = [string] $_.Exception.Message
+                }
+
+                $script:renameWritten = [System.IO.File]::ReadAllText($script:updatePath)
+            }
+
+            # A RENAME REBUILDS THE TREE, which re-reads every open share - so
+            # this is also the only test that drives that path for an update, and
+            # a share that would not reopen would surface here.
+            It 'does not throw out of the handler and onto a message box' {
+                $script:renameThrew | Should -BeNullOrEmpty
+            }
+
+            It 'writes the new name and keeps the description it wrote before' {
+                $script:renameWritten | Should -Match 'name:.*2026-06 cumulative update'
+                $script:renameWritten | Should -Match 'June servicing window'
+            }
+
+            It 'leaves the id alone, because it is the folder name' {
+                $script:renameWritten | Should -Match 'id:\s*KB5094126-x64'
+            }
+        }
+    }
 }

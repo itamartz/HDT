@@ -865,6 +865,46 @@
                 return
             }
 
+            # AN IMPORTED UPDATE WRITES ITSELF TOO, and with nothing to decide
+            # about types on the way: only name and description reach here -
+            # everything else on that pane came out of the package's own
+            # metadata, and the id is the folder name - so both are plain
+            # strings and there is no Get-HDTConsoleUpdateEdit to route through.
+            #
+            # AN EMPTY DESCRIPTION IS A REMOVAL, not a refusal, which is why the
+            # box is allowed to be cleared; an empty NAME is refused by the
+            # command and the box goes back, the way it does everywhere else.
+            if ($kind -eq 'WindowsUpdate') {
+                $splat = @{
+                    WorkspaceRoot = [string] $edit.WorkspaceRoot
+                    Id            = [string] $edit.Id
+                    Confirm       = $false
+                }
+
+                $splat[[string] $edit.Parameter] = $typed
+
+                try {
+                    [void] (Set-HDTWindowsUpdate @splat)
+                } catch {
+                    # A REFUSAL PUTS THE BOX BACK, as everywhere else: a box
+                    # holding a value the document rejected is a lie about what
+                    # is on disk.
+                    & $revert ([string] $row.Original)
+                    $command.Text = [string] $_.Exception.Message
+                    return
+                }
+
+                $row.Original = $typed
+
+                # THE ROW READS 'KB - name', so only a rename makes the tree
+                # stale - and rebuilding re-reads every open share.
+                if ($edit.NeedsRebuild) { & $rebuildTree }
+
+                $command.Text = $edit.CommandFormat -f $typed
+
+                return
+            }
+
             # A SHARE POINTS AT ITS workspace.yaml UNDER ANOTHER NAME, because
             # a workspace projection carries the root it was opened from as
             # well as the document - and it has NO Path at all, so reading one

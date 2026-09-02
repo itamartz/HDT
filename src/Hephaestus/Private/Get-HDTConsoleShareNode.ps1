@@ -540,7 +540,19 @@
             $field = @(
                 New-HDTConsoleField -Label 'KB' -Value $current.Kb
                 New-HDTConsoleField -Label 'Id' -Value $current.Id
-                New-HDTConsoleField -Label 'Name' -Value $current.Name
+
+                # THE TWO AN ADMINISTRATOR OWNS, and the only two on this pane
+                # that can be typed. Everything below came out of the package's
+                # own CompDB metadata, and the id above is the folder name under
+                # WindowsUpdates\ - so a box on either would be a box offering to
+                # rewrite a measured fact or to move a directory.
+                #
+                # Nothing in a deployment matches on these: the ApplyUpdates step
+                # selects by RELEASE, never by id or name, so a rename changes
+                # what a technician reads and nothing about what gets applied.
+                New-HDTConsoleField -Label 'Name' -Value $current.Name -Property 'name'
+                New-HDTConsoleField -Label 'Description' -Value ([string] $current.Description) -Property 'description'
+
                 New-HDTConsoleField -Label 'Release' -Value $current.Release
                 # READ OUT OF THE PACKAGE, NOT OFF ITS NAME, which is the
                 # difference between this catalog and one built by parsing file

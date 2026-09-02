@@ -33,6 +33,13 @@
             that treated all four kinds alike would hand it neither of the two
             parameters it does take.
 
+            AN IMPORTED UPDATE WRITES ITSELF THE SAME WAY, through
+            Set-HDTWindowsUpdate. It differs from an application in one respect:
+            only name and description ever reach it - everything else in
+            update.yaml came out of the package's own metadata and the id is the
+            folder name - so both values are plain strings and the echoed line is
+            composed here rather than by the caller.
+
             THE REBUILD IS THE EXPENSIVE HALF - it re-reads every open share and
             revalidates every sequence in it, about a third of a second against
             one lab share and growing with the number open. The tree row reads
@@ -113,7 +120,7 @@
         CommandFormat = ''
     }
 
-    if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application') -notcontains $kind) { return $answer }
+    if (@('TaskSequence', 'OperatingSystem', 'Share', 'Application', 'WindowsUpdate') -notcontains $kind) { return $answer }
 
     $answer.Supported = $true
 
@@ -134,6 +141,26 @@
         # The application echo is composed by the caller: what to pass and what
         # to call it is Get-HDTConsoleApplicationEdit's decision, because the
         # exit codes are int[] and the dependencies string[].
+        return $answer
+    }
+
+    # AN IMPORTED UPDATE WRITES ITSELF TOO, for the same reason an application
+    # does: Set-HDTWindowsUpdate takes a share and an id rather than lines, and
+    # saves. There is no Save-HDTWindowsUpdateDocument to pair it with.
+    #
+    # ONLY TWO KEYS EVER REACH IT - name and description - because everything
+    # else in update.yaml was read out of the package's own CompDB metadata, and
+    # the id is the folder name under WindowsUpdates\. So unlike an application
+    # there is nothing to decide about types: both are plain strings, and the
+    # echo can be composed here rather than by the caller.
+    if ($kind -eq 'WindowsUpdate') {
+        $answer.Setter = 'Set-HDTWindowsUpdate'
+        $answer.WorkspaceRoot = [string] $Row.HeaderRoot
+        $answer.Id = [string] $Row.Name
+
+        $answer.CommandFormat = "Set-HDTWindowsUpdate -WorkspaceRoot '{0}' -Id '{1}' -{2} '{{0}}'" -f
+        $answer.WorkspaceRoot, $answer.Id, $answer.Parameter
+
         return $answer
     }
 
