@@ -895,6 +895,42 @@ Describe 'the category a window can act on' {
         $row[0].Text | Should -BeExactly 'Boot Image'
         $row[0].Subject | Should -BeExactly 'C:\ws\workspace.yaml'
     }
+
+    # NO SHARES AT ALL IS A TREE, NOT A REFUSAL.
+    #
+    # This is reachable and it crashed. Closing a deployment share rebuilds the
+    # tree from the shares that are LEFT - New-HDTConsoleView's $closeWorkspace
+    # filters the closed one out and hands the remainder to $rebuildFrom - so
+    # closing the ONLY open share hands this an empty list. A mandatory
+    # [object[]] refuses one: 'Cannot bind argument to parameter ''Workspace''
+    # because it is an empty array', thrown on the dispatcher out of a click
+    # handler, which is a message box and a window that will not close properly.
+    #
+    # It surfaced from the update pane rather than from the close item: renaming
+    # an update rebuilds the tree too, and a rebuild with nothing to rebuild from
+    # is the same call.
+    Context 'when no share is open at all' {
+
+        BeforeAll {
+            $script:emptyNode = @(Get-HDTConsoleTreeNode -Workspace ([object[]] @()))
+        }
+
+        It 'builds a tree rather than refusing the empty list' {
+            @($script:emptyNode).Count | Should -Be 1
+            [string] $script:emptyNode[0].Kind | Should -BeExactly 'Root'
+        }
+
+        It 'says how many shares there are, which is none' {
+            [string] $script:emptyNode[0].Text | Should -BeExactly 'Deployment Shares (0)'
+        }
+
+        # THE FOOTER ECHOES A COMMAND AN ADMINISTRATOR CAN RUN, and with no
+        # share open the joined path list is empty - so the line read
+        # "Show-HDTConsole -Path ''", which is a command that fails if typed.
+        It 'echoes a command that would actually run' {
+            [string] $script:emptyNode[0].Command | Should -BeExactly 'Show-HDTConsole'
+        }
+    }
 }
 
 

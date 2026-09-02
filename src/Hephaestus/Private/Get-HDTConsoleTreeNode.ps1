@@ -90,8 +90,15 @@
     [CmdletBinding()]
     [OutputType([pscustomobject[]])]
     param(
+        # AN EMPTY LIST IS A TREE WITH NO SHARES IN IT, not a refusal. Closing a
+        # deployment share rebuilds the tree from the shares that are LEFT, so
+        # closing the only open one hands this nothing - and a mandatory
+        # [object[]] refuses an empty array outright, which threw
+        # 'Cannot bind argument to parameter ''Workspace''' on the dispatcher out
+        # of a click handler. -Workspace @() draws 'Deployment Shares (0)'.
         [Parameter(Mandatory = $true, Position = 0)]
         [ValidateNotNull()]
+        [AllowEmptyCollection()]
         [object[]] $Workspace,
 
         # HOW THE WINDOW OPENS. A share with two operating systems, seventy
@@ -115,7 +122,15 @@
 
     # The root row is the window, not one share, so it names the command that
     # opened it - and, unlike what stood here, one an administrator can run.
-    $rootCommand = "Show-HDTConsole -Path '{0}'" -f (@($share | ForEach-Object { $_.Root }) -join "', '")
+    #
+    # WITH NO SHARE OPEN THERE IS NO PATH TO NAME, and joining an empty list
+    # produced "Show-HDTConsole -Path ''" - a line that fails if typed, in the
+    # box whose whole purpose is to be typed.
+    $rootCommand = 'Show-HDTConsole'
+
+    if ($share.Count -gt 0) {
+        $rootCommand = "Show-HDTConsole -Path '{0}'" -f (@($share | ForEach-Object { $_.Root }) -join "', '")
+    }
 
     $listed = foreach ($current in $share) {
         '{0,-8} {1}' -f $current.Status, $current.Root
