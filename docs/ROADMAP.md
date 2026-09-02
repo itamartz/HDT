@@ -771,7 +771,9 @@ evidence.
 **Tests first:** projection completeness — every artifact a selected sequence
 references is included, and nothing else (this is the correctness heart of media
 generation, and it is pure logic); provider-swap equivalence: the same sequence
-produces the same operation list under `Local` as under `Smb`.
+produces the same operation list under `Local` as under `Smb`;
+`HDTDeploymentMethod` is `MEDIA` under the `Local` provider and `UNC` under
+`Smb`, and a rules document that tries to set it is refused.
 
 **Exit — capture:** a VM deployed by HDT, customized, sysprepped by HDT and
 captured by HDT, whose WIM `Import-HDTOperatingSystem` promotes into the OS
@@ -800,36 +802,79 @@ stop the reference VM, then deploy the second.
 **Exit — media:** a USB stick built from the share deploys a machine with no
 network.
 
-**Carried over from v1, and it must be decided before `New-HDTMedia` is
-written** — three behaviours built for SMB that a disc has no answer for:
+**`HDTDeploymentMethod` — the variable the three behaviours below gate on.**
+Settled 2026-09-02. MDT carries **two** variables here, not one: `DeploymentType`
+(NEWCOMPUTER / REFRESH / REPLACE), which HDT already has as `HDTDeploymentType`,
+and `DeploymentMethod` (UNC / MEDIA / OSD / SCCM — `ZTIGather.xml` line 10),
+which it does not. Offline media does not change the first — a media deployment
+is still NEWCOMPUTER — so the one that is missing is the second, and everything
+below reads it rather than sniffing at a provider object.
 
-1. **Five attempts, then the Welcome screen.** `Start-HDTDeployment` retries the
-   deploy root five times (2/4/6/8s) and, when it still cannot be reached, opens
-   the Welcome screen with the share box prefilled so a technician can correct
-   it. That is right for SMB, where the usual cause is an address that moved. On
-   media there is nothing to correct: the content is on the disc the machine
-   booted from, and a share box offered for a disc is a question with no answer.
-   The Local provider should fail with what is actually wrong - the marker was
-   not found on any ready volume - rather than asking for a UNC path.
+- **Two values, `UNC` and `MEDIA`.** No `OSD`, no `SCCM`: those are MECM's, and
+  HDT does not integrate with it (rule 4). `LiteTouch.wsf` line 320 defaults to
+  `UNC` and sets `MEDIA` when it finds the media marker; HDT does the same thing
+  from the same evidence.
+- **Engine origin, and `Assert-HDTRuleDocument` must refuse it as a settable
+  name.** It is a fact about how the machine booted, not a preference. An admin
+  who declares `MEDIA` on a share does not get a media deployment — they get a
+  run that skips the network it is in fact using, and every symptom points
+  somewhere else.
+- **Published where the provider is already known.** `bootstrap.Provider` is
+  baked into the boot image by `Update-HDTBootImage` and read at
+  `Start-HDTDeployment.ps1:980`: `Smb` is `UNC`, `Local` is `MEDIA`. Setting it
+  there puts it in front of the first step, so a step condition and the engine
+  gate on one value instead of two that can disagree.
+- **The surfaces it has to reach** (CLAUDE.md rule 8): `Get-HDTVariableMap` for
+  the MDT name, the provenance log, `Invoke-HDTTattooStep`, the wizard summary,
+  and the rules validator above. A test written against the **set** of published
+  engine variables, not against this one.
 
-2. **The corrected share is carried into the full-OS leg, for UNC only.**
-   `Invoke-HDTTaskSequence` writes the resolved deploy root into the staged
-   `bootstrap.json` so the resume leg uses the share that actually answered.
-   It is guarded to `\\` deliberately: media that is `D:` in WinPE is commonly
-   another letter once Windows has assigned its own, so carrying a resolved
-   local path would hand the resume a drive letter that has moved. Media must
-   keep the image's own value and resolve it again through
-   `Resolve-HDTDeployRoot` from the content marker. There is a test for this -
-   "leaves a local root alone, because a drive letter moves" - and it should
-   stay green when media arrives.
+**Carried over from v1 — three behaviours built for SMB that a disc has no
+answer for. All three settled 2026-09-02; two need building, one is already
+built and only needs keeping:**
+
+1. **Five attempts, then the Welcome screen — neither of them, on media.**
+   `Start-HDTDeployment` retries the deploy root five times (2/4/6/8s) and, when
+   it still cannot be reached, opens the Welcome screen with the share box
+   prefilled so a technician can correct it. That is right for SMB, where the
+   usual cause is an address that moved. On media there is nothing to correct:
+   the content is on the disc the machine booted from, and a share box offered
+   for a disc is a question with no answer.
+
+   **Settled: under `MEDIA` the deployment starts straight away.** No retry
+   ladder, no Welcome screen. Scan the ready volumes once, and when the marker
+   is not on any of them fail with what is actually wrong — *the content marker
+   was not found on any ready volume*, naming the volumes considered — rather
+   than asking for a UNC path.
+
+2. **The corrected share is carried into the full-OS leg, for UNC only — already
+   built, nothing left to decide.** `Invoke-HDTTaskSequence` writes the resolved
+   deploy root into the staged `bootstrap.json` so the resume leg uses the share
+   that actually answered, and it is guarded to `\\` deliberately: media that is
+   `D:` in WinPE is commonly another letter once Windows has assigned its own,
+   so carrying a resolved local path would hand the resume a drive letter that
+   has moved. The guard is `Invoke-HDTTaskSequence.ps1:999`
+   (`$resolvedRoot.StartsWith('\\')`) and the splice is in
+   `Copy-HDTResumeAgent`; `Local` keeps the image's own value and resolves it
+   again through `Resolve-HDTDeployRoot` from the content marker.
+
+   This entry stays as a **warning**, not a task: the test "leaves a local root
+   alone, because a drive letter moves" is the thing that stops somebody
+   simplifying the guard away, and it must be green when media arrives.
 
 3. **The log copy-back has two destinations, and a disc is not one.** The WinPE
-   leg now copies its log to `<osvolume>\HDT\Logs` before restarting, and the
-   run is copied to `<deployRoot>\Logs` at the end. The first is right for
-   media; the second writes to read-only content. `Get-HDTLogDestination`
-   already answers `HDTSLShare` first, which is the escape hatch - but a media
-   deployment with no `HDTSLShare` set should not be trying to write to the
-   disc, and today nothing stops it.
+   leg copies its log to `<osvolume>\HDT\Logs` before restarting, and the run is
+   copied to `<deployRoot>\Logs` at the end. The first is right for media; the
+   second writes to read-only content.
+
+   **Settled: under `MEDIA` there is no copy-back to the deploy root, network or
+   not.** A machine that happens to have a NIC is still deploying from a disc,
+   and reaching for a share nobody named is not a fallback, it is a guess. The
+   `<osvolume>\HDT\Logs` copy before the restart still happens — that one needs
+   no network and is the copy an administrator actually reads. An explicitly set
+   `HDTSLShare` is still honoured: `Get-HDTLogDestination` already answers it
+   first, and an admin naming a log share is asking in so many words rather than
+   HDT noticing a network.
 
 ---
 
