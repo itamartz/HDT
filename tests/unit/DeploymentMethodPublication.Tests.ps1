@@ -156,9 +156,26 @@ Describe 'HDTDeploymentMethod, published where the provider is already known' {
                         ([string] $_.Right.Extent.Text) -match "^'MEDIA'$"
                     })
 
+            # AND THE LOG DESTINATION'S OWN ANSWER IS NOT A SECOND DERIVATION
+            # EITHER. 06-03 put the media gate INSIDE Get-HDTLogDestination,
+            # which both legs already call, because gating at the two call sites
+            # would have been two changes that can drift. That command answers
+            # Source 'Media', so the payload here is reading the verdict of the
+            # one gate rather than working the method out for itself - the
+            # string is spelled the same and the fact is a different one.
+            #
+            # $result['logDestinationSource'] is that same verdict carried to
+            # the tail, which runs outside the try where $logTarget may never
+            # have been assigned.
+            $answer = @(
+                '$deploymentMethod'
+                '[string] $logTarget.Source'
+                "[string] `$result['logDestinationSource']"
+            )
+
             $wrongSide = @($compared | Where-Object {
-                    ([string] $_.Left.Extent.Text) -ne '$deploymentMethod' -and
-                    ([string] $_.Right.Extent.Text) -ne '$deploymentMethod'
+                    $answer -notcontains ([string] $_.Left.Extent.Text) -and
+                    $answer -notcontains ([string] $_.Right.Extent.Text)
                 })
 
             @($wrongSide | ForEach-Object { $_.Extent.Text }) | Should -Be @()

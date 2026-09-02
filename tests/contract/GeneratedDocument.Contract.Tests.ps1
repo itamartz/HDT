@@ -52,6 +52,24 @@ BeforeAll {
 
     foreach ($relative in $script:HDTTracked) {
         if ($relative -like 'tools/*') { continue }
+
+        # NOR IS A PHASE RECORD THAT TALKS ABOUT THE BUILD. .planning\ holds
+        # plans and summaries - an account of work already done, which nothing
+        # regenerates and no bump makes stale - and they name the generators
+        # they ran. 06-02-SUMMARY.md says "regenerated with
+        # tools/New-HDTCommandReference.ps1, never hand-edited", which is the
+        # same sentence a generated page carries, so it was collected as one
+        # and then failed for stating a version the manifest had moved past.
+        #
+        # IT PASSED ITS OWN GATE AND FAILED THE NEXT ONE, which is the part
+        # worth writing down: a SUMMARY is committed AFTER the gate that
+        # approves it, so git ls-files cannot see it while it is being written.
+        # The defect was latent for every summary that ever named a generator.
+        #
+        # This is the same class as the .ps1 exclusion below: prose ABOUT a
+        # generator is not a generator's output.
+        if ($relative -like '.planning/*') { continue }
+
         if ($relative -match '\.(png|jpg|jpeg|gif|ico|wim|iso|zip|exe|dll|pdf|ttf|otf)$') { continue }
 
         # POWERSHELL SOURCE IS NOT A GENERATED DOCUMENT. build.ps1 names the

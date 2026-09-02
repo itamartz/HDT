@@ -803,7 +803,14 @@ stop the reference VM, then deploy the second.
 network.
 
 **`HDTDeploymentMethod` — the variable the three behaviours below gate on.**
-Settled 2026-09-02. MDT carries **two** variables here, not one: `DeploymentType`
+Settled 2026-09-02. **Built 2026-09-02** (plans 06-01, 06-02, 06-03), and
+carry-overs 1 and 3 with it; carry-over 2 was already built and stays a warning.
+**This made the engine ready for media by teaching it which method it is running
+under. It did not build the media** — `New-HDTMedia`, the content projection and
+the ISO/USB layouts are still deferred, and the "Exit — media" criterion above is
+**not** met.
+
+MDT carries **two** variables here, not one: `DeploymentType`
 (NEWCOMPUTER / REFRESH / REPLACE), which HDT already has as `HDTDeploymentType`,
 and `DeploymentMethod` (UNC / MEDIA / OSD / SCCM — `ZTIGather.xml` line 10),
 which it does not. Offline media does not change the first — a media deployment
@@ -825,13 +832,20 @@ below reads it rather than sniffing at a provider object.
   there puts it in front of the first step, so a step condition and the engine
   gate on one value instead of two that can disagree.
 - **The surfaces it has to reach** (CLAUDE.md rule 8): `Get-HDTVariableMap` for
-  the MDT name, the provenance log, `Invoke-HDTTattooStep`, the wizard summary,
-  and the rules validator above. A test written against the **set** of published
-  engine variables, not against this one.
+  the MDT name, the provenance log, `Invoke-HDTTattooStep`, and the rules
+  validator above. A test written against the **set** of published engine
+  variables, not against this one. **All four reached, 06-01 and 06-02.**
+
+  **The wizard summary was listed here and is NOT one.** `Get-HDTWizardSummary`
+  is built from the wizard PAGES and the technician's answers, and its output is
+  a `rules.yaml` snippet — so listing an engine fact there would generate a
+  snippet that the validator two bullets up correctly refuses. It is named here
+  rather than quietly dropped, because an unexplained gap between the surface
+  list and the code reads as a half-feature.
 
 **Carried over from v1 — three behaviours built for SMB that a disc has no
-answer for. All three settled 2026-09-02; two need building, one is already
-built and only needs keeping:**
+answer for. All three settled 2026-09-02; 1 and 3 built 2026-09-02, 2 was
+already built and only needs keeping:**
 
 1. **Five attempts, then the Welcome screen — neither of them, on media.**
    `Start-HDTDeployment` retries the deploy root five times (2/4/6/8s) and, when
@@ -846,6 +860,17 @@ built and only needs keeping:**
    is not on any of them fail with what is actually wrong — *the content marker
    was not found on any ready volume*, naming the volumes considered — rather
    than asking for a UNC path.
+
+   **Built 2026-09-02 (06-02).** Less of it was new than this entry implies, and
+   it is worth saying so rather than leaving the next reader hunting code this
+   phase did not write: **the single volume scan and the named-volumes error
+   were already inside `Resolve-HDTDeployRoot`** and needed nothing. What was
+   missing was the *loop around it* — the payload retried five times and opened
+   the Welcome screen whatever the method. So the change is one gate in
+   `Start-HDTDeployment.ps1`: under `MEDIA` one attempt, no sleep, no Welcome
+   screen, and `HDTContentUnreachable` naming the path, the method, the ready
+   volumes and the underlying error. `Resolve-HDTDeployRoot.ps1` has a zero-line
+   diff across the whole phase.
 
 2. **The corrected share is carried into the full-OS leg, for UNC only — already
    built, nothing left to decide.** `Invoke-HDTTaskSequence` writes the resolved
@@ -875,6 +900,23 @@ built and only needs keeping:**
    `HDTSLShare` is still honoured: `Get-HDTLogDestination` already answers it
    first, and an admin naming a log share is asking in so many words rather than
    HDT noticing a network.
+
+   **Built 2026-09-02 (06-03).** One gate inside `Get-HDTLogDestination`, which
+   both legs already call — gating at the two call sites would have been two
+   changes that can drift. It answers `Source = 'Media'` with an empty `Path` and
+   a `Skipped` naming the destination it declined, so both legs can say *why* at
+   `Info` rather than leaving the log ending on "no log destination was
+   resolved", which is true and reads like a failure to resolve one.
+
+   The check is `-eq 'MEDIA'` and not `-ne 'UNC'`, so an absent method — which is
+   every `state.json` written before this — behaves exactly as before.
+
+   **Two things read the same answer and were settled with it.** The live mirror
+   stops under `MEDIA` too, by the same rule; and the failure screen's Log row,
+   which read the copy-back destination alone, went **blank** — on the very
+   machine whose local log is the point of this behaviour. Both legs now fall
+   back to the local path. The `<osvolume>\HDT\Logs` copy before the restart is
+   untouched and a test asserts no method check reaches it.
 
 ---
 
