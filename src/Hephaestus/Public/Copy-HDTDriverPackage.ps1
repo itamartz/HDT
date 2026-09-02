@@ -38,10 +38,28 @@ function Copy-HDTDriverPackage {
             An IFileSystem.
 
         .PARAMETER OnProgress
-            Called after each file with Source, Done, Total and Percent. Omitted,
+            Called BEFORE and AFTER each file, with Source, Phase, File, Length,
+            Done, Total, Percent, DoneByte, TotalByte and BytePercent. Omitted,
             the copy is silent - which is what it was on the deployment that made
             this necessary: 48 seconds staging a Dell pack, one log line, written
             at the end.
+
+            BYTES AS WELL AS FILES, AND THE CALLER SHOULD THROTTLE ON THE BYTES.
+            A driver package is not a uniform heap: a Dell pack's 4.3 GB is
+            firmware and .sys images with hundreds of tiny .cat and .dll files
+            around them. Counting FILES reported ninety per cent while three per
+            cent of the bytes had moved, and then went silent for the copy that
+            was the entire duration. Percent is kept as the file count because
+            that is what it has always meant; BytePercent is the one that tracks
+            the work.
+
+            BEFORE AS WELL AS AFTER, BECAUSE ONE COPY CANNOT REPORT FROM INSIDE
+            ITSELF. IFileSystem.CopyItem takes a single file and returns when it
+            is done, so the only moment at which a large file can be named is
+            before it starts. A Starting callback counts NOTHING for the file it
+            names - Done and DoneByte are the work already finished - so naming
+            the file that is about to take the longest cannot put the bar ahead
+            of the work by exactly that file.
 
             A CALLBACK RATHER THAN A LOG WRITE. This command has no log context
             and should not grow one; the step decides what the record is called
@@ -150,26 +168,53 @@ function Copy-HDTDriverPackage {
     foreach ($one in $file) { $byteCount += [long] $one.Length }
 
     $fileCount = 0
+    $doneByte = [long] 0
 
-    foreach ($one in $file) {
-        $FileSystem.CopyItem($one.FullPath, ('{0}\{1}' -f $root, $one.RelativePath))
-        $fileCount++
+    # ONE SHAPE, BUILT IN ONE PLACE. A Starting and a Copied callback differ only
+    # in which file they name and whether that file's bytes are counted yet, and
+    # writing the payload out twice is how the two drift apart.
+    $report = {
+        param([string] $Phase, [object] $File)
 
-        if ($null -eq $OnProgress) { continue }
-
-        # THE DENOMINATOR IS THE WALK'S, so this cannot exceed 100 - and a
-        # package that walked to nothing never gets here at all.
+        # THE DENOMINATOR IS THE WALK'S, so neither of these can exceed 100 - and
+        # a package that walked to nothing never gets here at all.
         $percent = 100
         if ($total -gt 0) {
             $percent = [int] [System.Math]::Floor(($fileCount / $total) * 100)
         }
 
+        $bytePercent = 100
+        if ($byteCount -gt 0) {
+            $bytePercent = [int] [System.Math]::Floor(($doneByte / $byteCount) * 100)
+        }
+
         & $OnProgress ([pscustomobject] @{
-                Source  = $Source
-                Done    = [int] $fileCount
-                Total   = [int] $total
-                Percent = [int] $percent
+                Source      = $Source
+                Phase       = [string] $Phase
+                File        = [string] $File.RelativePath
+                Length      = [long] $File.Length
+                Done        = [int] $fileCount
+                Total       = [int] $total
+                Percent     = [int] $percent
+                DoneByte    = [long] $doneByte
+                TotalByte   = [long] $byteCount
+                BytePercent = [int] $bytePercent
             })
+    }
+
+    foreach ($one in $file) {
+        # BEFORE THE COPY, AND NOTHING COUNTED FOR IT YET. This is the only
+        # record a technician gets during the one call that is the whole of a
+        # large file's duration.
+        if ($null -ne $OnProgress) { & $report 'Starting' $one }
+
+        $FileSystem.CopyItem($one.FullPath, ('{0}\{1}' -f $root, $one.RelativePath))
+        $fileCount++
+        $doneByte += [long] $one.Length
+
+        if ($null -eq $OnProgress) { continue }
+
+        & $report 'Copied' $one
     }
 
     return [pscustomobject] @{

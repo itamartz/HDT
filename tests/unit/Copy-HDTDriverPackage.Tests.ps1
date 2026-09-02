@@ -1,4 +1,4 @@
-# A driver package, copied onto the machine rather than injected into it.
+﻿# A driver package, copied onto the machine rather than injected into it.
 #
 # ELEVEN MINUTES, MEASURED. On a Latitude 5490 the PnP fallback injected 82
 # drivers in 649 seconds - a median of 9.0s each - because every
@@ -178,6 +178,57 @@ Describe 'Copy-HDTDriverPackage' {
 
             @($seen | Where-Object { $_.Percent -gt 100 }) | Should -HaveCount 0
             @($seen | Where-Object { $_.Percent -lt 0 }) | Should -HaveCount 0
+        }
+
+
+        # A FILE COUNT IS NOT THE WORK. The caller throttles on what this hands
+        # it, so a package whose bytes sit in one firmware blob reported ninety
+        # per cent while three per cent of it had moved - and then nothing at all
+        # for the copy that was the whole of the duration. Bytes are what a
+        # driver package actually costs to stage.
+        It 'hands the callback the bytes as well as the files' {
+            $fs = & $script:newStore
+            $seen = New-Object -TypeName System.Collections.ArrayList
+
+            $result = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs `
+                -OnProgress { param($P) [void] $seen.Add($P) }
+
+            $last = @($seen)[-1]
+
+            [long] $last.TotalByte | Should -Be ([long] $result.ByteCount)
+            [long] $last.DoneByte | Should -Be ([long] $result.ByteCount)
+            [int] $last.BytePercent | Should -Be 100
+        }
+
+        # THE ONLY THING A BLOCKING COPY CAN SAY WHILE IT RUNS. IFileSystem.
+        # CopyItem takes one file and returns when it is finished; there is no
+        # reporting from inside it. So the file that is about to take the time
+        # has to be named BEFORE it is copied, or its name reaches the log only
+        # once it has stopped taking any.
+        It 'calls back before a file as well as after it, and says which' {
+            $fs = & $script:newStore
+            $seen = New-Object -TypeName System.Collections.ArrayList
+
+            $null = Copy-HDTDriverPackage -Source 'Z:\Deploy\Drivers\Win11\Dell\Net' `
+                -Destination 'W:\Drivers\Win11\Dell\Net' -FileSystem $fs `
+                -OnProgress { param($P) [void] $seen.Add($P) }
+
+            $starting = @($seen | Where-Object { [string] $_.Phase -eq 'Starting' })
+            $copied = @($seen | Where-Object { [string] $_.Phase -eq 'Copied' })
+
+            $starting.Count | Should -Be 4
+            $copied.Count | Should -Be 4
+
+            @($seen)[0].Phase | Should -Be 'Starting'
+            @($seen)[0].File | Should -Not -BeNullOrEmpty
+            [long] @($seen)[0].Length | Should -BeGreaterThan 0
+
+            # NOTHING IS CLAIMED FOR A FILE THAT HAS NOT MOVED YET. A Starting
+            # record that counted its own file would put the bar ahead of the
+            # work by exactly the file that is about to take the longest.
+            [long] @($seen)[0].DoneByte | Should -Be 0
+            [int] @($seen)[0].BytePercent | Should -Be 0
         }
 
         It 'copies exactly the same files whether or not anybody is listening' {
