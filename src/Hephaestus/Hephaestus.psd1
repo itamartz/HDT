@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'Hephaestus.psm1'
-    ModuleVersion        = '0.16.1'
+    ModuleVersion        = '0.16.2'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
@@ -352,7 +352,7 @@
         # against and bumping on that would move the number for a tree nobody
         # touched.
         HDT = @{
-            SourceHash = '1581BF856FCA678B3E260D4C81C9E196F324D37E842752349CFF50F76038B780'
+            SourceHash = 'C42ECEF6A88692F9ADC0CCEF827531C1A253F709307C171B068BF9EA3A121370'
             LayoutHash = 'E416F2FCB3C0728BA8C1C98EC6EE66B8229D73EBAE3050CCBDDEFC89E1EC34C9'
         }
     }

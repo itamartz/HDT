@@ -241,7 +241,7 @@ try {
     <div class="brand">
       <span class="mark">Hephaestus Deployment Toolkit</span>
       <h1>Command Reference</h1>
-      <span class="sub">Hephaestus 0.16.1 &middot; PowerShell 5.1</span>
+      <span class="sub">Hephaestus 0.16.2 &middot; PowerShell 5.1</span>
     </div>
     <div class="search">
       <label class="sr-only" for="q" style="position:absolute;left:-9999px">Filter commands</label>
@@ -5976,20 +5976,24 @@ $log = Set-HDTLogPath -Context $log -TargetVolume &#x27;W:&#x27; -Variable $vari
 </div></header>
 <p class="syn">Where this run&#x27;s logs are copied to - the HDTSLShare a site names, or the deploy root when nothing says otherwise.</p>
 <div class="sig-wrap"><pre class="sig">Get-HDTLogDestination [-WorkspaceRoot] &lt;string&gt; [-Variable &lt;IDictionary&gt;] [&lt;CommonParameters&gt;]</pre></div>
-<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The resolved deploy root. Empty is not an error.</p></td></tr><tr><td class="p-name"><code>-Variable</code></td><td class="p-type"><code>IDictionary</code></td><td class="p-desc"><p>The resolved variables. HDTSLShare is read and nothing else.</p></td></tr></table></div></section>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The resolved deploy root. Empty is not an error.</p></td></tr><tr><td class="p-name"><code>-Variable</code></td><td class="p-type"><code>IDictionary</code></td><td class="p-desc"><p>The resolved variables. HDTSLShare and HDTDeploymentMethod are read and nothing else.</p></td></tr></table></div></section>
 <section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">$workspaceRoot = &#x27;C:\HDTLab\Share&#x27;
 $line = [string[]] @([System.IO.File]::ReadAllLines(&#x27;C:\HDTLab\Share\workspace.yaml&#x27;))
 $fact = Get-HDTMachineFact -CimProvider (New-HDTCimProvider) `
     -RegistryService (New-HDTRegistryService) -EnvironmentProvider (New-HDTEnvironmentProvider)
 $resolved = Resolve-HDTVariable -Fact $fact
-Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Add-HDTRule -Line $line -Name &#x27;Log server&#x27; -Set @{ HDTSLShare = &#x27;\\logs-01\HDTLogs&#x27; }</pre><p>What a site writes once in rules.yaml.</p></div></section>
+Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $resolved.Variable</pre></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Add-HDTRule -Line $line -Name &#x27;Log server&#x27; -Set @{ HDTSLShare = &#x27;\\logs-01\HDTLogs&#x27; }</pre><p>What a site writes once in rules.yaml.</p></div><div class="ex"><div class="ex-title">Example 3</div><pre class="code">Get-HDTLogDestination -WorkspaceRoot &#x27;D:\Deploy&#x27; -Variable @{ HDTDeploymentMethod = &#x27;MEDIA&#x27; }</pre><p>Path &#x27;&#x27;, Source &#x27;Media&#x27;, Skipped &#x27;D:\Deploy\Logs&#x27; - a deployment from a disc, whose deploy root cannot be written to. Setting HDTSLShare gives it somewhere it can go.</p></div></section>
 <details class="notes"><summary>How it works</summary><div class="prose"><p>THE COPY-BACK DESTINATION USED TO BE DERIVED AND NOTHING COULD CHANGE IT. Logs landed under &lt;deployRoot&gt;\Logs and nowhere else, which is right for a lab and wrong for most sites: the deployment share is frequently read-only to the account the deployment runs as, is frequently a replica, and is frequently not where a team keeps logs.</p>
 <p>SO HDTSLShare, THE ONE SETTING THAT MOVES IT. The name is MDT&#x27;s SLShare carried over under HDT&#x27;s prefix, because an administrator searches for the name they already know - the same reason the Skip properties kept theirs.</p>
 <p>IT IS THE FOLDER, NOT A PARENT OF ONE. This run&#x27;s logs go to &lt;SLShare&gt;\&lt;computer&gt; and never &lt;SLShare&gt;\Logs\&lt;computer&gt;, and an engine that appended &#x27;Logs&#x27; would put a site&#x27;s deployment logs somewhere nobody named. The per-computer folder underneath is Copy-HDTLog&#x27;s business, exactly as it is for the deploy root.</p>
 <p>IT RESOLVES LIKE ANY OTHER VARIABLE, so a site sets it once in rules.yaml, or per model, or per subnet, and the provenance says where the value came from. It is NOT a bootstrap setting: the copy happens after the share is reachable, so there is no reason to bake it into a boot image.</p>
 <p>NO DEPLOY ROOT IS NOT NO DESTINATION. A run that never reached the share is exactly the run whose log somebody wants, and HDTSLShare is the one destination that can still be written to - so it is honoured even when there is no root at all.</p>
-<p>IT VALIDATES NOTHING ABOUT THE PATH. Whether the account can write there is a question with one honest answer - try it - and Copy-HDTLog already reports what happened without failing the deployment. A pre-flight here would be a second opinion that can be wrong.</p></div></details>
-<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Path and Source (&#x27;HDTSLShare&#x27;, &#x27;DeployRoot&#x27; or &#x27;None&#x27;).</p></div></div></div>
+<p>IT VALIDATES NOTHING ABOUT THE PATH. Whether the account can write there is a question with one honest answer - try it - and Copy-HDTLog already reports what happened without failing the deployment. A pre-flight here would be a second opinion that can be wrong.</p>
+<p>AND A DISC IS NOT A PLACE TO WRITE LOGS TO. Under HDTDeploymentMethod = MEDIA the deploy root is read-only content, so the derived destination is refused and the answer says MEDIA was why. A machine that happens to have a NIC is still deploying from a disc - reaching for a share nobody named would not be a fallback, it would be a guess.</p>
+<p>THE MACHINE STILL KEEPS ITS OWN COPY. The WinPE leg writes its log to &lt;osvolume&gt;\HDT\Logs before the restart, which needs no network and is the copy an administrator actually reads. Nothing here touches that.</p>
+<p>AND THE MEDIA CHECK SITS AFTER HDTSLShare, DELIBERATELY. An administrator who names a log share is asking for one in so many words, and that answer is right whatever the machine booted from. Only the DERIVED destination is removed.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Path, Source (&#x27;HDTSLShare&#x27;, &#x27;Media&#x27;, &#x27;DeployRoot&#x27; or &#x27;None&#x27;) and Skipped.</p>
+<p>Skipped carries the destination a share deployment would have used and is empty on every answer but &#x27;Media&#x27;, so a caller can say WHY nothing was copied rather than only that nothing was.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 <article class="fn" id="Copy-HDTLog" data-name="copy-hdtlog" data-hay="copy-hdtlog copies the log directory back to the share, on phase end and on failure. context destination computername">
