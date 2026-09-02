@@ -365,6 +365,54 @@ try {
                 $providerArgument['Root'] = [string] $state.variable['HDTDeployRoot']
             }
 
+            # AND A DISC IS FOUND AGAIN, BECAUSE ITS LETTER HAS MOVED.
+            #
+            # ROADMAP M7 carry-over 2 says exactly this: media keeps the image's
+            # own value and resolves it again from the content marker. Half of it
+            # was already built - Invoke-HDTTaskSequence carries a corrected
+            # deploy root into the staged bootstrap.json ONLY when it starts
+            # '\\', so a local root is deliberately not written across a reboot
+            # that reassigns letters - and this is the half that reads it.
+            #
+            # WITHOUT THIS THE FIRST OFFLINE MEDIA DEPLOYMENT DIED HERE. The disc
+            # was D: in WinPE and E: once Windows had assigned its own; the
+            # provider was handed the volume-relative '\Share', which names no
+            # volume at all, could not connect, and $workspaceRoot kept its
+            # default of the agent tree - so the run failed looking for
+            # C:\HDT\TaskSequences\PNP-TEST\sequence.yaml.
+            #
+            # Smb IS UNTOUCHED, DELIBERATELY. A share is the same string from
+            # both legs, it needs no volume, and Resolve-HDTDeployRoot's rule 1
+            # returns it unchanged without probing anything - but the state
+            # document's value above is the share this run actually reached, and
+            # re-resolving would throw that away.
+            #
+            # THE DRIVE TYPES ARE Start-HDTDeployment's, INCLUDING CDRom.
+            # tests/unit/MediaVolumeCandidate.Tests.ps1 asserts over BOTH
+            # enumerations, so the two cannot drift.
+            if ([string] $bootstrap.Provider -eq 'Local') {
+                $candidateRoot = [string[]] @([System.IO.DriveInfo]::GetDrives() |
+                        Where-Object { $_.IsReady -and @('Fixed', 'Removable', 'CDRom') -contains [string] $_.DriveType } |
+                        ForEach-Object { [string] $_.RootDirectory.FullName })
+
+                $found = Resolve-HDTDeployRoot -DeployRoot ([string] $bootstrap.DeployRoot) `
+                    -Provider 'Local' -CandidateRoot $candidateRoot `
+                    -Marker ([string] $bootstrap.ContentMarker) -FileSystem $fileSystem
+
+                $providerArgument['Root'] = [string] $found.Path
+
+                Write-HDTLog -Context $bootLog -Component 'Resume' `
+                    -Message ("the content was found again at '{0}' ({1}); the boot image carries '{2}' and a disc's letter moves across the reboot. The volumes considered were: {3}." -f
+                        $found.Path, $found.Source, [string] $bootstrap.DeployRoot, (@($candidateRoot) -join ', ')) `
+                    -Data ([ordered] @{
+                            deployRoot = [string] $found.Path
+                            source     = [string] $found.Source
+                            imageValue = [string] $bootstrap.DeployRoot
+                            marker     = [string] $bootstrap.ContentMarker
+                            candidate  = [string[]] $candidateRoot
+                        })
+            }
+
             if ([string] $bootstrap.Provider -eq 'Smb' -and -not [bool] $bootstrap.PromptForCredential) {
                 $providerArgument['Credential'] = $bootstrap.GetCredential()
             }

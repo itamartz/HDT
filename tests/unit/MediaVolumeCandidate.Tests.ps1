@@ -39,12 +39,25 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-    $script:payloadPath = Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Payload/Start-HDTDeployment.ps1'
 
-    $script:payloadToken = $null
-    $script:payloadError = $null
-    $script:payloadAst = [System.Management.Automation.Language.Parser]::ParseFile(
-        $script:payloadPath, [ref] $script:payloadToken, [ref] $script:payloadError)
+    # EVERY PAYLOAD THAT LOOKS FOR CONTENT, NOT THE ONE THAT WAS BROKEN FIRST.
+    # Start-HDTDeployment finds the disc in WinPE; Start-HDTResume has to find
+    # it again in the full OS, because a letter moves across that reboot and
+    # only the marker does not. Fixing the drive-type set in one of them and
+    # not the other is exactly the half-feature CLAUDE.md rule 8 is about, so
+    # this file scans the DIRECTORY and asserts about the set it finds.
+    $script:payloadFile = @(Get-ChildItem -Path (Join-Path -Path $script:repoRoot -ChildPath 'src/Hephaestus/Payload') -Filter '*.ps1' -File)
+
+    $script:payloadError = @()
+    $script:payloadAst = @()
+
+    foreach ($file in $script:payloadFile) {
+        $token = $null
+        $parseError = $null
+        $script:payloadAst += [System.Management.Automation.Language.Parser]::ParseFile(
+            $file.FullName, [ref] $token, [ref] $parseError)
+        $script:payloadError += @($parseError)
+    }
 
     # BY AST AND NOT BY LINE NUMBER. The file is edited constantly and a test
     # pinned to line 980 would quietly start testing something else.
@@ -54,10 +67,13 @@ BeforeAll {
     # The first cut of this file did exactly that and reported the payload
     # keeping mapped network drives, which it never did. The fake was wrong,
     # not the caller.
-    $script:filterSource = @($script:payloadAst.FindAll({
-                param($node)
-                $node -is [System.Management.Automation.Language.ScriptBlockExpressionAst]
-            }, $true) |
+    $script:filterSource = @($script:payloadAst |
+            ForEach-Object {
+                $_.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.ScriptBlockExpressionAst]
+                    }, $true)
+            } |
             Where-Object { $_.Extent.Text -match 'IsReady' -and $_.Extent.Text -match 'DriveType' } |
             ForEach-Object { [string] $_.ScriptBlock.EndBlock.Extent.Text })
 
@@ -83,14 +99,13 @@ Describe 'Start-HDTDeployment volume candidates' {
         $script:filterSource.Count | Should -BeGreaterThan 0
     }
 
-    It 'enumerates the machine once and reuses that list' {
-        # ONE ENUMERATION, AND THAT IS THE DESIGN. The share a technician
-        # corrects at the Welcome screen is resolved against the SAME
-        # $candidateRoot rather than a second scan, so there is exactly one
-        # filter and no second copy to drift from it. If a later author adds a
-        # rescan, this count changes and every assertion below starts covering
-        # both - which is the point of asserting it at all.
-        $script:filterSource.Count | Should -Be 1
+    It 'looks for the content in both legs of a deployment' {
+        # WinPE finds the disc, and the full OS has to find it AGAIN after the
+        # reboot, because the letter it had in WinPE is commonly another one
+        # once Windows has assigned its own (ROADMAP M7, carry-over 2). Two
+        # legs, two enumerations - and every assertion below runs over both, so
+        # a fix cannot reach only the one somebody was looking at.
+        $script:filterSource.Count | Should -Be 2
     }
 
     It 'offers a DVD as a candidate, because an ISO is media' {
