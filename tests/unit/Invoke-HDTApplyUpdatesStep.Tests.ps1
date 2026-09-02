@@ -306,4 +306,311 @@ Describe 'Invoke-HDTApplyUpdatesStep' {
             $record.Data.release | Should -BeExactly 'Win11-24H2'
         }
     }
+    Context 'what it says while it is running' {
+
+        # THE DEFECT THIS CONTEXT EXISTS FOR, FOUND BY READING A REAL LOG.
+        # HDT-UPD-01 run-20260902-004953 step 7 was EIGHT MINUTES of one
+        # cumulative update and wrote TWO step.progress records for the whole of
+        # it - "considering 1 update(s)" and "applying KB5094126 (1 of 1)". The
+        # bar in front of whoever was standing at the machine did not move once,
+        # and a motionless bar is indistinguishable from a hung machine.
+        #
+        # THE NUMBER WAS THERE ALL ALONG. dism /Add-Package prints the same
+        # percentage meter /Apply-Image does - measured on this machine on
+        # 2026-09-02, 58 bar lines out of 124 for one WinPE-NetFx.cab - and the
+        # adapter was collecting it into a string array the step threw away.
+
+        BeforeEach {
+            $script:meter = [string[]] [System.IO.File]::ReadAllLines(
+                (Join-Path -Path $script:repoRoot -ChildPath 'tests/fixtures/image/dism-add-package-output.txt'))
+
+            $script:progressHost = New-HDTFakeProgressHost
+
+            $script:newProgressContext = {
+                param([object] $Image, [hashtable] $Variable = @{ HDTOSVolume = 'W' })
+
+                $fileSystem = New-HDTFakeFileSystem -File (& $script:newFile)
+                $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 9, 1, 12, 0, 0, [System.DateTimeKind]::Utc)) `
+                    -TickMillisecond 500
+
+                $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Image $Image `
+                    -Progress $script:progressHost
+
+                $log = New-HDTLogContext -RunId 'run-0001' -Phase WinPE -LogPath 'X:\HDT\Logs' `
+                    -FileSystem $fileSystem -Clock $clock
+
+                $bag = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                foreach ($key in @($Variable.Keys)) { $bag[$key] = $Variable[$key] }
+
+                return (New-HDTExecutionContext -RunId 'run-0001' -Phase WinPE -WorkspaceRoot $script:share `
+                        -Variable $bag -Service $catalog -Log $log)
+            }
+
+            # A FIELD THAT IS ABSENT BY DESIGN, READ THE ONLY WAY STRICT MODE
+            # ALLOWS. A step.progress from the pass opening carries no kb, and
+            # a record that is not this step's carries no Data at all - so a
+            # bare $_.Data.kb in a Where-Object over the whole log THROWS under
+            # Set-StrictMode -Version Latest. It passes in a direct
+            # Invoke-Pester run and fails the gate, which is the gate being
+            # right. PSObject.Properties answers 'absent' instead of raising.
+            $script:fieldOf = {
+                param([object] $Record, [string] $Name)
+
+                if ($null -eq $Record.PSObject.Properties['Data'] -or $null -eq $Record.Data) { return $null }
+
+                $property = $Record.Data.PSObject.Properties[$Name]
+                if ($null -eq $property) { return $null }
+
+                return $property.Value
+            }
+
+            $script:percentOf = {
+                param([object] $Context)
+
+                return @(Get-HDTRunLogRecord -Context $Context.Log |
+                        Where-Object { $_.Event -eq 'step.progress' -and $null -ne (& $script:fieldOf $_ 'percent') } |
+                        ForEach-Object { [int] (& $script:fieldOf $_ 'percent') })
+            }
+        }
+
+        It 'streams the meter rather than writing one record for the whole package' {
+            # THE ASSERTION THAT WOULD HAVE FAILED THE SHIPPED STEP. Two records
+            # for eight minutes was what a technician watched; anything that
+            # tracks the tool has to be an order of magnitude more than that.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ Output = $script:meter } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $result = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+
+            $percent = & $script:percentOf $context
+
+            $percent.Count | Should -BeGreaterThan 12
+            $percent[-1] | Should -Be 100
+        }
+
+        It 'never lets the number go backwards' {
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ Output = $script:meter } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $percent = & $script:percentOf $context
+
+            for ($i = 1; $i -lt $percent.Count; $i++) {
+                $percent[$i] | Should -BeGreaterOrEqual $percent[$i - 1]
+            }
+        }
+
+        It 'scales each package meter into its own slice of the step' {
+            # PACKAGE PROGRESS IS NOT STEP PROGRESS. Three cumulative updates
+            # each reporting their own 0-100 would send the bar back to zero
+            # twice, and a bar that restarts reads as a deployment that
+            # restarted. The step's number is the position of this package in
+            # the set plus this package's own share of one slice.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{
+                    $script:clientPackage = @{ Output = $script:meter }
+                    $script:serverPackage = @{ Output = $script:meter }
+                } `
+                -PackageInstalls @{
+                    $script:clientPackage = @($script:clientInstalled)
+                    $script:serverPackage = @('Package_for_RollupFix~31bf3856ad364e35~amd64~~26100.32995.1.21')
+                }
+
+            $context = & $script:newProgressContext $image
+            $result = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+
+            $percent = & $script:percentOf $context
+
+            # TWO PACKAGES IS TWO HALVES. The first one cannot reach past the
+            # halfway mark however far dism gets through it, and the second one
+            # has to finish the bar.
+            @($percent | Where-Object { $_ -gt 50 }).Count | Should -BeGreaterThan 5
+            $percent[-1] | Should -Be 100
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { $_.Event -eq 'step.progress' -and [string] (& $script:fieldOf $_ 'kb') -eq 'KB5094126' })
+
+            @($record | ForEach-Object { [int] $_.Data.percent } | Sort-Object -Descending)[0] |
+                Should -BeLessOrEqual 50
+        }
+
+        It 'names the package, its place in the set and its own percentage' {
+            # THE MESSAGE IS THE PACKAGE'S OWN NUMBER AND THE DATA IS THE STEP'S.
+            # A reader with dism.log open beside this one matches on the number
+            # dism printed; the bar reads data.percent, which belongs to the step.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ Output = $script:meter } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { $_.Event -eq 'step.progress' -and $null -ne (& $script:fieldOf $_ 'packagePercent') })
+
+            $record.Count | Should -BeGreaterThan 12
+            [string] $record[0].Message | Should -Match 'KB5094126 \(1 of 1\): \d+%'
+            [string] $record[0].Data.kb | Should -BeExactly 'KB5094126'
+            [int] $record[0].Data.total | Should -Be 1
+        }
+
+        It 'writes nothing extra when dism prints no meter at all' {
+            # A record per line of output would be a bar driven by how chatty a
+            # tool is. Only the boundary records survive: the pass opening and
+            # the package announcing itself.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{
+                    $script:clientPackage = @{
+                        Output = @('Deployment Image Servicing and Management tool', 'Version: 10.0.26100.8521',
+                            '', 'The operation completed successfully.')
+                    }
+                } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { $_.Event -eq 'step.progress' -and $null -ne (& $script:fieldOf $_ 'packagePercent') }) |
+                Should -BeNullOrEmpty
+        }
+
+        It 'keeps the progress it made when the package then fails' {
+            # A PACKAGE THAT DIED AT 60% DIED SOMEWHERE DIFFERENT from one that
+            # never started, and the log is the only place to tell them apart.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ Output = $script:meter[0..60] } } `
+                -Failure @{ AddPackage = 'Error: 0x8007000E - Not enough memory.' }
+
+            $context = & $script:newProgressContext $image
+            $result = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Failed'
+
+            $percent = & $script:percentOf $context
+
+            $percent.Count | Should -BeGreaterThan 5
+            $percent[-1] | Should -BeLessThan 100
+        }
+
+        It 'drives the progress display while the package is still being applied' {
+            # THE HALF THAT WAS MISSING FROM ApplyDrivers: the record reached the
+            # jsonl and nothing told the window to read it back, so a step
+            # reported into a file nobody was reading.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ Output = $script:meter } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            # THE DISPLAY THE STEP ACTUALLY DROVE, read off the context rather
+            # than off a variable a test believes is the same object.
+            # IProgressHost's fake records operation NAMES, not objects.
+            $display = $context.Service.Progress
+            $update = @($display.Operations | Where-Object { $_ -eq 'Update' })
+
+            $update.Count | Should -BeGreaterThan 12 -Because 'a display updated twice in eight minutes is the bar that never moves'
+            [int] $display.LastProgress.StepPercent | Should -Be 100
+        }
+
+        It 'still asks the service for exactly the same apply' {
+            # The progress channel is an addition, not a change: what the step
+            # asks for is what it always asked for.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ Output = $script:meter } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $added = @($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' })
+
+            $added.Count | Should -Be 1
+            @($added[0].Arguments).Count | Should -Be 2
+            [string] $added[0].Arguments[1] | Should -BeExactly $script:clientPackage
+        }
+
+        It 'still judges the apply by the image and not by the exit code' {
+            # THE VERDICT IS NOT WHAT CHANGED. dism exited 0xC0000409 after an
+            # apply that had plainly worked; adding a meter must not quietly turn
+            # the number back into the judge.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ ExitCode = -1073740791; Output = $script:meter } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newProgressContext $image
+            $result = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+            $result.Data['applied'] | Should -Be 1
+        }
+    }
+
+    Context 'what a reader at three in the morning needs' {
+
+        # THE WHOLE STEP LOG FOR AN EIGHT-MINUTE PASS WAS FIVE LINES, and none of
+        # them said which updates were passed over or why. CLAUDE.md's rule is
+        # write too much, never too little: a pass that skipped nineteen of
+        # twenty imported updates has to say so by name.
+
+        It 'says by name which imported updates it passed over, and why' {
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { [string] (& $script:fieldOf $_ 'kb') -eq 'KB5094125' -and
+                        [string] (& $script:fieldOf $_ 'selected') -eq 'False' })
+
+            $record.Count | Should -Be 1
+            [string] $record[0].Message | Should -Match 'WS2025'
+            [string] $record[0].Message | Should -Match 'Win11-24H2'
+        }
+
+        It 'names the build each package takes the image from and to' {
+            # "IT PATCHED" IS NOT AN ANSWER AT 3AM. 26100.1742 -> 26100.8655 is,
+            # and it is the number a technician compares winver against.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ ExitCode = 0 } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { $_.Event -eq 'update.apply' -and [string] $_.Data.kb -eq 'KB5094126' })[0]
+
+            [string] $record.Data.targetVersion | Should -BeExactly '10.0.26100.8655'
+            [string] $record.Data.baselineVersion | Should -BeExactly '10.0.26100.1742'
+            [string] $record.Data.target | Should -BeExactly 'W:\'
+        }
+
+        It 'spells the exit code the way dism does' {
+            # 0xC0000409 IS SEARCHABLE AND -1073740791 IS NOT. A technician with
+            # dism.log open is looking for the hex.
+            $image = New-HDTFakeImageService `
+                -PackageResult @{ $script:clientPackage = @{ ExitCode = -1073740791 } } `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newContext $image
+            $null = Invoke-HDTApplyUpdatesStep -Step (& $script:newStep @{ release = 'Win11-24H2' }) -Context $context
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { $_.Event -eq 'update.apply' -and [string] $_.Data.kb -eq 'KB5094126' })[0]
+
+            [string] $record.Data.exitCodeHex | Should -BeExactly '0xC0000409'
+        }
+    }
 }

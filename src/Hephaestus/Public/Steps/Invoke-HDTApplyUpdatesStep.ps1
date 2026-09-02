@@ -33,7 +33,30 @@
             pass. Twenty updates in a sequence is twenty questions somebody will
             ask afterwards - which one was already in the image, which one wanted
             a prerequisite, which one actually failed - and update.apply carries
-            the KB, the release, dism's code and the outcome for each.
+            the KB, the release, dism's code and the outcome for each. The
+            updates that were NOT in the pass get one too, at Info, saying which
+            release filed them or that somebody disabled them: "why did this
+            machine not get KB5094125" is the question a broad import guarantees,
+            and a log that mentions only the chosen one cannot answer it.
+
+            AND THE METER IS STREAMED, WHICH IS THE DIFFERENCE BETWEEN A BAR AND
+            A PHOTOGRAPH OF ONE. dism prints a percentage while it services -
+            measured on this machine on 2026-09-02: one WinPE-NetFx.cab printed
+            124 lines of which 58 were the bar - and the adapter now hands every
+            line to a callback instead of collecting it into an array nobody
+            read. The step that discarded it wrote TWO step.progress records for
+            a 515-second step on HDT-UPD-01 run-20260902-004953, which on the
+            machine itself is a bar that never moves and cannot be told from a
+            hang.
+
+            EACH PACKAGE'S METER IS A SLICE OF THE STEP, NOT THE WHOLE OF IT.
+            Three cumulative updates each reporting their own 0-100% would send
+            the bar back to zero twice, and a bar that restarts reads as a
+            deployment that restarted - a worse lie than the motionless bar it
+            replaces. So data.percent is the step's number, package 2 of 4 at
+            50% being 37%, while the MESSAGE keeps the package's own percentage,
+            because that is what dism printed and what a technician with
+            dism.log open is matching against.
 
             NOT APPLICABLE IS NOT A FAILURE, and this is where the step parts
             company with a naive reading of DISM's exit codes. 0x800F081E means
@@ -163,17 +186,75 @@
                 $Step.Name, [string] $_.Exception.Message) 'HDTConfigurationError')
     }
 
+    $imported = $update.Count
+
+    # EVERY UPDATE THE STORE HAD, AND WHY EACH ONE IS OR IS NOT IN THIS PASS.
+    # The step used to say "considering 1 update(s)" and nothing whatever about
+    # the other nineteen, which makes "why did this machine not get KB5094125"
+    # unanswerable from the log - the exact question a broad import guarantees
+    # somebody will ask. CLAUDE.md: write too much, never too little.
+    #
+    # 'message' AND NOT update.apply, and the distinction is the one the
+    # vocabulary already draws. update.apply means "this is what happened when
+    # this update was APPLIED", and every reader of that stream reads an
+    # outcome; an update that was never handed to dism has no outcome and would
+    # be a blank row in each of them. data.selected is the discriminator a
+    # reader filters on instead.
+    #
     # AN EMPTY release IS "EVERYTHING IMPORTED", which is the setting for a share
     # deploying one operating system. It is a real choice, not a missing value,
     # so it is not an error.
-    if (-not [string]::IsNullOrWhiteSpace($release)) {
-        $update = @($update | Where-Object { [string] $_.Release -eq $release })
-    }
-
+    #
     # A DISABLED UPDATE IS ONE SOMEBODY TOOK OUT OF SERVICE WITHOUT DELETING IT,
     # which is how an update that turned out to break something is withdrawn
     # while the evidence is kept.
-    $update = @($update | Where-Object { [bool] $_.Enabled })
+    $selected = New-Object -TypeName System.Collections.ArrayList
+
+    foreach ($candidate in $update) {
+
+        $why = ''
+
+        if (-not [string]::IsNullOrWhiteSpace($release) -and [string] $candidate.Release -ne $release) {
+            $why = "it is filed under release '{0}' and this step applies '{1}'" -f
+                [string] $candidate.Release, $release
+        } elseif (-not [bool] $candidate.Enabled) {
+            $why = 'it is disabled in the workspace, so somebody took it out of service without deleting it'
+        }
+
+        if ($why.Length -eq 0) {
+            [void] $selected.Add($candidate)
+
+            Write-HDTLog -Context $Context.Log -Event 'message' -Component 'ApplyUpdates' `
+                -Message ("{0} ({1}) is in this pass: {2}, {3} -> {4}" -f
+                    [string] $candidate.Kb, [string] $candidate.Release, [string] $candidate.Name,
+                    $(if ([string]::IsNullOrWhiteSpace([string] $candidate.BaselineVersion)) { 'any build' } else { [string] $candidate.BaselineVersion }),
+                    [string] $candidate.TargetVersion) `
+                -Data ([ordered] @{
+                    kb              = [string] $candidate.Kb
+                    release         = [string] $candidate.Release
+                    selected        = $true
+                    kind            = [string] $candidate.Kind
+                    packageId       = [string] $candidate.PackageId
+                    package         = [string] $candidate.FileName
+                    baselineVersion = [string] $candidate.BaselineVersion
+                    targetVersion   = [string] $candidate.TargetVersion
+                })
+
+            continue
+        }
+
+        Write-HDTLog -Context $Context.Log -Event 'message' -Component 'ApplyUpdates' `
+            -Message ("{0} ({1}) is not in this pass: {2}" -f
+                [string] $candidate.Kb, [string] $candidate.Release, $why) `
+            -Data ([ordered] @{
+                kb       = [string] $candidate.Kb
+                release  = [string] $candidate.Release
+                selected = $false
+                reason   = $why
+            })
+    }
+
+    $update = @($selected)
 
     # step.progress AND NOT update.apply, BECAUSE THIS RECORD IS ABOUT NO
     # PARTICULAR UPDATE. update.apply is documented as one update applied, and
@@ -181,12 +262,14 @@
     # blank row in every report that renders one - which is exactly the defect
     # that split var.resolve from var.unresolved.
     Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyUpdates' `
-        -Message ("step '{0}' considering {1} update(s) for {2}, into {3}" -f
-            $Step.Name, $update.Count, $(if ([string]::IsNullOrWhiteSpace($release)) { 'every release' } else { $release }), $osRoot) `
+        -Message ("step '{0}' considering {1} of {2} imported update(s) for {3}, into {4}" -f
+            $Step.Name, $update.Count, $imported,
+            $(if ([string]::IsNullOrWhiteSpace($release)) { 'every release' } else { $release }), $osRoot) `
         -Data ([ordered] @{
             percent    = 0
             release    = $release
             target     = $osRoot
+            imported   = $imported
             considered = $update.Count
         })
 
@@ -216,19 +299,131 @@
     $failedRow = New-Object -TypeName System.Collections.ArrayList
 
     $index = 0
+    $total = $update.Count
+
+    # THE THREE COMMANDS, RESOLVED HERE RATHER THAN NAMED IN THE CALLBACK BELOW,
+    # AND IT IS NOT STYLE. The callback is invoked from INSIDE the image service:
+    # the real one is a pscustomobject built in this module, but the fake is a
+    # PowerShell CLASS in HDTFakes, and a scriptblock invoked from a class method
+    # resolves its commands in the class's module - where
+    # ConvertFrom-HDTDismProgressLine, private to Hephaestus, does not exist.
+    # That failure lands in the callback's own catch and looks exactly like a
+    # dism that printed no percentages, with every other assertion still passing.
+    # A CommandInfo invoked with & carries its own module and does not care.
+    # Invoke-HDTApplyImageStep learned this first; see its note.
+    $parseProgress = Get-Command -Name 'ConvertFrom-HDTDismProgressLine'
+    $writeLog = Get-Command -Name 'Write-HDTLog'
+    $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
 
     foreach ($current in $update) {
 
         $index = $index + 1
 
+        # WHERE THIS PACKAGE'S SLICE OF THE STEP STARTS AND HOW WIDE IT IS.
+        #
+        # THE BAR BELONGS TO THE STEP, NOT TO THE PACKAGE, and that is the whole
+        # decision here. Three cumulative updates each reporting their own
+        # 0-100% would drive the bar back to zero twice, and a bar that restarts
+        # reads as a deployment that restarted - which is a worse lie than the
+        # motionless bar this replaces. So each package's own meter is mapped
+        # onto its share of the step: package 2 of 4 at 50% is 37% of the step.
+        #
+        # AND THE MESSAGE KEEPS THE PACKAGE'S OWN NUMBER, because that is the
+        # number dism printed and the one a technician with dism.log open beside
+        # this is matching against. The record carries both: data.percent for the
+        # bar, data.packagePercent for the reader.
+        #
+        # A HASHTABLE, NOT TWO VARIABLES. GetNewClosure captures by VALUE, so a
+        # closed-over [int] the callback assigned to would be re-read as its
+        # original on the next line and every meter line would clear the
+        # threshold. The same shape New-HDTStepHeartbeat carries, for the same
+        # reason - and it is also how the failure path below can still read how
+        # far the package got after the call threw.
+        $slice = @{
+            Base           = [int] ([math]::Floor((($index - 1) * 100) / $total))
+            PackagePercent = 0
+        }
+
         Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyUpdates' `
-            -Message ("applying {0} ({1} of {2})" -f $current.Kb, $index, $update.Count) `
+            -Message ("applying {0} ({1} of {2}) to {3}: {4} -> {5}" -f
+                $current.Kb, $index, $total, $osRoot,
+                $(if ([string]::IsNullOrWhiteSpace([string] $current.BaselineVersion)) { 'any build' } else { [string] $current.BaselineVersion }),
+                [string] $current.TargetVersion) `
             -Data ([ordered] @{
-                percent = [int] ([math]::Floor((($index - 1) * 100) / $update.Count))
-                kb      = [string] $current.Kb
-                index   = $index
-                total   = $update.Count
+                percent         = $slice['Base']
+                kb              = [string] $current.Kb
+                release         = [string] $current.Release
+                index           = $index
+                total           = $total
+                target          = $osRoot
+                package         = [string] $current.FileName
+                baselineVersion = [string] $current.BaselineVersion
+                targetVersion   = [string] $current.TargetVersion
             })
+
+        # THE ONLY NUMBER THAT MOVES FOR THE NEXT EIGHT TO TWELVE MINUTES.
+        # dism /Add-Package prints a percentage meter - measured on this machine
+        # on 2026-09-02, 58 bar lines out of 124 for one WinPE-NetFx.cab - and
+        # the adapter hands every line it prints to this.
+        #
+        # STILL NO SECOND CHANNEL (DESIGN 11.1). This writes a record to the
+        # JSONL and asks the display to re-read it; the screen and the log cannot
+        # disagree because they are the same facts.
+        #
+        # EVERY FIVE POINTS OF THE PACKAGE, AND ALWAYS AT A HUNDRED. Throttling
+        # on the PACKAGE rather than on the step is deliberate: a five-point
+        # STEP stride would give twenty records for a pass of three packages -
+        # one every ninety seconds of a half-hour step - where five points of
+        # each package gives twenty per package and keeps the stride the same
+        # whatever the set size. A hundred is reported whether or not it clears
+        # the threshold, because the last thing the log says about a package
+        # should be that its meter finished.
+        #
+        # THE GAP THAT REMAINS, and it is ApplyImage's: a dism that goes silent
+        # mid-package reports nothing until it speaks again. Closing it means
+        # running dism as a polled process, which is ApplyUnattend's shape and a
+        # change to an adapter proven only in tests/integration.
+        $onOutput = {
+            param([string] $Line)
+
+            # A BAR DOES NOT GET TO FAIL A DEPLOYMENT. This runs part-way through
+            # servicing an operating system; a log write that lost its RAM disk
+            # or a display whose runspace has died is not a reason to stop
+            # building a computer.
+            try {
+                $percent = & $parseProgress -Line $Line
+                if ($null -eq $percent) { return }
+
+                $reported = [int] $slice['PackagePercent']
+                if ([int] $percent -le $reported) { return }
+                if ([int] $percent -lt ($reported + 5) -and [int] $percent -lt 100) { return }
+
+                $slice['PackagePercent'] = [int] $percent
+
+                # THE STEP'S NUMBER: this package's position plus its own share
+                # of one slice. Monotonic across the set by construction, because
+                # the package's own meter is monotonic and the base only rises.
+                $stepPercent = [int] ([math]::Floor(((($index - 1) * 100) + [int] $percent) / $total))
+
+                & $writeLog -Context $Context.Log -Event 'step.progress' -Component 'ApplyUpdates' `
+                    -Message ('applying {0} ({1} of {2}): {3}%' -f $current.Kb, $index, $total, [int] $percent) `
+                    -Data ([ordered] @{
+                        percent        = $stepPercent
+                        packagePercent = [int] $percent
+                        kb             = [string] $current.Kb
+                        index          = $index
+                        total          = $total
+                        target         = $osRoot
+                    })
+
+                & $updateDisplay -Context $Context
+            } catch {
+                # Kept where a debugger can reach it rather than thrown away: an
+                # empty catch is how a percentage that never appeared stays a
+                # mystery.
+                $slice['Error'] = [string] $_.Exception.Message
+            }
+        }.GetNewClosure()
 
         # AND THEN TELL THE WINDOW TO LOOK. Update-HDTProgressDisplay re-reads
         # the log and hands the host a new snapshot; without this the record
@@ -261,12 +456,18 @@
             $alreadyPresent = $alreadyPresent + 1
 
             Write-HDTLog -Context $Context.Log -Event 'update.apply' -Component 'ApplyUpdates' `
-                -Message ("{0} was already in the image, so it was not applied again" -f $current.Kb) `
+                -Message ("{0} was already in the image at {1}, so it was not applied again" -f
+                    $current.Kb, $osRoot) `
                 -Data ([ordered] @{
-                    kb        = [string] $current.Kb
-                    release   = [string] $current.Release
-                    outcome   = 'AlreadyPresent'
-                    packageId = [string] $current.PackageId
+                    kb                 = [string] $current.Kb
+                    release            = [string] $current.Release
+                    outcome            = 'AlreadyPresent'
+                    packageId          = [string] $current.PackageId
+                    package            = [string] $current.FileName
+                    target             = $osRoot
+                    baselineVersion    = [string] $current.BaselineVersion
+                    targetVersion      = [string] $current.TargetVersion
+                    packageCountBefore = $before.Count
                 })
 
             continue
@@ -274,16 +475,23 @@
 
         $run = $null
         try {
-            $run = $image.AddPackage($osRoot, [string] $current.PackagePath)
+            $run = $image.AddPackage($osRoot, [string] $current.PackagePath, $onOutput)
         } catch {
             [void] $failedRow.Add([string] $current.Kb)
 
             Write-HDTLog -Context $Context.Log -Event 'update.apply' -Component 'ApplyUpdates' -Severity Error `
                 -Message ("{0} could not be applied: {1}" -f $current.Kb, [string] $_.Exception.Message) `
                 -Data ([ordered] @{
-                    kb      = [string] $current.Kb
-                    release = [string] $current.Release
-                    outcome = 'Failed'
+                    kb             = [string] $current.Kb
+                    release        = [string] $current.Release
+                    outcome        = 'Failed'
+                    target         = $osRoot
+                    package        = [string] $current.FileName
+
+                    # HOW FAR IT GOT BEFORE IT DIED. A package that died at 60%
+                    # died somewhere different from one that never started, and
+                    # after the call has thrown this is the only record of which.
+                    packagePercent = [int] $slice['PackagePercent']
                 })
 
             continue
@@ -316,14 +524,34 @@
 
         Write-HDTLog -Context $Context.Log -Event 'update.apply' -Component 'ApplyUpdates' `
             -Severity $outcome.Severity `
-            -Message ("{0} ({1}): {2}" -f $current.Kb, $current.Release, $outcome.Message) `
+            -Message ("{0} ({1}): {2}. dism exited 0x{3:X8}; the image now carries {4} package(s), it carried {5}." -f
+                $current.Kb, $current.Release, $outcome.Message, $exitCode, $after.Count, $before.Count) `
             -Data ([ordered] @{
                 kb        = [string] $current.Kb
                 release   = [string] $current.Release
                 outcome   = [string] $outcome.Outcome
                 exitCode  = $exitCode
+
+                # THE SAME NUMBER SPELLED THE WAY THE TOOL SPELLS IT. 0xC0000409
+                # is what a technician searches dism.log and the web for;
+                # -1073740791 is the same fact in a form nobody can look up.
+                exitCodeHex = ('0x{0:X8}' -f $exitCode)
+
                 packageId = [string] $current.PackageId
                 package   = [string] $current.FileName
+                target    = $osRoot
+
+                # WHAT THIS PACKAGE CLAIMS TO DO TO THE IMAGE. "it patched" is
+                # not an answer at three in the morning; 26100.1742 -> 26100.8655
+                # is, and it is the build a technician compares winver against.
+                baselineVersion = [string] $current.BaselineVersion
+                targetVersion   = [string] $current.TargetVersion
+
+                # THE WITNESS ITSELF, IN NUMBERS. 85 packages becoming 159 is
+                # what proved the 0xC0000409 apply had worked, and a reader who
+                # doubts the verdict wants to see the same evidence it used.
+                packageCountBefore = $before.Count
+                packageCountAfter  = $after.Count
             })
     }
 
