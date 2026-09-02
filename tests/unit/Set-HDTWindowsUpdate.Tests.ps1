@@ -192,7 +192,14 @@ Describe 'Set-HDTWindowsUpdate' {
             try {
                 Set-HDTWindowsUpdate -WorkspaceRoot $script:workspaceRoot -Id 'KB5094126-x64' `
                     -Name '' -FileSystem $script:fileSystem -Confirm:$false
-            } catch { }
+            } catch {
+                # THE THROW IS THE POINT, AND THE FILE IS THE ASSERTION. Which
+                # message it carries is the test above; what this one is for is
+                # that a refused edit leaves the catalogue byte-identical, so the
+                # error is caught and named rather than swallowed - an empty
+                # catch here is also the one the analyzer refuses.
+                Write-Verbose ("the edit was refused, which is the case under test: {0}" -f [string] $_.Exception.Message)
+            }
 
             $script:fileSystem.ReadAllText($script:catalogPath) | Should -BeExactly $script:original
         }
