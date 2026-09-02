@@ -123,23 +123,45 @@ Describe 'HDTDeploymentMethod, published where the provider is already known' {
             [string] $call.Extent.Text | Should -Match 'bootstrap\.Provider'
         }
 
-        It 'never compares a provider name to a literal outside Get-HDTDeploymentMethod' {
-            # SCOPED TO 'Local' AND 'MEDIA' ON PURPOSE. The payload legitimately
-            # compares Provider -eq 'Smb' in section 8, for the CREDENTIAL - a
-            # credential is an SMB concept and asking for one is not a method
-            # decision. What must not exist is a SECOND place that decides UNC
-            # vs MEDIA, because that is the answer that can disagree with
-            # itself.
+        It 'never decides the method a second time by looking at the provider itself' {
+            # SCOPED TO 'Local' ON PURPOSE. The payload legitimately compares
+            # Provider -eq 'Smb' in section 8, for the CREDENTIAL - a credential
+            # is an SMB concept and asking for one is not a method decision.
+            # What must not exist is a SECOND place that decides UNC vs MEDIA
+            # from the provider, because that is the answer that can disagree
+            # with itself.
             $offender = @($script:ast.FindAll({
                         param($node)
                         $node -is [System.Management.Automation.Language.BinaryExpressionAst]
                     }, $true) |
                     Where-Object {
-                        ([string] $_.Left.Extent.Text) -match "^'(Local|MEDIA)'$" -or
-                        ([string] $_.Right.Extent.Text) -match "^'(Local|MEDIA)'$"
+                        ([string] $_.Left.Extent.Text) -match "^'Local'$" -or
+                        ([string] $_.Right.Extent.Text) -match "^'Local'$"
                     })
 
             @($offender | ForEach-Object { $_.Extent.Text }) | Should -Be @()
+        }
+
+        It 'compares against MEDIA only on the one derived value, never on anything else' {
+            # GATING ON THE ANSWER IS NOT DECIDING IT. The connect loop reads
+            # $deploymentMethod - the local computed once in section 7 - and a
+            # comparison against 'MEDIA' with anything else on the other side
+            # would be a second derivation wearing the answer's clothes.
+            $compared = @($script:ast.FindAll({
+                        param($node)
+                        $node -is [System.Management.Automation.Language.BinaryExpressionAst]
+                    }, $true) |
+                    Where-Object {
+                        ([string] $_.Left.Extent.Text) -match "^'MEDIA'$" -or
+                        ([string] $_.Right.Extent.Text) -match "^'MEDIA'$"
+                    })
+
+            $wrongSide = @($compared | Where-Object {
+                    ([string] $_.Left.Extent.Text) -ne '$deploymentMethod' -and
+                    ([string] $_.Right.Extent.Text) -ne '$deploymentMethod'
+                })
+
+            @($wrongSide | ForEach-Object { $_.Extent.Text }) | Should -Be @()
         }
     }
 

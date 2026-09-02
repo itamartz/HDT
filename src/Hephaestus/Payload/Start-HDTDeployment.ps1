@@ -1161,7 +1161,17 @@ try {
         $reached = $false
         $lastError = ''
 
-        for ($try = 1; $try -le $ConnectAttempt; $try++) {
+        # ONE ATTEMPT ON MEDIA, AND NOT AS A TUNING CHOICE. The five below exist
+        # for a network that has just come up - a switch still learning, a lease
+        # seconds old, a server with no session for a client that has only just
+        # appeared - and every one of those is over in a few seconds. None of
+        # them can happen to a volume this machine is already standing on.
+        # Retrying a disc four more times buys twenty seconds of sleeping and
+        # the same answer.
+        $attemptCount = $ConnectAttempt
+        if ($deploymentMethod -eq 'MEDIA') { $attemptCount = 1 }
+
+        for ($try = 1; $try -le $attemptCount; $try++) {
             $content = New-HDTContentProvider @providerArgument
 
             try {
@@ -1179,13 +1189,36 @@ try {
                 $lastError = [string] $_.Exception.Message
 
                 & $say ("could not reach '{0}' (attempt {1} of {2}): {3}" -f
-                    $deployRoot.Path, $try, $ConnectAttempt, $lastError) 'Warning'
+                    $deployRoot.Path, $try, $attemptCount, $lastError) 'Warning'
             }
 
-            if ($try -lt $ConnectAttempt) { Start-Sleep -Seconds ($try * 2) }
+            if ($try -lt $attemptCount) { Start-Sleep -Seconds ($try * 2) }
         }
 
         if ($reached) { break }
+
+        # A SHARE BOX OFFERED FOR A DISC IS A QUESTION WITH NO ANSWER. The screen
+        # below is right for SMB, where the usual cause is an address that moved
+        # and a technician can type the new one. On media the content is on the
+        # thing this machine booted from: there is no other path to offer and no
+        # correction to make, so it says what is actually wrong instead of asking.
+        #
+        # THE VOLUMES ARE IN THE MESSAGE because they are the whole investigation.
+        # Resolve-HDTDeployRoot found the marker on one of them and this could
+        # still not be opened, so which ones were there is the difference between
+        # "the disc was ejected" and "the drive letter moved".
+        #
+        # SAID TO THE LOG FIRST, AT Warning. The throw below reaches the failure
+        # screen and the outer handler, and a run nobody is watching has neither -
+        # so the reason goes into the log before it goes anywhere else.
+        if ($deploymentMethod -eq 'MEDIA') {
+            $unreachable = ("HDTContentUnreachable: the deployment content at '{0}' could not be opened, and this machine booted from media ({1}) - so there is no share to correct. The ready volumes considered were: {2}. The last error was: {3}" -f
+                $deployRoot.Path, $deploymentMethod, (@($candidateRoot) -join ', '), $lastError)
+
+            & $say $unreachable 'Warning'
+
+            throw $unreachable
+        }
 
         # AND THEN THE SCREEN COMES UP, WHATEVER THE IMAGE SAYS ABOUT WHO IS HERE.
         #
