@@ -7,7 +7,7 @@
 #   ApplyImage(imagePath, index, applyPath)
 #   CaptureImage(capturePath, imagePath, name, description, compress, scratchPath)
 #   ApplyUnattend(imagePath, unattendPath, scratchPath)
-#   AddPackage(imagePath, packagePath) -> ExitCode, Output
+#   AddPackage(imagePath, packagePath[, onOutput]) -> ExitCode, Output
 #   GetPackage(imagePath) -> object[]  Name, State
 #   AddDriver(imagePath, driverPath, recurse) -> object[]  Inf, Provider,
 #                                                          Version, Date
@@ -130,6 +130,35 @@ Describe 'IImageService contract: <Name>' -ForEach $script:HDTImplementation {
                     'SetBootSequenceOnce', 'RemoveBootEntry')) {
                 $method | Should -Contain $name -Because "IImageService requires $name"
             }
+        }
+
+        It 'takes an output callback on AddPackage, as both implementations must' {
+            # THE FAKE DRIFTING FROM THE ADAPTER IS THE FAILURE MODE THIS FILE
+            # EXISTS FOR, and it has already shipped once here: the fake
+            # MoveItem moved files and not directories while the real one did
+            # both. dism /Add-Package prints a percentage meter and a cumulative
+            # update is eight to twelve minutes of it, so a fake that swallowed
+            # the callback would leave the only thing moving on a technician's
+            # screen untested on the slowest step in a servicing pass.
+            #
+            # A ScriptMethod DOES NOT PUBLISH ITS PARAMETERS - OverloadDefinitions
+            # on the real adapter reads 'System.Object AddPackage();' whatever it
+            # takes - so the real row is read off the scriptblock's own param
+            # block and the fake row off the class's overloads.
+            $member = $script:image.PSObject.Methods['AddPackage']
+
+            $arity = @()
+            if ($member -is [System.Management.Automation.PSScriptMethod]) {
+                $arity = @(@($member.Script.Ast.ParamBlock.Parameters).Count)
+            } else {
+                $arity = @($member.OverloadDefinitions | ForEach-Object {
+                        @([regex]::Matches([string] $_, ',')).Count + 1
+                    })
+            }
+
+            $arity | Should -Contain 3 -Because (
+                'IImageService.AddPackage takes an onOutput callback, so a step can report ' +
+                "dism's percentage meter while a cumulative update applies")
         }
 
         It 'names itself ImageService' {

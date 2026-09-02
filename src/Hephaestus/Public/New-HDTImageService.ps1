@@ -49,7 +49,15 @@
                   first boot runs specialize and oobeSystem and not that one.
                   MDT LTIApply.wsf:1021-1043; see NOTICE.md.
 
-              AddPackage(imagePath, packagePath) -> ExitCode, Output
+              AddPackage(imagePath, packagePath[, onOutput]) -> ExitCode, Output
+                  dism.exe /Image: /Add-Package /PackagePath:, run as a pipeline
+                  with every line handed to onOutput as it arrives - ApplyImage's
+                  shape, because /Add-Package prints the same percentage meter
+                  and a cumulative update is eight to twelve minutes of it. The
+                  transcript is BOTH streamed and returned; the exit code is
+                  returned rather than asserted, which is the whole point of this
+                  method's shape - see it.
+
               GetPackage(imagePath) -> Name, State
               AddDriver(imagePath, driverPath, recurse)
                   Add-WindowsDriver -Path <imagePath> -Driver <driverPath>
@@ -615,7 +623,7 @@
     }
 
     $service | Add-Member -MemberType ScriptMethod -Name AddPackage -Value {
-        param([string] $ImagePath, [string] $PackagePath)
+        param([string] $ImagePath, [string] $PackagePath, [scriptblock] $OnOutput = {})
 
         $this.Record('AddPackage', @($ImagePath, $PackagePath))
 
@@ -646,8 +654,25 @@
             ('/PackagePath:{0}' -f $PackagePath)
         )
 
+        # EVERY LINE GOES TO $OnOutput AS IT ARRIVES, RAW, WHICH IS ApplyImage'S
+        # SHAPE AND FOR ApplyImage'S REASON. dism /Add-Package prints a real
+        # percentage meter - measured on this machine on 2026-09-02, one
+        # WinPE-NetFx.cab into a mounted winpe.wim printed 124 lines of which 58
+        # were the bar - and a cumulative update is eight to twelve minutes of
+        # it. That number was being collected into the array below and thrown
+        # away: HDT-UPD-01 run-20260902-004953 showed two step.progress records
+        # for a 515-second step, which on the machine itself is a bar that never
+        # moves and cannot be told from a hang.
+        #
+        # WHAT A LINE MEANS IS NOT DECIDED HERE. ConvertFrom-HDTDismProgressLine
+        # and the step decide; this adapter is not unit tested and gets no
+        # branches (rule 1).
         $output = @(& "$env:SystemRoot\System32\dism.exe" @argument 2>&1 |
-                ForEach-Object { [string] $_ })
+                ForEach-Object {
+                    $line = [string] $_
+                    $null = $OnOutput.Invoke($line)
+                    $line
+                })
 
         # THE EXIT CODE IS REPORTED, NOT ASSERTED, AND THAT IS THE WHOLE POINT
         # OF THIS METHOD'S SHAPE. dism exited 0xC0000409 - STATUS_STACK_BUFFER_
