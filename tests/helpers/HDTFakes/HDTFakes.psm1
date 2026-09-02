@@ -3837,8 +3837,28 @@ class HDTFakeImageService {
     # judged by the number alone would be wrong on one machine and right on the
     # next. A test seeds either.
     [object] AddPackage([string] $ImagePath, [string] $PackagePath) {
+        return $this.AddPackage($ImagePath, $PackagePath, {})
+    }
+
+    # THE THREE-ARGUMENT FORM, FOR THE SAME REASON ApplyImage HAS AN OVERLOAD -
+    # and on the step where it matters most. dism /Add-Package prints a real
+    # percentage meter, measured on this machine on 2026-09-02: WinPE-NetFx.cab
+    # into a mounted winpe.wim printed 124 lines, 58 of them the bar, exit 0. A
+    # cumulative update is eight to twelve minutes of that meter, and the step
+    # that discarded it showed a technician two log records for the whole pass.
+    #
+    # THE LINES ARE $PackageResult's Output, NOT A LIST OF THEIR OWN, and that
+    # is the one place this differs from $ApplyOutput. The real adapter RETURNS
+    # the transcript it collected WHILE handing each line over, so the seeded
+    # Output already IS "what dism printed for this package" - keyed per package
+    # path, which is what a pass over three .msu files needs. A second seed would
+    # be the same fact spelled twice and the two would disagree.
+    #
+    # THE LINES COME BEFORE THE FAILURE, because that is the order they happen
+    # in: dism meters its way to 60% and then runs out of memory, and a step that
+    # logged nothing about the first 60% is a step nobody can debug afterwards.
+    [object] AddPackage([string] $ImagePath, [string] $PackagePath, [object] $OnOutput) {
         $this.Record('AddPackage', @($ImagePath, $PackagePath))
-        $this.AssertNoFailure('AddPackage')
 
         $key = $this.Normalize($PackagePath)
 
@@ -3850,6 +3870,12 @@ class HDTFakeImageService {
             if ($seed.Contains('ExitCode')) { $exitCode = [int] $seed['ExitCode'] }
             if ($seed.Contains('Output')) { $output = [string[]] @($seed['Output']) }
         }
+
+        if ($null -ne $OnOutput) {
+            foreach ($line in @($output)) { $null = $OnOutput.Invoke([string] $line) }
+        }
+
+        $this.AssertNoFailure('AddPackage')
 
         # WHAT THE APPLY PUT ON THE IMAGE, so the step's verification read has
         # something true to find. A package with nothing seeded installs

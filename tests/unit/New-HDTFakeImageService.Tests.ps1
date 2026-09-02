@@ -487,3 +487,98 @@ Describe 'the capture that talks back' {
         @($seen).Count | Should -Be 3
     }
 }
+
+Describe 'the package apply that talks back' {
+
+    # /Add-Package PRINTS A REAL PERCENTAGE METER, and that was measured on this
+    # machine rather than assumed: WinPE-NetFx.cab into a mounted winpe.wim on
+    # 2026-09-02 printed 124 lines, 58 of them the bar, and exited 0. It is the
+    # same bar /Apply-Image prints, which is why one parser reads both.
+    #
+    # THE LINES ARE $PackageResult's Output, NOT A LIST OF THEIR OWN. The real
+    # adapter RETURNS the transcript it collected as it handed each line to the
+    # callback, so the seeded Output is already exactly "what dism printed for
+    # this package" - a second seed would be the same fact spelled twice, and
+    # the two would disagree.
+
+    BeforeAll {
+        $script:packageMeter = @(
+            'Processing 1 of 1 - Adding package Package_for_RollupFix~31bf3856ad364e35~amd64~~26100.8655.1.20'
+            '[                           1.0%                           ] '
+            '[==============             50.0%                          ] '
+            '[==========================100.0%==========================] '
+            'The operation completed successfully.'
+        )
+
+        $script:msu = 'C:\Deploy\WindowsUpdates\KB5094126-x64\windows11.0-kb5094126-x64.msu'
+    }
+
+    It 'replays the seeded lines to the callback, in order' {
+        $image = New-HDTFakeImageService -PackageResult @{ $script:msu = @{ Output = $script:packageMeter } }
+        $seen = New-Object System.Collections.ArrayList
+
+        $null = $image.AddPackage('W:\', $script:msu, { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -Be $script:packageMeter
+    }
+
+    It 'replays nothing when it was seeded with nothing' {
+        $image = New-HDTFakeImageService
+        $seen = New-Object System.Collections.ArrayList
+
+        $null = $image.AddPackage('W:\', $script:msu, { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -BeNullOrEmpty
+    }
+
+    It 'replays only the lines seeded for the package it was asked about' {
+        # ONE FAKE SERVES A WHOLE PASS. A sequence applying three .msu files
+        # drives this one object three times, and a transcript that leaked
+        # between them would make the step's per-package scaling unprovable.
+        $image = New-HDTFakeImageService -PackageResult @{ $script:msu = @{ Output = $script:packageMeter } }
+        $seen = New-Object System.Collections.ArrayList
+
+        $null = $image.AddPackage('W:\', 'C:\Deploy\WindowsUpdates\KB5094125-x64\windows11.0-kb5094125-x64.msu',
+            { param([string] $Text) [void] $seen.Add($Text) })
+
+        @($seen) | Should -BeNullOrEmpty
+    }
+
+    It 'still takes two arguments, for every caller that has no use for the output' {
+        $image = New-HDTFakeImageService -PackageResult @{ $script:msu = @{ Output = $script:packageMeter } }
+
+        { $image.AddPackage('W:\', $script:msu) } | Should -Not -Throw
+    }
+
+    It 'records the same two arguments whether or not a callback was given' {
+        $image = New-HDTFakeImageService -PackageResult @{ $script:msu = @{ Output = $script:packageMeter } }
+
+        # THE CALLBACK TAKES A LINE AND DOES NOTHING WITH IT, which is the point
+        # of this test - but a parameter declared and never read is an analyzer
+        # warning, so it is discarded out loud.
+        $null = $image.AddPackage('W:\', $script:msu, { param([string] $Text) [void] $Text })
+
+        @($image.Operations[0].Arguments) | Should -Be @('W:\', $script:msu)
+    }
+
+    It 'returns the same transcript it replayed' {
+        $image = New-HDTFakeImageService -PackageResult @{ $script:msu = @{ Output = $script:packageMeter } }
+
+        $run = $image.AddPackage('W:\', $script:msu, { param([string] $Text) [void] $Text })
+
+        @($run.Output) | Should -Be $script:packageMeter
+    }
+
+    It 'says what it printed before it fails' {
+        # A PACKAGE APPLY THAT DIED AT 50% DIED SOMEWHERE DIFFERENT from one
+        # that never started, and on a cumulative update - eight to twelve
+        # minutes, measured - the lines are the only evidence of which happened.
+        $image = New-HDTFakeImageService -PackageResult @{ $script:msu = @{ Output = $script:packageMeter } } `
+            -Failure @{ AddPackage = 'Error: 0x8007000E' }
+        $seen = New-Object System.Collections.ArrayList
+
+        { $image.AddPackage('W:\', $script:msu, { param([string] $Text) [void] $seen.Add($Text) }) } | Should -Throw
+
+        @($seen).Count | Should -Be 5
+    }
+}
