@@ -364,9 +364,16 @@ $result = [ordered] @{
     # never had a $variable dictionary at all.
     finishAction       = ''
 
-    # HDTSLShare, DeployRoot, or None - so a run that put its logs somewhere
-    # unexpected says which rule sent them there.
+    # HDTSLShare, Media, DeployRoot, or None - so a run that put its logs
+    # somewhere unexpected says which rule sent them there, and a run that put
+    # them nowhere says whether that was a failure to resolve a destination or
+    # a deliberate refusal to write to a disc.
     logDestinationSource = ''
+
+    # THE DESTINATION THAT WAS DELIBERATELY NOT USED, which only 'Media' has.
+    # Empty everywhere else, and declared here because the tail reads it outside
+    # the try and StrictMode makes an absent key an error.
+    logDestinationSkipped = ''
     endedWith          = ''
 
     # THE ONE FIELD THAT STOPS THIS SCRIPT POWERING THE MACHINE OFF. A
@@ -1465,7 +1472,29 @@ try {
     $result['logDestination'] = [string] $logTarget.Path
     $result['logDestinationSource'] = [string] $logTarget.Source
 
-    if ([string]::IsNullOrWhiteSpace([string] $logTarget.Path)) {
+    # AND WHAT IT DECLINED TO USE, WHICH IS NOT THE SAME AS WHAT IT USED. Under
+    # media the copy-back has a destination it deliberately did not write to,
+    # and the tail - four hundred lines below, outside the try, where $logTarget
+    # may never have been assigned - is the place a reader looks for the
+    # copy-back outcome. RESULT.json carries it for the same reason.
+    $result['logDestinationSkipped'] = [string] $logTarget.Skipped
+
+    # THE METHOD IS CHECKED FIRST, BECAUSE UNDER MEDIA THE PATH IS EMPTY BY
+    # DESIGN. An empty-path clause placed ahead of it would swallow the media
+    # case and print the symptom - "no log destination was resolved" - instead
+    # of the reason.
+    if ([string] $logTarget.Source -eq 'Media') {
+        # THE LINE THAT SAVES SOMEBODY AN HOUR. Without it the log says the
+        # destination could not be resolved, which is true, reads like a
+        # failure to resolve one, and sends the reader looking for a share that
+        # is working perfectly well.
+        #
+        # INFO, NOT WARNING. It is not a problem - it is the designed outcome -
+        # and it is something an admin needs in order to understand the run, so
+        # it goes where they will see it without re-running anything.
+        & $say ("the log copy-back to '{0}' was skipped because HDTDeploymentMethod is MEDIA: the deploy root is read-only content, and this machine's own log is at <osvolume>\HDT\Logs. Set HDTSLShare in rules.yaml to send it somewhere else." -f
+            $logTarget.Skipped)
+    } elseif ([string]::IsNullOrWhiteSpace([string] $logTarget.Path)) {
         # SAID OUT LOUD, ON THE PANEL. A run with no log destination is a run
         # whose evidence dies with the machine, and the technician in front of
         # it is the only person who can do anything about that.
@@ -2309,8 +2338,25 @@ if ([string] $result['status'] -eq 'Failed' -and
         # AND THE REASON IS ALREADY IN HAND. The catch put the exception in
         # $result['message'] and nothing carried it any further, so a failure
         # with no step.fail record left IsFailure false and the window shut.
+        # THE LOG ROW HAS TO NAME SOMETHING THE TECHNICIAN CAN OPEN.
+        #
+        # It read the copy-back destination and nothing else, which is right for
+        # a share deployment and blank for a media one - the copy-back is
+        # refused under MEDIA because the deploy root is read-only content, so
+        # the screen offered a failed run with an empty Log line, on the very
+        # machine whose local log is the whole point of that behaviour.
+        #
+        # $result['logPath'] IS THAT LOCAL COPY and it is always set: the
+        # document declares it, section 6 fills it with the log directory before
+        # a single step runs, and the tail refreshes it from the log context. So
+        # this degrades to the machine's own path rather than to nothing.
+        $failureLogPath = [string] $result['logDestination']
+        if ([string]::IsNullOrWhiteSpace($failureLogPath)) {
+            $failureLogPath = [string] $result['logPath']
+        }
+
         $failure = Get-HDTDeploymentFailure -Record $record `
-            -LogPath ([string] $result['logDestination']) `
+            -LogPath $failureLogPath `
             -Reason ([string] $result['message'])
 
         if ($failure.IsFailure) {
@@ -2392,6 +2438,17 @@ if ($null -ne $log -and -not [string]::IsNullOrWhiteSpace([string] $result['logD
 
         & $say ("the log could NOT be copied: {0}" -f $_.Exception.Message) 'Warning'
     }
+} elseif ([string] $result['logDestinationSource'] -eq 'Media') {
+    # THE TAIL IS WHERE A READER LOOKS FOR THE COPY-BACK OUTCOME, and it used
+    # to say "no log destination was resolved" whenever there was none - which
+    # under media is the symptom rather than the reason, and is the sentence
+    # that sends somebody hunting a share that is working perfectly well.
+    #
+    # INFO, NOT WARNING, for the same reason as the line four hundred lines
+    # above it: nothing failed here. A deployment from a disc cannot write to
+    # its own deploy root, and the copy that matters is already on the machine.
+    & $say ("the log was NOT copied to '{0}' because HDTDeploymentMethod is MEDIA: the deploy root is read-only content. This run's log is on this machine at '{1}', and the WinPE leg's copy is under <osvolume>\HDT\Logs. Set HDTSLShare in rules.yaml to send it to a log server." -f
+        [string] $result['logDestinationSkipped'], [string] $result['logPath'])
 } else {
     & $say 'no log destination was resolved, so this run''s log stays on this machine' 'Warning'
 }

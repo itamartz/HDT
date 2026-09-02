@@ -715,14 +715,45 @@ try {
     #
     # NOTHING TO COPY TO IS NOT AN ERROR. A leg that could not reach the share still
     # runs, and its log stays on the machine where somebody can read it.
+    #
+    # AND A DEPLOY ROOT THAT IS A DISC IS ANOTHER SUCH CASE. Get-HDTLogDestination
+    # answers Source 'Media' with an empty Path when HDTDeploymentMethod says the
+    # content came from media, because the deploy root is then read-only content -
+    # so this leg ships nothing, exactly as the WinPE leg does, and for the same
+    # reason.
+    #
+    # THE METHOD ARRIVES IN $variable AND IS NOT DERIVED AGAIN HERE. The WinPE leg
+    # published it, Invoke-HDTTaskSequence checkpointed it into state.json, and the
+    # restore above put the whole bag back. Re-deriving it on this leg would be a
+    # second answer to one question and the two could disagree.
+    #
+    # THE ANSWER IS KEPT RATHER THAN ONLY ITS .Path, because the skip has to be
+    # said out loud and Source is what says it.
     $logDestination = ''
+    $logTarget = $null
 
     if (-not [string]::IsNullOrWhiteSpace($workspaceRoot) -and $null -ne $content) {
         try {
-            $logDestination = [string] (Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $variable).Path
+            $logTarget = Get-HDTLogDestination -WorkspaceRoot $workspaceRoot -Variable $variable
+            $logDestination = [string] $logTarget.Path
         } catch {
+            $logTarget = $null
             $logDestination = ''
         }
+    }
+
+    if ($null -ne $logTarget -and [string] $logTarget.Source -eq 'Media') {
+        # SAID AT Info, BECAUSE NOTHING FAILED. It is the designed outcome and
+        # it is something an administrator needs in order to understand why this
+        # leg's log never reached the share - which without this line reads as
+        # a copy-back that silently did not happen.
+        Write-HDTLog -Context $log -Component 'Resume' -Message (
+            ("the log copy-back to '{0}' was skipped because HDTDeploymentMethod is MEDIA: the deploy root is read-only content. This leg's log stays on this machine at '{1}'. Set HDTSLShare in rules.yaml to send it to a log server." -f
+                [string] $logTarget.Skipped, $logRoot)) -Data ([ordered] @{
+                skipped          = [string] $logTarget.Skipped
+                deploymentMethod = 'MEDIA'
+                localLogPath     = [string] $logRoot
+            })
     }
 
     # AND THE STATE DOCUMENT THE SHARE GETS HAS TO BE THIS LEG'S.
@@ -844,7 +875,17 @@ if (-not $skipSummary) {
         $record = @()
         if ($null -ne $log) { $record = @(Get-HDTRunLogRecord -Context $log) }
 
-        $summary = Get-HDTDeploymentFailure -Record $record -LogPath $logDestination -Reason $setupFailure
+        # THE LOG ROW HAS TO NAME SOMETHING THE TECHNICIAN CAN OPEN, and this
+        # read the copy-back destination alone. That is empty for a leg that
+        # never reached the share and empty by design under MEDIA, where the
+        # deploy root is read-only content - so a failed media deployment showed
+        # a blank Log row on the very machine holding the log.
+        #
+        # $logRoot IS THAT LOCAL COPY and it is set before anything can throw.
+        $summaryLogPath = $logDestination
+        if ([string]::IsNullOrWhiteSpace($summaryLogPath)) { $summaryLogPath = [string] $logRoot }
+
+        $summary = Get-HDTDeploymentFailure -Record $record -LogPath $summaryLogPath -Reason $setupFailure
 
         # AND THE ANSWER IS KEPT. It used to be discarded with [void], so the
         # three buttons on that screen did nothing at all: HDTFinishAction
