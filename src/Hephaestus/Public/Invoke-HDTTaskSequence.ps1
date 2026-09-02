@@ -223,8 +223,17 @@
         [ValidateNotNullOrEmpty()]
         [string] $StatusPath,
 
+        # EMPTY IS A REAL ANSWER HERE, AND MEDIA IS WHERE IT COMES FROM. Under
+        # HDTDeploymentMethod = MEDIA the deploy root is read-only content, so
+        # Get-HDTLogDestination returns no destination at all unless an admin
+        # named HDTSLShare - and Start-HDTDeployment still passes this by name,
+        # because a contract test reads the arguments off that one call site to
+        # prove the engine is invoked properly. A ValidateNotNullOrEmpty here
+        # killed the first offline media deployment before its first step:
+        #   Cannot validate argument on parameter 'LogDestination'.
+        # Both guards below test the VALUE, which is what makes this safe.
         [Parameter()]
-        [ValidateNotNullOrEmpty()]
+        [AllowEmptyString()]
         [string] $LogDestination,
 
         [Parameter()]
@@ -1476,7 +1485,12 @@
         # runs somebody is standing in front of.
         Update-HDTProgressDisplay -Context $Context
 
-        if ($PSBoundParameters.ContainsKey('LogDestination')) {
+        # ON THE VALUE, NOT ON THE BINDING. An empty destination is bound on
+        # every MEDIA run - there is nowhere to copy to - and asking only
+        # whether the parameter was supplied would hand Copy-HDTLog an empty
+        # path and turn "nowhere to copy to" into a failed copy-back reported
+        # on a run that did nothing wrong.
+        if (-not [string]::IsNullOrWhiteSpace($LogDestination)) {
             # DESIGN 4.4.1: copy-back happens on failure too. Copy-HDTLog is
             # documented never to throw and this catches anyway - nothing in a
             # finally block may be allowed to replace the run's own outcome with
