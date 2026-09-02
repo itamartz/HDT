@@ -240,6 +240,7 @@
         'Resolve-HDTApplicationOrder',
         'Resolve-HDTErrorMessage',
         'Resolve-HDTDeployRoot',
+        'Get-HDTDeploymentMethod',
         'Resolve-HDTBootstrapRule',
         'Resolve-HDTImageIndex',
         'Resolve-HDTVariable',

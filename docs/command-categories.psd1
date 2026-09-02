@@ -251,6 +251,7 @@
                 'Select-HDTTargetDisk'
                 'Resolve-HDTImageIndex'
                 'Resolve-HDTDeployRoot'
+                'Get-HDTDeploymentMethod'
             )
         }
         @{

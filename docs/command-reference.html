@@ -257,7 +257,7 @@ try {
 <li><a href="#step-implementations"><span class="nav-t">Step implementations</span><span class="nav-n">26</span></a></li>
 <li><a href="#operating-systems-and-drivers"><span class="nav-t">Operating systems, drivers, updates &amp; selection profiles</span><span class="nav-n">26</span></a></li>
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
-<li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">6</span></a></li>
+<li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">7</span></a></li>
 <li><a href="#boot-image-and-winpe"><span class="nav-t">Boot image &amp; WinPE</span><span class="nav-n">27</span></a></li>
 <li><a href="#transport-pxe-and-media"><span class="nav-t">Transport: PXE, media &amp; content providers</span><span class="nav-n">6</span></a></li>
 <li><a href="#execution-and-resume"><span class="nav-t">Execution engine, state &amp; resume</span><span class="nav-n">18</span></a></li>
@@ -285,9 +285,9 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">297</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">298</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">297</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">298</div><div class="l">carry examples</div></div>
         <div class="stat"><div class="n">84</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
@@ -4270,7 +4270,7 @@ asked for - which is worse than installing something twice.</pre>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="disks-and-imaging" data-cat="disks-and-imaging"><header class="cat-head"><div class="cat-eyebrow">6 commands</div><h2>Disks &amp; imaging</h2><p class="cat-blurb">Turn a named layout into real partitions, and choose the one disk to wipe and the one image to apply.</p></header><div class="cat-body">
+    <section class="cat" id="disks-and-imaging" data-cat="disks-and-imaging"><header class="cat-head"><div class="cat-eyebrow">7 commands</div><h2>Disks &amp; imaging</h2><p class="cat-blurb">Turn a named layout into real partitions, and choose the one disk to wipe and the one image to apply.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTDiskLayout" data-name="get-hdtdisklayout" data-hay="get-hdtdisklayout returns a named disk layout, or every layout hdt knows. name definition">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTDiskLayout">Get-HDTDiskLayout</a></h3>
@@ -4424,6 +4424,26 @@ Resolve-HDTDeployRoot -DeployRoot &#x27;\Share&#x27; -Provider Local -CandidateR
 <p>Candidate on the returned row is what it considered, so RESULT.json can record what the machine SAW as well as what it chose - which is what a support call needs when the answer was wrong.</p>
 <p>NO DRIVE LETTER IS WRITTEN IN THIS FILE, and tests/unit/Resolve-HDTDeployRoot.Tests.ps1 asserts it over the comment-free token stream.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Path, Source (Configured or Discovered), Marker and Candidate.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Get-HDTDeploymentMethod" data-name="get-hdtdeploymentmethod" data-hay="get-hdtdeploymentmethod answers how this machine reached its content - unc or media. provider">
+<header class="fn-head">
+<h3><a class="anchor" href="#Get-HDTDeploymentMethod">Get-HDTDeploymentMethod</a></h3>
+<div class="tags"><span class="chip v-read">Get</span>
+</div></header>
+<p class="syn">Answers how this machine reached its content - UNC or MEDIA.</p>
+<div class="sig-wrap"><pre class="sig">Get-HDTDeploymentMethod [-Provider] &lt;string&gt; [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-Provider</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The content provider named in bootstrap.json: Smb or Local. Read case-insensitively, the way every other bootstrap.json value is.</p></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Get-HDTDeploymentMethod -Provider Smb</pre><p>UNC. The deployment is reading from a share.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Get-HDTDeploymentMethod -Provider Local</pre><p>MEDIA. The deployment is reading from the media it booted from.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>MDT CARRIES TWO VARIABLES HERE AND THEY ARE NOT THE SAME QUESTION. ZTIGather.xml declares DeploymentMethod - &quot;the method being used for the deployment&quot; - beside DeploymentType, which is NEWCOMPUTER, REFRESH or REPLACE. HDT has had HDTDeploymentType since M2 and this is the other one: what HDTDeploymentType says is WHAT is being done, and a media deployment is still NEWCOMPUTER. This says HOW THE MACHINE GOT ITS CONTENT, which is the question every offline-media behaviour actually asks.</p>
+<p>TWO VALUES.</p>
+<pre class="block">  UNC   - the content is on a share, reached over the network.
+  MEDIA - the content is on the thing the machine booted from: a
+          disc, a USB stick, an ISO attached to a VM.</pre>
+<p>MDT ALSO HAS OSD AND SCCM, AND HDT HAS NEITHER, deliberately. Those two are MECM&#x27;s, and HDT takes no dependency on MECM (CLAUDE.md rule 4), so a value naming it would describe a deployment this engine cannot perform. Two values is the whole set, and tests/unit/Get-HDTDeploymentMethod.Tests.ps1 asserts that it stays two by reading Resolve-HDTDeployRoot&#x27;s own ValidateSet rather than trusting a literal here.</p>
+<p>IT DECIDES FROM THE PROVIDER, NOT FROM A MARKER ON A DRIVE. LiteTouch.wsf walks every ready drive looking for Media.tag and defaults to UNC when it finds none, because a VBScript booted by WinPE has nothing better to go on. HDT does: bootstrap.json already names the provider the boot image was built with, and Resolve-HDTDeployRoot already validates it against the same two names. Deciding from that means the answer cannot disagree with the provider actually in use, which is the failure mode a drive-sniffing search has - a stale Media.tag on a second disk and the deployment silently stops using the network it is really reading from.</p>
+<p>THE VALIDATESET IS THE REFUSAL. A provider that is neither gets the same shape of error Resolve-HDTDeployRoot gives for the same mistake, before the body runs, and it costs no branch to maintain.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.String. UNC or MEDIA.</p></div></div><div class="kv"><span class="k">Notes</span><div class="v"><p>The variable this feeds is HDTDeploymentMethod, which Get-HDTVariableMap marks not writable - it is a fact about how the machine booted, not a preference, so a rules.yaml that declares it is refused by Assert-HDTRuleDocument.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
