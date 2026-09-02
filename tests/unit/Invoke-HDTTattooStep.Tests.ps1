@@ -117,6 +117,11 @@ Describe 'Invoke-HDTTattooStep' {
         $script:variable['HDTTaskSequenceName'] = 'Standard Client'
         $script:variable['HDTTaskSequenceVersion'] = '1.4'
         $script:variable['HDTDeploymentType'] = 'NEWCOMPUTER'
+        # BESIDE IT, NOT INSTEAD OF IT. The payload publishes the method from
+        # the boot image's own provider on every run there is, so a "real
+        # resolved set" has both - and a fixture missing it would make the
+        # empty-value warning fire in every test in this file.
+        $script:variable['HDTDeploymentMethod'] = 'UNC'
         $script:variable['HDTDeploymentStart'] = '2026-08-21T19:47:57Z'
         $script:variable['HDTDeploymentEnd'] = '2026-08-21T20:41:07Z'
         $script:variable['HDTMake'] = 'Microsoft Corporation'
@@ -189,6 +194,13 @@ Describe 'Invoke-HDTTattooStep' {
 
         It 'writes the deployment type' {
             [string] $script:value['DeploymentType'] | Should -BeExactly 'NEWCOMPUTER'
+        }
+
+        It 'stamps DeploymentMethod beside DeploymentType' {
+            # MDT CARRIES BOTH (ZTIGather.xml lines 10 and 11) AND SO DOES HDT,
+            # because they answer different questions. DeploymentType says WHAT
+            # was done; DeploymentMethod says HOW the content got here.
+            [string] $script:value['DeploymentMethod'] | Should -BeExactly 'UNC'
         }
 
         It 'writes both ends of the deployment' {
@@ -353,6 +365,40 @@ Describe 'Invoke-HDTTattooStep' {
             $because = 'a tattoo field with no engine-published source is stamped empty on every machine nobody hand-configured'
 
             (@($orphan) -join '; ') | Should -BeExactly '' -Because $because
+        }
+    }
+
+    Context 'the two questions a tattoo answers about how a machine was built' {
+
+        It 'stamps MEDIA and NEWCOMPUTER together, because they are different questions' {
+            # A MACHINE BUILT FROM A DISC IS STILL A BARE-METAL INSTALL. The
+            # ROADMAP warns about exactly this pairing: a reader who saw MEDIA
+            # in the type field would conclude the machine was refreshed rather
+            # than deployed, and the tattoo is what somebody reads a year later
+            # to find out which.
+            $script:variable['HDTDeploymentMethod'] = 'MEDIA'
+
+            Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context | Out-Null
+
+            $value = & $script:written $script:registry $script:defaultPath
+
+            [string] $value['DeploymentMethod'] | Should -BeExactly 'MEDIA'
+            [string] $value['DeploymentType'] | Should -BeExactly 'NEWCOMPUTER'
+        }
+
+        It 'stamps an empty DeploymentMethod rather than failing when the bag has none' {
+            # EVERY state.json WRITTEN BEFORE THIS PHASE HAS NO HDTDeploymentMethod,
+            # and so does a context assembled by hand. An absent name is a blank
+            # field, never an exception on the last step of a deployment.
+            $script:variable.Remove('HDTDeploymentMethod')
+
+            { Invoke-HDTTattooStep -Step (& $script:newStep 'Tattoo' $null) -Context $script:context } |
+                Should -Not -Throw
+
+            $value = & $script:written $script:registry $script:defaultPath
+
+            $value.ContainsKey('DeploymentMethod') | Should -BeTrue
+            [string] $value['DeploymentMethod'] | Should -BeExactly ''
         }
     }
 

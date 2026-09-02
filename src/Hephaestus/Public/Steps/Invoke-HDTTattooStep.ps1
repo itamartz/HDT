@@ -155,6 +155,11 @@
     $stamp['TaskSequenceName'] = & $valueOf 'HDTTaskSequenceName'
     $stamp['TaskSequenceVersion'] = & $valueOf 'HDTTaskSequenceVersion'
     $stamp['DeploymentType'] = & $valueOf 'HDTDeploymentType'
+    # BESIDE IT, BECAUSE THEY ARE DIFFERENT QUESTIONS. DeploymentType says WHAT
+    # was done and stays NEWCOMPUTER on a machine built from a disc, which is
+    # still a bare-metal install; this says HOW the content got here, and that
+    # machine reads MEDIA. MDT carries both (ZTIGather.xml lines 10 and 11).
+    $stamp['DeploymentMethod'] = & $valueOf 'HDTDeploymentMethod'
     $stamp['DeploymentStart'] = & $valueOf 'HDTDeploymentStart'
     $stamp['DeploymentEnd'] = & $valueOf 'HDTDeploymentEnd'
     $stamp['DeploymentDuration'] = ''

@@ -976,6 +976,28 @@ try {
 
     $result['candidateRoot'] = $candidateRoot
 
+    # HOW THIS MACHINE REACHED ITS CONTENT, DECIDED WHERE THE PROVIDER IS ALREADY
+    # KNOWN. bootstrap.Provider was baked into this image by Update-HDTBootImage
+    # and is about to be handed to Resolve-HDTDeployRoot on the next line; taking
+    # the method from the same value means the engine and a step condition cannot
+    # gate on two answers that disagree.
+    #
+    # NOT HDTDeploymentType, WHICH IS A DIFFERENT QUESTION. That one says WHAT is
+    # being done and stays NEWCOMPUTER - a machine deploying from a disc is still
+    # a bare-metal install. This says HOW the content got here, which is the only
+    # thing the media behaviours care about. MDT carries both (ZTIGather.xml
+    # lines 10 and 11) and so does HDT.
+    #
+    # THREE READERS, ONE DERIVATION. The connect loop below reads the local,
+    # because Resolve-HDTVariable has not run yet; the resolution publishes it so
+    # Get-HDTLogDestination sees it; and $variable carries it across the reboot.
+    $deploymentMethod = Get-HDTDeploymentMethod -Provider ([string] $bootstrap.Provider)
+
+    $result['deploymentMethod'] = $deploymentMethod
+
+    & $say ("deployment method {0}, from the boot image's '{1}' provider" -f
+        $deploymentMethod, [string] $bootstrap.Provider)
+
     $deployRoot = Resolve-HDTDeployRoot -DeployRoot ([string] $chosen.DeployRoot) `
         -Provider ([string] $bootstrap.Provider) -CandidateRoot $candidateRoot `
         -Marker ([string] $bootstrap.ContentMarker) -FileSystem $fileSystem
@@ -1268,6 +1290,24 @@ try {
         Fact          = $fact
         ScriptInvoker = $scriptInvoker
     }
+
+    # PUBLISHED THROUGH THE RESOLVER, NOT WRITTEN INTO ITS ANSWER. A value assigned
+    # into $resolved.Variable by hand has no provenance row, so the export beside it
+    # disagrees with the bag - and it would be thrown away anyway, because a share
+    # with a wizard resolves a SECOND time below.
+    #
+    # AND THAT IS WHY IT GOES IN THE HASHTABLE RATHER THAN AFTER THE CALL.
+    # Start-HDTWizardDeployment re-runs the resolver with this SAME hashtable to
+    # apply the technician's answers, and ITS result is the bag the engine deploys
+    # with. A publication made after the first resolution would survive on a share
+    # with no wizard and vanish on one with a wizard - green in every test that
+    # never opens one, and wrong in this lab.
+    #
+    # -EngineVariable IS APPLIED BEFORE ALL FIVE PRECEDENCE SOURCES, which is the
+    # other half of Assert-HDTRuleDocument's refusal: a rules.yaml cannot declare
+    # this name, and the command line and the machine override - which never pass
+    # through that validator - lose to it here by first-writer-wins.
+    $resolveArgument['EngineVariable'] = @{ HDTDeploymentMethod = $deploymentMethod }
     if ($null -ne $override) {
         $resolveArgument['MachineOverride'] = $override.Variable
         $resolveArgument['MachineOverridePath'] = [string] $override.Path
@@ -1742,6 +1782,18 @@ try {
         'yyyy-MM-ddTHH:mm:ssZ', [System.Globalization.CultureInfo]::InvariantCulture)
 
     $result['deploymentStart'] = [string] $variable['HDTDeploymentStart']
+
+    # AND THE COPY THAT CROSSES THE REBOOT. Invoke-HDTTaskSequence checkpoints
+    # $variable into state.json at every step and Start-HDTResume.ps1 puts the
+    # document back before it does anything, so the full-OS leg gets the method
+    # without re-deriving it from a bootstrap.json that may have been re-resolved
+    # by then - a disc that is D: in WinPE is commonly another letter once Windows
+    # has assigned its own.
+    #
+    # NOT A SECOND DERIVATION. It is the same local computed in section 7 from the
+    # same bootstrap.Provider, so a step condition and the connect loop above
+    # cannot disagree about how this machine reached its content.
+    $variable['HDTDeploymentMethod'] = $deploymentMethod
 
     # AND THE SAME DEFAULTS ON THE BAG THE ENGINE ACTUALLY RUNS ON. When a wizard
     # ran, this is its second-passed set rather than the one seeded above, so the
