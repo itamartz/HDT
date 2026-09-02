@@ -65,6 +65,14 @@ $script:HDTExpansionProbe = @(
     # client updates to every server the share ever builds.
     @{ Type = 'ApplyUpdates'; Key = 'release'; Value = 'Win11-24H2'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'ApplyUpdates'; Key = 'target'; Value = 'S:'; Phase = 'WinPE'; Extra = @{} }
+    # AND THE IDS, WHICH ARE A LIST AND STILL HAVE TO EXPAND. `updates:
+    # '%HDTUpdates%'` filled by a rule is the pattern HDTApplications already
+    # established, and InstallApplications proved the trap: the flat form goes
+    # through -Expand and a YAML sequence does not, so the two shapes behaved
+    # differently. The control carries the id into the refusal that names it -
+    # this workspace has imported nothing - which is what makes the row
+    # observable at all.
+    @{ Type = 'ApplyUpdates'; Key = 'updates'; Value = 'KB5094126-x64'; Phase = 'WinPE'; Extra = @{} }
     @{ Type = 'BootToWinPE'; Key = 'bootImage'; Value = 'HDTPE_x64'; Phase = 'FullOS'; Extra = @{ action = 'stage' } }
     @{ Type = 'CaptureImage'; Key = 'image'; Value = 'CONTOSO-REF.wim'; Phase = 'WinPE'; Extra = @{ source = 'C:' } }
     @{ Type = 'CaptureImage'; Key = 'source'; Value = 'D:'; Phase = 'WinPE'; Extra = @{ image = 'CONTOSO-REF.wim' } }

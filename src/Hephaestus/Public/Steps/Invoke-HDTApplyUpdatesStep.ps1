@@ -58,6 +58,47 @@
             because that is what dism printed and what a technician with
             dism.log open is matching against.
 
+            THE SEQUENCE CAN NAME THE UPDATES IT WANTS, and `release` changes
+            meaning when it does. A share a month old holds two cumulative
+            updates for one release; `release` cannot choose between them and
+            `enabled` on the update document is share-wide, so turning one off
+            takes it out of EVERY sequence. `updates` is the per-sequence lever
+            - a list of ids or a comma line, tokens expanded either way, exactly
+            as InstallApplications' `selection`.
+
+            AN EMPTY updates IS TODAY'S BEHAVIOUR: every enabled update for the
+            release. Nothing already authored changes meaning.
+
+            AND ONCE IT IS NOT EMPTY, release STOPS BEING A FILTER AND BECOMES
+            AN ASSERTION. An id already says which release it belongs to, so a
+            step naming both and having them disagree is contradicting itself -
+            and the two ways out are worse than refusing. Filtering the named
+            list by release SILENTLY DROPS something the author wrote down by
+            name; ignoring release leaves a box on the Properties sheet that
+            says nothing true. So it fails, naming the id, its release and the
+            step's. A sequence that deploys more than one operating system
+            leaves `updates` empty and lets %HDTOSRelease% choose, or puts a
+            condition on the step, which is MDT's shape for the same problem.
+
+            AN ID THE SHARE DOES NOT HAVE FAILS, AND FAILS FIRST. A typo that
+            applies nothing and returns Completed is the silent no-op this
+            repository has already paid for once, and checking before the apply
+            loop means a misspelt id cannot leave a half-serviced image behind.
+
+            A NAMED UPDATE THAT IS DISABLED IS SKIPPED, NOT FAILED, and it is
+            the one asymmetry here. A missing id is a typo - nobody DECIDED that
+            update should not apply. `enabled: false` is somebody deliberately
+            withdrawing a bad update, and failing would break every sequence
+            that named it, at the machine, until each one was edited. The
+            withdrawal wins and the record is a Warning.
+
+            THE ORDER IS ALWAYS THE RESOLVED ORDER, never the author's. The list
+            says WHICH updates, and Get-HDTUpdateApplyOrder says in what order -
+            servicing stack first, then by the build each one produces. An
+            author's list order must not be able to produce a broken image, and
+            a cumulative update bundles its own SSU anyway, so there is nothing
+            to gain by honouring it.
+
             NOT APPLICABLE IS NOT A FAILURE, and this is where the step parts
             company with a naive reading of DISM's exit codes. 0x800F081E means
             the package does not apply to this image, which is the ORDINARY
@@ -70,7 +111,7 @@
             step, AFTER every other package has been tried.
 
         .PARAMETER Step
-            The step, carrying release and target.
+            The step, carrying release, updates and target.
 
         .PARAMETER Context
             The execution context: services, variables and the log.
@@ -79,8 +120,8 @@
             None. This command does not accept pipeline input.
 
         .OUTPUTS
-            A New-HDTStepResult. Data carries release, target, considered,
-            applied, alreadyPresent, notApplicable and failed.
+            A New-HDTStepResult. Data carries release, named, target,
+            considered, applied, alreadyPresent, notApplicable and failed.
 
         .EXAMPLE
             $sequence = Import-HDTSequenceDocument -Path 'C:\HDTLab\Share\TaskSequences\PNP-TEST\sequence.yaml'
@@ -93,6 +134,14 @@
 
             Applies every update filed under the step's release to the volume
             HDTOSVolume names, writing one log record per package.
+
+        .EXAMPLE
+            $step.Property['updates'] = @('KB5094126-x64')
+            Invoke-HDTApplyUpdatesStep -Step $step -Context $context
+
+            Applies only the update that id names, out of everything filed under
+            the step's release. An id the share does not have fails the step
+            before the first package is applied.
 
         .EXAMPLE
             $result = Invoke-HDTApplyUpdatesStep -Step $step -Context $context
@@ -138,6 +187,43 @@
         # that was meant to fill an empty target - ApplyDrivers' rule, and for
         # the same reason: the expanded value alone cannot say which rule built it.
         $targetWritten = Get-HDTStepProperty -Step $Step -Name 'target' -Default 'primary' -As String
+
+        # THE IDS THIS STEP NAMES, IF IT NAMES ANY. Two updates for one release
+        # is the ordinary state of a share a month after it was built, and
+        # `release` cannot choose between them - it selects everything filed
+        # under one. The only other lever, `enabled` on the update document, is
+        # SHARE-WIDE: turning one off takes it out of every sequence, which is a
+        # different statement from "this sequence applies that one".
+        #
+        # THE SHAPE IS InstallApplications' `selection`, deliberately, because
+        # that is the established way this engine says "these specific things,
+        # by id" - a YAML sequence or a comma line, tokens expanded either way,
+        # so `updates: '%HDTUpdates%'` from a rule works exactly as
+        # `selection: '%HDTApplications%'` already does.
+        #
+        # A LIST IS WALKED ELEMENT BY ELEMENT and the flat form goes through
+        # -Expand. InstallApplications learned why the hard way: the two forms
+        # took different paths, so an element carrying a token went looking for
+        # an update whose id was a percent sign.
+        $named = @()
+        $property = $Step.Property
+
+        if ($null -ne $property -and $property.Contains('updates')) {
+            $raw = $property['updates']
+
+            if ($raw -is [System.Collections.IList] -and -not ($raw -is [string])) {
+                $named = @(@($raw) |
+                        ForEach-Object { ([string] (Expand-HDTVariableToken -Value ([string] $_) -Scope $Context.Variable)).Trim() } |
+                        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            } else {
+                $flat = Get-HDTStepProperty -Step $Step -Name 'updates' -Default '' -Context $Context -Expand -As String
+
+                $named = @(@([string] $flat -split '[,;
+]') |
+                        ForEach-Object { $_.Trim() } |
+                        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+            }
+        }
     } catch {
         return (& $fail ([string] $_.Exception.Message) 'HDTConfigurationError')
     }
@@ -188,6 +274,54 @@
 
     $imported = $update.Count
 
+    # -- the ids the step named, checked before a single package is applied ---
+    #
+    # BOTH REFUSALS HAPPEN HERE, ahead of the apply loop, and that placement is
+    # the point. A misspelt id discovered halfway through would leave a
+    # half-serviced image and a step that had already changed the machine; a
+    # refusal before the first dism call leaves the volume exactly as the image
+    # step laid it down.
+    if ($named.Count -gt 0) {
+
+        $byId = @{}
+        foreach ($candidate in $update) { $byId[[string] $candidate.Id] = $candidate }
+
+        # A TYPO THAT APPLIES NOTHING AND RETURNS Completed is the silent no-op
+        # this repository has already paid for once, in client.yaml's unresolved
+        # %HDTOSRelease%: a green step, a returned Completed, and an unpatched
+        # machine that nobody looks at again for six months.
+        $missing = @(@($named) | Where-Object { -not $byId.ContainsKey([string] $_) })
+
+        if ($missing.Count -gt 0) {
+            return (& $fail ("step '{0}' names {1} update(s) this share does not have: {2}. An update is a folder under WindowsUpdates\ holding an update.yaml; check the id against the console's Windows Updates node." -f
+                    $Step.Name, $missing.Count, (@($missing) -join ', ')) 'HDTConfigurationError')
+        }
+
+        # AN ID ALREADY IMPLIES ITS RELEASE, so a step naming both and having
+        # them disagree is a step contradicting itself, and one of the two
+        # halves is wrong. The alternative - filter the named list by release -
+        # SILENTLY DROPS something the author wrote down by name, which is the
+        # worse outcome: nothing on the machine, nothing in the console, and a
+        # log line nobody reads. So `release` is a FILTER while `updates` is
+        # empty and an ASSERTION once it is not.
+        #
+        # WHAT AN AUTHOR DOES INSTEAD, for a sequence that deploys more than one
+        # operating system: leave `updates` empty and let %HDTOSRelease% choose,
+        # or put a condition on the step. That is MDT's shape for the same
+        # problem and it is the one this refusal points at.
+        if (-not [string]::IsNullOrWhiteSpace($release)) {
+
+            $mismatch = @(@($named) |
+                    Where-Object { [string] $byId[[string] $_].Release -ne $release } |
+                    ForEach-Object { "{0} (filed under '{1}')" -f [string] $_, [string] $byId[[string] $_].Release })
+
+            if ($mismatch.Count -gt 0) {
+                return (& $fail ("step '{0}' applies release '{1}' and names {2} update(s) filed under another: {3}. An id already says which release it belongs to - name the updates or name the release, not two that disagree." -f
+                        $Step.Name, $release, $mismatch.Count, (@($mismatch) -join ', ')) 'HDTConfigurationError')
+            }
+        }
+    }
+
     # EVERY UPDATE THE STORE HAD, AND WHY EACH ONE IS OR IS NOT IN THIS PASS.
     # The step used to say "considering 1 update(s)" and nothing whatever about
     # the other nineteen, which makes "why did this machine not get KB5094125"
@@ -208,13 +342,42 @@
     # A DISABLED UPDATE IS ONE SOMEBODY TOOK OUT OF SERVICE WITHOUT DELETING IT,
     # which is how an update that turned out to break something is withdrawn
     # while the evidence is kept.
+    # AND WHEN THE STEP NAMES IDS, THE RECORD SAYS SO BY ID. data.update carries
+    # WindowsUpdates\<id> on every row, selected or not, which is the field a
+    # reader filters on to answer "the sequence asked for these four - what
+    # happened to each one". kb alone cannot: two ids can carry the same KB for
+    # two architectures.
     $selected = New-Object -TypeName System.Collections.ArrayList
 
     foreach ($candidate in $update) {
 
         $why = ''
+        $wasNamed = $false
+        $severity = 'Info'
 
-        if (-not [string]::IsNullOrWhiteSpace($release) -and [string] $candidate.Release -ne $release) {
+        if ($named.Count -gt 0) {
+
+            # THE STEP'S OWN LIST IS THE SELECTION AND release HAS ALREADY BEEN
+            # CHECKED AGAINST IT ABOVE, so nothing here can disagree with it any
+            # more - what is left is one question, was this id named.
+            $wasNamed = @($named) -contains [string] $candidate.Id
+
+            if (-not $wasNamed) {
+                $why = 'the step names the updates it applies and this is not one of them'
+            } elseif (-not [bool] $candidate.Enabled) {
+                # THE ONE CASE THAT IS NOT A REFUSAL, and the difference is who
+                # was wrong. A missing id is a typo - nobody DECIDED that update
+                # should not apply, it never existed - so it fails above. This
+                # is somebody's deliberate withdrawal of a bad update, and
+                # failing here would break every sequence that named it, at the
+                # machine, until each one was edited. The withdrawal wins; the
+                # record is a Warning because an author asked for something they
+                # are not getting and has to be able to find out why.
+                $why = 'it is disabled in the workspace, so somebody took it out of service without deleting it - the step names it, and the withdrawal wins'
+                $severity = 'Warning'
+            }
+
+        } elseif (-not [string]::IsNullOrWhiteSpace($release) -and [string] $candidate.Release -ne $release) {
             $why = "it is filed under release '{0}' and this step applies '{1}'" -f
                 [string] $candidate.Release, $release
         } elseif (-not [bool] $candidate.Enabled) {
@@ -230,9 +393,11 @@
                     $(if ([string]::IsNullOrWhiteSpace([string] $candidate.BaselineVersion)) { 'any build' } else { [string] $candidate.BaselineVersion }),
                     [string] $candidate.TargetVersion) `
                 -Data ([ordered] @{
+                    update          = [string] $candidate.Id
                     kb              = [string] $candidate.Kb
                     release         = [string] $candidate.Release
                     selected        = $true
+                    named           = $wasNamed
                     kind            = [string] $candidate.Kind
                     packageId       = [string] $candidate.PackageId
                     package         = [string] $candidate.FileName
@@ -243,13 +408,15 @@
             continue
         }
 
-        Write-HDTLog -Context $Context.Log -Event 'message' -Component 'ApplyUpdates' `
+        Write-HDTLog -Context $Context.Log -Event 'message' -Component 'ApplyUpdates' -Severity $severity `
             -Message ("{0} ({1}) is not in this pass: {2}" -f
                 [string] $candidate.Kb, [string] $candidate.Release, $why) `
             -Data ([ordered] @{
+                update   = [string] $candidate.Id
                 kb       = [string] $candidate.Kb
                 release  = [string] $candidate.Release
                 selected = $false
+                named    = $wasNamed
                 reason   = $why
             })
     }
@@ -268,6 +435,7 @@
         -Data ([ordered] @{
             percent    = 0
             release    = $release
+            named      = [string[]] @($named)
             target     = $osRoot
             imported   = $imported
             considered = $update.Count
@@ -282,6 +450,7 @@
                     $(if ([string]::IsNullOrWhiteSpace($release)) { 'this workspace' } else { "release '$release'" })) `
                 -Data ([ordered] @{
                     release        = $release
+                    named          = [string[]] @($named)
                     target         = $osRoot
                     considered     = 0
                     applied        = 0
@@ -557,6 +726,7 @@
 
     $data = [ordered] @{
         release        = $release
+        named          = [string[]] @($named)
         target         = $osRoot
         considered     = $update.Count
         applied        = $applied

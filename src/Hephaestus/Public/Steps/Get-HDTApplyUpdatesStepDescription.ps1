@@ -1,4 +1,4 @@
-function Get-HDTApplyUpdatesStepDescription {
+﻿function Get-HDTApplyUpdatesStepDescription {
     <#
         .SYNOPSIS
             One line describing an ApplyUpdates step, for the console tree and
@@ -59,8 +59,34 @@ function Get-HDTApplyUpdatesStepDescription {
 
     $property = $Step.Property
     $release = ''
+    $named = @()
 
     if ($null -ne $property -and $property.Contains('release')) { $release = [string] $property['release'] }
+
+    # NAMED IDS ARE THE STRONGER FACT AND THE LINE SAYS THEM FIRST. A step whose
+    # `updates` names two of the five imported for a release reads 'Win11-24H2'
+    # in the tree if the release is all this line reports - identical to the step
+    # beside it that applies all five, which is the difference somebody opened
+    # the tree to see.
+    #
+    # THE COUNT AND NOT THE IDS: a KB id is fifteen characters and four of them
+    # is a line nothing else in the tree can sit beside. The Properties sheet
+    # holds the list; this holds the shape of it.
+    if ($null -ne $property -and $property.Contains('updates')) {
+        $raw = $property['updates']
+
+        if ($raw -is [System.Collections.IList] -and -not ($raw -is [string])) {
+            $named = @(@($raw) | ForEach-Object { [string] $_ } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        } else {
+            $named = @(@([string] $raw -split '[,;]') | ForEach-Object { $_.Trim() } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        }
+    }
+
+    if ($named.Count -eq 1) { return ('ApplyUpdates: {0}' -f [string] $named[0]) }
+
+    if ($named.Count -gt 1) { return ('ApplyUpdates: {0} named update(s)' -f $named.Count) }
 
     if ([string]::IsNullOrWhiteSpace($release)) {
         return ('ApplyUpdates: every imported update ({0})' -f $Step.Name)

@@ -83,10 +83,99 @@ BeforeAll {
         }
     }
 
-    $script:newContext = {
-        param([object] $Image, [hashtable] $Variable = @{ HDTOSVolume = 'W' })
+    # THREE MORE DOCUMENTS, HELD BACK OUT OF THE DEFAULT SET on purpose.
+    # 'applies every imported update when the step names no release' counts what
+    # is on the share, so a fixture added for the `updates` tests would have
+    # changed the answer to a test about something else. Each test that needs
+    # one asks for it.
+    $script:secondClientYaml = @(
+        'schemaVersion: 1'
+        'id: KB5121003'
+        'kb: KB5121003'
+        'name: KB5121003 for Windows 11 24H2'
+        'release: Win11-24H2'
+        'kind: CumulativeUpdate'
+        'architecture: x64'
+        'fileName: windows11.0-kb5121003-x64.msu'
+        'baselineVersion: 10.0.26100.1742'
+        'targetVersion: 10.0.26100.9168'
+        'build: 26100'
+        'revision: 9168'
+        'packageId: Package_for_RollupFix~~amd64~~26100.9168.1.19'
+        'enabled: true'
+    ) -join "`n"
 
-        $fileSystem = New-HDTFakeFileSystem -File (& $script:newFile)
+    $script:secondClientPackage = 'C:\Deploy\WindowsUpdates\KB5121003\windows11.0-kb5121003-x64.msu'
+
+    # DISM's SPELLING, WITH THE PUBLISHER KEY, for the two documents added here.
+    $script:secondClientInstalled = 'Package_for_RollupFix~31bf3856ad364e35~amd64~~26100.9168.1.19'
+    $script:serverInstalled = 'Package_for_RollupFix~31bf3856ad364e35~amd64~~26100.32995.1.21'
+
+    # THE ONE SOMEBODY TOOK OUT OF SERVICE. enabled: false is the share-wide
+    # lever, and a step that names this id is an author and an administrator
+    # disagreeing.
+    $script:withdrawnYaml = @(
+        'schemaVersion: 1'
+        'id: KB5099001'
+        'kb: KB5099001'
+        'name: KB5099001 for Windows 11 24H2'
+        'release: Win11-24H2'
+        'kind: CumulativeUpdate'
+        'architecture: x64'
+        'fileName: windows11.0-kb5099001-x64.msu'
+        'targetVersion: 10.0.26100.9900'
+        'build: 26100'
+        'revision: 9900'
+        'packageId: Package_for_RollupFix~~amd64~~26100.9900.1.4'
+        'enabled: false'
+    ) -join "`n"
+
+    $script:withdrawnPackage = 'C:\Deploy\WindowsUpdates\KB5099001\windows11.0-kb5099001-x64.msu'
+
+    # A SERVICING STACK UPDATE WHOSE BUILD IS HIGHER THAN THE CUMULATIVE'S, so
+    # 'servicing stack first' is proved by something other than a sort that
+    # would have put it first anyway.
+    $script:stackYaml = @(
+        'schemaVersion: 1'
+        'id: KB5094135'
+        'kb: KB5094135'
+        'name: Servicing stack update for Windows 11 24H2'
+        'release: Win11-24H2'
+        'kind: ServicingStackUpdate'
+        'architecture: x64'
+        'fileName: windows11.0-kb5094135-x64.msu'
+        'targetVersion: 10.0.26100.9999'
+        'build: 26100'
+        'revision: 9999'
+        'packageId: Package_for_ServicingStack~~amd64~~26100.9999.1.0'
+        'enabled: true'
+    ) -join "`n"
+
+    $script:stackPackage = 'C:\Deploy\WindowsUpdates\KB5094135\windows11.0-kb5094135-x64.msu'
+
+    $script:secondClientFile = @{
+        'C:\Deploy\WindowsUpdates\KB5121003\update.yaml'                       = $script:secondClientYaml
+        'C:\Deploy\WindowsUpdates\KB5121003\windows11.0-kb5121003-x64.msu'     = 'msu'
+    }
+
+    $script:withdrawnFile = @{
+        'C:\Deploy\WindowsUpdates\KB5099001\update.yaml'                       = $script:withdrawnYaml
+        'C:\Deploy\WindowsUpdates\KB5099001\windows11.0-kb5099001-x64.msu'     = 'msu'
+    }
+
+    $script:stackFile = @{
+        'C:\Deploy\WindowsUpdates\KB5094135\update.yaml'                       = $script:stackYaml
+        'C:\Deploy\WindowsUpdates\KB5094135\windows11.0-kb5094135-x64.msu'     = 'msu'
+    }
+
+    $script:newContext = {
+        param([object] $Image, [hashtable] $Variable = @{ HDTOSVolume = 'W' },
+            [hashtable] $ExtraFile = @{})
+
+        $file = & $script:newFile
+        foreach ($key in @($ExtraFile.Keys)) { $file[[string] $key] = $ExtraFile[$key] }
+
+        $fileSystem = New-HDTFakeFileSystem -File $file
         $clock = New-HDTFakeClock -UtcNow ([datetime]::new(2026, 9, 1, 12, 0, 0, [System.DateTimeKind]::Utc))
 
         $catalog = New-HDTServiceCatalog -FileSystem $fileSystem -Clock $clock -Image $Image
@@ -611,6 +700,309 @@ Describe 'Invoke-HDTApplyUpdatesStep' {
                     Where-Object { $_.Event -eq 'update.apply' -and [string] $_.Data.kb -eq 'KB5094126' })[0]
 
             [string] $record.Data.exitCodeHex | Should -BeExactly '0xC0000409'
+        }
+    }
+
+    # THE SHARE HAS TWO UPDATES FOR ONE RELEASE AND THE SEQUENCE WANTS ONE.
+    #
+    # `release` alone cannot say that: it selects everything filed under a
+    # release, and the only other lever - `enabled` on the update document - is
+    # share-wide, so turning one off takes it out of every sequence on the share.
+    # `updates` is the per-sequence lever, and it is modelled on the one this
+    # engine already has for "these specific things, by id":
+    # InstallApplications' `selection`, list or comma line, tokens expanded
+    # either way.
+    #
+    # AN EMPTY `updates` IS TODAY'S BEHAVIOUR, which is what every test above
+    # this one is still proving.
+    Context 'the updates the step names by id' {
+
+        BeforeAll {
+            # Reading a Data field a record does not carry throws under
+            # Set-StrictMode -Version Latest, which passes a direct run and fails
+            # the gate. PSObject.Properties answers 'absent' instead of raising.
+            # This Context has its own copy rather than reaching for the one two
+            # Contexts above it, which would tie it to the order Pester happens
+            # to run them in.
+            $script:namedField = {
+                param([object] $Record, [string] $Name)
+
+                if ($null -eq $Record.PSObject.Properties['Data'] -or $null -eq $Record.Data) { return $null }
+
+                $property = $Record.Data.PSObject.Properties[$Name]
+                if ($null -eq $property) { return $null }
+
+                return $property.Value
+            }
+        }
+
+        It 'applies the one update it names, out of the two filed under the release' {
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64') }) `
+                -Context (& $script:newContext $image @{ HDTOSVolume = 'W' } $script:secondClientFile)
+
+            $result.Status | Should -BeExactly 'Completed'
+
+            $added = @($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' })
+            $added.Count | Should -Be 1
+            $added[0].Arguments[1] | Should -BeExactly $script:clientPackage
+        }
+
+        It 'takes a comma line as readily as a list, so a rule can fill it' {
+            # `updates: '%HDTUpdates%'` is the authoring pattern HDTApplications
+            # already established, and a rule writes one string.
+            $image = New-HDTFakeImageService
+
+            $null = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = ''; updates = 'KB5121003, KB5094126-x64' }) `
+                -Context (& $script:newContext $image @{ HDTOSVolume = 'W' } $script:secondClientFile)
+
+            @(@($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }) |
+                    ForEach-Object { [string] $_.Arguments[1] }) |
+                Should -Be @($script:clientPackage, $script:secondClientPackage)
+        }
+
+        It 'expands a variable in a list element as well as in a flat line' {
+            # THE TRAP InstallApplications HIT FIRST: the flat form goes through
+            # Get-HDTStepProperty -Expand and a YAML sequence does not, so a list
+            # element carrying a token looked for an update whose id was a
+            # percent sign.
+            $image = New-HDTFakeImageService
+
+            $null = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = ''; updates = @('%HDTNamedUpdate%') }) `
+                -Context (& $script:newContext $image @{ HDTOSVolume = 'W'; HDTNamedUpdate = 'KB5094126-x64' })
+
+            @(@($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }) |
+                    ForEach-Object { [string] $_.Arguments[1] }) | Should -Be @($script:clientPackage)
+        }
+
+        It 'applies in the resolved order and not in the order the author listed' {
+            # AN AUTHOR'S LIST ORDER MUST NOT BE ABLE TO PRODUCE A BROKEN IMAGE.
+            # Get-HDTUpdateApplyOrder puts the servicing stack first and then
+            # orders by the build each update produces; naming the cumulative
+            # first does not move it in front of the stack update.
+            $image = New-HDTFakeImageService
+
+            $null = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64', 'KB5094135') }) `
+                -Context (& $script:newContext $image @{ HDTOSVolume = 'W' } $script:stackFile)
+
+            @(@($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }) |
+                    ForEach-Object { [string] $_.Arguments[1] }) |
+                Should -Be @($script:stackPackage, $script:clientPackage)
+        }
+
+        It 'fails without applying anything when it names an id the share does not have' {
+            # A TYPO THAT APPLIES NOTHING AND RETURNS Completed is the silent
+            # no-op this repository has already paid for once, in client.yaml's
+            # unresolved %HDTOSRelease%. It fails BEFORE the first package, so a
+            # misspelt id cannot leave a half-serviced image behind.
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64', 'KB5094127-x64') }) `
+                -Context (& $script:newContext $image)
+
+            $result.Status | Should -BeExactly 'Failed'
+            $result.Message | Should -Match 'KB5094127-x64'
+            @($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }).Count | Should -Be 0
+        }
+
+        It 'fails when a named update is filed under a release the step does not apply' {
+            # AN ID ALREADY IMPLIES ITS RELEASE, so naming both and having them
+            # disagree is the step contradicting itself. Skipping the update
+            # would be silently dropping something the author wrote down by
+            # name; the refusal names both halves so somebody can pick one.
+            $image = New-HDTFakeImageService
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094125-x64') }) `
+                -Context (& $script:newContext $image)
+
+            $result.Status | Should -BeExactly 'Failed'
+            $result.Message | Should -Match 'KB5094125-x64'
+            $result.Message | Should -Match 'WS2025'
+            $result.Message | Should -Match 'Win11-24H2'
+            @($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }).Count | Should -Be 0
+        }
+
+        It 'applies a named update whatever its release when the step names none' {
+            # AN EMPTY release IS "EVERYTHING IMPORTED", so there is nothing for
+            # the id to disagree with and the id is enough on its own.
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:serverPackage = @($script:serverInstalled) }
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = ''; updates = @('KB5094125-x64') }) `
+                -Context (& $script:newContext $image)
+
+            $result.Status | Should -BeExactly 'Completed'
+
+            @(@($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }) |
+                    ForEach-Object { [string] $_.Arguments[1] }) | Should -Be @($script:serverPackage)
+        }
+
+        It 'skips a named update the share has withdrawn, rather than failing the step' {
+            # THIS IS THE ONE CASE THAT IS NOT A REFUSAL, and the difference is
+            # who was wrong. A missing id is a typo - nobody decided that update
+            # should not apply, it never existed. `enabled: false` is a decision
+            # somebody made deliberately, to take a bad update out of service
+            # without deleting the evidence; failing here would break every
+            # sequence that named it, at the machine, until each one was edited.
+            # So the withdrawal wins and the log says loudly that it did.
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newContext $image @{ HDTOSVolume = 'W' } $script:withdrawnFile
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64', 'KB5099001') }) `
+                -Context $context
+
+            $result.Status | Should -BeExactly 'Completed'
+
+            @(@($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }) |
+                    ForEach-Object { [string] $_.Arguments[1] }) | Should -Be @($script:clientPackage)
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { [string] (& $script:namedField $_ 'update') -eq 'KB5099001' -and
+                        [string] $_.level -eq 'Warning' })
+
+            $record.Count | Should -Be 1
+            [string] $record[0].Message | Should -Match 'disabled'
+        }
+
+        It 'says by name every id it was given and what became of each one' {
+            # CLAUDE.md's logging rule, applied to the new lever: which ids were
+            # named, which resolved, which were skipped and why. "Why did this
+            # machine not get KB5099001" has to be answerable from the log.
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newContext $image @{ HDTOSVolume = 'W' } $script:withdrawnFile
+
+            $null = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64', 'KB5099001') }) `
+                -Context $context
+
+            $named = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { $null -ne (& $script:namedField $_ 'update') } |
+                    ForEach-Object { [string] (& $script:namedField $_ 'update') })
+
+            $named | Should -Contain 'KB5094126-x64'
+            $named | Should -Contain 'KB5099001'
+        }
+
+        It 'says of an update it did not name that the step named others instead' {
+            # THE OTHER HALF OF THE SAME QUESTION. An imported update that is not
+            # in the pass already gets a record saying why; naming ids adds a new
+            # reason, and it has to read as a reason rather than as silence.
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $context = & $script:newContext $image @{ HDTOSVolume = 'W' } $script:secondClientFile
+
+            $null = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64') }) `
+                -Context $context
+
+            $record = @(Get-HDTRunLogRecord -Context $context.Log |
+                    Where-Object { [string] (& $script:namedField $_ 'kb') -eq 'KB5121003' -and
+                        [string] (& $script:namedField $_ 'selected') -eq 'False' })
+
+            $record.Count | Should -Be 1
+            [string] $record[0].Message | Should -Match 'names the updates it applies'
+        }
+
+        It 'reports which ids it was given in the result, beside what it applied' {
+            $image = New-HDTFakeImageService `
+                -PackageInstalls @{ $script:clientPackage = @($script:clientInstalled) }
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @('KB5094126-x64') }) `
+                -Context (& $script:newContext $image @{ HDTOSVolume = 'W' } $script:secondClientFile)
+
+            @($result.Data['named']) | Should -Be @('KB5094126-x64')
+            $result.Data['considered'] | Should -Be 1
+        }
+
+        It 'still applies every update for the release when the key is an empty list' {
+            # `updates: []` IS NOT "APPLY NOTHING". A step whose list is empty is
+            # a step that has not narrowed anything, which is what the shipped
+            # template writes and what every sequence on a share already means.
+            $image = New-HDTFakeImageService -PackageInstalls @{
+                $script:clientPackage       = @($script:clientInstalled)
+                $script:secondClientPackage = @($script:secondClientInstalled)
+            }
+
+            $result = Invoke-HDTApplyUpdatesStep `
+                -Step (& $script:newStep @{ release = 'Win11-24H2'; updates = @() }) `
+                -Context (& $script:newContext $image @{ HDTOSVolume = 'W' } $script:secondClientFile)
+
+            $result.Status | Should -BeExactly 'Completed'
+            @($image.Operations | Where-Object { $_.Operation -eq 'AddPackage' }).Count | Should -Be 2
+        }
+    }
+
+    # WHAT THE TREE ROW READS, and it is the line somebody scans a sequence with.
+    #
+    # THE RELEASE ALONE STOPPED BEING ENOUGH the day a step could name ids. Two
+    # ApplyUpdates steps under one release - one applying all five imported
+    # updates, one applying the two that were tested - drew the identical row,
+    # which is exactly the difference somebody opened the tree to see.
+    Context 'what the tree row says about it' {
+
+        BeforeAll {
+            $script:describe = {
+                param([hashtable] $Property)
+
+                $bag = [System.Collections.Specialized.OrderedDictionary]::new([System.StringComparer]::OrdinalIgnoreCase)
+                foreach ($key in @($Property.Keys)) { $bag[$key] = $Property[$key] }
+
+                return [string] (Get-HDTApplyUpdatesStepDescription -Step ([pscustomobject] @{
+                            Index = 1; Name = 'Apply Windows Updates'; Type = 'ApplyUpdates'
+                            TimeoutMinutes = 0; Log = $null; Property = $bag
+                        }))
+            }
+        }
+
+        It 'names the release when the step names no ids' {
+            & $script:describe @{ release = 'Win11-24H2' } | Should -BeExactly 'ApplyUpdates: Win11-24H2'
+        }
+
+        It 'names the one update when that is all the step applies' {
+            # ONE ID IS SHORTER THAN THE RELEASE LINE AND SAYS MORE, so it is
+            # spelt out rather than counted.
+            & $script:describe @{ release = 'Win11-24H2'; updates = @('KB5094126-x64') } |
+                Should -BeExactly 'ApplyUpdates: KB5094126-x64'
+        }
+
+        It 'counts them rather than listing them once there is more than one' {
+            # A KB ID IS FIFTEEN CHARACTERS AND FOUR OF THEM IS A LINE NOTHING
+            # ELSE IN THE TREE CAN SIT BESIDE. The Properties sheet holds the
+            # list; this row holds the shape of it.
+            & $script:describe @{ release = 'Win11-24H2'; updates = @('KB5094126-x64', 'KB5121003') } |
+                Should -BeExactly 'ApplyUpdates: 2 named update(s)'
+        }
+
+        It 'reads a comma line the same way it reads a list' {
+            & $script:describe @{ release = ''; updates = 'KB5094126-x64, KB5121003' } |
+                Should -BeExactly 'ApplyUpdates: 2 named update(s)'
+        }
+
+        It 'falls back to the release when the list is empty, which narrows nothing' {
+            & $script:describe @{ release = 'Win11-24H2'; updates = @() } |
+                Should -BeExactly 'ApplyUpdates: Win11-24H2'
+        }
+
+        It 'says every imported update when it names neither' {
+            & $script:describe @{ release = ''; updates = @() } |
+                Should -BeExactly 'ApplyUpdates: every imported update (Apply Windows Updates)'
         }
     }
 }
