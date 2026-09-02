@@ -61,7 +61,10 @@ Describe 'Get-HDTStepPropertyDefinition' {
 
             $row.Key | Should -Not -BeNullOrEmpty
             $row.Label | Should -Not -BeNullOrEmpty
-            $row.Kind | Should -BeIn @('Text', 'Check', 'Choice', 'Table')
+            # 'List' was missing from this set while InstallRoles' features row
+            # had already been a List for two releases: the assertion was a
+            # closed set that did not close over the values in the table.
+            $row.Kind | Should -BeIn @('Text', 'Check', 'Choice', 'List', 'Table')
         }
 
         It 'answers a type it has never heard of with nothing, rather than throwing' {
@@ -360,6 +363,53 @@ steps:
 
         $row | Should -Not -BeNullOrEmpty
         $row[0].Value | Should -BeExactly '7'
+    }
+
+    # THE TWO FILES SAY SO AND NOTHING MADE THEM AGREE. Every Get-HDT*StepTemplate
+    # and the table above each carry a comment promising the Properties sheet
+    # reads down in the order the YAML is written - so a technician with the file
+    # open beside the console is not translating between two layouts - and until
+    # this test the promise was two comments and a habit.
+    #
+    # IT IS ABOUT THE SET AND NOT ABOUT THE KEY THAT WAS JUST ADDED. A test
+    # naming ApplyUpdates' 'updates' would pass for it and fail nobody after it;
+    # this one goes red for the next key anybody adds to either file in the wrong
+    # place, in any step type.
+    #
+    # ONLY THE KEYS BOTH SIDES CARRY. A template writes only the keys a step
+    # cannot start without, and this table's whole purpose is to offer the rest
+    # as well, so the extra rows are the feature. What must hold is that the
+    # SHARED keys appear in the same relative order.
+    #
+    # THE KEYS ARE READ WITH A REGEX AND NOT WITH A YAML PARSER, because this
+    # file runs inside the module's own scope where powershell-yaml is not
+    # imported - and a template line is 'key: value' at two spaces by
+    # construction, which the Step template contract already proves loads.
+    It 'lists every row in the order its own template writes the keys' {
+
+        $wrong = New-Object -TypeName System.Collections.ArrayList
+
+        foreach ($current in @(Get-HDTStepType | Where-Object { $null -ne $_.TemplateCommand })) {
+
+            $row = @(Get-HDTStepPropertyDefinition -Type ([string] $current.Type))
+            if ($row.Count -eq 0) { continue }
+
+            $offered = @($row | ForEach-Object { [string] $_.Key })
+
+            $fromTemplate = @(@(& $current.TemplateCommand.Name) |
+                    ForEach-Object { if ($_ -match '^\s{2}([A-Za-z][A-Za-z0-9]*):') { [string] $Matches[1] } } |
+                    Where-Object { $offered -contains $_ })
+
+            $fromTable = @($offered | Where-Object { $fromTemplate -contains $_ })
+
+            if (($fromTemplate -join ',') -ne ($fromTable -join ',')) {
+                [void] $wrong.Add(('{0}: the template writes {1} and the table lists {2}' -f
+                        [string] $current.Type, ($fromTemplate -join ', '), ($fromTable -join ', ')))
+            }
+        }
+
+        # THE WHOLE LIST, NOT THE FIRST ONE: a drift like this is usually a habit.
+        ($wrong -join ' | ') | Should -BeNullOrEmpty
     }
 }
 

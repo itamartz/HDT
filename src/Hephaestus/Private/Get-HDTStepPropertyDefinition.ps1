@@ -139,11 +139,20 @@
             & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the drivers are injected into. Empty uses the volume the partition step published.'
         }
 
-        # ROW ORDER MATCHES THE TEMPLATE'S KEY ORDER - release, then target -
-        # so the sheet reads in the order the YAML is written and a technician
-        # comparing the two is not translating between two layouts.
+        # ROW ORDER MATCHES THE TEMPLATE'S KEY ORDER - release, updates, then
+        # target - so the sheet reads in the order the YAML is written and a
+        # technician comparing the two is not translating between two layouts.
+        #
+        # 'Updates' IS A List AND NOT A Choice, and that is a limitation stated
+        # rather than hidden. Get-HDTStepPropertyChoice is a static table of
+        # Type and Key - it has no workspace to read - so it cannot offer the
+        # ids this share actually imported, and a drop-down that offered a
+        # guessed set would be worse than a box: it would be wrong at exactly
+        # the moment somebody imported an update. So the hint says where the
+        # ids come from instead, and the Windows Updates node lists them.
         'ApplyUpdates' {
             & $new 'release' 'Release' 'Text' '%HDTOSRelease%' 'Which release''s updates to apply, from Control\os-releases.yaml. Empty applies every update imported on this share.'
+            & $new 'updates' 'Updates' 'List' '' 'Update ids, separated by commas, from the Windows Updates node. Empty applies every update for the release above.'
             & $new 'target' 'Target volume' 'Text' '%HDTOSVolume%' 'The volume the updates are injected into, offline, before first boot. Empty uses the volume the partition step published.'
         }
 
