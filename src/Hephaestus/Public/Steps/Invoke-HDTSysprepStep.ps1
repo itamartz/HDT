@@ -394,16 +394,17 @@
     # THROUGH THE LOG, NEVER THROUGH A CHANNEL OF ITS OWN (DESIGN 11.1): the
     # record goes to the JSONL and the display is asked to re-read it, so the
     # screen and the log cannot disagree.
-    # heartbeat, NOT A PERCENT, AND THE MARK IS WHAT MAKES THAT READABLE. sysprep
-    # reports nothing at all, so this record and the ones New-HDTStepHeartbeat
-    # writes after it are the same kind of thing: a sign of life. A reader cannot
-    # test for the ABSENCE of a percent, so without the mark the opener sat in
-    # the measurement stream looking like a measurement.
-    Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component $component `
+    #
+    # A SIGN OF LIFE, NOT A MEASUREMENT, AND WRITTEN BY THE THING THAT OWNS THAT
+    # SHAPE. sysprep reports nothing at all, so this record and the ones
+    # New-HDTStepHeartbeat writes after it are the same kind of thing, and a
+    # reader has to be able to tell both from a percentage - which it cannot do
+    # by testing for the ABSENCE of one. Write-HDTStepLiveness adds the mark that
+    # says so and nudges the display; this step knows the MOMENT worth reporting
+    # and has no say in what the record looks like, nor any cadence of its own.
+    Write-HDTStepLiveness -Context $Context -Component $component `
         -Message 'generalizing this machine; sysprep reports nothing until it is finished' `
-        -Data ([ordered] @{ activity = 'sysprep /generalize'; file = $sysprepExe; heartbeat = $true })
-
-    Update-HDTProgressDisplay -Context $Context
+        -Data ([ordered] @{ activity = 'sysprep /generalize'; file = $sysprepExe })
 
     # AND THE MINUTES AFTER IT. sysprep is silent for the whole of them, so the
     # process service polls and this turns each poll into a record every fifteen

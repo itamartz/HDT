@@ -176,13 +176,13 @@ function New-HDTStepHeartbeat {
         LastUtc  = $clock.GetUtcNow()
     }
 
-    # THE THREE COMMANDS, RESOLVED HERE RATHER THAN NAMED IN THE CALLBACK, AND
+    # THE TWO COMMANDS, RESOLVED HERE RATHER THAN NAMED IN THE CALLBACK, AND
     # IT IS NOT STYLE. A closure built inside a module keeps its captured
     # VARIABLES but loses the module's COMMAND table: GetNewClosure gives the
     # block a fresh session state, and every name in it is then looked up in
     # whatever scope happens to invoke it - which for a service adapter's wait
     # loop is not this module. Format-HDTConsoleDuration and
-    # Update-HDTProgressDisplay are private, so they come back CommandNotFound.
+    # Write-HDTStepLiveness are private, so they come back CommandNotFound.
     #
     # AND IT FAILS IN THE WORST POSSIBLE WAY. The catch below swallows it, so
     # the heartbeat is built, handed over, invoked on schedule, and writes
@@ -201,9 +201,8 @@ function New-HDTStepHeartbeat {
     # same shape and for the same reason: their dism output callbacks are
     # invoked from inside the image service, and the fake image service is a
     # PowerShell class in another module entirely.
-    $writeLog = Get-Command -Name 'Write-HDTLog'
     $formatDuration = Get-Command -Name 'Format-HDTConsoleDuration'
-    $updateDisplay = Get-Command -Name 'Update-HDTProgressDisplay'
+    $writeLiveness = Get-Command -Name 'Write-HDTStepLiveness'
 
     $tick = {
         try {
@@ -220,24 +219,24 @@ function New-HDTStepHeartbeat {
             # here is the name of the thing being waited on and how long it has
             # been waited on; a percentage derived from elapsed time would be a
             # bar that lied, which is the one thing worse than a bar that stops.
-            & $writeLog -Context $log -Event 'step.progress' -Component $Component `
+            # THE RECORD'S SHAPE IS NOT THIS COMMAND'S EITHER, and it used to
+            # be. Write-HDTStepLiveness owns the event name, the mark that says
+            # a record is a sign of life rather than a measurement, and the
+            # nudge that makes the window re-read the log - because a step that
+            # knows a single moment worth reporting (Sysprep, before it hands
+            # the machine to a program that prints nothing for minutes) writes
+            # the same kind of record without any of this cadence, and two
+            # authors of one shape is how the two spellings start.
+            #
+            # WHAT STAYS HERE IS THE INTERVAL AND THE RATIONING, which is the
+            # half a step must never roll for itself.
+            & $writeLiveness -Context $Context -Component $Component `
                 -Message ('{0} - still running after {1}' -f $Activity,
                     (& $formatDuration -Second $elapsed)) `
                 -Data ([ordered] @{
                     activity      = $Activity
                     elapsedSecond = $elapsed
-
-                    # THE MARK THAT SAYS THIS IS NOT A MEASUREMENT. A reader
-                    # splitting real progress from liveness needs to be able to,
-                    # and the ABSENCE of percent is not something a filter can
-                    # say out loud.
-                    heartbeat     = $true
                 })
-
-            # AND THEN TELL THE WINDOW TO LOOK. This was the half missing from
-            # ApplyDrivers: the record went to the jsonl and nothing read it
-            # back, so a step reported into a file nobody was reading.
-            & $updateDisplay -Context $Context
         } catch {
             # THE LAST LINE OF THE CONTRACT, and it is the same one
             # Update-HDTProgressDisplay carries. A heartbeat does not get to stop

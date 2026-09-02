@@ -403,25 +403,21 @@
         #
         # ONCE PER POLL IS ONCE EVERY FIFTEEN SECONDS, which is the interval the
         # step already sleeps for. It adds no round trips of its own.
-        Write-HDTLog -Context $Context.Log -Event 'step.progress' -Component 'EnableBitLocker' `
+        # THROUGH THE ONE WRITER OF A LIVENESS RECORD, not spelt out here.
+        # Write-HDTStepLiveness adds the mark that says this is not a
+        # measurement - a reader splitting liveness from progress cannot test
+        # for the ABSENCE of a percent, so the eighty records one twenty-minute
+        # encryption writes were indistinguishable from eighty real ones - and
+        # nudges the display afterwards. The fields below are what this step
+        # actually knows; the shape of the record is not its to invent.
+        Write-HDTStepLiveness -Context $Context -Component 'EnableBitLocker' `
             -Message ('{0} is still encrypting ({1}), {2:0} minute(s) so far.' -f
                 $drive, [string] $volume.VolumeStatus, $elapsedMinute) `
             -Data ([ordered] @{
                 drive         = $drive
                 volumeStatus  = [string] $volume.VolumeStatus
                 elapsedMinute = [int] $elapsedMinute
-
-                # THE MARK THAT SAYS THIS IS NOT A MEASUREMENT, and it is the
-                # same field New-HDTStepHeartbeat writes for the same reason.
-                # This record carries no percent deliberately - the encryption
-                # has none to report - but a reader splitting liveness from
-                # measurement cannot test for the ABSENCE of a field, so the
-                # eighty records one twenty-minute encryption writes were
-                # indistinguishable from eighty real measurements.
-                heartbeat     = $true
             })
-
-        Update-HDTProgressDisplay -Context $Context
 
         if ($elapsedMinute -ge $timeoutMinute) {
             # A bounded wait that gives up is a step an administrator can

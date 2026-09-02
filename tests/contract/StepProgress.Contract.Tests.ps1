@@ -768,7 +768,16 @@ Describe 'the long-step progress contract' {
             $path = Join-Path -Path $script:stepFileRoot -ChildPath ('{0}.ps1' -f $InvokeName)
             $text = [System.IO.File]::ReadAllText($path)
 
-            $text | Should -Match "step\.progress" -Because (
+            # THE EMITTERS ARE NAMED, NOT THE EVENT STRING, because a step no
+            # longer has to spell the event out to write one. A liveness record
+            # goes through Write-HDTStepLiveness - which owns the event name,
+            # the mark that says the record is a sign of life rather than a
+            # measurement, and the nudge below - and a step waiting on a child
+            # process gets its cadence from New-HDTStepHeartbeat, which calls
+            # the same writer. Matching only the literal 'step.progress' would
+            # fail a step that reports correctly through either of them, which
+            # is what it did the day the shape got its one owner.
+            $text | Should -Match "step\.progress|Write-HDTStepLiveness|New-HDTStepHeartbeat" -Because (
                 "$Type can occupy a deployment for minutes. Without a record between its start and its finish " +
                 'the progress card shows the same frame throughout AND its elapsed clock stops, because elapsed ' +
                 'is derived from the first and last record in the log.')
@@ -782,7 +791,12 @@ Describe 'the long-step progress contract' {
             # missing for ApplyDrivers: the line was written to the JSONL and
             # nothing told the window to look, so the step reported into a file
             # nobody was reading.
-            $text | Should -Match "Update-HDTProgressDisplay" -Because (
+            #
+            # AND THE NUDGE COUNTS WHEREVER IT IS MADE. Write-HDTStepLiveness
+            # calls Update-HDTProgressDisplay itself, precisely so that no call
+            # site can write the record and forget the nudge; a step that goes
+            # through it has not skipped this, it has stopped being able to.
+            $text | Should -Match "Update-HDTProgressDisplay|Write-HDTStepLiveness|New-HDTStepHeartbeat" -Because (
                 "$Type writes a step.progress, but a record nothing reads back is a record that draws nothing.")
         }
 

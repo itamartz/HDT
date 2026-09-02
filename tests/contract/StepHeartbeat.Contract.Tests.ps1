@@ -47,6 +47,23 @@ $script:HDTProcessStepCase = @(
         } |
         Where-Object { $_.UsesProcess })
 
+# AND THE SET FOR THE MARK IS EVERY STEP, NOT ONLY THE ONES THAT SHELL OUT.
+# A step does not have to hand control to somebody else's program to have a
+# stretch with nothing to count: EnableBitLocker polls a volume that reports no
+# completion figure, and its records need the same mark for the same reason. So
+# the ban on hand-building the record is asserted over all of them, and the two
+# assertions about the heartbeat MECHANISM stay over the ones that wait on a
+# child process.
+$script:HDTAllStepCase = @(
+    Get-ChildItem -LiteralPath $script:HDTStepRoot -Filter 'Invoke-HDT*Step.ps1' -File |
+        ForEach-Object {
+            @{
+                Name = $_.Name
+                Path = $_.FullName
+                Text = [System.IO.File]::ReadAllText($_.FullName)
+            }
+        })
+
 Describe 'the long-child-process heartbeat contract' {
 
     Context 'the set is not empty' {
@@ -83,14 +100,46 @@ Describe 'the long-child-process heartbeat contract' {
                 "$Name must pass its heartbeat to IProcessService.Start as the OnTick argument. A heartbeat " +
                 'nothing invokes never fires.')
         }
+    }
 
-        It '<Name> does not roll its own interval or its own record' -ForEach $script:HDTProcessStepCase {
-            # ONE MECHANISM WAS THE WHOLE POINT. Three steps that each decide
-            # their own cadence are three cadences to change, and the first one
-            # somebody forgets is the one that ships silent.
+    Context 'no step rolls its own interval or hand-builds its own liveness record' {
+
+        # THE COUNT, FOR THE SAME REASON THE ONE ABOVE EXISTS. A discovery that
+        # stopped matching would make every assertion here vacuously true.
+        It 'found the step files' -ForEach @(@{ Found = @($script:HDTAllStepCase).Count }) {
+            $Found | Should -BeGreaterOrEqual 10 -Because (
+                'the step catalogue is more than ten types; if discovery found fewer than that it has ' +
+                'stopped matching and this file is asserting nothing.')
+        }
+
+        # ONE MECHANISM WAS THE WHOLE POINT. Three steps that each decide their
+        # own cadence are three cadences to change, and the first one somebody
+        # forgets is the one that ships silent.
+        #
+        # AND THE MARK IS PART OF THE SHAPE, WHICH IS WHERE THIS RULE FIRST
+        # COLLIDED WITH ANOTHER ONE. step.progress carries measurements and
+        # signs of life, `heartbeat = true` is what tells a reader which it is
+        # holding (StepProgress.Contract.Tests.ps1 asserts that every record
+        # says so), and Sysprep legitimately writes one such record by hand -
+        # before sysprep /generalize, which then prints nothing for minutes.
+        # That is not a cadence, so the ban must not forbid the record; but a
+        # step spelling the mark out itself is a second author of the shape, and
+        # the third one would spell it differently.
+        #
+        # SO THE SHAPE HAS A WRITER AND THE STEPS CALL IT. Write-HDTStepLiveness
+        # owns the event name, the mark and the nudge that makes the window
+        # re-read the log; New-HDTStepHeartbeat still owns the interval and the
+        # rationing, and calls the same writer. A step gets to say "still alive"
+        # at a moment it knows about, and gets no say in what that record looks
+        # like.
+        #
+        # NOT AN EXEMPTION LIST. Naming Sysprep here would pass for Sysprep and
+        # leave the next step free to invent its own dialect of the same record.
+        It '<Name> does not spell out a liveness record of its own' -ForEach $script:HDTAllStepCase {
             $Text | Should -Not -Match 'heartbeat\s*=\s*\$true' -Because (
-                "$Name must not write a heartbeat record itself; New-HDTStepHeartbeat owns the shape, the " +
-                'interval and the rationing.')
+                "$Name must not write a heartbeat record itself. Write-HDTStepLiveness owns the shape and " +
+                'the mark, and New-HDTStepHeartbeat owns the interval and the rationing; a step that needs ' +
+                'to report a sign of life calls one of them.')
         }
     }
 }
