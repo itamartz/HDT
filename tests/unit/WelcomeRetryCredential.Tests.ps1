@@ -286,6 +286,20 @@ BeforeAll {
         # rows and twenty seconds of Start-Sleep to every assertion here.
         $ConnectAttempt = 1
 
+        # THE SCOPE THIS HARNESS BUILDS BY HAND HAS TO DECLARE EVERY NAME THE
+        # LIFTED LOOP READS, and the loop gained one: 06-02 gates the retry
+        # ladder and the Welcome screen on $deploymentMethod, so under
+        # Set-StrictMode -Version Latest - which the gate runs and a bare
+        # Invoke-Pester does not - an undeclared one is a terminating error,
+        # not a $null that compares false. Six tests here failed only in the
+        # gate for exactly that reason.
+        #
+        # UNC IS THIS FILE'S SUBJECT. Everything below is the share path: a
+        # retyped password, a corrected address, a second refusal. The disc's
+        # half is MediaConnectLoop.Tests.ps1, which runs the same lifted loop
+        # under both methods.
+        $deploymentMethod = 'UNC'
+
         $bootstrap = [pscustomobject] @{
             Provider = 'Smb'; DeployRoot = $Share; ContentMarker = 'rules.yaml'
         }
