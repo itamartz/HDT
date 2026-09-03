@@ -19,9 +19,20 @@ BeforeAll {
     $script:designPath = Join-Path -Path $script:repoRoot -ChildPath 'docs/DESIGN.md'
     $script:design = Get-Content -LiteralPath $script:designPath -Raw
 
-    # The table under 4.4.2: rows whose first cell is a backticked event name
-    # carrying a dot, which no other table in the document has.
-    $script:documented = @([regex]::Matches($script:design, '(?m)^\|\s*`([a-z]+(?:\.[a-z]+)?)`\s*\|') |
+    # THE SECTION IS CUT OUT FIRST, and it did not used to be. The pattern below
+    # matches any table row whose first cell is a backticked lower-case word, and
+    # the comment here used to claim no other table in the document had one. That
+    # stopped being true the moment DESIGN 6.2 documented media.yaml's keys -
+    # `id`, `name`, `output` and `enabled` were read as event names and this
+    # suite reported five names Write-HDTLog would reject. The document is
+    # allowed to grow tables; what this test reads is 4.4.2's.
+    $script:section = $script:design
+
+    $sectionMatch = [regex]::Match($script:design, '(?ms)^####\s+4\.4\.2\s.*?(?=^####\s|^###\s|^##\s)')
+    if ($sectionMatch.Success) { $script:section = $sectionMatch.Value }
+
+    # The table under 4.4.2: rows whose first cell is a backticked event name.
+    $script:documented = @([regex]::Matches($script:section, '(?m)^\|\s*`([a-z]+(?:\.[a-z]+)?)`\s*\|') |
             ForEach-Object { $_.Groups[1].Value } |
             Select-Object -Unique)
 

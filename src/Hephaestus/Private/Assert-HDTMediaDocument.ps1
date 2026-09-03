@@ -1,4 +1,4 @@
-function Assert-HDTMediaDocument {
+﻿function Assert-HDTMediaDocument {
     <#
         .SYNOPSIS
             Validates a parsed media.yaml against the authoring rules.
@@ -30,8 +30,8 @@ function Assert-HDTMediaDocument {
                                 it was read from when one was named; name present
                                 and not blank
               projection        selectionProfile present, not blank, and a legal
-                                profile id; output present, not blank, naming an
-                                .iso, and carrying no '..' segment
+                                profile id; output present, not blank, ending in
+                                an .iso extension, and carrying no '..' segment
               enabled           OPTIONAL; a boolean when it is there
 
             THE ID IS CHECKED AS A FOLDER NAME AND NOT AS A DISPLAY NAME, and the

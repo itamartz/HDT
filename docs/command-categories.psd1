@@ -291,7 +291,7 @@
         @{
             Id      = 'transport-pxe-and-media'
             Title   = 'Transport: PXE, media & content providers'
-            Blurb   = 'How a booted machine reaches the content: WDS, a TFTP payload, bootstrap.json, and the provider behind it.'
+            Blurb   = 'How a booted machine reaches the content: WDS, a TFTP payload, bootstrap.json, and the provider behind it - or, where there is no network at all, a standalone media definition and the ISO built from it.'
             Command = @(
                 'Get-HDTBootstrapConfiguration'
                 'Import-HDTBootImageToWds'
@@ -299,6 +299,10 @@
                 'New-HDTContentProvider'
                 'New-HDTSmbContentProvider'
                 'New-HDTLocalContentProvider'
+                'New-HDTMedia'
+                'Get-HDTMedia'
+                'Set-HDTMedia'
+                'Remove-HDTMedia'
             )
         }
         @{

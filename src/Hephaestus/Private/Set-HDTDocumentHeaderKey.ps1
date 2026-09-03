@@ -37,7 +37,8 @@
             The document, already split into lines.
 
         .PARAMETER Key
-            The top-level key: name or description.
+            The top-level key. A key not in the set cannot be spliced, so a
+            document that declares a new editable one is added here.
 
         .PARAMETER Order
             The header's keys in the order the document writes them. A key that
@@ -46,6 +47,14 @@
         .PARAMETER Block
             The keys whose line ends the header - everything below one is
             nested. As a regex alternation: 'steps|variables'.
+
+            A DOCUMENT WITH NO NESTED BLOCK SAYS SO WITH '(?!)', the
+            never-matching group, rather than with an empty string - this
+            parameter is ValidateNotNullOrEmpty, so '' is refused at bind time
+            and the command never runs. media.yaml is flat, and left at the
+            sequence/os default a line that happened to open with 'steps:' would
+            end the header early and every key below it would be INSERTED rather
+            than replaced, leaving the document with two.
 
         .PARAMETER Value
             The value. Empty removes the key.
@@ -70,7 +79,11 @@
         [string[]] $Line,
 
         [Parameter(Mandatory = $true, Position = 1)]
-        [ValidateSet('name', 'version', 'description', 'folder')]
+        # THE SET IS A SURFACE. A key not named here cannot be spliced at all, so
+        # a document that gains one and forgets this line has a key nothing can
+        # edit. media.yaml added selectionProfile, output and enabled.
+        [ValidateSet('name', 'version', 'description', 'folder',
+            'selectionProfile', 'output', 'enabled')]
         [string] $Key,
 
         [Parameter(Mandatory = $true, Position = 2)]
@@ -107,7 +120,8 @@
     # - which put the NEXT key inside the description and took the folder off
     # the tree. Nothing in a document header is meant to carry a paragraph, so
     # the value is collapsed rather than quoted across lines.
-    $oneLine = ($Value -replace '\s*?
+    $oneLine = ($Value -replace '\s*
+?
 \s*', ' ').Trim()
     $written = '{0}: {1}' -f $Key, (Get-HDTConsoleScalarText -Value $oneLine)
 

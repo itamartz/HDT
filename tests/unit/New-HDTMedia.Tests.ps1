@@ -40,7 +40,7 @@ Describe 'New-HDTMedia' {
 
     Context 'what it writes' {
 
-        It 'writes Media\<id>\media.yaml under the workspace root' {
+        It 'writes the media.yaml under the id''s folder in Media' {
             $null = New-HDTMedia -WorkspaceRoot $script:root -Id 'WIN11-FIELD' -Name 'Windows 11 field media' `
                 -FileSystem $script:fileSystem
 
@@ -114,7 +114,7 @@ Describe 'New-HDTMedia' {
             $media.SelectionProfile | Should -BeExactly 'everything'
         }
 
-        It 'defaults output to Media\<id>\HDT_<id>.iso' {
+        It 'defaults output to the HDT_ ISO inside the id''s own media folder' {
             $media = New-HDTMedia -WorkspaceRoot $script:root -Id 'WIN11-FIELD' -Name 'M' -FileSystem $script:fileSystem
 
             $media.Output | Should -BeExactly 'Media\WIN11-FIELD\HDT_WIN11-FIELD.iso'

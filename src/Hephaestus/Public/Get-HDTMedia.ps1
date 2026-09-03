@@ -1,4 +1,4 @@
-function Get-HDTMedia {
+﻿function Get-HDTMedia {
     <#
         .SYNOPSIS
             Reads a standalone media definition, or every one on the share, out
@@ -89,6 +89,8 @@ function Get-HDTMedia {
         .LINK
             Remove-HDTMedia
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Media is a mass noun here and the singular name of one object - MDT calls the Deployment Workbench node Media and its action Update Media Content, and DESIGN 6.2 names these four commands. The analyzer reads it as the Latin plural of medium. Renaming to MediaItem would make HDT the only toolkit an MDT admin has to translate.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(

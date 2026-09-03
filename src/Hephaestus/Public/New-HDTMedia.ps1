@@ -1,4 +1,4 @@
-function New-HDTMedia {
+﻿function New-HDTMedia {
     <#
         .SYNOPSIS
             Creates a standalone media definition on a deployment share.
@@ -103,6 +103,8 @@ function New-HDTMedia {
         .LINK
             Remove-HDTMedia
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Media is a mass noun here and the singular name of one object - MDT calls the Deployment Workbench node Media and its action Update Media Content, and DESIGN 6.2 names these four commands. The analyzer reads it as the Latin plural of medium. Renaming to MediaItem would make HDT the only toolkit an MDT admin has to translate.')]
     [CmdletBinding(SupportsShouldProcess = $true)]
     [OutputType([pscustomobject])]
     param(

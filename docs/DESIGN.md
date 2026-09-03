@@ -1792,6 +1792,43 @@ and will not:
 
 So there is one output, one code path, and one artifact to hash.
 
+**The media item is a document on the share, `Media\<id>\media.yaml`.** MDT
+keeps a media object under Advanced Configuration carrying a selection profile,
+a media path and an enabled tick; HDT keeps the same object as YAML with seven
+keys and no more:
+
+| Key | |
+|---|---|
+| `schemaVersion` | 1, as every HDT document declares |
+| `id` | the folder name under `Media\`, and what every command addresses it by |
+| `name` | what the console shows |
+| `description` | optional - Workbench's Comments box |
+| `selectionProfile` | the projection. Defaults to `everything`, as MDT's does |
+| `output` | the ISO. Share-relative unless rooted; defaults to `Media\<id>\HDT_<id>.iso` |
+| `enabled` | optional, defaults true |
+
+`id` is pattern-checked as a **folder name** because `Remove-HDTMedia` deletes
+the folder it names, and `output` may carry no `..` segment because
+`Update-HDTMediaContent` writes a multi-gigabyte file to it. A relative `output`
+resolves against the workspace root **at read time**, never at write time - a
+share is authored on one machine and built on another, so a path expanded to a
+drive letter when the item was created is the one value that is certainly wrong
+later.
+
+**`enabled` is a refusal, not a filter.** `Update-HDTMediaContent` refuses a
+disabled item by name and says to run `Set-HDTMedia -Enabled`, rather than
+skipping it silently - a build that did nothing reads as a broken build.
+
+**The last build is a manifest beside the ISO, not a key in the document.**
+`Media\<id>\media.manifest.json`, exactly as `Boot\<name>.manifest.json`
+already works, and for two reasons: `media.yaml` is a file an administrator
+hand-edits and comments, so a build that rewrote it every run would either lose
+those comments or need a splice for a value nobody types; and a manifest on disk
+means the artifact beside it came from the build that wrote it. `Get-HDTMedia`
+reads it when it is there and reports `LastBuildUtc`, `IsoPath`, `IsoSizeBytes`
+and `IsoSha256` empty when it is not. A manifest that will not parse is a
+missing manifest, not a broken media item.
+
 ### 6.3 Share credentials
 
 **Decision: the deployment account credential is embedded in the boot image**,
