@@ -115,16 +115,11 @@ function Copy-HDTContentTree {
         $leaf = [System.IO.Path]::GetFileName(([string] $child).TrimEnd('\', '/'))
         $target = [System.IO.Path]::Combine($Destination, $leaf)
 
-        $isFile = $true
-        try {
-            [void] $FileSystem.GetLength($child)
-        } catch {
-            # Not a file. Both implementations throw FileNotFoundException here,
-            # and the child came from GetChildItem so it certainly exists.
-            $isFile = $false
-        }
-
-        if ($isFile) {
+        # Not a file means a directory: the child came from GetChildItem, so it
+        # certainly exists. See Test-HDTFileSystemFile - the try/catch that used
+        # to be here, shared with Update-HDTMediaContent, which asks the same
+        # question about the children of Control\.
+        if (Test-HDTFileSystemFile -Path ([string] $child) -FileSystem $FileSystem) {
             $FileSystem.CopyItem($child, $target)
             $copied++
             continue

@@ -281,6 +281,7 @@
         'Test-HDTStepCondition',
         'Test-HDTTaskSequence',
         'Update-HDTBootImage',
+        'Update-HDTMediaContent',
         'Update-HDTModuleVersion',
         'Update-HDTRunStateStep',
         'Write-HDTLog',

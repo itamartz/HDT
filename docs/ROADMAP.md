@@ -748,7 +748,7 @@ evidence.
 
 ---
 
-## M7 — Capture and standalone media  ·  **CAPTURE IN PROGRESS · MEDIA DEFERRED TO v2**
+## M7 — Capture and standalone media  ·  **CAPTURE IN PROGRESS · MEDIA COMMANDS BUILT, MEDIA EXIT UNMET**
 
 > **v2, not cut.** Scheduled out of v1 at the user's direction; the milestone is
 > kept here in full so v2 starts from a written plan rather than a memory. See
@@ -756,27 +756,46 @@ evidence.
 
 > **The capture half is being built, from 2026-08-31**, at the user's direction:
 > the `Sysprep` and `CaptureImage` steps, `Captures\` output and promotion into
-> the OS catalog. **`New-HDTMedia` stays deferred**, and so do the three
-> carried-over media behaviours at the foot of this section — nothing below
-> about the disc has been un-deferred by this. The milestone was written with
-> one exit that tests only the media half, so the capture half is given its own
-> below; both must pass before M7 as a whole is done.
+> the OS catalog.
+>
+> **The media half was deferred to v2 on 2026-08-24 and UN-DEFERRED on
+> 2026-09-03**, after a hand-built ISO deployed a network-less VM end to end and
+> proved the engine side already worked. The history is amended rather than
+> deleted, the way the `HDTDeploymentMethod` block below records the same shape:
+> deferred, then built.
+>
+> **The media COMMANDS are built** — phase 07: `New-HDTMedia`, `Get-HDTMedia`,
+> `Set-HDTMedia`, `Remove-HDTMedia` (07-01) and `Update-HDTMediaContent` with the
+> projection behind it (07-02). **The media EXIT is not met**, and it is met by a
+> booted VM rather than by a green suite. See "Exit — media" below.
+>
+> The milestone was written with one exit that tests only the media half, so the
+> capture half is given its own below; both must pass before M7 as a whole is
+> done.
 
 
 - `Sysprep` and `CaptureImage` steps; `Captures\` output; promotion into the OS
   catalog.
-- `New-HDTMedia`: content projection for a selected set of sequences, emitted as
-  a bootable ISO. **ISO only - HDT never partitions a USB stick itself**
-  (DESIGN 6.2, decided 2026-09-03). Rufus or `dd` writes the ISO to a stick and
-  the stick boots; the destructive half stays with the tool the technician
-  already trusts.
+- **Two commands, not one** — MDT's own split between a media object and
+  "Update Media Content", and what DESIGN 6.2 and phase 07 implement:
+  - `New-HDTMedia` RECORDS the definition: `Media\<id>\media.yaml`, seven keys,
+    of which `selectionProfile` is the projection. `Get-`, `Set-` and
+    `Remove-HDTMedia` go with it.
+  - `Update-HDTMediaContent` BUILDS it: project the share through that profile,
+    swap the provider to `Local`, assemble the WinPE media tree, burn one ISO.
+  **ISO only - HDT never partitions a USB stick itself** (DESIGN 6.2, decided
+  2026-09-03). Rufus or `dd` writes the ISO to a stick and the stick boots; the
+  destructive half stays with the tool the technician already trusts.
 
-**Tests first:** projection completeness — every artifact a selected sequence
-references is included, and nothing else (this is the correctness heart of media
-generation, and it is pure logic); provider-swap equivalence: the same sequence
-produces the same operation list under `Local` as under `Smb`;
-`HDTDeploymentMethod` is `MEDIA` under the `Local` provider and `UNC` under
-`Smb`, and a rules document that tries to set it is refused.
+**Tests first**, and WHERE EACH IS MET IS RECORDED RATHER THAN ASSUMED — two of
+the three were already met before phase 07 began, and a phase that quietly
+re-proved them, or quietly left them looking unproven, would be wrong either way:
+
+| Tests first item | Where it is met |
+|---|---|
+| **Projection completeness** — every artifact the projection names is included and nothing else. The correctness heart of media generation, and it is pure logic | `tests/unit/Get-HDTMediaProjection.Tests.ps1` (07-02), asserted as two exact ordered lists with nothing on disk. **The wording is amended: the selection PROFILE is the projection, not the sequence.** DESIGN §6.2 settles that, and the design is authoritative — `Expand-HDTSelectionProfile` is the one projection engine, shared with the boot image build, so there is no second place for the answer to differ. The TRANSITIVE half, which is what a real disc failed on, is `Get-HDTMediaDependencyWarning` |
+| **Provider-swap equivalence** — the same sequence produces the same operation list under `Local` as under `Smb` | **Already met, and not by phase 07**: `tests/contract/ContentProvider.Contract.Tests.ps1` runs one five-member contract over the fake provider, `Local` over a real tree and `Smb` over a fake SMB service. Its own header says it exists because that claim "is this file, or it is a hope". That is the RUN-time half. The BUILD-time half — that a projected `workspace.yaml` carries a `deployRoot` the boot image reads as `Local` — is `tests/unit/Set-HDTMediaWorkspaceLine.Tests.ps1` |
+| **`HDTDeploymentMethod`** is `MEDIA` under `Local` and `UNC` under `Smb`, and a rules document that sets it is refused | **Already met**, built 2026-09-02 by plans 06-01/06-02: `Get-HDTDeploymentMethod`, `Get-HDTVariableMap`'s `Writable = $false` row, and `Assert-HDTRuleDocument`. **Nothing in phase 07 touches it** |
 
 **Exit — capture:** a VM deployed by HDT, customized, sysprepped by HDT and
 captured by HDT, whose WIM `Import-HDTOperatingSystem` promotes into the OS
@@ -802,8 +821,16 @@ lab safety), so a criterion that starts the second machine while the first is
 still up fails on the budget rather than on the thing it is testing. Capture,
 stop the reference VM, then deploy the second.
 
-**Exit — media:** a machine with no network deploys from an HDT-built ISO,
-end to end, and the ISO was built by `New-HDTMedia` rather than by hand.
+**Exit — media: NOT MET.** A machine with no network deploys from an HDT-built
+ISO, end to end, and the ISO was built by **`Update-HDTMediaContent`** rather
+than by hand.
+
+The command name is corrected because the criterion as written named
+`New-HDTMedia`, which records the definition and does not build anything — so it
+could have been ticked on the wrong evidence. **It stays UNMET after phase 07,
+plainly and on purpose: it is met by a booted VM, and phase 07 runs no VM.**
+The command exists, is exported, and is proved against fakes; that is not the
+same claim.
 
 > **The deployment half of this is already proven; the command is not.**
 > On 2026-09-03 a Generation 2 VM with **no network adapter at all** deployed
@@ -811,7 +838,8 @@ end to end, and the ISO was built by `New-HDTMedia` rather than by hand.
 > the reboot into the full OS and an application install. What built that disc
 > was a scratchpad script doing by hand what DESIGN 6.2 says the command does -
 > a content projection plus a provider swap - so the criterion above is NOT met
-> until `New-HDTMedia` builds it.
+> until `Update-HDTMediaContent` builds it. **That command was built on
+> 2026-09-03 (phase 07-02) and has not yet built a disc a VM has booted.**
 >
 > That run is what settled the ISO-only decision, and it cost three engine
 > defects that only a booted disc could find:
@@ -837,9 +865,10 @@ end to end, and the ISO was built by `New-HDTMedia` rather than by hand.
 Settled 2026-09-02. **Built 2026-09-02** (plans 06-01, 06-02, 06-03), and
 carry-overs 1 and 3 with it; carry-over 2 was already built and stays a warning.
 **This made the engine ready for media by teaching it which method it is running
-under. It did not build the media** — `New-HDTMedia`, the content projection and
-the ISO/USB layouts are still deferred, and the "Exit — media" criterion above is
-**not** met.
+under. It did not build the media.** The media commands and the content
+projection were built afterwards, on 2026-09-03, by phase 07; the USB layouts
+were not built and will not be (ISO only, DESIGN 6.2). The "Exit — media"
+criterion above is still **not** met, because a booted VM is what meets it.
 
 MDT carries **two** variables here, not one: `DeploymentType`
 (NEWCOMPUTER / REFRESH / REPLACE), which HDT already has as `HDTDeploymentType`,

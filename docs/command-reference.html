@@ -259,7 +259,7 @@ try {
 <li><a href="#applications"><span class="nav-t">Applications &amp; Windows features</span><span class="nav-n">7</span></a></li>
 <li><a href="#disks-and-imaging"><span class="nav-t">Disks &amp; imaging</span><span class="nav-n">7</span></a></li>
 <li><a href="#boot-image-and-winpe"><span class="nav-t">Boot image &amp; WinPE</span><span class="nav-n">27</span></a></li>
-<li><a href="#transport-pxe-and-media"><span class="nav-t">Transport: PXE, media &amp; content providers</span><span class="nav-n">10</span></a></li>
+<li><a href="#transport-pxe-and-media"><span class="nav-t">Transport: PXE, media &amp; content providers</span><span class="nav-n">11</span></a></li>
 <li><a href="#execution-and-resume"><span class="nav-t">Execution engine, state &amp; resume</span><span class="nav-n">18</span></a></li>
 <li><a href="#logging-and-reporting"><span class="nav-t">Logging &amp; reporting</span><span class="nav-n">10</span></a></li>
 <li><a href="#technician-ui"><span class="nav-t">Technician UI in WinPE</span><span class="nav-n">25</span></a></li>
@@ -285,10 +285,10 @@ try {
       reports them, every parameter, the examples from its help, and the file it lives in.
       <em>How it works</em> opens the long-form design note the author wrote next to the code.</p>
       <div class="stats">
-        <div class="stat"><div class="n">302</div><div class="l">exported commands</div></div>
+        <div class="stat"><div class="n">303</div><div class="l">exported commands</div></div>
         <div class="stat"><div class="n">17</div><div class="l">groups</div></div>
-        <div class="stat"><div class="n">302</div><div class="l">carry examples</div></div>
-        <div class="stat"><div class="n">87</div><div class="l">support -WhatIf</div></div>
+        <div class="stat"><div class="n">303</div><div class="l">carry examples</div></div>
+        <div class="stat"><div class="n">88</div><div class="l">support -WhatIf</div></div>
       </div>
       <div class="legend">
         <span class="chip v-read">Get &middot; reads</span>
@@ -5080,7 +5080,7 @@ New-HDTBootIso -MediaRoot &#x27;C:\HDTLab\scratch\bootimage\work\media&#x27; `
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>
-    <section class="cat" id="transport-pxe-and-media" data-cat="transport-pxe-and-media"><header class="cat-head"><div class="cat-eyebrow">10 commands</div><h2>Transport: PXE, media &amp; content providers</h2><p class="cat-blurb">How a booted machine reaches the content: WDS, a TFTP payload, bootstrap.json, and the provider behind it - or, where there is no network at all, a standalone media definition and the ISO built from it.</p></header><div class="cat-body">
+    <section class="cat" id="transport-pxe-and-media" data-cat="transport-pxe-and-media"><header class="cat-head"><div class="cat-eyebrow">11 commands</div><h2>Transport: PXE, media &amp; content providers</h2><p class="cat-blurb">How a booted machine reaches the content: WDS, a TFTP payload, bootstrap.json, and the provider behind it - or, where there is no network at all, a standalone media definition and the ISO built from it.</p></header><div class="cat-body">
 <article class="fn" id="Get-HDTBootstrapConfiguration" data-name="get-hdtbootstrapconfiguration" data-hay="get-hdtbootstrapconfiguration reads bootstrap.json - the file in the boot image that says where the content is and which provider reaches it. path filesystem">
 <header class="fn-head">
 <h3><a class="anchor" href="#Get-HDTBootstrapConfiguration">Get-HDTBootstrapConfiguration</a></h3>
@@ -5408,6 +5408,45 @@ which is what the splice does with a blank value.</pre>
 <p>AN ISO OUTSIDE THE FOLDER IS NAMED AND LEFT. output may be rooted anywhere - another disk, another server - which is the whole reason a rooted output is legal, and CLAUDE.md&#x27;s protected-path rule says what follows: a delete target is never built by expanding a variable somebody typed a year ago. One thing is removed here, the media folder, and an ISO that is not inside it is reported in a warning and on the returned object so a console can say so before anybody agrees to anything.</p>
 <p>ConfirmImpact IS High, so it prompts unless the caller says -Confirm:$false. The console says it, having asked in its own dialog.</p></div></details>
 <div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Id, Path and IsoLeftBehind - the ISO this command did not delete, or an empty string when the ISO went with the folder.</p></div></div></div>
+<footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
+</article>
+<article class="fn" id="Update-HDTMediaContent" data-name="update-hdtmediacontent" data-hay="update-hdtmediacontent builds the disc: projects a share through a media definition&#x27;s selection profile, swaps the provider, assembles the winpe media tree and burns one bootable iso. workspaceroot id scratchpath adkroot architecture firmware enginemodulepath yamlmodulepath bootimageservice filesystem registry clock progress whatif confirm">
+<header class="fn-head">
+<h3><a class="anchor" href="#Update-HDTMediaContent">Update-HDTMediaContent</a></h3>
+<div class="tags"><span class="chip v-write">Update</span>
+<span class="chip risk" title="Supports -WhatIf and -Confirm">ShouldProcess</span>
+</div></header>
+<p class="syn">Builds the disc: projects a share through a media definition&#x27;s selection profile, swaps the provider, assembles the WinPE media tree and burns one bootable ISO.</p>
+<div class="sig-wrap"><pre class="sig">Update-HDTMediaContent [-WorkspaceRoot] &lt;string&gt; [-Id] &lt;string&gt; [-ScratchPath &lt;string&gt;] [-AdkRoot &lt;string&gt;] [-Architecture &lt;string&gt;] [-Firmware &lt;string&gt;] [-EngineModulePath &lt;string&gt;] [-YamlModulePath &lt;string&gt;] [-BootImageService &lt;Object&gt;] [-FileSystem &lt;Object&gt;] [-Registry &lt;Object&gt;] [-Clock &lt;Object&gt;] [-Progress &lt;Object&gt;] [-WhatIf] [-Confirm] [&lt;CommonParameters&gt;]</pre></div>
+<section class="params"><h4>Parameters</h4><div class="table-wrap"><table><tr><td class="p-name"><code>-WorkspaceRoot</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The deployment share to build from.</p></td></tr><tr><td class="p-name"><code>-Id</code><div class="p-flags"><span class="req">required</span></div></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The media definition - a folder under Media\ holding a media.yaml.</p></td></tr><tr><td class="p-name"><code>-ScratchPath</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>Where the staging tree goes. Defaults to %ProgramData%\Hephaestus\media, which has no space on any default install and is machine-scoped like the elevated build that writes to it. NOT one lab&#x27;s path.</p></td></tr><tr><td class="p-name"><code>-AdkRoot</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>An explicit ADK root, which wins over the registry.</p></td></tr><tr><td class="p-name"><code>-Architecture</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>amd64 (default) or arm64.</p></td></tr><tr><td class="p-name"><code>-Firmware</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>UEFI (default), BIOS or Both.</p></td></tr><tr><td class="p-name"><code>-EngineModulePath</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>The Hephaestus module to stage into the boot image. Defaults to this module&#x27;s own location, exactly as Update-HDTBootImage&#x27;s does.</p></td></tr><tr><td class="p-name"><code>-YamlModulePath</code></td><td class="p-type"><code>String</code></td><td class="p-desc"><p>powershell-yaml, for the same.</p></td></tr><tr><td class="p-name"><code>-BootImageService</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IBootImageService. Defaults to the real adapter.</p></td></tr><tr><td class="p-name"><code>-FileSystem</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IFileSystem. Defaults to the real adapter.</p></td></tr><tr><td class="p-name"><code>-Registry</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IRegistryService, for resolving the ADK. Defaults to the real adapter.</p></td></tr><tr><td class="p-name"><code>-Clock</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>An IClock. Defaults to the real adapter.</p></td></tr><tr><td class="p-name"><code>-Progress</code></td><td class="p-type"><code>Object</code></td><td class="p-desc"><p>Where the steps are reported. Omitted, they go to a sink that records nothing.</p></td></tr><tr><td class="p-name"><code>-WhatIf</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr><tr><td class="p-name"><code>-Confirm</code></td><td class="p-type"><code>SwitchParameter</code></td><td class="p-desc"><span class="muted">&mdash;</span></td></tr></table></div></section>
+<section class="examples"><h4>Examples</h4><div class="ex"><div class="ex-title">Example 1</div><pre class="code">Update-HDTMediaContent -WorkspaceRoot &#x27;C:\HDTLab\Share&#x27; -Id &#x27;LAB-DISC&#x27;</pre><p>One bootable ISO carrying what the definition&#x27;s selection profile names, with a Local boot image on it.</p></div><div class="ex"><div class="ex-title">Example 2</div><pre class="code">Update-HDTMediaContent -WorkspaceRoot $root -Id &#x27;LAB-DISC&#x27; -WhatIf</pre><p>THE PASS WORTH RUNNING FIRST, and the reason it is worth running is that it is where the warnings are. It projects the share, checks the application dependencies and prints both - the folder the profile names that is not there, and the application on the disc whose dependency is not - and then writes nothing. That is the same finding a real build gives, minus the ten minutes and the multi-gigabyte staging tree.</p></div></section>
+<details class="notes"><summary>How it works</summary><div class="prose"><p>DESIGN 6.2&#x27;s command. New-HDTMedia records the definition; this builds it - MDT&#x27;s own split between a media object and &quot;Update Media Content&quot;, and the same split Update-HDTBootImage and Set-HDTBootImageDriver already use here.</p>
+<p>MEDIA GENERATION IS A CONTENT PROJECTION PLUS A PROVIDER SWAP, and neither half is written here. Get-HDTMediaProjection says what travels and what is refused - purely, in milliseconds, against a fake - and Set-HDTMediaWorkspaceLine does the swap with two splices. This command is assembly.</p>
+<p>TWELVE STEPS, AND THEY ARE THE COMMENTED BLOCKS BELOW IN ORDER, so this file reads like the journal tests/unit/Update-HDTMediaContent.Tests.ps1 asserts:</p>
+<pre class="block">   1  read the media definition, and refuse a disabled one by name
+   2  read workspace.yaml, and refuse a share with no rules.yaml
+   3  project - and LOG EVERY ROW, warning each folder that is not
+      there
+   4  the application dependency pass, which warns and does not fix
+   5  ShouldProcess on the output ISO
+   6  create the staging tree, in a try/finally that removes only
+      what this run created
+   7  copy the ADK WinPE Media tree and create sources\
+   8  project the rows onto &lt;scratch&gt;\media\Share
+   9  write the rewritten workspace.yaml
+  10  build the boot image AGAINST THE PROJECTED SHARE with -SkipIso,
+      move its wim to sources\boot.wim, and remove the projected
+      share&#x27;s Boot folder
+  11  burn one ISO with -NoPromptForKey
+  12  publish the ISO, then write media.manifest.json LAST</pre>
+<p>STEP 10 IS THE DECISION WORTH BEING EXPLICIT ABOUT, because the alternative looks cheaper and is wrong. Copying the share&#x27;s existing Boot\HDTPE_x64.wim onto the disc would put an Smb image on it whenever the share&#x27;s deployRoot is a UNC path - which is every real share. The image DERIVES its provider from the workspace.yaml it was built against:</p>
+<pre class="block">    $provider = &#x27;Local&#x27;
+    if (([string] $workspace.DeployRoot).StartsWith(&#x27;\\&#x27;)) { $provider = &#x27;Smb&#x27; }</pre>
+<p>so the only honest way to get a Local image is to build against the projected one. -SkipIso because Update-HDTBootImage would otherwise burn a debugging ISO nobody asked for, in the middle of building the one that was.</p>
+<p>EVERY INJECTED SERVICE IS PASSED ON TO EVERY COMMAND THAT TAKES ONE. None of these parameters is mandatory anywhere in the chain and they all default to the real adapter, so dropping one is not a bind error and not a red test - it is a build that quietly reaches this machine&#x27;s registry, disk and ADK. The unit suite&#x27;s whole &quot;no ADK, no DISM, no oscdimg&quot; claim rests on it.</p>
+<p>THE FOUR REFUSALS EACH COST A REBUILD ON 2026-09-03 and each has its reason written on Get-HDTMediaProjection, where the next person to simplify one will read it.</p>
+<p>IT WARNS AND BUILDS. A folder the profile names that the share has not got, and an application whose dependency is not on the disc, are both sentences rather than refusals: the profile is the administrator&#x27;s statement of intent, and MDT would have let the machine find out on the bench.</p></div></details>
+<div class="extra"><div class="kv"><span class="k">Outputs</span><div class="v"><p>System.Management.Automation.PSCustomObject with Id, IsoPath, IsoSizeBytes, IsoSha256, BootWimSha256, SelectionProfile, Projected, Excluded, Warning and ManifestPath.</p></div></div></div>
 <footer class="src"><code>src/Hephaestus/Hephaestus.bundle.ps1</code></footer>
 </article>
 </div></section>

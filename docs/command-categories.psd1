@@ -303,6 +303,7 @@
                 'Get-HDTMedia'
                 'Set-HDTMedia'
                 'Remove-HDTMedia'
+                'Update-HDTMediaContent'
             )
         }
         @{
