@@ -1739,12 +1739,36 @@ ISO and the standalone WIM have identical hashes.
 
 ### 6.2 Standalone media
 
-`New-HDTMedia` takes a workspace, a set of task sequence IDs, and a selection
-profile, then produces **a self-contained bootable ISO** containing only the
-content those sequences reference. The engine running from media is **the same
-engine** with the `Local` provider — not a parallel code path. This is the
-constraint that makes the "share + standalone" dual model tractable: media
-generation is a content projection plus a provider swap.
+`New-HDTMedia` takes a workspace and **a selection profile**, then produces a
+self-contained bootable ISO carrying what that profile names. The engine running
+from media is **the same engine** with the `Local` provider — not a parallel code
+path. This is the constraint that makes the "share + standalone" dual model
+tractable: media generation is a content projection plus a provider swap.
+
+**The selection profile IS the projection, which is MDT's model and already
+half-built here.** MDT's media object has one Selection Profile and defaults it
+to Everything; HDT ships `everything` and `all-drivers` as built-ins, and
+`Expand-HDTSelectionProfile` says in its own header that it answers "what
+`Update-HDTBootImage` will hand `Add-WindowsDriver`, and what media will copy".
+It does not recurse, deliberately — the consumer does, with
+`Copy-HDTContentTree`. So there is no second projection engine to write and no
+second place for the answer to differ from the boot image's.
+
+**The workspace's own documents are not content and travel regardless.**
+`rules.yaml` in particular is the CONTENT MARKER `Resolve-HDTDeployRoot` hunts
+for, so a disc without it cannot be found at all — no profile may omit it.
+Neither may `workspace.yaml`, which is the one file media rewrites (§6.2.1).
+The profile governs `Applications\`, `OperatingSystems\`, `Drivers\`,
+`TaskSequences\` and `Scripts\`; it does not govern whether the disc is a
+workspace.
+
+**A profile that includes an application but not what it depends on is warned
+about at build time.** `Resolve-HDTApplicationOrder` already computes that graph.
+MDT would copy the profile and let the machine fail on the bench; HDT says so
+while the ISO is being built, because that is hours earlier and in front of the
+person who can fix it. Observed for real on 2026-09-03: a hand-built disc carried
+TightVNC without the Acrobat package its `app.yaml` names, and the deployment got
+to step 11 of 15 before finding out.
 
 **An ISO, and never a disk HDT partitions itself. Decided 2026-09-03.** An
 earlier draft of this section also described writing a USB layout directly — a
