@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'Hephaestus.psm1'
-    ModuleVersion        = '0.16.2'
+    ModuleVersion        = '0.16.5'
     GUID                 = '9be61a01-0b74-4832-867d-f2b7cb51cf85'
     Author               = 'Itamartz'
     CompanyName          = 'Hephaestus Deployment Toolkit'
@@ -81,6 +81,7 @@
         'Get-HDTLogPath',
         'Get-HDTMachineFact',
         'Get-HDTMachineOverride',
+        'Get-HDTMedia',
         'Get-HDTModuleVersion',
         'Get-HDTNetworkConfiguration',
         'Get-HDTOperatingSystem',
@@ -164,6 +165,7 @@
         'Set-HDTWindowForeground',
         'Import-HDTApplication',
         'Remove-HDTApplication',
+        'Remove-HDTMedia',
         'Import-HDTBootImageToWds',
         'Import-HDTOperatingSystem',
         'Import-HDTWindowsUpdate',
@@ -217,6 +219,7 @@
         'New-HDTLocalContentProvider',
         'New-HDTLogContext',
         'New-HDTLsaService',
+        'New-HDTMedia',
         'New-HDTPowerService',
         'New-HDTProcessService',
         'New-HDTPxePayload',
@@ -306,6 +309,7 @@
         'Remove-HDTResumeAgent',
         'Remove-HDTRule',
         'Save-HDTRuleDocument',
+        'Set-HDTMedia',
         'Set-HDTRule',
 
         # THE ADMIN CONSOLE, FOLDED IN. The WPF console is not a module, it is one
@@ -352,7 +356,7 @@
         # against and bumping on that would move the number for a tree nobody
         # touched.
         HDT = @{
-            SourceHash = 'C42ECEF6A88692F9ADC0CCEF827531C1A253F709307C171B068BF9EA3A121370'
+            SourceHash = '525FDA319AADBA24B0EDEC78CF604CB3E951362928D4E3458510F7F0BB7714FD'
             LayoutHash = 'E416F2FCB3C0728BA8C1C98EC6EE66B8229D73EBAE3050CCBDDEFC89E1EC34C9'
         }
     }
