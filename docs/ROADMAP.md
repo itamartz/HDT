@@ -826,45 +826,46 @@ lab safety), so a criterion that starts the second machine while the first is
 still up fails on the budget rather than on the thing it is testing. Capture,
 stop the reference VM, then deploy the second.
 
-**Exit — media: NOT MET.** A machine with no network deploys from an HDT-built
-ISO, end to end, and the ISO was built by **`Update-HDTMediaContent`** rather
-than by hand.
+**Exit — media:** ✅ **MET on 2026-09-03.** Two machines with **no network
+adapter at all** booted the same 11.92 GB ISO that `Update-HDTMediaContent`
+built, and deployed **different operating systems**, with nobody at a keyboard.
 
-The command name is corrected because the criterion as written named
-`New-HDTMedia`, which records the definition and does not build anything — so it
-could have been ticked on the wrong evidence. **It stays UNMET after phase 07,
-plainly and on purpose: it is met by a booted VM, and phase 07 runs no VM.**
-The command exists, is exported, and is proved against fakes; that is not the
-same claim.
+| VM | UUID | Sequence | Result |
+|---|---|---|---|
+| `HDT-HYDRA-11` | `C5D77F58-…E0CF` | PNP-TEST | Windows 11 LTSC, **all 15 steps** |
+| `HDT-HYDRA-25` | `59427A1D-…9671` | WDS-2025 | Server 2025, WDS role installed, failed at step 12 |
 
-> **The deployment half of this is already proven; the command is not.**
-> On 2026-09-03 a Generation 2 VM with **no network adapter at all** deployed
-> Windows 11 from a 10.19 GB ISO and finished PNP-TEST, all 15 steps, including
-> the reboot into the full OS and an application install. What built that disc
-> was a scratchpad script doing by hand what DESIGN 6.2 says the command does -
-> a content projection plus a provider swap - so the criterion above is NOT met
-> until `Update-HDTMediaContent` builds it. **That command was built on
-> 2026-09-03 (phase 07-02) and has not yet built a disc a VM has booted.**
->
-> That run is what settled the ISO-only decision, and it cost three engine
-> defects that only a booted disc could find:
->
-> - the volume filter took `Fixed` and `Removable` but not `CDRom`, so a USB
->   stick could be found and an ISO never could;
-> - `-LogDestination` was `ValidateNotNullOrEmpty`, which made "there is nowhere
->   to copy the log to" an invalid argument - the state carry-over 3 had just
->   made legitimate;
-> - the full-OS leg never re-resolved a `Local` root from the content marker, so
->   the disc was lost across the reboot and the workspace root fell back to the
->   agent tree.
->
-> Each had a green text-scanning test sitting next to it. The replacements lift
-> the predicate out by AST and execute it.
->
-> **And the fourth failure was the projection's, which is the point.** The disc
-> carried the application `rules.yaml` names and not what that application
-> `dependencies:` names, so the install step refused. Projection completeness is
-> TRANSITIVE, and a hand-run hit that on its first attempt.
+**One disc, two builds, and rules chose which — MDT's hydration kit.** The disc
+was built by `New-HDTMedia`/`Update-HDTMediaContent` against a `hydration`
+selection profile naming both operating systems and both sequences. Nothing on
+the disc differs between the two machines: `Control\machines\<UUID>.yaml` picks
+the sequence, because a machine with no adapter has no gateway for `rules.yaml`
+to key on, and the UUID is the key it does have. `HDTDeploymentMethod: MEDIA`
+carries what they share - skip the wizard, the admin password, the time zone.
+
+**`HDT-HYDRA-25`'s failure is the lab sequence's, not media's.** It deployed
+Server 2025, rebooted, re-found the disc at `D:\Share` and installed the WDS
+role; step 12 then ran `wdsutil /initialize-server /reminst:C:\RemoteInstall
+/standalone` and got `0x7B - the filename, directory name, or volume label
+syntax is incorrect`, with `C:\RemoteInstall` on a volume that exists and
+`wdsutil`'s own probe having just reported `Standalone configuration: Yes`. The
+argument syntax is what it rejected. `Initialize-WdsServer.ps1` lives only on
+the lab share and ships nowhere in `src/`.
+
+**Four engine defects were found by booting discs, and every one of them had a
+green test sitting beside it:**
+
+| Commit | What it was |
+|---|---|
+| `50b809e` | the volume filter took `Fixed` and `Removable` but not `CDRom`, so a USB stick could be found and an ISO never could |
+| `9e2c05c` | `-LogDestination` was `ValidateNotNullOrEmpty`, making "there is nowhere to copy the log to" an invalid argument |
+| `46401ce` | the full-OS leg never re-resolved a `Local` root from the marker, so the disc was lost across the reboot |
+| `3dcbf45` | the ADK ships `autorun.inf` read-only and `System.IO.Directory.Delete` refuses it, so every SECOND media build died |
+
+The first three were found by a hand-built disc before `New-HDTMedia` existed,
+which is the argument for building the spike before the command: a projection
+command written first would have passed its own tests, produced a correct disc,
+and the machine still would not have deployed.
 
 **`HDTDeploymentMethod` — the variable the three behaviours below gate on.**
 Settled 2026-09-02. **Built 2026-09-02** (plans 06-01, 06-02, 06-03), and
@@ -873,7 +874,7 @@ carry-overs 1 and 3 with it; carry-over 2 was already built and stays a warning.
 under. It did not build the media.** The media commands and the content
 projection were built afterwards, on 2026-09-03, by phase 07; the USB layouts
 were not built and will not be (ISO only, DESIGN 6.2). The "Exit — media"
-criterion above is still **not** met, because a booted VM is what meets it.
+criterion above was then MET on 2026-09-03 by two booted VMs.
 
 MDT carries **two** variables here, not one: `DeploymentType`
 (NEWCOMPUTER / REFRESH / REPLACE), which HDT already has as `HDTDeploymentType`,
