@@ -130,7 +130,7 @@ function Update-HDTMediaContent {
             names, with a Local boot image on it.
 
         .EXAMPLE
-            Update-HDTMediaContent -WorkspaceRoot $root -Id 'LAB-DISC' -WhatIf
+            Update-HDTMediaContent -WorkspaceRoot 'C:\HDTLab\Share' -Id 'LAB-DISC' -WhatIf
 
             THE PASS WORTH RUNNING FIRST, and the reason it is worth running is
             that it is where the warnings are. It projects the share, checks the

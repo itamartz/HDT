@@ -1849,7 +1849,7 @@ thing an administrator edits and comments, and the ten-minute build is another.
 | 7 | copy the ADK WinPE Media tree, resolved through `Get-HDTAdkPath`, and create `sources\` — the template has not got one |
 | 8 | copy the projected rows onto `<staging>\media\Share`, recursing with `Copy-HDTContentTree` — the recursion the selection profile deliberately does not do |
 | 9 | write the rewritten `workspace.yaml` (§6.2.2) |
-| 10 | `Update-HDTBootImage -SkipIso` **against the projected share**, move its WIM to `<staging>\media\sourcesoot.wim`, and remove the projected share's `Boot\` |
+| 10 | `Update-HDTBootImage -SkipIso` **against the projected share**, move its WIM to `<staging>\media\sources\boot.wim`, and remove the projected share's `Boot\` |
 | 11 | `New-HDTBootIso -NoPromptForKey` — one ISO, because a VM nobody is standing at cannot press a key |
 | 12 | publish the ISO, then write `media.manifest.json` **LAST**, so a manifest on disk means the ISO beside it came from the build that wrote it |
 
@@ -1887,9 +1887,9 @@ log, because the next person to simplify one has to read why it is there:
 
 | Refused | Why |
 |---|---|
-| `bootstrap-rules.yaml` | it is **injected into the boot image** at `X:\HDTootstrap-rules.yaml` and read in WinPE before any content is reached. Its rules choose a SHARE by gateway or MAC — on a disc, that is rules choosing a share that is not there |
+| `bootstrap-rules.yaml` | it is **injected into the boot image** at `X:\HDT\bootstrap-rules.yaml` and read in WinPE before any content is reached. Its rules choose a SHARE by gateway or MAC — on a disc, that is rules choosing a share that is not there |
 | `Control\share-credential.json` | a `Local` image **authenticates to nothing**, so the deployment account has no business on a disc that is handed around (§6.3 treats boot media as a credential in itself) |
-| `Boot\` | the boot WIM belongs at `\sourcesoot.wim` on the media tree. A second copy inside `\Share` puts half a gigabyte on the ISO twice |
+| `Boot\` | the boot WIM belongs at `\sources\boot.wim` on the media tree. A second copy inside `\Share` puts half a gigabyte on the ISO twice |
 | `Logs\`, `Captures\` | the only two folders a deployment writes to (§2.1). They hold other machines' logs and other machines' images |
 
 **A profile cannot name one of these**, and the projection does not repeat the
