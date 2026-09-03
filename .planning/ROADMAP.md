@@ -365,6 +365,35 @@ than by a Hyper-V run.
 `New-HDTMedia` content projection to ISO/USB.
 *Exit:* media built from the share deploys a machine with no network.
 
+**ISO only, and the USB half is cut** (DESIGN 6.2, decided 2026-09-03). HDT never
+partitions a stick; Rufus or `dd` writes the ISO and the stick boots. The line
+above is left as it was written and this note corrects it, rather than quietly
+editing a settled entry.
+
+**The media half is planned, and its plans live under a directory numbered 07.**
+The phase directories and the numbers in this section have diverged — this
+document's phase 07 is the apps/full-OS work above, and `.planning/phases/`
+counts differently. The directory is what an executor is pointed at, so the
+plans are named here by path rather than by number.
+
+**Plans:** 3 plans, in three waves (each depends on the one before it).
+
+- [ ] `phases/07-media-command/07-01-PLAN.md` — the media definition as a
+      persisted object: `Media\<id>\media.yaml`, `schemas/media.schema.json`,
+      `Assert-HDTMediaDocument`, `Media` as a folder of the layout, and
+      `New-/Get-/Set-/Remove-HDTMedia`
+- [ ] `phases/07-media-command/07-02-PLAN.md` — the projection and the burn:
+      `Get-HDTMediaProjection` (pure — the correctness heart), the provider swap
+      to `deployRoot: \Share`, the transitive application dependency warning,
+      and `Update-HDTMediaContent`
+- [ ] `phases/07-media-command/07-03-PLAN.md` — the console: a `Media (n)` node
+      beside Applications and Operating Systems, and an Update Media Content
+      action through the existing build progress window
+
+**The capture half is separate and is not in these plans.** `Sysprep`,
+`CaptureImage` and `Captures\` promotion are M7's other exit and were in
+progress from 2026-08-31; nothing in the three plans above touches them.
+
 **09 — Console.** WPF thin client over the module, comment-preserving YAML
 round-trip, monitoring view.
 *Exit:* an admin can author a sequence and get it deployed without a shell —
