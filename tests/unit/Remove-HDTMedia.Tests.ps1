@@ -175,6 +175,52 @@ Describe 'Remove-HDTMedia' {
         }
     }
 
+    Context 'a document that will not read' {
+
+        # FOUND BY RUNNING IT, not by a fake: a real round trip on a real share
+        # added an eighth key by hand to prove the validator refuses it, and then
+        # could not remove the item at all. The document is read here only to
+        # learn where the ISO is, so a document that will not read is a missing
+        # answer to that question - not a reason to refuse the delete. A broken
+        # media.yaml is exactly the one somebody wants gone, and "you cannot
+        # remove it because it is wrong" is a delete nobody can ever do.
+
+        It 'removes a media definition whose document will not validate' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'X:\Share\Media\M4\media.yaml' = ((& $script:mediaYaml -Id 'M4') + "`r`nmediaPath: D:\somewhere")
+            }
+
+            $null = Remove-HDTMedia -WorkspaceRoot $script:root -Id 'M4' -FileSystem $fs `
+                -Confirm:$false -WarningAction SilentlyContinue
+
+            $fs.TestPath('X:\Share\Media\M4') | Should -BeFalse
+        }
+
+        It 'removes a media definition whose document will not parse' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'X:\Share\Media\M5\media.yaml' = "schemaVersion: 1`r`n  id: [ this is not`r`n valid yaml"
+            }
+
+            $null = Remove-HDTMedia -WorkspaceRoot $script:root -Id 'M5' -FileSystem $fs `
+                -Confirm:$false -WarningAction SilentlyContinue
+
+            $fs.TestPath('X:\Share\Media\M5') | Should -BeFalse
+        }
+
+        It 'says it could not tell where the ISO was, rather than saying nothing' {
+            $fs = New-HDTFakeFileSystem -File @{
+                'X:\Share\Media\M4\media.yaml' = ((& $script:mediaYaml -Id 'M4') + "`r`nmediaPath: D:\somewhere")
+            }
+
+            $warning = @()
+
+            $null = Remove-HDTMedia -WorkspaceRoot $script:root -Id 'M4' -FileSystem $fs `
+                -Confirm:$false -WarningVariable warning -WarningAction SilentlyContinue
+
+            (@($warning) -join ' ') | Should -BeLike '*could not be read*'
+        }
+    }
+
     Context 'what it does not touch' {
 
         It 'leaves every other media definition on the share' {

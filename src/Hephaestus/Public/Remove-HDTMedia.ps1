@@ -134,10 +134,31 @@
         # -- where the ISO is, read BEFORE the delete -------------------------
         #
         # Afterwards the document is gone and the answer with it.
-        $media = Get-HDTMedia -WorkspaceRoot $WorkspaceRoot -Id $Id -FileSystem $FileSystem
+        #
+        # AND A DOCUMENT THAT WILL NOT READ IS A MISSING ANSWER, NOT A REFUSAL.
+        # It is read for one thing - the ISO's location - so a broken one costs
+        # that answer and nothing else. Made a refusal, it would be a delete
+        # nobody can ever do: a media.yaml that no longer validates is exactly
+        # the item somebody wants gone, and this command would be the one telling
+        # them they cannot. Found by running it against a real share rather than
+        # by any fake.
+        $media = $null
+        $documentFailure = ''
+
+        try {
+            $media = Get-HDTMedia -WorkspaceRoot $WorkspaceRoot -Id $Id -FileSystem $FileSystem
+        } catch {
+            $documentFailure = [string] $_.Exception.Message
+        }
 
         $isoLeftBehind = ''
-        $outputPath = [string] $media.OutputPath
+        $outputPath = ''
+        if ($null -ne $media) { $outputPath = [string] $media.OutputPath }
+
+        if (-not [string]::IsNullOrEmpty($documentFailure)) {
+            Write-Warning ("The media.yaml for '{0}' could not be read, so this command cannot say where its ISO was written - if one is outside the folder it stays there. The read failed with: {1}" -f
+                $Id, $documentFailure)
+        }
 
         if (-not [string]::IsNullOrWhiteSpace($outputPath)) {
             $inside = ([System.IO.Path]::GetFullPath($outputPath)).StartsWith(
