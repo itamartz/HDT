@@ -102,6 +102,7 @@
         # action and it is spelled exactly this - an MDT administrator looking
         # for it should not have to translate. HDT is a homage, not a rename.
         'HDTUpdateMediaMenuItem.Header' = 'Update Media Content'
+        'HDTNewMediaMenuItem.Header' = 'New Media'
         # CLEAR, NOT DELETE. Nothing on the share reads a heartbeat, so this is
         # the one item on this menu that costs a record rather than a component.
         'HDTRemoveMonitorRunMenuItem.Header' = 'Clear Run'
@@ -200,6 +201,22 @@
         'HDTNewSequenceOrgHint.Text' = 'The registered organisation written into the answer file. Written as HDTOrgName.'
         'HDTNewSequencePasswordLabel.Text' = 'Administrator password'
         'HDTNewSequenceCreateButton.Content' = 'Create'
+    }
+
+    # MDT's Media node, the New action, as one dialog: ShowNewMedia.
+    NewMedia = @{
+
+        'HDTNewMediaTitleText.Text' = 'New Media'
+        'HDTNewMediaIdLabel.Text' = 'Media ID'
+        'HDTNewMediaIdHint.Text' = 'Short, no spaces. It is the folder name under Media\ and what Remove-HDTMedia and Update-HDTMediaContent name to select this one.'
+        'HDTNewMediaNameLabel.Text' = 'Media name'
+        'HDTNewMediaNameHint.Text' = "What the console's Media node and a build log show. The id is what selects it."
+        'HDTNewMediaProfileLabel.Text' = 'Selection profile'
+        'HDTNewMediaProfileHint.Text' = "Which of the share's content projects onto the disc. Everything is the whole share; a share with no profile of its own still offers the built-ins."
+        'HDTNewMediaOutputLabel.Text' = 'Output'
+        'HDTNewMediaOutputHint.Text' = 'Where Update Media Content writes the ISO. Left empty, New-HDTMedia names it Media\<id>\HDT_<id>.iso itself.'
+        'HDTNewMediaOutputBrowseButton.Content' = 'Browse...'
+        'HDTNewMediaCreateButton.Content' = 'Create'
     }
 
     # One volume's eight fields, over the task sequence editor:

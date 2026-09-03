@@ -90,7 +90,7 @@
             [string] $ImportOperatingSystemXaml = '', [string] $ImportApplicationXaml = '',
             [string] $ApplicationDependencyXaml = '', [string] $ApplicationDetectionXaml = '',
             [object] $Fill = $null, [string] $NewWorkspaceXaml = '',
-            [string] $ImportWindowsUpdateXaml = '')
+            [string] $ImportWindowsUpdateXaml = '', [string] $NewMediaXaml = '')
 
         # BUILDING THE WINDOW AND SHOWING IT ARE TWO DIFFERENT JOBS, and only
         # the second one needs a desktop. New-HDTConsoleView loads the markup,
@@ -105,7 +105,8 @@
             -ApplicationDependencyXaml $ApplicationDependencyXaml `
             -ApplicationDetectionXaml $ApplicationDetectionXaml `
             -Fill $Fill -NewWorkspaceXaml $NewWorkspaceXaml `
-            -ImportWindowsUpdateXaml $ImportWindowsUpdateXaml
+            -ImportWindowsUpdateXaml $ImportWindowsUpdateXaml `
+            -NewMediaXaml $NewMediaXaml
 
         [void] $window.ShowDialog()
 
@@ -1115,6 +1116,138 @@
     }
 
     $service | Add-Member -MemberType NoteProperty -Name NewSequencePath -Value ''
+
+    # =====================================================================
+    # MDT'S Advanced Configuration \ Media NODE, THE NEW ACTION
+    # =====================================================================
+    #
+    # Four questions and one write, through New-HDTMedia (07-01) - this method
+    # decides nothing about what is offered or refused; Get-HDTConsoleNewMedia
+    # and Test-HDTConsoleNewMedia already did, on the page, so it can be
+    # asserted with no window at all.
+
+    $service | Add-Member -MemberType ScriptMethod -Name ShowNewMedia -Value {
+        param([string] $Xaml, [string] $Workspace, [object] $Theme, [object] $Owner)
+
+        Add-Type -AssemblyName PresentationFramework
+
+        # THE DOOR A HANDLER REACHES A PRIVATE HELPER THROUGH - see
+        # Get-HDTHandlerCall. Declared here so every closure below captures it.
+        $call = Get-HDTHandlerCall
+
+        $reader = New-Object -TypeName System.Xml.XmlNodeReader -ArgumentList ([xml] $Xaml)
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Icon = Get-HDTConsoleWindowIcon
+
+        $dialog.Owner = $Owner
+
+        $converter = New-Object -TypeName System.Windows.Media.BrushConverter
+        foreach ($key in @($Theme.Keys)) {
+            $dialog.Resources[$key] = $converter.ConvertFromString([string] $Theme[$key])
+        }
+
+        # The text comes out of Strings\<culture>.psd1, not out of the markup.
+        [void] (Set-HDTWindowText -Root $dialog -String (Get-HDTStringTable -Page 'NewMedia'))
+
+        $rootText = $dialog.FindName('HDTNewMediaRootText')
+        $idBox = $dialog.FindName('HDTNewMediaIdBox')
+        $nameBox = $dialog.FindName('HDTNewMediaNameBox')
+        $profileBox = $dialog.FindName('HDTNewMediaProfileBox')
+        $outputBox = $dialog.FindName('HDTNewMediaOutputBox')
+        $outputBrowse = $dialog.FindName('HDTNewMediaOutputBrowseButton')
+        $messageText = $dialog.FindName('HDTNewMediaMessageText')
+        $commandText = $dialog.FindName('HDTNewMediaCommandText')
+        $create = $dialog.FindName('HDTNewMediaCreateButton')
+
+        $offer = Get-HDTConsoleNewMedia -Workspace $Workspace
+
+        $rootText.Text = $Workspace
+
+        $profileBox.ItemsSource = $offer.SelectionProfile
+
+        # 'everything' IS New-HDTMedia's OWN DEFAULT - a whole share on a disc
+        # is the answer somebody making standalone media wants first. The
+        # picker starts there rather than on whatever the share happened to
+        # list first, so the dialog's default matches the command's.
+        $profileIndex = 0
+        $profileList = @($offer.SelectionProfile)
+
+        for ($i = 0; $i -lt $profileList.Count; $i++) {
+            if ([string] $profileList[$i].Id -eq 'everything') { $profileIndex = $i; break }
+        }
+
+        if ($profileList.Count -gt 0) { $profileBox.SelectedIndex = $profileIndex }
+
+        # WHETHER THE ANSWERS CAN BE USED, ON EVERY KEYSTROKE. The alternative
+        # is a dialog that takes four answers and refuses on the last press.
+        $check = {
+            $answer = & $call 'Test-HDTConsoleNewMedia' -Workspace $Workspace `
+                -Id ([string] $idBox.Text) -Name ([string] $nameBox.Text)
+
+            $create.IsEnabled = [bool] $answer.CanCreate
+            $messageText.Text = [string] $answer.Message
+
+            $commandText.Text = & $call 'Get-HDTConsoleNewMediaCommand' `
+                -Workspace $Workspace -Id ([string] $idBox.Text) -Name ([string] $nameBox.Text) `
+                -SelectionProfile ([string] $profileBox.SelectedValue) -Output ([string] $outputBox.Text)
+        }.GetNewClosure()
+
+        $idBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $nameBox.Add_TextChanged({ & $check }.GetNewClosure())
+        $profileBox.Add_SelectionChanged({ & $check }.GetNewClosure())
+        $outputBox.Add_TextChanged({ & $check }.GetNewClosure())
+
+        & $check
+
+        # THE ISO ITSELF, WHICH DOES NOT EXIST YET. SaveFileDialog, not
+        # OpenFileDialog - Update-HDTMediaContent is what creates the file
+        # this box names, and CheckFileExists would refuse the one legal
+        # answer to give it.
+        $outputBrowse.Add_Click({
+                $picker = New-Object -TypeName Microsoft.Win32.SaveFileDialog
+                $picker.Title = 'Choose where the ISO is written'
+                $picker.Filter = 'ISO image (*.iso)|*.iso|All files (*.*)|*.*'
+                $picker.OverwritePrompt = $false
+
+                if ($picker.ShowDialog() -ne $true) { return }
+
+                $outputBox.Text = [string] $picker.FileName
+            }.GetNewClosure())
+
+        $this.NewMediaId = ''
+        $dialogHost = $this
+
+        $create.Add_Click({
+                try {
+                    $splat = @{
+                        WorkspaceRoot    = $Workspace
+                        Id               = [string] $idBox.Text
+                        Name             = [string] $nameBox.Text
+                        SelectionProfile = [string] $profileBox.SelectedValue
+                        Confirm          = $false
+                    }
+
+                    if (-not [string]::IsNullOrWhiteSpace([string] $outputBox.Text)) {
+                        $splat['Output'] = [string] $outputBox.Text
+                    }
+
+                    $made = New-HDTMedia @splat
+
+                    $dialogHost.NewMediaId = [string] $made.Id
+                    $dialog.DialogResult = $true
+                } catch {
+                    # THE REFUSAL LANDS ON THE PAGE, not in a message box over a
+                    # dialog that has already closed.
+                    $messageText.Text = [string] $_.Exception.Message
+                }
+            }.GetNewClosure())
+
+        [void] $dialog.ShowDialog()
+
+        return [string] $this.NewMediaId
+    }
+
+    $service | Add-Member -MemberType NoteProperty -Name NewMediaId -Value ''
 
     # =====================================================================
     # MDT'S Partition Properties DIALOG

@@ -458,10 +458,18 @@
                              several - naming an ambiguous target is the one
                              thing this console does not do.
 
-                             New Media AND Remove Media ARE NOT HERE, and the
-                             absence is a decision: they are New-HDTMedia and
-                             Remove-HDTMedia at a prompt in this phase. -->
+                             REMOVE MEDIA IS STILL NOT HERE - Remove-HDTMedia at
+                             a prompt, closed by 07-04-02. -->
                         <MenuItem x:Name="HDTUpdateMediaMenuItem" />
+
+                        <!-- MDT'S New Media - THE CATEGORY ONLY, NEVER A MEDIA
+                             ITEM. An item that already exists is not what "new"
+                             names, which is why this follows the New Task
+                             Sequence and New Application rows' rule rather than
+                             Update Media Content's "both rows" one just above:
+                             those two act on one thing that may already be
+                             singular; this creates a second. -->
+                        <MenuItem x:Name="HDTNewMediaMenuItem" />
 
                         <!-- WORKBENCH'S Monitoring NODE, AND THE THING IT
                              ALWAYS NEEDED. The engine writes a heartbeat per

@@ -36,6 +36,8 @@ function Get-HDTConsoleNewMedia {
         .EXAMPLE
             (Get-HDTConsoleNewMedia -Workspace C:\HDTLab\Share).SelectionProfile
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Media is a mass noun here and the singular name of one object, matching New-HDTMedia (DESIGN 6.2) and the dialog this answers for. The analyzer reads it as the Latin plural of medium.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
@@ -58,9 +60,9 @@ function Get-HDTConsoleNewMedia {
     # REAL adapter, so a call that omitted it would answer from whatever this
     # machine happens to have on disk rather than from the share this dialog
     # was opened on.
-    $profile = @(Get-HDTSelectionProfile -Root $Workspace -FileSystem $FileSystem)
+    $available = @(Get-HDTSelectionProfile -Root $Workspace -FileSystem $FileSystem)
 
     return [pscustomobject] @{
-        SelectionProfile = [pscustomobject[]] @($profile)
+        SelectionProfile = [pscustomobject[]] @($available)
     }
 }

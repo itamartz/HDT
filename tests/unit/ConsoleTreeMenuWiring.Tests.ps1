@@ -44,6 +44,7 @@ InModuleScope -ModuleName Hephaestus {
             param(
                 [Parameter()] [AllowEmptyString()] [string] $NewSequenceXaml = '',
                 [Parameter()] [AllowEmptyString()] [string] $ImportWindowsUpdateXaml = '',
+                [Parameter()] [AllowEmptyString()] [string] $NewMediaXaml = '',
 
                 # HOW MANY MEDIA DEFINITIONS THE SHARE HOLDS, which is the whole
                 # question on the Media CATEGORY row: one is unambiguous and the
@@ -107,7 +108,7 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
                 -Theme (Get-HDTConsoleTheme) `
                 -Size ([pscustomobject] @{ Width = 1180; Height = 760; Left = 0; Top = 0 }) `
                 -RefreshSecond 3600 -NewSequenceXaml $NewSequenceXaml `
-                -ImportWindowsUpdateXaml $ImportWindowsUpdateXaml
+                -ImportWindowsUpdateXaml $ImportWindowsUpdateXaml -NewMediaXaml $NewMediaXaml
 
             $content = $window.Content
             $content.Measure([System.Windows.Size]::new(1180, 760))
@@ -611,6 +612,84 @@ output: Media\WS2025-LAB\HDT-WS2025-LAB.iso
             [string] $several.FindName('HDTCommandText').Text |
                 Should -Not -BeNullOrEmpty `
                     -Because 'a menu item nobody wired is one somebody presses to find out nothing happens'
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    #
+    # NEW MEDIA - THE CATEGORY ONLY, NEVER A MEDIA ITEM. An item that already
+    # exists is not what "new" names, which is why this is not "both rows
+    # offer it" the way Update Media Content just above is.
+
+    Describe 'right-clicking the media rows to create one' {
+
+        BeforeAll {
+            $script:newMedia = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' `
+                -NewMediaXaml '<Window/>' -MediaCount 1
+        }
+
+        It 'opens a menu on the Media category, which never opened one before this' {
+            [void] (Select-HDTTestTreeBranch -Window $script:newMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            $opening = Invoke-HDTTestRightClick -Window $script:newMedia
+
+            $opening.Handled | Should -BeFalse `
+                -Because 'a Handled ContextMenuOpening is a menu that never opens, however Visible its items are'
+        }
+
+        It 'offers New Media on the category' {
+            [void] (Select-HDTTestTreeBranch -Window $script:newMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:newMedia)
+
+            $script:newMedia.FindName('HDTNewMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Visible)
+        }
+
+        # ONE ALREADY EXISTS THERE. "New" on a row that names something that
+        # already exists is not a press that makes sense.
+        It 'never offers New Media on a media item - one already exists there' {
+            [void] (Select-HDTTestTreeBranch -Window $script:newMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media', 'Windows 11 field build'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:newMedia)
+
+            $script:newMedia.FindName('HDTNewMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
+        }
+
+        # WHAT THE ADMINISTRATOR ACTUALLY READS. The header comes from the
+        # string table, and an item whose Header never got filled draws as a
+        # blank strip nobody can identify.
+        It 'puts a readable name on the item it shows' {
+            [void] (Select-HDTTestTreeBranch -Window $script:newMedia `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $script:newMedia)
+
+            $visible = @(@($script:newMedia.FindName('HDTConsoleTreeMenu').Items) |
+                    Where-Object { $_ -is [System.Windows.Controls.MenuItem] } |
+                    Where-Object { $_.Visibility -eq [System.Windows.Visibility]::Visible } |
+                    ForEach-Object { [string] $_.Header })
+
+            $visible | Should -Contain 'New Media'
+        }
+
+        # NO MARKUP, NO ITEM - the rule every other dialog on this menu
+        # follows. An item that cannot open its window is one somebody
+        # presses to find out nothing happens.
+        It 'never shows New Media when its window does not exist' {
+            $bare = New-HDTTestMenuWindow -NewSequenceXaml '<Window/>' -NewMediaXaml '' -MediaCount 1
+
+            [void] (Select-HDTTestTreeBranch -Window $bare `
+                    -Path @('Deployment Shares', 'HDT share', 'Media'))
+
+            [void] (Invoke-HDTTestRightClick -Window $bare)
+
+            $bare.FindName('HDTNewMediaMenuItem').Visibility |
+                Should -Be ([System.Windows.Visibility]::Collapsed)
         }
     }
 

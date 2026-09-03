@@ -174,6 +174,10 @@
 
         [Parameter()]
         [ValidateNotNullOrEmpty()]
+        [string] $NewMediaXamlPath = (Join-Path -Path $script:HDTModuleRoot -ChildPath 'UI\Console\HDTNewMedia.xaml'),
+
+        [Parameter()]
+        [ValidateNotNullOrEmpty()]
         [string] $Title = 'Hephaestus Deployment Toolkit',
 
         [Parameter()]
@@ -367,6 +371,15 @@
         $newWorkspaceXaml = [System.IO.File]::ReadAllText($NewWorkspaceXamlPath)
     }
 
+    # NO MARKUP, NO ITEM - the New Media item hides itself rather than
+    # promising a window that cannot open, the trap phase 07-04's objective
+    # names: a command an administrator can only reach from a prompt is half
+    # a feature, and this is what stops it being a half-WIRED one instead.
+    $newMediaXaml = ''
+    if (Test-Path -LiteralPath $NewMediaXamlPath) {
+        $newMediaXaml = [System.IO.File]::ReadAllText($NewMediaXamlPath)
+    }
+
     # THE LOG OPENS BEFORE THE WINDOW AND CLOSES AFTER IT, and the close is in a
     # finally: the session worth reading is the one that ended badly, and a log
     # that records an open and never a close cannot tell a console somebody shut
@@ -391,7 +404,8 @@
         $answer = [string] $ConsoleHost.Show($xaml, $Title, [object[]] $treeRoot,
             (Get-HDTConsoleTheme), $size, $RefreshSecond, $newSequenceXaml,
             $importOperatingSystemXaml, $importApplicationXaml, $applicationDependencyXaml,
-            $applicationDetectionXaml, $fill, $newWorkspaceXaml, $importWindowsUpdateXaml)
+            $applicationDetectionXaml, $fill, $newWorkspaceXaml, $importWindowsUpdateXaml,
+            $newMediaXaml)
     } finally {
         Stop-HDTConsoleLog
     }

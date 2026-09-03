@@ -75,6 +75,9 @@
         .PARAMETER NewWorkspaceXaml
             Markup for the New Deployment Share dialog.
 
+        .PARAMETER NewMediaXaml
+            Markup for the New Media dialog.
+
         .INPUTS
             None. This command does not accept pipeline input.
 
@@ -113,7 +116,8 @@
         [Parameter()] [AllowEmptyString()] [string] $ApplicationDependencyXaml = '',
         [Parameter()] [AllowEmptyString()] [string] $ApplicationDetectionXaml = '',
         [Parameter()] [AllowNull()] [object] $Fill = $null,
-        [Parameter()] [AllowEmptyString()] [string] $NewWorkspaceXaml = ''
+        [Parameter()] [AllowEmptyString()] [string] $NewWorkspaceXaml = '',
+        [Parameter()] [AllowEmptyString()] [string] $NewMediaXaml = ''
     )
 
         Add-Type -AssemblyName PresentationFramework
@@ -1136,6 +1140,7 @@
         $importWindowsUpdateItem = $window.FindName('HDTImportWindowsUpdateMenuItem')
         $removeWindowsUpdateItem = $window.FindName('HDTRemoveWindowsUpdateMenuItem')
         $updateMediaItem = $window.FindName('HDTUpdateMediaMenuItem')
+        $newMediaItem = $window.FindName('HDTNewMediaMenuItem')
 
         $newFolder = $window.FindName('HDTNewFolderMenuItem')
         $moveToFolder = $window.FindName('HDTMoveToFolderMenuItem')
@@ -1165,6 +1170,10 @@
         # will not re-show it either - so its Click below can never be reached.
         if ($null -ne $newSequence -and [string]::IsNullOrWhiteSpace($NewSequenceXaml)) {
             $newSequence.Visibility = [System.Windows.Visibility]::Collapsed
+        }
+
+        if ($null -ne $newMediaItem -and [string]::IsNullOrWhiteSpace($NewMediaXaml)) {
+            $newMediaItem.Visibility = [System.Windows.Visibility]::Collapsed
         }
 
         # RIGHT-CLICK DOES NOT SELECT, IN WPF. The menu would otherwise
@@ -1474,6 +1483,21 @@
                         $updateMediaItem.IsEnabled = $false
                         $updateMediaItem.ToolTip = ('This share has {0} media definitions. Right-click the one you want to build.' -f $mediaCount)
                     }
+                }
+
+                # MDT'S New Media - THE CATEGORY ONLY, NEVER A MEDIA ITEM. "New"
+                # on a row that already names one existing definition is not a
+                # press that means anything, which is why this does not follow
+                # Update Media Content's "both rows offer it" rule just above -
+                # NO MARKUP, NO ITEM, as everywhere else on this menu.
+                $isMediaCategory = ($null -ne $chosen -and
+                    [string] $chosen.Kind -eq 'Category' -and
+                    [string] $chosen.Name -eq 'Media')
+
+                $newMediaItem.Visibility = [System.Windows.Visibility]::Collapsed
+
+                if ($isMediaCategory -and -not [string]::IsNullOrWhiteSpace($NewMediaXaml)) {
+                    $newMediaItem.Visibility = [System.Windows.Visibility]::Visible
                 }
 
                 if ($onFolderRow -and ($isRoot -or $isShare -or $isCategory -or $isSequence -or $isOsCategory -or $isOperatingSystem -or $isAppCategory -or $isApplication -or $isBootImage -or $menuRow.IsSelectionProfile)) {
@@ -1867,6 +1891,27 @@
                 & $rebuildFrom $keep
 
                 $command.Text = "# '{0}' was closed. Nothing on it was changed; Open Deployment Share puts it back." -f $where
+            }.GetNewClosure())
+
+        # -- media -------------------------------------------------
+        #
+        # THE CATEGORY ONLY - the guard above never shows this item on a
+        # media item row, so $chosen.HeaderRoot is always the share and never
+        # one existing definition's own root.
+        $newMediaItem.Add_Click({
+                $chosen = $tree.SelectedItem
+                if ($null -eq $chosen) { return }
+
+                $where = [string] $chosen.HeaderRoot
+                if ([string]::IsNullOrWhiteSpace($where)) { return }
+
+                $made = [string] $consoleHost.ShowNewMedia($NewMediaXaml, $where, $Theme, $window)
+
+                if ([string]::IsNullOrWhiteSpace($made)) { return }
+
+                & $rebuildTree
+
+                $command.Text = "New-HDTMedia -WorkspaceRoot '{0}' -Id '{1}'" -f $where, $made
             }.GetNewClosure())
 
         # -- applications ----------------------------------------

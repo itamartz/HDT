@@ -42,6 +42,8 @@ function Test-HDTConsoleNewMedia {
         .EXAMPLE
             Test-HDTConsoleNewMedia -Workspace C:\HDTLab\Share -Id WIN11-FIELD -Name 'Windows 11 field media'
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseSingularNouns', '',
+        Justification = 'Media is a mass noun here and the singular name of one object, matching New-HDTMedia (DESIGN 6.2) and the dialog this answers for. The analyzer reads it as the Latin plural of medium.')]
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
