@@ -176,9 +176,12 @@
     # the two somebody right-clicks when there is a single media definition is
     # not worth being wrong about.
     #
-    # New Media AND Remove Media ARE DELIBERATELY NOT HERE. They are
-    # New-HDTMedia and Remove-HDTMedia at a prompt in this phase; the absence is
-    # a deferral written down rather than an item nobody got to.
+    # New Media AND Remove Media ARE BOTH ON THE MENU NOW (07-04-01,
+    # 07-04-02), and NEITHER needed a new entry in $offers - 'Category' and
+    # 'Media' were already in it, from 07-03. What $isMediaRow still gates
+    # below is Update Media Content alone; New Media and Remove Media are
+    # gated in New-HDTConsoleView.ps1 directly, the way New/Remove
+    # Application are.
     $isMediaCategory = (($Kind -eq 'Category') -and ($Name -eq 'Media'))
     $isMedia = ($Kind -eq 'Media')
     $isMediaRow = ($isMediaCategory -or $isMedia)

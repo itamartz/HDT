@@ -769,9 +769,12 @@ evidence.
 > projection behind it (07-02). **And they are on screen** — 07-03 added the
 > `Media (n)` node, its rows and MDT'''s own **Update Media Content** action,
 > running through the progress window the boot image build already uses
-> (DESIGN 6.2.3). **New Media and Remove Media are deliberately not on the menu**
-> and stay at a prompt in this phase. **The media EXIT is still not met**, and it
-> is met by a booted VM rather than by a green suite or a screenshot. See
+> (DESIGN 6.2.3). **New Media and Remove Media were deliberately not on the
+> menu, and phase 07-04 closed that on 2026-09-03** - New Media on the
+> category (07-04-01), Remove Media on the item (07-04-02), matching
+> `New-HDTMedia` and `Remove-HDTMedia` to a mouse the way every other
+> command in this catalog already is. **The media EXIT is still not met**, and
+> it is met by a booted VM rather than by a green suite or a screenshot. See
 > "Exit — media" below.
 >
 > The milestone was written with one exit that tests only the media half, so the

@@ -206,9 +206,10 @@
     }
 
     # AN EMPTY CATEGORY READS AS A BROKEN ONE. This says which it is, and says
-    # what to type - the two commands deliberately NOT on the menu in this phase
-    # are New-HDTMedia and Remove-HDTMedia, so the row is where an administrator
-    # finds the first of them.
+    # what to type. New-HDTMedia is on the menu too now (07-04-01, right-click
+    # the category) - this row is the OTHER door, for somebody reading
+    # Get-HDTMedia's own output outside the console rather than pointing at
+    # this branch.
     if ($item.Count -eq 0 -and [string]::IsNullOrEmpty([string] $MediaFailure)) {
         $empty = New-HDTConsoleNode -Depth 3 -Kind 'Empty' -Status 'Ok' -Text '(none)' `
             -Field @(

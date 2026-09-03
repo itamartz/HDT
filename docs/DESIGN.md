@@ -1937,10 +1937,17 @@ it**, because naming an ambiguous target is the one thing this console does not
 do; with none it is not shown at all, since there is then nothing it could ever
 name.
 
-**New Media and Remove Media are deliberately NOT on the menu.** They are
-`New-HDTMedia` and `Remove-HDTMedia` at a prompt. The gap between the command
-set and the menu is a deferral recorded here rather than an oversight to be
-discovered.
+**New Media and Remove Media are on the menu, closed by phase 07-04.**
+07-04-01 put New Media on the `Media` category alone - never a media item,
+since one already exists there - opening a dialog (`ShowNewMedia`) that runs
+`New-HDTMedia`. 07-04-02 put Remove Media on a media item alone - never the
+category, the opposite asymmetry from Update Media Content just above, since
+removing the category would have to mean removing every media definition on
+the share at once - composing its confirmation through
+`Get-HDTConsoleRemoval -Kind 'Media'` and a `MessageBox`, the Remove
+Application shape, and running `Remove-HDTMedia`. This paragraph used to
+record the gap between the command set and the menu as a deliberate
+deferral; it is closed.
 
 ### 6.3 Share credentials
 
