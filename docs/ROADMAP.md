@@ -765,8 +765,11 @@ evidence.
 
 - `Sysprep` and `CaptureImage` steps; `Captures\` output; promotion into the OS
   catalog.
-- `New-HDTMedia`: content projection for a selected set of sequences, ISO and
-  USB (FAT32 boot + NTFS content) layouts.
+- `New-HDTMedia`: content projection for a selected set of sequences, emitted as
+  a bootable ISO. **ISO only - HDT never partitions a USB stick itself**
+  (DESIGN 6.2, decided 2026-09-03). Rufus or `dd` writes the ISO to a stick and
+  the stick boots; the destructive half stays with the tool the technician
+  already trusts.
 
 **Tests first:** projection completeness — every artifact a selected sequence
 references is included, and nothing else (this is the correctness heart of media
@@ -799,8 +802,36 @@ lab safety), so a criterion that starts the second machine while the first is
 still up fails on the budget rather than on the thing it is testing. Capture,
 stop the reference VM, then deploy the second.
 
-**Exit — media:** a USB stick built from the share deploys a machine with no
-network.
+**Exit — media:** a machine with no network deploys from an HDT-built ISO,
+end to end, and the ISO was built by `New-HDTMedia` rather than by hand.
+
+> **The deployment half of this is already proven; the command is not.**
+> On 2026-09-03 a Generation 2 VM with **no network adapter at all** deployed
+> Windows 11 from a 10.19 GB ISO and finished PNP-TEST, all 15 steps, including
+> the reboot into the full OS and an application install. What built that disc
+> was a scratchpad script doing by hand what DESIGN 6.2 says the command does -
+> a content projection plus a provider swap - so the criterion above is NOT met
+> until `New-HDTMedia` builds it.
+>
+> That run is what settled the ISO-only decision, and it cost three engine
+> defects that only a booted disc could find:
+>
+> - the volume filter took `Fixed` and `Removable` but not `CDRom`, so a USB
+>   stick could be found and an ISO never could;
+> - `-LogDestination` was `ValidateNotNullOrEmpty`, which made "there is nowhere
+>   to copy the log to" an invalid argument - the state carry-over 3 had just
+>   made legitimate;
+> - the full-OS leg never re-resolved a `Local` root from the content marker, so
+>   the disc was lost across the reboot and the workspace root fell back to the
+>   agent tree.
+>
+> Each had a green text-scanning test sitting next to it. The replacements lift
+> the predicate out by AST and execute it.
+>
+> **And the fourth failure was the projection's, which is the point.** The disc
+> carried the application `rules.yaml` names and not what that application
+> `dependencies:` names, so the install step refused. Projection completeness is
+> TRANSITIVE, and a hand-run hit that on its first attempt.
 
 **`HDTDeploymentMethod` — the variable the three behaviours below gate on.**
 Settled 2026-09-02. **Built 2026-09-02** (plans 06-01, 06-02, 06-03), and

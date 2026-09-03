@@ -1740,14 +1740,33 @@ ISO and the standalone WIM have identical hashes.
 ### 6.2 Standalone media
 
 `New-HDTMedia` takes a workspace, a set of task sequence IDs, and a selection
-profile, then produces a self-contained ISO or a bootable USB layout containing
-only the content those sequences reference. The engine running from media is
-**the same engine** with the `Local` provider — not a parallel code path. This
-is the constraint that makes the "share + standalone" dual model tractable:
-media generation is a content projection plus a provider swap.
+profile, then produces **a self-contained bootable ISO** containing only the
+content those sequences reference. The engine running from media is **the same
+engine** with the `Local` provider — not a parallel code path. This is the
+constraint that makes the "share + standalone" dual model tractable: media
+generation is a content projection plus a provider swap.
 
-USB layout uses a small FAT32 boot partition (UEFI requirement) plus an NTFS
-content partition, so images larger than 4 GB work without splitting.
+**An ISO, and never a disk HDT partitions itself. Decided 2026-09-03.** An
+earlier draft of this section also described writing a USB layout directly — a
+small FAT32 boot partition for UEFI plus an NTFS content partition, the split
+existing only because a >4 GB image will not fit on FAT32. HDT does not do that
+and will not:
+
+- **UDF removes the reason.** `New-HDTBootIso` already burns `-u2 -udfver102`,
+  so a 5 GB WIM on one filesystem is not a problem to solve. The two-partition
+  layout was a workaround for a limit an ISO does not have.
+- **Writing a stick is destructive and HDT has no business guessing which one.**
+  Partitioning a removable disk chosen by an admin at a console is the one
+  operation in this toolkit whose worst case is somebody's photographs. It is
+  also the same refusal `DiskPartition` already makes about an ambiguous target
+  (rule 6).
+- **It costs nothing, because an ISO already IS the USB path.** Rufus or `dd`
+  writes a UEFI ISO to a stick, the stick boots, and `Resolve-HDTDeployRoot`
+  finds the content by marker on whatever letter it lands on - `Removable` and
+  `CDRom` are both candidate drive types for exactly this reason. The
+  technician keeps the tool they already trust for the destructive half.
+
+So there is one output, one code path, and one artifact to hash.
 
 ### 6.3 Share credentials
 
